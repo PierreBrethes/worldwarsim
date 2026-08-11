@@ -43,14 +43,15 @@ géométrie plate et le clic tombe à côté sur les bords de la carte.
 
 ## Conventions
 
-- Colocaliser. Un sous-composant ou une fonction vit à côté de son unique usage ; on ne le remonte
-  que le jour où un deuxième appelant apparaît.
-- Pas de fichiers barils (`index.ts` qui ré-exporte). Ils cachent les cycles et cassent le tree-shaking.
-- Pas de commentaires descriptifs. Un commentaire n'existe que pour expliquer **pourquoi**, quand le
-  code seul induirait en erreur.
-- Nommer en français, comme le domaine et la documentation. Une seule langue par projet.
-- TypeScript strict, y compris `noUncheckedIndexedAccess` et `exactOptionalPropertyTypes`.
-- Tidy first : ranger et changer le comportement sont deux commits distincts.
+Elles sont dans [CONVENTIONS.md](CONVENTIONS.md) et font autorité. Les quatre qui structurent le
+plus le dépôt :
+
+- **Penser local.** Un sous-composant vit à côté de son unique usage ; on ne le remonte que quand un
+  deuxième appelant apparaît, et du bon nombre de crans.
+- **Pas de commentaire descriptif.** Un commentaire explique un *pourquoi*, jamais un *quoi*.
+- **Nommer pour être repris.** Le nom porte l'intention ; `VueJoueur` plutôt que `EtatPartie` est
+  déjà une décision de sécurité.
+- **Tidy first.** Ranger et changer le comportement sont deux commits distincts.
 
 ## Vocabulaire imposé
 
