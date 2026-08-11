@@ -17,7 +17,7 @@ export class RepereMonde {
   readonly largeur: number;
   readonly hauteur: number;
   private readonly contour: ReadonlyArray<EchantillonContour>;
-  private intensiteCourbure = 0.6;
+  private intensiteCourbure = 0;
 
   constructor(monde: Monde) {
     this.centreX = (monde.sphere.minX + monde.sphere.maxX) / 2;

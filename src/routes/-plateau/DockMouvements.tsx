@@ -1,12 +1,14 @@
 import { Link } from '@tanstack/react-router';
+import { useHorloge } from '@/coque/horloge';
 import type { ArcAffiche, VueJoueur } from '@/domaine/vue-joueur';
-import { LIBELLE_TYPE, libellePile } from '@/domaine/vue-joueur';
+import { LIBELLE_TYPE, libellePile, minutesCourantes } from '@/domaine/vue-joueur';
 import { enHeuresMinutes } from './duree';
 
 export function DockMouvements({ vue }: { vue: VueJoueur }) {
   const { slots } = vue.moi;
+  const maintenant = useHorloge();
   return (
-    <aside className="trame-papier flex w-[430px] shrink-0 flex-col border-r border-[var(--ink)]">
+    <aside className="hud trame-papier flex w-[430px] shrink-0 flex-col border-r border-[var(--ink)]">
       <div className="flex items-baseline justify-between border-b border-[var(--ink)] px-[18px] pt-[13px] pb-[10px]">
         <h2 className="font-[var(--font-display)] text-[16px] font-extrabold tracking-[.02em] text-[var(--ink)]">
           MOUVEMENTS EN COURS
@@ -18,7 +20,7 @@ export function DockMouvements({ vue }: { vue: VueJoueur }) {
 
       <div className="min-h-0 flex-1 overflow-auto">
         {vue.arcs.map((arc) => (
-          <LigneMouvement key={arc.id} arc={arc} />
+          <LigneMouvement key={arc.id} arc={arc} chargeeA={vue.chargeeA} maintenant={maintenant} />
         ))}
         <p className="px-[18px] pt-3 pb-5 text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
           Un arc adverse n’expose ni son type ni sa composition. Un arc grisé est une dernière
@@ -37,8 +39,8 @@ export function DockMouvements({ vue }: { vue: VueJoueur }) {
   );
 }
 
-function LigneMouvement({ arc }: { arc: ArcAffiche }) {
-  const ligne = versLigne(arc);
+function LigneMouvement({ arc, chargeeA, maintenant }: { arc: ArcAffiche; chargeeA: number; maintenant: number }) {
+  const ligne = versLigne(arc, chargeeA, maintenant);
   return (
     <div className="border-b border-[rgba(42,33,24,.22)] px-[18px] py-[11px]">
       <div className="flex items-center gap-[9px]">
@@ -69,7 +71,7 @@ type Ligne = {
   eta: string;
 };
 
-function versLigne(arc: ArcAffiche): Ligne {
+function versLigne(arc: ArcAffiche, chargeeA: number, maintenant: number): Ligne {
   switch (arc.etat) {
     case 'mien':
       return {
@@ -80,7 +82,7 @@ function versLigne(arc: ArcAffiche): Ligne {
         opaciteType: 1,
         route: `${arc.origineNom} → ${arc.destinationNom}`,
         composition: libellePile(arc.pile),
-        eta: enHeuresMinutes(arc.minutesRestantes),
+        eta: enHeuresMinutes(minutesCourantes(arc.minutesRestantes, chargeeA, maintenant)),
       };
     case 'adverseDetecte':
       return {

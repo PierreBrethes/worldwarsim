@@ -16,3 +16,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0006](0006-slots-de-mouvement.md) | Slots de mouvement comme régulateur central | acceptée |
 | [0007](0007-epoque-1940.md) | Époque 1940 plutôt que matériel moderne | acceptée |
 | [0008](0008-combat-par-interception.md) | Combat par interception et rejeu, pas de tour par tour | acceptée |
+| [0009](0009-pseudo-et-code-plutot-que-comptes.md) | Pseudo et code de partie plutôt que comptes | acceptée |
+| [0010](0010-convex-auto-heberge-sur-vps.md) | Convex auto-hébergé sur VPS plutôt que Convex cloud | acceptée |

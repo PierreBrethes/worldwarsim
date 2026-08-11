@@ -8,7 +8,7 @@ const ADOUCISSEMENT = 1.15;
 const TON_MIN = 0.1;
 const TON_MAX = 0.46;
 const OPACITE_POINT = 0.72;
-const INTENSITE_ISOBATHE = 0.32;
+const INTENSITE_ISOBATHE = 0.15;
 const ATTENUATION_ISOBATHE_AU_LARGE = 0.45;
 
 function bruitDeValeur(x: number, y: number): number {

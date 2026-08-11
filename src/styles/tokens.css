@@ -4,7 +4,7 @@
 
 :root {
   /* surfaces */
-  --desk: #171208;
+  --desk: #0f0a04;
   --paper: #e4d8bd;
   --ink: #2a2118;
   --ink-soft: #5f5039;
@@ -65,6 +65,9 @@
   --sp-1: 4px;  --sp-2: 6px;  --sp-3: 8px;  --sp-4: 10px;
   --sp-5: 12px; --sp-6: 14px; --sp-7: 18px; --sp-8: 22px;
   --sp-9: 26px; --sp-10: 30px;
+
+  /* échelle du HUD — tout texte et toute cote en dérivent (zoom CSS) */
+  --echelle-hud: 1.5;
 
   /* géométrie */
   --topbar-h: 58px;

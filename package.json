@@ -7,23 +7,29 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "types": "tsc --noEmit"
+    "types": "tsc --noEmit",
+    "dev:complet": "concurrently -n front,convex -c blue,yellow \"vite\" \"convex dev\""
   },
   "dependencies": {
     "@tanstack/react-router": "^1.58.15",
+    "convex": "^1.43.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@tanstack/router-plugin": "^1.58.12",
+    "@edge-runtime/vm": "^5.0.0",
     "@tailwindcss/vite": "^4.0.0",
-    "@types/react": "^18.3.11",
+    "@tanstack/router-plugin": "^1.58.12",
     "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^10.0.4",
+    "convex-test": "^0.0.55",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.9",

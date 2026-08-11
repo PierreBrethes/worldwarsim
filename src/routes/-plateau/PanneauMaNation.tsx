@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import type { Pile, VueJoueur } from '@/domaine/vue-joueur';
 import { Ligne, Panneau } from './Panneau';
 
@@ -18,6 +19,13 @@ export function PanneauMaNation({ vue }: { vue: VueJoueur }) {
         <div className="eyebrow">Pouvoir national</div>
         <p className="mt-1 text-[12.5px] leading-[1.4] text-[var(--ink)]">{moi.pouvoir}</p>
       </div>
+      <Link
+        to="/plateau"
+        search={(precedente) => ({ ...precedente, modale: 'nation' as const })}
+        className="mt-3 block border border-[var(--ink)] py-[7px] text-center text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+      >
+        fiche complète
+      </Link>
     </Panneau>
   );
 }

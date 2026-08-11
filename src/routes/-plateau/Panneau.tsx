@@ -24,7 +24,7 @@ export function Panneau({
 }) {
   return (
     <section
-      className={`trame-papier absolute z-10 border border-[var(--ink)] ${ANCRAGE[position]}`}
+      className={`hud trame-papier absolute z-10 border border-[var(--ink)] ${ANCRAGE[position]}`}
       style={{ width: largeur }}
     >
       <header className="flex items-center justify-between border-b border-[var(--ink)] px-3 py-2">

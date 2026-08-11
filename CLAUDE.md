@@ -15,14 +15,18 @@ npm run test     # vitest
 
 Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
 journal d'événements, la colonne des mouvements en cours et l'envoi d'un mouvement. Les données
-viennent de `public/etat-reference.json`, un instantané de partie réellement simulé. **Aucun
-backend** : « envoyer » ne fait rien, le rejeu attend la surface 4.7.
+viennent du backend Convex quand un jeton de partie existe (accueil → salon → saison réelle,
+carte vierge), du fixture `public/etat-reference.json` sinon. Le backend couvre le hors-saison et
+l'état de nation (ADR 0009, 0010) ; mouvements et combat n'existent pas encore : « envoyer » ne
+fait rien, le rejeu attend la surface 4.7.
 
 ## Architecture
 
 ```
 src/domaine/     TS pur. Aucune importation React ni Convex. Testé.
-src/donnees/     adaptateurs : d'une source vers VueJoueur. Un seul aujourd'hui, le fixture.
+src/donnees/     adaptateurs : d'une source vers VueJoueur. Deux : le fixture, et Convex.
+convex/          schéma + fonctions serveur (hors-saison, état de nation). Testé (convex-test).
+deploiement/     docker compose (backend Convex auto-hébergé + front), guide VPS et CI.
 src/carte/       moteur three.js impératif + un composant React qui l'enveloppe.
 src/coque/       bandeau + rail, partagés par toutes les surfaces.
 src/routes/      une route par surface ; `-dossier/` = composants privés à cette route.

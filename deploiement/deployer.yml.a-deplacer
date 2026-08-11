@@ -1,0 +1,49 @@
+name: tests et déploiement
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx vite build
+      - run: npm run types
+      - run: npm run test
+
+  deployer:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Déployer les fonctions Convex
+        run: npx convex deploy
+        env:
+          CONVEX_SELF_HOSTED_URL: ${{ secrets.CONVEX_SELF_HOSTED_URL }}
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+
+      - name: Reconstruire le front sur le VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOTE }}
+          username: ${{ secrets.VPS_UTILISATEUR }}
+          key: ${{ secrets.VPS_CLE_SSH }}
+          script: |
+            cd ${{ secrets.VPS_CHEMIN }}
+            git pull --ff-only
+            docker compose --profile prod up -d --build front

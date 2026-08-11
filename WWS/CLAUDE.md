@@ -29,12 +29,14 @@ personnel.
 | Direction artistique | **validée en prototype**, typographie à faire |
 | Brief UI | **prêt à transmettre** |
 | Surfaces 4.1 à 4.4 | **implémentées sur fixture**, `src/` à la racine du dépôt |
-| Schéma de données | **rien n'est écrit, délibérément** |
-| Code de jeu serveur | **rien n'est écrit** |
+| Schéma de données | **hors-saison et état de nation écrits** (ADR 0010) ; le schéma de jeu attend le 🔴 |
+| Code de jeu serveur | **accueil/salon/lancement et ressources servis par Convex** ; mouvements et combat : rien |
 
-**L'absence de schéma est un choix, pas un retard.** Le schéma est une conséquence du design. Trois
-fois au cours du projet, l'écrire tôt aurait produit du travail à jeter. Il ne s'écrit qu'après la
-correction du dernier 🔴 de `QUESTIONS.md`.
+**Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
+nation sont gravés (fiche 12, ADR 0009-0010) : leur schéma existe. Le schéma de **jeu** — mouvements,
+combat, occupation, revenus — reste une conséquence du design : il ne s'écrit qu'après la correction
+du dernier 🔴 de `QUESTIONS.md`. Trois fois au cours du projet, l'écrire tôt aurait produit du
+travail à jeter.
 
 ---
 

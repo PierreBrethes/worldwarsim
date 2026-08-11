@@ -15,5 +15,6 @@ Une fiche par système. Tous les chiffres sont des **placeholders à simuler**, 
 | 09 | [Unités](09-unites.md) | roster stable, combat non |
 | 10 | [Direction artistique](10-direction-artistique.md) | palette testée, typo à faire |
 | 11 | [Brief UI](11-brief-ui.md) | transmis — 4.1 à 4.4 implémentées |
+| 12 | [Hors-saison : accueil, salon, choix de nation](12-hors-saison.md) | à valider |
 
 Le document monolithique v0.2 dont ces fiches sont issues vit dans l'historique git.

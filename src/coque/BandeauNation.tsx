@@ -1,13 +1,20 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
+import { stockCourant } from '@/domaine/vue-joueur';
 import type { RecherchePlateau } from '@/routes/plateau';
+import { useHorloge } from './horloge';
 
 export function BandeauNation({ vue }: { vue: VueJoueur }) {
   const { moi, saison } = vue;
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
+  const maintenant = useHorloge();
+  const restantMinutes = Math.max(
+    0,
+    (saison.dureeHeures - saison.ecouleHeures) * 60 - (maintenant - vue.chargeeA) / 60_000,
+  );
   return (
     <header
-      className="flex h-[58px] min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-4"
+      className="hud flex h-[58px] min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-4"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <Groupe>
@@ -19,11 +26,15 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       </Groupe>
 
       <Groupe>
-        <Compteur libelle="Ravitaillement" valeur={moi.ravitaillement.stock} debit={moi.ravitaillement.debitParHeure} />
-        <Compteur libelle="Acier" valeur={moi.acier.stock} debit={moi.acier.debitParHeure} />
+        <Compteur
+          libelle="Ravitaillement"
+          valeur={stockCourant(moi.ravitaillement, vue.chargeeA, maintenant)}
+          debit={moi.ravitaillement.debitParHeure}
+        />
+        <Compteur libelle="Acier" valeur={stockCourant(moi.acier, vue.chargeeA, maintenant)} debit={moi.acier.debitParHeure} />
         <Compteur
           libelle="Effectifs"
-          valeur={moi.effectifs.stock}
+          valeur={stockCourant(moi.effectifs, vue.chargeeA, maintenant)}
           debit={moi.effectifs.debitParHeure}
           suffixe={moi.effectifs.plafond ? `/ ${moi.effectifs.plafond} plafond` : undefined}
         />
@@ -63,7 +74,7 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       <Groupe dernier>
         <div className="eyebrow-sombre">Saison {saison.numero} — fin dans</div>
         <div className="font-[var(--font-mono)] text-[12px] text-[var(--paper)]">
-          {saison.dureeHeures - saison.ecouleHeures} h
+          {Math.floor(restantMinutes / 60)} h {String(Math.floor(restantMinutes % 60)).padStart(2, '0')}
         </div>
       </Groupe>
     </header>

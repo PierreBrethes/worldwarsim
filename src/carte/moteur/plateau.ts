@@ -123,7 +123,7 @@ function construireGraticule(monde: Monde, repere: RepereMonde): BufferGeometry 
 }
 
 function construireBordure(monde: Monde, repere: RepereMonde): { bande: BufferGeometry; trait: BufferGeometry } {
-  const RETRAIT = 0.982;
+  const RETRAIT = 0.996;
   const sommets: number[] = [];
   const traits: number[] = [];
   const ajouter = (x: number, y: number, facteur: number) =>

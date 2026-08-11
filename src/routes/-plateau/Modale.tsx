@@ -47,7 +47,7 @@ export function Modale({
         alignement === 'haut' ? 'items-start px-6 py-[34px]' : 'items-center p-8'
       }`}
     >
-      <div ref={conteneur} tabIndex={-1} className="outline-none">
+      <div ref={conteneur} tabIndex={-1} className="hud outline-none">
         {children}
       </div>
     </div>

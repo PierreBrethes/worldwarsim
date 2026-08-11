@@ -45,7 +45,7 @@ function lonLatDe(monde: Monde, nomPays: string): LonLat | null {
  * Les nations du jeu portent un nom francisé ; la géométrie du monde vient de
  * Natural Earth et garde ses noms anglais. Cette table est la seule couture.
  */
-const PAYS_DE_NATION: Readonly<Record<string, string>> = {
+export const PAYS_DE_NATION: Readonly<Record<string, string>> = {
   France: 'France',
   'Royaume-Uni': 'United Kingdom',
   'États-Unis': 'United States of America',
@@ -198,6 +198,7 @@ export async function chargerVueJoueur(monde: Monde, url = '/etat-reference.json
             }
           : { etat: 'anonyme', progression: adversaire.barre.progressionPourcent / 100 },
     })),
+    chargeeA: Date.now(),
     couverture: {
       visibles: brut.brouillard.mouvementsAdversesVisibles,
       total: brut.brouillard.mouvementsAdversesTotal,

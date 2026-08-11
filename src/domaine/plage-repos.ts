@@ -10,6 +10,12 @@ export function lirePlage(plage: string): PlageHoraire | null {
   return { debutMinutes: enMinutes(heures[0]!), finMinutes: enMinutes(heures[1]!) };
 }
 
+export function formaterPlage({ debutMinutes, finMinutes }: PlageHoraire): string {
+  const heure = (minutes: number) =>
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}h${String(minutes % 60).padStart(2, '0')}`;
+  return `${heure(debutMinutes)} – ${heure(finMinutes)}`;
+}
+
 export function dansLaPlage(minutesDepuisMinuit: number, plage: PlageHoraire): boolean {
   const { debutMinutes, finMinutes } = plage;
   if (debutMinutes <= finMinutes) {

@@ -165,4 +165,18 @@ export type VueJoueur = {
   readonly journal: ReadonlyArray<DepecheJournal>;
   readonly adversaires: ReadonlyArray<Adversaire>;
   readonly couverture: { readonly visibles: number; readonly total: number };
+  readonly chargeeA: number;
 };
+
+export function stockCourant(
+  ressource: { readonly stock: number; readonly debitParHeure: number; readonly plafond?: number | undefined },
+  chargeeA: number,
+  maintenant: number,
+): number {
+  const brut = ressource.stock + (ressource.debitParHeure * Math.max(0, maintenant - chargeeA)) / 3_600_000;
+  return Math.floor(ressource.plafond === undefined ? brut : Math.min(ressource.plafond, brut));
+}
+
+export function minutesCourantes(minutesRestantes: number, chargeeA: number, maintenant: number): number {
+  return Math.max(0, minutesRestantes - Math.max(0, maintenant - chargeeA) / 60_000);
+}
