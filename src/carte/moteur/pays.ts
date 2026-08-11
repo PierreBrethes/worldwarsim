@@ -1,0 +1,79 @@
+import {
+  BufferGeometry,
+  ExtrudeGeometry,
+  Float32BufferAttribute,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshStandardMaterial,
+  Shape,
+} from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Monde, PaysProjete } from '@/domaine/monde';
+import type { Courbure } from './courbure';
+import { ENCRES_NATION, PALETTE } from './palette';
+import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
+
+export type MeshPays = Mesh<BufferGeometry, MeshStandardMaterial> & {
+  userData: { nom: string; encre: string | null; eclat: number };
+};
+
+function extruderAnneaux(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
+  const geometries = pays.anneaux.map((anneau) => {
+    const forme = new Shape();
+    anneau.forEach(([px, py], index) => {
+      const x = px - repere.centreX;
+      const y = -(py - repere.centreY);
+      if (index === 0) forme.moveTo(x, y);
+      else forme.lineTo(x, y);
+    });
+    const geometrie = new ExtrudeGeometry(forme, { depth: EPAISSEUR_PAYS, bevelEnabled: false });
+    geometrie.rotateX(-Math.PI / 2);
+    return geometrie;
+  });
+  return geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
+}
+
+function contoursDe(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
+  const points: number[] = [];
+  for (const anneau of pays.anneaux) {
+    for (let i = 0; i < anneau.length; i++) {
+      const a = anneau[i]!;
+      const b = anneau[(i + 1) % anneau.length]!;
+      points.push(
+        a[0] - repere.centreX, EPAISSEUR_PAYS + 0.12, a[1] - repere.centreY,
+        b[0] - repere.centreX, EPAISSEUR_PAYS + 0.12, b[1] - repere.centreY,
+      );
+    }
+  }
+  const geometrie = new BufferGeometry();
+  geometrie.setAttribute('position', new Float32BufferAttribute(points, 3));
+  return geometrie;
+}
+
+export function construirePays(
+  monde: Monde,
+  repere: RepereMonde,
+  courbure: Courbure,
+): { meshes: MeshPays[]; frontieres: LineSegments } {
+  const meshes: MeshPays[] = [];
+  const contours: BufferGeometry[] = [];
+
+  for (const pays of monde.pays) {
+    const encre = ENCRES_NATION[pays.nom] ?? null;
+    const mesh = new Mesh(
+      courbure.enregistrer(extruderAnneaux(pays, repere)),
+      new MeshStandardMaterial({ color: encre ?? PALETTE.terreNeutre, roughness: 0.97, metalness: 0 }),
+    ) as MeshPays;
+    mesh.userData = { nom: pays.nom, encre, eclat: 0 };
+    meshes.push(mesh);
+    contours.push(contoursDe(pays, repere));
+  }
+
+  const frontieres = new LineSegments(
+    courbure.enregistrer(mergeGeometries(contours, false)!),
+    new LineBasicMaterial({ color: PALETTE.frontiere, transparent: true, opacity: 0.62 }),
+  );
+
+  return { meshes, frontieres };
+}
