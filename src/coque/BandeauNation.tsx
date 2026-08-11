@@ -1,7 +1,10 @@
+import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
+import type { RecherchePlateau } from '@/routes/plateau';
 
 export function BandeauNation({ vue }: { vue: VueJoueur }) {
   const { moi, saison } = vue;
+  const recherche = useSearch({ strict: false }) as RecherchePlateau;
   return (
     <header
       className="flex h-[58px] min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-4"
@@ -31,6 +34,27 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       </Groupe>
 
       <div className="flex-1" />
+
+      <Link
+        to="/plateau"
+        search={{ ...recherche, modale: 'journal' as const }}
+        className="flex h-full shrink-0 items-center gap-3 border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap hover:bg-[var(--ink)]"
+      >
+        <span
+          className="inline-block h-2 w-2"
+          style={{
+            background: vue.journal.some((depeche) => depeche.gravite === 'critique')
+              ? 'var(--critique)'
+              : 'var(--routine)',
+          }}
+        />
+        <span className="text-left">
+          <span className="eyebrow-sombre block">Journal d’événements</span>
+          <span className="block text-[13px] text-[var(--paper)]">
+            {vue.journal.length} dépêches non lues
+          </span>
+        </span>
+      </Link>
 
       <Groupe>
         <div className="eyebrow-sombre">Plage de repos déclarée</div>
@@ -88,7 +112,7 @@ function Compteur({
 function Slots({ total, utilises }: { total: number; utilises: number }) {
   return (
     <div className="flex shrink-0 items-center gap-3">
-      <div className="eyebrow-sombre max-w-[52px] leading-tight">Slots de mouvement</div>
+      <div className="eyebrow-sombre max-w-[52px] leading-tight whitespace-normal">Slots de mouvement</div>
       <div className="flex gap-[3px]">
         {Array.from({ length: total }, (_, index) => (
           <span

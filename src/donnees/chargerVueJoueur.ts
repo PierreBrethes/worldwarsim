@@ -80,6 +80,8 @@ export async function chargerVueJoueur(monde: Monde, url = '/etat-reference.json
       id: mouvement.id,
       depuis: origine,
       vers: destination,
+      origineNom: mouvement.origine,
+      destinationNom: mouvement.destination,
       type: TYPE_PAR_LIBELLE[mouvement.type as keyof typeof TYPE_PAR_LIBELLE] ?? 'attaque',
       pile: versPile(mouvement.pile),
       minutesRestantes: mouvement.minutesRestantes,
@@ -126,6 +128,7 @@ export async function chargerVueJoueur(monde: Monde, url = '/etat-reference.json
     },
     moi: {
       nation: brut.moi.nation,
+      positionDomicile: origine,
       encre: brut.moi.encre,
       pouvoir: brut.moi.pouvoir,
       doctrine: brut.moi.doctrine,
@@ -172,6 +175,14 @@ export async function chargerVueJoueur(monde: Monde, url = '/etat-reference.json
       }),
     },
     arcs,
+    journal: brut.journal.map((depeche) => ({
+      t: depeche.t,
+      gravite: depeche.gravite,
+      texte: depeche.texte,
+      rejeu: depeche.lien ?? null,
+      restant: depeche.restant ?? null,
+      resolutionA: depeche.resolutionA ?? null,
+    })),
     adversaires: brut.adversaires.map((adversaire) => ({
       nation: adversaire.nation,
       encre: adversaire.encre,

@@ -42,7 +42,10 @@ export declare const Fixture: {
     detecteurs: Array<{ nom: string; rayonKm: number }>;
     mouvementsAdversesTotal: number; mouvementsAdversesVisibles: number; couverturePourcent: number;
   };
-  journal: Array<{ t: string; gravite: 'critique' | 'notable' | 'routine'; texte: string }>;
+  journal: Array<{
+    t: string; gravite: 'critique' | 'notable' | 'routine'; texte: string;
+    lien?: string; restant?: string; resolutionA?: string;
+  }>;
   adversaires: Array<{
     nation: string; encre: string; pouvoir: string;
     barre: { etat: string; progressionPourcent: number; doctrine: Doctrine | null };

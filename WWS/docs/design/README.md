@@ -14,7 +14,6 @@ Une fiche par système. Tous les chiffres sont des **placeholders à simuler**, 
 | 08 | [Combat](08-combat.md) | figé |
 | 09 | [Unités](09-unites.md) | roster stable, combat non |
 | 10 | [Direction artistique](10-direction-artistique.md) | palette testée, typo à faire |
-| 11 | [Brief UI](11-brief-ui.md) | prêt à transmettre |
+| 11 | [Brief UI](11-brief-ui.md) | transmis — 4.1 à 4.4 implémentées |
 
-`_design-v0.2-source.md` est le document monolithique dont ces fiches sont issues, gardé pour
-l'historique et le journal des changements v0 → v0.2.
+Le document monolithique v0.2 dont ces fiches sont issues vit dans l'historique git.

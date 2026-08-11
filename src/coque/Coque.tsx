@@ -9,7 +9,7 @@ export function Coque({ vue, children }: { vue: VueJoueur; children: ReactNode }
       <BandeauNation vue={vue} />
       <div className="flex min-h-0 flex-1">
         <RailSurfaces saison={vue.saison.numero} />
-        <main className="relative min-w-0 flex-1">{children}</main>
+        <main className="relative flex min-w-0 flex-1">{children}</main>
       </div>
     </div>
   );

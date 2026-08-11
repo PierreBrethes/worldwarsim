@@ -7,7 +7,7 @@ Ce paquet documente le **système visuel** et les **trois surfaces critiques** m
 fidélité : le plateau (4.4) avec ses panneaux d'angle, le journal d'événements (4.1) en une de
 journal, la liste des mouvements (4.2) et l'envoi d'un mouvement (4.3).
 
-Le brief produit du jeu est joint : `11-brief-ui.md`. Il fait autorité sur les règles, le
+Le brief produit du jeu est [11 — Brief UI](../docs/design/11-brief-ui.md). Il fait autorité sur les règles, le
 vocabulaire imposé et les pièges. Ce README fait autorité sur les valeurs visuelles.
 
 ## À propos des fichiers de design
@@ -300,7 +300,7 @@ reconnaissance, encre unique, à plat) restent à produire — elles ne sont pas
 | `Interface de saison.dc.html` | la maquette haute fidélité, ouvrable dans un navigateur |
 | `tokens.css` | les tokens en propriétés personnalisées CSS |
 | `tokens.json` | les mêmes tokens en JSON, pour un thème JS / Tailwind |
-| `11-brief-ui.md` | brief produit d'origine : règles, inventaire des écrans, vocabulaire |
+| [`../docs/design/11-brief-ui.md`](../docs/design/11-brief-ui.md) | brief produit d'origine : règles, inventaire des écrans, vocabulaire |
 | `Wireframes-selection.png` | les wireframes basse fidélité dont dérive la maquette |
 | `screenshots/4.4-plateau.png` | interface de base : plateau et panneaux d'angle |
 | `screenshots/4.1-journal.png` | journal d'événements en une de journal |

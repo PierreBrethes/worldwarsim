@@ -69,7 +69,7 @@ Le domaine, la documentation et le glossaire sont en français. Le code aussi. M
 
 Le vocabulaire du jeu est **imposé** : *mouvement* et non convoi, *passe de résolution* et non tour
 de combat, avant-poste *désactivé* ou *détruit* et jamais *pris*. Glossaire complet dans
-`documents/WWS/CONTEXT.md`.
+`WWS/CONTEXT.md`.
 
 Restent en anglais : les API tierces (`useEffect`, `Mesh`, `fetch`) et les noms de fichiers de
 composants React, qui suivent la convention `PascalCase.tsx`.

@@ -3,7 +3,7 @@
 Jeu de stratégie web asynchrone sur une carte du monde réel. Saison de 48 h à 7 jours, wipe complet
 à la fin, 2 à 8 joueurs. Chaque joueur prend une nation avec un pouvoir qui casse une règle du jeu.
 
-**État actuel : design. Aucune ligne de code de jeu n'est écrite, et c'est délibéré.**
+**État actuel : design complet ; les surfaces 4.1 à 4.4 sont implémentées sur fixture dans `src/` à la racine du dépôt. Aucun backend ni schéma de données, et c'est délibéré.**
 
 ## Par où commencer
 

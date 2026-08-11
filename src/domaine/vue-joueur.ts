@@ -9,6 +9,37 @@ export type Doctrine = 'domination' | 'hegemonie' | 'influence';
 export type TypeMouvement = 'attaque' | 'raid' | 'avantPoste' | 'agent' | 'leurre';
 export type Pile = Partial<Record<RoleUnite, number>>;
 
+export const LIBELLE_TYPE: Readonly<Record<TypeMouvement, string>> = {
+  attaque: 'attaque',
+  raid: 'raid d’avant-poste',
+  avantPoste: 'fondation d’avant-poste',
+  agent: 'agent',
+  leurre: 'leurre',
+};
+
+const LIBELLE_ROLE: Readonly<Record<RoleUnite, { singulier: string; pluriel: string }>> = {
+  infanterie: { singulier: 'infanterie', pluriel: 'infanterie' },
+  blinde: { singulier: 'blindé', pluriel: 'blindés' },
+  transportTerrestre: { singulier: 'transport terrestre', pluriel: 'transports terrestres' },
+  chasseur: { singulier: 'chasseur', pluriel: 'chasseurs' },
+  bombardier: { singulier: 'bombardier', pluriel: 'bombardiers' },
+  transportAerien: { singulier: 'transport aérien', pluriel: 'transports aériens' },
+  escorte: { singulier: 'escorte', pluriel: 'escortes' },
+  cargo: { singulier: 'cargo', pluriel: 'cargos' },
+  porteAvions: { singulier: 'porte-avions', pluriel: 'porte-avions' },
+};
+
+export function libelleRole(role: RoleUnite, nombre: number): string {
+  return nombre > 1 ? LIBELLE_ROLE[role].pluriel : LIBELLE_ROLE[role].singulier;
+}
+
+export function libellePile(pile: Pile): string {
+  const morceaux = (Object.entries(pile) as ReadonlyArray<[RoleUnite, number]>)
+    .filter(([, nombre]) => nombre > 0)
+    .map(([role, nombre]) => `${nombre} ${libelleRole(role, nombre)}`);
+  return morceaux.length > 0 ? morceaux.join(' · ') : '—';
+}
+
 /**
  * Les quatre états d'affichage d'un arc. L'union discriminée est le garde-fou du
  * brouillard : un arc adverse n'a structurellement ni `type` ni `pile`, donc on ne
@@ -20,6 +51,8 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      readonly origineNom: string;
+      readonly destinationNom: string;
       readonly type: TypeMouvement;
       readonly pile: Pile;
       readonly minutesRestantes: number;
@@ -90,6 +123,17 @@ export type Adversaire = {
   readonly dernierRenseignement: string;
 };
 
+export type GraviteDepeche = 'critique' | 'notable' | 'routine';
+
+export type DepecheJournal = {
+  readonly t: string;
+  readonly gravite: GraviteDepeche;
+  readonly texte: string;
+  readonly rejeu: string | null;
+  readonly restant: string | null;
+  readonly resolutionA: string | null;
+};
+
 export type VueJoueur = {
   readonly saison: {
     readonly numero: number;
@@ -101,6 +145,7 @@ export type VueJoueur = {
   };
   readonly moi: {
     readonly nation: string;
+    readonly positionDomicile: LonLat;
     readonly encre: string;
     readonly pouvoir: string;
     readonly doctrine: Doctrine;
@@ -117,6 +162,7 @@ export type VueJoueur = {
     readonly avantPostes: ReadonlyArray<AvantPosteAffiche>;
   };
   readonly arcs: ReadonlyArray<ArcAffiche>;
+  readonly journal: ReadonlyArray<DepecheJournal>;
   readonly adversaires: ReadonlyArray<Adversaire>;
   readonly couverture: { readonly visibles: number; readonly total: number };
 };

@@ -1,7 +1,7 @@
 # WorldWarSim — codebase
 
 Jeu de stratégie web asynchrone, carte du monde réel, esthétique presse illustrée 1940.
-**La documentation, les décisions et le simulateur vivent dans `documents/WWS/`** — ce dépôt ne
+**La documentation, les décisions et le simulateur vivent dans `WWS/`** — ce dépôt ne
 contient que le code.
 
 ```bash
@@ -13,9 +13,10 @@ npm run test     # vitest
 
 ## Ce qui existe
 
-La vue plateau (4.4) : carte 3D, bandeau nation, rail des surfaces, panneaux d'angle. Les données
+Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
+journal d'événements, la colonne des mouvements en cours et l'envoi d'un mouvement. Les données
 viennent de `public/etat-reference.json`, un instantané de partie réellement simulé. **Aucun
-backend.**
+backend** : « envoyer » ne fait rien, le rejeu attend la surface 4.7.
 
 ## Architecture
 
@@ -57,11 +58,11 @@ plus le dépôt :
 
 **mouvement** (pas convoi) · **passe de résolution** (pas tour de combat) · avant-poste **désactivé**
 ou **détruit** (jamais pris) · **journal d'événements** · **slot de mouvement**.
-Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `documents/WWS/CONTEXT.md`.
+Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTEXT.md`.
 
 ## Ce qui reste
 
-Les surfaces 4.1 à 4.3 et 4.5 à 4.9 sont maquettées dans `documents/WWS/maquettes/` mais pas
-implémentées — le rail les affiche grisées. Le schéma de données et le backend ne sont pas écrits,
+Les surfaces 4.5 à 4.9 sont maquettées dans `WWS/maquettes/` mais pas implémentées — le rail
+les affiche grisées. Le schéma de données et le backend ne sont pas écrits,
 délibérément : le dernier point bloquant du design (l'avantage d'isolement géographique) n'est pas
 tranché.

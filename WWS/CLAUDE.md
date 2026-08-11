@@ -28,8 +28,9 @@ personnel.
 | Équilibrage | **mesuré** sur 2 000 saisons simulées |
 | Direction artistique | **validée en prototype**, typographie à faire |
 | Brief UI | **prêt à transmettre** |
+| Surfaces 4.1 à 4.4 | **implémentées sur fixture**, `src/` à la racine du dépôt |
 | Schéma de données | **rien n'est écrit, délibérément** |
-| Code de jeu | **rien n'est écrit** |
+| Code de jeu serveur | **rien n'est écrit** |
 
 **L'absence de schéma est un choix, pas un retard.** Le schéma est une conséquence du design. Trois
 fois au cours du projet, l'écrire tôt aurait produit du travail à jeter. Il ne s'écrit qu'après la
