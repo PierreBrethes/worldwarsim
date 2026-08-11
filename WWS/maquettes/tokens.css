@@ -1,0 +1,112 @@
+/* Interface de saison — design tokens
+   Presse illustrée 1940. Angles vifs, aucune ombre, aucun rayon.
+   Le budget de contraste appartient à la couche de jeu. */
+
+:root {
+  /* surfaces */
+  --desk: #171208;
+  --paper: #e4d8bd;
+  --ink: #2a2118;
+  --ink-soft: #5f5039;
+  --ink-quiet: #4a4436;
+  --paper-dim: #8d7f6a;
+  --paper-dim-2: #a9968f;
+  --sea: #a9c5cd;
+  --sea-ink: #2c5063;
+  --sea-shade: #3f6b7c;
+  --land: #d5c5a0;
+  --border-world: #6b4a24;
+  --plinth-top: #c7b48e;
+  --plinth-bottom: #5f5039;
+
+  /* encres de nation */
+  --ink-france: #3f5a7d;
+  --ink-royaume-uni: #4a4f7a;
+  --ink-etats-unis: #4a7060;
+  --ink-urss: #9d4638;
+  --ink-allemagne: #6e6a5e;
+  --ink-japon: #a44a5e;
+  --ink-italie: #a86c4a;
+  --ink-chine: #b07434;
+
+  /* sémantique */
+  --critique: #9d4638;
+  --notable: #b07434;
+  --routine: #6e6a5e;
+  --interaction: #3f5a7d;
+
+  /* filets */
+  --rule-strong: 1px solid #2a2118;
+  --rule-double: 2px solid #2a2118;
+  --rule-medium: 1px solid rgba(42, 33, 24, .32);
+  --rule-light: 1px solid rgba(42, 33, 24, .18);
+  --rule-dark: 1px solid #4a4436;
+
+  /* typographie */
+  --font-display: "Bodoni Moda", Georgia, serif;
+  --font-body: "Archivo Narrow", "Arial Narrow", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --size-masthead: 54px;
+  --size-lead: 38px;
+  --size-panel-title: 22px;
+  --size-headline: 16px;
+  --size-body: 13.5px;
+  --size-body-sm: 12.5px;
+  --size-meta: 11.5px;
+  --size-eyebrow: 10px;
+  --size-eyebrow-sm: 9px;
+
+  --track-eyebrow: .2em;
+  --track-display: .02em;
+  --track-masthead: .06em;
+
+  /* espacement */
+  --sp-1: 4px;  --sp-2: 6px;  --sp-3: 8px;  --sp-4: 10px;
+  --sp-5: 12px; --sp-6: 14px; --sp-7: 18px; --sp-8: 22px;
+  --sp-9: 26px; --sp-10: 30px;
+
+  /* géométrie */
+  --topbar-h: 58px;
+  --rail-w: 52px;
+  --dock-w: 430px;
+  --panel-ctx-w: 308px;
+  --panel-side-w: 250px;
+  --plinth-h: 14px;
+  --radius: 0;
+  --shadow: none;
+}
+
+/* trame de similigravure — toute surface papier */
+.paper {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(45deg, rgba(42, 33, 24, .055) 0 1px, transparent 1px 5px);
+  color: var(--ink);
+  border: var(--rule-strong);
+}
+
+/* eyebrow : le libellé le plus fréquent du système */
+.eyebrow {
+  font-size: var(--size-eyebrow);
+  letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* grain d'impression — overlay plein écran */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: .2;
+  background-size: 160px 160px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+}
+
+body {
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums; /* non négociable */
+  background: var(--desk);
+  color: var(--ink);
+}

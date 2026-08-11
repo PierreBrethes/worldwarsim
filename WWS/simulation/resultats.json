@@ -1,0 +1,706 @@
+{
+ "resultats": [
+  {
+   "T": 4,
+   "C": 12,
+   "ratio": 0.7201646090534979,
+   "ecart": 0.12333333333333332,
+   "victoires": {
+    "domination": 83,
+    "hegemonie": 75,
+    "influence": 42
+   },
+   "parCouple": {
+    "Royaume-Uni × domination": 8,
+    "Japon × hegemonie": 7,
+    "France × influence": 11,
+    "Allemagne × domination": 13,
+    "Japon × domination": 8,
+    "URSS × influence": 6,
+    "Royaume-Uni × hegemonie": 8,
+    "URSS × hegemonie": 11,
+    "Chine × hegemonie": 10,
+    "Chine × domination": 7,
+    "Japon × influence": 8,
+    "URSS × domination": 13,
+    "États-Unis × domination": 11,
+    "Allemagne × hegemonie": 8,
+    "Italie × hegemonie": 5,
+    "France × hegemonie": 9,
+    "Chine × influence": 5,
+    "France × domination": 13,
+    "Italie × domination": 10,
+    "États-Unis × hegemonie": 17,
+    "Royaume-Uni × influence": 2,
+    "États-Unis × influence": 10
+   },
+   "partDoctrine": {
+    "domination": 0.415,
+    "hegemonie": 0.375,
+    "influence": 0.21
+   },
+   "progMoy": {
+    "domination": 0.744770099823572,
+    "hegemonie": 0.7592695388884855,
+    "influence": 0.6386000000000002
+   },
+   "divergenceMed": 0.875,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.197723422300843,
+   "tauxPremature": 0.44,
+   "combatsMoy": 14.125,
+   "raidsMoy": 13.33
+  },
+  {
+   "T": 4,
+   "C": 25,
+   "ratio": 0.345679012345679,
+   "ecart": 0.16666666666666669,
+   "victoires": {
+    "domination": 100,
+    "hegemonie": 61,
+    "influence": 39
+   },
+   "parCouple": {
+    "Chine × domination": 12,
+    "Japon × hegemonie": 11,
+    "URSS × domination": 12,
+    "Allemagne × domination": 12,
+    "Japon × domination": 14,
+    "France × influence": 8,
+    "URSS × influence": 4,
+    "États-Unis × hegemonie": 18,
+    "Royaume-Uni × domination": 10,
+    "France × hegemonie": 7,
+    "Japon × influence": 6,
+    "États-Unis × domination": 10,
+    "France × domination": 15,
+    "Italie × hegemonie": 4,
+    "Royaume-Uni × hegemonie": 4,
+    "Italie × domination": 15,
+    "Chine × hegemonie": 5,
+    "Allemagne × hegemonie": 7,
+    "Royaume-Uni × influence": 2,
+    "URSS × hegemonie": 5,
+    "États-Unis × influence": 12,
+    "Chine × influence": 5,
+    "Allemagne × influence": 1,
+    "Italie × influence": 1
+   },
+   "partDoctrine": {
+    "domination": 0.5,
+    "hegemonie": 0.305,
+    "influence": 0.195
+   },
+   "progMoy": {
+    "domination": 0.7805857350770445,
+    "hegemonie": 0.7496088293713609,
+    "influence": 0.6223000000000004
+   },
+   "divergenceMed": 0.8428571428571429,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.2049513027051444,
+   "tauxPremature": 0.45,
+   "combatsMoy": 14.185,
+   "raidsMoy": 13.42
+  },
+  {
+   "T": 8,
+   "C": 12,
+   "ratio": 1.4403292181069958,
+   "ecart": 0.10833333333333331,
+   "victoires": {
+    "domination": 83,
+    "hegemonie": 72,
+    "influence": 45
+   },
+   "parCouple": {
+    "Royaume-Uni × domination": 11,
+    "Japon × hegemonie": 9,
+    "France × influence": 10,
+    "Allemagne × domination": 14,
+    "Japon × domination": 5,
+    "URSS × influence": 6,
+    "URSS × hegemonie": 11,
+    "Chine × hegemonie": 10,
+    "France × hegemonie": 8,
+    "Chine × domination": 6,
+    "Japon × influence": 8,
+    "URSS × domination": 15,
+    "États-Unis × domination": 9,
+    "Allemagne × hegemonie": 4,
+    "Chine × influence": 6,
+    "France × domination": 15,
+    "Italie × domination": 8,
+    "États-Unis × hegemonie": 18,
+    "Italie × hegemonie": 6,
+    "Royaume-Uni × influence": 2,
+    "Royaume-Uni × hegemonie": 6,
+    "Allemagne × influence": 2,
+    "Italie × influence": 2,
+    "États-Unis × influence": 9
+   },
+   "partDoctrine": {
+    "domination": 0.415,
+    "hegemonie": 0.36,
+    "influence": 0.225
+   },
+   "progMoy": {
+    "domination": 0.7660236090556947,
+    "hegemonie": 0.7631469653637772,
+    "influence": 0.6404
+   },
+   "divergenceMed": 0.8913043478260869,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.1955151421822012,
+   "tauxPremature": 0.445,
+   "combatsMoy": 14.08,
+   "raidsMoy": 13.305
+  },
+  {
+   "T": 8,
+   "C": 25,
+   "ratio": 0.691358024691358,
+   "ecart": 0.1216666666666667,
+   "victoires": {
+    "domination": 91,
+    "hegemonie": 62,
+    "influence": 47
+   },
+   "parCouple": {
+    "Royaume-Uni × domination": 10,
+    "Chine × hegemonie": 7,
+    "Italie × domination": 14,
+    "Allemagne × domination": 13,
+    "France × domination": 16,
+    "France × influence": 9,
+    "URSS × influence": 5,
+    "Japon × hegemonie": 9,
+    "États-Unis × hegemonie": 19,
+    "France × hegemonie": 6,
+    "Japon × influence": 9,
+    "Japon × domination": 9,
+    "États-Unis × domination": 8,
+    "Chine × domination": 11,
+    "Italie × hegemonie": 7,
+    "Royaume-Uni × hegemonie": 5,
+    "États-Unis × influence": 14,
+    "URSS × domination": 10,
+    "URSS × hegemonie": 7,
+    "Royaume-Uni × influence": 2,
+    "Chine × influence": 5,
+    "Allemagne × influence": 1,
+    "Italie × influence": 2,
+    "Allemagne × hegemonie": 2
+   },
+   "partDoctrine": {
+    "domination": 0.455,
+    "hegemonie": 0.31,
+    "influence": 0.235
+   },
+   "progMoy": {
+    "domination": 0.765426409198176,
+    "hegemonie": 0.7580499967929494,
+    "influence": 0.6348000000000004
+   },
+   "divergenceMed": 0.8617021276595744,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.2009810107505907,
+   "tauxPremature": 0.425,
+   "combatsMoy": 14,
+   "raidsMoy": 13.25
+  },
+  {
+   "T": 14,
+   "C": 12,
+   "ratio": 2.5205761316872426,
+   "ecart": 0.04833333333333334,
+   "victoires": {
+    "domination": 57,
+    "hegemonie": 76,
+    "influence": 67
+   },
+   "parCouple": {
+    "États-Unis × hegemonie": 22,
+    "Chine × hegemonie": 10,
+    "France × influence": 10,
+    "Allemagne × domination": 8,
+    "Japon × domination": 4,
+    "États-Unis × influence": 13,
+    "Japon × hegemonie": 6,
+    "Japon × influence": 9,
+    "URSS × hegemonie": 9,
+    "France × hegemonie": 7,
+    "URSS × influence": 10,
+    "Royaume-Uni × hegemonie": 12,
+    "États-Unis × domination": 6,
+    "Allemagne × hegemonie": 2,
+    "Chine × domination": 8,
+    "Royaume-Uni × domination": 7,
+    "Italie × influence": 7,
+    "France × domination": 10,
+    "Chine × influence": 10,
+    "Allemagne × influence": 3,
+    "Italie × hegemonie": 8,
+    "Royaume-Uni × influence": 5,
+    "Italie × domination": 8,
+    "URSS × domination": 6
+   },
+   "partDoctrine": {
+    "domination": 0.285,
+    "hegemonie": 0.38,
+    "influence": 0.335
+   },
+   "progMoy": {
+    "domination": 0.7209633276980807,
+    "hegemonie": 0.7900894171091579,
+    "influence": 0.6795833333333334
+   },
+   "divergenceMed": 0.8958333333333334,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.191184159898249,
+   "tauxPremature": 0.34,
+   "combatsMoy": 14.22,
+   "raidsMoy": 13.55
+  },
+  {
+   "T": 14,
+   "C": 25,
+   "ratio": 1.2098765432098766,
+   "ecart": 0.09166666666666667,
+   "victoires": {
+    "domination": 85,
+    "hegemonie": 59,
+    "influence": 56
+   },
+   "parCouple": {
+    "États-Unis × hegemonie": 18,
+    "Chine × hegemonie": 8,
+    "Allemagne × hegemonie": 4,
+    "Allemagne × domination": 11,
+    "France × domination": 15,
+    "Chine × domination": 14,
+    "URSS × influence": 6,
+    "Allemagne × influence": 3,
+    "Japon × influence": 9,
+    "France × hegemonie": 8,
+    "Japon × domination": 6,
+    "France × influence": 9,
+    "États-Unis × domination": 9,
+    "Japon × hegemonie": 5,
+    "Royaume-Uni × domination": 3,
+    "États-Unis × influence": 15,
+    "Chine × influence": 7,
+    "Italie × influence": 4,
+    "Italie × domination": 13,
+    "Royaume-Uni × hegemonie": 6,
+    "Italie × hegemonie": 6,
+    "URSS × domination": 14,
+    "Royaume-Uni × influence": 3,
+    "URSS × hegemonie": 4
+   },
+   "partDoctrine": {
+    "domination": 0.425,
+    "hegemonie": 0.295,
+    "influence": 0.28
+   },
+   "progMoy": {
+    "domination": 0.7674197802365674,
+    "hegemonie": 0.756422697894597,
+    "influence": 0.6561458333333338
+   },
+   "divergenceMed": 0.84375,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.199566959659949,
+   "tauxPremature": 0.425,
+   "combatsMoy": 13.89,
+   "raidsMoy": 13.19
+  },
+  {
+   "T": 20,
+   "C": 12,
+   "ratio": 3.6008230452674894,
+   "ecart": 0.10666666666666669,
+   "victoires": {
+    "domination": 56,
+    "hegemonie": 88,
+    "influence": 56
+   },
+   "parCouple": {
+    "Italie × hegemonie": 11,
+    "Chine × hegemonie": 8,
+    "Royaume-Uni × hegemonie": 13,
+    "Allemagne × domination": 6,
+    "Japon × domination": 4,
+    "France × influence": 4,
+    "États-Unis × influence": 11,
+    "Japon × hegemonie": 11,
+    "Japon × influence": 9,
+    "URSS × hegemonie": 12,
+    "Allemagne × influence": 3,
+    "URSS × influence": 9,
+    "France × domination": 8,
+    "Chine × domination": 13,
+    "Italie × influence": 7,
+    "États-Unis × domination": 7,
+    "France × hegemonie": 4,
+    "Chine × influence": 8,
+    "Royaume-Uni × influence": 5,
+    "Allemagne × hegemonie": 5,
+    "États-Unis × hegemonie": 24,
+    "Italie × domination": 8,
+    "Royaume-Uni × domination": 6,
+    "URSS × domination": 4
+   },
+   "partDoctrine": {
+    "domination": 0.28,
+    "hegemonie": 0.44,
+    "influence": 0.28
+   },
+   "progMoy": {
+    "domination": 0.725286001014706,
+    "hegemonie": 0.7851536852268373,
+    "influence": 0.6578124999999999
+   },
+   "divergenceMed": 0.8829787234042553,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.1931429247469625,
+   "tauxPremature": 0.325,
+   "combatsMoy": 14.175,
+   "raidsMoy": 13.48
+  },
+  {
+   "T": 20,
+   "C": 25,
+   "ratio": 1.728395061728395,
+   "ecart": 0.08166666666666667,
+   "victoires": {
+    "domination": 83,
+    "hegemonie": 51,
+    "influence": 66
+   },
+   "parCouple": {
+    "Italie × hegemonie": 3,
+    "Chine × hegemonie": 8,
+    "France × influence": 8,
+    "États-Unis × hegemonie": 12,
+    "Japon × domination": 10,
+    "URSS × influence": 8,
+    "Allemagne × influence": 5,
+    "Japon × influence": 13,
+    "URSS × hegemonie": 6,
+    "Allemagne × domination": 11,
+    "Italie × influence": 8,
+    "Royaume-Uni × hegemonie": 8,
+    "États-Unis × domination": 9,
+    "Allemagne × hegemonie": 5,
+    "Japon × hegemonie": 7,
+    "Chine × domination": 12,
+    "Royaume-Uni × domination": 4,
+    "États-Unis × influence": 14,
+    "Chine × influence": 7,
+    "Italie × domination": 15,
+    "URSS × domination": 12,
+    "Royaume-Uni × influence": 3,
+    "France × domination": 10,
+    "France × hegemonie": 2
+   },
+   "partDoctrine": {
+    "domination": 0.415,
+    "hegemonie": 0.255,
+    "influence": 0.33
+   },
+   "progMoy": {
+    "domination": 0.765597836063816,
+    "hegemonie": 0.7342785532994225,
+    "influence": 0.6671739130434776
+   },
+   "divergenceMed": 0.84375,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.207162377090894,
+   "tauxPremature": 0.5,
+   "combatsMoy": 13.75,
+   "raidsMoy": 13.045
+  },
+  {
+   "T": 30,
+   "C": 12,
+   "ratio": 5.401234567901234,
+   "ecart": 0.07166666666666671,
+   "victoires": {
+    "domination": 81,
+    "hegemonie": 66,
+    "influence": 53
+   },
+   "parCouple": {
+    "Royaume-Uni × domination": 11,
+    "Chine × hegemonie": 6,
+    "Italie × domination": 16,
+    "Allemagne × domination": 14,
+    "Allemagne × influence": 8,
+    "Chine × domination": 11,
+    "URSS × influence": 9,
+    "Japon × hegemonie": 9,
+    "Japon × influence": 8,
+    "URSS × hegemonie": 11,
+    "Italie × influence": 9,
+    "Royaume-Uni × hegemonie": 9,
+    "États-Unis × hegemonie": 17,
+    "Italie × hegemonie": 8,
+    "Japon × domination": 5,
+    "URSS × domination": 12,
+    "Royaume-Uni × influence": 5,
+    "France × domination": 10,
+    "Chine × influence": 7,
+    "États-Unis × influence": 6,
+    "États-Unis × domination": 2,
+    "France × hegemonie": 3,
+    "Allemagne × hegemonie": 3,
+    "France × influence": 1
+   },
+   "partDoctrine": {
+    "domination": 0.405,
+    "hegemonie": 0.33,
+    "influence": 0.265
+   },
+   "progMoy": {
+    "domination": 0.7356716283365966,
+    "hegemonie": 0.7699653317780394,
+    "influence": 0.6557608695652167
+   },
+   "divergenceMed": 0.8777777777777778,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.1828051533029766,
+   "tauxPremature": 0.45,
+   "combatsMoy": 12.97,
+   "raidsMoy": 12.425
+  },
+  {
+   "T": 30,
+   "C": 25,
+   "ratio": 2.5925925925925926,
+   "ecart": 0.10833333333333331,
+   "victoires": {
+    "domination": 77,
+    "hegemonie": 78,
+    "influence": 45
+   },
+   "parCouple": {
+    "Italie × hegemonie": 10,
+    "Chine × hegemonie": 14,
+    "Italie × domination": 17,
+    "Japon × domination": 8,
+    "Chine × domination": 12,
+    "URSS × influence": 9,
+    "Japon × hegemonie": 8,
+    "Japon × influence": 5,
+    "URSS × hegemonie": 11,
+    "Allemagne × influence": 7,
+    "Allemagne × domination": 13,
+    "Royaume-Uni × hegemonie": 7,
+    "Italie × influence": 6,
+    "France × domination": 7,
+    "États-Unis × hegemonie": 22,
+    "Royaume-Uni × domination": 8,
+    "États-Unis × influence": 7,
+    "Chine × influence": 7,
+    "URSS × domination": 12,
+    "Royaume-Uni × influence": 3,
+    "France × influence": 1,
+    "France × hegemonie": 3,
+    "Allemagne × hegemonie": 3
+   },
+   "partDoctrine": {
+    "domination": 0.385,
+    "hegemonie": 0.39,
+    "influence": 0.225
+   },
+   "progMoy": {
+    "domination": 0.7337560841900909,
+    "hegemonie": 0.7852689758036909,
+    "influence": 0.6519565217391302
+   },
+   "divergenceMed": 0.8571428571428571,
+   "dureeMed": 48,
+   "decisionsParHeure": 1.183472899647788,
+   "tauxPremature": 0.41,
+   "combatsMoy": 13.05,
+   "raidsMoy": 12.475
+  }
+ ],
+ "best": {
+  "T": 14,
+  "C": 12,
+  "ratio": 2.5205761316872426,
+  "ecart": 0.04833333333333334,
+  "victoires": {
+   "domination": 57,
+   "hegemonie": 76,
+   "influence": 67
+  },
+  "parCouple": {
+   "États-Unis × hegemonie": 22,
+   "Chine × hegemonie": 10,
+   "France × influence": 10,
+   "Allemagne × domination": 8,
+   "Japon × domination": 4,
+   "États-Unis × influence": 13,
+   "Japon × hegemonie": 6,
+   "Japon × influence": 9,
+   "URSS × hegemonie": 9,
+   "France × hegemonie": 7,
+   "URSS × influence": 10,
+   "Royaume-Uni × hegemonie": 12,
+   "États-Unis × domination": 6,
+   "Allemagne × hegemonie": 2,
+   "Chine × domination": 8,
+   "Royaume-Uni × domination": 7,
+   "Italie × influence": 7,
+   "France × domination": 10,
+   "Chine × influence": 10,
+   "Allemagne × influence": 3,
+   "Italie × hegemonie": 8,
+   "Royaume-Uni × influence": 5,
+   "Italie × domination": 8,
+   "URSS × domination": 6
+  },
+  "partDoctrine": {
+   "domination": 0.285,
+   "hegemonie": 0.38,
+   "influence": 0.335
+  },
+  "progMoy": {
+   "domination": 0.7209633276980807,
+   "hegemonie": 0.7900894171091579,
+   "influence": 0.6795833333333334
+  },
+  "divergenceMed": 0.8958333333333334,
+  "dureeMed": 48,
+  "decisionsParHeure": 1.191184159898249,
+  "tauxPremature": 0.34,
+  "combatsMoy": 14.22,
+  "raidsMoy": 13.55
+ },
+ "couples": [
+  {
+   "cle": "États-Unis × influence",
+   "v": 73,
+   "part": 0.0811111111111111
+  },
+  {
+   "cle": "États-Unis × hegemonie",
+   "v": 72,
+   "part": 0.08
+  },
+  {
+   "cle": "France × influence",
+   "v": 49,
+   "part": 0.05444444444444444
+  },
+  {
+   "cle": "Italie × domination",
+   "v": 45,
+   "part": 0.05
+  },
+  {
+   "cle": "Chine × hegemonie",
+   "v": 44,
+   "part": 0.04888888888888889
+  },
+  {
+   "cle": "États-Unis × domination",
+   "v": 42,
+   "part": 0.04666666666666667
+  },
+  {
+   "cle": "URSS × domination",
+   "v": 42,
+   "part": 0.04666666666666667
+  },
+  {
+   "cle": "France × domination",
+   "v": 42,
+   "part": 0.04666666666666667
+  },
+  {
+   "cle": "Chine × influence",
+   "v": 40,
+   "part": 0.044444444444444446
+  },
+  {
+   "cle": "URSS × influence",
+   "v": 39,
+   "part": 0.043333333333333335
+  },
+  {
+   "cle": "Italie × influence",
+   "v": 39,
+   "part": 0.043333333333333335
+  },
+  {
+   "cle": "Italie × hegemonie",
+   "v": 38,
+   "part": 0.042222222222222223
+  },
+  {
+   "cle": "Chine × domination",
+   "v": 38,
+   "part": 0.042222222222222223
+  },
+  {
+   "cle": "Japon × influence",
+   "v": 36,
+   "part": 0.04
+  },
+  {
+   "cle": "URSS × hegemonie",
+   "v": 35,
+   "part": 0.03888888888888889
+  },
+  {
+   "cle": "Allemagne × domination",
+   "v": 33,
+   "part": 0.03666666666666667
+  },
+  {
+   "cle": "Royaume-Uni × domination",
+   "v": 33,
+   "part": 0.03666666666666667
+  },
+  {
+   "cle": "Allemagne × hegemonie",
+   "v": 30,
+   "part": 0.03333333333333333
+  },
+  {
+   "cle": "Allemagne × influence",
+   "v": 27,
+   "part": 0.03
+  },
+  {
+   "cle": "Japon × domination",
+   "v": 26,
+   "part": 0.028888888888888888
+  },
+  {
+   "cle": "Royaume-Uni × influence",
+   "v": 22,
+   "part": 0.024444444444444446
+  },
+  {
+   "cle": "Japon × hegemonie",
+   "v": 21,
+   "part": 0.023333333333333334
+  },
+  {
+   "cle": "Royaume-Uni × hegemonie",
+   "v": 18,
+   "part": 0.02
+  },
+  {
+   "cle": "France × hegemonie",
+   "v": 16,
+   "part": 0.017777777777777778
+  }
+ ]
+}

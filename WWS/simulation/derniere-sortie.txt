@@ -1,0 +1,44 @@
+=== BALAYAGE : ratio trajet ÷ construction ===
+200 saisons par combinaison, 6 joueurs
+
+trajet  constr  ratio |  domin  hegem  influ |  duree  finies  diverg  decis/h  combats  ecart
+────────────────────────────────────────────────────────────────────────────────────────────────────
+     4      12   0.72 |    42%    38%    21% |  48.0h    44%     88%     1.20     14.1   13.3    12 pts
+     4      25   0.35 |    50%    31%    20% |  48.0h    45%     84%     1.20     14.2   13.4    17 pts
+     8      12   1.44 |    42%    36%    23% |  48.0h    45%     89%     1.20     14.1   13.3    11 pts
+     8      25   0.69 |    46%    31%    24% |  48.0h    43%     86%     1.20     14.0   13.3    12 pts
+    14      12   2.52 |    28%    38%    34% |  48.0h    34%     90%     1.19     14.2   13.6     5 pts
+    14      25   1.21 |    43%    30%    28% |  48.0h    43%     84%     1.20     13.9   13.2     9 pts
+    20      12   3.60 |    28%    44%    28% |  48.0h    33%     88%     1.19     14.2   13.5    11 pts
+    20      25   1.73 |    42%    26%    33% |  48.0h    50%     84%     1.21     13.8   13.0     8 pts
+    30      12   5.40 |    41%    33%    27% |  48.0h    45%     88%     1.18     13.0   12.4     7 pts
+    30      25   2.59 |    39%    39%    23% |  48.0h    41%     86%     1.18     13.1   12.5    11 pts
+
+=== MEILLEUR COMPROMIS ===
+  trajet 14 min/1000 km, construction 12 min au niveau 1 (ratio 2.52)
+  Paris-Berlin 12 min · Paris-Tokyo 136 min · bâtiment niveau 3 39 min
+  parts : domination 28%, hégémonie 38%, influence 34%
+  décisions par heure et par joueur : 1.19
+  divergence : le vainqueur prend la tête définitivement à 90% de la saison
+
+=== COUPLES NATION × DOCTRINE (meilleur réglage, 400 saisons) ===
+  attendu si parfaitement neutre : 4.2% par couple
+
+   fort   États-Unis × influence             8.1%
+   fort   États-Unis × hegemonie             8.0%
+   fort   France × influence                 5.4%
+   fort   Italie × domination                5.0%
+   fort   Chine × hegemonie                  4.9%
+   fort   États-Unis × domination            4.7%
+   ...
+   faible Japon × domination                 2.9%
+   faible Royaume-Uni × influence            2.4%
+   faible Japon × hegemonie                  2.3%
+   faible Royaume-Uni × hegemonie            2.0%
+   faible France × hegemonie                 1.8%
+
+=== CONTRE-ÉPREUVE : retirer les outils de soustraction ===
+  avec outils  : domination 33%, hegemonie 30%, influence 36%  (ecart 3 pts)
+  sans outils  : domination 72%, hegemonie 17%, influence 12%  (ecart 39 pts)
+
+resultats.json ecrit

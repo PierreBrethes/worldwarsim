@@ -1,0 +1,578 @@
+{
+  "_note": "État de référence pour maquettes. Vue du joueur France, brouillard appliqué. Généré par etat-reference.mjs à partir d’une saison réellement simulée.",
+  "saison": {
+    "numero": 1,
+    "dureeHeures": 48,
+    "ecouleHeures": 22,
+    "restantHeures": 26,
+    "joueurs": 6,
+    "regionJouable": "Europe + Méditerranée + Moyen-Orient",
+    "trajetMinPar1000km": 14
+  },
+  "moi": {
+    "nation": "France",
+    "encre": "#3f5a7d",
+    "pouvoir": "Projection outre-mer — avant-postes à n’importe quelle distance, coût croissant",
+    "doctrine": "hegemonie",
+    "doctrineRevelee": true,
+    "progressionPourcent": 28,
+    "plageRepos": "12h00 – 19h00",
+    "ressources": {
+      "ravitaillement": {
+        "stock": 686,
+        "debitParHeure": 686
+      },
+      "acier": {
+        "stock": 3408,
+        "debitParHeure": 270
+      },
+      "effectifs": {
+        "stock": 5,
+        "plafond": 185,
+        "debitParHeure": 19,
+        "note": "ni achetables ni convertibles"
+      }
+    },
+    "slots": {
+      "total": 3,
+      "utilises": 3
+    },
+    "batiments": [
+      {
+        "cle": "qg",
+        "nom": "Quartier général",
+        "niveau": 3,
+        "coutNiveauSuivant": 5932,
+        "dureeNiveauSuivantMin": 70,
+        "plafonneParQG": false
+      },
+      {
+        "cle": "ind",
+        "nom": "Complexe industriel",
+        "niveau": 2,
+        "coutNiveauSuivant": 2358,
+        "dureeNiveauSuivantMin": 39,
+        "plafonneParQG": false
+      },
+      {
+        "cle": "log",
+        "nom": "Centre logistique",
+        "niveau": 2,
+        "coutNiveauSuivant": 2205,
+        "dureeNiveauSuivantMin": 39,
+        "plafonneParQG": false
+      },
+      {
+        "cle": "cons",
+        "nom": "Conscription",
+        "niveau": 2,
+        "coutNiveauSuivant": 1977,
+        "dureeNiveauSuivantMin": 39,
+        "plafonneParQG": false
+      },
+      {
+        "cle": "ecoute",
+        "nom": "Station d’écoute",
+        "niveau": 1,
+        "coutNiveauSuivant": 936,
+        "dureeNiveauSuivantMin": 22,
+        "plafonneParQG": false
+      }
+    ],
+    "chantier": null,
+    "armee": {
+      "presente": {
+        "Infanterie": 8,
+        "Chasseur": 2
+      },
+      "enTransit": {}
+    },
+    "avantPostes": [
+      {
+        "id": "AP-01",
+        "paysHote": "Hungary",
+        "specialisation": "Extraction",
+        "rendementRelatif": 1,
+        "garnison": 20,
+        "immunitePostRaidMin": 26
+      },
+      {
+        "id": "AP-02",
+        "paysHote": "Ireland",
+        "specialisation": "Extraction",
+        "rendementRelatif": 1,
+        "garnison": 20,
+        "immunitePostRaidMin": 0
+      },
+      {
+        "id": "AP-03",
+        "paysHote": "Panama",
+        "specialisation": "Extraction",
+        "rendementRelatif": 1,
+        "garnison": 10,
+        "immunitePostRaidMin": 0
+      }
+    ],
+    "agents": []
+  },
+  "mouvements": {
+    "miens": [
+      {
+        "id": "MVT-001",
+        "etat": "mien",
+        "type": "Fondation d’avant-poste",
+        "origine": "France",
+        "destination": "Chad",
+        "distanceKm": 3659,
+        "minutesRestantes": 8,
+        "arriveeDans": "00h08",
+        "slotOccupe": true,
+        "pile": null,
+        "traverseAntimeridien": false
+      },
+      {
+        "id": "MVT-002",
+        "etat": "mien",
+        "type": "Fondation d’avant-poste",
+        "origine": "France",
+        "destination": "Lesotho",
+        "distanceKm": 8923,
+        "minutesRestantes": 76,
+        "arriveeDans": "01h16",
+        "slotOccupe": true,
+        "pile": null,
+        "traverseAntimeridien": false
+      },
+      {
+        "id": "MVT-003",
+        "etat": "mien",
+        "type": "Fondation d’avant-poste",
+        "origine": "France",
+        "destination": "Canada",
+        "distanceKm": 7046,
+        "minutesRestantes": 52,
+        "arriveeDans": "00h52",
+        "slotOccupe": true,
+        "pile": null,
+        "traverseAntimeridien": false
+      }
+    ],
+    "adversesVisibles": [
+      {
+        "id": "ARC-001",
+        "etat": "adverse-derniere-position-connue",
+        "nationSuspectee": null,
+        "type": null,
+        "pile": null,
+        "capDegres": 142,
+        "arriveeEstimeeDans": null,
+        "vuIlYaMin": 44
+      },
+      {
+        "id": "ARC-002",
+        "etat": "adverse-derniere-position-connue",
+        "nationSuspectee": null,
+        "type": null,
+        "pile": null,
+        "capDegres": 149,
+        "arriveeEstimeeDans": null,
+        "vuIlYaMin": 44
+      }
+    ]
+  },
+  "brouillard": {
+    "detecteurs": [
+      {
+        "nom": "Territoire national",
+        "rayonKm": 1600
+      },
+      {
+        "nom": "Avant-poste — Hungary",
+        "rayonKm": 1100
+      },
+      {
+        "nom": "Avant-poste — Ireland",
+        "rayonKm": 1100
+      },
+      {
+        "nom": "Avant-poste — Panama",
+        "rayonKm": 1100
+      }
+    ],
+    "mouvementsAdversesTotal": 7,
+    "mouvementsAdversesVisibles": 2,
+    "couverturePourcent": 29
+  },
+  "journal": [
+    {
+      "t": "−12 min",
+      "gravite": "critique",
+      "texte": "Avant-poste d’extraction désactivé par raid — Algérie",
+      "lien": "rejeu:BAT-004"
+    },
+    {
+      "t": "−48 min",
+      "gravite": "critique",
+      "texte": "Embargo subi — production militaire plafonnée",
+      "restant": "2h51"
+    },
+    {
+      "t": "−1h20",
+      "gravite": "notable",
+      "texte": "Combat résolu à Tunisie — victoire, 4 blindés perdus",
+      "lien": "rejeu:BAT-003"
+    },
+    {
+      "t": "−2h05",
+      "gravite": "notable",
+      "texte": "Mouvement immobilisé à la frontière — plage de repos de l’URSS",
+      "resolutionA": "06h00"
+    },
+    {
+      "t": "−3h40",
+      "gravite": "routine",
+      "texte": "Chantier terminé — Centre logistique niveau 3"
+    },
+    {
+      "t": "−4h15",
+      "gravite": "routine",
+      "texte": "Agent dormant en place — Turquie"
+    }
+  ],
+  "adversaires": [
+    {
+      "nation": "Italie",
+      "encre": "#a86c4a",
+      "pouvoir": "Reconnaissance aérienne — voit la composition des piles qu’elle détecte",
+      "barre": {
+        "etat": "anonyme",
+        "progressionPourcent": 12,
+        "doctrine": null
+      },
+      "plageRepos": "04h00 – 11h00",
+      "dernierRenseignement": "il y a 18 min"
+    },
+    {
+      "nation": "Chine",
+      "encre": "#b07434",
+      "pouvoir": "Masse — pas de plafond d’effectifs, mais entretien croissant",
+      "barre": {
+        "etat": "attribuee",
+        "progressionPourcent": 26,
+        "doctrine": "hegemonie"
+      },
+      "plageRepos": "03h00 – 10h00",
+      "dernierRenseignement": "jamais"
+    },
+    {
+      "nation": "URSS",
+      "encre": "#9d4638",
+      "pouvoir": "Profondeur stratégique — l’occupation ne réduit pas sa production",
+      "barre": {
+        "etat": "attribuee",
+        "progressionPourcent": 29,
+        "doctrine": "influence"
+      },
+      "plageRepos": "03h00 – 10h00",
+      "dernierRenseignement": "jamais"
+    },
+    {
+      "nation": "Japon",
+      "encre": "#a44a5e",
+      "pouvoir": "Doctrine du porte-avions — réoriente un mouvement en vol, avant mi-parcours",
+      "barre": {
+        "etat": "anonyme",
+        "progressionPourcent": 19,
+        "doctrine": null
+      },
+      "plageRepos": "18h00 – 01h00",
+      "dernierRenseignement": "jamais"
+    },
+    {
+      "nation": "États-Unis",
+      "encre": "#4a7060",
+      "pouvoir": "Arsenal — convertit ravitaillement en acier, un sens seulement",
+      "barre": {
+        "etat": "attribuee",
+        "progressionPourcent": 57,
+        "doctrine": "influence"
+      },
+      "plageRepos": "10h00 – 17h00",
+      "dernierRenseignement": "jamais"
+    }
+  ],
+  "catalogueProduction": [
+    {
+      "cle": "inf",
+      "nom": "Infanterie",
+      "domaine": "Terre",
+      "coutAcier": 18,
+      "coutEffectifs": 6,
+      "palier2": true,
+      "fortContre": [
+        "Transport terrestre",
+        "Infanterie"
+      ],
+      "vulnerableA": [
+        "Blindé",
+        "Bombardier"
+      ]
+    },
+    {
+      "cle": "bli",
+      "nom": "Blindé",
+      "domaine": "Terre",
+      "coutAcier": 95,
+      "coutEffectifs": 3,
+      "palier2": true,
+      "fortContre": [
+        "Transport terrestre",
+        "Infanterie"
+      ],
+      "vulnerableA": [
+        "Bombardier",
+        "Blindé"
+      ]
+    },
+    {
+      "cle": "trt",
+      "nom": "Transport terrestre",
+      "domaine": "Terre",
+      "coutAcier": 40,
+      "coutEffectifs": 2,
+      "palier2": false,
+      "fortContre": [
+        "Transport terrestre",
+        "Infanterie"
+      ],
+      "vulnerableA": [
+        "Blindé",
+        "Bombardier"
+      ]
+    },
+    {
+      "cle": "cha",
+      "nom": "Chasseur",
+      "domaine": "Air",
+      "coutAcier": 110,
+      "coutEffectifs": 2,
+      "palier2": false,
+      "fortContre": [
+        "Transport aérien",
+        "Bombardier"
+      ],
+      "vulnerableA": [
+        "Porte-avions",
+        "Chasseur"
+      ]
+    },
+    {
+      "cle": "bom",
+      "nom": "Bombardier",
+      "domaine": "Air",
+      "coutAcier": 160,
+      "coutEffectifs": 3,
+      "palier2": false,
+      "fortContre": [
+        "Porte-avions",
+        "Blindé"
+      ],
+      "vulnerableA": [
+        "Chasseur",
+        "Porte-avions"
+      ]
+    },
+    {
+      "cle": "tra",
+      "nom": "Transport aérien",
+      "domaine": "Air",
+      "coutAcier": 90,
+      "coutEffectifs": 2,
+      "palier2": false,
+      "fortContre": [],
+      "vulnerableA": [
+        "Chasseur",
+        "Porte-avions"
+      ]
+    },
+    {
+      "cle": "esc",
+      "nom": "Escorte",
+      "domaine": "Mer",
+      "coutAcier": 175,
+      "coutEffectifs": 5,
+      "palier2": false,
+      "fortContre": [
+        "Cargo",
+        "Porte-avions"
+      ],
+      "vulnerableA": [
+        "Bombardier",
+        "Escorte"
+      ]
+    },
+    {
+      "cle": "car",
+      "nom": "Cargo",
+      "domaine": "Mer",
+      "coutAcier": 120,
+      "coutEffectifs": 3,
+      "palier2": false,
+      "fortContre": [
+        "Cargo",
+        "Escorte"
+      ],
+      "vulnerableA": [
+        "Escorte",
+        "Bombardier"
+      ]
+    },
+    {
+      "cle": "pav",
+      "nom": "Porte-avions",
+      "domaine": "Mer",
+      "coutAcier": 430,
+      "coutEffectifs": 9,
+      "palier2": true,
+      "fortContre": [
+        "Chasseur",
+        "Transport aérien"
+      ],
+      "vulnerableA": [
+        "Bombardier",
+        "Escorte"
+      ]
+    }
+  ],
+  "espionnage": {
+    "_synthetise": true,
+    "sondes": [
+      {
+        "cible": "États-Unis",
+        "resteMin": 47,
+        "mouvementsReveles": 2
+      },
+      {
+        "cible": "URSS",
+        "resteMin": 0,
+        "mouvementsReveles": 0,
+        "etat": "expiree"
+      }
+    ],
+    "leurresEnVol": 1,
+    "zonesAveugles": [
+      "Atlantique nord",
+      "Pacifique",
+      "Asie orientale"
+    ],
+    "couverturePourcent": 29
+  },
+  "paysNeutres": [
+    {
+      "pays": "Hungary",
+      "relationAvecMoi": 62,
+      "capaciteEchangeRestantePourcent": 45,
+      "avantPostesPresents": [
+        {
+          "proprietaire": "France",
+          "specialisation": "Extraction"
+        }
+      ],
+      "agentsPresents": 0
+    },
+    {
+      "pays": "Ireland",
+      "relationAvecMoi": 62,
+      "capaciteEchangeRestantePourcent": 45,
+      "avantPostesPresents": [
+        {
+          "proprietaire": "France",
+          "specialisation": "Extraction"
+        }
+      ],
+      "agentsPresents": 0
+    },
+    {
+      "pays": "Panama",
+      "relationAvecMoi": 62,
+      "capaciteEchangeRestantePourcent": 45,
+      "avantPostesPresents": [
+        {
+          "proprietaire": "France",
+          "specialisation": "Extraction"
+        }
+      ],
+      "agentsPresents": 0
+    }
+  ],
+  "rejeu": {
+    "id": "BAT-003",
+    "lieu": "Tunisie",
+    "attaquant": {
+      "nation": "France",
+      "capArriveeDegres": 148,
+      "capLibelle": "depuis le nord-ouest, par la mer"
+    },
+    "defenseur": {
+      "nation": "Italie",
+      "bonusDefenseur": 1.15
+    },
+    "pilesAvant": {
+      "attaquant": {
+        "Blindé": 22,
+        "Bombardier": 14,
+        "Chasseur": 9
+      },
+      "defenseur": {
+        "Infanterie": 40,
+        "Escorte": 6,
+        "Chasseur": 4
+      }
+    },
+    "passes": [
+      {
+        "n": 1,
+        "pertesAttaquant": {
+          "Blindé": 3
+        },
+        "pertesDefenseur": {
+          "Infanterie": 11,
+          "Chasseur": 1
+        }
+      },
+      {
+        "n": 2,
+        "pertesAttaquant": {
+          "Blindé": 1,
+          "Chasseur": 2
+        },
+        "pertesDefenseur": {
+          "Infanterie": 13,
+          "Escorte": 2
+        }
+      },
+      {
+        "n": 3,
+        "pertesAttaquant": {},
+        "pertesDefenseur": {
+          "Infanterie": 9,
+          "Escorte": 3,
+          "Chasseur": 3
+        }
+      }
+    ],
+    "pilesApres": {
+      "attaquant": {
+        "Blindé": 18,
+        "Bombardier": 14,
+        "Chasseur": 7
+      },
+      "defenseur": {
+        "Infanterie": 7,
+        "Escorte": 1,
+        "Chasseur": 0
+      }
+    },
+    "issue": "Victoire de l’attaquant — 82 % de la garnison détruite"
+  }
+}

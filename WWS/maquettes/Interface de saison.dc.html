@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;0,6..96,800;1,6..96,400&family=Archivo+Narrow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#171208; font-family:"Archivo Narrow", Arial Narrow, sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing:antialiased; text-wrap:pretty; }
+  a { color:#3f5a7d; text-decoration:none; border-bottom:1px solid rgba(63,90,125,.45); }
+  a:hover { color:#2a2118; border-bottom-color:#2a2118; }
+  button { font-family:inherit; font-variant-numeric: tabular-nums; }
+</style>
+</helmet>
+
+<div style="position:relative; width:100%; min-width:max-content; min-height:100vh; background:#171208; color:#2a2118; overflow-x:auto">
+
+  <!-- bandeau nation -->
+  <div style="display:flex; align-items:stretch; gap:0; background:#171208; border-bottom:1px solid #4a4436; color:#e4d8bd; height:58px; min-width:max-content; white-space:nowrap">
+    <div style="display:flex; align-items:center; gap:12px; padding:0 18px; border-right:1px solid #4a4436; flex:0 0 auto">
+      <div style="width:14px; height:14px; background:#3f5a7d; border:1px solid #e4d8bd"></div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-weight:800; font-size:19px; letter-spacing:.02em">FRANCE</div>
+      <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#a9968f; padding-top:3px">doctrine hégémonie</div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:26px; padding:0 20px; border-right:1px solid #4a4436; flex:0 0 auto">
+      <div style="display:flex; flex-direction:column; gap:1px">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">ravitaillement</div>
+        <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">7 240</span><span style="font-size:11px; color:#b07434">+310 / h</span></div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:1px">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">acier</div>
+        <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">1 905</span><span style="font-size:11px; color:#b07434">+88 / h</span></div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:1px">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">effectifs</div>
+        <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">412</span><span style="font-size:11px; color:#8d7f6a">/ 520 plafond</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; padding:0 20px; border-right:1px solid #4a4436; flex:0 0 auto">
+      <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a; max-width:52px; line-height:1.2">slots de mouvement</div>
+      <div style="display:flex; gap:4px">
+        <div style="width:11px; height:22px; background:#3f5a7d; border:1px solid #e4d8bd"></div>
+        <div style="width:11px; height:22px; background:#3f5a7d; border:1px solid #e4d8bd"></div>
+        <div style="width:11px; height:22px; background:#3f5a7d; border:1px solid #e4d8bd"></div>
+        <div style="width:11px; height:22px; border:1px solid #6b6252"></div>
+        <div style="width:11px; height:22px; border:1px solid #6b6252"></div>
+      </div>
+      <div style="font-size:15px; font-weight:600">3 / 5</div>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <button onClick="{{ openJournal }}" style="display:flex; align-items:center; gap:10px; background:transparent; border:none; border-right:1px solid #4a4436; color:#e4d8bd; padding:0 20px; cursor:pointer; flex:0 0 auto" style-hover="background:#2a2118">
+      <div style="width:8px; height:8px; background:#9d4638"></div>
+      <div style="text-align:left">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">journal d'événements</div>
+        <div style="font-size:13px">8 entrées non lues</div>
+      </div>
+    </button>
+
+    <div style="display:flex; align-items:center; gap:22px; padding:0 20px; flex:0 0 auto">
+      <div style="text-align:right">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">plage de repos déclarée</div>
+        <div style="font-size:13px">23:00 → 06:00</div>
+      </div>
+      <div style="text-align:right; border-left:1px solid #4a4436; padding-left:22px">
+        <div style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">saison close dans</div>
+        <div style="font-size:17px; font-weight:600">2 j 14 h 08</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:stretch; height:calc(100vh - 58px); min-height:820px; min-width:1240px; width:100%">
+
+    <!-- rail des surfaces -->
+    <div style="flex:0 0 52px; background:#171208; border-right:1px solid #4a4436; display:flex; flex-direction:column; align-items:stretch; padding:8px 0; gap:2px">
+      <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+        <button onClick="{{ s.pick }}" style="{{ s.style }}">{{ s.num }}</button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; color:#6b6252; text-align:center; letter-spacing:.1em">III</div>
+    </div>
+
+    <!-- dock mouvements -->
+    <sc-if value="{{ isMoves }}" hint-placeholder-val="{{ false }}">
+      <div style="width:430px; flex:0 0 430px; display:flex; flex-direction:column; background:#e4d8bd; border-right:1px solid #2a2118; background-image:repeating-linear-gradient(45deg, rgba(42,33,24,.055) 0 1px, transparent 1px 5px)">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; padding:13px 18px 10px; border-bottom:1px solid #2a2118">
+          <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:16px; font-weight:800; letter-spacing:.02em">MOUVEMENTS EN COURS</div>
+          <div style="font-size:11px; color:#5f5039">3 slots · 2 dispo.</div>
+        </div>
+        <div style="flex:1; overflow:auto">
+          <sc-for list="{{ moves }}" as="m" hint-placeholder-count="5">
+            <div style="padding:11px 18px; border-bottom:1px solid rgba(42,33,24,.22)">
+              <div style="display:flex; align-items:center; gap:9px">
+                <div style="width:9px; height:9px; background:{{ m.ink }}; opacity:{{ m.inkOpacity }}"></div>
+                <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039">{{ m.state }}</div>
+                <div style="flex:1; height:1px; background:rgba(42,33,24,.16)"></div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px">{{ m.eta }}</div>
+              </div>
+              <div style="display:flex; align-items:baseline; gap:10px; margin-top:6px">
+                <div style="font-size:15px; font-weight:600; opacity:{{ m.typeOpacity }}">{{ m.type }}</div>
+                <div style="font-size:13px; color:#5f5039">{{ m.route }}</div>
+              </div>
+              <div style="display:flex; gap:18px; margin-top:4px; font-size:12px; color:#5f5039">
+                <div>{{ m.composition }}</div>
+                <div>{{ m.cap }}</div>
+              </div>
+            </div>
+          </sc-for>
+          <div style="padding:12px 18px 20px; font-size:11.5px; color:#5f5039; line-height:1.5">
+            Un arc adverse n'expose ni son type ni sa composition. Un arc grisé est une dernière position connue, horodatée.
+          </div>
+        </div>
+        <button onClick="{{ openSend }}" style="flex:0 0 auto; background:#2a2118; color:#e4d8bd; border:none; padding:15px; font-size:12px; letter-spacing:.22em; text-transform:uppercase; cursor:pointer" style-hover="background:#3f5a7d">envoyer un mouvement</button>
+      </div>
+    </sc-if>
+
+    <!-- plateau -->
+    <div style="flex:1; position:relative; background:#a9c5cd; background-image:repeating-linear-gradient(0deg, rgba(74,68,54,.22) 0 1px, transparent 1px 84px), repeating-linear-gradient(90deg, rgba(74,68,54,.22) 0 1px, transparent 1px 84px), repeating-linear-gradient(45deg, rgba(44,80,99,.10) 0 1px, transparent 1px 5px); overflow:hidden">
+
+      <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center">
+        <div style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#2c5063; letter-spacing:.06em; line-height:1.9">
+          <div style="border:1px dashed #3f6b7c; padding:26px 40px; background:rgba(213,197,160,.35)">
+            plateau existant — prototype de carte<br />
+            <span style="opacity:.7">mer aplat délavé · isobathes · frontières encre · avant-postes</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4.5 raccourci nation, angle haut gauche -->
+      <div style="position:absolute; top:16px; left:16px; width:250px; background:#e4d8bd; border:1px solid #2a2118; background-image:repeating-linear-gradient(45deg, rgba(42,33,24,.055) 0 1px, transparent 1px 5px)">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid #2a2118">
+          <div style="font-size:10px; letter-spacing:.2em; text-transform:uppercase">ma nation</div>
+          <div style="font-size:10px; color:#5f5039">4.5</div>
+        </div>
+        <div style="padding:11px 12px">
+          <div style="display:flex; flex-direction:column; gap:5px; font-size:12.5px">
+            <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">armée présente</span><span>18 unités</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">en transit</span><span>9 unités</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">avant-postes</span><span>4 · 1 désactivé</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">file de chantier</span><span>2 · fin 02:40</span></div>
+          </div>
+          <div style="margin-top:10px; padding-top:9px; border-top:1px solid rgba(42,33,24,.3)">
+            <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039">pouvoir national</div>
+            <div style="font-size:12.5px; line-height:1.4; margin-top:3px">Levée en masse : un chantier de conscription ignore son coût en acier.</div>
+            <div style="font-size:11.5px; color:#b07434; margin-top:4px">disponible — 1 usage restant</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- panneau contextuel, angle haut droit -->
+      <div style="position:absolute; top:16px; right:16px; width:308px; background:#e4d8bd; border:1px solid #2a2118; background-image:repeating-linear-gradient(45deg, rgba(42,33,24,.055) 0 1px, transparent 1px 5px)">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 13px; border-bottom:1px solid #2a2118">
+          <div style="font-size:10px; letter-spacing:.2em; text-transform:uppercase">pays neutre</div>
+          <div style="font-size:11px; color:#5f5039">sélection</div>
+        </div>
+        <div style="padding:12px 13px">
+          <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:22px; font-weight:800; letter-spacing:.01em">TURQUIE</div>
+          <div style="font-size:11.5px; color:#5f5039; margin-top:2px">capacité d'échange restante 2 / 4</div>
+
+          <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin-top:14px; padding-bottom:5px; border-bottom:1px solid rgba(42,33,24,.3)">relation par joueur</div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px">
+            <div style="display:flex; align-items:center; gap:8px">
+              <div style="width:8px; height:8px; background:#3f5a7d"></div>
+              <div style="flex:1; font-size:13px">France</div>
+              <div style="flex:0 0 96px; height:6px; background:rgba(42,33,24,.14)"><div style="width:62%; height:6px; background:#3f5a7d"></div></div>
+              <div style="font-size:12px; width:30px; text-align:right">+62</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px">
+              <div style="width:8px; height:8px; background:#9d4638"></div>
+              <div style="flex:1; font-size:13px">URSS</div>
+              <div style="flex:0 0 96px; height:6px; background:rgba(42,33,24,.14)"><div style="width:41%; height:6px; background:#9d4638"></div></div>
+              <div style="font-size:12px; width:30px; text-align:right">+41</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px">
+              <div style="width:8px; height:8px; background:#6e6a5e"></div>
+              <div style="flex:1; font-size:13px">Allemagne</div>
+              <div style="flex:0 0 96px; height:6px; background:rgba(42,33,24,.14)"><div style="width:18%; height:6px; background:#6e6a5e"></div></div>
+              <div style="font-size:12px; width:30px; text-align:right">+18</div>
+            </div>
+          </div>
+
+          <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin-top:16px; padding-bottom:5px; border-bottom:1px solid rgba(42,33,24,.3)">avant-postes présents</div>
+          <div style="display:flex; align-items:baseline; gap:8px; margin-top:8px">
+            <div style="width:8px; height:8px; background:#3f5a7d"></div>
+            <div style="flex:1; font-size:13px">France — ravitaillement, niv. 2</div>
+            <div style="font-size:12px; color:#5f5039">garnison 3</div>
+          </div>
+          <div style="font-size:11.5px; color:#5f5039; margin-top:6px">1 agent dormant relevé — appartenance inconnue</div>
+
+          <div style="display:flex; gap:7px; margin-top:15px">
+            <button style="flex:1; background:#2a2118; color:#e4d8bd; border:none; padding:9px; font-size:10px; letter-spacing:.16em; text-transform:uppercase; cursor:pointer" style-hover="background:#3f5a7d">fonder un avant-poste</button>
+            <button style="flex:1; background:transparent; color:#2a2118; border:1px solid #2a2118; padding:9px; font-size:10px; letter-spacing:.16em; text-transform:uppercase; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">poser un agent</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- compteurs d'attente, angle bas gauche -->
+      <div style="position:absolute; left:16px; bottom:26px; width:250px; background:#e4d8bd; border:1px solid #2a2118">
+        <div style="display:flex; align-items:center; gap:9px; padding:8px 12px; border-bottom:1px solid rgba(42,33,24,.3)">
+          <div style="width:8px; height:8px; background:#9d4638"></div>
+          <div style="font-size:10px; letter-spacing:.2em; text-transform:uppercase; font-weight:700">compteurs</div>
+        </div>
+        <div style="padding:10px 12px; display:flex; flex-direction:column; gap:6px; font-size:12.5px">
+          <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">prochaine arrivée</span><span style="font-family:'IBM Plex Mono',monospace">04:12</span></div>
+          <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">immunité Oran</span><span style="font-family:'IBM Plex Mono',monospace">04:11</span></div>
+          <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">doctrine gelée</span><span style="font-family:'IBM Plex Mono',monospace">08:22</span></div>
+          <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">immobilisés → repos</span><span style="font-family:'IBM Plex Mono',monospace">08:00</span></div>
+        </div>
+      </div>
+
+      <!-- légende des états d'arc -->
+      <div style="position:absolute; right:16px; bottom:26px; background:#e4d8bd; border:1px solid #2a2118; padding:10px 13px">
+        <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin-bottom:7px">états d'arc</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:11.5px">
+          <div style="display:flex; align-items:center; gap:8px"><div style="width:26px; height:2px; background:#3f5a7d"></div>mien</div>
+          <div style="display:flex; align-items:center; gap:8px"><div style="width:26px; height:2px; background:#9d4638; opacity:.85"></div>adverse détecté</div>
+          <div style="display:flex; align-items:center; gap:8px"><div style="width:26px; height:2px; background:#6e6a5e; opacity:.45"></div>dernière position connue</div>
+          <div style="display:flex; align-items:center; gap:8px"><div style="width:26px; height:2px; background:linear-gradient(90deg, transparent, #4a4f7a 40%, #4a4f7a 60%, transparent)"></div>maîtrise des mers</div>
+        </div>
+      </div>
+
+      <div style="position:absolute; left:0; right:0; bottom:0; height:14px; background:linear-gradient(180deg, #c7b48e, #5f5039); border-top:1px solid #6b4a24"></div>
+    </div>
+  </div>
+
+  <!-- 4.1 journal d'événements — édition imprimée -->
+  <sc-if value="{{ journalOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute; inset:0; background:rgba(23,18,8,.72); display:flex; align-items:flex-start; justify-content:center; padding:34px 24px; overflow:auto">
+      <div style="width:1040px; max-width:100%; background:#e4d8bd; border:1px solid #2a2118; padding:26px 30px 20px; background-image:repeating-linear-gradient(45deg, rgba(42,33,24,.05) 0 1px, transparent 1px 5px)">
+
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#5f5039">
+          <div>édition de 06:41</div>
+          <div>saison III — jour 5 sur 7</div>
+          <button onClick="{{ closeJournal }}" style="background:transparent; border:1px solid #2a2118; color:#2a2118; font-size:9px; letter-spacing:.18em; text-transform:uppercase; padding:4px 9px; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">fermer</button>
+        </div>
+
+        <div style="border-top:2px solid #2a2118; border-bottom:1px solid #2a2118; margin-top:10px; padding:14px 0 10px; text-align:center">
+          <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:54px; font-weight:800; letter-spacing:.06em; line-height:.98">LE JOURNAL DES OPÉRATIONS</div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:9px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#5f5039">
+            <span>France — doctrine hégémonie</span><span style="color:#9d8f78">·</span><span>dernière visite il y a 6 h 41</span><span style="color:#9d8f78">·</span><span>8 dépêches</span>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:stretch; gap:22px; border-bottom:1px solid #2a2118; padding:16px 0 18px">
+          <div style="flex:1">
+            <div style="display:flex; align-items:center; gap:9px">
+              <div style="width:9px; height:9px; background:#9d4638"></div>
+              <div style="font-size:10px; letter-spacing:.22em; text-transform:uppercase; font-weight:700; color:#9d4638">critique — 06:12</div>
+            </div>
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:38px; font-weight:800; line-height:1.02; margin-top:8px">L'avant-poste d'Oran désactivé par un raid soviétique</div>
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-style:italic; font-size:16px; color:#4a4436; margin-top:7px; line-height:1.35">La garnison tombe de trois à zéro. L'immunité post-raid court encore 04:11 ; aucune fondation adverse n'est possible d'ici là.</div>
+            <div style="display:flex; gap:24px; margin-top:12px">
+              <div style="flex:1; font-size:13.5px; line-height:1.55; column-count:2; column-gap:22px; column-rule:1px solid rgba(42,33,24,.25)">
+                Le raid a été relevé sur la façade nord-africaine à 06:12. Un avant-poste ne change jamais de propriétaire : la spécialisation ravitaillement est suspendue tant que la garnison n'est pas reconstituée, et le débit horaire de la nation perd 90 unités.
+                Trois passes de résolution ont suffi. Le cap sud subi lors du combat de Tunisie à 05:48 a coûté deux infanteries et un blindé.
+              </div>
+              <button style="align-self:flex-start; flex:0 0 auto; background:#2a2118; border:none; color:#e4d8bd; font-size:10px; letter-spacing:.18em; text-transform:uppercase; padding:9px 13px; cursor:pointer" style-hover="background:#3f5a7d">voir le rejeu</button>
+            </div>
+          </div>
+
+          <div style="flex:0 0 232px; border-left:1px solid rgba(42,33,24,.35); padding-left:20px">
+            <div style="font-size:10px; letter-spacing:.2em; text-transform:uppercase; font-weight:700; border-bottom:1px solid #2a2118; padding-bottom:6px">au réveil</div>
+            <div style="font-size:13px; line-height:1.5; margin-top:9px">Deux mouvements sont immobilisés à la frontière allemande pendant la plage de repos. Ils se résoudront à <span style="font-family:'IBM Plex Mono',monospace">08:00</span>.</div>
+            <div style="margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:12.5px">
+              <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">exposition subie</span><span style="font-family:'IBM Plex Mono',monospace">04:30</span></div>
+              <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">progression gelée</span><span style="font-family:'IBM Plex Mono',monospace">08:22</span></div>
+              <div style="display:flex; justify-content:space-between"><span style="color:#5f5039">slots engagés</span><span>3 / 5</span></div>
+            </div>
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-style:italic; font-size:13px; color:#4a4436; margin-top:12px; line-height:1.4">Doctrine révélée de force : l'adversaire connaît désormais votre voie d'hégémonie.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:stretch; gap:0; padding-top:14px">
+          <sc-for list="{{ columns }}" as="col" hint-placeholder-count="3">
+            <div style="flex:1; padding:0 18px; border-left:1px solid rgba(42,33,24,.3)">
+              <div style="display:flex; align-items:center; gap:8px; border-bottom:1px solid #2a2118; padding-bottom:6px">
+                <div style="width:8px; height:8px; background:{{ col.color }}"></div>
+                <div style="font-size:10px; letter-spacing:.22em; text-transform:uppercase; font-weight:700">{{ col.label }}</div>
+                <div style="flex:1"></div>
+                <div style="font-size:11px; color:#5f5039">{{ col.count }}</div>
+              </div>
+              <sc-for list="{{ col.entries }}" as="e" hint-placeholder-count="3">
+                <div style="padding:10px 0; border-bottom:1px solid rgba(42,33,24,.16)">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#5f5039">{{ e.time }}</div>
+                  <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:16px; font-weight:600; line-height:1.15; margin-top:3px">{{ e.text }}</div>
+                  <div style="font-size:12px; color:#5f5039; margin-top:3px; line-height:1.4">{{ e.meta }}</div>
+                  <sc-if value="{{ e.replay }}" hint-placeholder-val="{{ false }}">
+                    <button style="margin-top:6px; background:transparent; border:1px solid #2a2118; color:#2a2118; font-size:9px; letter-spacing:.16em; text-transform:uppercase; padding:4px 8px; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">rejeu</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; border-top:2px solid #2a2118; margin-top:16px; padding-top:10px">
+          <a href="#historique" style="font-size:10px; letter-spacing:.2em; text-transform:uppercase">historique de la saison</a>
+          <div style="font-family:'Bodoni Moda',Georgia,serif; font-style:italic; font-size:12.5px; color:#4a4436">les dépêches lues restent consultables, rejeu compris</div>
+          <button onClick="{{ closeJournal }}" style="background:#2a2118; border:none; color:#e4d8bd; font-size:10px; letter-spacing:.2em; text-transform:uppercase; padding:9px 16px; cursor:pointer" style-hover="background:#3f5a7d">retour au plateau</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 4.3 envoi d'un mouvement -->
+  <sc-if value="{{ sendOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; background:rgba(23,18,8,.62); display:flex; align-items:center; justify-content:center; padding:32px">
+      <div style="width:940px; max-width:100%; background:#e4d8bd; border:1px solid #2a2118; background-image:repeating-linear-gradient(45deg, rgba(42,33,24,.055) 0 1px, transparent 1px 5px)">
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:#2a2118; color:#e4d8bd">
+          <div style="display:flex; align-items:baseline; gap:14px">
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:18px; font-weight:800; letter-spacing:.02em">ENVOI D'UN MOUVEMENT</div>
+            <div style="font-size:11px; color:#a9968f">coût 1 slot — 1 disponible après envoi</div>
+          </div>
+          <button onClick="{{ closeSend }}" style="background:transparent; border:1px solid #a9968f; color:#e4d8bd; font-size:10px; letter-spacing:.16em; text-transform:uppercase; padding:5px 10px; cursor:pointer" style-hover="border-color:#e4d8bd">fermer</button>
+        </div>
+
+        <div style="display:flex; align-items:stretch">
+          <div style="flex:0 0 224px; border-right:1px solid rgba(42,33,24,.35); padding:14px">
+            <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin-bottom:9px">type</div>
+            <div style="display:flex; flex-direction:column; gap:5px">
+              <sc-for list="{{ types }}" as="t" hint-placeholder-count="5">
+                <button onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; color:#5f5039; margin-top:14px; line-height:1.5">Le leurre part avec zéro unité. Il est indiscernable d'un mouvement réel côté adverse.</div>
+          </div>
+
+          <div style="flex:1; padding:14px 16px; border-right:1px solid rgba(42,33,24,.35)">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:9px">
+              <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039">composition de la pile</div>
+              <div style="font-size:11.5px; color:#5f5039">reste à domicile après envoi</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <sc-for list="{{ roles }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(42,33,24,.14)">
+                  <div style="flex:1; font-size:13.5px">{{ r.label }}</div>
+                  <button onClick="{{ r.dec }}" style="width:24px; height:24px; background:transparent; border:1px solid #2a2118; color:#2a2118; font-size:14px; line-height:1; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">–</button>
+                  <div style="width:30px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:14px">{{ r.count }}</div>
+                  <button onClick="{{ r.inc }}" style="width:24px; height:24px; background:transparent; border:1px solid #2a2118; color:#2a2118; font-size:14px; line-height:1; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">+</button>
+                  <div style="width:112px; text-align:right; font-size:12px; color:#5f5039">{{ r.home }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; color:#5f5039; margin-top:10px; line-height:1.5">Les forces en transit ne défendent plus le territoire national.</div>
+
+            <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin:16px 0 8px">cap d'arrivée</div>
+            <div style="display:flex; gap:5px">
+              <sc-for list="{{ caps }}" as="c" hint-placeholder-count="4">
+                <button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; color:#5f5039; margin-top:7px">{{ capNote }}</div>
+          </div>
+
+          <div style="flex:0 0 292px; padding:14px 16px; display:flex; flex-direction:column">
+            <div style="font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#5f5039; margin-bottom:9px">destination</div>
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:21px; font-weight:800">MAROC</div>
+            <div style="font-size:12px; color:#5f5039; margin-top:2px">avant-poste URSS, niv. 1, garnison 4</div>
+
+            <div style="display:flex; flex-direction:column; gap:7px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(42,33,24,.3)">
+              <div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:#5f5039">durée estimée</span><span style="font-family:'IBM Plex Mono',monospace">04:12</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:#5f5039">arrivée</span><span style="font-family:'IBM Plex Mono',monospace">{{ arrival }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:#5f5039">antiméridien</span><span>non traversé</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:#5f5039">coût</span><span>1 slot · 240 ravit.</span></div>
+            </div>
+
+            <div style="margin-top:14px; border:1px solid #9d4638; padding:10px 11px">
+              <div style="display:flex; align-items:center; gap:8px"><div style="width:8px; height:8px; background:#9d4638"></div><div style="font-size:10px; letter-spacing:.16em; text-transform:uppercase; font-weight:700">plage de repos de la cible</div></div>
+              <div style="font-size:12.5px; margin-top:5px; line-height:1.45">L'arrivée tombe dans la plage publique de l'URSS (23:00 → 07:00). Le mouvement sera immobilisé à la frontière jusqu'à <span style="font-family:'IBM Plex Mono',monospace">07:00</span>.</div>
+            </div>
+
+            <div style="flex:1"></div>
+            <div style="display:flex; gap:7px; margin-top:14px">
+              <button onClick="{{ closeSend }}" style="flex:0 0 96px; background:transparent; border:1px solid #2a2118; color:#2a2118; padding:11px; font-size:10px; letter-spacing:.16em; text-transform:uppercase; cursor:pointer" style-hover="background:#2a2118; color:#e4d8bd">annuler</button>
+              <button onClick="{{ closeSend }}" style="flex:1; background:#2a2118; color:#e4d8bd; border:none; padding:11px; font-size:10px; letter-spacing:.2em; text-transform:uppercase; cursor:pointer" style-hover="background:#3f5a7d">envoyer — irréversible</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ grainOn }}" hint-placeholder-val="{{ true }}">
+    <div style="position:fixed; inset:0; pointer-events:none; mix-blend-mode:overlay; opacity:.2; background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22160%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22/></filter><rect width=%22160%22 height=%22160%22 filter=%22url(%23n)%22/></svg>'); background-size:160px 160px"></div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;grain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Traitement&quot;},&quot;showJournal&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Écrans&quot;},&quot;showSendPanel&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Écrans&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = Object.assign({}, this.state, {
+      journalOpen: !!props.showJournal,
+      sendOpen: !!props.showSendPanel,
+      view: props.showSendPanel ? "moves" : "carte"
+    });
+  }
+
+  state = {
+    view: "carte",
+    journalOpen: false,
+    sendOpen: false,
+    type: "attaque",
+    cap: "N",
+    counts: { inf: 6, bli: 2, esc: 1, cha: 0, car: 0 }
+  };
+
+  railStyle(active) {
+    return "height:38px; background:" + (active ? "#e4d8bd" : "transparent") +
+      "; color:" + (active ? "#2a2118" : "#8d7f6a") +
+      "; border:none; border-left:2px solid " + (active ? "#b07434" : "transparent") +
+      "; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; cursor:pointer";
+  }
+
+  pillStyle(active) {
+    return "flex:1; background:" + (active ? "#2a2118" : "transparent") +
+      "; color:" + (active ? "#e4d8bd" : "#2a2118") +
+      "; border:1px solid #2a2118; padding:8px 6px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; text-align:left";
+  }
+
+  capStyle(active) {
+    return "flex:1; background:" + (active ? "#3f5a7d" : "transparent") +
+      "; color:" + (active ? "#e4d8bd" : "#2a2118") +
+      "; border:1px solid #2a2118; padding:9px 4px; font-size:12px; cursor:pointer";
+  }
+
+  renderVals() {
+    const st = this.state;
+    const homeStock = { inf: 24, bli: 9, esc: 5, cha: 7, car: 4 };
+    const roleLabels = { inf: "infanterie", bli: "blindé", esc: "escorte", cha: "chasseur", car: "cargo" };
+    const bump = (k, d) => this.setState(s => {
+      const c = Object.assign({}, s.counts);
+      c[k] = Math.max(0, Math.min(homeStock[k], c[k] + d));
+      return { counts: c };
+    });
+
+    const capNotes = {
+      N: "cap nord — pas de bonus, exposé aux escortes en garnison",
+      S: "cap sud — allonge le trajet, réduit le bonus défenseur",
+      E: "cap est — favorise les blindés à la première passe",
+      O: "cap ouest — favorise l'appui aérien à la première passe"
+    };
+
+    const railItems = [
+      { num: "4.1", view: "journal" },
+      { num: "4.2", view: "moves" },
+      { num: "4.3", view: "send" },
+      { num: "4.4", view: "carte" },
+      { num: "4.5", view: "carte" },
+      { num: "4.6", view: "carte" },
+      { num: "4.7", view: "carte" },
+      { num: "4.8", view: "carte" },
+      { num: "4.9", view: "carte" }
+    ];
+
+    return {
+      rail: railItems.map(it => ({
+        num: it.num,
+        style: this.railStyle(
+          (it.view === "journal" && st.journalOpen) ||
+          (it.view === "send" && st.sendOpen) ||
+          (it.view === "moves" && st.view === "moves") ||
+          (it.num === "4.4" && st.view === "carte" && !st.journalOpen && !st.sendOpen)
+        ),
+        pick: () => {
+          if (it.view === "journal") return this.setState({ journalOpen: true, sendOpen: false });
+          if (it.view === "send") return this.setState({ sendOpen: true, journalOpen: false, view: "moves" });
+          if (it.view === "moves") return this.setState({ view: "moves", journalOpen: false, sendOpen: false });
+          return this.setState({ view: "carte", journalOpen: false, sendOpen: false });
+        }
+      })),
+
+      isMoves: st.view === "moves",
+      journalOpen: st.journalOpen,
+      sendOpen: st.sendOpen,
+      openJournal: () => this.setState({ journalOpen: true, sendOpen: false }),
+      closeJournal: () => this.setState({ journalOpen: false }),
+      openSend: () => this.setState({ sendOpen: true }),
+      closeSend: () => this.setState({ sendOpen: false }),
+      grainOn: this.props.grain ?? true,
+
+      columns: [
+        {
+          label: "critique", color: "#9d4638", count: "2 autres",
+          entries: [
+            { time: "05:48", text: "Défaite en Tunisie", meta: "3 passes · pertes 2 infanterie, 1 blindé · cap sud subi", replay: true },
+            { time: "04:30", text: "Exposition subie", meta: "doctrine révélée de force, progression gelée 08:22", replay: false }
+          ]
+        },
+        {
+          label: "notable", color: "#b07434", count: "3 dépêches",
+          entries: [
+            { time: "03:12", text: "Deux mouvements retenus à la frontière", meta: "plage de repos ALLEMAGNE · résolution à 08:00", replay: false },
+            { time: "02:40", text: "Agent dormant abouti en Égypte", meta: "arcs proches révélés en continu · sabotage disponible", replay: false },
+            { time: "01:55", text: "Sonde expirée sur le Japon", meta: "3 mouvements sortants relevés en 06:00", replay: false }
+          ]
+        },
+        {
+          label: "routine", color: "#6e6a5e", count: "3 dépêches",
+          entries: [
+            { time: "00:50", text: "Complexe industriel porté au niveau 3", meta: "acier +88 / h · plafonné par le QG niv. 3", replay: false },
+            { time: "00:34", text: "Conscription relancée", meta: "fin de chantier estimée à 02:40", replay: false },
+            { time: "00:20", text: "Avant-poste fondé en Turquie", meta: "spécialisation ravitaillement · niv. 1", replay: false }
+          ]
+        }
+      ],
+
+      moves: [
+        { state: "mien — attaque", type: "attaque", ink: "#3f5a7d", inkOpacity: 1, typeOpacity: 1, route: "France → Maroc", composition: "6 infanterie · 2 blindés · 1 escorte", cap: "cap nord", eta: "04:12" },
+        { state: "mien — raid d'avant-poste", type: "raid d'avant-poste", ink: "#3f5a7d", inkOpacity: 1, typeOpacity: 1, route: "France → Turquie", composition: "1 agent", cap: "cap est", eta: "11:48" },
+        { state: "adverse détecté", type: "type inconnu", ink: "#9d4638", inkOpacity: .85, typeOpacity: .45, route: "arc relevé au large de la Sicile", composition: "composition inconnue", cap: "cap sud-ouest", eta: "~02:15" },
+        { state: "dernière position connue", type: "type inconnu", ink: "#6e6a5e", inkOpacity: .45, typeOpacity: .35, route: "arc figé — mer du Nord", composition: "vu il y a 41 min", cap: "cap inconnu", eta: "—" },
+        { state: "maîtrise des mers — Royaume-Uni", type: "arc maritime", ink: "#4a4f7a", inkOpacity: .7, typeOpacity: .5, route: "extrémités effacées", composition: "ni origine ni destination", cap: "cap nord-est", eta: "~06:40" }
+      ],
+
+      types: ["attaque", "raid d'avant-poste", "fondation d'avant-poste", "agent", "leurre"].map(label => ({
+        label,
+        style: this.pillStyle(st.type === label),
+        pick: () => this.setState({ type: label })
+      })),
+
+      roles: Object.keys(roleLabels).map(k => ({
+        label: roleLabels[k],
+        count: st.counts[k],
+        home: (homeStock[k] - st.counts[k]) + " / " + homeStock[k] + " à domicile",
+        inc: () => bump(k, 1),
+        dec: () => bump(k, -1)
+      })),
+
+      caps: ["N", "E", "S", "O"].map(label => ({
+        label: "cap " + label,
+        style: this.capStyle(st.cap === label),
+        pick: () => this.setState({ cap: label })
+      })),
+      capNote: capNotes[st.cap],
+      arrival: "demain 06:24"
+    };
+  }
+}
+
+</script>
+</body>
+</html>
