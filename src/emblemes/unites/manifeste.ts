@@ -1,6 +1,6 @@
 import type { Nation } from '@/domaine/nations';
-import type { PalierUnite } from '@/domaine/troupes';
-import type { RoleUnite } from '@/domaine/vue-joueur';
+import { roleRepresentatif, type PalierUnite } from '@/domaine/troupes';
+import type { ArcAffiche, RoleUnite } from '@/domaine/vue-joueur';
 import blinde1 from './france/blinde-1.webp';
 import blinde2 from './france/blinde-2.webp';
 import bombardier from './france/bombardier.webp';
@@ -42,6 +42,19 @@ const FRANCE: NationSprites = {
 export const SPRITES_PAR_NATION: Readonly<Partial<Record<Nation, NationSprites>>> = {
   France: FRANCE,
 };
+
+/**
+ * Le visage d'un mouvement sur la carte. Seul un arc `mien` en a un : le brouillard fait
+ * qu'un arc adverse n'a structurellement pas de pile, donc pas de sprite — le rendu retombe
+ * sur son marqueur anonyme sans qu'aucun `if` d'affichage ne puisse fuir l'information.
+ * Palier MK1 d'office : la pile d'un mouvement ne transporte pas encore le palier.
+ */
+export function spriteDeMouvement(arc: ArcAffiche, nationJoueur: string | null): string | null {
+  if (arc.etat !== 'mien') return null;
+  const role = roleRepresentatif(arc.pile);
+  if (role === null) return null;
+  return urlSprite(nationJoueur, role, 1);
+}
 
 export function urlSprite(
   nation: string | null,

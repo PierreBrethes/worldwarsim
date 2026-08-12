@@ -49,6 +49,51 @@ body {
   color: var(--paper-dim);
 }
 
+/* Le passage d'un écran de journal à l'autre est une page qu'on tourne :
+   l'axe est le pli à gauche, jamais un fondu. */
+@keyframes tour-de-page-sortie {
+  from {
+    transform: perspective(2400px) rotateY(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: perspective(2400px) rotateY(-84deg) scale(0.985);
+    opacity: 0.08;
+  }
+}
+
+@keyframes tour-de-page-entree {
+  from {
+    transform: perspective(2400px) rotateY(72deg) scale(0.985);
+    opacity: 0.08;
+  }
+  to {
+    transform: perspective(2400px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes eclat-magnesium {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes lever-de-rideau {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .grain {
   position: fixed;
   inset: 0;

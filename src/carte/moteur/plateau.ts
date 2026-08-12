@@ -13,7 +13,7 @@ import {
 } from 'three';
 import type { Monde } from '@/domaine/monde';
 import type { Courbure } from './courbure';
-import { creerTextureDeMer } from './bathymetrie';
+import { creerMateriauDeMer } from './bathymetrie';
 import { PALETTE } from './palette';
 import { HAUTEUR_SOCLE, NIVEAU_MER, type RepereMonde } from './repere';
 
@@ -157,11 +157,7 @@ export function construirePlateau(
 ): Object3D[] {
   const surface = new Mesh(
     courbure.enregistrer(construireSurface(monde, repere)),
-    new MeshStandardMaterial({
-      map: creerTextureDeMer(monde, anisotropie),
-      roughness: 0.98,
-      metalness: 0,
-    }),
+    creerMateriauDeMer(monde, anisotropie),
   );
 
   const socle = new Mesh(

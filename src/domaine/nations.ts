@@ -33,7 +33,55 @@ export const POUVOIR_PAR_NATION: Readonly<Record<Nation, string>> = {
   Chine: 'Masse — pas de plafond d’effectifs, entretien croissant en ravitaillement',
 };
 
+/**
+ * Le pays de `monde.json` sur lequel s'assied chaque nation jouable. La table est
+ * indispensable parce que le monde est nommé en anglais : sans elle, seule « France »
+ * coïncide par accident avec le libellé de la nation, et les sept autres ne matchent jamais.
+ *
+ * **Porter le nom d'une nation n'est pas la posséder.** Un pays ne prend l'encre que
+ * lorsqu'un joueur a réservé cette nation — voir `encreParPaysPris`.
+ */
+export const PAYS_DE_NATION: Readonly<Record<Nation, string>> = {
+  France: 'France',
+  'Royaume-Uni': 'United Kingdom',
+  'États-Unis': 'United States of America',
+  URSS: 'Russia',
+  Allemagne: 'Germany',
+  Japon: 'Japan',
+  Italie: 'Italy',
+  Chine: 'China',
+};
+
+/**
+ * Les pays à encrer sur la carte, à partir des joueurs réellement présents. Un porteur
+ * sans nation (pseudo en guise d'étiquette) ne colore rien.
+ */
+export function encreParPaysPris(
+  porteurs: ReadonlyArray<{ readonly nation: string | null; readonly encre: string }>,
+): Map<string, string> {
+  const encres = new Map<string, string>();
+  for (const { nation, encre } of porteurs) {
+    if (nation !== null && nation in PAYS_DE_NATION) {
+      encres.set(PAYS_DE_NATION[nation as Nation], encre);
+    }
+  }
+  return encres;
+}
+
 export const DOCTRINES = ['domination', 'hegemonie', 'influence'] as const;
+
+export type Doctrine = (typeof DOCTRINES)[number];
+
+/** Le schéma stocke des identifiants sans accent ; l'écran, lui, est en français. */
+export const LIBELLE_DOCTRINE: Readonly<Record<Doctrine, string>> = {
+  domination: 'domination',
+  hegemonie: 'hégémonie',
+  influence: 'influence',
+};
+
+export function libelleDoctrine(doctrine: string | null): string | null {
+  return doctrine && doctrine in LIBELLE_DOCTRINE ? LIBELLE_DOCTRINE[doctrine as Doctrine] : doctrine;
+}
 
 export function encreDeNation(nation: string | null): string {
   return nation && nation in ENCRE_PAR_NATION ? ENCRE_PAR_NATION[nation as Nation] : '#6e6a5e';

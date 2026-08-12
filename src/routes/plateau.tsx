@@ -1,13 +1,15 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { Suspense, lazy, useCallback } from 'react';
+import { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { Carte } from '@/carte/Carte';
 import { Coque } from '@/coque/Coque';
+import { encreParPaysPris } from '@/domaine/nations';
 import type { Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
+import { InfoBulleRegion } from './-plateau/InfoBulleRegion';
 import { LegendeEtatsArc } from './-plateau/LegendeEtatsArc';
 import { PanneauCompteurs } from './-plateau/PanneauCompteurs';
 import { PanneauMaNation } from './-plateau/PanneauMaNation';
@@ -98,6 +100,7 @@ function PlateauReactif({
 function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string }) {
   const { pays, modale } = Route.useSearch();
   const naviguer = useNavigate({ from: Route.fullPath });
+  const [regionSurvolee, setRegionSurvolee] = useState<string | null>(null);
 
   const selectionner = useCallback(
     (nom: string | null) => {
@@ -112,6 +115,11 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
     [naviguer],
   );
 
+  const encreParPays = useMemo(
+    () => encreParPaysPris([vue.moi, ...vue.adversaires]),
+    [vue.moi, vue.adversaires],
+  );
+
   const fermerModale = useCallback(() => {
     void naviguer({
       search: ({ modale: _ecartee, ...reste }) => reste,
@@ -121,11 +129,22 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
   return (
     <Coque vue={vue}>
       <div className="relative min-w-0 flex-1">
-        <Carte monde={monde} arcs={vue.arcs} paysSelectionne={pays ?? null} onSelection={selectionner} />
+        <Carte
+          monde={monde}
+          arcs={vue.arcs}
+          encreParPays={encreParPays}
+          paysSelectionne={pays ?? null}
+          nationJoueur={vue.moi.nation}
+          onSelection={selectionner}
+          onSurvolRegion={setRegionSurvolee}
+        />
         <PanneauMaNation vue={vue} />
         {pays && <PanneauPaysSelectionne pays={pays} vue={vue} />}
         <PanneauCompteurs arcs={vue.arcs} chargeeA={vue.chargeeA} />
-        <LegendeEtatsArc couverture={vue.couverture} />
+        <div className="absolute right-4 bottom-[26px] z-10 flex flex-col items-end gap-3">
+          {regionSurvolee && <InfoBulleRegion nom={regionSurvolee} />}
+          <LegendeEtatsArc couverture={vue.couverture} />
+        </div>
       </div>
       <Suspense fallback={null}>
         {modale === 'journal' && <ModaleJournal vue={vue} onFermer={fermerModale} />}
@@ -138,6 +157,12 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
         {modale === 'nation' && <ModaleNation vue={vue} jeton={jeton} onFermer={fermerModale} />}
         {modale === 'reglages' && <ModaleReglages onFermer={fermerModale} />}
       </Suspense>
+      {/* le rideau prolonge le noir du lancement jusqu'à la première image de la carte */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-40 bg-[var(--desk)]"
+        style={{ animation: 'lever-de-rideau .9s ease forwards' }}
+      />
     </Coque>
   );
 }

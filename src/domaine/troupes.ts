@@ -1,4 +1,4 @@
-import type { ArcAffiche, RoleUnite, TypeMouvement, VueJoueur } from './vue-joueur';
+import type { ArcAffiche, Pile, RoleUnite, TypeMouvement, VueJoueur } from './vue-joueur';
 
 export type DomaineUnite = 'terre' | 'air' | 'mer';
 
@@ -131,6 +131,24 @@ export type FiltreTroupes = {
 };
 
 export type TriTroupes = 'role' | 'nombre' | 'echeance';
+
+/**
+ * Le rôle qui donne son visage à un mouvement sur la carte : le plus nombreux de la pile,
+ * départagé par l'ordre canonique des rôles. Une pile vide n'a pas de visage — c'est au
+ * rendu de décider quoi montrer, pas au domaine d'inventer une unité.
+ */
+export function roleRepresentatif(pile: Pile): RoleUnite | null {
+  let retenu: RoleUnite | null = null;
+  let maximum = 0;
+  for (const role of ORDRE_ROLE) {
+    const nombre = pile[role] ?? 0;
+    if (nombre > maximum) {
+      retenu = role;
+      maximum = nombre;
+    }
+  }
+  return retenu;
+}
 
 /**
  * Un avant-poste n'expose que le nombre d'hommes de sa garnison, pas une pile : seule

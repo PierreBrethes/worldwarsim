@@ -11,6 +11,10 @@
   --ink-quiet: #4a4436;
   --paper-dim: #8d7f6a;
   --paper-dim-2: #a9968f;
+  --ink-faint: #8a7c5f;
+  --ink-note: #7d6a45;
+  --paper-pile: #cfc09e;
+  --paper-pile-2: #b8ab8c;
   --sea: #a9c5cd;
   --sea-ink: #2c5063;
   --sea-shade: #3f6b7c;
@@ -19,15 +23,9 @@
   --plinth-top: #c7b48e;
   --plinth-bottom: #5f5039;
 
-  /* encres de nation */
-  --ink-france: #3f5a7d;
-  --ink-royaume-uni: #4a4f7a;
-  --ink-etats-unis: #4a7060;
-  --ink-urss: #9d4638;
-  --ink-allemagne: #6e6a5e;
-  --ink-japon: #a44a5e;
-  --ink-italie: #a86c4a;
-  --ink-chine: #b07434;
+  /* Les encres de nation ne sont pas des tokens : elles voyagent avec la vue
+     (`encre`, servie par `convex/vue.ts`) parce qu'elles désignent un joueur, pas une
+     surface. Leur seule source est `ENCRE_PAR_NATION` dans `src/domaine/nations.ts`. */
 
   /* ressources — sur fond sombre, puis assombries pour le papier */
   --ravitaillement: #b07434;
@@ -39,6 +37,7 @@
 
   /* sémantique */
   --critique: #9d4638;
+  --valide: #2b6b46;
   --notable: #b07434;
   --routine: #6e6a5e;
   --interaction: #3f5a7d;

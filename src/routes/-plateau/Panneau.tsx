@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from 'react';
 
-type Position = 'hautGauche' | 'hautDroite' | 'basGauche' | 'basDroite';
+/** `statique` : le panneau se laisse empiler par un conteneur parent au lieu de s'ancrer. */
+type Position = 'hautGauche' | 'hautDroite' | 'basGauche' | 'basDroite' | 'statique';
 
 const ANCRAGE: Record<Position, string> = {
-  hautGauche: 'top-4 left-4',
-  hautDroite: 'top-4 right-4',
-  basGauche: 'bottom-[26px] left-4',
-  basDroite: 'bottom-[26px] right-4',
+  hautGauche: 'absolute top-4 left-4',
+  hautDroite: 'absolute top-4 right-4',
+  basGauche: 'absolute bottom-[26px] left-4',
+  basDroite: 'absolute bottom-[26px] right-4',
+  statique: 'relative',
 };
 
 export function Panneau({
@@ -25,7 +27,7 @@ export function Panneau({
   const [reduit, setReduit] = useState(false);
   return (
     <section
-      className={`hud trame-papier absolute z-10 border border-[var(--ink)] ${ANCRAGE[position]}`}
+      className={`hud trame-papier z-10 border border-[var(--ink)] ${ANCRAGE[position]}`}
       style={{ width: largeur }}
     >
       <header className="flex items-center gap-2 border-b border-[var(--ink)] px-3 py-2">

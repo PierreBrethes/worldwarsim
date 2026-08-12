@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compterTroupes, inventorierTroupes, organiserTroupes } from './troupes';
+import { compterTroupes, inventorierTroupes, organiserTroupes, roleRepresentatif } from './troupes';
 import type { ArcAffiche, VueJoueur } from './vue-joueur';
 
 const moi = {
@@ -84,5 +84,20 @@ describe('filtre et tri', () => {
   it('laisse l’inventaire d’origine intact', () => {
     organiserTroupes(lignes, { situation: 'toutes', domaineUnite: 'tous' }, 'nombre');
     expect(lignes[0]?.cle).toBe('domicile-infanterie');
+  });
+});
+
+describe('roleRepresentatif', () => {
+  it('retient le rôle le plus nombreux', () => {
+    expect(roleRepresentatif({ infanterie: 3, blinde: 7, chasseur: 1 })).toBe('blinde');
+  });
+
+  it('départage les égalités par l’ordre canonique', () => {
+    expect(roleRepresentatif({ escorte: 4, infanterie: 4 })).toBe('infanterie');
+  });
+
+  it('ignore les rôles à zéro et rend null sur pile vide', () => {
+    expect(roleRepresentatif({ cargo: 0 })).toBeNull();
+    expect(roleRepresentatif({})).toBeNull();
   });
 });

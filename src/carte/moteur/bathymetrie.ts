@@ -1,148 +1,64 @@
-import { CanvasTexture, Color, SRGBColorSpace } from 'three';
+import { Color, DataTexture, MeshStandardMaterial, SRGBColorSpace } from 'three';
 import type { Monde } from '@/domaine/monde';
+import { bruitDeValeur, champDeDistance, masqueDeTerre } from './champs';
 import { PALETTE } from './palette';
 
 const LARGEUR_TEXTURE = 2400;
-const PAS_TRAME = 4.6;
-const ADOUCISSEMENT = 1.15;
+const PAS_TRAME_MONDE = 0.767;
+const ADOUCISSEMENT_MONDE = 0.192;
 const TON_MIN = 0.1;
 const TON_MAX = 0.46;
 const OPACITE_POINT = 0.72;
 const INTENSITE_ISOBATHE = 0.15;
 const ATTENUATION_ISOBATHE_AU_LARGE = 0.45;
 
-function bruitDeValeur(x: number, y: number): number {
-  const hache = (a: number, b: number) => {
-    const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const fx = x - xi;
-  const fy = y - yi;
-  const u = fx * fx * (3 - 2 * fx);
-  const v = fy * fy * (3 - 2 * fy);
-  const bas = hache(xi, yi) + (hache(xi + 1, yi) - hache(xi, yi)) * u;
-  const haut = hache(xi, yi + 1) + (hache(xi + 1, yi + 1) - hache(xi, yi + 1)) * u;
-  return bas + (haut - bas) * v;
-}
-
-function champDeDistanceALaTerre(monde: Monde, largeur: number, hauteur: number): Float32Array {
-  const canvas = document.createElement('canvas');
-  canvas.width = largeur;
-  canvas.height = hauteur;
-  const contexte = canvas.getContext('2d', { willReadFrequently: true })!;
-  const echelleX = largeur / (monde.sphere.maxX - monde.sphere.minX);
-  const echelleY = hauteur / (monde.sphere.maxY - monde.sphere.minY);
-
-  contexte.fillStyle = '#000';
-  contexte.fillRect(0, 0, largeur, hauteur);
-  contexte.fillStyle = '#fff';
-  contexte.beginPath();
-  for (const pays of monde.pays) {
-    for (const anneau of pays.anneaux) {
-      anneau.forEach(([px, py], index) => {
-        const x = (px - monde.sphere.minX) * echelleX;
-        const y = (py - monde.sphere.minY) * echelleY;
-        if (index === 0) contexte.moveTo(x, y);
-        else contexte.lineTo(x, y);
-      });
-      contexte.closePath();
-    }
-  }
-  contexte.fill();
-
-  const masque = contexte.getImageData(0, 0, largeur, hauteur).data;
-  const INFINI = 1e9;
-  const distance = new Float32Array(largeur * hauteur);
-  for (let i = 0; i < distance.length; i++) distance[i] = masque[i * 4]! > 127 ? 0 : INFINI;
-
-  const lire = (x: number, y: number) =>
-    x < 0 || y < 0 || x >= largeur || y >= hauteur ? INFINI : distance[y * largeur + x]!;
-
-  for (let y = 0; y < hauteur; y++) {
-    for (let x = 0; x < largeur; x++) {
-      const i = y * largeur + x;
-      if (distance[i] === 0) continue;
-      distance[i] = Math.min(
-        distance[i]!,
-        lire(x - 1, y) + 1, lire(x, y - 1) + 1,
-        lire(x - 1, y - 1) + 1.414, lire(x + 1, y - 1) + 1.414,
-      );
-    }
-  }
-  for (let y = hauteur - 1; y >= 0; y--) {
-    for (let x = largeur - 1; x >= 0; x--) {
-      const i = y * largeur + x;
-      if (distance[i] === 0) continue;
-      distance[i] = Math.min(
-        distance[i]!,
-        lire(x + 1, y) + 1, lire(x, y + 1) + 1,
-        lire(x + 1, y + 1) + 1.414, lire(x - 1, y + 1) + 1.414,
-      );
-    }
-  }
-  return distance;
-}
-
 /**
- * La profondeur est rendue par la densité d'une trame de points inclinée à 45°,
- * comme une similigravure de presse — pas par un dégradé lissé.
+ * La texture cuite ne porte que les basses fréquences — teinte, ombre de côte, isobathes,
+ * marbrure — qui s'agrandissent proprement. Le ton de profondeur part dans le canal alpha
+ * (zéro sur la terre) pour piloter la trame, dessinée par le shader en espace monde : c'est
+ * elle qui deviendrait de la bouillie au zoom si elle était cuite en pixels.
+ *
+ * `DataTexture` et pas `CanvasTexture` : un canvas 2D prémultiplie l'alpha, et notre alpha
+ * n'est pas une transparence mais une donnée — la prémultiplication écraserait les RVB des
+ * eaux peu profondes.
  */
-export function creerTextureDeMer(monde: Monde, anisotropie: number): CanvasTexture {
+function creerTextureDeMer(monde: Monde, anisotropie: number): DataTexture {
   const largeur = LARGEUR_TEXTURE;
   const hauteur = Math.round(
     (largeur * (monde.sphere.maxY - monde.sphere.minY)) / (monde.sphere.maxX - monde.sphere.minX),
   );
-  const distance = champDeDistanceALaTerre(monde, largeur, hauteur);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = largeur;
-  canvas.height = hauteur;
-  const contexte = canvas.getContext('2d')!;
-  const image = contexte.createImageData(largeur, hauteur);
+  const masque = masqueDeTerre(monde, largeur, hauteur);
+  const distance = champDeDistance(largeur, hauteur, (i) => masque[i] === 1);
+  const image = new Uint8Array(largeur * hauteur * 4);
 
   const facteurEchelle = largeur / 1400;
   const distanceMax = largeur * 0.055;
-  const portéeOmbreCote = distanceMax * 0.13;
   const espacementIsobathes = distanceMax * 0.24;
   const demiLargeurIsobathe = 1.5 * facteurEchelle;
   const echelleMarbrure = 90 * facteurEchelle;
 
-  const papier = new Color(PALETTE.papier);
   const mer = new Color(PALETTE.mer);
   const encre = new Color(PALETTE.encreMer);
-  const cote = new Color(PALETTE.ombreCote);
   const couleur = new Color();
-  const racineDeDeux = Math.SQRT1_2;
 
   for (let y = 0; y < hauteur; y++) {
     for (let x = 0; x < largeur; x++) {
       const i = y * largeur + x;
       const decalage = i * 4;
       const d = distance[i]!;
-      image.data[decalage + 3] = 255;
 
-      couleur.copy(d > 0 ? mer : papier);
+      // La terre est peinte couleur de mer : les mesh des pays la recouvrent, et chaque texel
+      // « papier » qui dépassait de leur silhouette faisait un escalier sable sur la côte.
+      couleur.copy(mer);
       const marbrure = bruitDeValeur(x / echelleMarbrure, y / echelleMarbrure) - 0.5;
-      const fibre = bruitDeValeur(x * 7.3, y * 3.1) - 0.5;
-      couleur.offsetHSL(0, 0, marbrure * 0.055 + fibre * 0.075);
+      couleur.offsetHSL(0, 0, marbrure * 0.055);
 
+      // Aucune ombre de côte : toute bande accrochée au rivage se pixelise au zoom. La mer
+      // reste plate jusque sous la terre — la silhouette nette vient du mesh des pays.
+      let ton = 0;
       if (d > 0) {
         const profondeur = Math.min(1, d / distanceMax);
-        const ton = TON_MIN + TON_MAX * (profondeur * profondeur * (3 - 2 * profondeur));
-        const trameX = (x + y) * racineDeDeux;
-        const trameY = (y - x) * racineDeDeux;
-        const centreX = Math.round(trameX / PAS_TRAME) * PAS_TRAME;
-        const centreY = Math.round(trameY / PAS_TRAME) * PAS_TRAME;
-        const auCentre = Math.hypot(trameX - centreX, trameY - centreY);
-        const rayon = PAS_TRAME * 0.46 * Math.sqrt(ton);
-        const couverture =
-          1 - Math.min(1, Math.max(0, (auCentre - rayon + ADOUCISSEMENT * 0.5) / ADOUCISSEMENT));
-        if (couverture > 0) couleur.lerp(encre, couverture * OPACITE_POINT);
-
-        const ombreCote = 1 - Math.min(1, d / portéeOmbreCote);
-        if (ombreCote > 0) couleur.lerp(cote, ombreCote * ombreCote * 0.5);
+        ton = TON_MIN + TON_MAX * (profondeur * profondeur * (3 - 2 * profondeur));
 
         let ecartIsobathe = d % espacementIsobathes;
         if (ecartIsobathe > espacementIsobathes * 0.5) ecartIsobathe -= espacementIsobathes;
@@ -153,15 +69,81 @@ export function creerTextureDeMer(monde: Monde, anisotropie: number): CanvasText
         }
       }
 
-      image.data[decalage] = couleur.r * 255;
-      image.data[decalage + 1] = couleur.g * 255;
-      image.data[decalage + 2] = couleur.b * 255;
+      image[decalage] = couleur.r * 255;
+      image[decalage + 1] = couleur.g * 255;
+      image[decalage + 2] = couleur.b * 255;
+      image[decalage + 3] = ton * 255;
     }
   }
 
-  contexte.putImageData(image, 0, 0);
-  const texture = new CanvasTexture(canvas);
+  const texture = new DataTexture(image, largeur, hauteur);
+  texture.flipY = true;
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = anisotropie;
+  texture.needsUpdate = true;
   return texture;
+}
+
+/**
+ * La profondeur est rendue par la densité d'une trame de points inclinée à 45°, comme une
+ * similigravure de presse — pas par un dégradé lissé. Elle est calculée au fragment, en
+ * espace monde, pour rester nette du plan large au zoom le plus serré.
+ */
+export function creerMateriauDeMer(monde: Monde, anisotropie: number): MeshStandardMaterial {
+  const materiau = new MeshStandardMaterial({
+    map: creerTextureDeMer(monde, anisotropie),
+    roughness: 0.98,
+    metalness: 0,
+  });
+
+  materiau.onBeforeCompile = (shader) => {
+    shader.uniforms.encreTrame = { value: new Color(PALETTE.encreMer) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPositionMonde;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvPositionMonde = (modelMatrix * vec4(position, 1.0)).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vPositionMonde;\nuniform vec3 encreTrame;',
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          float tonTrame = sampledDiffuseColor.a;
+          if (tonTrame > 0.003) {
+            vec2 incline = vec2(
+              vPositionMonde.x + vPositionMonde.z,
+              vPositionMonde.z - vPositionMonde.x
+            ) * ${Math.SQRT1_2};
+            vec2 auPoint = incline - (floor(incline / ${PAS_TRAME_MONDE} + 0.5)) * ${PAS_TRAME_MONDE};
+            float rayon = ${PAS_TRAME_MONDE} * 0.46 * sqrt(tonTrame);
+
+            // Anti-moiré : un point plus fin qu'un pixel ne peut pas être dessiné, on fond
+            // alors vers sa couverture moyenne (πr²/pas²) — l'équivalent du mipmap qu'une
+            // trame procédurale n'a pas.
+            vec2 derive = fwidth(incline);
+            float flou = max(derive.x, derive.y);
+            float adoucissement = max(${ADOUCISSEMENT_MONDE}, flou);
+            float couverture = 1.0 - clamp(
+              (length(auPoint) - rayon + adoucissement * 0.5) / adoucissement,
+              0.0,
+              1.0
+            );
+            float couvertureMoyenne = 3.14159 * 0.2116 * tonTrame;
+            couverture = mix(
+              couverture,
+              couvertureMoyenne,
+              smoothstep(0.15, 0.5, flou / ${PAS_TRAME_MONDE})
+            );
+            diffuseColor.rgb = mix(diffuseColor.rgb, encreTrame, couverture * ${OPACITE_POINT});
+          }
+        }`,
+      );
+  };
+
+  return materiau;
 }

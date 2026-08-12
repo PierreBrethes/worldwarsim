@@ -44,8 +44,8 @@ travail à jeter.
 > **avant** la fermeture du 🔴, sur décision explicite. Le pari : le recrutement touche à la
 > *dépense*, pas au revenu de base, donc l'avantage d'isolement géographique ne devrait pas le
 > remettre en cause. Si le 🔴 se résout en indexant le revenu sur la distance, **relire
-> `convex/constantes.ts`** — c'est là que le pari se paie. Aucun ADR n'a été rédigé pour cette
-> tranche : c'est la dette de documentation la plus visible du dépôt.
+> `convex/constantes.ts`** — c'est là que le pari se paie. La décision et sa contrepartie sont
+> gravées dans l'[ADR 0011](docs/adr/0011-premiere-tranche-du-schema-de-jeu.md).
 
 ---
 
@@ -75,6 +75,7 @@ Toute proposition se teste contre elles avant d'être discutée.
 | Slots de mouvement comme ressource rare | règle d'un coup le spam, l'arbitrage et la charge serveur | [0006](docs/adr/0006-slots-de-mouvement.md) |
 | Époque 1940 | le matériel moderne est générique, celui de 1940 est iconique | [0007](docs/adr/0007-epoque-1940.md) |
 | Combat par interception + rejeu, jamais de tour par tour | un combat interactif exige les deux joueurs présents : impossible en asynchrone | [0008](docs/adr/0008-combat-par-interception.md) |
+| Tranche `unites`/`recrutements` écrite avant le 🔴 | sans position ni identité, elle ne peut pas contredire un arbitrage sur la géographie | [0011](docs/adr/0011-premiere-tranche-du-schema-de-jeu.md) |
 
 **Deux idées gardées en réserve, explicitement** : l'auto-battler à plans (option B du combat) et
 l'unité spéciale par nation. Les deux sont documentées, aucune n'est engagée.

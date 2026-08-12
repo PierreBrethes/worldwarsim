@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DOMAINE_PAR_ROLE, PALIERS_PAR_ROLE } from '@/domaine/troupes';
-import type { RoleUnite } from '@/domaine/vue-joueur';
-import { SPRITES_PAR_NATION, urlSprite, type NationSprites } from './manifeste';
+import type { ArcAffiche, RoleUnite } from '@/domaine/vue-joueur';
+import { SPRITES_PAR_NATION, spriteDeMouvement, urlSprite, type NationSprites } from './manifeste';
 
 const ROLES = Object.keys(DOMAINE_PAR_ROLE) as ReadonlyArray<RoleUnite>;
 
@@ -51,5 +51,43 @@ describe('manifeste des sprites d’unités', () => {
     expect(urlSprite('France', 'cargo', 1)).toBeNull();
     expect(urlSprite('Japon', 'chasseur', 1)).toBeNull();
     expect(urlSprite(null, 'chasseur', 1)).toBeNull();
+  });
+});
+
+describe('spriteDeMouvement', () => {
+  const mien = {
+    etat: 'mien',
+    id: 'MVT-1',
+    depuis: [0, 0],
+    vers: [10, 10],
+    origineNom: 'France',
+    destinationNom: 'Chad',
+    type: 'attaque',
+    pile: { infanterie: 2, blinde: 5 },
+    minutesRestantes: 60,
+    avancement: 0.4,
+  } as const satisfies ArcAffiche;
+
+  it('montre le rôle dominant de ma pile', () => {
+    expect(spriteDeMouvement(mien, 'France')).toBe(urlSprite('France', 'blinde', 1));
+  });
+
+  it('ne montre structurellement rien d’un arc adverse', () => {
+    const adverse: ArcAffiche = {
+      etat: 'adverseDetecte',
+      id: 'MVT-2',
+      depuis: [0, 0],
+      vers: [10, 10],
+      nationSuspectee: 'France',
+      capDegres: 45,
+      minutesRestantesEstimees: null,
+      avancement: 0.1,
+    };
+    expect(spriteDeMouvement(adverse, 'France')).toBeNull();
+  });
+
+  it('rend null sans planche dessinée ou sur pile vide', () => {
+    expect(spriteDeMouvement(mien, 'Japon')).toBeNull();
+    expect(spriteDeMouvement({ ...mien, pile: {} }, 'France')).toBeNull();
   });
 });

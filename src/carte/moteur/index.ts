@@ -8,15 +8,20 @@ import {
   Scene,
   Vector2,
   WebGLRenderer,
+  type BufferGeometry,
+  type LineBasicMaterial,
+  type LineSegments,
+  type Vector3,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { Monde } from '@/domaine/monde';
+import type { DonneesRegions, Monde } from '@/domaine/monde';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { CoucheArcs } from './arcs';
 import { Courbure } from './courbure';
 import { PALETTE } from './palette';
 import { construirePays, type MeshPays } from './pays';
 import { construirePlateau } from './plateau';
+import { CoucheRegions, DISTANCE_REGIONS_ABSENTES } from './regions';
 import { RepereMonde } from './repere';
 
 export type SurvolCarte = { nom: string; ecranX: number; ecranY: number } | null;
@@ -34,7 +39,9 @@ export class MoteurCarte {
   private readonly repere: RepereMonde;
   private readonly courbure: Courbure;
   private readonly arcs: CoucheArcs;
+  private readonly regions: CoucheRegions;
   private readonly pays: MeshPays[];
+  private readonly frontieres: LineSegments<BufferGeometry, LineBasicMaterial>;
   private readonly rayon = new Raycaster();
   private readonly pointeur = new Vector2(-2, -2);
   private readonly pointeurEcran = { x: 0, y: 0 };
@@ -44,7 +51,9 @@ export class MoteurCarte {
   private aOrbite = false;
 
   onSurvol: (survol: SurvolCarte) => void = () => {};
+  onSurvolRegion: (nom: string | null) => void = () => {};
   onSelection: (nom: string | null) => void = () => {};
+  private regionSurvolee: string | null = null;
 
   constructor(
     private readonly conteneur: HTMLElement,
@@ -68,7 +77,7 @@ export class MoteurCarte {
     this.controles.dampingFactor = 0.08;
     this.controles.minPolarAngle = 0.3;
     this.controles.maxPolarAngle = 1.15;
-    this.controles.minDistance = 90;
+    this.controles.minDistance = 16;
     this.controles.maxDistance = 640;
     this.controles.screenSpacePanning = false;
 
@@ -88,11 +97,16 @@ export class MoteurCarte {
 
     const { meshes, frontieres } = construirePays(monde, this.repere, this.courbure);
     this.pays = meshes;
+    this.frontieres = frontieres;
     for (const mesh of meshes) this.scene.add(mesh);
     this.scene.add(frontieres);
 
     this.arcs = new CoucheArcs(this.repere);
     this.scene.add(this.arcs.groupe);
+
+    this.regions = new CoucheRegions(this.repere, this.courbure);
+    this.scene.add(this.regions.lignes);
+    this.scene.add(this.regions.surbrillance);
 
     this.brancherEntrees();
     this.redimensionner();
@@ -103,8 +117,27 @@ export class MoteurCarte {
     this.arcs.afficher(arcs);
   }
 
+  afficherRegions(donnees: DonneesRegions): void {
+    this.regions.afficher(donnees);
+  }
+
+  definirNationJoueur(nation: string | null): void {
+    this.arcs.definirNationJoueur(nation);
+  }
+
   selectionner(nom: string | null): void {
     this.selection = nom;
+  }
+
+  /**
+   * Un pays porte l'encre d'une nation parce qu'un joueur l'a réservée, jamais parce qu'il
+   * s'appelle comme elle : la carte reçoit la table des preneurs, elle ne la déduit pas.
+   * Tout ce qui n'y figure pas revient en terre neutre — reposer la table suffit à défaire.
+   */
+  colorerNations(encreParPays: ReadonlyMap<string, string>): void {
+    for (const mesh of this.pays) {
+      mesh.material.color.set(encreParPays.get(mesh.userData.nom) ?? PALETTE.terreNeutre);
+    }
   }
 
   reglerCourbure(intensite: number): void {
@@ -123,6 +156,7 @@ export class MoteurCarte {
 
   detruire(): void {
     cancelAnimationFrame(this.animation);
+    this.regions.detruire();
     this.controles.dispose();
     this.rendu.dispose();
     this.rendu.domElement.remove();
@@ -152,7 +186,11 @@ export class MoteurCarte {
 
   private mettreAJourSurvol(): void {
     this.rayon.setFromCamera(this.pointeur, this.camera);
-    const touche = this.rayon.intersectObjects(this.pays, false)[0]?.object as MeshPays | undefined;
+    const impact = this.rayon.intersectObjects(this.pays, false)[0];
+    const touche = impact?.object as MeshPays | undefined;
+
+    this.mettreAJourSurvolRegion(impact?.point ?? null);
+
     const suivant = touche ?? null;
     if (suivant === this.survole) return;
     this.survole = suivant;
@@ -161,6 +199,20 @@ export class MoteurCarte {
         ? { nom: suivant.userData.nom, ecranX: this.pointeurEcran.x, ecranY: this.pointeurEcran.y }
         : null,
     );
+  }
+
+  /** Le survol de région n'existe qu'une fois la couche fondue à l'écran, jamais au large. */
+  private mettreAJourSurvolRegion(point: Vector3 | null): void {
+    let nom: string | null = null;
+    if (point !== null && this.regions.estActive) {
+      nom = this.regions.survoler(point.x + this.repere.centreX, point.z + this.repere.centreY);
+    } else {
+      this.regions.effacerSurvol();
+    }
+    if (nom !== this.regionSurvolee) {
+      this.regionSurvolee = nom;
+      this.onSurvolRegion(nom);
+    }
   }
 
   private eclairerPays(): void {
@@ -177,7 +229,17 @@ export class MoteurCarte {
     this.controles.update();
     this.mettreAJourSurvol();
     this.eclairerPays();
-    this.arcs.animer();
+    this.arcs.animer(this.camera.position);
+
+    // Au zoom, la hiérarchie des traits s'inverse d'encre : les frontières de pays foncent
+    // pendant que les régions apparaissent en dessous — WebGL ne connaît qu'un pixel de large.
+    const distance = this.camera.position.distanceTo(this.controles.target);
+    this.regions.animer(distance);
+    this.frontieres.material.opacity =
+      distance < DISTANCE_REGIONS_ABSENTES
+        ? Math.min(0.95, 0.62 + (DISTANCE_REGIONS_ABSENTES - distance) * 0.007)
+        : 0.62;
+
     this.rendu.render(this.scene, this.camera);
   };
 }

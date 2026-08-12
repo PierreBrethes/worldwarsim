@@ -11,11 +11,11 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Monde, PaysProjete } from '@/domaine/monde';
 import type { Courbure } from './courbure';
-import { ENCRES_NATION, PALETTE } from './palette';
+import { PALETTE } from './palette';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
 
 export type MeshPays = Mesh<BufferGeometry, MeshStandardMaterial> & {
-  userData: { nom: string; encre: string | null; eclat: number };
+  userData: { nom: string };
 };
 
 function extruderAnneaux(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
@@ -41,8 +41,8 @@ function contoursDe(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
       const a = anneau[i]!;
       const b = anneau[(i + 1) % anneau.length]!;
       points.push(
-        a[0] - repere.centreX, EPAISSEUR_PAYS + 0.12, a[1] - repere.centreY,
-        b[0] - repere.centreX, EPAISSEUR_PAYS + 0.12, b[1] - repere.centreY,
+        a[0] - repere.centreX, EPAISSEUR_PAYS + 0.03, a[1] - repere.centreY,
+        b[0] - repere.centreX, EPAISSEUR_PAYS + 0.03, b[1] - repere.centreY,
       );
     }
   }
@@ -55,17 +55,16 @@ export function construirePays(
   monde: Monde,
   repere: RepereMonde,
   courbure: Courbure,
-): { meshes: MeshPays[]; frontieres: LineSegments } {
+): { meshes: MeshPays[]; frontieres: LineSegments<BufferGeometry, LineBasicMaterial> } {
   const meshes: MeshPays[] = [];
   const contours: BufferGeometry[] = [];
 
   for (const pays of monde.pays) {
-    const encre = ENCRES_NATION[pays.nom] ?? null;
     const mesh = new Mesh(
       courbure.enregistrer(extruderAnneaux(pays, repere)),
-      new MeshStandardMaterial({ color: encre ?? PALETTE.terreNeutre, roughness: 0.97, metalness: 0 }),
+      new MeshStandardMaterial({ color: PALETTE.terreNeutre, roughness: 0.97, metalness: 0 }),
     ) as MeshPays;
-    mesh.userData = { nom: pays.nom, encre, eclat: 0 };
+    mesh.userData = { nom: pays.nom };
     meshes.push(mesh);
     contours.push(contoursDe(pays, repere));
   }

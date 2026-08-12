@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { EchantillonContour, Monde } from '@/domaine/monde';
 
-export const EPAISSEUR_PAYS = 2.4;
+export const EPAISSEUR_PAYS = 0.96;
 export const NIVEAU_MER = -0.25;
 export const HAUTEUR_SOCLE = 7;
 const RAYON_COURBURE = 900;

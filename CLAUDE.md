@@ -25,10 +25,24 @@ fait rien, le rejeu attend la surface 4.7.
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
 Elle a demandé la **première tranche du schéma de jeu** (`unites`, `recrutements`), écrite
 avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLAUDE.md`, pas un
-oubli. Les coûts et durées de `convex/constantes.ts` sont **arbitraires**, jamais simulés.
+oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/constantes.ts` sont
+**arbitraires**, jamais simulés.
 
 Les sprites d'unités sont rangés par nation dans `src/emblemes/unites/` — **seule la France
-est dessinée**, les sept autres tombent sur le repli en cadre pointillé.
+est dessinée**, les sept autres tombent sur le repli en cadre pointillé. Sur la carte, la tête
+d'un mouvement `mien` est le sprite du rôle dominant de la pile, en billboard (lacet caméra
+seul) ; un arc adverse garde le cône anonyme — le brouillard interdit structurellement mieux.
+
+**La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
+fragment pour rester nette, frontières admin-1 en fondu au rapproché). `monde.json` et
+`regions.json` sont produits par `scripts/generer-monde.mjs` et `scripts/generer-regions.mjs`
+— ne jamais les retoucher à la main.
+
+**Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domaine/trajets.ts`**
+(ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
+canaux gravés (`PORTES_MARITIMES`). Rien ne l'appelle encore — c'est la surface 4.7 côté
+serveur qui le consommera ; le droit de passage terrestre par les pays neutres n'est pas
+tranché.
 
 ## Architecture
 
@@ -38,6 +52,7 @@ src/donnees/     adaptateur Convex vers VueJoueur, jeton, réglages, client Conv
 convex/          schéma + fonctions serveur (hors-saison, état de nation, production). Testé.
 src/emblemes/    drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.
 deploiement/     docker compose (backend Convex auto-hébergé + front), guide VPS et CI.
+scripts/         générateurs de données cartographiques (monde.json, regions.json).
 src/carte/       moteur three.js impératif + un composant React qui l'enveloppe.
 src/coque/       bandeau + rail, partagés par toutes les surfaces.
 src/routes/      une route par surface ; `-dossier/` = composants privés à cette route.

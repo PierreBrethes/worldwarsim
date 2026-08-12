@@ -1,18 +1,17 @@
 import {
   BufferGeometry,
-  ConeGeometry,
   Group,
   Line,
   LineBasicMaterial,
-  Mesh,
-  MeshStandardMaterial,
   QuadraticBezierCurve3,
   Vector3,
 } from 'three';
 import type { LonLat } from '@/domaine/geo';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
+import { spriteDeMouvement } from '@/emblemes/unites/manifeste';
 import { COULEURS_ARC } from './palette';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
+import { TeteMouvement } from './tete-mouvement';
 
 const SEGMENTS = 64;
 const HAUTEUR_ARC = EPAISSEUR_PAYS + 0.5;
@@ -64,9 +63,18 @@ function courbeEntre(depart: Vector3, arrivee: Vector3): QuadraticBezierCurve3 {
 export class CoucheArcs {
   readonly groupe = new Group();
   private readonly tangente = new Vector3();
-  private rendus: Array<{ arc: ArcAffiche; troncons: Troncon[]; traces: Line[]; progression: Line[]; tete: Mesh }> = [];
+  private readonly pointTete = new Vector3();
+  private readonly positionCamera = new Vector3();
+  private nationJoueur: string | null = null;
+  private rendus: Array<{ arc: ArcAffiche; troncons: Troncon[]; traces: Line[]; progression: Line[]; tete: TeteMouvement }> = [];
 
   constructor(private readonly repere: RepereMonde) {}
+
+  definirNationJoueur(nation: string | null): void {
+    if (nation === this.nationJoueur) return;
+    this.nationJoueur = nation;
+    this.reconstruire();
+  }
 
   afficher(arcs: ReadonlyArray<ArcAffiche>): void {
     this.vider();
@@ -94,19 +102,17 @@ export class CoucheArcs {
         return ligne;
       });
 
-      const tete = new Mesh(
-        new ConeGeometry(2.6, 8, 6),
-        new MeshStandardMaterial({ color: couleurs.progression, roughness: 0.9 }),
-      );
+      const tete = new TeteMouvement(spriteDeMouvement(arc, this.nationJoueur), couleurs.progression);
       tete.visible = !perime;
-      this.groupe.add(tete);
+      this.groupe.add(tete.objet);
 
       this.rendus.push({ arc, troncons, traces, progression, tete });
     }
     this.animer();
   }
 
-  animer(): void {
+  animer(positionCamera?: Vector3): void {
+    if (positionCamera) this.positionCamera.copy(positionCamera);
     for (const rendu of this.rendus) {
       const avancement = Math.min(1, Math.max(0, rendu.arc.avancement));
       const seuil = rendu.troncons[0]!.part;
@@ -128,10 +134,10 @@ export class CoucheArcs {
       );
 
       const courbe = rendu.troncons[index]!.courbe;
-      courbe.getPointAt(Math.min(1, Math.max(0, local)), rendu.tete.position);
+      courbe.getPointAt(Math.min(1, Math.max(0, local)), this.pointTete);
       courbe.getPointAt(Math.min(1, Math.max(0, local) + 0.01), this.tangente);
-      rendu.tete.lookAt(this.tangente);
-      rendu.tete.rotateX(Math.PI / 2);
+      rendu.tete.placer(this.pointTete, this.tangente);
+      rendu.tete.orienter(this.positionCamera);
     }
   }
 
@@ -146,8 +152,7 @@ export class CoucheArcs {
         this.groupe.remove(ligne);
         ligne.geometry.dispose();
       }
-      this.groupe.remove(rendu.tete);
-      rendu.tete.geometry.dispose();
+      rendu.tete.detruire();
     }
     this.rendus = [];
   }

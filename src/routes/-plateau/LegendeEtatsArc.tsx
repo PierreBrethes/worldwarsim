@@ -10,7 +10,7 @@ const ETATS = [
 
 export function LegendeEtatsArc({ couverture }: { couverture: { visibles: number; total: number } }) {
   return (
-    <Panneau titre="États d’arc" position="basDroite" largeur={210}>
+    <Panneau titre="États d’arc" position="statique" largeur={210}>
       {ETATS.map((etat) => (
         <div key={etat.cle} className="flex items-center gap-2 py-[3px]">
           <span className="h-[2px] w-6" style={{ background: COULEURS_ARC[etat.cle].progression }} />

@@ -76,6 +76,39 @@ export const rejoindre = mutation({
   },
 });
 
+/**
+ * Ce que l'accueil a le droit de savoir d'un jeton gardé en local : de quoi écrire
+ * « reprendre » sans mentir. Un jeton périmé rend `null` plutôt qu'une erreur — sinon
+ * une saison finie condamnerait l'écran d'entrée.
+ */
+export const apercu = query({
+  args: { jeton: v.string() },
+  handler: async (ctx, { jeton }) => {
+    const joueur = await ctx.db
+      .query('joueurs')
+      .withIndex('parJeton', (q) => q.eq('jeton', jeton))
+      .unique();
+    if (!joueur) return null;
+    const saison = await ctx.db.get(joueur.saisonId);
+    if (!saison) return null;
+    const presents = await ctx.db
+      .query('joueurs')
+      .withIndex('parSaison', (q) => q.eq('saisonId', saison._id))
+      .collect();
+    return {
+      code: saison.code,
+      statut: saison.statut,
+      dureeHeures: saison.dureeHeures,
+      lanceeLe: saison.lanceeLe,
+      regionJouable: saison.regionJouable ?? regionJouable(presents.length),
+      joueurs: presents.length,
+      pseudo: joueur.pseudo,
+      nation: joueur.nation,
+      doctrine: joueur.doctrine,
+    };
+  },
+});
+
 export const salon = query({
   args: { jeton: v.string() },
   handler: async (ctx, { jeton }) => {
