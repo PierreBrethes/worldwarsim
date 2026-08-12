@@ -1,6 +1,7 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import type { RecherchePlateau } from '@/routes/plateau';
+import { Glyphe } from './Glyphe';
 
 export function RailSurfaces({ saison }: { saison: number }) {
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
@@ -14,44 +15,36 @@ export function RailSurfaces({ saison }: { saison: number }) {
     active: boolean;
   }> = [
     {
-      titre: 'Journal d’événements',
-      libelle: 'journal',
-      icone: <IconeJournal />,
-      cible: { ...commun, ...(recherche.vue ? { vue: recherche.vue } : {}), modale: 'journal' },
-      active: recherche.modale === 'journal',
-    },
-    {
-      titre: 'Mouvements en cours',
-      libelle: 'mouvts',
-      icone: <IconeMouvements />,
-      cible: { ...commun, vue: 'mouvements' },
-      active: recherche.vue === 'mouvements' && !recherche.modale,
-    },
-    {
-      titre: 'Envoi d’un mouvement',
-      libelle: 'envoi',
-      icone: <IconeEnvoi />,
-      cible: { ...commun, vue: 'mouvements', modale: 'envoi' },
-      active: recherche.modale === 'envoi',
+      titre: 'Troupes — inventaire et envoi',
+      libelle: 'troupes',
+      icone: <IconeTroupes />,
+      cible: { ...commun, modale: 'troupes' },
+      active: recherche.modale === 'troupes',
     },
     {
       titre: 'Plateau',
       libelle: 'plateau',
       icone: <IconePlateau />,
       cible: commun,
-      active: !recherche.modale && recherche.vue !== 'mouvements',
+      active: !recherche.modale,
+    },
+    {
+      titre: 'Production — recrutement d’unités',
+      libelle: 'prod.',
+      icone: <IconeProduction />,
+      cible: { ...commun, modale: 'production' },
+      active: recherche.modale === 'production',
     },
     {
       titre: 'Ma nation',
       libelle: 'nation',
       icone: <IconeNation />,
-      cible: { ...commun, ...(recherche.vue ? { vue: recherche.vue } : {}), modale: 'nation' },
+      cible: { ...commun, modale: 'nation' },
       active: recherche.modale === 'nation',
     },
   ];
 
   const aVenir: ReadonlyArray<{ titre: string; libelle: string; icone: ReactNode }> = [
-    { titre: 'Production — à venir', libelle: 'prod.', icone: <IconeProduction /> },
     { titre: 'Rejeu de bataille — à venir', libelle: 'rejeu', icone: <IconeRejeu /> },
     { titre: 'Doctrine — à venir', libelle: 'doctrine', icone: <IconeDoctrine /> },
     { titre: 'Espionnage — à venir', libelle: 'espion.', icone: <IconeEspionnage /> },
@@ -108,14 +101,6 @@ export function RailSurfaces({ saison }: { saison: number }) {
   );
 }
 
-function Glyphe({ children }: { children: ReactNode }) {
-  return (
-    <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      {children}
-    </svg>
-  );
-}
-
 function IconeReglages() {
   return (
     <Glyphe>
@@ -125,29 +110,12 @@ function IconeReglages() {
   );
 }
 
-function IconeJournal() {
+function IconeTroupes() {
   return (
     <Glyphe>
-      <rect x="3" y="3.5" width="14" height="13" />
-      <path d="M5 7h10M5 9.5h4.5M5 12h4.5M5 14.5h4.5M11.5 9.5H15v5h-3.5z" />
-    </Glyphe>
-  );
-}
-
-function IconeMouvements() {
-  return (
-    <Glyphe>
-      <path d="M3 15.5C6 7.5 12 5.5 15.5 7.5" />
-      <path d="M16.5 8.5l-.5-3.2-3 1.2" />
-    </Glyphe>
-  );
-}
-
-function IconeEnvoi() {
-  return (
-    <Glyphe>
-      <path d="M3 9.5L17 4l-5 13-2.2-5.3z" />
-      <path d="M9.8 11.7L17 4" />
+      <circle cx="10" cy="4.6" r="2.1" />
+      <path d="M5.5 16.5v-4.2c0-2.4 2-4 4.5-4s4.5 1.6 4.5 4v4.2" />
+      <path d="M3 16.5h14" />
     </Glyphe>
   );
 }

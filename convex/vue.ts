@@ -36,6 +36,17 @@ export const vueJoueur = query({
       .withIndex('parJoueur', (q) => q.eq('joueurId', joueur._id))
       .unique();
 
+    // Les paliers se somment ici : le plateau compte des fantassins, l'atelier seul distingue
+    // leur équipement.
+    const unites = await ctx.db
+      .query('unites')
+      .withIndex('parJoueur', (q) => q.eq('joueurId', joueur._id))
+      .collect();
+    const armeePresente: Record<string, number> = {};
+    for (const unite of unites) {
+      if (unite.nombre > 0) armeePresente[unite.role] = (armeePresente[unite.role] ?? 0) + unite.nombre;
+    }
+
     const autres = (
       await ctx.db
         .query('joueurs')
@@ -73,6 +84,7 @@ export const vueJoueur = query({
         chantier: chantier
           ? { nom: chantier.batiment, resteMinutes: Math.max(0, (chantier.finitLe - maintenant) / 60_000) }
           : null,
+        armeePresente,
       },
       arcs: [],
       journal: [],

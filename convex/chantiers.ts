@@ -1,10 +1,9 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
-import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { stockAccumule } from '../src/domaine/hors-saison';
 import { DEPART, coutNiveau, dureeChantierMinutes } from './constantes';
+import { ligneRessource } from './ressources';
 import { joueurParJeton } from './saisons';
 
 const CLE_BATIMENT = v.union(
@@ -80,16 +79,3 @@ export const terminer = internalMutation({
   },
 });
 
-async function ligneRessource(
-  ctx: MutationCtx,
-  joueurId: Id<'joueurs'>,
-  cle: 'ravitaillement' | 'acier' | 'effectifs',
-) {
-  const lignes = await ctx.db
-    .query('ressources')
-    .withIndex('parJoueur', (q) => q.eq('joueurId', joueurId))
-    .collect();
-  const ligne = lignes.find((candidate) => candidate.cle === cle);
-  if (!ligne) throw new Error(`ressource absente : ${cle}`);
-  return ligne;
-}

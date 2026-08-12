@@ -1,0 +1,12 @@
+{
+  "infanterie-N1": "infanterie-1",
+  "infanterie-N2-bazooka": "infanterie-2",
+  "blinde-leger-R35": "blinde-1",
+  "blinde-lourd-B1bis": "blinde-2",
+  "camion": "transportTerrestre",
+  "chasseur-D520": "chasseur",
+  "bombardier": "bombardier",
+  "transport-aerien": "transportAerien",
+  "escorte": "escorte",
+  "porte-avions": "porteAvions"
+}

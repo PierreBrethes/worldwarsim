@@ -1,10 +1,13 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { stockCourant } from '@/domaine/vue-joueur';
-import { FiligraneDrapeau } from '@/emblemes/Drapeau';
 import { IconeRessource, couleurRessource, type CleRessource } from '@/emblemes/IconeRessource';
 import type { RecherchePlateau } from '@/routes/plateau';
+import { CartoucheNation } from './CartoucheNation';
+import { IconeJournal } from './Glyphe';
 import { useHorloge } from './horloge';
+
+const HAUTEUR_BANDEAU = 58;
 
 export function BandeauNation({ vue }: { vue: VueJoueur }) {
   const { moi, saison } = vue;
@@ -16,17 +19,11 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
   );
   return (
     <header
-      className="hud flex h-[58px] min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-4"
-      style={{ fontFamily: 'var(--font-body)' }}
+      className="hud flex min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-4"
+      style={{ fontFamily: 'var(--font-body)', height: HAUTEUR_BANDEAU }}
     >
-      <div className="relative flex h-full shrink-0 items-center overflow-hidden border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap">
-        <FiligraneDrapeau nation={moi.nation} />
-        <div className="relative flex items-baseline gap-3" style={{ textShadow: '0 1px 3px rgba(23,18,8,.9)' }}>
-          <span className="font-[var(--font-display)] text-[19px] font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
-            {moi.nation}
-          </span>
-          <span className="eyebrow-sombre">doctrine {moi.doctrine}</span>
-        </div>
+      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)]">
+        <CartoucheNation nation={moi.nation} doctrine={moi.doctrine} hauteur={HAUTEUR_BANDEAU} />
       </div>
 
       <Groupe>
@@ -63,13 +60,14 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
         className="flex h-full shrink-0 items-center gap-3 border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap hover:bg-[var(--ink)]"
       >
         <span
-          className="inline-block h-2 w-2"
           style={{
-            background: vue.journal.some((depeche) => depeche.gravite === 'critique')
+            color: vue.journal.some((depeche) => depeche.gravite === 'critique')
               ? 'var(--critique)'
               : 'var(--routine)',
           }}
-        />
+        >
+          <IconeJournal taille={22} />
+        </span>
         <span className="text-left">
           <span className="eyebrow-sombre block">Journal d’événements</span>
           <span className="block text-[13px] text-[var(--paper)]">

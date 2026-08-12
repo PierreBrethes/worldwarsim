@@ -11,7 +11,9 @@
 import type * as chantiers from "../chantiers.js";
 import type * as constantes from "../constantes.js";
 import type * as joueurs from "../joueurs.js";
+import type * as ressources from "../ressources.js";
 import type * as saisons from "../saisons.js";
+import type * as unites from "../unites.js";
 import type * as vue from "../vue.js";
 
 import type {
@@ -24,7 +26,9 @@ declare const fullApi: ApiFromModules<{
   chantiers: typeof chantiers;
   constantes: typeof constantes;
   joueurs: typeof joueurs;
+  ressources: typeof ressources;
   saisons: typeof saisons;
+  unites: typeof unites;
   vue: typeof vue;
 }>;
 

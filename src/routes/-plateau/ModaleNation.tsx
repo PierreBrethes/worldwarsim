@@ -8,7 +8,7 @@ import { libellePile, minutesCourantes, stockCourant } from '@/domaine/vue-joueu
 import { Drapeau } from '@/emblemes/Drapeau';
 import { IconeRessource, couleurRessource } from '@/emblemes/IconeRessource';
 import { enHeuresMinutes } from './duree';
-import { Modale } from './Modale';
+import { Modale, PoigneeModale } from './Modale';
 
 const EFFET_PAR_BATIMENT: Readonly<Record<Batiment['cle'], string>> = {
   qg: 'débloque les paliers et relève les plafonds de stockage',
@@ -31,9 +31,9 @@ export function ModaleNation({
   const maintenant = useHorloge();
 
   return (
-    <Modale onFermer={onFermer} alignement="haut">
-      <div className="trame-papier w-[880px] max-w-full border border-[var(--ink)] px-[26px] pt-[18px] pb-6">
-        <div className="flex items-center justify-between text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+    <Modale nom="nation" onFermer={onFermer} alignement="haut" largeur={880}>
+      <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[26px] pt-[18px] pb-6">
+        <PoigneeModale className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>fiche de nation</span>
           <span>saison {vue.saison.numero}</span>
           <button
@@ -43,13 +43,13 @@ export function ModaleNation({
           >
             fermer
           </button>
-        </div>
+        </PoigneeModale>
 
-        <div className="mt-2 flex items-baseline gap-4 border-t-2 border-b border-[var(--ink)] py-3">
+        <div className="mt-2 flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-1 border-t-2 border-b border-[var(--ink)] py-3">
           <span className="self-center">
             <Drapeau nation={vue.moi.nation} largeur={36} surPapier />
           </span>
-          <h1 className="font-[var(--font-display)] text-[34px] leading-none font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
+          <h1 className="font-[var(--font-display)] text-[clamp(22px,4cqi,34px)] leading-none font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
             {vue.moi.nation}
           </h1>
           <span className="text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
@@ -57,7 +57,7 @@ export function ModaleNation({
           </span>
         </div>
 
-        <div className="mt-4 flex items-start gap-[26px]">
+        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-auto @2xl:flex-row @2xl:items-start @2xl:gap-[26px]">
           <section className="min-w-0 flex-1">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">
               bâtiments — un chantier à la fois
@@ -91,7 +91,7 @@ export function ModaleNation({
             )}
           </section>
 
-          <aside className="w-[280px] shrink-0">
+          <aside className="w-full @2xl:w-[280px] @2xl:shrink-0">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">pouvoir national</h2>
             <p className="mt-2 text-[13px] leading-[1.5] text-[var(--ink)]">{vue.moi.pouvoir}</p>
 

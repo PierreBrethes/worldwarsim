@@ -6,7 +6,7 @@ import {
   garderEchelleHud,
   lireEchelleHud,
 } from '@/donnees/reglages';
-import { Modale } from './Modale';
+import { Modale, PoigneeModale } from './Modale';
 
 export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
   const [echelle, setEchelle] = useState(lireEchelleHud);
@@ -18,9 +18,9 @@ export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
   };
 
   return (
-    <Modale onFermer={onFermer}>
-      <div className="trame-papier w-[420px] max-w-full border border-[var(--ink)]">
-        <div className="flex items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
+    <Modale nom="reglages" onFermer={onFermer} largeur={420}>
+      <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
+        <PoigneeModale className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
           <span className="eyebrow">réglages</span>
           <button
             type="button"
@@ -29,9 +29,9 @@ export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
           >
             fermer
           </button>
-        </div>
+        </PoigneeModale>
 
-        <div className="px-4 py-[14px]">
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] text-[var(--ink)]">Échelle de l’interface</span>
             <span className="font-[var(--font-mono)] text-[15px] text-[var(--ink)]">{echelle} %</span>
@@ -46,8 +46,8 @@ export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
             </div>
             <Pas signe="+" onClick={() => regler(echelle + 10)} desactive={echelle >= ECHELLE_HUD_MAX} />
           </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-[11.5px] text-[var(--ink-soft)]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-[180px] flex-1 text-[11.5px] text-[var(--ink-soft)]">
               De {ECHELLE_HUD_MIN} à {ECHELLE_HUD_MAX} %, appliqué immédiatement. Réglage propre à ce
               navigateur.
             </span>

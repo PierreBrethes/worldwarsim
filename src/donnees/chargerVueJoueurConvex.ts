@@ -57,7 +57,10 @@ export function adapterVueServeur(monde: Monde, serveur: VueServeur): VueJoueur 
       chantier: serveur.moi.chantier
         ? { nom: NOM_PAR_BATIMENT[serveur.moi.chantier.nom as Batiment['cle']] ?? serveur.moi.chantier.nom, resteMinutes: serveur.moi.chantier.resteMinutes }
         : null,
-      armeePresente: {},
+      // Un déploiement en retard sur le client renvoie un objet sans ce champ. L'adaptateur est
+      // la seule frontière : c'est ici qu'un écart de version se résorbe, pas dans les panneaux,
+      // où un `undefined` fait tomber tout le plateau.
+      armeePresente: serveur.moi.armeePresente ?? {},
       armeeEnTransit: {},
       avantPostes: [],
     },

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 type Position = 'hautGauche' | 'hautDroite' | 'basGauche' | 'basDroite';
 
@@ -22,16 +22,26 @@ export function Panneau({
   largeur?: number;
   children: ReactNode;
 }) {
+  const [reduit, setReduit] = useState(false);
   return (
     <section
       className={`hud trame-papier absolute z-10 border border-[var(--ink)] ${ANCRAGE[position]}`}
       style={{ width: largeur }}
     >
-      <header className="flex items-center justify-between border-b border-[var(--ink)] px-3 py-2">
-        <span className="eyebrow">{titre}</span>
+      <header className="flex items-center gap-2 border-b border-[var(--ink)] px-3 py-2">
+        <span className="eyebrow flex-1">{titre}</span>
         {repere && <span className="font-[var(--font-mono)] text-[9px] text-[var(--ink-soft)]">{repere}</span>}
+        <button
+          type="button"
+          aria-expanded={!reduit}
+          title={reduit ? 'déplier' : 'réduire'}
+          onClick={() => setReduit((precedent) => !precedent)}
+          className="h-[15px] w-[15px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-[13px] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          {reduit ? '+' : '–'}
+        </button>
       </header>
-      <div className="px-3 py-[10px]">{children}</div>
+      {!reduit && <div className="px-3 py-[10px]">{children}</div>}
     </section>
   );
 }

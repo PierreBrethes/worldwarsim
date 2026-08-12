@@ -2,10 +2,13 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
+import { CartoucheNation } from '@/coque/CartoucheNation';
 import { DOCTRINES, NATIONS, POUVOIR_PAR_NATION } from '@/domaine/nations';
 import { BanniereDrapeau, Drapeau } from '@/emblemes/Drapeau';
 import { clientConvex } from '@/donnees/clientConvex';
 import { lireJeton, oublierJeton } from '@/donnees/jeton';
+
+const HAUTEUR_BANDEAU = 58;
 
 export const Route = createFileRoute('/salon')({ component: Salon });
 
@@ -44,33 +47,44 @@ function SalonConnecte({ jeton }: { jeton: string }) {
 
   return (
     <div className="flex h-full items-start justify-center overflow-auto bg-[var(--desk)] px-6 py-[34px]">
-      <div className="hud trame-papier w-[960px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6">
-        <div className="flex items-center justify-between text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          <span>salon de saison — {salon.dureeHeures === 48 ? '48 heures' : '7 jours'}</span>
-          <span>région : {salon.regionJouable}</span>
+      <div className="hud @container trame-papier w-[960px] max-w-full border border-[var(--ink)] pb-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-[var(--ink)] bg-[var(--desk)] pr-[18px] pb-1 @2xl:flex-nowrap @2xl:pb-0">
+          <CartoucheNation
+            nation={salon.moi.nation}
+            doctrine={salon.moi.doctrine ?? undefined}
+            hauteur={HAUTEUR_BANDEAU}
+          />
+          <span className="flex-1" />
+          <span className="text-[10px] tracking-[.2em] text-[var(--paper-dim)] uppercase">
+            salon de saison — {salon.dureeHeures === 48 ? '48 heures' : '7 jours'}
+          </span>
+          <span className="text-[10px] tracking-[.2em] text-[var(--paper-dim)] uppercase">
+            région : {salon.regionJouable}
+          </span>
           <button
             type="button"
             onClick={() => {
               oublierJeton();
               void naviguer({ to: '/accueil' });
             }}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            className="cursor-pointer border border-[var(--paper-dim-2)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--paper-dim)] uppercase hover:border-[var(--paper)] hover:text-[var(--paper)]"
           >
             quitter
           </button>
         </div>
 
-        <div className="mt-3 border-t-2 border-b border-[var(--ink)] py-4 text-center">
+        <div className="px-[clamp(14px,3cqi,30px)] pt-[18px]">
+        <div className="border-t-2 border-b border-[var(--ink)] py-4 text-center">
           <div className="eyebrow">code de partie — à partager</div>
-          <div className="mt-1 font-[var(--font-mono)] text-[44px] font-medium tracking-[.3em] text-[var(--ink)]">
+          <div className="mt-1 font-[var(--font-mono)] text-[clamp(24px,6cqi,44px)] font-medium tracking-[.3em] text-[var(--ink)]">
             {salon.code}
           </div>
         </div>
 
-        <div className="mt-4 flex items-start gap-[26px]">
+        <div className="mt-4 flex flex-col gap-6 @3xl:flex-row @3xl:items-start @3xl:gap-[26px]">
           <section className="min-w-0 flex-1">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">nations — premier arrivé, premier servi</h2>
-            <div className="mt-2 grid grid-cols-4 gap-[6px]">
+            <div className="mt-2 grid grid-cols-2 gap-[6px] @md:grid-cols-3 @2xl:grid-cols-4">
               {NATIONS.map((nation) => {
                 const preneur = nationDe(nation);
                 const aMoi = salon.moi.nation === nation;
@@ -91,7 +105,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
                   >
                     <BanniereDrapeau nation={nation} />
                     <span className="flex w-full flex-col gap-[1px] px-2 py-[6px]">
-                      <span className="truncate font-[var(--font-display)] text-[12px] font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
+                      <span className="truncate font-[var(--font-display)] text-[clamp(11px,1.5cqi,13px)] font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
                         {nation}
                       </span>
                       <span className="truncate text-[9px] tracking-[.14em] text-[var(--paper-dim)] uppercase">
@@ -108,7 +122,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
             </p>
           </section>
 
-          <aside className="w-[300px] shrink-0">
+          <aside className="w-full min-w-0 @3xl:w-[300px] @3xl:shrink-0">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">
               joueurs — {salon.joueurs.length} / 8
             </h2>
@@ -176,6 +190,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
         {erreur && (
           <p className="mt-4 border border-[var(--critique)] px-3 py-2 text-[12.5px] text-[var(--ink)]">{erreur}</p>
         )}
+        </div>
       </div>
     </div>
   );

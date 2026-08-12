@@ -10,7 +10,6 @@ import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
 import { clientConvex } from '@/donnees/clientConvex';
 import { lireJeton } from '@/donnees/jeton';
-import { DockMouvements } from './-plateau/DockMouvements';
 import { LegendeEtatsArc } from './-plateau/LegendeEtatsArc';
 import { PanneauCompteurs } from './-plateau/PanneauCompteurs';
 import { PanneauMaNation } from './-plateau/PanneauMaNation';
@@ -19,8 +18,11 @@ import { PanneauPaysSelectionne } from './-plateau/PanneauPaysSelectionne';
 const ModaleJournal = lazy(() =>
   import('./-plateau/ModaleJournal').then((module) => ({ default: module.ModaleJournal })),
 );
-const ModaleEnvoi = lazy(() =>
-  import('./-plateau/ModaleEnvoi').then((module) => ({ default: module.ModaleEnvoi })),
+const ModaleTroupes = lazy(() =>
+  import('./-plateau/ModaleTroupes').then((module) => ({ default: module.ModaleTroupes })),
+);
+const ModaleProduction = lazy(() =>
+  import('./-plateau/ModaleProduction').then((module) => ({ default: module.ModaleProduction })),
 );
 const ModaleNation = lazy(() =>
   import('./-plateau/ModaleNation').then((module) => ({ default: module.ModaleNation })),
@@ -31,17 +33,15 @@ const ModaleReglages = lazy(() =>
 
 export type RecherchePlateau = {
   pays?: string;
-  vue?: 'mouvements';
-  modale?: 'journal' | 'envoi' | 'nation' | 'reglages';
+  modale?: 'journal' | 'troupes' | 'production' | 'nation' | 'reglages';
 };
 
-const MODALES = ['journal', 'envoi', 'nation', 'reglages'] as const;
+const MODALES = ['journal', 'troupes', 'production', 'nation', 'reglages'] as const;
 
 export const Route = createFileRoute('/plateau')({
   validateSearch: (brut: Record<string, unknown>): RecherchePlateau => {
     const recherche: RecherchePlateau = {};
     if (typeof brut.pays === 'string') recherche.pays = brut.pays;
-    if (brut.vue === 'mouvements') recherche.vue = brut.vue;
     if (MODALES.includes(brut.modale as (typeof MODALES)[number])) {
       recherche.modale = brut.modale as (typeof MODALES)[number];
     }
@@ -74,7 +74,7 @@ function PlateauReactif({
 }
 
 function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string | null }) {
-  const { pays, vue: vueRecherche, modale } = Route.useSearch();
+  const { pays, modale } = Route.useSearch();
   const naviguer = useNavigate({ from: Route.fullPath });
 
   const selectionner = useCallback(
@@ -98,7 +98,6 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
 
   return (
     <Coque vue={vue}>
-      {vueRecherche === 'mouvements' && <DockMouvements vue={vue} />}
       <div className="relative min-w-0 flex-1">
         <Carte monde={monde} arcs={vue.arcs} paysSelectionne={pays ?? null} onSelection={selectionner} />
         <PanneauMaNation vue={vue} />
@@ -108,7 +107,12 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
       </div>
       <Suspense fallback={null}>
         {modale === 'journal' && <ModaleJournal vue={vue} onFermer={fermerModale} />}
-        {modale === 'envoi' && <ModaleEnvoi vue={vue} monde={monde} pays={pays ?? null} onFermer={fermerModale} />}
+        {modale === 'troupes' && (
+          <ModaleTroupes vue={vue} monde={monde} pays={pays ?? null} onFermer={fermerModale} />
+        )}
+        {modale === 'production' && (
+          <ModaleProduction nation={vue.moi.nation} jeton={jeton} onFermer={fermerModale} />
+        )}
         {modale === 'nation' && <ModaleNation vue={vue} jeton={jeton} onFermer={fermerModale} />}
         {modale === 'reglages' && <ModaleReglages onFermer={fermerModale} />}
       </Suspense>

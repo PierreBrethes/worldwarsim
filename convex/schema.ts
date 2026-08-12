@@ -2,6 +2,21 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 // Placeholders d'équilibrage : les valeurs chiffrées vivent dans constantes.ts, jamais ici.
+
+const CLE_ROLE = v.union(
+  v.literal('infanterie'),
+  v.literal('blinde'),
+  v.literal('transportTerrestre'),
+  v.literal('chasseur'),
+  v.literal('bombardier'),
+  v.literal('transportAerien'),
+  v.literal('escorte'),
+  v.literal('cargo'),
+  v.literal('porteAvions'),
+);
+
+const PALIER = v.union(v.literal(1), v.literal(2));
+
 export default defineSchema({
   saisons: defineTable({
     code: v.string(),
@@ -50,6 +65,26 @@ export default defineSchema({
       v.literal('ecoute'),
     ),
     niveau: v.number(),
+  }).index('parJoueur', ['joueurId']),
+
+  /** L'effectif à domicile, une ligne par couple rôle/palier. Ni position ni identité : une
+   *  unité n'existe individuellement nulle part tant que le combat n'est pas écrit. */
+  unites: defineTable({
+    joueurId: v.id('joueurs'),
+    role: CLE_ROLE,
+    palier: PALIER,
+    nombre: v.number(),
+  }).index('parJoueur', ['joueurId']),
+
+  /** Une file ordonnée par `rang`. Seul le lot de tête porte un `finitLe` : les suivants n'ont
+   *  pas commencé, et ce sont exactement ceux qu'on peut annuler contre remboursement. */
+  recrutements: defineTable({
+    joueurId: v.id('joueurs'),
+    role: CLE_ROLE,
+    palier: PALIER,
+    nombre: v.number(),
+    rang: v.number(),
+    finitLe: v.union(v.number(), v.null()),
   }).index('parJoueur', ['joueurId']),
 
   chantiers: defineTable({
