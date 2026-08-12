@@ -107,6 +107,7 @@ export class MoteurCarte {
     this.regions = new CoucheRegions(this.repere, this.courbure);
     this.scene.add(this.regions.lignes);
     this.scene.add(this.regions.surbrillance);
+    this.scene.add(this.regions.accessoires);
 
     this.brancherEntrees();
     this.redimensionner();

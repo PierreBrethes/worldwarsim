@@ -1,6 +1,7 @@
 import {
   BufferGeometry,
   Float32BufferAttribute,
+  Group,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -9,10 +10,11 @@ import {
   ShapeGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { DonneesRegions, RegionAffichee } from '@/domaine/monde';
+import { typeDeRegion, type DonneesRegions, type RegionAffichee, type TypeRegion } from '@/domaine/monde';
 import type { Courbure } from './courbure';
 import { PALETTE } from './palette';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
+import { creerAccessoire, libererTerrain, TEINTES_TYPE } from './terrain';
 
 export const DISTANCE_REGIONS_PLEINES = 30;
 export const DISTANCE_REGIONS_ABSENTES = 65;
@@ -39,10 +41,12 @@ type RegionPreparee = {
 export class CoucheRegions {
   readonly lignes: LineSegments;
   readonly surbrillance: Mesh;
+  readonly accessoires = new Group();
   private readonly materiauLignes: LineBasicMaterial;
   private readonly materiauSurbrillance: MeshBasicMaterial;
   private preparees: RegionPreparee[] = [];
   private regionSurvolee: RegionAffichee | null = null;
+  private naissance = 0;
   private part = 0;
 
   constructor(
@@ -118,7 +122,7 @@ export class CoucheRegions {
       if (retenue !== null && candidate.aire >= retenue.aire) continue;
       if (contient(candidate.region, projeteX, projeteY)) retenue = candidate;
     }
-    this.changerSurbrillance(retenue?.region ?? null);
+    this.changerSurbrillance(retenue);
     return retenue?.region.nom ?? null;
   }
 
@@ -140,6 +144,7 @@ export class CoucheRegions {
     this.lignes.visible = this.part > 0.01;
     if (!this.estActive) this.changerSurbrillance(null);
     else this.surbrillance.visible = this.regionSurvolee !== null;
+    this.pousserAccessoires();
   }
 
   detruire(): void {
@@ -147,17 +152,24 @@ export class CoucheRegions {
     this.surbrillance.geometry.dispose();
     this.materiauLignes.dispose();
     this.materiauSurbrillance.dispose();
+    libererTerrain();
   }
 
-  private changerSurbrillance(region: RegionAffichee | null): void {
+  private changerSurbrillance(preparee: RegionPreparee | null): void {
+    const region = preparee?.region ?? null;
     if (region === this.regionSurvolee) return;
     this.regionSurvolee = region;
     this.surbrillance.geometry.dispose();
-    if (region === null) {
+    this.accessoires.clear();
+    if (preparee === null || region === null) {
       this.surbrillance.geometry = new BufferGeometry();
       this.surbrillance.visible = false;
       return;
     }
+
+    const type = typeDeRegion(region.nom);
+    this.materiauSurbrillance.color.set(TEINTES_TYPE[type]);
+    this.semerAccessoires(preparee, type);
 
     const geometries = region.anneaux.map((anneau) => {
       const forme = new Shape();
@@ -184,6 +196,63 @@ export class CoucheRegions {
     this.surbrillance.geometry = geometrie;
     this.surbrillance.visible = true;
   }
+
+  /**
+   * Sème les accessoires 3D du type — points intérieurs par rejet dans la boîte,
+   * graine tirée du nom pour retrouver la même clairière à chaque survol. La taille
+   * et le nombre suivent l'aire : une Oise se lit de près, une Amazonie de loin.
+   */
+  private semerAccessoires(preparee: RegionPreparee, type: TypeRegion): void {
+    const [minX, minY, maxX, maxY] = preparee.boite;
+    const alea = alealoire(graine(preparee.region.nom));
+    const nombre = Math.min(24, Math.max(8, Math.round(Math.sqrt(preparee.aire) * 8)));
+    const taille = Math.min(0.9, Math.max(0.28, 0.18 + Math.sqrt(preparee.aire) * 0.06));
+    let poses = 0;
+    let essais = 0;
+    while (poses < nombre && essais < nombre * 80) {
+      essais++;
+      const x = minX + alea() * (maxX - minX);
+      const y = minY + alea() * (maxY - minY);
+      if (!contient(preparee.region, x, y)) continue;
+      const accessoire = creerAccessoire(type);
+      accessoire.position.copy(this.repere.versMonde(x, y, EPAISSEUR_PAYS + 0.01));
+      accessoire.rotation.y = alea() * Math.PI * 2;
+      accessoire.scale.setScalar(0.0001);
+      accessoire.userData.taille = taille * (0.7 + alea() * 0.6);
+      accessoire.userData.retard = poses * 35 + alea() * 50;
+      this.accessoires.add(accessoire);
+      poses++;
+    }
+    this.naissance = performance.now();
+  }
+
+  /** La pousse : échelle 0 → taille avec un léger dépassement, décalée accessoire par accessoire. */
+  private pousserAccessoires(): void {
+    if (this.accessoires.children.length === 0) return;
+    const age = performance.now() - this.naissance;
+    for (const enfant of this.accessoires.children) {
+      const t = Math.min(1, Math.max(0, (age - (enfant.userData.retard as number)) / 320));
+      const depasse = 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
+      enfant.scale.setScalar(Math.max(0.0001, (enfant.userData.taille as number) * depasse));
+    }
+  }
+}
+
+function graine(nom: string): number {
+  let hachage = 0;
+  for (let i = 0; i < nom.length; i++) hachage = (hachage * 31 + nom.charCodeAt(i)) >>> 0;
+  return hachage;
+}
+
+function alealoire(graine: number): () => number {
+  let etat = graine >>> 0;
+  return () => {
+    etat = (etat + 0x6d2b79f5) >>> 0;
+    let t = etat;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function contient(region: RegionAffichee, x: number, y: number): boolean {

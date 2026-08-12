@@ -34,9 +34,22 @@ d'un mouvement `mien` est le sprite du rôle dominant de la pile, en billboard (
 seul) ; un arc adverse garde le cône anonyme — le brouillard interdit structurellement mieux.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
-fragment pour rester nette, frontières admin-1 en fondu au rapproché). `monde.json` et
-`regions.json` sont produits par `scripts/generer-monde.mjs` et `scripts/generer-regions.mjs`
-— ne jamais les retoucher à la main.
+fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
+cuite en texels). Au rapproché (< 65 unités), les **régions admin-1** apparaissent en fondu :
+traits intérieurs seulement, survol avec surbrillance teintée par type de terrain, infobulle
+nom + type, et accessoires 3D qui poussent sur la région (sapins, dunes, pyramides… —
+`src/carte/moteur/terrain.ts`, graine tirée du nom, taille et nombre suivant l'aire).
+
+**Le type de région** (`typeDeRegion`) compte six valeurs — plaine, forêt, jungle, montagne,
+désert, toundra — mais **reste un factice** : six régions témoins classées à la main (Oise,
+Landes, Amazonas, Valais, Tamanghasset, Chukchi), hachage du nom pour toutes les autres. La
+passe réelle est décidée mais pas écrite : classification hors ligne dans
+`scripts/generer-regions.mjs` (ETOPO pour le relief, Köppen-Geiger pour aride/polaire/tropical,
+landcover grossier pour forêt vs plaine), cuite dans `regions.json` en asset statique. Aucune
+règle de jeu ne doit lire le type — s'il doit un jour toucher vitesse ou combat, ADR
+obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif est libre).
+`monde.json` et `regions.json` sont produits par `scripts/generer-monde.mjs` et
+`scripts/generer-regions.mjs` — ne jamais les retoucher à la main.
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domaine/trajets.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et

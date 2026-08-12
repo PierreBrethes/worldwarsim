@@ -46,15 +46,30 @@ export async function chargerRegions(url = '/regions.json'): Promise<DonneesRegi
   };
 }
 
-export type TypeRegion = 'plaine' | 'forêt' | 'montagne' | 'plage';
+export type TypeRegion = 'plaine' | 'forêt' | 'jungle' | 'montagne' | 'désert' | 'toundra';
 
 /**
- * **Type factice** en attendant la passe de terrain (raster réel, peut-être persisté côté
- * serveur) : un hachage du nom, stable d'un chargement à l'autre, pour donner corps à
- * l'infobulle de survol. Aucune règle de jeu ne doit jamais le lire.
+ * Six régions témoins classées à la main — une par type — pour juger le rendu avant la
+ * passe de terrain réel (ETOPO + Köppen + landcover, cuite dans `regions.json`).
+ * « Amazonas » existe dans quatre pays : tous jungle, l'homonymie est inoffensive.
+ */
+const TEMOINS: ReadonlyMap<string, TypeRegion> = new Map([
+  ['Oise', 'plaine'],
+  ['Landes', 'forêt'],
+  ['Amazonas', 'jungle'],
+  ['Valais', 'montagne'],
+  ['Tamanghasset', 'désert'],
+  ['Chukchi Autonomous Okrug', 'toundra'],
+]);
+
+/**
+ * **Type factice** hors témoins : un hachage du nom, stable d'un chargement à l'autre,
+ * pour donner corps à l'infobulle de survol. Aucune règle de jeu ne doit jamais le lire.
  */
 export function typeDeRegion(nom: string): TypeRegion {
-  const types: ReadonlyArray<TypeRegion> = ['plaine', 'forêt', 'montagne', 'plage'];
+  const temoin = TEMOINS.get(nom);
+  if (temoin !== undefined) return temoin;
+  const types: ReadonlyArray<TypeRegion> = ['plaine', 'forêt', 'jungle', 'montagne', 'désert', 'toundra'];
   let hachage = 0;
   for (let i = 0; i < nom.length; i++) hachage = (hachage * 31 + nom.charCodeAt(i)) >>> 0;
   return types[hachage % types.length]!;
