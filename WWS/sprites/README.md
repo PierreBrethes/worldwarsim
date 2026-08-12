@@ -53,6 +53,10 @@ Un fichier porte la **clé `RoleUnite`** de `src/domaine/vue-joueur.ts`, et rien
 nom de matériel. Le B1 bis est un `blinde-2` ; le jour où la France change de char, l'asset
 change et le manifeste ne bouge pas.
 
+Le nom de matériel, lui, **est affiché** — « Blindé — char lourd B1 bis » sur la surface 4.6. Il
+vit dans `src/emblemes/unites/materiel.ts`, une table par nation, jamais dans le nom de fichier
+ni dans le domaine : c'est une propriété de la planche française, pas de la règle du jeu.
+
 ```
 infanterie-1  infanterie-2      blinde-1  blinde-2      transportTerrestre
 chasseur      bombardier        transportAerien

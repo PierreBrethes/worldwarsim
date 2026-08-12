@@ -120,5 +120,5 @@ Le moteur de carte est une classe impérative pilotée par des appels (`afficher
 `selectionner`, `reglerCourbure`). Il ne connaît pas React ; React ne connaît pas three.js. La
 couture tient dans un seul fichier, `carte/Carte.tsx`.
 
-La même règle vaudra pour le backend : une fonction `chargerVueJoueur()` derrière laquelle on
-échange le fixture contre Convex, sans toucher à une seule vue.
+La même règle vaut pour le backend : `chargerPartie()` est la seule porte par où le serveur entre
+dans le client. Changer de source ne toucherait pas une seule vue.

@@ -8,8 +8,6 @@ import type { Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
-import { clientConvex } from '@/donnees/clientConvex';
-import { lireJeton } from '@/donnees/jeton';
 import { LegendeEtatsArc } from './-plateau/LegendeEtatsArc';
 import { PanneauCompteurs } from './-plateau/PanneauCompteurs';
 import { PanneauMaNation } from './-plateau/PanneauMaNation';
@@ -53,10 +51,34 @@ export const Route = createFileRoute('/plateau')({
 });
 
 function Plateau() {
-  const { monde, vue } = Route.useLoaderData();
-  const jeton = lireJeton();
-  if (clientConvex && jeton) return <PlateauReactif monde={monde} vueInitiale={vue} jeton={jeton} />;
-  return <ContenuPlateau monde={monde} vue={vue} jeton={null} />;
+  const partie = Route.useLoaderData();
+  if (partie.etat === 'aucune') return <AucunePartie />;
+  return <PlateauReactif monde={partie.monde} vueInitiale={partie.vue} jeton={partie.jeton} />;
+}
+
+function AucunePartie() {
+  const naviguer = useNavigate();
+  return (
+    <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
+      <div className="hud trame-papier w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
+        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">plateau indisponible</p>
+        <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
+          aucune partie en cours
+        </h1>
+        <p className="mt-4 text-[13px] leading-[1.55] text-[var(--ink)]">
+          Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une
+          partie existante.
+        </p>
+        <button
+          type="button"
+          onClick={() => void naviguer({ to: '/accueil' })}
+          className="mt-5 w-full cursor-pointer border border-[var(--ink)] py-[10px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          retour à l’accueil
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function PlateauReactif({
@@ -73,7 +95,7 @@ function PlateauReactif({
   return <ContenuPlateau monde={monde} vue={vue} jeton={jeton} />;
 }
 
-function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string | null }) {
+function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string }) {
   const { pays, modale } = Route.useSearch();
   const naviguer = useNavigate({ from: Route.fullPath });
 

@@ -28,15 +28,24 @@ personnel.
 | Équilibrage | **mesuré** sur 2 000 saisons simulées |
 | Direction artistique | **validée en prototype**, typographie à faire |
 | Brief UI | **prêt à transmettre** |
-| Surfaces 4.1 à 4.4 | **implémentées sur fixture**, `src/` à la racine du dépôt |
-| Schéma de données | **hors-saison et état de nation écrits** (ADR 0010) ; le schéma de jeu attend le 🔴 |
-| Code de jeu serveur | **accueil/salon/lancement et ressources servis par Convex** ; mouvements et combat : rien |
+| Surfaces 4.1 à 4.4 | **implémentées sur Convex**, `src/` à la racine du dépôt ; le fixture de démonstration a été retiré |
+| Surface 4.6 — Production | **implémentée sur Convex** : file de recrutement, annulation remboursée, paliers MK1/MK2 |
+| Sprites d'unités | **France dessinée** (10 WebP, 240 Ko) ; sept nations à générer — pipeline dans `sprites/README.md` |
+| Schéma de données | hors-saison et état de nation (ADR 0010) ; **première tranche du schéma de jeu écrite** (`unites`, `recrutements`) |
+| Code de jeu serveur | accueil/salon/lancement, ressources **et production** servis par Convex ; mouvements et combat : rien |
 
 **Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
 nation sont gravés (fiche 12, ADR 0009-0010) : leur schéma existe. Le schéma de **jeu** — mouvements,
 combat, occupation, revenus — reste une conséquence du design : il ne s'écrit qu'après la correction
 du dernier 🔴 de `QUESTIONS.md`. Trois fois au cours du projet, l'écrire tôt aurait produit du
 travail à jeter.
+
+> **Entorse assumée, août 2026.** La production d'unités (`unites`, `recrutements`) a été écrite
+> **avant** la fermeture du 🔴, sur décision explicite. Le pari : le recrutement touche à la
+> *dépense*, pas au revenu de base, donc l'avantage d'isolement géographique ne devrait pas le
+> remettre en cause. Si le 🔴 se résout en indexant le revenu sur la distance, **relire
+> `convex/constantes.ts`** — c'est là que le pari se paie. Aucun ADR n'a été rédigé pour cette
+> tranche : c'est la dette de documentation la plus visible du dépôt.
 
 ---
 

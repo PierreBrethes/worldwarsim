@@ -5,7 +5,21 @@ import { POUVOIR_PAR_NATION, type Nation } from '@/domaine/nations';
 import { formaterPlage } from '@/domaine/plage-repos';
 import type { Batiment, VueJoueur } from '@/domaine/vue-joueur';
 import { clientConvexHttp } from './clientConvex';
-import { PAYS_DE_NATION } from './chargerVueJoueur';
+
+/**
+ * Les nations du jeu portent un nom francisé ; la géométrie du monde vient de
+ * Natural Earth et garde ses noms anglais. Cette table est la seule couture.
+ */
+const PAYS_DE_NATION: Readonly<Record<string, string>> = {
+  France: 'France',
+  'Royaume-Uni': 'United Kingdom',
+  'États-Unis': 'United States of America',
+  URSS: 'Russia',
+  Allemagne: 'Germany',
+  Japon: 'Japan',
+  Italie: 'Italy',
+  Chine: 'China',
+};
 
 const NOM_PAR_BATIMENT: Readonly<Record<Batiment['cle'], string>> = {
   qg: 'Quartier général',

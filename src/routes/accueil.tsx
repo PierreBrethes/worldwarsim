@@ -140,7 +140,6 @@ function Entrees() {
 }
 
 function SansBackend() {
-  const naviguer = useNavigate();
   return (
     <div className="pt-4">
       <p className="text-[13.5px] leading-[1.55] text-[var(--ink)]">
@@ -148,13 +147,6 @@ function SansBackend() {
         Lancez la pile locale avec <span className="font-[var(--font-mono)]">docker compose up</span> —
         voir <span className="font-[var(--font-mono)]">deploiement/README.md</span>.
       </p>
-      <button
-        type="button"
-        onClick={() => void naviguer({ to: '/plateau' })}
-        className="mt-4 w-full cursor-pointer border border-[var(--ink)] py-[10px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-      >
-        voir le plateau de démonstration
-      </button>
     </div>
   );
 }

@@ -15,17 +15,28 @@ npm run test     # vitest
 
 Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
 journal d'événements, la colonne des mouvements en cours et l'envoi d'un mouvement. Les données
-viennent du backend Convex quand un jeton de partie existe (accueil → salon → saison réelle,
-carte vierge), du fixture `public/etat-reference.json` sinon. Le backend couvre le hors-saison et
+viennent **uniquement** du backend Convex, par le jeton de partie (accueil → salon → saison
+réelle, carte vierge) ; sans jeton, `/plateau` affiche « aucune partie en cours » et renvoie à
+l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le hors-saison et
 l'état de nation (ADR 0009, 0010) ; mouvements et combat n'existent pas encore : « envoyer » ne
 fait rien, le rejeu attend la surface 4.7.
+
+**La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
+remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
+Elle a demandé la **première tranche du schéma de jeu** (`unites`, `recrutements`), écrite
+avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLAUDE.md`, pas un
+oubli. Les coûts et durées de `convex/constantes.ts` sont **arbitraires**, jamais simulés.
+
+Les sprites d'unités sont rangés par nation dans `src/emblemes/unites/` — **seule la France
+est dessinée**, les sept autres tombent sur le repli en cadre pointillé.
 
 ## Architecture
 
 ```
 src/domaine/     TS pur. Aucune importation React ni Convex. Testé.
-src/donnees/     adaptateurs : d'une source vers VueJoueur. Deux : le fixture, et Convex.
-convex/          schéma + fonctions serveur (hors-saison, état de nation). Testé (convex-test).
+src/donnees/     adaptateur Convex vers VueJoueur, jeton, réglages, client Convex.
+convex/          schéma + fonctions serveur (hors-saison, état de nation, production). Testé.
+src/emblemes/    drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.
 deploiement/     docker compose (backend Convex auto-hébergé + front), guide VPS et CI.
 src/carte/       moteur three.js impératif + un composant React qui l'enveloppe.
 src/coque/       bandeau + rail, partagés par toutes les surfaces.
@@ -66,7 +77,14 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 
 ## Ce qui reste
 
-Les surfaces 4.5 à 4.9 sont maquettées dans `WWS/maquettes/` mais pas implémentées — le rail
-les affiche grisées. Le schéma de données et le backend ne sont pas écrits,
+Les surfaces 4.5, 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
+grisées. Le reste du schéma de jeu (mouvements, combat, occupation, revenus) n'est pas écrit,
 délibérément : le dernier point bloquant du design (l'avantage d'isolement géographique) n'est pas
 tranché.
+
+**Le blocage le plus visible aujourd'hui** : l'acier ne vient que des avant-postes d'extraction,
+qui n'existent pas. Il démarre à 0 et rien ne le produit, or toute unité s'achète en acier — donc
+en saison réelle la file de production reste vide. `convex/unites.test.ts` grave le constat.
+
+Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque écran 4.x y est
+spécifié. L'oublier coûte une réécriture.

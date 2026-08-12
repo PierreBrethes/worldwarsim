@@ -24,7 +24,7 @@ export function ModaleNation({
   onFermer,
 }: {
   vue: VueJoueur;
-  jeton: string | null;
+  jeton: string;
   onFermer: () => void;
 }) {
   const [erreur, setErreur] = useState<string | null>(null);
@@ -84,11 +84,6 @@ export function ModaleNation({
                 {erreur}
               </p>
             )}
-            {jeton === null && (
-              <p className="mt-3 text-[11.5px] text-[var(--ink-soft)] italic">
-                Démonstration sur fixture — fondez une saison pour construire réellement.
-              </p>
-            )}
           </section>
 
           <aside className="w-full @2xl:w-[280px] @2xl:shrink-0">
@@ -124,11 +119,7 @@ export function ModaleNation({
               Publique : vos adversaires la voient. Un mouvement qui arriverait pendant est immobilisé
               à la frontière jusqu’à sa fin.
             </p>
-            {jeton === null ? (
-              <p className="mt-2 font-[var(--font-mono)] text-[14px] text-[var(--ink)]">{vue.moi.plageRepos}</p>
-            ) : (
-              <FormulairePlage jeton={jeton} plageAffichee={vue.moi.plageRepos} surErreur={setErreur} />
-            )}
+            <FormulairePlage jeton={jeton} plageAffichee={vue.moi.plageRepos} surErreur={setErreur} />
           </aside>
         </div>
       </div>
@@ -144,7 +135,7 @@ function LigneBatiment({
 }: {
   batiment: Batiment;
   chantier: VueJoueur['moi']['chantier'];
-  jeton: string | null;
+  jeton: string;
   surErreur: (message: string | null) => void;
 }) {
   return (
@@ -168,19 +159,10 @@ function LigneBatiment({
         </div>
         <div className="font-[var(--font-mono)]">{enHeuresMinutes(batiment.dureeNiveauSuivantMinutes)}</div>
       </div>
-      {jeton !== null ? (
-        <BoutonChantier batiment={batiment} chantier={chantier} jeton={jeton} surErreur={surErreur} />
-      ) : (
-        <button type="button" disabled title="démonstration — fondez une saison pour construire" className={STYLE_BOUTON_CHANTIER}>
-          chantier
-        </button>
-      )}
+      <BoutonChantier batiment={batiment} chantier={chantier} jeton={jeton} surErreur={surErreur} />
     </div>
   );
 }
-
-const STYLE_BOUTON_CHANTIER =
-  'shrink-0 cursor-pointer border border-[var(--ink)] px-3 py-[7px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35';
 
 function BoutonChantier({
   batiment,
@@ -212,7 +194,7 @@ function BoutonChantier({
           surErreur(probleme instanceof Error ? probleme.message : String(probleme)),
         );
       }}
-      className={STYLE_BOUTON_CHANTIER}
+      className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 py-[7px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35"
     >
       chantier
     </button>

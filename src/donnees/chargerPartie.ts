@@ -1,19 +1,20 @@
 import { chargerMonde, type Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { clientConvexHttp } from './clientConvex';
-import { chargerVueJoueur } from './chargerVueJoueur';
 import { chargerVueJoueurConvex } from './chargerVueJoueurConvex';
 import { lireJeton } from './jeton';
 
-export type Partie = { monde: Monde; vue: VueJoueur };
+export type Partie =
+  | { etat: 'en-cours'; monde: Monde; vue: VueJoueur; jeton: string }
+  | { etat: 'aucune' };
 
 let mondeEnCours: Promise<Monde> | null = null;
 
 export async function chargerPartie(): Promise<Partie> {
+  const jeton = lireJeton();
+  if (!jeton || !clientConvexHttp()) return { etat: 'aucune' };
+
   mondeEnCours ??= chargerMonde();
   const monde = await mondeEnCours;
-  const jeton = lireJeton();
-  const vue =
-    jeton && clientConvexHttp() ? await chargerVueJoueurConvex(monde, jeton) : await chargerVueJoueur(monde);
-  return { monde, vue };
+  return { etat: 'en-cours', monde, vue: await chargerVueJoueurConvex(monde, jeton), jeton };
 }

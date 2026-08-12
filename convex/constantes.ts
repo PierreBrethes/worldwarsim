@@ -1,5 +1,5 @@
 // Placeholders d'équilibrage, à faire passer par le simulateur avant toute saison réelle.
-// Sources : fiche 02 pour la structure, fixture pour les ordres de grandeur.
+// Sources : fiche 02 pour la structure, WWS/simulation pour les ordres de grandeur.
 
 import type { PalierUnite } from '../src/domaine/troupes';
 import type { RoleUnite } from '../src/domaine/vue-joueur';
@@ -14,7 +14,7 @@ export const DEPART = {
 
 /**
  * Coût et durée **d'une seule unité** de palier 1. Acier et effectifs viennent du
- * `catalogueProduction` de `public/etat-reference.json`, les durées de la maquette 4.6 — une
+ * `catalogueProduction` de `WWS/simulation/etat-reference.json`, les durées de la maquette 4.6 — une
  * unité s'achète en acier et en hommes, **jamais en ravitaillement**. Valeurs assumées
  * arbitraires en attendant le simulateur : c'est le seul endroit à corriger.
  */

@@ -27,7 +27,7 @@ export function ModaleProduction({
   onFermer,
 }: {
   nation: string;
-  jeton: string | null;
+  jeton: string;
   onFermer: () => void;
 }) {
   return (
@@ -46,13 +46,7 @@ export function ModaleProduction({
             fermer
           </button>
         </PoigneeModale>
-        {jeton === null ? (
-          <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">
-            La production demande une saison en cours. Fondez ou rejoignez une partie pour recruter.
-          </p>
-        ) : (
-          <Atelier nation={nation} jeton={jeton} />
-        )}
+        <Atelier nation={nation} jeton={jeton} />
       </div>
     </Modale>
   );
