@@ -2,7 +2,8 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { DOCTRINES, ENCRE_PAR_NATION, NATIONS, POUVOIR_PAR_NATION, encreDeNation } from '@/domaine/nations';
+import { DOCTRINES, NATIONS, POUVOIR_PAR_NATION } from '@/domaine/nations';
+import { BanniereDrapeau, Drapeau } from '@/emblemes/Drapeau';
 import { clientConvex } from '@/donnees/clientConvex';
 import { lireJeton, oublierJeton } from '@/donnees/jeton';
 
@@ -69,7 +70,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
         <div className="mt-4 flex items-start gap-[26px]">
           <section className="min-w-0 flex-1">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">nations — premier arrivé, premier servi</h2>
-            <div className="mt-2 grid grid-cols-2 gap-[6px]">
+            <div className="mt-2 grid grid-cols-4 gap-[6px]">
               {NATIONS.map((nation) => {
                 const preneur = nationDe(nation);
                 const aMoi = salon.moi.nation === nation;
@@ -80,20 +81,23 @@ function SalonConnecte({ jeton }: { jeton: string }) {
                     onClick={() => agir(() => reserver({ jeton, nation: aMoi ? null : nation }))}
                     disabled={Boolean(preneur) && !aMoi}
                     title={POUVOIR_PAR_NATION[nation]}
-                    className={`flex items-center gap-2 border px-3 py-[9px] text-left text-[13px] ${
+                    className={`flex flex-col overflow-hidden border-2 bg-[var(--desk)] text-left ${
                       aMoi
-                        ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
+                        ? 'cursor-pointer border-[var(--notable)]'
                         : preneur
-                          ? 'cursor-not-allowed border-[rgba(42,33,24,.3)] text-[var(--ink-soft)] opacity-60'
-                          : 'cursor-pointer border-[var(--ink)] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]'
+                          ? 'cursor-not-allowed border-[var(--ink-quiet)] opacity-40'
+                          : 'cursor-pointer border-[var(--ink-quiet)] hover:border-[var(--paper-dim)]'
                     }`}
                   >
-                    <span className="h-[10px] w-[10px] shrink-0" style={{ background: ENCRE_PAR_NATION[nation] }} />
-                    <span className="min-w-0 flex-1 truncate">
-                      {nation}
-                      {nation === 'États-Unis' && <span className="ml-1 text-[10px] opacity-70">— à équilibrer</span>}
+                    <BanniereDrapeau nation={nation} />
+                    <span className="flex w-full flex-col gap-[1px] px-2 py-[6px]">
+                      <span className="truncate font-[var(--font-display)] text-[12px] font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
+                        {nation}
+                      </span>
+                      <span className="truncate text-[9px] tracking-[.14em] text-[var(--paper-dim)] uppercase">
+                        {preneur ? preneur.pseudo : nation === 'États-Unis' ? 'à équilibrer' : 'libre'}
+                      </span>
                     </span>
-                    {preneur && <span className="shrink-0 text-[11px] opacity-80">{preneur.pseudo}</span>}
                   </button>
                 );
               })}
@@ -111,7 +115,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
             <ul className="mt-2 flex flex-col gap-[5px]">
               {salon.joueurs.map((joueur) => (
                 <li key={joueur.pseudo} className="flex items-center gap-2 text-[13px] text-[var(--ink)]">
-                  <span className="h-2 w-2 shrink-0" style={{ background: encreDeNation(joueur.nation) }} />
+                  <Drapeau nation={joueur.nation} largeur={21} surPapier />
                   <span className="min-w-0 flex-1 truncate">
                     {joueur.pseudo}
                     {joueur.createur && <span className="ml-1 text-[10px] text-[var(--ink-soft)] uppercase">fondateur</span>}

@@ -28,6 +28,41 @@ La palette **Journal 1947** du prototype teste exactement ce risque :
 
 L'épaisseur des pays et les isobathes sont conservées, comme demandé.
 
+## Emblèmes — icônes de ressources et drapeaux
+
+Deux planches complètent la palette (maquettes `Icônes ressources.dc.html` et
+`Drapeaux bandeau.dc.html`), toutes deux implémentées.
+
+**Trois icônes de ressources**, silhouettes pleines sans détail intérieur : caisse cerclée
+(ravitaillement `#b07434`), lingots empilés (acier `#8fa0b0`), casque (effectifs `#8b9160`).
+Formes distinctes à la découpe, donc lisibles même sans la couleur. Sur papier, les teintes
+s'assombrissent : `#8a5a24`, `#4d6376`, `#6a7047`.
+
+> **L'icône ne remplace jamais le chiffre**, elle remplace le *mot* quand la place manque.
+> En dessous de 12 px elle devient illisible : préférer alors le chiffre seul.
+
+**Drapeaux — tracés officiels, jamais déformés.** Les SVG de `country-flag-icons` (ratio 3:2, moins
+de 4 Ko en tout, incorporés en data-URI) passés au filtre `saturate(.45) sepia(.28) brightness(.85)`
+pour les ramener dans la palette : un drapeau officiel saturé crèverait le budget de contraste.
+
+> **Règle unique : la boîte s'adapte au drapeau, jamais l'inverse.** Étirer un drapeau sur une bande
+> dix fois plus large que haute transforme le disque japonais en ellipse et couche les étoiles
+> chinoises ; le recadrer n'en montre qu'une tranche, et le Royaume-Uni se réduit à un aplat rouge.
+> Chaque emploi lui donne donc une boîte au ratio 3:2 :
+
+| Emploi | Traitement | Où |
+|---|---|---|
+| **bannière** | drapeau plein cadre, la carte est dessinée autour | choix de nation — une grille de huit cartes, drapeau en haut, nom dessous |
+| **filigrane** | drapeau ancré à gauche d'une bande sombre, hauteur pleine, fondu sur sa propre largeur | bandeau nation |
+| **cartouche** | 27 à 36 px, liseré, reflet de verre | en-tête de fiche, liste des joueurs |
+
+Le filigrane **ne va que sur fond sombre** : sur papier le drapeau vire au bloc gris.
+L'**URSS** n'existe dans aucun paquet (pays disparu) : son tracé est à nous, dans
+`src/emblemes/urss.svg`. L'**Allemagne** porte le tricolore actuel, jamais le drapeau de 1940.
+
+**Ces six teintes étendent la palette verrouillée de la fiche 11.** Elles sont désaturées et
+n'entrent pas en concurrence avec les encres de nation, mais c'est une extension assumée.
+
 ## Ce qui reste à faire
 
 - **Typographie.** Un titrage type presse et un texte étroit. Rien n'est choisi.

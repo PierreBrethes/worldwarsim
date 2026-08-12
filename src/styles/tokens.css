@@ -29,6 +29,14 @@
   --ink-italie: #a86c4a;
   --ink-chine: #b07434;
 
+  /* ressources — sur fond sombre, puis assombries pour le papier */
+  --ravitaillement: #b07434;
+  --acier: #8fa0b0;
+  --effectifs: #8b9160;
+  --ravitaillement-papier: #8a5a24;
+  --acier-papier: #4d6376;
+  --effectifs-papier: #6a7047;
+
   /* sémantique */
   --critique: #9d4638;
   --notable: #b07434;

@@ -5,6 +5,8 @@ import { useHorloge } from '@/coque/horloge';
 import { lirePlage } from '@/domaine/plage-repos';
 import type { Batiment, VueJoueur } from '@/domaine/vue-joueur';
 import { libellePile, minutesCourantes, stockCourant } from '@/domaine/vue-joueur';
+import { Drapeau } from '@/emblemes/Drapeau';
+import { IconeRessource, couleurRessource } from '@/emblemes/IconeRessource';
 import { enHeuresMinutes } from './duree';
 import { Modale } from './Modale';
 
@@ -44,7 +46,9 @@ export function ModaleNation({
         </div>
 
         <div className="mt-2 flex items-baseline gap-4 border-t-2 border-b border-[var(--ink)] py-3">
-          <span className="inline-block h-[14px] w-[14px] self-center" style={{ background: vue.moi.encre }} />
+          <span className="self-center">
+            <Drapeau nation={vue.moi.nation} largeur={36} surPapier />
+          </span>
           <h1 className="font-[var(--font-display)] text-[34px] leading-none font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
             {vue.moi.nation}
           </h1>
@@ -101,8 +105,13 @@ export function ModaleNation({
                 <span className="text-[var(--ink-soft)]">en transit</span>
                 <span className="text-right text-[var(--ink)]">{libellePile(vue.moi.armeeEnTransit)}</span>
               </span>
-              <span className="flex justify-between gap-3">
-                <span className="text-[var(--ink-soft)]">effectifs</span>
+              <span className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-[6px]">
+                  <span className="flex" style={{ color: couleurRessource('effectifs', true) }}>
+                    <IconeRessource ressource="effectifs" />
+                  </span>
+                  <span className="text-[var(--ink-soft)]">effectifs</span>
+                </span>
                 <span className="font-[var(--font-mono)] text-[var(--ink)]">
                   {stockCourant(vue.moi.effectifs, vue.chargeeA, maintenant)}
                   {vue.moi.effectifs.plafond !== undefined && ` / ${vue.moi.effectifs.plafond} plafond`}
@@ -151,8 +160,11 @@ function LigneBatiment({
         <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">{EFFET_PAR_BATIMENT[batiment.cle]}</p>
       </div>
       <div className="shrink-0 text-right text-[11.5px] text-[var(--ink-soft)]">
-        <div>
-          <span className="font-[var(--font-mono)] text-[var(--ink)]">{batiment.coutNiveauSuivant}</span> ravit.
+        <div className="flex items-center justify-end gap-[6px] font-[var(--font-mono)] text-[14px] font-medium text-[var(--ink)]">
+          <span className="flex" style={{ color: couleurRessource('ravitaillement', true) }}>
+            <IconeRessource ressource="ravitaillement" taille={14} />
+          </span>
+          {batiment.coutNiveauSuivant}
         </div>
         <div className="font-[var(--font-mono)]">{enHeuresMinutes(batiment.dureeNiveauSuivantMinutes)}</div>
       </div>

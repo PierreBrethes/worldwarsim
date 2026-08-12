@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900&family=Archivo+Narrow:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#171208; font-family:"Archivo Narrow", Arial Narrow, sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing:antialiased; text-wrap:pretty; }
+  a { color:#b07434; text-decoration:none; border-bottom:1px solid rgba(176,116,52,.45); }
+  a:hover { color:#e4d8bd; border-bottom-color:#e4d8bd; }
+</style>
+</helmet>
+
+<div style="padding:44px 48px 90px; background:#171208; color:#e4d8bd; min-width:1080px">
+
+  <div style="max-width:660px">
+    <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:34px; font-weight:800; letter-spacing:.02em">Icônes des trois ressources</div>
+    <div style="font-size:13px; color:#a9968f; margin-top:8px; line-height:1.55">Silhouettes pleines, sans contour ni détail intérieur : c'est ce qui tient à 12 px. Chacune a une forme distincte à la découpe — carré barré, empilement triangulaire, dôme — donc reconnaissable même quand la couleur ne passe pas (impression, daltonisme, fond clair).</div>
+  </div>
+
+  <!-- planche -->
+  <div style="display:flex; gap:0; margin-top:40px; border:1px solid #4a4436">
+    <div style="flex:1; padding:28px 30px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:20px; height:56px; color:#b07434">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M3 5h18v14H3z" opacity=".25"></path><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 5h18v14H3z" opacity=".25"></path><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 5h18v14H3z" opacity=".25"></path><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 5h18v14H3z" opacity=".25"></path><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:21px; font-weight:700; margin-top:22px">Ravitaillement</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Caisse cerclée, croix de St-André. Le carré est la forme la plus stable des trois : c'est la ressource de base.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#b07434; margin-top:12px">#b07434</div>
+    </div>
+
+    <div style="flex:1; padding:28px 30px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:20px; height:56px; color:#8fa0b0">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:21px; font-weight:700; margin-top:22px">Acier</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Trois lingots empilés. La silhouette en pyramide se distingue du carré à toutes les tailles, même floutée.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8fa0b0; margin-top:12px">#8fa0b0</div>
+    </div>
+
+    <div style="flex:1; padding:28px 30px">
+      <div style="display:flex; align-items:flex-end; gap:20px; height:56px; color:#8b9160">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path><path d="M2.6 17.4h18.8v2.2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path><path d="M2.6 17.4h18.8v2.2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path><path d="M2.6 17.4h18.8v2.2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path><path d="M2.6 17.4h18.8v2.2H2.6z" opacity=".45"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:21px; font-weight:700; margin-top:22px">Effectifs</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Casque et jugulaire. Seule forme arrondie du jeu : elle signale l'humain, pas le matériel.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8b9160; margin-top:12px">#8b9160</div>
+    </div>
+  </div>
+
+  <!-- usages -->
+  <div style="display:flex; gap:34px; margin-top:46px; align-items:flex-start">
+
+    <div style="flex:0 0 400px">
+      <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#8d7f6a; border-bottom:1px solid #4a4436; padding-bottom:7px">dans le bandeau — 14 px</div>
+      <div style="display:flex; align-items:center; gap:26px; height:58px; padding:0 20px; border:1px solid #2a2118; border-top:none; background:#171208">
+        <div style="display:flex; flex-direction:column; gap:1px">
+          <div style="display:flex; align-items:center; gap:6px; color:#b07434"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg><span style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">ravitaillement</span></div>
+          <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">7 240</span><span style="font-size:11px; color:#b07434">+310 / h</span></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:1px">
+          <div style="display:flex; align-items:center; gap:6px; color:#8fa0b0"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg><span style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">acier</span></div>
+          <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">1 905</span><span style="font-size:11px; color:#b07434">+88 / h</span></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:1px">
+          <div style="display:flex; align-items:center; gap:6px; color:#8b9160"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path></svg><span style="font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8d7f6a">effectifs</span></div>
+          <div style="display:flex; align-items:baseline; gap:7px"><span style="font-size:17px; font-weight:600">412</span><span style="font-size:11px; color:#8d7f6a">/ 520</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 340px">
+      <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#8d7f6a; border-bottom:1px solid #4a4436; padding-bottom:7px">coût d'amélioration — sur papier</div>
+      <div style="background:#e8dfc8; color:#2a2118; padding:18px 20px 20px; border:1px solid #4a4436; border-top:none">
+        <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700">Caserne — niveau 3</div>
+        <div style="font-size:12px; color:#5f5039; margin-top:3px">+ 40 effectifs de plafond · 6 h 20 de chantier</div>
+        <div style="display:flex; gap:20px; margin-top:14px; padding-top:13px; border-top:1px solid #9d8f78; font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:500">
+          <div style="display:flex; align-items:center; gap:6px"><span style="color:#8a5a24; display:flex"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg></span>1 200</div>
+          <div style="display:flex; align-items:center; gap:6px"><span style="color:#4d6376; display:flex"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg></span>340</div>
+          <div style="display:flex; align-items:center; gap:6px; color:#9d4638"><span style="display:flex"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path></svg></span>60 <span style="font-size:11px">/ 42</span></div>
+        </div>
+        <div style="font-family:'Bodoni Moda',Georgia,serif; font-style:italic; font-size:12px; color:#9d4638; margin-top:10px">Effectifs insuffisants — 18 manquants.</div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 auto">
+      <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#8d7f6a; border-bottom:1px solid #4a4436; padding-bottom:7px">jeton seul — file de production</div>
+      <div style="display:flex; gap:10px; padding:20px 0">
+        <div style="width:34px; height:34px; border:1px solid #b07434; display:flex; align-items:center; justify-content:center; color:#b07434"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2 4h20v2H2zM2 18h20v2H2zM2 4h2v16H2zM20 4h2v16h-2zM5.6 5.2 19 17.2l-1.4 1.6L4.2 6.8zM18.4 5.2 19.8 6.8 6.4 18.8 5 17.2z"></path></svg></div>
+        <div style="width:34px; height:34px; border:1px solid #8fa0b0; display:flex; align-items:center; justify-content:center; color:#8fa0b0"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg></div>
+        <div style="width:34px; height:34px; border:1px solid #8b9160; display:flex; align-items:center; justify-content:center; color:#8b9160"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3c-4.6 0-8.3 3.6-8.3 8.1v1.4H1.6v3.1h20.8v-3.1h-2.1v-1.4C20.3 6.6 16.6 3 12 3z"></path></svg></div>
+      </div>
+      <div style="font-size:12px; color:#8d7f6a; max-width:200px; line-height:1.5">Cadre 34 px, icône 16 px, jamais de fond plein : le jeton reste lisible sur papier comme sur fond sombre.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:44px; font-size:13px; color:#8d7f6a; max-width:660px; line-height:1.6">
+    Règles d'emploi : l'icône ne remplace jamais le chiffre, elle remplace le <span style="color:#e4d8bd">mot</span> quand la place manque (jeton, ligne de coût, tooltip). En dessous de 12 px elle devient illisible — préférer alors le chiffre seul. Sur papier, assombrir les trois teintes (#8a5a24, #4d6376, #6a7047) pour tenir le contraste.
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

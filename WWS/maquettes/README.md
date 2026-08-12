@@ -298,6 +298,9 @@ reconnaissance, encre unique, à plat) restent à produire — elles ne sont pas
 | Fichier | Contenu |
 |---|---|
 | `Interface de saison.dc.html` | la maquette haute fidélité, ouvrable dans un navigateur |
+| `Icônes ressources.dc.html` | les trois icônes de ressources, leurs teintes et leurs règles d'emploi — **implémenté** |
+| `Drapeaux bandeau.dc.html` | drapeaux CSS repalettés, trois traitements — **implémenté** (cartouche) |
+| `Sprite soldat.dc.html` | silhouettes d'unités — pas encore implémenté |
 | `tokens.css` | les tokens en propriétés personnalisées CSS |
 | `tokens.json` | les mêmes tokens en JSON, pour un thème JS / Tailwind |
 | [`../docs/design/11-brief-ui.md`](../docs/design/11-brief-ui.md) | brief produit d'origine : règles, inventaire des écrans, vocabulaire |

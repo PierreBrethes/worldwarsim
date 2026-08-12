@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Archivo+Narrow:wght@400..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#171208; font-family:"Archivo Narrow", Arial Narrow, sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing:antialiased; text-wrap:pretty; }
+  a { color:#b07434; text-decoration:none; border-bottom:1px solid rgba(176,116,52,.45); }
+  a:hover { color:#e4d8bd; border-bottom-color:#e4d8bd; }
+</style>
+</helmet>
+
+<div style="padding:44px 48px 90px; background:#171208; color:#e4d8bd; min-width:1040px">
+
+  <div style="max-width:1000px">
+    <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:34px; font-weight:800; letter-spacing:.02em">Drapeaux — bandeau nation</div>
+    <div style="font-size:13px; color:#a9968f; margin-top:8px; line-height:1.5; max-width:640px">Drapeaux dessinés en CSS pur (pas d'images à charger, nets à toute résolution), repalettés sur les teintes du jeu : rouge #a5283a, bleu #1e3a70, papier #f2ede0, or #d3a02c. Trois traitements ci-dessous.</div>
+  </div>
+
+  <!-- A -->
+  <div id="a" style="margin-top:46px">
+    <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid #4a4436; padding-bottom:8px">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#b07434">A</div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:20px; font-weight:700">Drapeau en fond, texte par-dessus</div>
+      <div style="font-size:12px; color:#8d7f6a">opacité 22 %, fondu vers la droite — le bandeau reste lisible, la nation se lit d'un coup d'œil</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:2px; margin-top:18px">
+      <sc-for list="{{ nations }}" as="n" hint-placeholder-count="8">
+        <div style="position:relative; display:flex; align-items:center; gap:12px; height:58px; padding:0 24px; width:390px; overflow:hidden; border-bottom:1px solid #2a2118">
+          <div style="position:absolute; inset:0; opacity:.22; background:{{ n.flag }}; -webkit-mask-image:linear-gradient(to right, #000 0%, #000 34%, transparent 88%); mask-image:linear-gradient(to right, #000 0%, #000 34%, transparent 88%)"></div>
+          <div style="position:relative; font-family:'Bodoni Moda',Georgia,serif; font-weight:800; font-size:19px; letter-spacing:.02em; text-shadow:0 1px 3px rgba(23,18,8,.9)">{{ n.nom }}</div>
+          <div style="position:relative; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#a9968f; padding-top:3px; text-shadow:0 1px 3px rgba(23,18,8,.9)">doctrine {{ n.doctrine }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div id="b" style="margin-top:56px">
+    <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid #4a4436; padding-bottom:8px">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#b07434">B</div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:20px; font-weight:700">Drapeau en cartouche, à côté du texte</div>
+      <div style="font-size:12px; color:#8d7f6a">remplace le carré de couleur actuel — le plus sobre, aucun risque de lisibilité</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:2px; margin-top:18px">
+      <sc-for list="{{ nations }}" as="n" hint-placeholder-count="8">
+        <div style="display:flex; align-items:center; gap:13px; height:58px; padding:0 24px; width:390px; border-bottom:1px solid #2a2118">
+          <div style="position:relative; width:27px; height:18px; flex:0 0 auto; border:1px solid #e4d8bd; box-shadow:0 1px 0 rgba(23,18,8,.8); background:{{ n.flag }}">
+            <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(23,18,8,.22))"></div>
+          </div>
+          <div style="font-family:'Bodoni Moda',Georgia,serif; font-weight:800; font-size:19px; letter-spacing:.02em">{{ n.nom }}</div>
+          <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#a9968f; padding-top:3px">doctrine {{ n.doctrine }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div id="c" style="margin-top:56px">
+    <div style="display:flex; align-items:baseline; gap:14px; border-bottom:1px solid #4a4436; padding-bottom:8px">
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#b07434">C</div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:20px; font-weight:700">Bande verticale pleine hauteur</div>
+      <div style="font-size:12px; color:#8d7f6a">drapeau pivoté en liseré de 10 px collé au bord gauche de l'écran, façon marque de dossier</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:2px; margin-top:18px">
+      <sc-for list="{{ nations }}" as="n" hint-placeholder-count="8">
+        <div style="display:flex; align-items:stretch; height:58px; width:390px; border-bottom:1px solid #2a2118">
+          <div style="width:10px; flex:0 0 auto; background:{{ n.flagV }}"></div>
+          <div style="display:flex; align-items:center; gap:12px; padding:0 20px">
+            <div style="font-family:'Bodoni Moda',Georgia,serif; font-weight:800; font-size:19px; letter-spacing:.02em">{{ n.nom }}</div>
+            <div style="font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#a9968f; padding-top:3px">doctrine {{ n.doctrine }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="margin-top:56px; font-size:13px; color:#8d7f6a; max-width:640px; line-height:1.6">
+    Ma recommandation : <span style="color:#e4d8bd">B pour le bandeau permanent</span> (le drapeau sert d'identifiant, il ne doit pas concurrencer les compteurs) et <span style="color:#e4d8bd">A pour les grandes zones</span> — écran de choix de nation, en-tête du journal, fiche adversaire — où le fond peut respirer.
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const P = { rouge:"#a5283a", bleu:"#1e3a70", papier:"#f2ede0", or:"#d3a02c", vert:"#2b6b46", noir:"#1b1b1b", blanc:"#efe7d4" };
+
+function tri(a, b, c, dir) {
+  return `linear-gradient(${dir || "90deg"}, ${a} 0 33.34%, ${b} 0 66.67%, ${c} 0)`;
+}
+
+const FLAGS = {
+  fr: () => tri(P.bleu, P.papier, P.rouge),
+  it: () => tri(P.vert, P.papier, P.rouge),
+  de: () => tri(P.noir, P.rouge, P.or, "180deg"),
+  jp: () => `radial-gradient(circle at 50% 50%, ${P.rouge} 0 21%, transparent 21.5%), linear-gradient(${P.papier}, ${P.papier})`,
+  cn: () => `radial-gradient(circle at 32% 40%, ${P.or} 0 12%, transparent 12.5%), radial-gradient(circle at 55% 20%, ${P.or} 0 5%, transparent 5.5%), radial-gradient(circle at 66% 34%, ${P.or} 0 5%, transparent 5.5%), radial-gradient(circle at 66% 55%, ${P.or} 0 5%, transparent 5.5%), radial-gradient(circle at 55% 70%, ${P.or} 0 5%, transparent 5.5%), linear-gradient(${P.rouge}, ${P.rouge})`,
+  su: () => `radial-gradient(circle at 22% 30%, ${P.or} 0 13%, transparent 13.5%), linear-gradient(${P.rouge}, ${P.rouge})`,
+  us: () => `linear-gradient(${P.bleu}, ${P.bleu}) no-repeat top left / 40% 53.9%, repeating-linear-gradient(180deg, ${P.rouge} 0 7.69%, ${P.papier} 7.69% 15.38%)`,
+  uk: () => [
+    `linear-gradient(180deg, transparent 44%, ${P.rouge} 44% 56%, transparent 56%)`,
+    `linear-gradient(90deg, transparent 45.5%, ${P.rouge} 45.5% 54.5%, transparent 54.5%)`,
+    `linear-gradient(180deg, transparent 36%, ${P.papier} 36% 64%, transparent 64%)`,
+    `linear-gradient(90deg, transparent 38%, ${P.papier} 38% 62%, transparent 62%)`,
+    `linear-gradient(to bottom right, transparent calc(50% - 2.5px), ${P.papier} calc(50% - 2.5px) calc(50% + 2.5px), transparent calc(50% + 2.5px))`,
+    `linear-gradient(to bottom left, transparent calc(50% - 2.5px), ${P.papier} calc(50% - 2.5px) calc(50% + 2.5px), transparent calc(50% + 2.5px))`,
+    `linear-gradient(${P.bleu}, ${P.bleu})`
+  ].join(", ")
+};
+
+// versions verticales (bande de 10 px) — le tricolore tourne, le reste reste tel quel
+const FLAGS_V = {
+  fr: () => tri(P.bleu, P.papier, P.rouge, "180deg"),
+  it: () => tri(P.vert, P.papier, P.rouge, "180deg"),
+  de: () => tri(P.noir, P.rouge, P.or, "180deg"),
+  jp: () => `linear-gradient(180deg, ${P.papier} 0 38%, ${P.rouge} 38% 62%, ${P.papier} 62%)`,
+  cn: () => `repeating-linear-gradient(180deg, ${P.or} 0 4%, ${P.rouge} 4% 12%) no-repeat top / 100% 24%, linear-gradient(${P.rouge}, ${P.rouge})`,
+  su: () => `linear-gradient(180deg, ${P.or} 0 14%, ${P.rouge} 14%)`,
+  us: () => `linear-gradient(${P.bleu}, ${P.bleu}) no-repeat top left / 100% 26%, repeating-linear-gradient(180deg, ${P.rouge} 0 7.69%, ${P.papier} 7.69% 15.38%)`,
+  uk: () => `linear-gradient(180deg, ${P.bleu} 0 30%, ${P.papier} 30% 38%, ${P.rouge} 38% 62%, ${P.papier} 62% 70%, ${P.bleu} 70%)`
+};
+
+class Component extends DCLogic {
+  renderVals() {
+    const defs = [
+      ["us", "ÉTATS-UNIS", "hégémonie"],
+      ["fr", "FRANCE", "hégémonie"],
+      ["cn", "CHINE", "attrition"],
+      ["uk", "ROYAUME-UNI", "blocus"],
+      ["de", "ALLEMAGNE", "percée"],
+      ["su", "URSS", "attrition"],
+      ["jp", "JAPON", "raids"],
+      ["it", "ITALIE", "blocus"]
+    ];
+    return {
+      nations: defs.map(([code, nom, doctrine]) => ({
+        code, nom, doctrine,
+        flag: FLAGS[code](),
+        flagV: FLAGS_V[code]()
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

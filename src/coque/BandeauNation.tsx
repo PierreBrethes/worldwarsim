@@ -1,6 +1,8 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { stockCourant } from '@/domaine/vue-joueur';
+import { FiligraneDrapeau } from '@/emblemes/Drapeau';
+import { IconeRessource, couleurRessource, type CleRessource } from '@/emblemes/IconeRessource';
 import type { RecherchePlateau } from '@/routes/plateau';
 import { useHorloge } from './horloge';
 
@@ -17,22 +19,31 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       className="hud flex h-[58px] min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-4"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <Groupe>
-        <span className="inline-block h-[10px] w-[10px]" style={{ background: moi.encre }} />
-        <span className="font-[var(--font-display)] text-[17px] font-semibold tracking-[.06em] text-[var(--paper)] uppercase">
-          {moi.nation}
-        </span>
-        <span className="eyebrow-sombre">doctrine {moi.doctrine}</span>
-      </Groupe>
+      <div className="relative flex h-full shrink-0 items-center overflow-hidden border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap">
+        <FiligraneDrapeau nation={moi.nation} />
+        <div className="relative flex items-baseline gap-3" style={{ textShadow: '0 1px 3px rgba(23,18,8,.9)' }}>
+          <span className="font-[var(--font-display)] text-[19px] font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
+            {moi.nation}
+          </span>
+          <span className="eyebrow-sombre">doctrine {moi.doctrine}</span>
+        </div>
+      </div>
 
       <Groupe>
         <Compteur
+          ressource="ravitaillement"
           libelle="Ravitaillement"
           valeur={stockCourant(moi.ravitaillement, vue.chargeeA, maintenant)}
           debit={moi.ravitaillement.debitParHeure}
         />
-        <Compteur libelle="Acier" valeur={stockCourant(moi.acier, vue.chargeeA, maintenant)} debit={moi.acier.debitParHeure} />
         <Compteur
+          ressource="acier"
+          libelle="Acier"
+          valeur={stockCourant(moi.acier, vue.chargeeA, maintenant)}
+          debit={moi.acier.debitParHeure}
+        />
+        <Compteur
+          ressource="effectifs"
           libelle="Effectifs"
           valeur={stockCourant(moi.effectifs, vue.chargeeA, maintenant)}
           debit={moi.effectifs.debitParHeure}
@@ -94,11 +105,13 @@ function Groupe({ children, dernier = false }: { children: React.ReactNode; dern
 }
 
 function Compteur({
+  ressource,
   libelle,
   valeur,
   debit,
   suffixe,
 }: {
+  ressource: CleRessource;
   libelle: string;
   valeur: number;
   debit: number;
@@ -106,7 +119,10 @@ function Compteur({
 }) {
   return (
     <div className="shrink-0">
-      <div className="eyebrow-sombre">{libelle}</div>
+      <div className="flex items-center gap-[6px]" style={{ color: couleurRessource(ressource) }}>
+        <IconeRessource ressource={ressource} />
+        <span className="eyebrow-sombre">{libelle}</span>
+      </div>
       <div className="flex items-baseline gap-2">
         <span className="font-[var(--font-mono)] text-[17px] font-medium text-[var(--paper)]">
           {valeur.toLocaleString('fr-FR')}
