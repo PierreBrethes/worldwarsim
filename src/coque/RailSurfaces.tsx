@@ -1,11 +1,26 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import type { VueJoueur } from '@/domaine/vue-joueur';
 import type { Modale, RecherchePlateau } from '@/routes/plateau';
 import { basculerModale, modaleOuverte } from '@/routes/plateau';
 import { Glyphe } from './Glyphe';
+import { useHorloge } from './horloge';
 
-export function RailSurfaces({ saison }: { saison: number }) {
+export function RailSurfaces({
+  saison,
+  chargeeA,
+}: {
+  saison: VueJoueur['saison'];
+  chargeeA: number;
+}) {
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
+  // La fin de saison se compte en jours : la minute suffit, et le rail n'a pas à se
+  // redessiner chaque seconde pour une infobulle.
+  const maintenant = useHorloge(60_000);
+  const restantMinutes = Math.max(
+    0,
+    (saison.dureeHeures - saison.ecouleHeures) * 60 - (maintenant - chargeeA) / 60_000,
+  );
 
   // Le rail est un jeu de bascules, pas une navigation : cliquer une surface déjà
   // ouverte la retire de la pile, et l'état nu (carte seule) n'a pas besoin d'entrée « plateau ».
@@ -92,7 +107,14 @@ export function RailSurfaces({ saison }: { saison: number }) {
         >
           <IconeReglages />
         </Link>
-        <div className="text-center font-[var(--font-mono)] text-[9px] text-[#6b6252]">S.{saison}</div>
+        <div
+          title={`saison ${saison.numero} — fin dans ${Math.floor(restantMinutes / 60)} h ${String(
+            Math.floor(restantMinutes % 60),
+          ).padStart(2, '0')}`}
+          className="text-center font-[var(--font-mono)] text-[9px] text-[#6b6252]"
+        >
+          S.{saison.numero}
+        </div>
       </div>
     </nav>
   );

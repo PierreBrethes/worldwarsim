@@ -1,5 +1,7 @@
 const CLE_ECHELLE = 'wws-echelle-hud';
-export const ECHELLE_HUD_DEFAUT = 150;
+// Doit rester d'accord avec `--echelle-hud` de `tokens.css` : le token est l'échelle du
+// premier rendu, celle-ci celle qu'on réapplique une fois le réglage relu.
+export const ECHELLE_HUD_DEFAUT = 120;
 export const ECHELLE_HUD_MIN = 100;
 export const ECHELLE_HUD_MAX = 200;
 

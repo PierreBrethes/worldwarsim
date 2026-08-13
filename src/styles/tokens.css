@@ -74,7 +74,7 @@
   --sp-9: 26px; --sp-10: 30px;
 
   /* échelle du HUD — tout texte et toute cote en dérivent (zoom CSS) */
-  --echelle-hud: 1.5;
+  --echelle-hud: 1.2;
 
   /* géométrie */
   --topbar-h: 58px;

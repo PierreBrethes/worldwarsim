@@ -50,6 +50,12 @@ body {
   color: var(--paper-dim);
 }
 
+/* Une ressource à zéro qui ne rentre pas non plus n'est pas une alerte : c'est un compteur
+   qui n'a rien à dire. Il s'efface sans disparaître — le jour où il repart, il revient. */
+.ressource-tarie {
+  opacity: 0.42;
+}
+
 /* Le passage d'un écran de journal à l'autre est une page qu'on tourne :
    l'axe est le pli à gauche, jamais un fondu. */
 @keyframes tour-de-page-sortie {

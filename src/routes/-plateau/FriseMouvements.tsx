@@ -97,7 +97,10 @@ export function FriseMouvements({
     }
   }, [mouvementDesigneParLaCarte, retenues]);
 
-  if (!fiches.length) return null;
+  // Ciel vide, la frise ne disparaît pas : c'est là qu'on lit les slots, et « aucun mouvement,
+  // deux slots libres » est justement l'état où on a besoin de le savoir.
+  const vide = fiches.length === 0;
+  const deployee = !repliee && !vide;
 
   const glisser = (pas: number) =>
     piste.current?.scrollBy({ left: pas * PAS, behavior: 'smooth' });
@@ -108,20 +111,21 @@ export function FriseMouvements({
   return (
     <div
       className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 px-6 pb-4 ${
-        repliee ? 'pt-6' : 'pt-16'
+        deployee ? 'pt-16' : 'pt-6'
       }`}
       style={{
-        background: repliee
-          ? 'linear-gradient(to top, rgba(15,10,4,.9) 0%, rgba(15,10,4,.72) 55%, rgba(15,10,4,0) 100%)'
-          : 'linear-gradient(to top, rgba(15,10,4,.94) 0%, rgba(15,10,4,.88) 62%, rgba(15,10,4,.55) 84%, rgba(15,10,4,0) 100%)',
+        background: deployee
+          ? 'linear-gradient(to top, rgba(15,10,4,.94) 0%, rgba(15,10,4,.88) 62%, rgba(15,10,4,.55) 84%, rgba(15,10,4,0) 100%)'
+          : 'linear-gradient(to top, rgba(15,10,4,.9) 0%, rgba(15,10,4,.72) 55%, rgba(15,10,4,0) 100%)',
       }}
     >
       <div className="flex items-end gap-6 border-b border-[rgba(228,216,189,.18)] pb-2">
         <button
           type="button"
+          disabled={vide}
           onClick={() => setRepliee(!repliee)}
-          title={repliee ? 'déplier la frise' : 'replier la frise'}
-          className="pointer-events-auto flex shrink-0 cursor-pointer items-baseline gap-3 bg-transparent"
+          title={vide ? undefined : repliee ? 'déplier la frise' : 'replier la frise'}
+          className="pointer-events-auto flex shrink-0 items-baseline gap-3 bg-transparent enabled:cursor-pointer"
         >
           <span className="font-[var(--font-display)] text-[12px] font-semibold tracking-[.24em] text-[rgba(228,216,189,.58)] uppercase">
             mouvements en vol
@@ -129,23 +133,47 @@ export function FriseMouvements({
           <span className="font-[var(--font-mono)] text-[15px] text-[var(--paper)]">
             {fiches.length}
           </span>
-          <span className="text-[10px] text-[rgba(228,216,189,.34)]">{repliee ? '▲' : '▼'}</span>
+          {!vide && (
+            <span className="text-[10px] text-[rgba(228,216,189,.34)]">{repliee ? '▲' : '▼'}</span>
+          )}
         </button>
 
-        <RangeeCompteurs
-          fiches={fiches}
-          filtre={filtre}
-          onFiltre={(demande) => {
-            setFiltre(demande);
-            // Filtrer une piste repliée ne montrerait rien : la demande vaut dépliage.
-            setRepliee(false);
-            piste.current?.scrollTo({ left: 0 });
-          }}
-        />
-        <ProchaineArrivee fiches={fiches} maintenant={maintenant} />
+        {/* Les slots comptent ce qu'on peut encore lancer : leur place est contre le nombre
+            de mouvements en vol, pas dans un bandeau qu'on ne lit pas en envoyant. */}
+        <span
+          title="slots de mouvement occupés"
+          className="flex shrink-0 items-baseline gap-3"
+        >
+          <span className="font-[var(--font-display)] text-[12px] font-semibold tracking-[.24em] text-[rgba(228,216,189,.58)] uppercase">
+            slots
+          </span>
+          <span className="font-[var(--font-mono)] text-[15px] text-[var(--paper)]">
+            {vue.moi.slots.utilises} / {vue.moi.slots.total}
+          </span>
+        </span>
+
+        {vide ? (
+          <span className="flex-1 text-[11px] tracking-[.14em] text-[rgba(228,216,189,.3)] uppercase">
+            rien en vol
+          </span>
+        ) : (
+          <>
+            <RangeeCompteurs
+              fiches={fiches}
+              filtre={filtre}
+              onFiltre={(demande) => {
+                setFiltre(demande);
+                // Filtrer une piste repliée ne montrerait rien : la demande vaut dépliage.
+                setRepliee(false);
+                piste.current?.scrollTo({ left: 0 });
+              }}
+            />
+            <ProchaineArrivee fiches={fiches} maintenant={maintenant} />
+          </>
+        )}
       </div>
 
-      {!repliee && (
+      {deployee && (
         <div className="relative mt-3">
           <Piste noeud={piste} onCourse={mesurer}>
             {retenues.map((fiche) => (

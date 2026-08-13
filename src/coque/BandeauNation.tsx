@@ -1,76 +1,58 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
-import { minutesCourantes, stockCourant } from '@/domaine/vue-joueur';
+import { stockCourant } from '@/domaine/vue-joueur';
 import { IconeRessource, couleurRessource, type CleRessource } from '@/emblemes/IconeRessource';
 import type { RecherchePlateau } from '@/routes/plateau';
 import { avecModale } from '@/routes/plateau';
 import { CartoucheNation } from './CartoucheNation';
-import { enHeuresMinutes } from '@/domaine/duree';
 import { IconeJournal } from './Glyphe';
 import { useHorloge } from './horloge';
 
-const HAUTEUR_BANDEAU = 58;
+const HAUTEUR_BANDEAU = 42;
 
+/**
+ * Le bandeau ne répond plus qu'à une question : quoi de neuf. Tout ce qui se consulte au
+ * lieu de se surveiller — nom, doctrine, plage de repos, saison, slots, échéances — vit
+ * dans la surface qui le porte. C'est ce dégraissage qui supprime le débordement, pas un
+ * défilement horizontal de plus.
+ */
 export function BandeauNation({ vue }: { vue: VueJoueur }) {
-  const { moi, saison } = vue;
+  const { moi } = vue;
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
   const maintenant = useHorloge();
-  const restantMinutes = Math.max(
-    0,
-    (saison.dureeHeures - saison.ecouleHeures) * 60 - (maintenant - vue.chargeeA) / 60_000,
-  );
   const critique = vue.journal.find((depeche) => depeche.gravite === 'critique') ?? null;
-  const echeance = prochaineEcheance(vue, maintenant);
+  const aSignaler = critique !== null || vue.journal.length > 0;
   return (
-    // Le bandeau ne fait plus déborder la page : c'est lui qui glisse, la carte garde l'écran.
     <header
-      className="hud flex shrink-0 items-center gap-0 overflow-x-auto overscroll-x-contain border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="hud flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)]"
       style={{ fontFamily: 'var(--font-body)', height: HAUTEUR_BANDEAU }}
     >
-      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)]">
-        <CartoucheNation nation={moi.nation} doctrine={moi.doctrine} hauteur={HAUTEUR_BANDEAU} />
-      </div>
+      <CartoucheNation nation={moi.nation} hauteur={HAUTEUR_BANDEAU} />
+
+      <div className="flex-1" />
 
       <Groupe>
         <Compteur
           ressource="ravitaillement"
-          libelle="Ravitaillement"
+          libelle="ravitaillement"
           valeur={stockCourant(moi.ravitaillement, vue.chargeeA, maintenant)}
           debit={moi.ravitaillement.debitParHeure}
         />
+        <Separateur />
         <Compteur
           ressource="acier"
-          libelle="Acier"
+          libelle="acier"
           valeur={stockCourant(moi.acier, vue.chargeeA, maintenant)}
           debit={moi.acier.debitParHeure}
         />
+        <Separateur />
         <Compteur
           ressource="effectifs"
-          libelle="Effectifs"
+          libelle="effectifs"
           valeur={stockCourant(moi.effectifs, vue.chargeeA, maintenant)}
           debit={moi.effectifs.debitParHeure}
-          suffixe={moi.effectifs.plafond ? `/ ${moi.effectifs.plafond} plafond` : undefined}
+          plafond={moi.effectifs.plafond}
         />
-      </Groupe>
-
-      <Groupe>
-        <Slots total={moi.slots.total} utilises={moi.slots.utilises} />
-      </Groupe>
-
-      <Groupe>
-        <div>
-          <div className="eyebrow-sombre">Prochaine échéance</div>
-          <div className="flex items-baseline gap-3">
-            <span className="block max-w-[220px] overflow-hidden text-[13px] text-ellipsis text-[var(--paper)]">
-              {echeance ? echeance.libelle : '—'}
-            </span>
-            {echeance && (
-              <span className="font-[var(--font-mono)] text-[12px] text-[var(--notable)]">
-                {enHeuresMinutes(echeance.minutes)}
-              </span>
-            )}
-          </div>
-        </div>
       </Groupe>
 
       <div className="flex-1" />
@@ -78,137 +60,72 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       <Link
         to="/plateau"
         search={avecModale(recherche, 'journal')}
-        className="flex h-full shrink-0 items-center gap-3 border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap hover:bg-[var(--ink)]"
+        title={aSignaler ? undefined : 'journal — rien à signaler'}
+        className="flex h-full min-w-0 items-center gap-3 border-l border-[var(--ink-quiet)] px-4 whitespace-nowrap hover:bg-[var(--ink)]"
       >
-        <span style={{ color: critique ? 'var(--critique)' : 'var(--routine)' }}>
-          <IconeJournal taille={22} />
+        <span className="shrink-0" style={{ color: critique ? 'var(--critique)' : 'var(--routine)' }}>
+          <IconeJournal taille={20} />
         </span>
-        <span className="text-left">
-          <span className="eyebrow-sombre block">
-            {critique ? 'Dernière heure' : 'Journal d’événements'}
-          </span>
-          {/* La manchette vaut mieux que le compteur : un journal titre, il ne dénombre pas. */}
-          <span
-            className="block max-w-[300px] overflow-hidden text-[13px] text-ellipsis"
+        {/* La manchette vaut mieux que le compteur : un journal titre, il ne dénombre pas.
+            Mais un journal sans dépêche n'a pas de titre non plus — il se tait. */}
+        {aSignaler && (
+          <span className="min-w-0 max-w-[260px] overflow-hidden text-[13px] text-ellipsis"
             style={{ color: critique ? 'var(--critique)' : 'var(--paper)' }}
           >
             {critique
               ? critique.texte
-              : vue.journal.length
-                ? `${vue.journal.length} dépêche${vue.journal.length > 1 ? 's' : ''} non lue${vue.journal.length > 1 ? 's' : ''}`
-                : 'rien à signaler'}
+              : `${vue.journal.length} dépêche${vue.journal.length > 1 ? 's' : ''} non lue${vue.journal.length > 1 ? 's' : ''}`}
           </span>
-        </span>
+        )}
       </Link>
-
-      <Groupe>
-        <div className="eyebrow-sombre">Plage de repos déclarée</div>
-        <div className="font-[var(--font-mono)] text-[12px] text-[var(--paper)]">{moi.plageRepos}</div>
-      </Groupe>
-      <Groupe dernier>
-        <div className="eyebrow-sombre">Saison {saison.numero} — fin dans</div>
-        <div className="font-[var(--font-mono)] text-[12px] text-[var(--paper)]">
-          {Math.floor(restantMinutes / 60)} h {String(Math.floor(restantMinutes % 60)).padStart(2, '0')}
-        </div>
-      </Groupe>
     </header>
   );
 }
 
-type Echeance = { readonly libelle: string; readonly minutes: number };
-
-// Arrivées et chantier seulement : l'embargo n'existe pas encore dans `VueJoueur`, et le
-// bandeau n'est pas un motif suffisant pour étendre le type avant que le serveur le porte.
-function prochaineEcheance(vue: VueJoueur, maintenant: number): Echeance | null {
-  const arrivees = vue.arcs.flatMap((arc) =>
-    arc.etat === 'mien'
-      ? [
-          {
-            libelle: `arrivée · ${arc.destinationLibelle}`,
-            minutes: minutesCourantes(arc.minutesRestantes, vue.chargeeA, maintenant),
-          },
-        ]
-      : [],
-  );
-  const chantier = vue.moi.chantier
-    ? [
-        {
-          libelle: `chantier · ${vue.moi.chantier.nom}`,
-          minutes: minutesCourantes(vue.moi.chantier.resteMinutes, vue.chargeeA, maintenant),
-        },
-      ]
-    : [];
-  return [...arrivees, ...chantier].reduce<Echeance | null>(
-    (plusProche, candidate) =>
-      plusProche === null || candidate.minutes < plusProche.minutes ? candidate : plusProche,
-    null,
-  );
-}
-
-function Groupe({ children, dernier = false }: { children: React.ReactNode; dernier?: boolean }) {
+// Les groupes ne portent plus de filet : ce sont les blancs qui les séparent maintenant,
+// et les deux seuls filets restants tiennent aux deux extrémités du bandeau.
+function Groupe({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className={`flex shrink-0 items-center gap-3 px-5 whitespace-nowrap ${
-        dernier ? '' : 'border-r border-[var(--ink-quiet)]'
-      }`}
-    >
-      {children}
-    </div>
+    <div className="flex shrink-0 items-center gap-3 px-4 whitespace-nowrap">{children}</div>
   );
 }
 
+function Separateur() {
+  return <span className="text-[12px] text-[var(--paper-dim-2)] opacity-40">·</span>;
+}
+
+/**
+ * Icône et chiffre, rien d'autre : le débit se lit une fois par partie, il n'a pas à occuper
+ * une ligne en permanence. Il attend le survol.
+ */
 function Compteur({
   ressource,
   libelle,
   valeur,
   debit,
-  suffixe,
+  plafond,
 }: {
   ressource: CleRessource;
   libelle: string;
   valeur: number;
   debit: number;
-  suffixe?: string | undefined;
+  plafond?: number | undefined;
 }) {
+  const tarie = valeur === 0 && debit === 0;
   return (
-    <div className="shrink-0">
-      <div className="flex items-center gap-[6px]" style={{ color: couleurRessource(ressource) }}>
-        <IconeRessource ressource={ressource} />
-        <span className="eyebrow-sombre">{libelle}</span>
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span className="font-[var(--font-mono)] text-[17px] font-medium text-[var(--paper)]">
-          {valeur.toLocaleString('fr-FR')}
-        </span>
-        <span className="font-[var(--font-mono)] text-[11px] text-[var(--notable)]">
-          +{Math.round(debit)}/h
-        </span>
-        {suffixe && <span className="text-[11px] text-[var(--paper-dim-2)]">{suffixe}</span>}
-      </div>
-    </div>
-  );
-}
-
-function Slots({ total, utilises }: { total: number; utilises: number }) {
-  return (
-    <div className="flex shrink-0 items-center gap-3">
-      <div className="eyebrow-sombre max-w-[52px] leading-tight whitespace-normal">Slots de mouvement</div>
-      <div className="flex gap-[3px]">
-        {Array.from({ length: total }, (_, index) => (
-          <span
-            key={index}
-            className="h-[22px] w-[11px] border"
-            style={
-              index < utilises
-                ? { background: 'var(--interaction)', borderColor: 'var(--paper)' }
-                : { background: 'transparent', borderColor: '#6b6252' }
-            }
-          />
-        ))}
-      </div>
-      <span className="font-[var(--font-mono)] text-[15px] font-medium text-[var(--paper)]">
-        {utilises} / {total}
+    <span
+      className={`flex shrink-0 items-center gap-[6px] ${tarie ? 'ressource-tarie' : ''}`}
+      title={`${libelle} — ${debit >= 0 ? '+' : ''}${Math.round(debit)}/h`}
+    >
+      <span className="flex" style={{ color: couleurRessource(ressource) }}>
+        <IconeRessource ressource={ressource} taille={13} />
       </span>
-    </div>
+      <span className="font-[var(--font-mono)] text-[15px] font-medium text-[var(--paper)]">
+        {valeur.toLocaleString('fr-FR')}
+        {plafond !== undefined && (
+          <span className="text-[12px] text-[var(--paper-dim-2)]">/{plafond}</span>
+        )}
+      </span>
+    </span>
   );
 }
