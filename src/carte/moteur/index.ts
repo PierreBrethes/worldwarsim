@@ -129,9 +129,9 @@ export class MoteurCarte {
     this.scene.add(this.regions.surbrillance);
     this.scene.add(this.regions.accessoires);
 
-    // Un trait n'a pas d'épaisseur pour le lancer de rayon : sans ce rayon de saisie, un arc
-    // ne serait survolable qu'au pixel près. Seules les `Line` s'en trouvent affectées.
-    this.rayon.params.Line = { threshold: SEUIL_SURVOL_ARC };
+    // Le fil se vise à l'écran comme il s'y dessine : le seuil s'ajoute à l'épaisseur en
+    // pixels du matériau. Sans lui, un trait de 1,5 px ne serait survolable qu'au pixel près.
+    this.rayon.params.Line2 = { threshold: SEUIL_SURVOL_ARC };
 
     this.brancherEntrees();
     this.redimensionner();
@@ -191,6 +191,7 @@ export class MoteurCarte {
     this.rendu.setSize(clientWidth, clientHeight);
     this.largeurEcran = clientWidth;
     this.hauteurEcran = clientHeight;
+    this.arcs.redimensionner(clientWidth, clientHeight);
   }
 
   detruire(): void {
@@ -223,6 +224,15 @@ export class MoteurCarte {
       if (this.aOrbite) return;
       this.onSelection(this.survole?.userData.nom ?? null);
     });
+  }
+
+  /**
+   * Combien d'unités de plateau tient un pixel à cette distance. Marques, pointillés et
+   * jalons s'en servent pour garder leur cote à l'écran : c'est la seule mesure qui relie
+   * une taille dessinée à une taille perçue, et elle vaut mieux qu'un facteur ajusté à l'œil.
+   */
+  private uniteParPixel(distance: number): number {
+    return (2 * Math.tan((this.camera.fov * Math.PI) / 360) * distance) / this.hauteurEcran;
   }
 
   private repousserRepos(): void {
@@ -288,7 +298,7 @@ export class MoteurCarte {
     // Au zoom, la hiérarchie des traits s'inverse d'encre : les frontières de pays foncent
     // pendant que les régions apparaissent en dessous — WebGL ne connaît qu'un pixel de large.
     const distance = this.camera.position.distanceTo(this.controles.target);
-    this.arcs.animer(this.camera);
+    this.arcs.animer(this.camera, this.uniteParPixel(distance));
     this.regions.animer(distance);
     this.frontieres.material.opacity =
       distance < DISTANCE_REGIONS_ABSENTES

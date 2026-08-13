@@ -57,10 +57,16 @@ export function EtiquettesCarte({
     racine.classList.toggle('etiquette--glyphe', !deployee);
   }, []);
 
-  // Le dégradé au chevauchement mesure du DOM : il ne se calcule qu'au repos de la caméra, et
-  // par priorité décroissante — la moins prioritaire des deux qui se recouvrent retombe.
+  /**
+   * Le dégradé au chevauchement, par priorité décroissante : la moins prioritaire des deux qui
+   * se recouvrent retombe au glyphe.
+   *
+   * L'ordre des deux boucles est tout : on déploie **d'abord** tout le monde dans le DOM, on
+   * mesure ensuite. Mesurer avant de déployer lisait la largeur repliée du tour précédent —
+   * chaque étiquette semblait alors tenir dans son coin, aucune n'était rabattue, et le paquet
+   * illisible se reformait. C'est un dégradé qui se contredisait lui-même d'un tour à l'autre.
+   */
   const degrader = useCallback(() => {
-    const retenues: DOMRect[] = [];
     const candidates = etiquettes
       .filter((etiquette) => {
         const etat = etats.current.get(etiquette.id);
@@ -71,9 +77,12 @@ export function EtiquettesCarte({
 
     for (const etiquette of etiquettes) {
       const etat = etats.current.get(etiquette.id);
-      if (etat) etat.rabattue = false;
+      if (!etat) continue;
+      etat.rabattue = false;
+      appliquer(etiquette.id, etat);
     }
 
+    const retenues: DOMRect[] = [];
     for (const etiquette of candidates) {
       const bloc = blocs.current.get(etiquette.id);
       const etat = etats.current.get(etiquette.id);
@@ -104,10 +113,17 @@ export function EtiquettesCarte({
     rafraichirComptes();
   }, [etiquettes, rafraichirComptes]);
 
+  // Le repos de caméra ne suffit pas aux étiquettes de fil : leur ancre est une tête de
+  // mouvement, qui avance alors que rien ne bouge à l'écran. Sans ce tour de piste, deux
+  // jalons qui se rejoignent restent déployés l'un sur l'autre jusqu'à ce qu'on touche la
+  // souris. Une mesure par seconde, la même que celle des comptes à rebours.
   useEffect(() => {
-    const minuteur = setInterval(rafraichirComptes, 1000);
+    const minuteur = setInterval(() => {
+      rafraichirComptes();
+      degrader();
+    }, 1000);
     return () => clearInterval(minuteur);
-  }, [rafraichirComptes]);
+  }, [rafraichirComptes, degrader]);
 
   useEffect(() => {
     if (!moteur) return;

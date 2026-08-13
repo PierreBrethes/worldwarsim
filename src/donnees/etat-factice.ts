@@ -1,7 +1,17 @@
 import type { MarqueurCarte } from '@/domaine/etiquettes';
 import type { LonLat } from '@/domaine/geo';
+import type { Monde } from '@/domaine/monde';
 import { ENCRE_PAR_NATION, PAYS_DE_NATION, POUVOIR_PAR_NATION } from '@/domaine/nations';
 import { minutesDepuisMinuit, sortieDePlage } from '@/domaine/plage-repos';
+import {
+  calculerTrajet,
+  construireGrille,
+  trajetDirect,
+  type GrilleTrajets,
+  type Milieu,
+  type ModeTrajet,
+  type TrajetCalcule,
+} from '@/domaine/trajets';
 import type { Pile, VueJoueur } from '@/domaine/vue-joueur';
 
 /**
@@ -34,7 +44,30 @@ const POSITIONS = {
   merDIrlande: [-4.5, 54.5],
   baltique: [17.0, 56.0],
   golfeDeFinlande: [24.0, 59.4],
+  alger: [3.0, 36.75],
 } as const satisfies Record<string, LonLat>;
+
+/**
+ * Les trajets factices sortent du vrai calcul (ADR 0012), jamais d'une polyligne écrite à la
+ * main : c'est le seul moyen que le fil montre ce que la logique dira, quais compris. La
+ * grille se construit une fois par monde — trente millisecondes, et le monde ne change pas.
+ */
+let grilleRetenue: { monde: Monde; grille: GrilleTrajets } | null = null;
+
+function grilleDe(monde: Monde): GrilleTrajets {
+  if (grilleRetenue?.monde !== monde) {
+    grilleRetenue = { monde, grille: construireGrille(monde) };
+  }
+  return grilleRetenue.grille;
+}
+
+/** Le repli garde un fil droit plutôt qu'un mouvement absent quand aucun chemin n'existe. */
+function trajetFactice(monde: Monde, depuis: LonLat, vers: LonLat, mode: ModeTrajet): TrajetCalcule {
+  const calcule = calculerTrajet(grilleDe(monde), depuis, vers, mode);
+  if (calcule !== null) return calcule;
+  const milieu: Milieu = mode === 'aerien' ? 'air' : mode === 'naval' ? 'mer' : 'terre';
+  return trajetDirect(depuis, vers, milieu, 20);
+}
 
 const PILE_DOMICILE: Pile = { infanterie: 24, blinde: 6 };
 
@@ -45,6 +78,7 @@ const MOUVEMENTS = {
   islande: { totalMinutes: 130, resteMinutes: 65 },
   grece: { totalMinutes: 180, resteMinutes: 134 },
   egypte: { totalMinutes: 240, resteMinutes: 228 },
+  alger: { totalMinutes: 320, resteMinutes: 172 },
   capManche: { totalMinutes: 62, resteMinutes: 20 },
   capIdentifie: { totalMinutes: 105, resteMinutes: 47 },
   renseignementBaltique: { totalMinutes: 152, resteMinutes: 100 },
@@ -69,9 +103,11 @@ function attenteFrontiereGrecque(chargeeA: number): { readonly resolutionDansMin
   return { resolutionDansMinutes: ((resolutionA ?? arriveeA) - chargeeA) / 60_000 };
 }
 
-export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
+export function appliquerEtatFactice(monde: Monde, vue: VueJoueur): VueJoueur {
   const encre = ENCRE_PAR_NATION[NATION];
   const chezMoi = { origineNom: PAYS_DE_NATION[NATION], origineLibelle: NATION };
+  const trajet = (depuis: LonLat, vers: LonLat, mode: ModeTrajet) =>
+    trajetFactice(monde, depuis, vers, mode);
   return {
     ...vue,
     moi: {
@@ -109,6 +145,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-italie',
         depuis: POSITIONS.domicile,
         vers: POSITIONS.italie,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.italie, 'combine'),
         ...chezMoi,
         destinationNom: 'Italy',
         destinationLibelle: 'Italie',
@@ -123,6 +160,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-danemark',
         depuis: POSITIONS.domicile,
         vers: POSITIONS.danemark,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.danemark, 'combine'),
         ...chezMoi,
         destinationNom: 'Denmark',
         destinationLibelle: 'Danemark',
@@ -137,6 +175,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-islande',
         depuis: POSITIONS.domicile,
         vers: POSITIONS.islande,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.islande, 'combine'),
         ...chezMoi,
         destinationNom: 'Iceland',
         destinationLibelle: 'Islande',
@@ -151,6 +190,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-grece',
         depuis: POSITIONS.domicile,
         vers: POSITIONS.grece,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.grece, 'combine'),
         ...chezMoi,
         destinationNom: 'Greece',
         destinationLibelle: 'Grèce',
@@ -165,6 +205,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-egypte',
         depuis: POSITIONS.domicile,
         vers: POSITIONS.egypte,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.egypte, 'aerien'),
         ...chezMoi,
         destinationNom: 'Egypt',
         destinationLibelle: 'Égypte',
@@ -174,6 +215,23 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         attenteFrontiere: null,
         avancement: avancementDe(MOUVEMENTS.egypte),
       },
+      // Le multimodal de la planche 2d : sol jusqu'à la côte, mer, sol à nouveau — deux quais,
+      // et un jalon qui change de silhouette à chacun sans jamais se dédoubler.
+      {
+        etat: 'mien',
+        id: 'mv-alger',
+        depuis: POSITIONS.domicile,
+        vers: POSITIONS.alger,
+        trajet: trajet(POSITIONS.domicile, POSITIONS.alger, 'combine'),
+        ...chezMoi,
+        destinationNom: 'Algeria',
+        destinationLibelle: 'Algérie',
+        type: 'avantPoste',
+        pile: { infanterie: 18, blinde: 4, transportTerrestre: 2 },
+        minutesRestantes: MOUVEMENTS.alger.resteMinutes,
+        attenteFrontiere: null,
+        avancement: avancementDe(MOUVEMENTS.alger),
+      },
       // Ni type ni pile : l'union discriminée fait que le rendu ne peut structurellement pas
       // les afficher, même si le factice voulait les donner (fiche 4.2).
       {
@@ -181,6 +239,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-cap-manche',
         depuis: POSITIONS.merDuNord,
         vers: POSITIONS.manche,
+        trajet: trajet(POSITIONS.merDuNord, POSITIONS.manche, 'naval'),
         nationSuspectee: null,
         capDegres: 214,
         capSurMoi: true,
@@ -195,6 +254,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-cap-identifie',
         depuis: POSITIONS.atlantiqueNord,
         vers: POSITIONS.merDIrlande,
+        trajet: trajet(POSITIONS.atlantiqueNord, POSITIONS.merDIrlande, 'naval'),
         nationSuspectee: 'Allemagne',
         capDegres: 118,
         capSurMoi: true,
@@ -207,6 +267,7 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
         id: 'mv-renseignement-baltique',
         depuis: POSITIONS.baltique,
         vers: POSITIONS.golfeDeFinlande,
+        trajet: trajet(POSITIONS.baltique, POSITIONS.golfeDeFinlande, 'naval'),
         nationSuspectee: null,
         capDegres: 87,
         capSurMoi: false,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { chargerRegions, type Monde } from '@/domaine/monde';
 import type { EtiquetteCarte } from '@/domaine/etiquettes';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
+import { EchelleTrajet } from './EchelleTrajet';
 import { EtiquettesCarte } from './EtiquettesCarte';
 import { MoteurCarte, type SurvolCarte } from './moteur';
 
@@ -88,6 +89,10 @@ export function Carte({
     moteur.current?.accentuerArc(mouvementAccentue);
   }, [mouvementAccentue]);
 
+  // L'échelle segmentée suit le même pont de surlignage que l'accent du fil : la frise et la
+  // carte désignent le même mouvement, il n'y a qu'une source à lire.
+  const arcDesigne = arcs.find((arc) => arc.id === mouvementAccentue) ?? null;
+
   useEffect(() => {
     moteur.current?.afficherArcs(arcs);
   }, [arcs]);
@@ -116,6 +121,11 @@ export function Carte({
         onSurvolMouvement={onSurvolEtiquette ?? (() => {})}
         onSelection={onSelection}
       />
+      {arcDesigne && (
+        <div className="absolute top-4 left-4 z-10">
+          <EchelleTrajet arc={arcDesigne} />
+        </div>
+      )}
       {survol && <EtiquettePays survol={survol} />}
     </div>
   );

@@ -168,6 +168,28 @@ function trajetAerien(grille: GrilleTrajets, depuis: LonLat, vers: LonLat): Traj
   };
 }
 
+/**
+ * Un trajet sans grille : deux points, un seul milieu. La maîtrise des mers en a besoin —
+ * c'est un trait d'influence, pas une colonne en route, il n'y a rien à faire calculer par
+ * Dijkstra — et les bancs d'essai s'en servent pour composer un arc sans charger le monde.
+ */
+export function trajetDirect(
+  depuis: LonLat,
+  vers: LonLat,
+  milieu: Milieu,
+  distanceUnites = 1,
+): TrajetCalcule {
+  const mode: ModeTrajet = milieu === 'air' ? 'aerien' : milieu === 'mer' ? 'naval' : 'terrestre';
+  const cout = milieu === 'air' ? distanceUnites : distanceUnites * COUT_PAR_MILIEU[milieu];
+  return {
+    mode,
+    points: [depuis, vers],
+    distanceUnites,
+    coutUnites: cout,
+    etapes: [{ milieu, distanceUnites }],
+  };
+}
+
 /* ------------------------------ projection ------------------------------ */
 
 function bordALatitude(contour: Monde['contour'], latitude: number): { xOuest: number; xEst: number; y: number } {

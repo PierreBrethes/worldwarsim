@@ -1,4 +1,5 @@
 import type { LonLat } from './geo';
+import type { TrajetCalcule } from './trajets';
 
 export type RoleUnite =
   | 'infanterie' | 'blinde' | 'transportTerrestre'
@@ -53,6 +54,11 @@ export type IdentificationMouvement =
  * Les quatre états d'affichage d'un arc. L'union discriminée est le garde-fou du
  * brouillard : un arc adverse n'a structurellement ni `type` ni `pile`, donc on ne
  * peut pas les afficher par distraction.
+ *
+ * `trajet` y figure aux quatre états, y compris adverse : le domaine — terre, mer ou air —
+ * est visible d'un mouvement détecté (fiche 04). Le fil le trahirait de toute façon, et le
+ * leurre y gagne un choix de bluff. Le type et la composition, eux, restent hors de portée.
+ * `depuis` et `vers` restent à côté : ce sont les bouts déclarés, pas la polyligne suivie.
  */
 export type ArcAffiche =
   | {
@@ -60,6 +66,7 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      readonly trajet: TrajetCalcule;
       // `…Nom` désigne le pays de `monde.json`, en anglais : c'est la clé qui sélectionne
       // le pays sur la carte. `…Libelle` est ce qui s'imprime, en français. Les deux
       // existent parce que Natural Earth n'a pas de traduction et que l'écran, lui, est
@@ -84,6 +91,7 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      readonly trajet: TrajetCalcule;
       readonly nationSuspectee: string | null;
       readonly capDegres: number;
       /** Le cap coupe mon territoire ou l'un de mes avant-postes : la fiche passe en critique. */
@@ -97,6 +105,7 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      readonly trajet: TrajetCalcule;
       readonly capDegres: number;
       readonly vuIlYaMinutes: number;
       readonly avancement: number;
@@ -106,6 +115,7 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      readonly trajet: TrajetCalcule;
       readonly avancement: number;
     };
 

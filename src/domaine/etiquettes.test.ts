@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { abregerPile, construireEtiquettes, type MarqueurCarte } from './etiquettes';
 import type { ArcAffiche, VueJoueur } from './vue-joueur';
+import { trajetDirect } from './trajets';
 
 const CHARGEE_A = 1_700_000_000_000;
 
@@ -9,6 +10,7 @@ const arcMien = (surcharge: Partial<Extract<ArcAffiche, { etat: 'mien' }>>): Arc
   id: 'mv-1',
   depuis: [0, 0],
   vers: [1, 1],
+  trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
   origineNom: 'United Kingdom',
   destinationNom: 'Italy',
   origineLibelle: 'Royaume-Uni',
@@ -28,6 +30,7 @@ const arcDetecte = (
   id: 'mv-x',
   depuis: [0, 0],
   vers: [1, 1],
+  trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
   nationSuspectee: null,
   capDegres: 87,
   capSurMoi: false,
@@ -113,8 +116,8 @@ describe('construireEtiquettes', () => {
 
   it('ne pose aucune étiquette sur un arc figé ou une maîtrise des mers', () => {
     const arcs: ReadonlyArray<ArcAffiche> = [
-      { etat: 'dernierePositionConnue', id: 'a', depuis: [0, 0], vers: [1, 1], capDegres: 10, vuIlYaMinutes: 5, avancement: 0.2 },
-      { etat: 'maitriseDesMers', id: 'b', depuis: [0, 0], vers: [1, 1], avancement: 0.4 },
+      { etat: 'dernierePositionConnue', id: 'a', depuis: [0, 0], vers: [1, 1], trajet: trajetDirect([0, 0], [1, 1], 'mer', 10), capDegres: 10, vuIlYaMinutes: 5, avancement: 0.2 },
+      { etat: 'maitriseDesMers', id: 'b', depuis: [0, 0], vers: [1, 1], trajet: trajetDirect([0, 0], [1, 1], 'mer', 10), avancement: 0.4 },
     ];
     expect(construireEtiquettes(vueAvec(arcs), [])).toHaveLength(0);
   });

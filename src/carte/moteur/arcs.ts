@@ -1,100 +1,72 @@
+import { Group, Vector3, type Camera, type Raycaster } from 'three';
+import type { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import {
-  BufferGeometry,
-  Group,
-  Line,
-  LineBasicMaterial,
-  QuadraticBezierCurve3,
-  Vector3,
-  type Camera,
-  type Raycaster,
-} from 'three';
-import type { LonLat } from '@/domaine/geo';
+  deroulerTrajet,
+  positionTemporelle,
+  viseeDuJalon,
+  type TronconDeroule,
+} from '@/domaine/deroule-trajet';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { spriteDeMouvement } from '@/emblemes/unites/manifeste';
+import {
+  construireFil,
+  pointSurEtape,
+  projeterAuSol,
+  tendreAttache,
+  type EpaisseursFil,
+  type Fil,
+} from './fil';
+import { Jalon } from './jalon';
 import { COULEURS_ARC } from './palette';
-import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
-import { TeteMouvement } from './tete-mouvement';
-
-const SEGMENTS = 64;
-const HAUTEUR_ARC = EPAISSEUR_PAYS + 0.5;
-
-type Troncon = { courbe: QuadraticBezierCurve3; part: number };
-
-/**
- * Le monde est un cylindre : la longitude s'enroule, pas la latitude. Un trajet dont
- * l'écart de longitude dépasse 180° sort d'un côté de la bordure et rentre de
- * l'autre — la Nouvelle-Zélande vers l'Amérique passe par le Pacifique.
- */
-function tronconner(depuis: LonLat, vers: LonLat, repere: RepereMonde): Troncon[] {
-  const ecart = vers[0] - depuis[0];
-  if (Math.abs(ecart) <= 180) {
-    return [{ courbe: courbeEntre(projeter(depuis, repere), projeter(vers, repere)), part: 1 }];
-  }
-
-  const versLEst = ecart < -180;
-  const ecartDeroule = versLEst ? ecart + 360 : ecart - 360;
-  const longitudeBordure = versLEst ? 180 : -180;
-  const fraction = (longitudeBordure - depuis[0]) / ecartDeroule;
-  const latitudeTraversee = depuis[1] + fraction * (vers[1] - depuis[1]);
-  const bord = repere.bordALatitude(latitudeTraversee);
-
-  const sortie = repere.versMonde(versLEst ? bord.xEst : bord.xOuest, bord.y, HAUTEUR_ARC);
-  const entree = repere.versMonde(versLEst ? bord.xOuest : bord.xEst, bord.y, HAUTEUR_ARC);
-  const premier = courbeEntre(projeter(depuis, repere), sortie);
-  const second = courbeEntre(entree, projeter(vers, repere));
-  const longueurs = [premier.getLength(), second.getLength()];
-  const total = longueurs[0]! + longueurs[1]! || 1;
-  return [
-    { courbe: premier, part: longueurs[0]! / total },
-    { courbe: second, part: longueurs[1]! / total },
-  ];
-}
-
-const projeter = (lonLat: LonLat, repere: RepereMonde): Vector3 =>
-  repere.projeterLonLat(lonLat, HAUTEUR_ARC);
-
-function courbeEntre(depart: Vector3, arrivee: Vector3): QuadraticBezierCurve3 {
-  const elevation = Math.min(depart.distanceTo(arrivee) * 0.38, 150);
-  const milieu = depart.clone().lerp(arrivee, 0.5);
-  milieu.y += elevation;
-  return new QuadraticBezierCurve3(depart, milieu, arrivee);
-}
-
-type LigneArc = Line<BufferGeometry, LineBasicMaterial>;
+import type { RepereMonde } from './repere';
 
 type RenduArc = {
   arc: ArcAffiche;
-  troncons: Troncon[];
-  traces: LigneArc[];
-  progression: LigneArc[];
-  tete: TeteMouvement;
+  fil: Fil;
+  deroule: ReadonlyArray<TronconDeroule>;
+  jalon: Jalon;
   /** Réécrite en place à chaque image : c'est l'ancre de l'étiquette de tête de mouvement. */
   positionTete: Vector3;
-  opaciteTrace: number;
-  opaciteProgression: number;
 };
 
 /**
- * L'accent est une affaire d'intensité, jamais de couleur : la couleur d'un arc dit à qui il
- * appartient, la changer au survol dirait autre chose. L'arc désigné monte, les autres
+ * L'épaisseur porte la hiérarchie, en pixels et non en unités de monde : le parcouru est un
+ * fait, le restant une intention, et ce qui n'est pas à moi ne s'impose pas au premier plan.
+ */
+const EPAISSEURS: Readonly<Record<ArcAffiche['etat'], EpaisseursFil>> = {
+  mien: { parcouru: 2.5, restant: 1.5 },
+  adverseDetecte: { parcouru: 2, restant: 1.3 },
+  dernierePositionConnue: { parcouru: 2, restant: 1.3 },
+  maitriseDesMers: { parcouru: 2, restant: 1.3 },
+};
+
+const OPACITE_TRACE = 0.55;
+
+/**
+ * L'accent est une affaire d'intensité, jamais de couleur : la couleur d'un fil dit à qui il
+ * appartient, la changer au survol dirait autre chose. Le fil désigné monte, les autres
  * s'effacent — c'est l'écart qui se lit, pas la valeur absolue.
  */
-const ACCENT_DESIGNE = 2.4;
-const ACCENT_AUTRES = 0.35;
-/** Rayon de saisie d'un arc au pointeur, en unités de plateau : un trait fait un pixel. */
-export const SEUIL_SURVOL_ARC = 4;
+const ACCENT_DESIGNE = 1.6;
+const ACCENT_AUTRES = 0.4;
+/** Rayon de saisie d'un fil au pointeur, en pixels : une fat line se vise à l'écran. */
+export const SEUIL_SURVOL_ARC = 6;
 
 export class CoucheArcs {
   readonly groupe = new Group();
   /** Les positions d'écran des étiquettes de tête s'y lisent : elles bougent à chaque image. */
   readonly positionsTetes = new Map<string, Vector3>();
-  private readonly tangente = new Vector3();
-  private readonly pointTete = new Vector3();
+  private readonly pointJalon = new Vector3();
+  private readonly pointDevant = new Vector3();
+  private readonly pointSol = new Vector3();
   private readonly positionCamera = new Vector3();
   private nationJoueur: string | null = null;
   private rendus: RenduArc[] = [];
-  private cibles: LigneArc[] = [];
+  private cibles: Line2[] = [];
   private accentue: string | null = null;
+  private largeur = 1;
+  private hauteur = 1;
+  private uniteParPixel = 1;
 
   constructor(private readonly repere: RepereMonde) {}
 
@@ -104,58 +76,44 @@ export class CoucheArcs {
     this.reconstruire();
   }
 
+  /**
+   * Une fat line s'épaissit en pixels : elle a besoin de la taille du canevas pour convertir.
+   * La retenir ici évite qu'un fil construit après un redimensionnement naisse à la mauvaise
+   * échelle — c'est le genre de bug qui ne se voit qu'après avoir bougé la fenêtre.
+   */
+  redimensionner(largeur: number, hauteur: number): void {
+    this.largeur = largeur;
+    this.hauteur = hauteur;
+    for (const rendu of this.rendus) rendu.fil.reglerResolution(largeur, hauteur);
+  }
+
   afficher(arcs: ReadonlyArray<ArcAffiche>): void {
     this.vider();
     for (const arc of arcs) {
-      const troncons = tronconner(arc.depuis, arc.vers, this.repere);
-      const couleurs = COULEURS_ARC[arc.etat];
       const perime = arc.etat === 'dernierePositionConnue';
-
-      const opaciteTrace = perime ? 0.3 : 0.22;
-      const opaciteProgression = perime ? 0.45 : 1;
-
-      const traces = troncons.map(({ courbe }) => {
-        const ligne: LigneArc = new Line(
-          new BufferGeometry().setFromPoints(courbe.getPoints(SEGMENTS)),
-          new LineBasicMaterial({ color: couleurs.trace, transparent: true, opacity: opaciteTrace }),
-        );
-        ligne.userData.arc = arc.id;
-        this.groupe.add(ligne);
-        this.cibles.push(ligne);
-        return ligne;
+      const fil = construireFil(arc.trajet, this.repere, COULEURS_ARC[arc.etat], EPAISSEURS[arc.etat], {
+        trace: OPACITE_TRACE,
+        progression: perime ? 0.45 : 1,
       });
+      fil.reglerResolution(this.largeur, this.hauteur);
+      fil.reglerEchelle(this.uniteParPixel);
+      this.groupe.add(fil.objet);
+      for (const trace of fil.traces) {
+        trace.userData.arc = arc.id;
+        this.cibles.push(trace);
+      }
 
-      const progression = troncons.map(({ courbe }) => {
-        const ligne: LigneArc = new Line(
-          new BufferGeometry().setFromPoints(courbe.getPoints(SEGMENTS)),
-          new LineBasicMaterial({
-            color: couleurs.progression,
-            transparent: true,
-            opacity: opaciteProgression,
-          }),
-        );
-        ligne.geometry.setDrawRange(0, 0);
-        this.groupe.add(ligne);
-        return ligne;
-      });
-
-      const tete = new TeteMouvement(spriteDeMouvement(arc, this.nationJoueur), couleurs.progression);
-      tete.visible = !perime;
-      this.groupe.add(tete.objet);
+      const jalon = new Jalon(
+        spriteDeMouvement(arc, this.nationJoueur),
+        COULEURS_ARC[arc.etat].progression,
+      );
+      jalon.visible = !perime;
+      this.groupe.add(jalon.objet);
 
       const positionTete = new Vector3();
       this.positionsTetes.set(arc.id, positionTete);
 
-      this.rendus.push({
-        arc,
-        troncons,
-        traces,
-        progression,
-        tete,
-        positionTete,
-        opaciteTrace,
-        opaciteProgression,
-      });
+      this.rendus.push({ arc, fil, deroule: deroulerTrajet(arc.trajet), jalon, positionTete });
     }
     this.appliquerAccent();
     this.animer();
@@ -177,62 +135,84 @@ export class CoucheArcs {
     return (impact?.object.userData.arc as string | undefined) ?? null;
   }
 
-  animer(camera?: Camera): void {
+  /**
+   * Le fil est cuit une fois ; par image on n'avance qu'un `instanceCount` et un jalon. La
+   * position vient du temps, pas de la distance : un mouvement à cheval sur trois milieux
+   * ne parcourt pas la mer à la vitesse de la route, et il s'arrête au quai.
+   */
+  animer(camera?: Camera, uniteParPixel?: number): void {
     if (camera) this.positionCamera.copy(camera.position);
+    if (uniteParPixel !== undefined) this.uniteParPixel = uniteParPixel;
+
     for (const rendu of this.rendus) {
-      const avancement = Math.min(1, Math.max(0, rendu.arc.avancement));
-      const seuil = rendu.troncons[0]!.part;
-      const index = rendu.troncons.length > 1 && avancement > seuil ? 1 : 0;
-      const local =
-        rendu.troncons.length === 1
-          ? avancement
-          : index === 0
-            ? avancement / seuil
-            : (avancement - seuil) / (1 - seuil);
+      if (uniteParPixel !== undefined) rendu.fil.reglerEchelle(uniteParPixel);
 
-      rendu.progression[0]!.geometry.setDrawRange(
-        0,
-        index === 0 ? Math.max(2, Math.floor(SEGMENTS * local) + 1) : SEGMENTS + 1,
-      );
-      rendu.progression[1]?.geometry.setDrawRange(
-        0,
-        index === 1 ? Math.max(2, Math.floor(SEGMENTS * local) + 1) : 0,
-      );
+      const position = positionTemporelle(rendu.deroule, rendu.arc.avancement);
+      const { indexEtape, local } = viseeDuJalon(position);
 
-      const courbe = rendu.troncons[index]!.courbe;
-      courbe.getPointAt(Math.min(1, Math.max(0, local)), this.pointTete);
-      courbe.getPointAt(Math.min(1, Math.max(0, local) + 0.01), this.tangente);
-      rendu.tete.placer(this.pointTete, this.tangente);
-      rendu.tete.orienter(this.positionCamera);
-      rendu.positionTete.copy(this.pointTete);
+      this.avancerProgression(rendu, indexEtape, local);
+
+      const etape = rendu.fil.etapes[indexEtape];
+      if (etape === undefined) continue;
+      pointSurEtape(etape, local, this.pointJalon);
+      pointSurEtape(etape, Math.min(1, local + 0.01), this.pointDevant);
+
+      // Au quai, le jalon a déjà pris la silhouette de ce qu'il va devenir : c'est
+      // l'embarquement lui-même qui s'affiche, et l'arrêt qui se voit.
+      rendu.jalon.adopter(
+        position.genre === 'quai'
+          ? rendu.fil.etapes[position.indexEtape]?.milieu ?? etape.milieu
+          : etape.milieu,
+      );
+      rendu.jalon.placer(this.pointJalon, this.pointDevant);
+      rendu.jalon.orienter(this.positionCamera);
+      rendu.positionTete.copy(this.pointJalon);
+
+      if (rendu.fil.attache !== null) {
+        projeterAuSol(this.pointJalon, this.repere, this.pointSol);
+        tendreAttache(rendu.fil.attache, this.pointJalon, this.pointSol);
+      }
     }
   }
 
   reconstruire(): void {
-    const arcs = this.rendus.map((rendu) => rendu.arc);
-    this.afficher(arcs);
+    this.afficher(this.rendus.map((rendu) => rendu.arc));
+  }
+
+  /**
+   * Les brins d'une étape se remplissent l'un après l'autre : le monde s'enroule, un fil qui
+   * sort par l'antiméridien rentre de l'autre bord, et sa progression doit suivre le même
+   * chemin plutôt que d'allumer les deux morceaux à la fois.
+   */
+  private avancerProgression(rendu: RenduArc, indexEtape: number, local: number): void {
+    let rang = 0;
+    for (let e = 0; e < rendu.fil.etapes.length; e++) {
+      const etape = rendu.fil.etapes[e]!;
+      const partEtape = e < indexEtape ? 1 : e > indexEtape ? 0 : local;
+      let restant = partEtape * etape.longueur;
+      for (const brin of etape.brins) {
+        const trait = rendu.fil.progression[rang++];
+        if (trait === undefined) continue;
+        const longueurBrin = brin.longueurs.reduce((somme, longueur) => somme + longueur, 0);
+        const part = longueurBrin > 0 ? Math.min(1, restant / longueurBrin) : restant > 0 ? 1 : 0;
+        trait.ligne.geometry.instanceCount = part <= 0 ? 0 : Math.max(1, Math.ceil(part * trait.segments));
+        restant = Math.max(0, restant - longueurBrin);
+      }
+    }
   }
 
   private appliquerAccent(): void {
     for (const rendu of this.rendus) {
-      const facteur =
-        this.accentue === null ? 1 : rendu.arc.id === this.accentue ? ACCENT_DESIGNE : ACCENT_AUTRES;
-      for (const ligne of rendu.traces) {
-        ligne.material.opacity = Math.min(1, rendu.opaciteTrace * facteur);
-      }
-      for (const ligne of rendu.progression) {
-        ligne.material.opacity = Math.min(1, rendu.opaciteProgression * facteur);
-      }
+      rendu.fil.regler(
+        this.accentue === null ? 1 : rendu.arc.id === this.accentue ? ACCENT_DESIGNE : ACCENT_AUTRES,
+      );
     }
   }
 
   private vider(): void {
     for (const rendu of this.rendus) {
-      for (const ligne of [...rendu.traces, ...rendu.progression]) {
-        this.groupe.remove(ligne);
-        ligne.geometry.dispose();
-      }
-      rendu.tete.detruire();
+      rendu.fil.detruire();
+      rendu.jalon.detruire();
     }
     this.rendus = [];
     this.cibles = [];

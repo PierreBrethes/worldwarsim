@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compterTroupes, inventorierTroupes, organiserTroupes, roleRepresentatif } from './troupes';
 import type { ArcAffiche, VueJoueur } from './vue-joueur';
+import { trajetDirect } from './trajets';
 
 const moi = {
   armeePresente: { infanterie: 8, chasseur: 2 },
@@ -16,6 +17,7 @@ const arcs: ReadonlyArray<ArcAffiche> = [
     id: 'MVT-001',
     depuis: [0, 0],
     vers: [1, 1],
+    trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
     origineNom: 'France',
     destinationNom: 'Chad',
     origineLibelle: 'France',
@@ -31,6 +33,7 @@ const arcs: ReadonlyArray<ArcAffiche> = [
     id: 'ARC-001',
     depuis: [0, 0],
     vers: [1, 1],
+    trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
     nationSuspectee: null,
     capDegres: 142,
     capSurMoi: false,

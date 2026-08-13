@@ -21,7 +21,6 @@ import {
 } from '@/domaine/frise';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { SpriteUnite } from '@/emblemes/SpriteUnite';
-import { urlSprite } from '@/emblemes/unites/manifeste';
 import { garderFriseRepliee, lireFriseRepliee } from '@/donnees/reglages';
 
 const LARGEUR_FICHE = 296;
@@ -209,21 +208,24 @@ function RangeeCompteurs({
     <div className="pointer-events-auto flex flex-1 flex-wrap items-end gap-2">
       {compteursFrise(fiches).map((compteur) => {
         const actif = compteur.cle === filtre;
-        const encre = compteur.alerte ? 'var(--critique)' : 'rgba(228,216,189,.5)';
         return (
           <button
             key={compteur.cle}
             type="button"
             onClick={() => onFiltre(actif ? 'tous' : compteur.cle)}
-            className="flex cursor-pointer items-baseline gap-[7px] border px-[10px] pt-[5px] pb-[6px]"
+            // Le filtre retenu s'imprime en négatif : sur du papier, c'est le seul écart
+            // qui se voit sans ajouter ni ombre ni couleur.
+            className={`flex cursor-pointer items-baseline gap-[7px] border px-[10px] pt-[5px] pb-[6px] ${
+              actif ? '' : 'trame-papier'
+            }`}
             style={{
-              background: actif ? 'rgba(228,216,189,.09)' : 'transparent',
-              borderColor: actif
-                ? 'rgba(228,216,189,.45)'
+              background: actif ? 'var(--ink)' : undefined,
+              borderColor: compteur.alerte && !actif ? 'var(--critique)' : 'var(--ink)',
+              color: actif
+                ? 'var(--paper)'
                 : compteur.alerte
-                  ? 'rgba(157,70,56,.55)'
-                  : 'rgba(228,216,189,.18)',
-              color: actif ? 'var(--paper)' : encre,
+                  ? 'var(--critique)'
+                  : 'var(--ink-soft)',
             }}
           >
             <span className="text-[9.5px] tracking-[.18em] uppercase">{compteur.libelle}</span>
@@ -368,12 +370,24 @@ function Gouverne({
  * décolle et retombe. C'est le même geste à deux échelles, et c'est ce qui fait lire la
  * fiche comme un extrait du plateau plutôt que comme un graphique.
  */
-const DEPART = { x: 4, y: 38 };
-const SOMMET = { x: 130, y: -4 };
-const ARRIVEE = { x: 256, y: 38 };
 const LARGEUR_TRACE = 260;
 const HAUTEUR_TRACE = 46;
+/** Le trait ne touche pas le bord de la fiche : il y entre, comme une gravure a sa marge. */
+const MARGE_TRACE = 6;
+const DEPART = { x: MARGE_TRACE, y: 38 };
+const SOMMET = { x: LARGEUR_TRACE / 2, y: -4 };
+const ARRIVEE = { x: LARGEUR_TRACE - MARGE_TRACE, y: 38 };
 const COURBE = `M${DEPART.x} ${DEPART.y} Q${SOMMET.x} ${SOMMET.y} ${ARRIVEE.x} ${ARRIVEE.y}`;
+/**
+ * La fiche termine son trait comme le fait le fil sur la carte : un × de relevé, pas une
+ * pointe de flèche. Une flèche dirait « ça continue par là » alors que c'est justement le
+ * point où ça s'arrête, et le même signe aux deux échelles fait lire la fiche comme un
+ * extrait du plateau.
+ */
+const DEMI_CROIX = 4;
+const CROIX =
+  `M${ARRIVEE.x - DEMI_CROIX} ${ARRIVEE.y - DEMI_CROIX} ${ARRIVEE.x + DEMI_CROIX} ${ARRIVEE.y + DEMI_CROIX}` +
+  `M${ARRIVEE.x + DEMI_CROIX} ${ARRIVEE.y - DEMI_CROIX} ${ARRIVEE.x - DEMI_CROIX} ${ARRIVEE.y + DEMI_CROIX}`;
 const HAUTEUR_SPRITE = 17;
 
 const pointSurCourbe = (part: number) => ({
@@ -417,11 +431,11 @@ function Fiche({
           ? (touche) => touche.key === 'Enter' && onSelection(destinationCarte(fiche, vue))
           : undefined
       }
-      className="shrink-0 border-t pt-2"
+      className="trame-papier shrink-0 border px-3 pt-[6px] pb-2"
       style={{
         width: LARGEUR_FICHE,
-        borderTopColor: designee ? 'rgba(228,216,189,.55)' : 'rgba(228,216,189,.16)',
-        opacity: designee ? 1 : 0.82,
+        borderColor: designee ? 'var(--ink)' : 'rgba(42,33,24,.42)',
+        opacity: designee ? 1 : 0.88,
         cursor: mien ? 'pointer' : 'default',
       }}
     >
@@ -430,8 +444,8 @@ function Fiche({
           className="truncate"
           style={
             mien
-              ? { color: 'rgba(228,216,189,.46)' }
-              : { fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'rgba(228,216,189,.3)' }
+              ? { color: 'var(--ink-soft)' }
+              : { fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--ink-faint)' }
           }
         >
           {fiche.origine}
@@ -441,7 +455,7 @@ function Fiche({
           style={{
             fontFamily: mien ? undefined : 'var(--font-mono)',
             fontSize: mien ? '13.5px' : '12.5px',
-            color: designee ? 'var(--paper)' : 'rgba(228,216,189,.72)',
+            color: designee ? 'var(--ink)' : 'var(--ink-soft)',
           }}
         >
           {fiche.destination}
@@ -450,7 +464,7 @@ function Fiche({
 
       <div className="relative" style={{ height: HAUTEUR_TRACE }}>
         <svg
-          width={LARGEUR_FICHE}
+          width="100%"
           height={HAUTEUR_TRACE}
           viewBox={`0 0 ${LARGEUR_TRACE} ${HAUTEUR_TRACE}`}
           preserveAspectRatio="none"
@@ -460,7 +474,7 @@ function Fiche({
           <path
             d={COURBE}
             fill="none"
-            stroke="rgba(228,216,189,.19)"
+            stroke="rgba(42,33,24,.22)"
             strokeWidth={mien ? 1.2 : 1}
             strokeDasharray={mien ? undefined : '2 5'}
           />
@@ -477,7 +491,12 @@ function Fiche({
               <circle cx={DEPART.x} cy={DEPART.y} r={2} fill="none" stroke={encre} />
             </>
           )}
-          <path d="M250 32 256 38 248 41 Z" fill={mien ? encre : 'rgba(228,216,189,.3)'} />
+          <path
+            d={CROIX}
+            fill="none"
+            stroke={mien ? encre : 'rgba(42,33,24,.34)'}
+            strokeWidth={1.3}
+          />
           {/* Une position adverse est une zone, jamais un point : le cadre pointillé est
               exactement ce que le renseignement sait dire, et il le dit à l'échelle. */}
           {!mien && (
@@ -497,10 +516,9 @@ function Fiche({
           className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center"
           style={{ left: `${(marqueur.x / LARGEUR_TRACE) * 100}%`, top: marqueur.y }}
         >
-          {/* Le repli en cadre pointillé de `SpriteUnite` est dessiné pour le papier : sur le
-              bureau il disparaît. Sans planche, la frise reprend donc le losange anonyme —
-              le même aveu que le cône de la carte. */}
-          {fiche.role && urlSprite(vue.moi.nation, fiche.role, 1) !== null ? (
+          {/* Le repli en cadre pointillé de `SpriteUnite` est dessiné pour le papier : la
+              fiche en est une, il tient donc son rôle ici sans losange de secours. */}
+          {fiche.role ? (
             <SpriteUnite nation={vue.moi.nation} role={fiche.role} hauteur={HAUTEUR_SPRITE} />
           ) : (
             <span className="block h-[8px] w-[8px] rotate-45" style={{ background: encre }} />
@@ -511,16 +529,16 @@ function Fiche({
       <div className="mt-[3px] flex items-baseline justify-between gap-2">
         <span
           className="truncate text-[9.5px] tracking-[.2em] uppercase"
-          style={{ color: mien ? 'rgba(228,216,189,.48)' : encre, fontWeight: mien ? undefined : 600 }}
+          style={{ color: mien ? 'var(--ink-soft)' : encre, fontWeight: mien ? undefined : 600 }}
         >
           {fiche.libelleType}
           {fiche.identifie && (
-            <span className="ml-2 text-[rgba(228,216,189,.42)]">· identifié</span>
+            <span className="ml-2 text-[var(--ink-faint)]">· identifié</span>
           )}
         </span>
         <span
           className="shrink-0 font-[var(--font-mono)] text-[15px]"
-          style={{ color: immobilise ? 'var(--notable)' : mien ? 'var(--paper)' : encre }}
+          style={{ color: immobilise ? 'var(--ravitaillement-papier)' : mien ? 'var(--ink)' : encre }}
         >
           {restant === null ? '—' : `${fiche.estime ? '~' : ''}${enHeuresMinutesSecondes(restant)}`}
         </span>
@@ -531,11 +549,11 @@ function Fiche({
           className="truncate text-[11.5px]"
           style={
             fiche.identifie || mien
-              ? { color: 'rgba(228,216,189,.4)' }
+              ? { color: 'var(--ink-soft)' }
               : {
                   fontFamily: 'var(--font-display)',
                   fontStyle: 'italic',
-                  color: 'rgba(228,216,189,.3)',
+                  color: 'var(--ink-faint)',
                 }
           }
         >
@@ -555,7 +573,7 @@ function Fiche({
 function Horaire({ fiche, immobilise }: { fiche: FicheMouvement; immobilise: boolean }) {
   if (!fiche.chronologie.connue) {
     return (
-      <span className="shrink-0 font-[var(--font-mono)] text-[10.5px] text-[rgba(228,216,189,.28)]">
+      <span className="shrink-0 font-[var(--font-mono)] text-[10.5px] text-[var(--ink-faint)]">
         heure inconnue
       </span>
     );
@@ -563,7 +581,7 @@ function Horaire({ fiche, immobilise }: { fiche: FicheMouvement; immobilise: boo
   return (
     <span
       className="shrink-0 font-[var(--font-mono)] text-[10.5px] tracking-[.06em]"
-      style={{ color: immobilise ? 'var(--notable)' : 'rgba(228,216,189,.34)' }}
+      style={{ color: immobilise ? 'var(--ravitaillement-papier)' : 'var(--ink-faint)' }}
       title={immobilise ? 'immobilisé à la frontière : plage de repos de la cible' : 'heure d’arrivée'}
     >
       {immobilise ? '⏸ ' : '→ '}

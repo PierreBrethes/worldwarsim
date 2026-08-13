@@ -121,7 +121,7 @@ function PlateauReactif({
 }) {
   const serveur = useQuery(api.vue.vueJoueur, { jeton });
   const vueServie = serveur ? adapterVueServeur(monde, serveur) : vueInitiale;
-  const vue = ETAT_FACTICE ? appliquerEtatFactice(vueServie) : vueServie;
+  const vue = ETAT_FACTICE ? appliquerEtatFactice(monde, vueServie) : vueServie;
   return <ContenuPlateau monde={monde} vue={vue} jeton={jeton} />;
 }
 

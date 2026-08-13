@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DOMAINE_PAR_ROLE, PALIERS_PAR_ROLE } from '@/domaine/troupes';
+import { trajetDirect } from '@/domaine/trajets';
 import type { ArcAffiche, RoleUnite } from '@/domaine/vue-joueur';
 import { SPRITES_PAR_NATION, spriteDeMouvement, urlSprite, type NationSprites } from './manifeste';
 
@@ -60,6 +61,7 @@ describe('spriteDeMouvement', () => {
     id: 'MVT-1',
     depuis: [0, 0],
     vers: [10, 10],
+    trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
     origineNom: 'France',
     destinationNom: 'Chad',
     origineLibelle: 'France',
@@ -81,6 +83,7 @@ describe('spriteDeMouvement', () => {
       id: 'MVT-2',
       depuis: [0, 0],
       vers: [10, 10],
+      trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
       nationSuspectee: 'France',
       capDegres: 45,
       capSurMoi: false,

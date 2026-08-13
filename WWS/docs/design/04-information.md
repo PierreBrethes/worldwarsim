@@ -46,3 +46,39 @@ ce qui fait du leurre une décision plutôt qu'un réflexe.
 Le leurre coûte trois lignes de code — un mouvement dont le tableau d'unités est vide — et produit à
 lui seul la moitié des histoires que vous vous raconterez après la saison. C'est le meilleur rapport
 effort/plaisir du design.
+
+## Ce que révèle un mouvement détecté
+
+Décidé en session (13/08/2026), à l'occasion de la frise des mouvements et du « fil tendu ».
+
+**Trois familles d'affichage, trois encres.** Mes mouvements (encre de ma nation, tout
+visible, filtrables par type puisque mes types sont connus) ; **cap sur moi** (encre
+critique : adverse détecté dont la trajectoire croise mon territoire ou mes avant-postes) ;
+**renseignement** (encre sourde : adverse détecté ailleurs, sans conséquence directe).
+
+**Un mouvement adverse détecté ne révèle par défaut ni son type ni sa composition** —
+seulement le fil, le cap et un horaire estimé. C'est la condition d'existence du leurre.
+
+**L'identification est un état, pas une catégorie.** Certains bâtiments, unités ou
+placements permettent de percer un mouvement détecté : sa fiche révèle alors type et
+composition, avec la mention « identifié ». Conséquence voulue : identifier un leurre,
+c'est du renseignement gaspillé — le leurre devient une arme d'usure contre l'espionnage
+adverse. ⚠️ Le coût d'identification est un curseur d'équilibrage sensible : trop bon
+marché, le brouillard meurt ; trop cher, personne n'identifie jamais. À mesurer.
+
+### Le domaine est visible
+
+Décidé (13/08/2026), en même temps que le « fil tendu ».
+
+**Un mouvement détecté montre son domaine — terre, mer ou air.** L'altitude du fil le dit
+(collé au relief, au niveau de l'eau, en arc dans le ciel) et la silhouette du jalon le
+répète (prisme, coque, delta). Le type et la composition, eux, restent cachés tant que le
+mouvement n'est pas identifié.
+
+Deux raisons. La trajectoire le révèle de toute façon : un fil en pleine mer est maritime,
+le cacher demanderait de mentir sur le tracé. Et le leurre y gagne un choix de bluff —
+simuler un débarquement plutôt qu'une colonne, c'est une décision de plus à prendre pour
+trois lignes de code.
+
+Le mot du code est **`Milieu`** (`src/domaine/trajets.ts`) ; « domaine » n'existe que dans
+cette fiche, `src/domaine/` désignant déjà la couche de logique pure.

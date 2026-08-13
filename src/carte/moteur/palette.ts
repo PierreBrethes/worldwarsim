@@ -12,9 +12,15 @@ export const PALETTE = {
   traitBordure: '#3a2a18',
 } as const;
 
+/**
+ * Les encres des planches « fil tendu », telles quelles. De l'encre sur du papier : une ocre
+ * calme pour ce que je pilote, l'encre critique assourdie pour ce qui vient d'en face, le gris
+ * de routine pour ce qui n'est plus qu'un souvenir. Aucun orange saturé, aucun matériau
+ * émissif — le budget de contraste appartient à la couche de jeu, pas à la lumière.
+ */
 export const COULEURS_ARC = {
-  mien: { trace: '#8a4a1e', progression: '#c9762c' },
-  adverseDetecte: { trace: '#9d4638', progression: '#c2604f' },
+  mien: { trace: '#c98a3c', progression: '#e0a552' },
+  adverseDetecte: { trace: '#8f4a3e', progression: '#9d4638' },
   dernierePositionConnue: { trace: '#6e6a5e', progression: '#6e6a5e' },
   maitriseDesMers: { trace: '#3e6b7a', progression: '#5a8fa0' },
 } as const;

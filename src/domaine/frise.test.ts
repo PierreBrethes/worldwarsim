@@ -9,6 +9,7 @@ import {
   resumeFrise,
 } from './frise';
 import type { ArcAffiche, VueJoueur } from './vue-joueur';
+import { trajetDirect } from './trajets';
 
 const CHARGEE_A = 1_700_000_000_000;
 
@@ -17,6 +18,7 @@ const arcMien = (surcharge: Partial<Extract<ArcAffiche, { etat: 'mien' }>>): Arc
   id: 'mv-1',
   depuis: [0, 0],
   vers: [1, 1],
+  trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
   origineNom: 'United Kingdom',
   destinationNom: 'Italy',
   origineLibelle: 'Royaume-Uni',
@@ -36,6 +38,7 @@ const arcDetecte = (
   id: 'mv-x',
   depuis: [0, 0],
   vers: [1, 1],
+  trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
   nationSuspectee: null,
   capDegres: 87,
   capSurMoi: false,
@@ -74,12 +77,13 @@ describe('construction de la frise', () => {
   it('écarte les arcs que la frise ne sait pas porter', () => {
     const fiches = construireFrise(
       vueAvec([
-        { etat: 'maitriseDesMers', id: 'mer', depuis: [0, 0], vers: [1, 1], avancement: 0.2 },
+        { etat: 'maitriseDesMers', id: 'mer', depuis: [0, 0], vers: [1, 1], trajet: trajetDirect([0, 0], [1, 1], 'mer', 10), avancement: 0.2 },
         {
           etat: 'dernierePositionConnue',
           id: 'figee',
           depuis: [0, 0],
           vers: [1, 1],
+          trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
           capDegres: 12,
           vuIlYaMinutes: 40,
           avancement: 0.6,
