@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dansLaPlage, lirePlage } from './plage-repos';
+import { dansLaPlage, lirePlage, sortieDePlage } from './plage-repos';
 
 describe('lecture d’une plage déclarée', () => {
   it('accepte les deux notations rencontrées dans les données', () => {
@@ -24,5 +24,23 @@ describe('appartenance à la plage', () => {
     expect(dansLaPlage(23 * 60, plage)).toBe(true);
     expect(dansLaPlage(0, plage)).toBe(true);
     expect(dansLaPlage(2 * 60, plage)).toBe(false);
+  });
+});
+
+describe('immobilisation à la frontière', () => {
+  const aujourdhuiA = (heures: number, minutes = 0) => {
+    const instant = new Date();
+    instant.setHours(heures, minutes, 0, 0);
+    return instant.getTime();
+  };
+
+  it('laisse passer une arrivée hors plage', () => {
+    expect(sortieDePlage(aujourdhuiA(10), lirePlage('23h00 – 07h00')!)).toBeNull();
+  });
+
+  it('reporte la résolution à la sortie de plage', () => {
+    const plage = lirePlage('23h00 – 07h00')!;
+    expect(sortieDePlage(aujourdhuiA(2), plage)).toBe(aujourdhuiA(2) + 5 * 3_600_000);
+    expect(sortieDePlage(aujourdhuiA(23, 30), plage)).toBe(aujourdhuiA(23, 30) + 7.5 * 3_600_000);
   });
 });

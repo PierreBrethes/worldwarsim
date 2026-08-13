@@ -5,7 +5,7 @@ import { dansLaPlage, lirePlage } from '@/domaine/plage-repos';
 import { SpriteUnite } from '@/emblemes/SpriteUnite';
 import type { Pile, RoleUnite, TypeMouvement, VueJoueur } from '@/domaine/vue-joueur';
 import { LIBELLE_TYPE, libelleRole } from '@/domaine/vue-joueur';
-import { enHeuresMinutes } from './duree';
+import { enHeuresMinutes } from '@/domaine/duree';
 
 type Cap = 'N' | 'E' | 'S' | 'O';
 

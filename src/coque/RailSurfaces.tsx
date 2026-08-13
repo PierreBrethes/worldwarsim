@@ -1,16 +1,15 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import type { RecherchePlateau } from '@/routes/plateau';
+import type { Modale, RecherchePlateau } from '@/routes/plateau';
+import { basculerModale, modaleOuverte } from '@/routes/plateau';
 import { Glyphe } from './Glyphe';
 
 export function RailSurfaces({ saison }: { saison: number }) {
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
-  const commun: RecherchePlateau = recherche.pays ? { pays: recherche.pays } : {};
 
-  // Le rail est un jeu de bascules, pas une navigation : cliquer la surface déjà
-  // ouverte la referme, et l'état nu (carte seule) n'a pas besoin d'entrée « plateau ».
-  const bascule = (modale: NonNullable<RecherchePlateau['modale']>): RecherchePlateau =>
-    recherche.modale === modale ? commun : { ...commun, modale };
+  // Le rail est un jeu de bascules, pas une navigation : cliquer une surface déjà
+  // ouverte la retire de la pile, et l'état nu (carte seule) n'a pas besoin d'entrée « plateau ».
+  const bascule = (nom: Modale): RecherchePlateau => basculerModale(recherche, nom);
 
   const surfaces: ReadonlyArray<{
     titre: string;
@@ -24,21 +23,21 @@ export function RailSurfaces({ saison }: { saison: number }) {
       libelle: 'troupes',
       icone: <IconeTroupes />,
       cible: bascule('troupes'),
-      active: recherche.modale === 'troupes',
+      active: modaleOuverte(recherche, 'troupes'),
     },
     {
       titre: 'Production — recrutement d’unités',
       libelle: 'prod.',
       icone: <IconeProduction />,
       cible: bascule('production'),
-      active: recherche.modale === 'production',
+      active: modaleOuverte(recherche, 'production'),
     },
     {
       titre: 'Ma nation',
       libelle: 'nation',
       icone: <IconeNation />,
       cible: bascule('nation'),
-      active: recherche.modale === 'nation',
+      active: modaleOuverte(recherche, 'nation'),
     },
   ];
 
@@ -86,7 +85,7 @@ export function RailSurfaces({ saison }: { saison: number }) {
           search={bascule('reglages')}
           title="Réglages"
           className={
-            recherche.modale === 'reglages'
+            modaleOuverte(recherche, 'reglages')
               ? 'flex h-[34px] w-full items-center justify-center border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
               : 'flex h-[34px] w-full items-center justify-center border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
           }

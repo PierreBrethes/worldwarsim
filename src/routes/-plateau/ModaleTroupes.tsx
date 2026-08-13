@@ -11,8 +11,8 @@ import type {
 import { compterTroupes, inventorierTroupes, organiserTroupes } from '@/domaine/troupes';
 import type { ArcAffiche, Pile, RoleUnite, VueJoueur } from '@/domaine/vue-joueur';
 import { LIBELLE_TYPE, libellePile, libelleRole, minutesCourantes } from '@/domaine/vue-joueur';
-import { enHeuresMinutes } from './duree';
-import { Modale, PoigneeModale } from './Modale';
+import { enHeuresMinutes } from '@/domaine/duree';
+import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
 import { OngletEnvoi } from './OngletEnvoi';
 
 type Onglet = 'inventaire' | 'envoi';
@@ -42,16 +42,16 @@ export function ModaleTroupes({
   monde,
   pays,
   onFermer,
-}: {
+  ...fenetre
+}: ProprietesFenetre & {
   vue: VueJoueur;
   monde: Monde;
   pays: string | null;
-  onFermer: () => void;
 }) {
   const [onglet, setOnglet] = useState<Onglet>('inventaire');
 
   return (
-    <Modale nom="troupes" onFermer={onFermer} alignement="haut" largeur={1040}>
+    <Modale nom="troupes" onFermer={onFermer} {...fenetre} alignement="haut" largeur={1040}>
       <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <EnTete onglet={onglet} onOnglet={setOnglet} vue={vue} onFermer={onFermer} />
         {onglet === 'inventaire' ? (
@@ -78,23 +78,21 @@ function EnTete({
   const { slots } = vue.moi;
 
   return (
-    <PoigneeModale className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 bg-[var(--ink)] px-[18px] py-3 text-[var(--paper)]">
-      <h2 className="font-[var(--font-display)] text-[clamp(15px,2cqi,18px)] font-extrabold tracking-[.02em]">
-        TROUPES
-      </h2>
+    <PoigneeModale className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+      <span>troupes</span>
       <div className="flex gap-[5px]">
         <BoutonOnglet libelle="inventaire" actif={onglet === 'inventaire'} onClick={() => onOnglet('inventaire')} />
         <BoutonOnglet libelle="envoi" actif={onglet === 'envoi'} onClick={() => onOnglet('envoi')} />
       </div>
       <span className="flex-1" />
-      <span className="text-[11px] text-[var(--paper-dim-2)]">
+      <span className="text-[11px] tracking-normal normal-case text-[var(--ink-soft)]">
         {slots.utilises} slot{slots.utilises > 1 ? 's' : ''} engagé{slots.utilises > 1 ? 's' : ''} ·{' '}
         {slots.total - slots.utilises} disponible{slots.total - slots.utilises > 1 ? 's' : ''}
       </span>
       <button
         type="button"
         onClick={onFermer}
-        className="cursor-pointer border border-[var(--paper-dim-2)] px-[10px] py-[5px] text-[10px] tracking-[.16em] uppercase hover:border-[var(--paper)]"
+        className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
       >
         fermer
       </button>
@@ -107,10 +105,10 @@ function BoutonOnglet({ libelle, actif, onClick }: { libelle: string; actif: boo
     <button
       type="button"
       onClick={onClick}
-      className={`cursor-pointer border px-[13px] py-[6px] text-[10px] tracking-[.16em] uppercase ${
+      className={`cursor-pointer border border-[var(--ink)] px-[13px] py-[6px] text-[10px] tracking-[.16em] uppercase ${
         actif
-          ? 'border-[var(--paper)] bg-[var(--paper)] text-[var(--ink)]'
-          : 'border-[var(--paper-dim-2)] text-[var(--paper-dim)] hover:border-[var(--paper)] hover:text-[var(--paper)]'
+          ? 'bg-[var(--ink)] text-[var(--paper)]'
+          : 'text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]'
       }`}
     >
       {libelle}
@@ -333,7 +331,7 @@ function versLigne(arc: ArcAffiche, chargeeA: number, maintenant: number): Ligne
         etat: `mien — ${LIBELLE_TYPE[arc.type]}`,
         encre: 'var(--interaction)',
         opaciteEncre: 1,
-        route: `${arc.origineNom} → ${arc.destinationNom}`,
+        route: `${arc.origineLibelle} → ${arc.destinationLibelle}`,
         composition: libellePile(arc.pile),
         eta: enHeuresMinutes(minutesCourantes(arc.minutesRestantes, chargeeA, maintenant)),
       };

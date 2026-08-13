@@ -10,8 +10,8 @@ import type { DomaineUnite, PalierUnite } from '@/domaine/troupes';
 import { DOMAINE_PAR_ROLE, FICHE_PAR_ROLE, libellePalier } from '@/domaine/troupes';
 import type { RoleUnite } from '@/domaine/vue-joueur';
 import { libelleRole, minutesCourantes } from '@/domaine/vue-joueur';
-import { enHeuresMinutes } from './duree';
-import { Modale, PoigneeModale } from './Modale';
+import { enHeuresMinutes } from '@/domaine/duree';
+import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
 
 const LOTS: ReadonlyArray<number> = [1, 5, 10, 20];
 
@@ -25,23 +25,21 @@ export function ModaleProduction({
   nation,
   jeton,
   onFermer,
-}: {
+  ...fenetre
+}: ProprietesFenetre & {
   nation: string;
   jeton: string;
-  onFermer: () => void;
 }) {
   return (
-    <Modale nom="production" onFermer={onFermer} alignement="haut" largeur={1100}>
+    <Modale nom="production" onFermer={onFermer} {...fenetre} alignement="haut" largeur={1100}>
       <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <PoigneeModale className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 bg-[var(--ink)] px-[18px] py-3 text-[var(--paper)]">
-          <h2 className="font-[var(--font-display)] text-[clamp(15px,2cqi,18px)] font-extrabold tracking-[.02em]">
-            PRODUCTION
-          </h2>
+        <PoigneeModale className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          <span>production</span>
           <span className="flex-1" />
           <button
             type="button"
             onClick={onFermer}
-            className="cursor-pointer border border-[var(--paper-dim-2)] px-[10px] py-[5px] text-[10px] tracking-[.16em] uppercase hover:border-[var(--paper)]"
+            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
           >
             fermer
           </button>

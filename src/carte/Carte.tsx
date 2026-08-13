@@ -1,27 +1,47 @@
 import { useEffect, useRef, useState } from 'react';
 import { chargerRegions, type Monde } from '@/domaine/monde';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
-import { MoteurCarte, type SurvolCarte } from './moteur';
+import { MoteurCarte, type SurvolCarte, type SurvolMarqueur } from './moteur';
+import { LIBELLE_SPECIALISATION, type MarqueurCarte } from './moteur/marqueurs';
 
 type Props = {
   monde: Monde;
   arcs: ReadonlyArray<ArcAffiche>;
+  marqueurs: ReadonlyArray<MarqueurCarte>;
+  chargeeA: number;
   encreParPays: ReadonlyMap<string, string>;
   paysSelectionne: string | null;
   nationJoueur: string | null;
+  /** L'identifiant du mouvement que la frise désigne — l'arc correspondant monte en intensité. */
+  mouvementAccentue: string | null;
   onSelection: (nom: string | null) => void;
   onSurvolRegion?: (nom: string | null) => void;
+  onSurvolArc?: (id: string | null) => void;
 };
 
-export function Carte({ monde, arcs, encreParPays, paysSelectionne, nationJoueur, onSelection, onSurvolRegion }: Props) {
+export function Carte({
+  monde,
+  arcs,
+  marqueurs,
+  chargeeA,
+  encreParPays,
+  paysSelectionne,
+  nationJoueur,
+  mouvementAccentue,
+  onSelection,
+  onSurvolRegion,
+  onSurvolArc,
+}: Props) {
   const conteneur = useRef<HTMLDivElement>(null);
   const moteur = useRef<MoteurCarte | null>(null);
   const [survol, setSurvol] = useState<SurvolCarte>(null);
+  const [survolMarqueur, setSurvolMarqueur] = useState<SurvolMarqueur>(null);
 
   useEffect(() => {
     if (!conteneur.current) return;
     const instance = new MoteurCarte(conteneur.current, monde);
     instance.onSurvol = setSurvol;
+    instance.onSurvolMarqueur = setSurvolMarqueur;
     moteur.current = instance;
     if (import.meta.env.DEV) (window as unknown as { moteurCarte?: MoteurCarte }).moteurCarte = instance;
 
@@ -53,12 +73,24 @@ export function Carte({ monde, arcs, encreParPays, paysSelectionne, nationJoueur
   }, [onSurvolRegion]);
 
   useEffect(() => {
+    if (moteur.current) moteur.current.onSurvolArc = onSurvolArc ?? (() => {});
+  }, [onSurvolArc]);
+
+  useEffect(() => {
     moteur.current?.definirNationJoueur(nationJoueur);
   }, [nationJoueur]);
 
   useEffect(() => {
-    moteur.current?.afficherArcs(arcs);
-  }, [arcs]);
+    moteur.current?.accentuerArc(mouvementAccentue);
+  }, [mouvementAccentue]);
+
+  useEffect(() => {
+    moteur.current?.afficherArcs(arcs, chargeeA);
+  }, [arcs, chargeeA]);
+
+  useEffect(() => {
+    moteur.current?.afficherMarqueurs(marqueurs);
+  }, [marqueurs]);
 
   useEffect(() => {
     moteur.current?.colorerNations(encreParPays);
@@ -79,6 +111,38 @@ export function Carte({ monde, arcs, encreParPays, paysSelectionne, nationJoueur
         }}
       />
       {survol && <EtiquettePays survol={survol} />}
+      {survolMarqueur && (
+        <EtiquetteMarqueur
+          survol={survolMarqueur}
+          marqueur={marqueurs.find((candidat) => candidat.id === survolMarqueur.id) ?? null}
+        />
+      )}
+    </div>
+  );
+}
+
+function EtiquetteMarqueur({
+  survol,
+  marqueur,
+}: {
+  survol: NonNullable<SurvolMarqueur>;
+  marqueur: MarqueurCarte | null;
+}) {
+  if (marqueur === null || marqueur.genre !== 'avantPoste') return null;
+  return (
+    <div
+      className="hud pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[160%] border border-[var(--ink-quiet)] bg-[var(--desk)] px-2 py-[4px] font-[var(--font-body)] whitespace-nowrap"
+      style={{ left: survol.ecranX, top: survol.ecranY }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-[9px] w-[9px] shrink-0" style={{ background: marqueur.encre }} />
+        <span className="text-[11.5px] text-[var(--paper)]">
+          {LIBELLE_SPECIALISATION[marqueur.specialisation]}
+        </span>
+      </div>
+      <div className="mt-[2px] font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
+        niv. {marqueur.niveau} · garnison {marqueur.garnison}
+      </div>
     </div>
   );
 }

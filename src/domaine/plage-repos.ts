@@ -16,10 +16,25 @@ export function formaterPlage({ debutMinutes, finMinutes }: PlageHoraire): strin
   return `${heure(debutMinutes)} – ${heure(finMinutes)}`;
 }
 
-export function dansLaPlage(minutesDepuisMinuit: number, plage: PlageHoraire): boolean {
+export const minutesDepuisMinuit = (instant: number): number => {
+  const local = new Date(instant);
+  return local.getHours() * 60 + local.getMinutes();
+};
+
+/**
+ * Un mouvement qui arriverait pendant la plage de repos de sa cible s'immobilise à la
+ * frontière : il ne se résout qu'à la sortie de plage. Rend l'instant de résolution, ou
+ * `null` quand l'arrivée tombe hors plage — la résolution a lieu à l'arrivée.
+ */
+export function sortieDePlage(arriveeA: number, plage: PlageHoraire): number | null {
+  const minutes = minutesDepuisMinuit(arriveeA);
+  if (!dansLaPlage(minutes, plage)) return null;
+  const attente = (plage.finMinutes - minutes + 1440) % 1440;
+  return arriveeA + attente * 60_000;
+}
+
+export function dansLaPlage(minutes: number, plage: PlageHoraire): boolean {
   const { debutMinutes, finMinutes } = plage;
-  if (debutMinutes <= finMinutes) {
-    return minutesDepuisMinuit >= debutMinutes && minutesDepuisMinuit < finMinutes;
-  }
-  return minutesDepuisMinuit >= debutMinutes || minutesDepuisMinuit < finMinutes;
+  if (debutMinutes <= finMinutes) return minutes >= debutMinutes && minutes < finMinutes;
+  return minutes >= debutMinutes || minutes < finMinutes;
 }

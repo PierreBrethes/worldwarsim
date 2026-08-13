@@ -172,7 +172,7 @@ export function inventorierTroupes(
           genre: 'mouvement',
           arcId: arc.id,
           typeMouvement: arc.type,
-          destination: arc.destinationNom,
+          destination: arc.destinationLibelle,
           minutesRestantes: arc.minutesRestantes,
         }),
       );

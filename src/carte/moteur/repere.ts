@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import type { LonLat } from '@/domaine/geo';
 import type { EchantillonContour, Monde } from '@/domaine/monde';
 
 export const EPAISSEUR_PAYS = 0.96;
@@ -43,6 +44,16 @@ export class RepereMonde {
     const x = projeteX - this.centreX;
     const z = projeteY - this.centreY;
     return new Vector3(x, hauteur + this.chute(x, z), z);
+  }
+
+  /**
+   * Le monde n'est pas une équirectangulaire : les bords se resserrent aux pôles, donc une
+   * longitude ne se convertit qu'à la latitude où on la lit.
+   */
+  projeterLonLat(lonLat: LonLat, hauteur = EPAISSEUR_PAYS): Vector3 {
+    const bord = this.bordALatitude(lonLat[1]);
+    const x = this.centreX + (lonLat[0] / 180) * (bord.xEst - this.centreX);
+    return this.versMonde(x, bord.y, hauteur);
   }
 
   bordALatitude(latitude: number): { xOuest: number; xEst: number; y: number } {

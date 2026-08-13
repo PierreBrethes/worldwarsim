@@ -16,6 +16,18 @@ const ContextePoignee = createContext<Poignee>(() => {});
 
 const LARGEUR_MINIMALE = 320;
 const HAUTEUR_MINIMALE = 200;
+const PLAN_DE_BASE = 40;
+
+/**
+ * Ce que le plateau confie à chaque fenêtre : plusieurs sont ouvertes en même temps, et
+ * seule la route sait laquelle est devant.
+ */
+export type ProprietesFenetre = {
+  onFermer: () => void;
+  rang: number;
+  auPremierPlan: boolean;
+  surMiseEnAvant: () => void;
+};
 
 /**
  * L'en-tête d'une modale s'enveloppe dedans : c'est la seule zone par laquelle on la déplace.
@@ -34,12 +46,14 @@ export function PoigneeModale({ className = '', children }: { className?: string
 export function Modale({
   nom,
   onFermer,
+  rang,
+  auPremierPlan,
+  surMiseEnAvant,
   alignement = 'centre',
   largeur,
   children,
-}: {
+}: ProprietesFenetre & {
   nom: string;
-  onFermer: () => void;
   alignement?: 'haut' | 'centre';
   largeur: number;
   children: ReactNode;
@@ -98,29 +112,37 @@ export function Modale({
     [decalage, taille, nom],
   );
 
+  // Le focus se prend à l'ouverture seulement : le reprendre à chaque mise en avant
+  // l'arracherait au champ sur lequel le joueur vient de cliquer.
   useEffect(() => {
     conteneur.current?.focus();
-    // Échap ferme, mais pas de piège à Tab : une fenêtre posée sur le bureau
-    // n'est pas exclusive, le focus doit pouvoir repartir vers la carte.
+  }, []);
+
+  useEffect(() => {
+    // Échap ne ferme que la fenêtre du dessus, mais pas de piège à Tab : une fenêtre posée
+    // sur le bureau n'est pas exclusive, le focus doit pouvoir repartir vers la carte.
+    if (!auPremierPlan) return;
     const surTouche = (evenement: KeyboardEvent) => {
       if (evenement.key === 'Escape') onFermer();
     };
     document.addEventListener('keydown', surTouche);
     return () => document.removeEventListener('keydown', surTouche);
-  }, [onFermer]);
+  }, [onFermer, auPremierPlan]);
 
   // Une fenêtre, pas une modale : aucun voile, la carte reste vivante derrière.
   // Le conteneur ne sert qu'au placement et laisse passer les clics.
   return (
     <div
-      className={`pointer-events-none fixed inset-0 z-40 flex justify-center ${
+      className={`pointer-events-none fixed inset-0 flex justify-center ${
         alignement === 'haut' ? 'items-start px-6 py-[34px]' : 'items-center p-8'
       }`}
+      style={{ zIndex: PLAN_DE_BASE + rang }}
     >
       <div
         ref={conteneur}
         tabIndex={-1}
         role="dialog"
+        onPointerDown={auPremierPlan ? undefined : surMiseEnAvant}
         className="hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
           transform: `translate(${decalage.x}px, ${decalage.y}px)`,

@@ -5,7 +5,7 @@ import { RailSurfaces } from './RailSurfaces';
 
 export function Coque({ vue, children }: { vue: VueJoueur; children: ReactNode }) {
   return (
-    <div className="flex h-full flex-col overflow-x-auto">
+    <div className="flex h-full flex-col overflow-hidden">
       <BandeauNation vue={vue} />
       <div className="flex min-h-0 flex-1">
         <RailSurfaces saison={vue.saison.numero} />

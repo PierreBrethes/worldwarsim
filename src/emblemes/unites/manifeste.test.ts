@@ -62,9 +62,12 @@ describe('spriteDeMouvement', () => {
     vers: [10, 10],
     origineNom: 'France',
     destinationNom: 'Chad',
+    origineLibelle: 'France',
+    destinationLibelle: 'Tchad',
     type: 'attaque',
     pile: { infanterie: 2, blinde: 5 },
     minutesRestantes: 60,
+    attenteFrontiere: null,
     avancement: 0.4,
   } as const satisfies ArcAffiche;
 
@@ -80,6 +83,8 @@ describe('spriteDeMouvement', () => {
       vers: [10, 10],
       nationSuspectee: 'France',
       capDegres: 45,
+      capSurMoi: false,
+      identification: { perce: false },
       minutesRestantesEstimees: null,
       avancement: 0.1,
     };

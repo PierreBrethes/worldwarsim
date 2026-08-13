@@ -1,5 +1,5 @@
 import type { DepecheJournal, GraviteDepeche, VueJoueur } from '@/domaine/vue-joueur';
-import { Modale, PoigneeModale } from './Modale';
+import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
 
 const COLONNES: ReadonlyArray<{ gravite: GraviteDepeche; encre: string }> = [
   { gravite: 'critique', encre: 'var(--critique)' },
@@ -7,7 +7,11 @@ const COLONNES: ReadonlyArray<{ gravite: GraviteDepeche; encre: string }> = [
   { gravite: 'routine', encre: 'var(--routine)' },
 ];
 
-export function ModaleJournal({ vue, onFermer }: { vue: VueJoueur; onFermer: () => void }) {
+export function ModaleJournal({
+  vue,
+  onFermer,
+  ...fenetre
+}: ProprietesFenetre & { vue: VueJoueur }) {
   const depeches = vue.journal;
   const une = depeches.find((depeche) => depeche.gravite === 'critique') ?? depeches[0] ?? null;
   const immobilise = depeches.find((depeche) => depeche.resolutionA !== null);
@@ -16,7 +20,7 @@ export function ModaleJournal({ vue, onFermer }: { vue: VueJoueur; onFermer: () 
   const jour = Math.min(Math.ceil(vue.saison.dureeHeures / 24), Math.floor(vue.saison.ecouleHeures / 24) + 1);
 
   return (
-    <Modale nom="journal" onFermer={onFermer} alignement="haut" largeur={1040}>
+    <Modale nom="journal" onFermer={onFermer} {...fenetre} alignement="haut" largeur={1040}>
       <article className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[30px] pt-[26px] pb-5">
         <PoigneeModale className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>édition de {heure}</span>

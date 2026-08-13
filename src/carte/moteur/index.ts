@@ -16,8 +16,9 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DonneesRegions, Monde } from '@/domaine/monde';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
-import { CoucheArcs } from './arcs';
+import { CoucheArcs, SEUIL_SURVOL_ARC } from './arcs';
 import { Courbure } from './courbure';
+import { CoucheMarqueurs, type MarqueurCarte } from './marqueurs';
 import { PALETTE } from './palette';
 import { construirePays, type MeshPays } from './pays';
 import { construirePlateau } from './plateau';
@@ -25,6 +26,13 @@ import { CoucheRegions, DISTANCE_REGIONS_ABSENTES } from './regions';
 import { RepereMonde } from './repere';
 
 export type SurvolCarte = { nom: string; ecranX: number; ecranY: number } | null;
+export type SurvolMarqueur = { id: string; ecranX: number; ecranY: number } | null;
+
+/**
+ * Le même seuil que la couche des régions : ce que le joueur voit apparaître quand il descend
+ * sur un pays doit apparaître d'un bloc, sinon la carte se peuple par étages sans raison lisible.
+ */
+const DISTANCE_DETAIL = DISTANCE_REGIONS_ABSENTES;
 
 /**
  * Moteur impératif : la scène est construite une fois puis pilotée par des appels.
@@ -39,6 +47,7 @@ export class MoteurCarte {
   private readonly repere: RepereMonde;
   private readonly courbure: Courbure;
   private readonly arcs: CoucheArcs;
+  private readonly marqueurs: CoucheMarqueurs;
   private readonly regions: CoucheRegions;
   private readonly pays: MeshPays[];
   private readonly frontieres: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -52,8 +61,13 @@ export class MoteurCarte {
 
   onSurvol: (survol: SurvolCarte) => void = () => {};
   onSurvolRegion: (nom: string | null) => void = () => {};
+  onSurvolMarqueur: (survol: SurvolMarqueur) => void = () => {};
+  onSurvolArc: (id: string | null) => void = () => {};
   onSelection: (nom: string | null) => void = () => {};
   private regionSurvolee: string | null = null;
+  private marqueurSurvole: string | null = null;
+  private arcSurvole: string | null = null;
+  private etiquettePays: string | null = null;
 
   constructor(
     private readonly conteneur: HTMLElement,
@@ -104,18 +118,29 @@ export class MoteurCarte {
     this.arcs = new CoucheArcs(this.repere);
     this.scene.add(this.arcs.groupe);
 
+    this.marqueurs = new CoucheMarqueurs(this.repere);
+    this.scene.add(this.marqueurs.groupe);
+
     this.regions = new CoucheRegions(this.repere, this.courbure);
     this.scene.add(this.regions.lignes);
     this.scene.add(this.regions.surbrillance);
     this.scene.add(this.regions.accessoires);
+
+    // Un trait n'a pas d'épaisseur pour le lancer de rayon : sans ce rayon de saisie, un arc
+    // ne serait survolable qu'au pixel près. Seules les `Line` s'en trouvent affectées.
+    this.rayon.params.Line = { threshold: SEUIL_SURVOL_ARC };
 
     this.brancherEntrees();
     this.redimensionner();
     this.boucle();
   }
 
-  afficherArcs(arcs: ReadonlyArray<ArcAffiche>): void {
-    this.arcs.afficher(arcs);
+  afficherArcs(arcs: ReadonlyArray<ArcAffiche>, chargeeA?: number): void {
+    this.arcs.afficher(arcs, chargeeA);
+  }
+
+  afficherMarqueurs(marqueurs: ReadonlyArray<MarqueurCarte>): void {
+    this.marqueurs.afficher(marqueurs);
   }
 
   afficherRegions(donnees: DonneesRegions): void {
@@ -124,6 +149,10 @@ export class MoteurCarte {
 
   definirNationJoueur(nation: string | null): void {
     this.arcs.definirNationJoueur(nation);
+  }
+
+  accentuerArc(id: string | null): void {
+    this.arcs.accentuer(id);
   }
 
   selectionner(nom: string | null): void {
@@ -192,13 +221,29 @@ export class MoteurCarte {
 
     this.mettreAJourSurvolRegion(impact?.point ?? null);
 
-    const suivant = touche ?? null;
-    if (suivant === this.survole) return;
-    this.survole = suivant;
+    const arc = this.arcs.survoler(this.rayon);
+    if (arc !== this.arcSurvole) {
+      this.arcSurvole = arc;
+      this.onSurvolArc(arc);
+    }
+
+    const marqueur = this.marqueurs.survoler(this.rayon);
+    if (marqueur !== this.marqueurSurvole) {
+      this.marqueurSurvole = marqueur;
+      this.onSurvolMarqueur(
+        marqueur ? { id: marqueur, ecranX: this.pointeurEcran.x, ecranY: this.pointeurEcran.y } : null,
+      );
+    }
+
+    this.survole = touche ?? null;
+
+    // Un marqueur survolé prend la place de l'étiquette de pays : les deux s'ancrent au
+    // pointeur, elles se recouvriraient. Le clic, lui, continue de viser le pays dessous.
+    const etiquette = marqueur === null ? (this.survole?.userData.nom ?? null) : null;
+    if (etiquette === this.etiquettePays) return;
+    this.etiquettePays = etiquette;
     this.onSurvol(
-      suivant
-        ? { nom: suivant.userData.nom, ecranX: this.pointeurEcran.x, ecranY: this.pointeurEcran.y }
-        : null,
+      etiquette ? { nom: etiquette, ecranX: this.pointeurEcran.x, ecranY: this.pointeurEcran.y } : null,
     );
   }
 
@@ -230,11 +275,13 @@ export class MoteurCarte {
     this.controles.update();
     this.mettreAJourSurvol();
     this.eclairerPays();
-    this.arcs.animer(this.camera.position);
 
     // Au zoom, la hiérarchie des traits s'inverse d'encre : les frontières de pays foncent
     // pendant que les régions apparaissent en dessous — WebGL ne connaît qu'un pixel de large.
     const distance = this.camera.position.distanceTo(this.controles.target);
+    const detaille = distance < DISTANCE_DETAIL;
+    this.arcs.animer(this.camera, detaille);
+    this.marqueurs.animer(this.camera, detaille);
     this.regions.animer(distance);
     this.frontieres.material.opacity =
       distance < DISTANCE_REGIONS_ABSENTES

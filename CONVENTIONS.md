@@ -16,7 +16,7 @@ En pratique :
 | Portée | Où | Exemple |
 |---|---|---|
 | utilisé par un seul composant | dans le même fichier, sous le composant | `Compteur`, `Slots` dans `BandeauNation.tsx` |
-| utilisé par une seule route | `routes/-<route>/` — TanStack ignore les dossiers préfixés `-` | `routes/-plateau/PanneauMaNation.tsx` |
+| utilisé par une seule route | `routes/-<route>/` — TanStack ignore les dossiers préfixés `-` | `routes/-plateau/PanneauPaysSelectionne.tsx` |
 | utilisé par plusieurs routes | dossier de la couche concernée | `coque/`, `carte/` |
 | logique de jeu, sans UI | `domaine/` | `geo.ts` |
 

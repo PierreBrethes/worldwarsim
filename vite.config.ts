@@ -10,6 +10,9 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // Le dépôt vit sur /mnt/c : inotify ne traverse pas le pont WSL2, aucun événement de
+  // fichier n'arrive. Sans scrutation, le HMR est muet et il faut relancer le serveur.
+  server: { watch: { usePolling: true, interval: 300 } },
   test: {
     environmentMatchGlobs: [['convex/**', 'edge-runtime']],
     server: { deps: { inline: ['convex-test'] } },

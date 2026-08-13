@@ -6,9 +6,9 @@ import {
   garderEchelleHud,
   lireEchelleHud,
 } from '@/donnees/reglages';
-import { Modale, PoigneeModale } from './Modale';
+import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
 
-export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
+export function ModaleReglages({ onFermer, ...fenetre }: ProprietesFenetre) {
   const [echelle, setEchelle] = useState(lireEchelleHud);
 
   const regler = (valeur: number) => {
@@ -18,7 +18,7 @@ export function ModaleReglages({ onFermer }: { onFermer: () => void }) {
   };
 
   return (
-    <Modale nom="reglages" onFermer={onFermer} largeur={420}>
+    <Modale nom="reglages" onFermer={onFermer} {...fenetre} largeur={420}>
       <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <PoigneeModale className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
           <span className="eyebrow">réglages</span>

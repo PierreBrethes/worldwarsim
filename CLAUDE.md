@@ -116,3 +116,11 @@ en saison réelle la file de production reste vide. `convex/unites.test.ts` grav
 
 Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque écran 4.x y est
 spécifié. L'oublier coûte une réécriture.
+
+## Instructions
+
+Git : 
+Ne commit pas
+Ne push pas
+
+Utilise git seulement pour de l'exploration si besoin

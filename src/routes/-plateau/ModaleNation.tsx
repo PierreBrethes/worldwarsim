@@ -7,8 +7,8 @@ import type { Batiment, VueJoueur } from '@/domaine/vue-joueur';
 import { libellePile, minutesCourantes, stockCourant } from '@/domaine/vue-joueur';
 import { Drapeau } from '@/emblemes/Drapeau';
 import { IconeRessource, couleurRessource } from '@/emblemes/IconeRessource';
-import { enHeuresMinutes } from './duree';
-import { Modale, PoigneeModale } from './Modale';
+import { enHeuresMinutes } from '@/domaine/duree';
+import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
 
 const EFFET_PAR_BATIMENT: Readonly<Record<Batiment['cle'], string>> = {
   qg: 'débloque les paliers et relève les plafonds de stockage',
@@ -22,16 +22,16 @@ export function ModaleNation({
   vue,
   jeton,
   onFermer,
-}: {
+  ...fenetre
+}: ProprietesFenetre & {
   vue: VueJoueur;
   jeton: string;
-  onFermer: () => void;
 }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const maintenant = useHorloge();
 
   return (
-    <Modale nom="nation" onFermer={onFermer} alignement="haut" largeur={880}>
+    <Modale nom="nation" onFermer={onFermer} {...fenetre} alignement="haut" largeur={880}>
       <div className="trame-papier flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[26px] pt-[18px] pb-6">
         <PoigneeModale className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>fiche de nation</span>

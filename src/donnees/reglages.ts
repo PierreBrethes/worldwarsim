@@ -20,6 +20,16 @@ export function garderEchelleHud(pourcent: number): void {
   appliquerEchelleHud(pourcent);
 }
 
+const CLE_FRISE_REPLIEE = 'wws-frise-repliee';
+
+/** Une frise repliée le reste : c'est un choix d'encombrement du bureau, pas un état d'écran. */
+export const lireFriseRepliee = (): boolean =>
+  localStorage.getItem(CLE_FRISE_REPLIEE) === 'repliee';
+
+export const garderFriseRepliee = (repliee: boolean): void => {
+  localStorage.setItem(CLE_FRISE_REPLIEE, repliee ? 'repliee' : 'deployee');
+};
+
 const CLE_DISPOSITION = 'wws-disposition-modales';
 
 export type GeometrieModale = {

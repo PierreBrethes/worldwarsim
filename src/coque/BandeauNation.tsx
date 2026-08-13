@@ -1,9 +1,11 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { VueJoueur } from '@/domaine/vue-joueur';
-import { stockCourant } from '@/domaine/vue-joueur';
+import { minutesCourantes, stockCourant } from '@/domaine/vue-joueur';
 import { IconeRessource, couleurRessource, type CleRessource } from '@/emblemes/IconeRessource';
 import type { RecherchePlateau } from '@/routes/plateau';
+import { avecModale } from '@/routes/plateau';
 import { CartoucheNation } from './CartoucheNation';
+import { enHeuresMinutes } from '@/domaine/duree';
 import { IconeJournal } from './Glyphe';
 import { useHorloge } from './horloge';
 
@@ -18,9 +20,11 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
     (saison.dureeHeures - saison.ecouleHeures) * 60 - (maintenant - vue.chargeeA) / 60_000,
   );
   const critique = vue.journal.find((depeche) => depeche.gravite === 'critique') ?? null;
+  const echeance = prochaineEcheance(vue, maintenant);
   return (
+    // Le bandeau ne fait plus déborder la page : c'est lui qui glisse, la carte garde l'écran.
     <header
-      className="hud flex min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-4"
+      className="hud flex shrink-0 items-center gap-0 overflow-x-auto overscroll-x-contain border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ fontFamily: 'var(--font-body)', height: HAUTEUR_BANDEAU }}
     >
       <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)]">
@@ -53,11 +57,27 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
         <Slots total={moi.slots.total} utilises={moi.slots.utilises} />
       </Groupe>
 
+      <Groupe>
+        <div>
+          <div className="eyebrow-sombre">Prochaine échéance</div>
+          <div className="flex items-baseline gap-3">
+            <span className="block max-w-[220px] overflow-hidden text-[13px] text-ellipsis text-[var(--paper)]">
+              {echeance ? echeance.libelle : '—'}
+            </span>
+            {echeance && (
+              <span className="font-[var(--font-mono)] text-[12px] text-[var(--notable)]">
+                {enHeuresMinutes(echeance.minutes)}
+              </span>
+            )}
+          </div>
+        </div>
+      </Groupe>
+
       <div className="flex-1" />
 
       <Link
         to="/plateau"
-        search={{ ...recherche, modale: 'journal' as const }}
+        search={avecModale(recherche, 'journal')}
         className="flex h-full shrink-0 items-center gap-3 border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap hover:bg-[var(--ink)]"
       >
         <span style={{ color: critique ? 'var(--critique)' : 'var(--routine)' }}>
@@ -92,6 +112,36 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
         </div>
       </Groupe>
     </header>
+  );
+}
+
+type Echeance = { readonly libelle: string; readonly minutes: number };
+
+// Arrivées et chantier seulement : l'embargo n'existe pas encore dans `VueJoueur`, et le
+// bandeau n'est pas un motif suffisant pour étendre le type avant que le serveur le porte.
+function prochaineEcheance(vue: VueJoueur, maintenant: number): Echeance | null {
+  const arrivees = vue.arcs.flatMap((arc) =>
+    arc.etat === 'mien'
+      ? [
+          {
+            libelle: `arrivée · ${arc.destinationLibelle}`,
+            minutes: minutesCourantes(arc.minutesRestantes, vue.chargeeA, maintenant),
+          },
+        ]
+      : [],
+  );
+  const chantier = vue.moi.chantier
+    ? [
+        {
+          libelle: `chantier · ${vue.moi.chantier.nom}`,
+          minutes: minutesCourantes(vue.moi.chantier.resteMinutes, vue.chargeeA, maintenant),
+        },
+      ]
+    : [];
+  return [...arrivees, ...chantier].reduce<Echeance | null>(
+    (plusProche, candidate) =>
+      plusProche === null || candidate.minutes < plusProche.minutes ? candidate : plusProche,
+    null,
   );
 }
 

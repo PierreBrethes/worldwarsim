@@ -6,31 +6,18 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
-  SRGBColorSpace,
-  TextureLoader,
   Vector3,
   type Texture,
 } from 'three';
+import { orienterVersCamera, textureDe } from './billboard';
 
 const HAUTEUR_SPRITE = 10;
-
+const HAUTEUR_CONE = 8;
 /**
- * Les textures sont partagées entre toutes les têtes : deux mouvements de blindés français
- * pointent le même bitmap GPU. Le cache n'est jamais vidé — le manifeste des sprites est
- * borné et petit, le garder chaud coûte moins que de recharger à chaque `afficher`.
+ * Part de la distance caméra : une tête de mouvement garde sa cote à l'écran. À taille fixe
+ * dans le monde, elle est un grain de poussière en orbite et couvre la mer du Nord au rapproché.
  */
-const cacheTextures = new Map<string, Texture>();
-const chargeur = new TextureLoader();
-
-function textureDe(url: string): Texture {
-  let texture = cacheTextures.get(url);
-  if (!texture) {
-    texture = chargeur.load(url);
-    texture.colorSpace = SRGBColorSpace;
-    cacheTextures.set(url, texture);
-  }
-  return texture;
-}
+const PART_TETE = 0.028;
 
 /**
  * La tête d'un mouvement : le sprite de l'unité en billboard quand on le connaît, le cône
@@ -43,7 +30,8 @@ export class TeteMouvement {
   private readonly mesh: Mesh;
   private readonly genre: 'sprite' | 'cone';
   private readonly texture: Texture | null = null;
-  private echelleAppliquee = false;
+  private aspect = 1;
+  private aspectMesure = false;
   private versLOuest = false;
 
   constructor(urlSprite: string | null, couleurCone: string) {
@@ -87,13 +75,14 @@ export class TeteMouvement {
   }
 
   orienter(positionCamera: Vector3): void {
-    if (this.genre !== 'sprite') return;
-    this.objet.rotation.y = Math.atan2(
-      positionCamera.x - this.objet.position.x,
-      positionCamera.z - this.objet.position.z,
-    );
-    this.appliquerEchelle();
-    this.mesh.scale.x = Math.abs(this.mesh.scale.x) * (this.versLOuest ? -1 : 1);
+    const hauteur = this.objet.position.distanceTo(positionCamera) * PART_TETE;
+    if (this.genre !== 'sprite') {
+      this.mesh.scale.setScalar(hauteur / HAUTEUR_CONE);
+      return;
+    }
+    orienterVersCamera(this.objet, positionCamera);
+    this.mesurerAspect();
+    this.mesh.scale.set(this.aspect * hauteur * (this.versLOuest ? -1 : 1), hauteur, 1);
   }
 
   detruire(): void {
@@ -106,11 +95,11 @@ export class TeteMouvement {
    * Le rapport largeur/hauteur n'est connu qu'une fois l'image décodée ; plutôt qu'un
    * rappel de chargement par tête, on regarde à chaque orientation tant qu'il manque.
    */
-  private appliquerEchelle(): void {
-    if (this.echelleAppliquee) return;
+  private mesurerAspect(): void {
+    if (this.aspectMesure) return;
     const image = this.texture?.image as { width?: number; height?: number } | undefined;
     if (!image?.width || !image.height) return;
-    this.mesh.scale.set((image.width / image.height) * HAUTEUR_SPRITE, HAUTEUR_SPRITE, 1);
-    this.echelleAppliquee = true;
+    this.aspect = image.width / image.height;
+    this.aspectMesure = true;
   }
 }

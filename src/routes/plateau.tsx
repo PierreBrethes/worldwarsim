@@ -9,10 +9,9 @@ import type { Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
 import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
+import { ETAT_FACTICE, appliquerEtatFactice, marqueursFactices } from '@/donnees/etat-factice';
+import { FriseMouvements } from './-plateau/FriseMouvements';
 import { InfoBulleRegion } from './-plateau/InfoBulleRegion';
-import { LegendeEtatsArc } from './-plateau/LegendeEtatsArc';
-import { PanneauCompteurs } from './-plateau/PanneauCompteurs';
-import { PanneauMaNation } from './-plateau/PanneauMaNation';
 import { PanneauPaysSelectionne } from './-plateau/PanneauPaysSelectionne';
 
 const ModaleJournal = lazy(() =>
@@ -31,20 +30,47 @@ const ModaleReglages = lazy(() =>
   import('./-plateau/ModaleReglages').then((module) => ({ default: module.ModaleReglages })),
 );
 
+const MODALES = ['journal', 'troupes', 'production', 'nation', 'reglages'] as const;
+
+export type Modale = (typeof MODALES)[number];
+
+/** L'ordre du tableau est l'ordre d'empilement : la dernière entrée est au premier plan. */
 export type RecherchePlateau = {
   pays?: string;
-  modale?: 'journal' | 'troupes' | 'production' | 'nation' | 'reglages';
+  modales?: Modale[];
 };
 
-const MODALES = ['journal', 'troupes', 'production', 'nation', 'reglages'] as const;
+export function avecModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
+  const autres = (recherche.modales ?? []).filter((ouverte) => ouverte !== nom);
+  return { ...recherche, modales: [...autres, nom] };
+}
+
+export function sansModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
+  const { modales, ...reste } = recherche;
+  const restantes = (modales ?? []).filter((ouverte) => ouverte !== nom);
+  return restantes.length ? { ...reste, modales: restantes } : reste;
+}
+
+export const basculerModale = (recherche: RecherchePlateau, nom: Modale): RecherchePlateau =>
+  (recherche.modales ?? []).includes(nom) ? sansModale(recherche, nom) : avecModale(recherche, nom);
+
+export const modaleOuverte = (recherche: RecherchePlateau, nom: Modale): boolean =>
+  (recherche.modales ?? []).includes(nom);
+
+// `modale=journal` était le paramètre d'avant l'empilement : un vieux lien reste ouvrable.
+function lireModales(brut: Record<string, unknown>): Modale[] {
+  const demandees = Array.isArray(brut.modales) ? brut.modales : [brut.modales ?? brut.modale];
+  return demandees
+    .filter((valeur): valeur is Modale => MODALES.includes(valeur as Modale))
+    .filter((nom, rang, toutes) => toutes.indexOf(nom) === rang);
+}
 
 export const Route = createFileRoute('/plateau')({
   validateSearch: (brut: Record<string, unknown>): RecherchePlateau => {
     const recherche: RecherchePlateau = {};
     if (typeof brut.pays === 'string') recherche.pays = brut.pays;
-    if (MODALES.includes(brut.modale as (typeof MODALES)[number])) {
-      recherche.modale = brut.modale as (typeof MODALES)[number];
-    }
+    const modales = lireModales(brut);
+    if (modales.length) recherche.modales = modales;
     return recherche;
   },
   loader: chargerPartie,
@@ -93,14 +119,21 @@ function PlateauReactif({
   jeton: string;
 }) {
   const serveur = useQuery(api.vue.vueJoueur, { jeton });
-  const vue = serveur ? adapterVueServeur(monde, serveur) : vueInitiale;
+  const vueServie = serveur ? adapterVueServeur(monde, serveur) : vueInitiale;
+  const vue = ETAT_FACTICE ? appliquerEtatFactice(vueServie) : vueServie;
   return <ContenuPlateau monde={monde} vue={vue} jeton={jeton} />;
 }
 
 function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string }) {
-  const { pays, modale } = Route.useSearch();
+  const { pays, modales = [] } = Route.useSearch();
   const naviguer = useNavigate({ from: Route.fullPath });
   const [regionSurvolee, setRegionSurvolee] = useState<string | null>(null);
+  // Deux sources pour un seul accent : quand le pointeur quitte la carte pour entrer dans une
+  // fiche, la boucle de rendu annonce « plus rien sous le pointeur » à l'image d'après. Une
+  // seule variable et cet écho effacerait le survol que la fiche vient d'allumer.
+  const [arcSurvole, setArcSurvole] = useState<string | null>(null);
+  const [ficheSurvolee, setFicheSurvolee] = useState<string | null>(null);
+  const mouvementSurvole = ficheSurvolee ?? arcSurvole;
 
   const selectionner = useCallback(
     (nom: string | null) => {
@@ -120,11 +153,21 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
     [vue.moi, vue.adversaires],
   );
 
-  const fermerModale = useCallback(() => {
-    void naviguer({
-      search: ({ modale: _ecartee, ...reste }) => reste,
-    });
-  }, [naviguer]);
+  const marqueurs = useMemo(() => (ETAT_FACTICE ? marqueursFactices(vue) : []), [vue]);
+
+  const fermerModale = useCallback(
+    (nom: Modale) => {
+      void naviguer({ search: (precedente) => sansModale(precedente, nom) });
+    },
+    [naviguer],
+  );
+
+  const mettreEnAvant = useCallback(
+    (nom: Modale) => {
+      void naviguer({ search: (precedente) => avecModale(precedente, nom), replace: true });
+    },
+    [naviguer],
+  );
 
   // L'édition du réveil : s'il y a du critique non lu, le journal est déjà posé
   // sur le bureau en arrivant. Une seule fois par arrivée, et jamais par-dessus
@@ -133,13 +176,13 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
   useEffect(() => {
     if (editionServie.current) return;
     editionServie.current = true;
-    if (modale) return;
+    if (modales.length) return;
     if (!vue.journal.some((depeche) => depeche.gravite === 'critique')) return;
     void naviguer({
-      search: (precedente) => ({ ...precedente, modale: 'journal' }),
+      search: (precedente) => avecModale(precedente, 'journal'),
       replace: true,
     });
-  }, [modale, vue.journal, naviguer]);
+  }, [modales, vue.journal, naviguer]);
 
   return (
     <Coque vue={vue}>
@@ -147,30 +190,59 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
         <Carte
           monde={monde}
           arcs={vue.arcs}
+          marqueurs={marqueurs}
+          chargeeA={vue.chargeeA}
           encreParPays={encreParPays}
           paysSelectionne={pays ?? null}
           nationJoueur={vue.moi.nation}
+          mouvementAccentue={mouvementSurvole}
           onSelection={selectionner}
           onSurvolRegion={setRegionSurvolee}
+          onSurvolArc={setArcSurvole}
         />
-        <PanneauMaNation vue={vue} />
         {pays && <PanneauPaysSelectionne pays={pays} vue={vue} />}
-        <PanneauCompteurs arcs={vue.arcs} chargeeA={vue.chargeeA} />
-        <div className="absolute right-4 bottom-[26px] z-10 flex flex-col items-end gap-3">
+        <FriseMouvements
+          vue={vue}
+          mouvementSurvole={mouvementSurvole}
+          mouvementDesigneParLaCarte={ficheSurvolee ? null : arcSurvole}
+          onSurvol={setFicheSurvolee}
+          onSelection={selectionner}
+        />
+        <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-3">
           {regionSurvolee && <InfoBulleRegion nom={regionSurvolee} />}
-          <LegendeEtatsArc couverture={vue.couverture} />
         </div>
       </div>
       <Suspense fallback={null}>
-        {modale === 'journal' && <ModaleJournal vue={vue} onFermer={fermerModale} />}
-        {modale === 'troupes' && (
-          <ModaleTroupes vue={vue} monde={monde} pays={pays ?? null} onFermer={fermerModale} />
-        )}
-        {modale === 'production' && (
-          <ModaleProduction nation={vue.moi.nation} jeton={jeton} onFermer={fermerModale} />
-        )}
-        {modale === 'nation' && <ModaleNation vue={vue} jeton={jeton} onFermer={fermerModale} />}
-        {modale === 'reglages' && <ModaleReglages onFermer={fermerModale} />}
+        {modales.map((nom, rang) => {
+          const fenetre = {
+            rang,
+            auPremierPlan: rang === modales.length - 1,
+            surMiseEnAvant: () => mettreEnAvant(nom),
+            onFermer: () => fermerModale(nom),
+          };
+          switch (nom) {
+            case 'journal':
+              return <ModaleJournal key={nom} vue={vue} {...fenetre} />;
+            case 'troupes':
+              return (
+                <ModaleTroupes
+                  key={nom}
+                  vue={vue}
+                  monde={monde}
+                  pays={pays ?? null}
+                  {...fenetre}
+                />
+              );
+            case 'production':
+              return (
+                <ModaleProduction key={nom} nation={vue.moi.nation} jeton={jeton} {...fenetre} />
+              );
+            case 'nation':
+              return <ModaleNation key={nom} vue={vue} jeton={jeton} {...fenetre} />;
+            case 'reglages':
+              return <ModaleReglages key={nom} {...fenetre} />;
+          }
+        })}
       </Suspense>
       {/* le rideau prolonge le noir du lancement jusqu'à la première image de la carte */}
       <div

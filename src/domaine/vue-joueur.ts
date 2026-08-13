@@ -41,6 +41,15 @@ export function libellePile(pile: Pile): string {
 }
 
 /**
+ * Ce que le renseignement a percé d'un mouvement adverse. Union imbriquée plutôt qu'un
+ * booléen doublé de champs optionnels : tant que la percée n'a pas eu lieu, la fiche n'a
+ * structurellement ni type ni composition à laisser filer.
+ */
+export type IdentificationMouvement =
+  | { readonly perce: false }
+  | { readonly perce: true; readonly type: TypeMouvement; readonly pile: Pile };
+
+/**
  * Les quatre états d'affichage d'un arc. L'union discriminée est le garde-fou du
  * brouillard : un arc adverse n'a structurellement ni `type` ni `pile`, donc on ne
  * peut pas les afficher par distraction.
@@ -51,11 +60,23 @@ export type ArcAffiche =
       readonly id: string;
       readonly depuis: LonLat;
       readonly vers: LonLat;
+      // `…Nom` désigne le pays de `monde.json`, en anglais : c'est la clé qui sélectionne
+      // le pays sur la carte. `…Libelle` est ce qui s'imprime, en français. Les deux
+      // existent parce que Natural Earth n'a pas de traduction et que l'écran, lui, est
+      // en français ; les confondre remettrait « United Kingdom » sur une fiche.
       readonly origineNom: string;
       readonly destinationNom: string;
+      readonly origineLibelle: string;
+      readonly destinationLibelle: string;
       readonly type: TypeMouvement;
       readonly pile: Pile;
       readonly minutesRestantes: number;
+      /**
+       * Une arrivée qui tombe dans la plage de repos de la cible immobilise le mouvement à
+       * la frontière : il n'est résolu qu'à la sortie de plage. `null` quand la résolution
+       * a lieu à l'arrivée — voir `sortieDePlage`.
+       */
+      readonly attenteFrontiere: { readonly resolutionDansMinutes: number } | null;
       readonly avancement: number;
     }
   | {
@@ -65,6 +86,9 @@ export type ArcAffiche =
       readonly vers: LonLat;
       readonly nationSuspectee: string | null;
       readonly capDegres: number;
+      /** Le cap coupe mon territoire ou l'un de mes avant-postes : la fiche passe en critique. */
+      readonly capSurMoi: boolean;
+      readonly identification: IdentificationMouvement;
       readonly minutesRestantesEstimees: number | null;
       readonly avancement: number;
     }
