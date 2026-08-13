@@ -100,44 +100,28 @@ export function Modale({
 
   useEffect(() => {
     conteneur.current?.focus();
+    // Échap ferme, mais pas de piège à Tab : une fenêtre posée sur le bureau
+    // n'est pas exclusive, le focus doit pouvoir repartir vers la carte.
     const surTouche = (evenement: KeyboardEvent) => {
-      if (evenement.key === 'Escape') {
-        onFermer();
-        return;
-      }
-      if (evenement.key !== 'Tab') return;
-      const racine = conteneur.current;
-      if (!racine) return;
-      const focusables = racine.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusables.length === 0) return;
-      const premier = focusables[0]!;
-      const dernier = focusables[focusables.length - 1]!;
-      if (evenement.shiftKey && document.activeElement === premier) {
-        evenement.preventDefault();
-        dernier.focus();
-      } else if (!evenement.shiftKey && document.activeElement === dernier) {
-        evenement.preventDefault();
-        premier.focus();
-      }
+      if (evenement.key === 'Escape') onFermer();
     };
     document.addEventListener('keydown', surTouche);
     return () => document.removeEventListener('keydown', surTouche);
   }, [onFermer]);
 
+  // Une fenêtre, pas une modale : aucun voile, la carte reste vivante derrière.
+  // Le conteneur ne sert qu'au placement et laisse passer les clics.
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      className={`fixed inset-0 z-40 flex justify-center overflow-auto bg-[rgba(23,18,8,.68)] ${
+      className={`pointer-events-none fixed inset-0 z-40 flex justify-center ${
         alignement === 'haut' ? 'items-start px-6 py-[34px]' : 'items-center p-8'
       }`}
     >
       <div
         ref={conteneur}
         tabIndex={-1}
-        className="hud @container relative flex max-h-full shrink-0 flex-col outline-none"
+        role="dialog"
+        className="hud @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
           transform: `translate(${decalage.x}px, ${decalage.y}px)`,
           width: taille ? taille.largeur : `min(${largeur}px, 100%)`,

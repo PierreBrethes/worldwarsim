@@ -7,6 +7,11 @@ export function RailSurfaces({ saison }: { saison: number }) {
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
   const commun: RecherchePlateau = recherche.pays ? { pays: recherche.pays } : {};
 
+  // Le rail est un jeu de bascules, pas une navigation : cliquer la surface déjà
+  // ouverte la referme, et l'état nu (carte seule) n'a pas besoin d'entrée « plateau ».
+  const bascule = (modale: NonNullable<RecherchePlateau['modale']>): RecherchePlateau =>
+    recherche.modale === modale ? commun : { ...commun, modale };
+
   const surfaces: ReadonlyArray<{
     titre: string;
     libelle: string;
@@ -18,28 +23,21 @@ export function RailSurfaces({ saison }: { saison: number }) {
       titre: 'Troupes — inventaire et envoi',
       libelle: 'troupes',
       icone: <IconeTroupes />,
-      cible: { ...commun, modale: 'troupes' },
+      cible: bascule('troupes'),
       active: recherche.modale === 'troupes',
-    },
-    {
-      titre: 'Plateau',
-      libelle: 'plateau',
-      icone: <IconePlateau />,
-      cible: commun,
-      active: !recherche.modale,
     },
     {
       titre: 'Production — recrutement d’unités',
       libelle: 'prod.',
       icone: <IconeProduction />,
-      cible: { ...commun, modale: 'production' },
+      cible: bascule('production'),
       active: recherche.modale === 'production',
     },
     {
       titre: 'Ma nation',
       libelle: 'nation',
       icone: <IconeNation />,
-      cible: { ...commun, modale: 'nation' },
+      cible: bascule('nation'),
       active: recherche.modale === 'nation',
     },
   ];
@@ -85,7 +83,7 @@ export function RailSurfaces({ saison }: { saison: number }) {
       <div className="flex flex-col items-center gap-2">
         <Link
           to="/plateau"
-          search={{ ...commun, modale: 'reglages' }}
+          search={bascule('reglages')}
           title="Réglages"
           className={
             recherche.modale === 'reglages'
@@ -116,15 +114,6 @@ function IconeTroupes() {
       <circle cx="10" cy="4.6" r="2.1" />
       <path d="M5.5 16.5v-4.2c0-2.4 2-4 4.5-4s4.5 1.6 4.5 4v4.2" />
       <path d="M3 16.5h14" />
-    </Glyphe>
-  );
-}
-
-function IconePlateau() {
-  return (
-    <Glyphe>
-      <path d="M5.5 6h9l2.5 8h-14z" />
-      <path d="M10 6v8M4.4 10.5h11.2" />
     </Glyphe>
   );
 }
