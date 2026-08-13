@@ -25,6 +25,11 @@ export const DISTANCE_REGIONS_ABSENTES = 65;
  */
 const OPACITE_PLEINE = 0.3;
 
+/** L'empilement au ras de la dalle : surbrillance sous les traits, traits sous les frontières. */
+const POSE_TRAIT = 0.003;
+const POSE_SURBRILLANCE = 0.001;
+const POSE_ACCESSOIRE = 0.001;
+
 type RegionPreparee = {
   readonly region: RegionAffichee;
   readonly boite: readonly [minX: number, minY: number, maxX: number, maxY: number];
@@ -78,8 +83,8 @@ export class CoucheRegions {
         const [ax, ay] = ligne[i]!;
         const [bx, by] = ligne[i + 1]!;
         points.push(
-          ax - this.repere.centreX, EPAISSEUR_PAYS + 0.02, ay - this.repere.centreY,
-          bx - this.repere.centreX, EPAISSEUR_PAYS + 0.02, by - this.repere.centreY,
+          ax - this.repere.centreX, EPAISSEUR_PAYS + POSE_TRAIT, ay - this.repere.centreY,
+          bx - this.repere.centreX, EPAISSEUR_PAYS + POSE_TRAIT, by - this.repere.centreY,
         );
       }
     }
@@ -137,7 +142,7 @@ export class CoucheRegions {
       Math.max(
         0,
         (DISTANCE_REGIONS_ABSENTES - distanceCamera) /
-          (DISTANCE_REGIONS_ABSENTES - DISTANCE_REGIONS_PLEINES),
+        (DISTANCE_REGIONS_ABSENTES - DISTANCE_REGIONS_PLEINES),
       ),
     );
     this.materiauLignes.opacity = this.part * OPACITE_PLEINE;
@@ -188,7 +193,7 @@ export class CoucheRegions {
     for (let i = 0; i < positions.count; i++) {
       positions.setY(
         i,
-        EPAISSEUR_PAYS + 0.015 + this.repere.chute(positions.getX(i), positions.getZ(i)),
+        EPAISSEUR_PAYS + POSE_SURBRILLANCE + this.repere.chute(positions.getX(i), positions.getZ(i)),
       );
     }
     positions.needsUpdate = true;
@@ -215,7 +220,7 @@ export class CoucheRegions {
       const y = minY + alea() * (maxY - minY);
       if (!contient(preparee.region, x, y)) continue;
       const accessoire = creerAccessoire(type);
-      accessoire.position.copy(this.repere.versMonde(x, y, EPAISSEUR_PAYS + 0.01));
+      accessoire.position.copy(this.repere.versMonde(x, y, EPAISSEUR_PAYS + POSE_ACCESSOIRE));
       accessoire.rotation.y = alea() * Math.PI * 2;
       accessoire.scale.setScalar(0.0001);
       accessoire.userData.taille = taille * (0.7 + alea() * 0.6);

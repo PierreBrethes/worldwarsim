@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { enHeuresMinutes } from '@/domaine/duree';
-import {
-  URGENCE_MS,
-  type EtiquetteCarte,
-  type LigneEtiquette,
-  type PictoEtiquette,
-} from '@/domaine/etiquettes';
+import { URGENCE_MS, type EtiquetteCarte, type LigneEtiquette } from '@/domaine/etiquettes';
 import type { NiveauDetail, ProjectionEtiquette } from './moteur/etiquettes';
 import type { MoteurCarte } from './moteur';
 
@@ -26,11 +21,12 @@ import type { MoteurCarte } from './moteur';
  * - `etiquette--urgente` — il reste moins de cinq minutes ;
  * - `etiquette--identifie` — mouvement adverse percé par le renseignement ;
  * - `etiquette--cliquable` — le clic sélectionne le pays hôte ;
- * - `etiquette-glyphe`, `etiquette-bloc`, `etiquette-barre`,
+ * - `etiquette-bloc`, `etiquette-barre`,
  *   `etiquette-ligne--nature | --chiffres | --effectif | --compte | --mention` — l'anatomie.
  *
  * L'anatomie ne compte qu'un trait : la barre d'encre nationale longe le texte puis descend
- * jusqu'au socle. La maquette en dessinait deux — une barre et un appel plus fin.
+ * jusqu'à l'ancre. La maquette en dessinait deux — une barre et un appel plus fin — et plantait
+ * un picto au sol ; il ne reste que la flaque d'ombre, qui tient lieu de socle.
  */
 export function EtiquettesCarte({
   etiquettes,
@@ -189,9 +185,6 @@ export function EtiquettesCarte({
               if (etiquette.paysHote !== null) onSelection(etiquette.paysHote);
             }}
           >
-            <span className="etiquette-glyphe">
-              <PictoSocle picto={etiquette.picto} />
-            </span>
             <div
               className="etiquette-bloc"
               ref={(noeud) => {
@@ -221,35 +214,6 @@ export function EtiquettesCarte({
         </div>
       ))}
     </div>
-  );
-}
-
-/**
- * Pictos provisoires. Ils tiennent la place des vraies planches, qui suivront le point de
- * départ du trajet : quand elles arriveront, seul ce composant change.
- */
-function PictoSocle({ picto }: { picto: PictoEtiquette | null }) {
-  if (picto === null) return null;
-  return (
-    <svg
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.6}
-      className="block h-full w-full"
-    >
-      {picto === 'extraction' && <path d="M2 13 L7 2 L12 13 M4.4 9 H9.6" />}
-      {picto === 'relais' && <path d="M4 13 V1.5 M4 2 L11 4.6 L4 7.2" />}
-      {picto === 'ecoute' && (
-        <>
-          <path d="M7 13 V6.5" />
-          <path d="M3 6.5 A4 4 0 0 1 11 6.5" />
-          <path d="M5 6.5 A2 2 0 0 1 9 6.5" />
-        </>
-      )}
-      {picto === 'pile' && <path d="M1.5 4 H12.5 M1.5 7.5 H12.5 M1.5 11 H8.5" />}
-      {picto === 'chantier' && <path d="M3.5 13 V2 H12 M3.5 4.5 L9.5 13 M12 2 V5.5" />}
-    </svg>
   );
 }
 

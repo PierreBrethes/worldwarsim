@@ -8,8 +8,11 @@ import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
  */
 export const DISTANCE_ETIQUETTE_DEPLOYEE = 110;
 
-/** Hauteur d'ancrage au-dessus de la croûte des pays, pour ne pas coudre l'appel au sol. */
-const ELEVATION_ANCRE = EPAISSEUR_PAYS + 0.2;
+/**
+ * L'ancre est posée sur la croûte, pas au-dessus : l'appel doit partir du sol qu'il désigne.
+ * Le cheveu qui reste évite que le test d'horizon ne s'occulte lui-même au ras de la courbure.
+ */
+const ELEVATION_ANCRE = EPAISSEUR_PAYS + 0.01;
 
 /**
  * La courbure ne cache pas beaucoup de plateau, mais elle en cache : six points suffisent à

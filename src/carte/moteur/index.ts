@@ -19,6 +19,7 @@ import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { CoucheArcs, SEUIL_SURVOL_ARC } from './arcs';
 import { Courbure } from './courbure';
 import { CoucheEtiquettes, type AncreNommee, type ProjectionEtiquette } from './etiquettes';
+import { construireLavisCotier } from './lavis';
 import { PALETTE } from './palette';
 import { construirePays, type MeshPays } from './pays';
 import { construirePlateau } from './plateau';
@@ -83,10 +84,12 @@ export class MoteurCarte {
     this.scene.background = new Color(PALETTE.bureau);
     this.scene.fog = new Fog(PALETTE.bureau, 460, 950);
 
-    this.camera = new PerspectiveCamera(42, 1, 1, 3000);
+    this.camera = new PerspectiveCamera(42, 1, 0.5, 3000);
     this.camera.position.set(30, 250, 300);
 
-    this.rendu = new WebGLRenderer({ antialias: true });
+    // Le pochoir sert au lavis côtier, dont les rubans se recouvrent : sans lui, three ouvre
+    // le contexte sans tampon de stencil depuis r163 et le matériau réclamerait dans le vide.
+    this.rendu = new WebGLRenderer({ antialias: true, stencil: true });
     this.rendu.setPixelRatio(Math.min(devicePixelRatio, 2));
     conteneur.appendChild(this.rendu.domElement);
 
@@ -95,7 +98,7 @@ export class MoteurCarte {
     this.controles.dampingFactor = 0.08;
     this.controles.minPolarAngle = 0.3;
     this.controles.maxPolarAngle = 1.15;
-    this.controles.minDistance = 16;
+    this.controles.minDistance = 8;
     this.controles.maxDistance = 640;
     this.controles.screenSpacePanning = false;
 
@@ -112,6 +115,8 @@ export class MoteurCarte {
     )) {
       this.scene.add(objet);
     }
+
+    this.scene.add(construireLavisCotier(monde, this.repere, this.courbure));
 
     const { meshes, frontieres } = construirePays(monde, this.repere, this.courbure);
     this.pays = meshes;

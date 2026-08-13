@@ -2,9 +2,11 @@ import { Vector3 } from 'three';
 import type { LonLat } from '@/domaine/geo';
 import type { EchantillonContour, Monde } from '@/domaine/monde';
 
-export const EPAISSEUR_PAYS = 0.96;
-export const NIVEAU_MER = -0.25;
-export const HAUTEUR_SOCLE = 7;
+export const EPAISSEUR_PAYS = 0.08;
+export const NIVEAU_MER = -0.10;
+/** Ce dont la dalle d'un pays descend sous zéro : sa falaise plonge dans l'eau au lieu d'y flotter. */
+export const TIRANT_EAU = 0.10;
+export const HAUTEUR_SOCLE = 5;
 const RAYON_COURBURE = 900;
 
 /**

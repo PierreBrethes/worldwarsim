@@ -16,7 +16,7 @@ import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
  * plus. La mer se distingue par son dessin seul : liseré de sillage pâle et jalon coque.
  * Seul l'aérien décolle.
  */
-const ALTITUDE_SURFACE = EPAISSEUR_PAYS + 0.06;
+const ALTITUDE_SURFACE = EPAISSEUR_PAYS + 0.006;
 
 /** La flèche de l'arc aérien : une part de la corde, bornée aux deux bouts. */
 export const PART_FLECHE_AIR = 0.18;

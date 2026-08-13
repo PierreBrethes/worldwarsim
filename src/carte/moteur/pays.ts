@@ -12,11 +12,22 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Monde, PaysProjete } from '@/domaine/monde';
 import type { Courbure } from './courbure';
 import { PALETTE } from './palette';
-import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
+import { EPAISSEUR_PAYS, TIRANT_EAU, type RepereMonde } from './repere';
 
 export type MeshPays = Mesh<BufferGeometry, MeshStandardMaterial> & {
   userData: { nom: string };
 };
+
+/**
+ * Les traits se posent au ras de la dalle ; c'est le sol qui recule dans la profondeur pour
+ * leur laisser la place. Les soulever suffirait de près, mais en vue monde la précision du
+ * buffer dépasse le dixième d'unité — aucune élévation raisonnable n'y survivrait.
+ *
+ * Recul en unités seules, jamais en facteur de pente : en vue monde le plateau se voit
+ * presque par la tranche, et le terme de pente y repousserait la terre derrière la mer.
+ */
+const POSE_FRONTIERE = 0.004;
+const RECUL_SOL = 2;
 
 function extruderAnneaux(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
   const geometries = pays.anneaux.map((anneau) => {
@@ -27,8 +38,12 @@ function extruderAnneaux(pays: PaysProjete, repere: RepereMonde): BufferGeometry
       if (index === 0) forme.moveTo(x, y);
       else forme.lineTo(x, y);
     });
-    const geometrie = new ExtrudeGeometry(forme, { depth: EPAISSEUR_PAYS, bevelEnabled: false });
+    const geometrie = new ExtrudeGeometry(forme, {
+      depth: EPAISSEUR_PAYS + TIRANT_EAU,
+      bevelEnabled: false,
+    });
     geometrie.rotateX(-Math.PI / 2);
+    geometrie.translate(0, -TIRANT_EAU, 0);
     return geometrie;
   });
   return geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
@@ -41,8 +56,8 @@ function contoursDe(pays: PaysProjete, repere: RepereMonde): BufferGeometry {
       const a = anneau[i]!;
       const b = anneau[(i + 1) % anneau.length]!;
       points.push(
-        a[0] - repere.centreX, EPAISSEUR_PAYS + 0.03, a[1] - repere.centreY,
-        b[0] - repere.centreX, EPAISSEUR_PAYS + 0.03, b[1] - repere.centreY,
+        a[0] - repere.centreX, EPAISSEUR_PAYS + POSE_FRONTIERE, a[1] - repere.centreY,
+        b[0] - repere.centreX, EPAISSEUR_PAYS + POSE_FRONTIERE, b[1] - repere.centreY,
       );
     }
   }
@@ -62,7 +77,14 @@ export function construirePays(
   for (const pays of monde.pays) {
     const mesh = new Mesh(
       courbure.enregistrer(extruderAnneaux(pays, repere)),
-      new MeshStandardMaterial({ color: PALETTE.terreNeutre, roughness: 0.97, metalness: 0 }),
+      new MeshStandardMaterial({
+        color: PALETTE.terreNeutre,
+        roughness: 0.97,
+        metalness: 0,
+        polygonOffset: true,
+        polygonOffsetFactor: 0,
+        polygonOffsetUnits: RECUL_SOL,
+      }),
     ) as MeshPays;
     mesh.userData = { nom: pays.nom };
     meshes.push(mesh);
