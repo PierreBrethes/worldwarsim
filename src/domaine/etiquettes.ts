@@ -1,5 +1,5 @@
 import type { LonLat } from './geo';
-import type { ArcAffiche, Pile, RoleUnite, VueJoueur } from './vue-joueur';
+import type { ArcAffiche, Pile, RoleUnite, TypeMouvement, VueJoueur } from './vue-joueur';
 import { LIBELLE_TYPE } from './vue-joueur';
 
 /**
@@ -32,6 +32,8 @@ export type MarqueurCarte =
       readonly paysHote: string;
       readonly nom: string;
       readonly acheveA: number;
+      /** Aucun ordre ne prend la suite : une fois achevé, le chantier tourne à vide. */
+      readonly sansOrdre: boolean;
       readonly encre: string;
     };
 
@@ -88,9 +90,19 @@ export type EtiquetteCarte = {
   readonly lignes: ReadonlyArray<LigneEtiquette>;
   /** Un mouvement adverse percé par le renseignement — la maquette le distingue par un état. */
   readonly identifie: boolean;
+  /**
+   * Le mouvement vient frapper, et on le sait. Faux tant que le renseignement n'a pas percé :
+   * la marque d'alerte n'arme son triangle que sur une nature établie, jamais sur un soupçon.
+   */
+  readonly offensif: boolean;
+  /** Un chantier achevé que rien ne suit — le cas d'oubli que le bord d'écran rattrape. */
+  readonly sansOrdre: boolean;
   /** Le pays que le clic sélectionne ; `null` quand l'étiquette ne se clique pas. */
   readonly paysHote: string | null;
 };
+
+export const estCompte = (ligne: LigneEtiquette): ligne is Extract<LigneEtiquette, { role: 'compte' }> =>
+  ligne.role === 'compte';
 
 /**
  * L'ordre du dégradé au chevauchement. La fiche 11 le donne pour cinq types ; le
@@ -151,6 +163,8 @@ function etiquetteDeMarqueur(marqueur: MarqueurCarte): EtiquetteCarte {
     ancre: { genre: 'sol', lonLat: marqueur.lonLat },
     encre: marqueur.encre,
     identifie: false,
+    offensif: false,
+    sansOrdre: false,
   } as const;
 
   switch (marqueur.genre) {
@@ -185,6 +199,7 @@ function etiquetteDeMarqueur(marqueur: MarqueurCarte): EtiquetteCarte {
         priorite: PRIORITE.chantier,
         picto: 'chantier',
         paysHote: marqueur.paysHote,
+        sansOrdre: marqueur.sansOrdre,
         lignes: [
           { role: 'nature', texte: marqueur.nom },
           { role: 'compte', echeanceA: marqueur.acheveA, prefixe: 'chantier ' },
@@ -210,6 +225,8 @@ function etiquetteDArc(arc: ArcAffiche, chargeeA: number): EtiquetteCarte | null
       encre: null,
       picto: null,
       identifie: false,
+      offensif: false,
+      sansOrdre: false,
       paysHote: null,
       lignes: [{ role: 'compte', echeanceA: chargeeA + arc.minutesRestantes * 60_000, prefixe: '' }],
     };
@@ -242,7 +259,12 @@ function etiquetteDArc(arc: ArcAffiche, chargeeA: number): EtiquetteCarte | null
     encre: null,
     picto: null,
     identifie: arc.identification.perce,
+    offensif: arc.identification.perce && TYPES_OFFENSIFS.includes(arc.identification.type),
+    sansOrdre: false,
     paysHote: null,
     lignes: [...horaire, seconde],
   };
 }
+
+/** Frapper, c'est attaquer une nation ou raider un avant-poste ; le reste s'infiltre. */
+const TYPES_OFFENSIFS: ReadonlyArray<TypeMouvement> = ['attaque', 'raid'];

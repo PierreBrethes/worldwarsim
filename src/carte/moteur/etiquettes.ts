@@ -1,5 +1,6 @@
 import { Vector3, type PerspectiveCamera } from 'three';
 import type { AncreEtiquette } from '@/domaine/etiquettes';
+import { clamperAuBord } from '@/domaine/indicateurs';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
 
 /**
@@ -33,6 +34,15 @@ export type ProjectionEtiquette = {
   x: number;
   y: number;
   lod: NiveauDetail;
+  /**
+   * Hors champ mais devant l'horizon : l'ancre se range au bord de l'écran. Une ancre passée
+   * derrière la courbure n'y a pas droit — on ne montre pas du doigt ce qu'on ne voit pas.
+   */
+  auBord: boolean;
+  bordX: number;
+  bordY: number;
+  /** La direction réelle de l'ancre depuis le centre de l'écran, en radians. */
+  cap: number;
 };
 
 export type AncreNommee = { readonly id: string; readonly ancre: AncreEtiquette };
@@ -46,6 +56,8 @@ export class CoucheEtiquettes {
   private readonly projections: ProjectionEtiquette[] = [];
   private readonly point = new Vector3();
   private readonly normalise = new Vector3();
+  private readonly regard = new Vector3();
+  private readonly vers = new Vector3();
   private ancres: ReadonlyArray<AncreNommee> = [];
 
   constructor(private readonly repere: RepereMonde) {}
@@ -58,7 +70,17 @@ export class CoucheEtiquettes {
       if (ancre.genre === 'sol') {
         this.fixes.set(id, this.repere.projeterLonLat(ancre.lonLat, ELEVATION_ANCRE));
       }
-      this.projections.push({ id, visible: false, x: 0, y: 0, lod: 'glyphe' });
+      this.projections.push({
+        id,
+        visible: false,
+        x: 0,
+        y: 0,
+        lod: 'glyphe',
+        auBord: false,
+        bordX: 0,
+        bordY: 0,
+        cap: 0,
+      });
     }
   }
 
@@ -67,30 +89,59 @@ export class CoucheEtiquettes {
     this.definirAncres(this.ancres);
   }
 
+  /** Où l'ancre se tient dans le monde — le voyage de caméra n'a besoin de rien d'autre. */
+  position(id: string, positionsMobiles: ReadonlyMap<string, Vector3>): Vector3 | undefined {
+    return this.fixes.get(id) ?? positionsMobiles.get(id);
+  }
+
   projeter(
     camera: PerspectiveCamera,
     largeur: number,
     hauteur: number,
     positionsMobiles: ReadonlyMap<string, Vector3>,
   ): ReadonlyArray<ProjectionEtiquette> {
+    camera.getWorldDirection(this.regard);
+
     for (const projection of this.projections) {
       const position = this.fixes.get(projection.id) ?? positionsMobiles.get(projection.id);
       if (position === undefined) {
         projection.visible = false;
+        projection.auBord = false;
         continue;
       }
 
       const distance = position.distanceTo(camera.position);
+      // Dans le dos de la caméra, la projection perspective renvoie le point symétrique : sans
+      // ce redressement, un indicateur partirait vers le bord opposé à son entité.
+      const derriere = this.vers.copy(position).sub(camera.position).dot(this.regard) < 0;
       this.normalise.copy(position).project(camera);
       const dansLeChamp =
+        !derriere &&
         this.normalise.z < 1 &&
         Math.abs(this.normalise.x) < 1.08 &&
         Math.abs(this.normalise.y) < 1.08;
 
-      projection.visible = dansLeChamp && !this.occultee(position, camera.position);
-      projection.x = (this.normalise.x * 0.5 + 0.5) * largeur;
-      projection.y = (-this.normalise.y * 0.5 + 0.5) * hauteur;
+      const occultee = this.occultee(position, camera.position);
+      const x = (this.normalise.x * 0.5 + 0.5) * largeur;
+      const y = (-this.normalise.y * 0.5 + 0.5) * hauteur;
+
+      projection.visible = dansLeChamp && !occultee;
+      projection.x = x;
+      projection.y = y;
       projection.lod = distance < DISTANCE_ETIQUETTE_DEPLOYEE ? 'deployee' : 'glyphe';
+
+      projection.auBord = !occultee && !projection.visible;
+      if (projection.auBord) {
+        const bord = clamperAuBord(
+          derriere ? largeur - x : x,
+          derriere ? hauteur - y : y,
+          largeur,
+          hauteur,
+        );
+        projection.bordX = bord.x;
+        projection.bordY = bord.y;
+        projection.cap = bord.cap;
+      }
     }
     return this.projections;
   }

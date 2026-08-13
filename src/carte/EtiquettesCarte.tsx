@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { enHeuresMinutes } from '@/domaine/duree';
-import { URGENCE_MS, type EtiquetteCarte, type LigneEtiquette } from '@/domaine/etiquettes';
+import { URGENCE_MS, estCompte, type EtiquetteCarte } from '@/domaine/etiquettes';
 import type { NiveauDetail, ProjectionEtiquette } from './moteur/etiquettes';
 import type { MoteurCarte } from './moteur';
 
@@ -147,10 +147,10 @@ export function EtiquettesCarte({
         }
       }
     };
-    moteur.onReposCamera = degrader;
+    const desabonner = moteur.abonnerRepos(degrader);
     return () => {
       moteur.onEtiquettes = () => {};
-      moteur.onReposCamera = () => {};
+      desabonner();
     };
   }, [moteur, appliquer, degrader]);
 
@@ -218,9 +218,6 @@ export function EtiquettesCarte({
 }
 
 type EtatRendu = { visible: boolean; lod: NiveauDetail; rabattue: boolean };
-
-const estCompte = (ligne: LigneEtiquette): ligne is Extract<LigneEtiquette, { role: 'compte' }> =>
-  ligne.role === 'compte';
 
 function enregistrer(carte: Map<string, HTMLElement>, id: string, noeud: HTMLElement | null): void {
   if (noeud) carte.set(id, noeud);

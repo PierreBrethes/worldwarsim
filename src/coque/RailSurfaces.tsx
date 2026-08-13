@@ -1,17 +1,22 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import type { VueJoueur } from '@/domaine/vue-joueur';
+import { CATEGORIES, type CategorieIndicateur } from '@/domaine/indicateurs';
+import { basculerIndicateur, useBasculesIndicateurs } from '@/donnees/basculesIndicateurs';
 import type { Modale, RecherchePlateau } from '@/routes/plateau';
 import { basculerModale, modaleOuverte } from '@/routes/plateau';
 import { Glyphe } from './Glyphe';
+import { GlypheIndicateur } from './GlypheIndicateur';
 import { useHorloge } from './horloge';
 
 export function RailSurfaces({
   saison,
   chargeeA,
+  encreJoueur,
 }: {
   saison: VueJoueur['saison'];
   chargeeA: number;
+  encreJoueur: string;
 }) {
   const recherche = useSearch({ strict: false }) as RecherchePlateau;
   // La fin de saison se compte en jours : la minute suffit, et le rail n'a pas à se
@@ -64,36 +69,39 @@ export function RailSurfaces({
 
   return (
     <nav className="hud flex w-[52px] shrink-0 flex-col justify-between bg-[var(--desk)] py-2">
-      <ul>
-        {surfaces.map((surface) => (
-          <li key={surface.libelle}>
-            <Link
-              to="/plateau"
-              search={surface.cible}
-              title={surface.titre}
-              className={
-                surface.active
-                  ? 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
-                  : 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
-              }
-            >
-              {surface.icone}
-              <span className="text-[7px] tracking-[.14em] uppercase">{surface.libelle}</span>
-            </Link>
-          </li>
-        ))}
-        {aVenir.map((surface) => (
-          <li key={surface.libelle}>
-            <span
-              title={surface.titre}
-              className="flex h-[46px] flex-col items-center justify-center gap-[3px] text-[var(--paper-dim)] opacity-40"
-            >
-              {surface.icone}
-              <span className="text-[7px] tracking-[.14em] uppercase">{surface.libelle}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div>
+        <ul>
+          {surfaces.map((surface) => (
+            <li key={surface.libelle}>
+              <Link
+                to="/plateau"
+                search={surface.cible}
+                title={surface.titre}
+                className={
+                  surface.active
+                    ? 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
+                    : 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
+                }
+              >
+                {surface.icone}
+                <span className="text-[7px] tracking-[.14em] uppercase">{surface.libelle}</span>
+              </Link>
+            </li>
+          ))}
+          {aVenir.map((surface) => (
+            <li key={surface.libelle}>
+              <span
+                title={surface.titre}
+                className="flex h-[46px] flex-col items-center justify-center gap-[3px] text-[var(--paper-dim)] opacity-40"
+              >
+                {surface.icone}
+                <span className="text-[7px] tracking-[.14em] uppercase">{surface.libelle}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <BasculesBord encreJoueur={encreJoueur} />
+      </div>
       <div className="flex flex-col items-center gap-2">
         <Link
           to="/plateau"
@@ -119,6 +127,54 @@ export function RailSurfaces({
     </nav>
   );
 }
+
+/**
+ * Le bord d'écran n'est pas une surface : on ne l'ouvre pas, on l'allume. D'où le filet qui
+ * sépare ce groupe des trois surfaces, et l'absence de libellé sous les pictos — six lignes de
+ * texte de plus feraient du rail une liste, et le rail n'est pas une liste.
+ */
+function BasculesBord({ encreJoueur }: { encreJoueur: string }) {
+  const bascules = useBasculesIndicateurs();
+  return (
+    <ul className="mt-2 flex flex-col items-center gap-[1px] border-t border-[var(--ink-quiet)] pt-2">
+      {CATEGORIES.map(({ cle, libelle }) => {
+        const allumee = bascules[cle];
+        return (
+          <li key={cle}>
+            <button
+              type="button"
+              aria-pressed={allumee}
+              title={`${libelle} au bord de l’écran — ${allumee ? 'allumé' : 'éteint'}`}
+              onClick={() => basculerIndicateur(cle)}
+              style={allumee ? { color: ENCRE_ALLUMEE[cle] ?? encreJoueur } : undefined}
+              className={
+                allumee
+                  ? 'flex h-[26px] w-[36px] cursor-pointer items-center justify-center border border-[var(--ink-quiet)] bg-[rgba(228,216,189,.12)]'
+                  : 'flex h-[26px] w-[36px] cursor-pointer items-center justify-center border border-transparent text-[var(--paper-dim)] opacity-45 hover:opacity-80'
+              }
+            >
+              <GlypheIndicateur categorie={cle} taille={16} />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * Les trois dernières catégories portent les encres de la frise — la mienne, le critique d'un
+ * cap qui vient sur moi, le gris sourd de ce qui se trame ailleurs. `undefined` renvoie à
+ * l'encre de ma nation, qui ne se code pas en dur : elle voyage avec la vue.
+ */
+const ENCRE_ALLUMEE: Readonly<Record<CategorieIndicateur, string | undefined>> = {
+  'avant-postes': 'var(--paper)',
+  chantiers: 'var(--paper)',
+  forces: 'var(--paper)',
+  'mes-mouvements': undefined,
+  'cap-sur-moi': 'var(--critique)',
+  renseignement: 'var(--routine)',
+};
 
 function IconeReglages() {
   return (

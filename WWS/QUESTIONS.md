@@ -24,6 +24,16 @@ prend définitivement la tête qu'à 90 % de la saison.
 
 ## 🟠 Structurantes
 
+**La soupape anti-élimination des bâtiments de projection.** L'ADR 0013 fait dépendre chaque
+domaine d'un bâtiment : sans port, pas de départ maritime. Si perdre ses ports ferme un domaine
+entier, un joueur peut se retrouver enfermé chez lui — ce qui heurte la promesse qu'aucun joueur
+n'est éliminé. Pistes non tranchées : port de fortune coûteux et temporaire, embarquement depuis
+un avant-poste allié, ou domaine dégradé (plus lent, plus cher) plutôt que fermé.
+
+**Le sort des cinq bâtiments d'économie.** Centre logistique et complexe industriel recouvrent en
+partie ce que port, aérodrome et caserne expriment mieux. Fusion, spécialisation ou statu quo ?
+→ [ADR 0013](docs/adr/0013-batiments-de-projection-sur-regions.md)
+
 **Le rayon d'interception.** Fixe, ou fonction de la composition de la force ? S'il est trop grand,
 plus aucun convoi ne passe et la carte se fige. → [08](docs/design/08-combat.md)
 
@@ -48,6 +58,15 @@ plafonnés à un usage défensif.
 **L'unité spéciale par nation.** Idée retenue mais non tranchée. Elle devrait casser une règle
 plutôt qu'améliorer un rôle existant, sinon c'est un dixième rôle à équilibrer pour rien. 8 nations
 = 8 systèmes de plus : à réserver à 4 ou 5 nations, et après la première saison test.
+
+*Piste la plus avancée — les parachutistes français.* Une spécialisation de l'infanterie qui
+se pose **sans rien avoir sur place** : elle casse la règle que l'ADR 0013 vient de poser
+(un domaine s'ouvre par un bâtiment). L'exception porte sur ce qu'il faut à l'arrivée, jamais
+sur le voyage : le largage reste un mouvement, avec son fil aérien visible, parti d'un
+aérodrome — sinon il perce le brouillard et l'interception d'un coup, et toute la couche
+d'information s'effondre. Le réalisme fait l'équilibrage : rayon limité depuis l'aérodrome,
+infanterie légère seule, effectif modeste, aucun retour possible. Un coup de main, pas une
+flotte. Reste à définir la condition de déblocage.
 
 **Le pouvoir italien n'a jamais été simulé.** *Reconnaissance aérienne* est arrivé avec la révision
 1940 de la fiche 06, après la campagne de mesure. Il touche au brouillard, que le simulateur ne

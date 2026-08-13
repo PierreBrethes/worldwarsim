@@ -8,6 +8,7 @@ import { construireEtiquettes } from '@/domaine/etiquettes';
 import { encreParPaysPris } from '@/domaine/nations';
 import type { Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
+import { useBasculesIndicateurs } from '@/donnees/basculesIndicateurs';
 import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
 import { ETAT_FACTICE, appliquerEtatFactice, marqueursFactices } from '@/donnees/etat-factice';
@@ -135,6 +136,7 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
   const [arcSurvole, setArcSurvole] = useState<string | null>(null);
   const [ficheSurvolee, setFicheSurvolee] = useState<string | null>(null);
   const [etiquetteSurvolee, setEtiquetteSurvolee] = useState<string | null>(null);
+  const bascules = useBasculesIndicateurs();
   const mouvementSurvole = ficheSurvolee ?? etiquetteSurvolee ?? arcSurvole;
   // La carte désigne la piste par son arc ou par son étiquette ; une fiche survolée, non.
   const mouvementDesigneParLaCarte = ficheSurvolee ? null : (etiquetteSurvolee ?? arcSurvole);
@@ -201,6 +203,7 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
           encreParPays={encreParPays}
           paysSelectionne={pays ?? null}
           nationJoueur={vue.moi.nation}
+          indicateurs={bascules}
           mouvementAccentue={mouvementSurvole}
           onSelection={selectionner}
           onSurvolRegion={setRegionSurvolee}

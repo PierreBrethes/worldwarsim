@@ -6,15 +6,14 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { LonLat } from '@/domaine/geo';
 import type { Milieu, TrajetCalcule } from '@/domaine/trajets';
-import { PALETTE } from './palette';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
 
 /**
  * Le fil tendu. **Deux hauteurs, pas trois** : terre et mer partagent la surface, juste
  * au-dessus de la croûte. Poser le fil maritime au niveau de l'eau créait une marche à
  * chaque côte — le trajet multimodal plongeait et remontait deux fois pour ne rien dire de
- * plus. La mer se distingue par son dessin seul : liseré de sillage pâle et jalon coque.
- * Seul l'aérien décolle.
+ * plus. La mer se dit par le jalon coque et par lui seul : le liseré de sillage qui doublait le
+ * fil se lisait comme un second trait, pas comme une eau remuée. Seul l'aérien décolle.
  */
 const ALTITUDE_SURFACE = EPAISSEUR_PAYS + 0.006;
 
@@ -33,41 +32,52 @@ export const flecheAerienne = (corde: number): number =>
 const SEGMENTS_AIR = 48;
 
 /**
- * Le pointillé du restant, en pixels. Tiret court et régulier, plus serré que le trait
- * plein n'est épais : c'est ce qui le fait lire comme une intention, pas comme une route.
+ * Le pointillé du restant, en pixels. Le trait a la même épaisseur que le parcouru — c'est le
+ * vide entre les tirets qui dit l'intention, pas la finesse. Le tiret doit donc rester plus
+ * long que le trait n'est épais, sinon il se referme en point et le fil devient un pointillage.
  * `dashScale = 1 / uniteParPixel` rend ces deux nombres directement lisibles en pixels.
  */
-const TIRET_PX = 2;
+const TIRET_PX = 3;
 const VIDE_PX = 5;
+
+/**
+ * La dérive du pointillé du restant, en **unités de plateau par seconde** — jamais en pixels.
+ * La maille des tirets, elle, reste en pixels : c'est `dashScale` qui convertit l'une dans
+ * l'autre. Le fil coule donc à la même vitesse dans le monde quel que soit le point de vue, ce
+ * qui le fait couler plus lentement à l'écran quand on s'éloigne. C'est le signal de
+ * profondeur : un fil lointain rampe, un fil proche file.
+ */
+export const VITESSE_DERIVE = 0.6;
+
+/**
+ * Le plafond de la dérive, en pixels par seconde. Sans lui, le rapproché filait à près de cent
+ * pixels par seconde : à quelques unités de la carte, une vitesse de monde constante devient
+ * une vitesse d'écran énorme, et le fil clignote au lieu de couler. Le plafond ne mange que le
+ * bas de la plage — au-delà d'une soixantaine d'unités de distance, la perspective reprend la
+ * main et le signal de profondeur reste entier.
+ */
+export const PLAFOND_DERIVE_PX_S = 6;
+
+/** Un onglet revenu au premier plan ne doit pas rattraper sa dérive d'un seul coup. */
+const PAS_DE_DERIVE_MAX_S = 0.1;
 
 /**
  * Épaisseurs en pixels — constantes à l'écran, quel que soit le zoom : c'est tout l'intérêt
  * des fat lines sur le trait d'un pixel qu'elles remplacent.
  */
-const EPAISSEUR_SILLAGE = 1;
 const EPAISSEUR_OMBRE = 1;
 const EPAISSEUR_ATTACHE = 1;
-const EPAISSEUR_MARQUE = 1.4;
+const EPAISSEUR_MARQUE = 1.8;
 
 /**
  * Marques et accessoires en pixels eux aussi : le plateau se parcourt du globe entier au
  * département, et une taille fixe dans le monde ne peut être juste qu'à une seule distance.
  */
-const DEMI_LOSANGE_PX = 4.5;
-const RAYON_QUAI_PX = 8;
-const DEMI_CARRE_QUAI_PX = 3.6;
-const DEMI_TIRET_COTE_PX = 12;
+const RAYON_QUAI_PX = 9;
+const DEMI_CARRE_QUAI_PX = 4;
+const DEMI_TIRET_COTE_PX = 14;
 const DEMI_CROIX_PX = 6;
 const RAYON_DEPART_PX = 4;
-
-/**
- * L'écart du liseré de sillage, en pixels. Il ne peut pas se régler par une échelle d'objet —
- * la perpendiculaire tourne le long de la route — donc ses sommets se réécrivent, mais
- * seulement quand le zoom a bougé d'un cran franc : au rapproché, un écart cuit en unités de
- * plateau envoyait le liseré à vingt pixels du fil, et parfois sur la terre ferme.
- */
-const ECART_SILLAGE_PX = 3;
-const CRAN_DE_ZOOM = 0.08;
 
 /**
  * Sol, eau, ciel — et l'ordre ne dépend jamais du point de vue. Un fil maritime passe sous
@@ -76,6 +86,13 @@ const CRAN_DE_ZOOM = 0.08;
  * là où la profondeur donnerait celui de la caméra du moment.
  */
 const RANG_RENDU: Readonly<Record<Milieu, number>> = { terre: 10, mer: 11, air: 12 };
+
+/**
+ * Les marques passent au-dessus de tous les fils, y compris aériens : un quai posé au niveau
+ * de la mer disparaissait sous l'arc qui le survolait. Elles restent sous le jalon (13), qui
+ * est la tête du mouvement et doit garder le dernier mot quand il stationne au quai.
+ */
+const RANG_MARQUE = 12.5;
 
 export type EtapeFil = {
   readonly milieu: Milieu;
@@ -87,20 +104,27 @@ export type EtapeFil = {
 /** Un morceau continu de fil : le monde s'enroule, un trait ne peut pas traverser la bordure. */
 type BrinFil = { readonly sommets: ReadonlyArray<Vector3>; readonly longueurs: ReadonlyArray<number> };
 
-export type Quai = { readonly position: Vector3; readonly embarquement: boolean };
+export type Quai = {
+  readonly position: Vector3;
+  readonly embarquement: boolean;
+  /** Le cap du fil au passage, en radians : la ligne de côte se trace en travers de lui. */
+  readonly cap: number;
+};
 
 export type CouleursFil = { readonly trace: string; readonly progression: string };
-export type EpaisseursFil = { readonly parcouru: number; readonly restant: number };
 
 export type Fil = {
   readonly objet: Group;
   readonly etapes: ReadonlyArray<EtapeFil>;
   readonly quais: ReadonlyArray<Quai>;
-  /** Les traits parcourus ; leur `instanceCount` est la seule chose qui bouge par image. */
-  readonly progression: ReadonlyArray<{ ligne: Line2; segments: number }>;
-  readonly traces: ReadonlyArray<Line2>;
+  /** Ce qui se vise au pointeur : parcouru et restant, pour que tout le fil se survole. */
+  readonly cibles: ReadonlyArray<Line2>;
   /** Le fil vertical qui rattache un jalon aérien à son ombre ; `null` hors du ciel. */
   readonly attache: Line2 | null;
+  /** Coupe le fil à la position du jalon — la seule chose qui bouge par image. */
+  couper(indexEtape: number, local: number): void;
+  /** Avance le pointillé du restant de `secondes` de dérive. Le parcouru ne bouge jamais. */
+  deriver(secondes: number): void;
   /** Marques et pointillés gardent leur maille à l'écran : une seule mesure, posée par image. */
   reglerEchelle(uniteParPixel: number): void;
   /** Une fat line se dessine en pixels : sans la taille du canevas, elle ne sait pas les faire. */
@@ -117,7 +141,7 @@ export function construireFil(
   trajet: TrajetCalcule,
   repere: RepereMonde,
   couleurs: CouleursFil,
-  epaisseurs: EpaisseursFil,
+  epaisseur: number,
   opacites: { readonly trace: number; readonly progression: number },
 ): Fil {
   const objet = new Group();
@@ -144,22 +168,19 @@ export function construireFil(
     return materiau;
   };
 
+  // Parcouru et restant ont la même épaisseur : c'est un seul fil, coupé, pas deux traits de
+  // rang différent. La hiérarchie tient au pointillé et à l'encre — un restant plus fin ne se
+  // voyait plus du tout, et un fil qui s'amincit à mi-course se lit comme une erreur de tracé.
   const matiereRestant = matiere({
     couleur: couleurs.trace,
-    epaisseur: epaisseurs.restant,
+    epaisseur,
     opacite: opacites.trace,
     pointille: true,
   });
   const matiereParcouru = matiere({
     couleur: couleurs.progression,
-    epaisseur: epaisseurs.parcouru,
+    epaisseur,
     opacite: opacites.progression,
-  });
-  // Le sillage est du papier, pas de l'encre de nation : c'est une eau remuée, pas une route.
-  const matiereSillage = matiere({
-    couleur: PALETTE.papier,
-    epaisseur: EPAISSEUR_SILLAGE,
-    opacite: opacites.trace * 0.8,
   });
   const matiereOmbre = matiere({
     couleur: couleurs.trace,
@@ -172,50 +193,32 @@ export function construireFil(
     epaisseur: EPAISSEUR_MARQUE,
     opacite: opacites.progression,
   });
-  const matiereRelais = matiere({
-    couleur: couleurs.trace,
-    epaisseur: EPAISSEUR_MARQUE,
-    opacite: Math.min(1, opacites.trace * 1.8),
-  });
 
-  const traces: Line2[] = [];
-  const progression: Array<{ ligne: Line2; segments: number }> = [];
+  const cibles: Line2[] = [];
+  const traits: TraitCoupe[] = [];
   const accessoires: Group[] = [];
-  const sillages: Array<{ ligne: Line2; sommets: ReadonlyArray<Vector3>; normales: ReadonlyArray<Vector3> }> = [];
 
   for (const etape of etapes) {
     const rang = RANG_RENDU[etape.milieu];
     for (const brin of etape.brins) {
-      const restant = filDe(brin.sommets, matiereRestant, rang);
-      const parcouru = filDe(brin.sommets, matiereParcouru, rang);
-      parcouru.geometry.instanceCount = 0;
-      objet.add(restant, parcouru);
-      traces.push(restant);
-      progression.push({ ligne: parcouru, segments: brin.sommets.length - 1 });
+      const trait = traitCoupeDe(brin, matiereParcouru, matiereRestant, rang);
+      objet.add(trait.parcouru.ligne, trait.restant.ligne);
+      cibles.push(trait.parcouru.ligne, trait.restant.ligne);
+      traits.push(trait);
 
-      if (etape.milieu === 'mer') {
-        const normales = normalesDe(brin.sommets);
-        const ligne = filDe(brin.sommets, matiereSillage, rang);
-        objet.add(ligne);
-        sillages.push({ ligne, sommets: brin.sommets, normales });
-      }
       // L'itinéraire survolé : sans lui, un arc haut se lit comme un trait posé à mi-chemin
       // entre deux pays. C'est un tracé au sol, pas une ombre portée — le plateau n'en a pas.
       if (etape.milieu === 'air') {
         objet.add(filDe(brin.sommets.map((point) => auSol(point, repere)), matiereOmbre, RANG_RENDU.terre));
       }
     }
-
-    if (etape.milieu === 'terre') {
-      for (const noeud of noeudsDeGrille(etape)) {
-        accessoires.push(poser(noeud, losange(matiereRelais, rang)));
-      }
-    }
   }
 
   const quais = quaisDe(trajet, etapes);
   for (const quai of quais) {
-    accessoires.push(poser(quai.position, marqueDeQuai(quai.embarquement, matiereMarque)));
+    accessoires.push(
+      poser(quai.position, orienter(marqueDeQuai(quai.embarquement, matiereMarque), quai.cap)),
+    );
   }
 
   const depart = etapes[0]?.brins[0]?.sommets[0];
@@ -235,29 +238,44 @@ export function construireFil(
   if (attache) objet.add(attache);
 
   const opacitesBase = materiaux.map((materiau) => materiau.opacity);
-  let echelleSillage = 0;
 
   return {
     objet,
     etapes,
     quais,
-    progression,
-    traces,
+    cibles,
     attache,
-    reglerEchelle(uniteParPixel) {
-      for (const accessoire of accessoires) accessoire.scale.setScalar(uniteParPixel);
-      if (Math.abs(uniteParPixel - echelleSillage) > echelleSillage * CRAN_DE_ZOOM) {
-        echelleSillage = uniteParPixel;
-        const ecart = ECART_SILLAGE_PX * uniteParPixel;
-        for (const sillage of sillages) {
-          reecrireFil(
-            sillage.ligne,
-            sillage.sommets.map((sommet, i) =>
-              sommet.clone().addScaledVector(sillage.normales[i]!, ecart),
-            ),
-          );
+    /**
+     * Le parcouru et le restant sont un seul tracé, coupé à la position paramétrique du jalon.
+     * La distance se répartit d'étape en étape puis de brin en brin : le monde s'enroule, un
+     * fil sorti par l'antiméridien rentre de l'autre bord et doit se remplir dans cet ordre.
+     */
+    couper(indexEtape, local) {
+      const part = Math.min(1, Math.max(0, local));
+      let rang = 0;
+      for (let e = 0; e < etapes.length; e++) {
+        const etape = etapes[e]!;
+        let distance = (e < indexEtape ? 1 : e > indexEtape ? 0 : part) * etape.longueur;
+        for (let b = 0; b < etape.brins.length; b++) {
+          const trait = traits[rang++];
+          if (trait === undefined) continue;
+          couperTrait(trait, distance);
+          distance = Math.max(0, distance - trait.longueur);
         }
       }
+    },
+    deriver(secondes) {
+      // `dashOffset` se compte dans les unités du pointillé, donc en pixels : `dashScale`
+      // convertit la vitesse du monde vers ces unités-là. Il s'accumule au lieu de se
+      // recalculer, sinon un cran de zoom déplacerait la phase d'un coup.
+      const vitesse = Math.min(VITESSE_DERIVE * matiereRestant.dashScale, PLAFOND_DERIVE_PX_S);
+      const pas = vitesse * Math.min(secondes, PAS_DE_DERIVE_MAX_S);
+      // Le restant est écrit de la destination vers le départ : sa distance décroît le long du
+      // trajet, et c'est donc un décalage *croissant* qui fait couler les tirets vers l'arrivée.
+      matiereRestant.dashOffset = (matiereRestant.dashOffset + pas) % (TIRET_PX + VIDE_PX);
+    },
+    reglerEchelle(uniteParPixel) {
+      for (const accessoire of accessoires) accessoire.scale.setScalar(uniteParPixel);
       // `dashScale` divise la distance monde : à 1/uniteParPixel, tiret et vide se comptent
       // directement en pixels, et la maille du pointillé ne bouge plus au zoom.
       const echelle = uniteParPixel > 0 ? 1 / uniteParPixel : 1;
@@ -430,6 +448,120 @@ function distanceProjetee(a: LonLat, b: LonLat, repere: RepereMonde): number {
 
 /* --------------------------------- traits -------------------------------- */
 
+/**
+ * Un tronçon de fil : **un seul tracé**, dessiné par deux lignes qui se partagent le sommet de
+ * coupe. Le parcouru s'arrête dessus, le restant en repart — ni décrochement ni recouvrement au
+ * raccord, à tous les zooms, parce que le point est le même et qu'il est calculé, pas arrondi
+ * au sommet le plus proche.
+ */
+type TraitCoupe = {
+  readonly parcouru: Cote;
+  readonly restant: Cote;
+  readonly longueurs: ReadonlyArray<number>;
+  readonly longueur: number;
+  /** La dernière distance servie ; recouper au même endroit ne réécrirait rien de neuf. */
+  distanceServie: number;
+};
+
+/**
+ * Un des deux côtés de la coupe. Une fat line ne se tronque que par le début — `instanceCount`
+ * compte depuis le premier segment — donc le restant porte ses sommets **à l'envers**, de la
+ * destination vers le départ : son compteur mord alors depuis le jalon et non depuis l'arrivée.
+ */
+type Cote = {
+  readonly ligne: Line2;
+  /** Les sommets dans l'ordre où la ligne les porte. */
+  readonly sommets: ReadonlyArray<Vector3>;
+  /** Le segment raccourci à la dernière image ; `-1` quand la ligne est entière. */
+  coupe: number;
+};
+
+function traitCoupeDe(
+  brin: BrinFil,
+  matiereParcouru: LineMaterial,
+  matiereRestant: LineMaterial,
+  rang: number,
+): TraitCoupe {
+  const alEnvers = [...brin.sommets].reverse();
+  const parcouru: Cote = { ligne: filDe(brin.sommets, matiereParcouru, rang), sommets: brin.sommets, coupe: -1 };
+  const restant: Cote = { ligne: filDe(alEnvers, matiereRestant, rang), sommets: alEnvers, coupe: -1 };
+  // `instanceCount` vaut l'infini tant qu'on n'y a pas touché : un fil neuf est tout entier
+  // à parcourir, et le dire ici épargne de dépendre de cette valeur par défaut.
+  parcouru.ligne.geometry.instanceCount = 0;
+  restant.ligne.geometry.instanceCount = brin.longueurs.length;
+  return {
+    parcouru,
+    restant,
+    longueurs: brin.longueurs,
+    longueur: brin.longueurs.reduce((somme, longueur) => somme + longueur, 0),
+    distanceServie: -1,
+  };
+}
+
+const POINT_DE_COUPE = new Vector3();
+
+function couperTrait(trait: TraitCoupe, distance: number): void {
+  const borne = Math.min(trait.longueur, Math.max(0, distance));
+  if (borne === trait.distanceServie) return;
+  trait.distanceServie = borne;
+
+  const segments = trait.longueurs.length;
+  if (borne <= 0) {
+    tailler(trait.parcouru, 0, null);
+    tailler(trait.restant, segments, null);
+    return;
+  }
+  if (borne >= trait.longueur) {
+    tailler(trait.parcouru, segments, null);
+    tailler(trait.restant, 0, null);
+    return;
+  }
+
+  let index = 0;
+  let reste = borne;
+  while (index < segments - 1 && reste >= trait.longueurs[index]!) reste -= trait.longueurs[index++]!;
+  const longueur = trait.longueurs[index]!;
+  POINT_DE_COUPE.copy(trait.parcouru.sommets[index]!).lerp(
+    trait.parcouru.sommets[index + 1]!,
+    longueur > 0 ? reste / longueur : 0,
+  );
+
+  tailler(trait.parcouru, index + 1, POINT_DE_COUPE);
+  tailler(trait.restant, segments - index, POINT_DE_COUPE);
+}
+
+/**
+ * Montre `visibles` segments, dont le dernier s'arrête sur le point de coupe. Le segment
+ * raccourci de l'image précédente retrouve d'abord sa longueur pleine : sans cela, le tracé
+ * garderait la trace de tous les endroits où le jalon est passé.
+ */
+function tailler(cote: Cote, visibles: number, coupe: Vector3 | null): void {
+  if (cote.coupe >= 0) {
+    ecrireSegment(cote.ligne, cote.coupe, cote.sommets[cote.coupe]!, cote.sommets[cote.coupe + 1]!);
+    cote.coupe = -1;
+  }
+  cote.ligne.geometry.instanceCount = visibles;
+  if (coupe === null || visibles <= 0) return;
+  const dernier = visibles - 1;
+  ecrireSegment(cote.ligne, dernier, cote.sommets[dernier]!, coupe);
+  cote.coupe = dernier;
+}
+
+/**
+ * Réécrit un segment dans les tampons entrelacés que la ligne possède déjà. La distance de fin
+ * suit la nouvelle longueur : sans elle, le pointillé du segment raccourci se comprimerait à
+ * mesure que le jalon le traverse, et la maille sauterait au passage du sommet suivant.
+ */
+function ecrireSegment(ligne: Line2, index: number, depuis: Vector3, vers: Vector3): void {
+  const positions = (ligne.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute).data;
+  positions.array.set([depuis.x, depuis.y, depuis.z, vers.x, vers.y, vers.z], index * 6);
+  positions.needsUpdate = true;
+
+  const distances = (ligne.geometry.getAttribute('instanceDistanceStart') as InterleavedBufferAttribute).data;
+  distances.array[index * 2 + 1] = distances.array[index * 2]! + depuis.distanceTo(vers);
+  distances.needsUpdate = true;
+}
+
 function filDe(sommets: ReadonlyArray<Vector3>, materiau: LineMaterial, rang: number): Line2 {
   const geometrie = new LineGeometry();
   geometrie.setPositions(sommets.flatMap((sommet) => [sommet.x, sommet.y, sommet.z]));
@@ -438,18 +570,6 @@ function filDe(sommets: ReadonlyArray<Vector3>, materiau: LineMaterial, rang: nu
   ligne.computeLineDistances();
   ligne.renderOrder = rang;
   return ligne;
-}
-
-/** Le sillage longe la coque : une perpendiculaire dans le plan de la carte, jamais en hauteur. */
-function normalesDe(sommets: ReadonlyArray<Vector3>): ReadonlyArray<Vector3> {
-  return sommets.map((sommet, i) => {
-    const voisin = sommets[i + 1] ?? sommets[i - 1] ?? sommet;
-    const signe = sommets[i + 1] ? 1 : -1;
-    const dx = (voisin.x - sommet.x) * signe;
-    const dz = (voisin.z - sommet.z) * signe;
-    const norme = Math.hypot(dx, dz) || 1;
-    return new Vector3(-dz / norme, 0, dx / norme);
-  });
 }
 
 /**
@@ -474,11 +594,11 @@ export const tendreAttache = (attache: Line2, haut: Vector3, bas: Vector3): void
 /* ------------------------------- accessoires ------------------------------ */
 
 /**
- * Les losanges tombent sur les nœuds de grille traversés : ce sont les seuls points où un
- * trajet terrestre peut être intercepté, et c'est à ce titre qu'ils se dessinent — pas comme
- * décor de trait.
+ * Les nœuds de grille traversés : les seuls points où un trajet terrestre pourra être
+ * intercepté. Ils ne se dessinent plus — l'interception n'existe pas, et un losange par nœud
+ * promettait une règle de jeu qui n'est pas écrite. Le calcul reste, la marque part.
  */
-function noeudsDeGrille(etape: EtapeFil): ReadonlyArray<Vector3> {
+export function noeudsDeGrille(etape: EtapeFil): ReadonlyArray<Vector3> {
   const noeuds: Vector3[] = [];
   for (const brin of etape.brins) {
     for (let i = 1; i < brin.sommets.length - 1; i++) noeuds.push(brin.sommets[i]!);
@@ -489,9 +609,15 @@ function noeudsDeGrille(etape: EtapeFil): ReadonlyArray<Vector3> {
 function quaisDe(trajet: TrajetCalcule, etapes: ReadonlyArray<EtapeFil>): ReadonlyArray<Quai> {
   const quais: Quai[] = [];
   for (let i = 1; i < etapes.length; i++) {
-    const premier = etapes[i]!.brins[0]?.sommets[0];
-    if (premier === undefined) continue;
-    quais.push({ position: premier.clone(), embarquement: trajet.etapes[i]!.milieu === 'mer' });
+    const sommets = etapes[i]!.brins[0]?.sommets;
+    const premier = sommets?.[0];
+    if (sommets === undefined || premier === undefined) continue;
+    const suivant = sommets[1] ?? premier;
+    quais.push({
+      position: premier.clone(),
+      embarquement: trajet.etapes[i]!.milieu === 'mer',
+      cap: Math.atan2(suivant.x - premier.x, suivant.z - premier.z),
+    });
   }
   return quais;
 }
@@ -499,6 +625,12 @@ function quaisDe(trajet: TrajetCalcule, etapes: ReadonlyArray<EtapeFil>): Readon
 /** Les accessoires sont tracés autour de l'origine puis posés : c'est ce qui les rend scalables. */
 function poser(position: Vector3, accessoire: Group): Group {
   accessoire.position.copy(position);
+  return accessoire;
+}
+
+/** La marque tourne à plat pour se ranger sur le fil : le lacet seul, jamais l'assiette. */
+function orienter(accessoire: Group, cap: number): Group {
+  accessoire.rotation.y = cap;
   return accessoire;
 }
 
@@ -540,19 +672,8 @@ const dans = (segments: LineSegments2): Group => {
   return groupe;
 };
 
-const losange = (materiau: LineMaterial, rang: number): Group =>
-  dans(
-    contour(
-      polygone([
-        [-DEMI_LOSANGE_PX, 0], [0, -DEMI_LOSANGE_PX], [DEMI_LOSANGE_PX, 0], [0, DEMI_LOSANGE_PX],
-      ]),
-      materiau,
-      rang,
-    ),
-  );
-
 const cercleDeDepart = (materiau: LineMaterial): Group =>
-  dans(contour(cercle(RAYON_DEPART_PX, 14), materiau, RANG_RENDU.mer));
+  dans(contour(cercle(RAYON_DEPART_PX, 14), materiau, RANG_MARQUE));
 
 /**
  * La terminaison du fil : un × d'encre, incliné comme sur les planches. Une pointe de flèche
@@ -567,7 +688,7 @@ const croixDArrivee = (materiau: LineMaterial): Group =>
         DEMI_CROIX_PX, 0, -DEMI_CROIX_PX, -DEMI_CROIX_PX, 0, DEMI_CROIX_PX,
       ],
       materiau,
-      RANG_RENDU.mer,
+      RANG_MARQUE,
     ),
   );
 
@@ -575,6 +696,9 @@ const croixDArrivee = (materiau: LineMaterial): Group =>
  * Un quai, dessiné comme sur la planche : le cercle, le carré plein quand on embarque et vide
  * quand on débarque, le tiret de la ligne de côte. À plat dans le plan de la carte — l'orbite
  * ne descend jamais assez pour qu'un symbole couché se referme.
+ *
+ * C'est le seul point où le fil change de nature : la marque est tournée sur le cap du fil,
+ * pour que le tiret de côte soit bien la côte qu'on franchit et pas un trait posé au nord.
  */
 function marqueDeQuai(embarquement: boolean, materiau: LineMaterial): Group {
   const groupe = new Group();
@@ -590,7 +714,7 @@ function marqueDeQuai(embarquement: boolean, materiau: LineMaterial): Group {
   // Le carré plein n'a pas de remplissage : à cette taille, deux diagonales le noircissent.
   if (embarquement) carre.push(-c, 0, -c, c, 0, c, c, 0, -c, -c, 0, c);
 
-  groupe.add(contour(anneau, materiau, RANG_RENDU.mer));
-  groupe.add(contour(carre, materiau, RANG_RENDU.mer));
+  groupe.add(contour(anneau, materiau, RANG_MARQUE));
+  groupe.add(contour(carre, materiau, RANG_MARQUE));
   return groupe;
 }

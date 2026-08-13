@@ -7,11 +7,11 @@ import {
   Raycaster,
   Scene,
   Vector2,
+  Vector3,
   WebGLRenderer,
   type BufferGeometry,
   type LineBasicMaterial,
   type LineSegments,
-  type Vector3,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { DonneesRegions, Monde } from '@/domaine/monde';
@@ -34,6 +34,13 @@ export type SurvolCarte = { nom: string; ecranX: number; ecranY: number } | null
  * tourne coûterait une mise en page par image.
  */
 const REPOS_CAMERA_MS = 180;
+
+/**
+ * Le voyage vers une entité désignée au bord de l'écran. Assez long pour qu'on suive le
+ * déplacement des yeux — c'est ce qui apprend où l'entité se trouvait — assez court pour ne
+ * pas attendre. Le zoom ne bouge pas : seul un agrégat qui déborde du champ élargit la vue.
+ */
+const DUREE_VOYAGE_MS = 500;
 
 /**
  * Moteur impératif : la scène est construite une fois puis pilotée par des appels.
@@ -62,6 +69,8 @@ export class MoteurCarte {
   private largeurEcran = 1;
   private hauteurEcran = 1;
   private minuteurRepos: ReturnType<typeof setTimeout> | null = null;
+  private voyage: Voyage | null = null;
+  private readonly ecouteursRepos = new Set<() => void>();
 
   onSurvol: (survol: SurvolCarte) => void = () => {};
   onSurvolRegion: (nom: string | null) => void = () => {};
@@ -69,7 +78,11 @@ export class MoteurCarte {
   onSelection: (nom: string | null) => void = () => {};
   /** Appelée à chaque image : l'interface y écrit des transformations, jamais un rendu React. */
   onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => {};
-  onReposCamera: () => void = () => {};
+  /**
+   * Les mêmes projections, pour la couche des indicateurs de bord. Deux appels plutôt qu'un
+   * abonnement : ce sont deux couches distinctes du DOM, chacune ne lit que ses champs.
+   */
+  onBords: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => {};
   private regionSurvolee: string | null = null;
   private arcSurvole: string | null = null;
   private etiquettePays: string | null = null;
@@ -166,6 +179,45 @@ export class MoteurCarte {
     this.arcs.accentuer(id);
   }
 
+  /** Le repos de caméra a deux auditoires — les étiquettes et le bord — d'où l'abonnement. */
+  abonnerRepos(ecouteur: () => void): () => void {
+    this.ecouteursRepos.add(ecouteur);
+    return () => {
+      this.ecouteursRepos.delete(ecouteur);
+    };
+  }
+
+  /**
+   * Amener la cible d'orbite sur une ou plusieurs ancres. Un indicateur agrégé cadre son
+   * groupe : la vue s'élargit juste assez pour le contenir, et ne se resserre jamais — un clic
+   * qui rapprocherait la caméra sans qu'on l'ait demandé ferait perdre le fil de la carte.
+   */
+  voyagerVers(ids: ReadonlyArray<string>): void {
+    const points = ids
+      .map((id) => this.etiquettes.position(id, this.arcs.positionsTetes))
+      .filter((point): point is Vector3 => point !== undefined);
+    if (points.length === 0) return;
+
+    const arrivee = points
+      .reduce((somme, point) => somme.add(point), new Vector3())
+      .divideScalar(points.length);
+    const rayon = Math.max(...points.map((point) => point.distanceTo(arrivee)));
+    const distanceActuelle = this.camera.position.distanceTo(this.controles.target);
+    const cadrage = rayon / Math.tan((this.camera.fov * Math.PI) / 360);
+
+    this.voyage = {
+      depart: this.controles.target.clone(),
+      arrivee,
+      orientation: this.camera.position.clone().sub(this.controles.target).normalize(),
+      distanceDepart: distanceActuelle,
+      distanceArrivee: Math.min(
+        this.controles.maxDistance,
+        Math.max(distanceActuelle, cadrage, this.controles.minDistance),
+      ),
+      debutMs: performance.now(),
+    };
+  }
+
   selectionner(nom: string | null): void {
     this.selection = nom;
   }
@@ -224,6 +276,10 @@ export class MoteurCarte {
     });
     toile.addEventListener('pointerdown', () => {
       this.aOrbite = false;
+      this.voyage = null;
+    });
+    toile.addEventListener('wheel', () => {
+      this.voyage = null;
     });
     toile.addEventListener('pointerup', () => {
       if (this.aOrbite) return;
@@ -244,8 +300,28 @@ export class MoteurCarte {
     if (this.minuteurRepos !== null) clearTimeout(this.minuteurRepos);
     this.minuteurRepos = setTimeout(() => {
       this.minuteurRepos = null;
-      this.onReposCamera();
+      for (const ecouteur of this.ecouteursRepos) ecouteur();
     }, REPOS_CAMERA_MS);
+  }
+
+  /** Le voyage cède à la première main sur la caméra : on ne se bat pas avec le joueur. */
+  private animerVoyage(): void {
+    if (this.voyage === null) return;
+    const part = Math.min(1, (performance.now() - this.voyage.debutMs) / DUREE_VOYAGE_MS);
+    const adouci = part * part * (3 - 2 * part);
+
+    this.controles.target.copy(this.voyage.depart).lerp(this.voyage.arrivee, adouci);
+    const distance =
+      this.voyage.distanceDepart +
+      (this.voyage.distanceArrivee - this.voyage.distanceDepart) * adouci;
+    this.camera.position
+      .copy(this.controles.target)
+      .addScaledVector(this.voyage.orientation, distance);
+
+    if (part === 1) {
+      this.voyage = null;
+      this.repousserRepos();
+    }
   }
 
   private mettreAJourSurvol(): void {
@@ -296,6 +372,7 @@ export class MoteurCarte {
 
   private boucle = (): void => {
     this.animation = requestAnimationFrame(this.boucle);
+    this.animerVoyage();
     this.controles.update();
     this.mettreAJourSurvol();
     this.eclairerPays();
@@ -311,13 +388,22 @@ export class MoteurCarte {
         : 0.62;
 
     this.rendu.render(this.scene, this.camera);
-    this.onEtiquettes(
-      this.etiquettes.projeter(
-        this.camera,
-        this.largeurEcran,
-        this.hauteurEcran,
-        this.arcs.positionsTetes,
-      ),
+    const projections = this.etiquettes.projeter(
+      this.camera,
+      this.largeurEcran,
+      this.hauteurEcran,
+      this.arcs.positionsTetes,
     );
+    this.onEtiquettes(projections);
+    this.onBords(projections);
   };
 }
+
+type Voyage = {
+  readonly depart: Vector3;
+  readonly arrivee: Vector3;
+  readonly orientation: Vector3;
+  readonly distanceDepart: number;
+  readonly distanceArrivee: number;
+  readonly debutMs: number;
+};

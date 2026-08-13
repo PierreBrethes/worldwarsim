@@ -1,3 +1,5 @@
+import { BASCULES_DEFAUT, CATEGORIES, type BasculesIndicateurs } from '@/domaine/indicateurs';
+
 const CLE_ECHELLE = 'wws-echelle-hud';
 // Doit rester d'accord avec `--echelle-hud` de `tokens.css` : le token est l'échelle du
 // premier rendu, celle-ci celle qu'on réapplique une fois le réglage relu.
@@ -31,6 +33,26 @@ export const lireFriseRepliee = (): boolean =>
 export const garderFriseRepliee = (repliee: boolean): void => {
   localStorage.setItem(CLE_FRISE_REPLIEE, repliee ? 'repliee' : 'deployee');
 };
+
+const CLE_INDICATEURS = 'wws-indicateurs-bord';
+
+/**
+ * Les bascules du bord d'écran se relisent catégorie par catégorie plutôt qu'en bloc : une
+ * catégorie ajoutée plus tard doit prendre son défaut, pas ressusciter un objet périmé.
+ */
+export function lireBasculesIndicateurs(): BasculesIndicateurs {
+  const gardees = lireObjet(CLE_INDICATEURS);
+  return Object.fromEntries(
+    CATEGORIES.map(({ cle }) => [
+      cle,
+      typeof gardees[cle] === 'boolean' ? gardees[cle] : BASCULES_DEFAUT[cle],
+    ]),
+  ) as BasculesIndicateurs;
+}
+
+export function garderBasculesIndicateurs(bascules: BasculesIndicateurs): void {
+  localStorage.setItem(CLE_INDICATEURS, JSON.stringify(bascules));
+}
 
 const CLE_DISPOSITION = 'wws-disposition-modales';
 
@@ -68,13 +90,16 @@ export function garderGeometrieModale(nom: string, geometrie: GeometrieModale): 
   localStorage.setItem(CLE_DISPOSITION, JSON.stringify({ ...lireDisposition(), [nom]: geometrie }));
 }
 
-function lireDisposition(): Record<string, GeometrieModale | undefined> {
-  const brut = localStorage.getItem(CLE_DISPOSITION);
+const lireDisposition = (): Record<string, GeometrieModale | undefined> =>
+  lireObjet(CLE_DISPOSITION) as Record<string, GeometrieModale | undefined>;
+
+function lireObjet(cle: string): Record<string, unknown> {
+  const brut = localStorage.getItem(cle);
   if (brut === null) return {};
   try {
     const analyse: unknown = JSON.parse(brut);
     if (typeof analyse !== 'object' || analyse === null) return {};
-    return analyse as Record<string, GeometrieModale | undefined>;
+    return analyse as Record<string, unknown>;
   } catch {
     return {};
   }

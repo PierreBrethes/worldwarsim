@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { chargerRegions, type Monde } from '@/domaine/monde';
 import type { EtiquetteCarte } from '@/domaine/etiquettes';
+import type { BasculesIndicateurs } from '@/domaine/indicateurs';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { EchelleTrajet } from './EchelleTrajet';
 import { EtiquettesCarte } from './EtiquettesCarte';
+import { IndicateursBord } from './IndicateursBord';
 import { MoteurCarte, type SurvolCarte } from './moteur';
 
 type Props = {
@@ -13,6 +15,8 @@ type Props = {
   encreParPays: ReadonlyMap<string, string>;
   paysSelectionne: string | null;
   nationJoueur: string | null;
+  /** Les catégories dont les entités hors champ se rabattent au bord de l'écran. */
+  indicateurs: BasculesIndicateurs;
   /** L'identifiant du mouvement que la frise désigne — l'arc correspondant monte en intensité. */
   mouvementAccentue: string | null;
   onSelection: (nom: string | null) => void;
@@ -28,6 +32,7 @@ export function Carte({
   encreParPays,
   paysSelectionne,
   nationJoueur,
+  indicateurs,
   mouvementAccentue,
   onSelection,
   onSurvolRegion,
@@ -121,6 +126,7 @@ export function Carte({
         onSurvolMouvement={onSurvolEtiquette ?? (() => {})}
         onSelection={onSelection}
       />
+      <IndicateursBord etiquettes={etiquettes} moteur={moteurPret} bascules={indicateurs} />
       {arcDesigne && (
         <div className="absolute top-4 left-4 z-10">
           <EchelleTrajet arc={arcDesigne} />

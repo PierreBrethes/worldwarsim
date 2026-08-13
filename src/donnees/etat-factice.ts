@@ -21,7 +21,7 @@ import type { Pile, VueJoueur } from '@/domaine/vue-joueur';
  */
 export const ETAT_FACTICE = true;
 
-const NATION = 'Royaume-Uni';
+const NATION = 'France';
 
 /**
  * Positions posées à la main : `monde.json` donne bien un point représentatif par pays, mais
@@ -29,10 +29,10 @@ const NATION = 'Royaume-Uni';
  * de chaque avant-poste et de chaque chantier, pas un nom de pays à re-géocoder au client.
  */
 const POSITIONS = {
-  domicile: [-2.2, 53.4],
+  domicile: [2.35, 48.85],
   norvege: [8.5, 61.4],
   portugal: [-8.2, 39.6],
-  chantier: [-1.5, 51.4],
+  chantier: [4.85, 45.75],
   italie: [12.5, 42.5],
   islande: [-19.0, 64.9],
   danemark: [9.5, 56.0],
@@ -41,7 +41,7 @@ const POSITIONS = {
   manche: [0.4, 50.3],
   merDuNord: [3.6, 55.8],
   atlantiqueNord: [-12.0, 57.0],
-  merDIrlande: [-4.5, 54.5],
+  golfeDeGascogne: [-4.5, 46.0],
   baltique: [17.0, 56.0],
   golfeDeFinlande: [24.0, 59.4],
   alger: [3.0, 36.75],
@@ -253,10 +253,10 @@ export function appliquerEtatFactice(monde: Monde, vue: VueJoueur): VueJoueur {
         etat: 'adverseDetecte',
         id: 'mv-cap-identifie',
         depuis: POSITIONS.atlantiqueNord,
-        vers: POSITIONS.merDIrlande,
-        trajet: trajet(POSITIONS.atlantiqueNord, POSITIONS.merDIrlande, 'naval'),
+        vers: POSITIONS.golfeDeGascogne,
+        trajet: trajet(POSITIONS.atlantiqueNord, POSITIONS.golfeDeGascogne, 'naval'),
         nationSuspectee: 'Allemagne',
-        capDegres: 118,
+        capDegres: 152,
         capSurMoi: true,
         identification: { perce: true, type: 'attaque', pile: { blinde: 30 } },
         minutesRestantesEstimees: MOUVEMENTS.capIdentifie.resteMinutes,
@@ -317,12 +317,26 @@ export function marqueursFactices(vue: VueJoueur): ReadonlyArray<MarqueurCarte> 
           paysHote: PAYS_DE_NATION[NATION],
           nom: vue.moi.chantier.nom,
           acheveA: vue.chargeeA + vue.moi.chantier.resteMinutes * 60_000,
+          sansOrdre: false,
           encre,
         },
       ]
     : [];
 
-  return [...avantPostes, pile, ...chantier];
+  // Le chantier achevé que rien ne suit : le cas d'oubli existe dans le factice pour qu'on
+  // puisse le voir au bord de l'écran, faute de quoi l'accent d'attention ne se vérifierait pas.
+  const acheve: MarqueurCarte = {
+    genre: 'chantier',
+    id: 'chantier-acheve',
+    lonLat: POSITIONS.italie,
+    paysHote: 'Italy',
+    nom: 'Dépôt de campagne',
+    acheveA: vue.chargeeA - 4 * 60_000,
+    sansOrdre: true,
+    encre,
+  };
+
+  return [...avantPostes, pile, ...chantier, acheve];
 }
 
 const avancementDe = (mouvement: { totalMinutes: number; resteMinutes: number }): number =>

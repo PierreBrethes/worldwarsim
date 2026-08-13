@@ -103,6 +103,7 @@ describe('construireEtiquettes', () => {
           paysHote: 'United Kingdom',
           nom: 'Centre logistique',
           acheveA: CHARGEE_A,
+          sansOrdre: false,
           encre: '#000',
         },
       ],

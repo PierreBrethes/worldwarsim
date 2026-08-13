@@ -13,7 +13,6 @@ import {
   pointSurEtape,
   projeterAuSol,
   tendreAttache,
-  type EpaisseursFil,
   type Fil,
 } from './fil';
 import { Jalon } from './jalon';
@@ -30,14 +29,15 @@ type RenduArc = {
 };
 
 /**
- * L'épaisseur porte la hiérarchie, en pixels et non en unités de monde : le parcouru est un
- * fait, le restant une intention, et ce qui n'est pas à moi ne s'impose pas au premier plan.
+ * L'épaisseur porte la hiérarchie entre mouvements, en pixels et non en unités de monde : ce
+ * qui n'est pas à moi ne s'impose pas au premier plan. À l'intérieur d'un fil, elle ne dit
+ * rien — parcouru et restant sont le même trait, et c'est le pointillé qui les sépare.
  */
-const EPAISSEURS: Readonly<Record<ArcAffiche['etat'], EpaisseursFil>> = {
-  mien: { parcouru: 2.5, restant: 1.5 },
-  adverseDetecte: { parcouru: 2, restant: 1.3 },
-  dernierePositionConnue: { parcouru: 2, restant: 1.3 },
-  maitriseDesMers: { parcouru: 2, restant: 1.3 },
+const EPAISSEURS: Readonly<Record<ArcAffiche['etat'], number>> = {
+  mien: 2.5,
+  adverseDetecte: 2,
+  dernierePositionConnue: 2,
+  maitriseDesMers: 2,
 };
 
 const OPACITE_TRACE = 0.55;
@@ -67,6 +67,8 @@ export class CoucheArcs {
   private largeur = 1;
   private hauteur = 1;
   private uniteParPixel = 1;
+  /** L'horloge de la dérive du pointillé : elle vit dans la boucle, jamais dans un état React. */
+  private derniereImageMs = 0;
 
   constructor(private readonly repere: RepereMonde) {}
 
@@ -98,9 +100,9 @@ export class CoucheArcs {
       fil.reglerResolution(this.largeur, this.hauteur);
       fil.reglerEchelle(this.uniteParPixel);
       this.groupe.add(fil.objet);
-      for (const trace of fil.traces) {
-        trace.userData.arc = arc.id;
-        this.cibles.push(trace);
+      for (const cible of fil.cibles) {
+        cible.userData.arc = arc.id;
+        this.cibles.push(cible);
       }
 
       const jalon = new Jalon(
@@ -144,13 +146,18 @@ export class CoucheArcs {
     if (camera) this.positionCamera.copy(camera.position);
     if (uniteParPixel !== undefined) this.uniteParPixel = uniteParPixel;
 
+    const maintenant = performance.now();
+    const ecoule = this.derniereImageMs === 0 ? 0 : (maintenant - this.derniereImageMs) / 1000;
+    this.derniereImageMs = maintenant;
+
     for (const rendu of this.rendus) {
       if (uniteParPixel !== undefined) rendu.fil.reglerEchelle(uniteParPixel);
+      rendu.fil.deriver(ecoule);
 
       const position = positionTemporelle(rendu.deroule, rendu.arc.avancement);
       const { indexEtape, local } = viseeDuJalon(position);
 
-      this.avancerProgression(rendu, indexEtape, local);
+      rendu.fil.couper(indexEtape, local);
 
       const etape = rendu.fil.etapes[indexEtape];
       if (etape === undefined) continue;
@@ -177,28 +184,6 @@ export class CoucheArcs {
 
   reconstruire(): void {
     this.afficher(this.rendus.map((rendu) => rendu.arc));
-  }
-
-  /**
-   * Les brins d'une étape se remplissent l'un après l'autre : le monde s'enroule, un fil qui
-   * sort par l'antiméridien rentre de l'autre bord, et sa progression doit suivre le même
-   * chemin plutôt que d'allumer les deux morceaux à la fois.
-   */
-  private avancerProgression(rendu: RenduArc, indexEtape: number, local: number): void {
-    let rang = 0;
-    for (let e = 0; e < rendu.fil.etapes.length; e++) {
-      const etape = rendu.fil.etapes[e]!;
-      const partEtape = e < indexEtape ? 1 : e > indexEtape ? 0 : local;
-      let restant = partEtape * etape.longueur;
-      for (const brin of etape.brins) {
-        const trait = rendu.fil.progression[rang++];
-        if (trait === undefined) continue;
-        const longueurBrin = brin.longueurs.reduce((somme, longueur) => somme + longueur, 0);
-        const part = longueurBrin > 0 ? Math.min(1, restant / longueurBrin) : restant > 0 ? 1 : 0;
-        trait.ligne.geometry.instanceCount = part <= 0 ? 0 : Math.max(1, Math.ceil(part * trait.segments));
-        restant = Math.max(0, restant - longueurBrin);
-      }
-    }
   }
 
   private appliquerAccent(): void {

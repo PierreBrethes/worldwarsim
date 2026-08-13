@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './tokens.css';
 @import './etiquettes.css';
+@import './indicateurs.css';
 
 @theme {
   --font-display: 'Bodoni Moda', Georgia, serif;
