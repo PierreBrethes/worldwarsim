@@ -17,6 +17,7 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
     0,
     (saison.dureeHeures - saison.ecouleHeures) * 60 - (maintenant - vue.chargeeA) / 60_000,
   );
+  const critique = vue.journal.find((depeche) => depeche.gravite === 'critique') ?? null;
   return (
     <header
       className="hud flex min-w-max shrink-0 items-center gap-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-4"
@@ -59,19 +60,23 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
         search={{ ...recherche, modale: 'journal' as const }}
         className="flex h-full shrink-0 items-center gap-3 border-r border-[var(--ink-quiet)] px-5 whitespace-nowrap hover:bg-[var(--ink)]"
       >
-        <span
-          style={{
-            color: vue.journal.some((depeche) => depeche.gravite === 'critique')
-              ? 'var(--critique)'
-              : 'var(--routine)',
-          }}
-        >
+        <span style={{ color: critique ? 'var(--critique)' : 'var(--routine)' }}>
           <IconeJournal taille={22} />
         </span>
         <span className="text-left">
-          <span className="eyebrow-sombre block">Journal d’événements</span>
-          <span className="block text-[13px] text-[var(--paper)]">
-            {vue.journal.length} dépêches non lues
+          <span className="eyebrow-sombre block">
+            {critique ? 'Dernière heure' : 'Journal d’événements'}
+          </span>
+          {/* La manchette vaut mieux que le compteur : un journal titre, il ne dénombre pas. */}
+          <span
+            className="block max-w-[300px] overflow-hidden text-[13px] text-ellipsis"
+            style={{ color: critique ? 'var(--critique)' : 'var(--paper)' }}
+          >
+            {critique
+              ? critique.texte
+              : vue.journal.length
+                ? `${vue.journal.length} dépêche${vue.journal.length > 1 ? 's' : ''} non lue${vue.journal.length > 1 ? 's' : ''}`
+                : 'rien à signaler'}
           </span>
         </span>
       </Link>

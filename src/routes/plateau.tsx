@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { Suspense, lazy, useCallback, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { Carte } from '@/carte/Carte';
 import { Coque } from '@/coque/Coque';
@@ -125,6 +125,21 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
       search: ({ modale: _ecartee, ...reste }) => reste,
     });
   }, [naviguer]);
+
+  // L'édition du réveil : s'il y a du critique non lu, le journal est déjà posé
+  // sur le bureau en arrivant. Une seule fois par arrivée, et jamais par-dessus
+  // un lien profond qui demande une autre surface.
+  const editionServie = useRef(false);
+  useEffect(() => {
+    if (editionServie.current) return;
+    editionServie.current = true;
+    if (modale) return;
+    if (!vue.journal.some((depeche) => depeche.gravite === 'critique')) return;
+    void naviguer({
+      search: (precedente) => ({ ...precedente, modale: 'journal' }),
+      replace: true,
+    });
+  }, [modale, vue.journal, naviguer]);
 
   return (
     <Coque vue={vue}>
