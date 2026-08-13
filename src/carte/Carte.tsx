@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { chargerRegions, type Monde } from '@/domaine/monde';
+import type { EtiquetteCarte } from '@/domaine/etiquettes';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
-import { MoteurCarte, type SurvolCarte, type SurvolMarqueur } from './moteur';
-import { LIBELLE_SPECIALISATION, type MarqueurCarte } from './moteur/marqueurs';
+import { EtiquettesCarte } from './EtiquettesCarte';
+import { MoteurCarte, type SurvolCarte } from './moteur';
 
 type Props = {
   monde: Monde;
   arcs: ReadonlyArray<ArcAffiche>;
-  marqueurs: ReadonlyArray<MarqueurCarte>;
-  chargeeA: number;
+  etiquettes: ReadonlyArray<EtiquetteCarte>;
   encreParPays: ReadonlyMap<string, string>;
   paysSelectionne: string | null;
   nationJoueur: string | null;
@@ -17,13 +17,13 @@ type Props = {
   onSelection: (nom: string | null) => void;
   onSurvolRegion?: (nom: string | null) => void;
   onSurvolArc?: (id: string | null) => void;
+  onSurvolEtiquette?: (id: string | null) => void;
 };
 
 export function Carte({
   monde,
   arcs,
-  marqueurs,
-  chargeeA,
+  etiquettes,
   encreParPays,
   paysSelectionne,
   nationJoueur,
@@ -31,18 +31,21 @@ export function Carte({
   onSelection,
   onSurvolRegion,
   onSurvolArc,
+  onSurvolEtiquette,
 }: Props) {
   const conteneur = useRef<HTMLDivElement>(null);
   const moteur = useRef<MoteurCarte | null>(null);
   const [survol, setSurvol] = useState<SurvolCarte>(null);
-  const [survolMarqueur, setSurvolMarqueur] = useState<SurvolMarqueur>(null);
+  // La couche d'étiquettes ne peut se brancher qu'une fois le moteur construit : elle a besoin
+  // de l'instance, pas d'une référence qui ne déclenche aucun rendu.
+  const [moteurPret, setMoteurPret] = useState<MoteurCarte | null>(null);
 
   useEffect(() => {
     if (!conteneur.current) return;
     const instance = new MoteurCarte(conteneur.current, monde);
     instance.onSurvol = setSurvol;
-    instance.onSurvolMarqueur = setSurvolMarqueur;
     moteur.current = instance;
+    setMoteurPret(instance);
     if (import.meta.env.DEV) (window as unknown as { moteurCarte?: MoteurCarte }).moteurCarte = instance;
 
     const observateur = new ResizeObserver(() => instance.redimensionner());
@@ -61,6 +64,7 @@ export function Carte({
       observateur.disconnect();
       instance.detruire();
       moteur.current = null;
+      setMoteurPret(null);
     };
   }, [monde]);
 
@@ -85,12 +89,8 @@ export function Carte({
   }, [mouvementAccentue]);
 
   useEffect(() => {
-    moteur.current?.afficherArcs(arcs, chargeeA);
-  }, [arcs, chargeeA]);
-
-  useEffect(() => {
-    moteur.current?.afficherMarqueurs(marqueurs);
-  }, [marqueurs]);
+    moteur.current?.afficherArcs(arcs);
+  }, [arcs]);
 
   useEffect(() => {
     moteur.current?.colorerNations(encreParPays);
@@ -110,39 +110,13 @@ export function Carte({
             'radial-gradient(ellipse 75% 68% at 50% 44%, rgba(228,216,189,.045) 0%, transparent 42%), radial-gradient(ellipse 85% 75% at 50% 46%, transparent 48%, rgba(10,7,3,.5) 100%)',
         }}
       />
+      <EtiquettesCarte
+        etiquettes={etiquettes}
+        moteur={moteurPret}
+        onSurvolMouvement={onSurvolEtiquette ?? (() => {})}
+        onSelection={onSelection}
+      />
       {survol && <EtiquettePays survol={survol} />}
-      {survolMarqueur && (
-        <EtiquetteMarqueur
-          survol={survolMarqueur}
-          marqueur={marqueurs.find((candidat) => candidat.id === survolMarqueur.id) ?? null}
-        />
-      )}
-    </div>
-  );
-}
-
-function EtiquetteMarqueur({
-  survol,
-  marqueur,
-}: {
-  survol: NonNullable<SurvolMarqueur>;
-  marqueur: MarqueurCarte | null;
-}) {
-  if (marqueur === null || marqueur.genre !== 'avantPoste') return null;
-  return (
-    <div
-      className="hud pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[160%] border border-[var(--ink-quiet)] bg-[var(--desk)] px-2 py-[4px] font-[var(--font-body)] whitespace-nowrap"
-      style={{ left: survol.ecranX, top: survol.ecranY }}
-    >
-      <div className="flex items-center gap-2">
-        <span className="h-[9px] w-[9px] shrink-0" style={{ background: marqueur.encre }} />
-        <span className="text-[11.5px] text-[var(--paper)]">
-          {LIBELLE_SPECIALISATION[marqueur.specialisation]}
-        </span>
-      </div>
-      <div className="mt-[2px] font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
-        niv. {marqueur.niveau} · garnison {marqueur.garnison}
-      </div>
     </div>
   );
 }

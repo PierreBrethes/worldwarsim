@@ -18,7 +18,7 @@ import type { DonneesRegions, Monde } from '@/domaine/monde';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { CoucheArcs, SEUIL_SURVOL_ARC } from './arcs';
 import { Courbure } from './courbure';
-import { CoucheMarqueurs, type MarqueurCarte } from './marqueurs';
+import { CoucheEtiquettes, type AncreNommee, type ProjectionEtiquette } from './etiquettes';
 import { PALETTE } from './palette';
 import { construirePays, type MeshPays } from './pays';
 import { construirePlateau } from './plateau';
@@ -26,13 +26,13 @@ import { CoucheRegions, DISTANCE_REGIONS_ABSENTES } from './regions';
 import { RepereMonde } from './repere';
 
 export type SurvolCarte = { nom: string; ecranX: number; ecranY: number } | null;
-export type SurvolMarqueur = { id: string; ecranX: number; ecranY: number } | null;
 
 /**
- * Le même seuil que la couche des régions : ce que le joueur voit apparaître quand il descend
- * sur un pays doit apparaître d'un bloc, sinon la carte se peuple par étages sans raison lisible.
+ * Le temps qu'on laisse à l'orbite pour s'immobiliser avant de recalculer le dégradé des
+ * étiquettes qui se recouvrent. Ce calcul mesure du DOM ; le faire pendant que la caméra
+ * tourne coûterait une mise en page par image.
  */
-const DISTANCE_DETAIL = DISTANCE_REGIONS_ABSENTES;
+const REPOS_CAMERA_MS = 180;
 
 /**
  * Moteur impératif : la scène est construite une fois puis pilotée par des appels.
@@ -47,7 +47,7 @@ export class MoteurCarte {
   private readonly repere: RepereMonde;
   private readonly courbure: Courbure;
   private readonly arcs: CoucheArcs;
-  private readonly marqueurs: CoucheMarqueurs;
+  private readonly etiquettes: CoucheEtiquettes;
   private readonly regions: CoucheRegions;
   private readonly pays: MeshPays[];
   private readonly frontieres: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -58,14 +58,18 @@ export class MoteurCarte {
   private selection: string | null = null;
   private animation = 0;
   private aOrbite = false;
+  private largeurEcran = 1;
+  private hauteurEcran = 1;
+  private minuteurRepos: ReturnType<typeof setTimeout> | null = null;
 
   onSurvol: (survol: SurvolCarte) => void = () => {};
   onSurvolRegion: (nom: string | null) => void = () => {};
-  onSurvolMarqueur: (survol: SurvolMarqueur) => void = () => {};
   onSurvolArc: (id: string | null) => void = () => {};
   onSelection: (nom: string | null) => void = () => {};
+  /** Appelée à chaque image : l'interface y écrit des transformations, jamais un rendu React. */
+  onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => {};
+  onReposCamera: () => void = () => {};
   private regionSurvolee: string | null = null;
-  private marqueurSurvole: string | null = null;
   private arcSurvole: string | null = null;
   private etiquettePays: string | null = null;
 
@@ -118,8 +122,7 @@ export class MoteurCarte {
     this.arcs = new CoucheArcs(this.repere);
     this.scene.add(this.arcs.groupe);
 
-    this.marqueurs = new CoucheMarqueurs(this.repere);
-    this.scene.add(this.marqueurs.groupe);
+    this.etiquettes = new CoucheEtiquettes(this.repere);
 
     this.regions = new CoucheRegions(this.repere, this.courbure);
     this.scene.add(this.regions.lignes);
@@ -135,12 +138,15 @@ export class MoteurCarte {
     this.boucle();
   }
 
-  afficherArcs(arcs: ReadonlyArray<ArcAffiche>, chargeeA?: number): void {
-    this.arcs.afficher(arcs, chargeeA);
+  afficherArcs(arcs: ReadonlyArray<ArcAffiche>): void {
+    this.arcs.afficher(arcs);
   }
 
-  afficherMarqueurs(marqueurs: ReadonlyArray<MarqueurCarte>): void {
-    this.marqueurs.afficher(marqueurs);
+  definirAncresEtiquettes(ancres: ReadonlyArray<AncreNommee>): void {
+    this.etiquettes.definirAncres(ancres);
+    // Le jeu d'étiquettes a changé : le dégradé au chevauchement est à refaire, mais pas avant
+    // que la boucle ait posé les nouvelles positions — le repos de caméra sert aussi à ça.
+    this.repousserRepos();
   }
 
   afficherRegions(donnees: DonneesRegions): void {
@@ -174,6 +180,7 @@ export class MoteurCarte {
     this.repere.courbure = intensite;
     this.courbure.appliquerToutes();
     this.arcs.reconstruire();
+    this.etiquettes.reconstruire();
   }
 
   redimensionner(): void {
@@ -182,10 +189,13 @@ export class MoteurCarte {
     this.camera.aspect = clientWidth / clientHeight;
     this.camera.updateProjectionMatrix();
     this.rendu.setSize(clientWidth, clientHeight);
+    this.largeurEcran = clientWidth;
+    this.hauteurEcran = clientHeight;
   }
 
   detruire(): void {
     cancelAnimationFrame(this.animation);
+    if (this.minuteurRepos !== null) clearTimeout(this.minuteurRepos);
     this.regions.detruire();
     this.controles.dispose();
     this.rendu.dispose();
@@ -194,6 +204,7 @@ export class MoteurCarte {
 
   private brancherEntrees(): void {
     const toile = this.rendu.domElement;
+    this.controles.addEventListener('change', () => this.repousserRepos());
     toile.addEventListener('pointermove', (evenement) => {
       if (evenement.buttons) this.aOrbite = true;
       const cadre = toile.getBoundingClientRect();
@@ -214,6 +225,14 @@ export class MoteurCarte {
     });
   }
 
+  private repousserRepos(): void {
+    if (this.minuteurRepos !== null) clearTimeout(this.minuteurRepos);
+    this.minuteurRepos = setTimeout(() => {
+      this.minuteurRepos = null;
+      this.onReposCamera();
+    }, REPOS_CAMERA_MS);
+  }
+
   private mettreAJourSurvol(): void {
     this.rayon.setFromCamera(this.pointeur, this.camera);
     const impact = this.rayon.intersectObjects(this.pays, false)[0];
@@ -227,19 +246,9 @@ export class MoteurCarte {
       this.onSurvolArc(arc);
     }
 
-    const marqueur = this.marqueurs.survoler(this.rayon);
-    if (marqueur !== this.marqueurSurvole) {
-      this.marqueurSurvole = marqueur;
-      this.onSurvolMarqueur(
-        marqueur ? { id: marqueur, ecranX: this.pointeurEcran.x, ecranY: this.pointeurEcran.y } : null,
-      );
-    }
-
     this.survole = touche ?? null;
 
-    // Un marqueur survolé prend la place de l'étiquette de pays : les deux s'ancrent au
-    // pointeur, elles se recouvriraient. Le clic, lui, continue de viser le pays dessous.
-    const etiquette = marqueur === null ? (this.survole?.userData.nom ?? null) : null;
+    const etiquette = this.survole?.userData.nom ?? null;
     if (etiquette === this.etiquettePays) return;
     this.etiquettePays = etiquette;
     this.onSurvol(
@@ -279,9 +288,7 @@ export class MoteurCarte {
     // Au zoom, la hiérarchie des traits s'inverse d'encre : les frontières de pays foncent
     // pendant que les régions apparaissent en dessous — WebGL ne connaît qu'un pixel de large.
     const distance = this.camera.position.distanceTo(this.controles.target);
-    const detaille = distance < DISTANCE_DETAIL;
-    this.arcs.animer(this.camera, detaille);
-    this.marqueurs.animer(this.camera, detaille);
+    this.arcs.animer(this.camera);
     this.regions.animer(distance);
     this.frontieres.material.opacity =
       distance < DISTANCE_REGIONS_ABSENTES
@@ -289,5 +296,13 @@ export class MoteurCarte {
         : 0.62;
 
     this.rendu.render(this.scene, this.camera);
+    this.onEtiquettes(
+      this.etiquettes.projeter(
+        this.camera,
+        this.largeurEcran,
+        this.hauteurEcran,
+        this.arcs.positionsTetes,
+      ),
+    );
   };
 }

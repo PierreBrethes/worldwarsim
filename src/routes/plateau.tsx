@@ -4,6 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import { Carte } from '@/carte/Carte';
 import { Coque } from '@/coque/Coque';
+import { construireEtiquettes } from '@/domaine/etiquettes';
 import { encreParPaysPris } from '@/domaine/nations';
 import type { Monde } from '@/domaine/monde';
 import type { VueJoueur } from '@/domaine/vue-joueur';
@@ -133,7 +134,10 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
   // seule variable et cet écho effacerait le survol que la fiche vient d'allumer.
   const [arcSurvole, setArcSurvole] = useState<string | null>(null);
   const [ficheSurvolee, setFicheSurvolee] = useState<string | null>(null);
-  const mouvementSurvole = ficheSurvolee ?? arcSurvole;
+  const [etiquetteSurvolee, setEtiquetteSurvolee] = useState<string | null>(null);
+  const mouvementSurvole = ficheSurvolee ?? etiquetteSurvolee ?? arcSurvole;
+  // La carte désigne la piste par son arc ou par son étiquette ; une fiche survolée, non.
+  const mouvementDesigneParLaCarte = ficheSurvolee ? null : (etiquetteSurvolee ?? arcSurvole);
 
   const selectionner = useCallback(
     (nom: string | null) => {
@@ -153,7 +157,10 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
     [vue.moi, vue.adversaires],
   );
 
-  const marqueurs = useMemo(() => (ETAT_FACTICE ? marqueursFactices(vue) : []), [vue]);
+  const etiquettes = useMemo(
+    () => construireEtiquettes(vue, ETAT_FACTICE ? marqueursFactices(vue) : []),
+    [vue],
+  );
 
   const fermerModale = useCallback(
     (nom: Modale) => {
@@ -190,8 +197,7 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
         <Carte
           monde={monde}
           arcs={vue.arcs}
-          marqueurs={marqueurs}
-          chargeeA={vue.chargeeA}
+          etiquettes={etiquettes}
           encreParPays={encreParPays}
           paysSelectionne={pays ?? null}
           nationJoueur={vue.moi.nation}
@@ -199,12 +205,13 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
           onSelection={selectionner}
           onSurvolRegion={setRegionSurvolee}
           onSurvolArc={setArcSurvole}
+          onSurvolEtiquette={setEtiquetteSurvolee}
         />
         {pays && <PanneauPaysSelectionne pays={pays} vue={vue} />}
         <FriseMouvements
           vue={vue}
           mouvementSurvole={mouvementSurvole}
-          mouvementDesigneParLaCarte={ficheSurvolee ? null : arcSurvole}
+          mouvementDesigneParLaCarte={mouvementDesigneParLaCarte}
           onSurvol={setFicheSurvolee}
           onSelection={selectionner}
         />

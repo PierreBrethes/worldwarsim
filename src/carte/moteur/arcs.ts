@@ -4,26 +4,19 @@ import {
   Line,
   LineBasicMaterial,
   QuadraticBezierCurve3,
-  Quaternion,
   Vector3,
   type Camera,
   type Raycaster,
 } from 'three';
-import { enHeuresMinutes } from '@/domaine/duree';
 import type { LonLat } from '@/domaine/geo';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
-import { minutesCourantes } from '@/domaine/vue-joueur';
 import { spriteDeMouvement } from '@/emblemes/unites/manifeste';
-import { EtiquetteTexte } from './billboard';
 import { COULEURS_ARC } from './palette';
 import { EPAISSEUR_PAYS, type RepereMonde } from './repere';
 import { TeteMouvement } from './tete-mouvement';
 
 const SEGMENTS = 64;
 const HAUTEUR_ARC = EPAISSEUR_PAYS + 0.5;
-/** Parts de la distance caméra : la tête et son compte à rebours gardent leur cote à l'écran. */
-const PART_ETIQUETTE = 0.022;
-const PART_TETE_LIBRE = 0.04;
 
 type Troncon = { courbe: QuadraticBezierCurve3; part: number };
 
@@ -75,7 +68,8 @@ type RenduArc = {
   traces: LigneArc[];
   progression: LigneArc[];
   tete: TeteMouvement;
-  etiquette: EtiquetteTexte | null;
+  /** Réécrite en place à chaque image : c'est l'ancre de l'étiquette de tête de mouvement. */
+  positionTete: Vector3;
   opaciteTrace: number;
   opaciteProgression: number;
 };
@@ -92,14 +86,12 @@ export const SEUIL_SURVOL_ARC = 4;
 
 export class CoucheArcs {
   readonly groupe = new Group();
+  /** Les positions d'écran des étiquettes de tête s'y lisent : elles bougent à chaque image. */
+  readonly positionsTetes = new Map<string, Vector3>();
   private readonly tangente = new Vector3();
   private readonly pointTete = new Vector3();
-  private readonly pointEtiquette = new Vector3();
   private readonly positionCamera = new Vector3();
-  private readonly orientationCamera = new Quaternion();
   private nationJoueur: string | null = null;
-  private chargeeA = Date.now();
-  private detaille = false;
   private rendus: RenduArc[] = [];
   private cibles: LigneArc[] = [];
   private accentue: string | null = null;
@@ -112,8 +104,7 @@ export class CoucheArcs {
     this.reconstruire();
   }
 
-  afficher(arcs: ReadonlyArray<ArcAffiche>, chargeeA?: number): void {
-    if (chargeeA !== undefined) this.chargeeA = chargeeA;
+  afficher(arcs: ReadonlyArray<ArcAffiche>): void {
     this.vider();
     for (const arc of arcs) {
       const troncons = tronconner(arc.depuis, arc.vers, this.repere);
@@ -152,10 +143,8 @@ export class CoucheArcs {
       tete.visible = !perime;
       this.groupe.add(tete.objet);
 
-      // Seul un arc `mien` porte son compte à rebours : l'horaire exact d'un mouvement
-      // adverse est précisément ce que la fiche 4.2 interdit d'afficher sur la carte.
-      const etiquette = arc.etat === 'mien' ? new EtiquetteTexte(1) : null;
-      if (etiquette) this.groupe.add(etiquette.objet);
+      const positionTete = new Vector3();
+      this.positionsTetes.set(arc.id, positionTete);
 
       this.rendus.push({
         arc,
@@ -163,7 +152,7 @@ export class CoucheArcs {
         traces,
         progression,
         tete,
-        etiquette,
+        positionTete,
         opaciteTrace,
         opaciteProgression,
       });
@@ -188,13 +177,8 @@ export class CoucheArcs {
     return (impact?.object.userData.arc as string | undefined) ?? null;
   }
 
-  animer(camera?: Camera, detaille?: boolean): void {
-    if (camera) {
-      this.positionCamera.copy(camera.position);
-      this.orientationCamera.copy(camera.quaternion);
-    }
-    if (detaille !== undefined) this.detaille = detaille;
-    const maintenant = Date.now();
+  animer(camera?: Camera): void {
+    if (camera) this.positionCamera.copy(camera.position);
     for (const rendu of this.rendus) {
       const avancement = Math.min(1, Math.max(0, rendu.arc.avancement));
       const seuil = rendu.troncons[0]!.part;
@@ -220,22 +204,7 @@ export class CoucheArcs {
       courbe.getPointAt(Math.min(1, Math.max(0, local) + 0.01), this.tangente);
       rendu.tete.placer(this.pointTete, this.tangente);
       rendu.tete.orienter(this.positionCamera);
-
-      if (rendu.etiquette && rendu.arc.etat === 'mien') {
-        rendu.etiquette.visible = this.detaille;
-        if (this.detaille) {
-          const elevation = this.pointTete.distanceTo(this.positionCamera) * PART_TETE_LIBRE;
-          this.pointEtiquette.copy(this.pointTete).setY(this.pointTete.y + elevation);
-          rendu.etiquette.definirTexte(
-            enHeuresMinutes(minutesCourantes(rendu.arc.minutesRestantes, this.chargeeA, maintenant)),
-          );
-          rendu.etiquette.placer(this.pointEtiquette);
-          rendu.etiquette.orienter(
-            this.orientationCamera,
-            this.pointEtiquette.distanceTo(this.positionCamera) * PART_ETIQUETTE,
-          );
-        }
-      }
+      rendu.positionTete.copy(this.pointTete);
     }
   }
 
@@ -264,9 +233,9 @@ export class CoucheArcs {
         ligne.geometry.dispose();
       }
       rendu.tete.detruire();
-      rendu.etiquette?.detruire();
     }
     this.rendus = [];
     this.cibles = [];
+    this.positionsTetes.clear();
   }
 }

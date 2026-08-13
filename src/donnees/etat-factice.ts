@@ -1,8 +1,8 @@
-import type { MarqueurCarte } from '@/carte/moteur/marqueurs';
+import type { MarqueurCarte } from '@/domaine/etiquettes';
 import type { LonLat } from '@/domaine/geo';
 import { ENCRE_PAR_NATION, PAYS_DE_NATION, POUVOIR_PAR_NATION } from '@/domaine/nations';
 import { minutesDepuisMinuit, sortieDePlage } from '@/domaine/plage-repos';
-import { libellePile, type Pile, type VueJoueur } from '@/domaine/vue-joueur';
+import type { Pile, VueJoueur } from '@/domaine/vue-joueur';
 
 /**
  * Mettre à `false` et supprimer ce fichier : rien d'autre à défaire. Les deux couches de
@@ -226,13 +226,13 @@ export function appliquerEtatFactice(vue: VueJoueur): VueJoueur {
  */
 export function marqueursFactices(vue: VueJoueur): ReadonlyArray<MarqueurCarte> {
   const encre = vue.moi.encre;
-  const effectif = Object.values(PILE_DOMICILE).reduce((somme, nombre) => somme + nombre, 0);
   const niveauParAvantPoste: Readonly<Record<string, number>> = { 'ap-norvege': 2, 'ap-portugal': 1 };
 
   const avantPostes = vue.moi.avantPostes.map<MarqueurCarte>((avantPoste) => ({
     genre: 'avantPoste',
     id: avantPoste.id,
     lonLat: avantPoste.lonLat,
+    paysHote: avantPoste.paysHote,
     specialisation: avantPoste.specialisation,
     niveau: niveauParAvantPoste[avantPoste.id] ?? 1,
     garnison: avantPoste.garnison,
@@ -243,10 +243,7 @@ export function marqueursFactices(vue: VueJoueur): ReadonlyArray<MarqueurCarte> 
     genre: 'pile',
     id: 'pile-domicile',
     lonLat: vue.moi.positionDomicile,
-    nation: vue.moi.nation,
-    role: 'infanterie',
-    effectif,
-    detail: libellePile(PILE_DOMICILE),
+    pile: PILE_DOMICILE,
     encre,
   };
 
@@ -256,6 +253,7 @@ export function marqueursFactices(vue: VueJoueur): ReadonlyArray<MarqueurCarte> 
           genre: 'chantier',
           id: 'chantier',
           lonLat: POSITIONS.chantier,
+          paysHote: PAYS_DE_NATION[NATION],
           nom: vue.moi.chantier.nom,
           acheveA: vue.chargeeA + vue.moi.chantier.resteMinutes * 60_000,
           encre,

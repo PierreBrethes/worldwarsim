@@ -1,0 +1,201 @@
+/* Étiquettes de carte — réserve blanche.
+   Valeurs reprises telles quelles de WWS/maquettes/Étiquettes de carte - réserve blanche.dc.html :
+   aucun cartouche, aucune ombre, aucun fond translucide. Le seul relief autorisé est la
+   réserve de papier autour des lettres (`-webkit-text-stroke` + `paint-order`). */
+
+.etiquettes-carte {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Le nœud que la boucle de rendu déplace : rien d'autre ne s'écrit dedans par image. */
+.etiquette-ancre {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.etiquette {
+  position: relative;
+  width: 0;
+  height: 0;
+  zoom: var(--echelle-hud);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  --encre-etiquette: var(--ink);
+  --encre-chiffres: #2c5063;
+}
+
+/* Le socle : un picto planté au point, centré sur l'ancre. Provisoire — la vraie planche
+   viendra du point de départ du trajet, ce fichier n'aura qu'à changer de dessin. */
+.etiquette-glyphe {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  color: var(--encre-etiquette);
+  pointer-events: auto;
+}
+
+/* La tête d'un mouvement est déjà plantée sur le plateau : son socle est le sprite 3D. */
+.etiquette--mouvement-mien .etiquette-glyphe,
+.etiquette--mouvement-cap-sur-moi .etiquette-glyphe,
+.etiquette--renseignement .etiquette-glyphe {
+  display: none;
+}
+
+.etiquette-bloc {
+  position: absolute;
+  bottom: 28px;
+  left: -1px;
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+/* Un seul trait, pas deux : la barre d'encre nationale descend du texte jusqu'au socle plutôt
+   que de laisser un appel plus fin faire la moitié du chemin. */
+.etiquette-barre {
+  position: relative;
+  width: 2px;
+  background: var(--encre-etiquette);
+}
+
+.etiquette-barre::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 2px;
+  height: 21px;
+  background: var(--encre-etiquette);
+}
+
+.etiquette-ligne--nature {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+.etiquette-ligne--chiffres {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--encre-chiffres);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+.etiquette-ligne--effectif {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  -webkit-text-stroke: 3px var(--paper);
+  paint-order: stroke fill;
+}
+
+.etiquette-ligne--compte {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  -webkit-text-stroke: 3px var(--paper);
+  paint-order: stroke fill;
+}
+
+.etiquette-ligne--mention {
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+/* Une estimation adverse : encre de renseignement, jamais l'encre d'une nation. */
+.etiquette--mouvement-cap-sur-moi,
+.etiquette--renseignement {
+  --encre-etiquette: #9d4638;
+}
+
+.etiquette--mouvement-cap-sur-moi .etiquette-ligne--compte,
+.etiquette--renseignement .etiquette-ligne--compte {
+  font-weight: 400;
+  color: #9d4638;
+}
+
+.etiquette--mouvement-cap-sur-moi .etiquette-ligne--mention,
+.etiquette--renseignement .etiquette-ligne--mention {
+  color: #7d4a3f;
+}
+
+.etiquette--mouvement-cap-sur-moi .etiquette-ligne--nature,
+.etiquette--renseignement .etiquette-ligne--nature {
+  color: #9d4638;
+}
+
+/* Accent unique du système — il ne sert qu'à l'imminence. */
+.etiquette--urgente .etiquette-ligne--compte {
+  color: #b07434;
+}
+
+.etiquette--urgente .etiquette-ligne--compte::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 36px;
+  height: 1px;
+  background: #b07434;
+}
+
+.etiquette--urgente .etiquette-ligne--mention {
+  color: #8a5a29;
+}
+
+/* Les têtes de mouvement n'ont pas de barre nationale : le texte se pose à côté du sprite. */
+.etiquette--mouvement-mien .etiquette-bloc,
+.etiquette--mouvement-cap-sur-moi .etiquette-bloc,
+.etiquette--renseignement .etiquette-bloc {
+  bottom: auto;
+  top: -20px;
+  left: 14px;
+}
+
+.etiquette--mouvement-mien .etiquette-barre,
+.etiquette--mouvement-cap-sur-moi .etiquette-barre,
+.etiquette--renseignement .etiquette-barre {
+  display: none;
+}
+
+/* Niveau de détail : le texte et son trait apparaissent en fondu court, le socle ne bouge pas. */
+.etiquette-bloc {
+  transition: opacity 0.18s ease;
+}
+
+.etiquette--glyphe .etiquette-bloc {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.etiquette--deployee .etiquette-bloc {
+  opacity: 1;
+}
+
+.etiquette--cliquable .etiquette-glyphe,
+.etiquette--cliquable .etiquette-bloc {
+  cursor: pointer;
+}
