@@ -34,6 +34,17 @@ export const garderFriseRepliee = (repliee: boolean): void => {
   localStorage.setItem(CLE_FRISE_REPLIEE, repliee ? 'repliee' : 'deployee');
 };
 
+const CLE_RAPPEL_GESTES = 'wws-rappel-gestes';
+
+/**
+ * Le rappel des gestes de carte ne se montre qu'au tout premier glisser, une fois pour la vie
+ * du navigateur : c'est un apprentissage, pas une notification. Il traverse les saisons —
+ * un joueur qui a compris ne le redécouvre pas à chaque nouvelle partie.
+ */
+export const rappelGestesVu = (): boolean => localStorage.getItem(CLE_RAPPEL_GESTES) === 'vu';
+
+export const graverRappelGestesVu = (): void => localStorage.setItem(CLE_RAPPEL_GESTES, 'vu');
+
 const CLE_INDICATEURS = 'wws-indicateurs-bord';
 
 /**

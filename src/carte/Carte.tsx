@@ -4,7 +4,8 @@ import type { EtiquetteCarte } from '@/domaine/etiquettes';
 import type { BasculesIndicateurs } from '@/domaine/indicateurs';
 import type { ActionRose, CibleRose, Rose } from '@/domaine/rose-des-vents';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
-import { lireEchelleHud } from '@/donnees/reglages';
+import { graverRappelGestesVu, lireEchelleHud, rappelGestesVu } from '@/donnees/reglages';
+import { CarteDesCommandes } from './CarteDesCommandes';
 import { EchelleTrajet } from './EchelleTrajet';
 import { EtiquettesCarte } from './EtiquettesCarte';
 import { IndicateursBord } from './IndicateursBord';
@@ -51,6 +52,7 @@ export function Carte({
   const moteur = useRef<MoteurCarte | null>(null);
   const [survol, setSurvol] = useState<SurvolCarte>(null);
   const [rose, setRose] = useState<RoseOuverte | null>(null);
+  const [rappelGestes, setRappelGestes] = useState(false);
   // La couche d'étiquettes ne peut se brancher qu'une fois le moteur construit : elle a besoin
   // de l'instance, pas d'une référence qui ne déclenche aucun rendu.
   const [moteurPret, setMoteurPret] = useState<MoteurCarte | null>(null);
@@ -130,6 +132,26 @@ export function Carte({
     };
   }, [moteurPret, ouvrirRose]);
 
+  // Le rappel se déclenche au premier glisser d'orientation, jamais à l'arrivée : montré à
+  // l'ouverture du plateau, il répondrait à une question que le joueur ne s'est pas encore posée.
+  useEffect(() => {
+    if (!moteurPret) return;
+    moteurPret.onOrientationAmorcee = () => {
+      if (rappelGestesVu()) return;
+      graverRappelGestesVu();
+      setRappelGestes(true);
+    };
+    return () => {
+      moteurPret.onOrientationAmorcee = () => {};
+    };
+  }, [moteurPret]);
+
+  useEffect(() => {
+    if (!rappelGestes) return;
+    const minuteur = setTimeout(() => setRappelGestes(false), DUREE_RAPPEL_MS);
+    return () => clearTimeout(minuteur);
+  }, [rappelGestes]);
+
   const surMenuEtiquette = useCallback(
     (etiquette: EtiquetteCarte, clientX: number, clientY: number) => {
       const pays = moteur.current?.paysAuPoint(clientX, clientY) ?? null;
@@ -192,6 +214,8 @@ export function Carte({
         </div>
       )}
       {survol && <EtiquettePays survol={survol} />}
+      {rappelGestes && <RappelGestes />}
+      <CarteDesCommandes />
       {rose && (
         <RoseDesVents
           rose={rose.rose}
@@ -218,6 +242,24 @@ type RoseOuverte = { rose: Rose; x: number; y: number; largeur: number; hauteur:
  * pouvoir la prendre. La marge suit l'échelle du HUD, qui zoome le menu entier.
  */
 const MARGE_ROSE = 70;
+
+/** Assez pour lire la phrase deux fois, trop court pour qu'elle devienne un meuble. */
+const DUREE_RAPPEL_MS = 7000;
+
+/**
+ * Le rappel de la première fois. Il ne demande rien et ne se referme pas à la main : il a fait
+ * son travail au moment où on l'a lu, et le panneau des commandes prend le relais ensuite.
+ */
+function RappelGestes() {
+  return (
+    <div
+      className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-[var(--font-body)] text-[12px] whitespace-nowrap text-[var(--paper)]"
+    >
+      clic gauche : orienter <span className="text-[var(--paper-dim)]">·</span> molette ou espace :
+      déplacer
+    </div>
+  );
+}
 
 const borner = (valeur: number, marge: number, etendue: number): number =>
   etendue < marge * 2 ? etendue / 2 : Math.min(Math.max(valeur, marge), etendue - marge);

@@ -3,6 +3,7 @@ import {
   DirectionalLight,
   Fog,
   HemisphereLight,
+  MOUSE,
   PerspectiveCamera,
   Raycaster,
   Scene,
@@ -14,6 +15,7 @@ import {
   type LineSegments,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { saisieEnCours } from '@/carte/saisie';
 import type { DonneesRegions, Monde } from '@/domaine/monde';
 import type { ArcAffiche } from '@/domaine/vue-joueur';
 import { CoucheArcs, SEUIL_SURVOL_ARC } from './arcs';
@@ -46,6 +48,27 @@ const REPOS_CAMERA_MS = 180;
 const DUREE_VOYAGE_MS = 500;
 
 /**
+ * En deçà de ce déplacement cumulé, le geste est un clic net et désigne l'entité visée ;
+ * au-delà, c'était une orientation de caméra et rien ne se sélectionne. Sans ce départage,
+ * tout demi-tour amorcé sur un pays finirait par le sélectionner au relâché.
+ */
+const SEUIL_CLIC_NET_PX = 6;
+
+/**
+ * Ce qu'on retient d'un appui jusqu'à son relâché. `deplacement` est figé à l'appui : le
+ * mappage ne bascule jamais au milieu d'un glisser, sinon le geste change de nature sous les
+ * doigts du joueur.
+ */
+type Geste = {
+  readonly bouton: number;
+  readonly deplacement: boolean;
+  parcouruPx: number;
+  x: number;
+  y: number;
+  depasseSeuil: boolean;
+};
+
+/**
  * Moteur impératif : la scène est construite une fois puis pilotée par des appels.
  * Aucune dépendance React — c'est ce qui permet de garder trois.js d'un côté et
  * l'interface de l'autre, avec une seule frontière.
@@ -69,7 +92,8 @@ export class MoteurCarte {
   private survole: MeshPays | null = null;
   private selection: string | null = null;
   private animation = 0;
-  private aOrbite = false;
+  private geste: Geste | null = null;
+  private espaceTenu = false;
   private largeurEcran = 1;
   private hauteurEcran = 1;
   private minuteurRepos: ReturnType<typeof setTimeout> | null = null;
@@ -81,6 +105,11 @@ export class MoteurCarte {
   onSurvolArc: (id: string | null) => void = () => { };
   onSelection: (nom: string | null) => void = () => { };
   onClicDroit: (clic: ClicDroitCarte) => void = () => { };
+  /**
+   * Le premier glisser d'orientation. C'est l'instant où le joueur découvre que tirer la
+   * souris ne déplace pas la carte : c'est là, et pas ailleurs, qu'on peut le lui dire.
+   */
+  onOrientationAmorcee: () => void = () => { };
   /** Appelée à chaque image : l'interface y écrit des transformations, jamais un rendu React. */
   onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => { };
   /**
@@ -119,6 +148,10 @@ export class MoteurCarte {
     this.controles.minDistance = 4;
     this.controles.maxDistance = 300;
     this.controles.screenSpacePanning = false;
+    // Le bouton droit appartient à la rose des vents, il ne pilote plus rien ici. Le
+    // déplacement de carte passe par la molette enfoncée, doublé par l'alias espace : beaucoup
+    // de pavés tactiles n'ont pas de troisième bouton, et ce chemin-là doit rester ouvert.
+    this.controles.mouseButtons = { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.PAN, RIGHT: null };
 
     this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));
     const soleil = new DirectionalLight('#fffaf0', 0.5);
@@ -281,6 +314,12 @@ export class MoteurCarte {
   detruire(): void {
     cancelAnimationFrame(this.animation);
     if (this.minuteurRepos !== null) clearTimeout(this.minuteurRepos);
+    removeEventListener('pointermove', this.suivreGeste);
+    removeEventListener('pointerup', this.acheverGeste);
+    removeEventListener('pointercancel', this.acheverGeste);
+    removeEventListener('keydown', this.surToucheEnfoncee);
+    removeEventListener('keyup', this.surToucheRelachee);
+    removeEventListener('blur', this.surPerteDeFocus);
     this.regions.detruire();
     this.controles.dispose();
     this.rendu.dispose();
@@ -291,7 +330,6 @@ export class MoteurCarte {
     const toile = this.rendu.domElement;
     this.controles.addEventListener('change', () => this.repousserRepos());
     toile.addEventListener('pointermove', (evenement) => {
-      if (evenement.buttons) this.aOrbite = true;
       const cadre = toile.getBoundingClientRect();
       this.pointeurEcran.x = evenement.clientX - cadre.left;
       this.pointeurEcran.y = evenement.clientY - cadre.top;
@@ -301,19 +339,26 @@ export class MoteurCarte {
     toile.addEventListener('pointerleave', () => {
       this.pointeur.set(-2, -2);
     });
-    toile.addEventListener('pointerdown', () => {
-      this.aOrbite = false;
+    toile.addEventListener('pointerdown', (evenement) => {
       this.voyage = null;
+      this.geste = {
+        bouton: evenement.button,
+        deplacement: evenement.button === 1 || this.espaceTenu,
+        parcouruPx: 0,
+        x: evenement.clientX,
+        y: evenement.clientY,
+        depasseSeuil: false,
+      };
+      this.rafraichirCurseur();
     });
     toile.addEventListener('wheel', () => {
       this.voyage = null;
     });
-    // Le bouton droit ouvre la rose : sans ce garde, il sélectionnerait aussi le pays au
-    // relâché, et toute rose arriverait sur une sélection qu'on n'a pas demandée.
-    toile.addEventListener('pointerup', (evenement) => {
-      if (evenement.button !== 0) return;
-      if (this.aOrbite) return;
-      this.onSelection(this.survole?.userData.nom ?? null);
+    // Le défilement automatique du navigateur s'arme au bouton du milieu et se pose en plein
+    // écran sur la carte. Il ne se coupe qu'ici : les événements de pointeur n'y donnent pas
+    // prise.
+    toile.addEventListener('mousedown', (evenement) => {
+      if (evenement.button === 1) evenement.preventDefault();
     });
 
     toile.addEventListener('contextmenu', (evenement) => {
@@ -324,6 +369,84 @@ export class MoteurCarte {
         clientY: evenement.clientY,
       });
     });
+
+    // Le geste se suit sur la fenêtre, pas sur le canevas : un glisser relâché au-dessus d'une
+    // fiche reste un glisser, et le laisser en cours figerait le curseur sur une main fermée.
+    addEventListener('pointermove', this.suivreGeste);
+    addEventListener('pointerup', this.acheverGeste);
+    addEventListener('pointercancel', this.acheverGeste);
+    addEventListener('keydown', this.surToucheEnfoncee);
+    addEventListener('keyup', this.surToucheRelachee);
+    // Un changement de fenêtre avale le relâché : sans ça l'espace resterait tenu au retour.
+    addEventListener('blur', this.surPerteDeFocus);
+  }
+
+  private suivreGeste = (evenement: PointerEvent): void => {
+    const geste = this.geste;
+    if (geste === null) return;
+    geste.parcouruPx += Math.hypot(evenement.clientX - geste.x, evenement.clientY - geste.y);
+    geste.x = evenement.clientX;
+    geste.y = evenement.clientY;
+    if (geste.depasseSeuil || geste.parcouruPx < SEUIL_CLIC_NET_PX) return;
+    geste.depasseSeuil = true;
+    if (geste.bouton === 0 && !geste.deplacement) this.onOrientationAmorcee();
+  };
+
+  /**
+   * Seul un clic net au bouton gauche sélectionne. Un glisser était une orientation, le bouton
+   * droit appartient à la rose — sans ce garde, toute rose arriverait sur une sélection qu'on
+   * n'a pas demandée — et l'espace tenu fait du gauche un déplacement, pas une désignation.
+   */
+  private acheverGeste = (evenement: PointerEvent): void => {
+    const geste = this.geste;
+    this.geste = null;
+    this.appliquerMappage();
+    this.rafraichirCurseur();
+    if (geste === null || evenement.type !== 'pointerup') return;
+    if (geste.bouton !== 0 || geste.deplacement || geste.depasseSeuil) return;
+    this.onSelection(this.survole?.userData.nom ?? null);
+  };
+
+  private surToucheEnfoncee = (evenement: KeyboardEvent): void => {
+    if (evenement.code !== 'Space' || saisieEnCours()) return;
+    // Sans ça, la page défile sous la carte à chaque appui.
+    evenement.preventDefault();
+    if (this.espaceTenu) return;
+    this.espaceTenu = true;
+    this.appliquerMappage();
+    this.rafraichirCurseur();
+  };
+
+  private surToucheRelachee = (evenement: KeyboardEvent): void => {
+    if (evenement.code !== 'Space' || !this.espaceTenu) return;
+    this.espaceTenu = false;
+    this.appliquerMappage();
+    this.rafraichirCurseur();
+  };
+
+  private surPerteDeFocus = (): void => {
+    if (!this.espaceTenu) return;
+    this.espaceTenu = false;
+    this.appliquerMappage();
+    this.rafraichirCurseur();
+  };
+
+  /** Un glisser en cours garde le mappage qu'il avait à l'appui ; il reprendra au relâché. */
+  private appliquerMappage(): void {
+    if (this.geste !== null) return;
+    this.controles.mouseButtons.LEFT = this.espaceTenu ? MOUSE.PAN : MOUSE.ROTATE;
+  }
+
+  /**
+   * Sans ce retour visuel, le mode de déplacement est invisible : main ouverte dès que l'espace
+   * est tenu, main fermée pendant le glisser. Le reste du temps, le curseur du système reste
+   * celui du système.
+   */
+  private rafraichirCurseur(): void {
+    const { style } = this.rendu.domElement;
+    if (this.geste?.deplacement === true) style.cursor = 'grabbing';
+    else if (this.espaceTenu) style.cursor = 'grab';
+    else style.cursor = '';
   }
 
   /**
