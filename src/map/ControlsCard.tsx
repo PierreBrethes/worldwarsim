@@ -1,0 +1,65 @@
+import { useEffect, useState } from 'react';
+import { fr } from '@/i18n/fr';
+import { isTyping } from './typing';
+
+/**
+ * The map's six gestures, read-only. This is not a settings screen: nothing is editable,
+ * nothing is stored — a player who opens it seeks an answer, not a controller. It opens on
+ * `?` and via a discreet badge at the board's edge.
+ */
+export function ControlsCard() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== '?' || isTyping()) return;
+      event.preventDefault();
+      setOpen((previous) => !previous);
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={fr.mapUi.controlsLabel}
+        onClick={() => setOpen((previous) => !previous)}
+        className="hud absolute right-4 bottom-4 z-10 h-[22px] w-[22px] cursor-pointer border border-[var(--ink-quiet)] bg-[var(--desk)] font-[var(--font-body)] text-[12px] leading-none text-[var(--paper-dim)] opacity-55 hover:opacity-100"
+      >
+        ?
+      </button>
+
+      {open && (
+        <div className="hud absolute right-4 bottom-[34px] z-10 w-[300px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-4 pt-3 pb-[14px] font-[var(--font-body)]">
+          <div className="flex items-baseline justify-between border-b border-[var(--ink-quiet)] pb-2">
+            <span className="text-[9px] tracking-[.2em] text-[var(--paper-dim)] uppercase">
+              {fr.mapUi.controlsHeader}
+            </span>
+            <button
+              type="button"
+              aria-label={fr.mapUi.controlsClose}
+              onClick={() => setOpen(false)}
+              className="cursor-pointer text-[12px] leading-none text-[var(--paper-dim)] hover:text-[var(--paper)]"
+            >
+              ×
+            </button>
+          </div>
+          <dl className="mt-[10px] grid grid-cols-[126px_1fr] gap-x-3 gap-y-[7px] text-[11.5px] leading-[1.35]">
+            {fr.mapUi.gestures.map(({ gesture, effect }) => (
+              <div key={gesture} className="contents">
+                <dt className="text-[var(--paper-dim)]">{gesture}</dt>
+                <dd className="text-[var(--paper)]">{effect}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </>
+  );
+}

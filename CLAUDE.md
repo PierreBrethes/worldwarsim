@@ -25,10 +25,14 @@ fait rien, le rejeu attend la surface 4.7.
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
 Elle a demandé la **première tranche du schéma de jeu** (`unites`, `recrutements`), écrite
 avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLAUDE.md`, pas un
-oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/constantes.ts` sont
+oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/constants.ts` sont
 **arbitraires**, jamais simulés.
 
-Les sprites d'unités sont rangés par nation dans `src/emblemes/unites/` — **seule la France
+**Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
+affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
+d'erreur (`convex/errors.ts`), jamais une phrase.
+
+Les sprites d'unités sont rangés par nation dans `src/emblems/units/` — **seule la France
 est dessinée**, les sept autres tombent sur le repli en cadre pointillé. Sur la carte, le jalon
 d'un mouvement `mien` porte le **véhicule du segment en cours** : le sprite du rôle majoritaire
 de la pile sur terre (billboard, lacet caméra seul), la coque en mer, le delta dans le ciel, et
@@ -41,9 +45,9 @@ fragment pour rester nette — la mer est plate jusque sous la terre, aucune ban
 cuite en texels). Au rapproché (< 65 unités), les **régions admin-1** apparaissent en fondu :
 traits intérieurs seulement, survol avec surbrillance teintée par type de terrain, infobulle
 nom + type, et accessoires 3D qui poussent sur la région (sapins, dunes, pyramides… —
-`src/carte/moteur/terrain.ts`, graine tirée du nom, taille et nombre suivant l'aire).
+`src/map/engine/terrain.ts`, graine tirée du nom, taille et nombre suivant l'aire).
 
-**Le type de région** (`typeDeRegion`) compte six valeurs — plaine, forêt, jungle, montagne,
+**Le type de région** (`regionType`) compte six valeurs — plaine, forêt, jungle, montagne,
 désert, toundra — mais **reste un factice** : six régions témoins classées à la main (Oise,
 Landes, Amazonas, Valais, Tamanghasset, Chukchi), hachage du nom pour toutes les autres. La
 passe réelle est décidée mais pas écrite : classification hors ligne dans
@@ -54,36 +58,37 @@ obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif 
 `monde.json` et `regions.json` sont produits par `scripts/generer-monde.mjs` et
 `scripts/generer-regions.mjs` — ne jamais les retoucher à la main.
 
-**Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domaine/trajets.ts`**
+**Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
-canaux gravés (`PORTES_MARITIMES`). Rien ne l'appelle encore — c'est la surface 4.7 côté
+canaux gravés (`SEA_GATES`). Rien ne l'appelle encore — c'est la surface 4.7 côté
 serveur qui le consommera ; le droit de passage terrestre par les pays neutres n'est pas
 tranché.
 
 ## Architecture
 
 ```
-src/domaine/     TS pur. Aucune importation React ni Convex. Testé.
-src/donnees/     adaptateur Convex vers VueJoueur, jeton, réglages, client Convex.
+src/domain/      TS pur. Aucune importation React ni Convex (sauf src/i18n/fr, ADR 0016). Testé.
+src/data/        adaptateur Convex vers PlayerView, jeton, réglages, client Convex.
+src/i18n/        table de traduction unique (fr.ts) — tout texte affiché au joueur.
 convex/          schéma + fonctions serveur (hors-saison, état de nation, production). Testé.
-src/emblemes/    drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.
+src/emblems/     drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.
 deploiement/     docker compose (backend Convex auto-hébergé + front), guide VPS et CI.
 scripts/         générateurs de données cartographiques (monde.json, regions.json).
-src/carte/       moteur three.js impératif + un composant React qui l'enveloppe.
-src/coque/       bandeau + rail, partagés par toutes les surfaces.
+src/map/         moteur three.js impératif + des composants React qui l'enveloppent.
+src/shell/       bandeau + rail, partagés par toutes les surfaces.
 src/routes/      une route par surface ; `-dossier/` = composants privés à cette route.
 ```
 
-**`VueJoueur`, jamais `EtatPartie`.** Le client ne reçoit pas le monde, seulement ce qu'un joueur a
+**`PlayerView`, jamais `GameState`.** Le client ne reçoit pas le monde, seulement ce qu'un joueur a
 le droit d'en voir. Le nom du type est la première défense contre la fuite d'information.
 
 **Les états d'arc sont une union discriminée.** Un arc adverse n'a structurellement ni `type` ni
-`pile` — on ne peut pas les afficher par distraction. C'est le brouillard garanti par le
+`stack` — on ne peut pas les afficher par distraction. C'est le brouillard garanti par le
 compilateur, pas par la relecture.
 
 **Le moteur de carte n'importe pas React.** Une classe impérative, une API d'appels, une seule
-frontière : `Carte.tsx`. La géométrie est cuite une fois ; react-three-fiber n'apporterait rien ici
-et coûterait un modèle mental de plus.
+frontière : `WorldMap.tsx`. La géométrie est cuite une fois ; react-three-fiber n'apporterait rien
+ici et coûterait un modèle mental de plus.
 
 **La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
 géométrie plate et le clic tombe à côté sur les bords de la carte.
@@ -96,9 +101,11 @@ plus le dépôt :
 - **Penser local.** Un sous-composant vit à côté de son unique usage ; on ne le remonte que quand un
   deuxième appelant apparaît, et du bon nombre de crans.
 - **Pas de commentaire descriptif.** Un commentaire explique un *pourquoi*, jamais un *quoi*.
-- **Nommer pour être repris.** Le nom porte l'intention ; `VueJoueur` plutôt que `EtatPartie` est
+- **Nommer pour être repris.** Le nom porte l'intention ; `PlayerView` plutôt que `GameState` est
   déjà une décision de sécurité.
 - **Tidy first.** Ranger et changer le comportement sont deux commits distincts.
+- **Code en anglais, jeu en français.** Identifiants et fichiers en anglais ; tout libellé
+  affiché passe par `src/i18n/fr.ts` (ADR 0016).
 
 ## Vocabulaire imposé
 
@@ -115,7 +122,7 @@ tranché.
 
 **Le blocage le plus visible aujourd'hui** : l'acier ne vient que des avant-postes d'extraction,
 qui n'existent pas. Il démarre à 0 et rien ne le produit, or toute unité s'achète en acier — donc
-en saison réelle la file de production reste vide. `convex/unites.test.ts` grave le constat.
+en saison réelle la file de production reste vide. `convex/units.test.ts` grave le constat.
 
 Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque écran 4.x y est
 spécifié. L'oublier coûte une réécriture.

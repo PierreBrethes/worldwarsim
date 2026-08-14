@@ -1,101 +1,101 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-// Placeholders d'équilibrage : les valeurs chiffrées vivent dans constantes.ts, jamais ici.
+// Balancing placeholders: numeric values live in constants.ts, never here.
 
-const CLE_ROLE = v.union(
-  v.literal('infanterie'),
-  v.literal('blinde'),
-  v.literal('transportTerrestre'),
-  v.literal('chasseur'),
-  v.literal('bombardier'),
-  v.literal('transportAerien'),
-  v.literal('escorte'),
+const UNIT_ROLE = v.union(
+  v.literal('infantry'),
+  v.literal('armor'),
+  v.literal('landTransport'),
+  v.literal('fighter'),
+  v.literal('bomber'),
+  v.literal('airTransport'),
+  v.literal('escort'),
   v.literal('cargo'),
-  v.literal('porteAvions'),
+  v.literal('carrier'),
 );
 
-const PALIER = v.union(v.literal(1), v.literal(2));
+const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
 export default defineSchema({
-  saisons: defineTable({
+  seasons: defineTable({
     code: v.string(),
-    statut: v.union(v.literal('salon'), v.literal('lancee'), v.literal('terminee')),
-    dureeHeures: v.union(v.literal(48), v.literal(168)),
+    status: v.union(v.literal('lobby'), v.literal('launched'), v.literal('finished')),
+    durationHours: v.union(v.literal(48), v.literal(168)),
     compensation: v.number(),
-    graine: v.number(),
-    regionJouable: v.union(v.string(), v.null()),
-    lanceeLe: v.union(v.number(), v.null()),
-  }).index('parCode', ['code']),
+    seed: v.number(),
+    playableRegion: v.union(v.string(), v.null()),
+    launchedAt: v.union(v.number(), v.null()),
+  }).index('byCode', ['code']),
 
-  joueurs: defineTable({
-    saisonId: v.id('saisons'),
-    jeton: v.string(),
-    pseudo: v.string(),
-    createur: v.boolean(),
+  players: defineTable({
+    seasonId: v.id('seasons'),
+    token: v.string(),
+    nickname: v.string(),
+    creator: v.boolean(),
     nation: v.union(v.string(), v.null()),
     doctrine: v.union(
       v.literal('domination'),
-      v.literal('hegemonie'),
+      v.literal('hegemony'),
       v.literal('influence'),
       v.null(),
     ),
-    pret: v.boolean(),
-    plageRepos: v.object({ debutMinutes: v.number(), finMinutes: v.number() }),
+    ready: v.boolean(),
+    restWindow: v.object({ startMinutes: v.number(), endMinutes: v.number() }),
   })
-    .index('parJeton', ['jeton'])
-    .index('parSaison', ['saisonId']),
+    .index('byToken', ['token'])
+    .index('bySeason', ['seasonId']),
 
-  ressources: defineTable({
-    joueurId: v.id('joueurs'),
-    cle: v.union(v.literal('ravitaillement'), v.literal('acier'), v.literal('effectifs')),
+  resources: defineTable({
+    playerId: v.id('players'),
+    key: v.union(v.literal('supply'), v.literal('steel'), v.literal('manpower')),
     stock: v.number(),
-    tauxParHeure: v.number(),
-    majLe: v.number(),
-    plafond: v.union(v.number(), v.null()),
-  }).index('parJoueur', ['joueurId']),
+    ratePerHour: v.number(),
+    updatedAt: v.number(),
+    cap: v.union(v.number(), v.null()),
+  }).index('byPlayer', ['playerId']),
 
-  batiments: defineTable({
-    joueurId: v.id('joueurs'),
-    cle: v.union(
-      v.literal('qg'),
-      v.literal('industrie'),
-      v.literal('logistique'),
+  buildings: defineTable({
+    playerId: v.id('players'),
+    key: v.union(
+      v.literal('hq'),
+      v.literal('industry'),
+      v.literal('logistics'),
       v.literal('conscription'),
-      v.literal('ecoute'),
+      v.literal('listening'),
     ),
-    niveau: v.number(),
-  }).index('parJoueur', ['joueurId']),
+    level: v.number(),
+  }).index('byPlayer', ['playerId']),
 
-  /** L'effectif à domicile, une ligne par couple rôle/palier. Ni position ni identité : une
-   *  unité n'existe individuellement nulle part tant que le combat n'est pas écrit. */
-  unites: defineTable({
-    joueurId: v.id('joueurs'),
-    role: CLE_ROLE,
-    palier: PALIER,
-    nombre: v.number(),
-  }).index('parJoueur', ['joueurId']),
+  /** The headcount at home, one row per role/tier pair. Neither position nor identity: a
+   *  unit exists individually nowhere as long as combat is not written. */
+  units: defineTable({
+    playerId: v.id('players'),
+    role: UNIT_ROLE,
+    tier: UNIT_TIER,
+    count: v.number(),
+  }).index('byPlayer', ['playerId']),
 
-  /** Une file ordonnée par `rang`. Seul le lot de tête porte un `finitLe` : les suivants n'ont
-   *  pas commencé, et ce sont exactement ceux qu'on peut annuler contre remboursement. */
-  recrutements: defineTable({
-    joueurId: v.id('joueurs'),
-    role: CLE_ROLE,
-    palier: PALIER,
-    nombre: v.number(),
-    rang: v.number(),
-    finitLe: v.union(v.number(), v.null()),
-  }).index('parJoueur', ['joueurId']),
+  /** A queue ordered by `rank`. Only the head batch carries a `finishesAt`: the followers
+   *  have not started, and they are exactly the ones that can be cancelled for a refund. */
+  recruitments: defineTable({
+    playerId: v.id('players'),
+    role: UNIT_ROLE,
+    tier: UNIT_TIER,
+    count: v.number(),
+    rank: v.number(),
+    finishesAt: v.union(v.number(), v.null()),
+  }).index('byPlayer', ['playerId']),
 
-  chantiers: defineTable({
-    joueurId: v.id('joueurs'),
-    batiment: v.union(
-      v.literal('qg'),
-      v.literal('industrie'),
-      v.literal('logistique'),
+  constructions: defineTable({
+    playerId: v.id('players'),
+    building: v.union(
+      v.literal('hq'),
+      v.literal('industry'),
+      v.literal('logistics'),
       v.literal('conscription'),
-      v.literal('ecoute'),
+      v.literal('listening'),
     ),
-    finitLe: v.number(),
-  }).index('parJoueur', ['joueurId']),
+    finishesAt: v.number(),
+  }).index('byPlayer', ['playerId']),
 });

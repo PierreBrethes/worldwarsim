@@ -1,316 +1,332 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { Carte } from '@/carte/Carte';
-import { Coque } from '@/coque/Coque';
-import { construireEtiquettes } from '@/domaine/etiquettes';
-import { encreParPaysPris } from '@/domaine/nations';
-import type { Monde } from '@/domaine/monde';
-import { roseDe, type ActionRose, type CibleRose } from '@/domaine/rose-des-vents';
-import { LIBELLE_TYPE, type TypeMouvement, type VueJoueur } from '@/domaine/vue-joueur';
-import { useBasculesIndicateurs } from '@/donnees/basculesIndicateurs';
-import { chargerPartie } from '@/donnees/chargerPartie';
-import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
-import { ETAT_FACTICE, appliquerEtatFactice, marqueursFactices } from '@/donnees/etat-factice';
-import { FriseMouvements } from './-plateau/FriseMouvements';
-import { InfoBulleRegion } from './-plateau/InfoBulleRegion';
-import { PanneauPaysSelectionne } from './-plateau/PanneauPaysSelectionne';
+import { fr } from '@/i18n/fr';
+import { WorldMap } from '@/map/WorldMap';
+import { Shell } from '@/shell/Shell';
+import { ErrorScreen } from '@/shell/ErrorScreen';
+import { buildLabels } from '@/domain/labels';
+import { inkByClaimedCountry } from '@/domain/nations';
+import type { World } from '@/domain/world';
+import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
+import type { MovementType, PlayerView } from '@/domain/player-view';
+import { useIndicatorToggles } from '@/data/indicatorToggles';
+import { loadGame } from '@/data/loadGame';
+import { adaptServerView } from '@/data/serverView';
+import { errorCode } from '@/data/errors';
+import { forgetToken } from '@/data/token';
+import { MovementTimeline } from './-plateau/MovementTimeline';
+import { RegionTooltip } from './-plateau/RegionTooltip';
+import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
 
-const ModaleJournal = lazy(() =>
-  import('./-plateau/ModaleJournal').then((module) => ({ default: module.ModaleJournal })),
+const JournalWindow = lazy(() =>
+  import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
 );
-const ModaleTroupes = lazy(() =>
-  import('./-plateau/ModaleTroupes').then((module) => ({ default: module.ModaleTroupes })),
+const TroopsWindow = lazy(() =>
+  import('./-plateau/TroopsWindow').then((module) => ({ default: module.TroopsWindow })),
 );
-const ModaleProduction = lazy(() =>
-  import('./-plateau/ModaleProduction').then((module) => ({ default: module.ModaleProduction })),
+const ProductionWindow = lazy(() =>
+  import('./-plateau/ProductionWindow').then((module) => ({ default: module.ProductionWindow })),
 );
-const ModaleNation = lazy(() =>
-  import('./-plateau/ModaleNation').then((module) => ({ default: module.ModaleNation })),
+const NationWindow = lazy(() =>
+  import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
 );
-const ModaleReglages = lazy(() =>
-  import('./-plateau/ModaleReglages').then((module) => ({ default: module.ModaleReglages })),
+const SettingsWindow = lazy(() =>
+  import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
 );
 
-const MODALES = ['journal', 'troupes', 'production', 'nation', 'reglages'] as const;
+const WINDOWS = ['journal', 'troops', 'production', 'nation', 'settings'] as const;
 
-export type Modale = (typeof MODALES)[number];
+export type BoardWindow = (typeof WINDOWS)[number];
+
+const MOVEMENT_TYPES: ReadonlyArray<string> = ['attack', 'raid', 'outpost', 'agent', 'decoy'];
 
 /**
- * L'ordre du tableau des modales est l'ordre d'empilement : la dernière entrée est au premier
- * plan. `envoi` est le type de mouvement préréglé par la rose des vents ; sa seule présence
- * ouvre la fenêtre des troupes sur l'onglet d'envoi.
+ * The windows array's order is the stacking order: the last entry is in front. `send` is
+ * the movement type preset by the compass rose; its mere presence opens the troops window
+ * on the send tab.
  */
-export type RecherchePlateau = {
-  pays?: string;
-  modales?: Modale[];
-  envoi?: TypeMouvement;
+export type BoardSearch = {
+  country?: string;
+  windows?: BoardWindow[];
+  send?: MovementType;
 };
 
-export function avecModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
-  const autres = (recherche.modales ?? []).filter((ouverte) => ouverte !== nom);
-  return { ...recherche, modales: [...autres, nom] };
+export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
+  const others = (search.windows ?? []).filter((open) => open !== name);
+  return { ...search, windows: [...others, name] };
 }
 
-export function sansModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
-  const { modales, envoi, ...reste } = recherche;
-  // Le préréglage d'envoi appartient à la fenêtre des troupes : il part avec elle.
-  const garde = nom === 'troupes' || envoi === undefined ? reste : { ...reste, envoi };
-  const restantes = (modales ?? []).filter((ouverte) => ouverte !== nom);
-  return restantes.length ? { ...garde, modales: restantes } : garde;
+export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
+  const { windows, send, ...rest } = search;
+  // The send preset belongs to the troops window: it leaves with it.
+  const kept = name === 'troops' || send === undefined ? rest : { ...rest, send };
+  const remaining = (windows ?? []).filter((open) => open !== name);
+  return remaining.length ? { ...kept, windows: remaining } : kept;
 }
 
-export const basculerModale = (recherche: RecherchePlateau, nom: Modale): RecherchePlateau =>
-  (recherche.modales ?? []).includes(nom) ? sansModale(recherche, nom) : avecModale(recherche, nom);
+export const toggleWindow = (search: BoardSearch, name: BoardWindow): BoardSearch =>
+  (search.windows ?? []).includes(name) ? withoutWindow(search, name) : withWindow(search, name);
 
-export const modaleOuverte = (recherche: RecherchePlateau, nom: Modale): boolean =>
-  (recherche.modales ?? []).includes(nom);
+export const windowOpen = (search: BoardSearch, name: BoardWindow): boolean =>
+  (search.windows ?? []).includes(name);
 
-// `modale=journal` était le paramètre d'avant l'empilement : un vieux lien reste ouvrable.
-function lireModales(brut: Record<string, unknown>): Modale[] {
-  const demandees = Array.isArray(brut.modales) ? brut.modales : [brut.modales ?? brut.modale];
-  return demandees
-    .filter((valeur): valeur is Modale => MODALES.includes(valeur as Modale))
-    .filter((nom, rang, toutes) => toutes.indexOf(nom) === rang);
+function readWindows(raw: Record<string, unknown>): BoardWindow[] {
+  const requested = Array.isArray(raw.windows) ? raw.windows : [raw.windows];
+  return requested
+    .filter((value): value is BoardWindow => WINDOWS.includes(value as BoardWindow))
+    .filter((name, rank, all) => all.indexOf(name) === rank);
 }
 
 export const Route = createFileRoute('/plateau')({
-  validateSearch: (brut: Record<string, unknown>): RecherchePlateau => {
-    const recherche: RecherchePlateau = {};
-    if (typeof brut.pays === 'string') recherche.pays = brut.pays;
-    const modales = lireModales(brut);
-    if (modales.length) recherche.modales = modales;
-    if (typeof brut.envoi === 'string' && brut.envoi in LIBELLE_TYPE) {
-      recherche.envoi = brut.envoi as TypeMouvement;
+  validateSearch: (raw: Record<string, unknown>): BoardSearch => {
+    const search: BoardSearch = {};
+    if (typeof raw.country === 'string') search.country = raw.country;
+    const windows = readWindows(raw);
+    if (windows.length) search.windows = windows;
+    if (typeof raw.send === 'string' && MOVEMENT_TYPES.includes(raw.send)) {
+      search.send = raw.send as MovementType;
     }
-    return recherche;
+    return search;
   },
-  loader: chargerPartie,
-  pendingComponent: Chargement,
-  component: Plateau,
+  /**
+   * Expected outcomes are settled before rendering: a season still in the lobby goes back
+   * to the lobby, a dead token gets forgotten and the board admits "no game". The rest —
+   * broken link, bug — climbs to `errorComponent`, never a blank page.
+   */
+  loader: async () => {
+    try {
+      return await loadGame();
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === 'SEASON_NOT_LAUNCHED') throw redirect({ to: '/salon' });
+      if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') {
+        forgetToken();
+        return { state: 'none' } as const;
+      }
+      throw error;
+    }
+  },
+  pendingComponent: Loading,
+  errorComponent: ({ error, reset }) => <ErrorScreen error={error} reset={reset} />,
+  component: Board,
 });
 
-function Plateau() {
-  const partie = Route.useLoaderData();
-  if (partie.etat === 'aucune') return <AucunePartie />;
-  return <PlateauReactif monde={partie.monde} vueInitiale={partie.vue} jeton={partie.jeton} />;
+function Board() {
+  const game = Route.useLoaderData();
+  if (game.state === 'none') return <NoGame />;
+  return <LiveBoard world={game.world} initialView={game.view} token={game.token} />;
 }
 
-function AucunePartie() {
-  const naviguer = useNavigate();
+function NoGame() {
+  const navigate = useNavigate();
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
-      <div className="hud trame-papier w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
-        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">plateau indisponible</p>
+      <div className="hud paper-grain w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
+        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">{fr.board.unavailableKicker}</p>
         <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
-          aucune partie en cours
+          {fr.board.noGameTitle}
         </h1>
-        <p className="mt-4 text-[13px] leading-[1.55] text-[var(--ink)]">
-          Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une
-          partie existante.
-        </p>
+        <p className="mt-4 text-[13px] leading-[1.55] text-[var(--ink)]">{fr.board.noGameBody}</p>
         <button
           type="button"
-          onClick={() => void naviguer({ to: '/accueil' })}
+          onClick={() => void navigate({ to: '/accueil' })}
           className="mt-5 w-full cursor-pointer border border-[var(--ink)] py-[10px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
         >
-          retour à l’accueil
+          {fr.board.backHome}
         </button>
       </div>
     </div>
   );
 }
 
-function PlateauReactif({
-  monde,
-  vueInitiale,
-  jeton,
+function LiveBoard({
+  world,
+  initialView,
+  token,
 }: {
-  monde: Monde;
-  vueInitiale: VueJoueur;
-  jeton: string;
+  world: World;
+  initialView: PlayerView;
+  token: string;
 }) {
-  const serveur = useQuery(api.vue.vueJoueur, { jeton });
-  const vueServie = serveur ? adapterVueServeur(monde, serveur) : vueInitiale;
-  const vue = ETAT_FACTICE ? appliquerEtatFactice(monde, vueServie) : vueServie;
-  return <ContenuPlateau monde={monde} vue={vue} jeton={jeton} />;
+  const server = useQuery(api.view.playerView, { token });
+  const view = server ? adaptServerView(world, server) : initialView;
+  return <BoardContent world={world} view={view} token={token} />;
 }
 
-function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string }) {
-  const { pays, modales = [], envoi } = Route.useSearch();
-  const naviguer = useNavigate({ from: Route.fullPath });
-  const [regionSurvolee, setRegionSurvolee] = useState<string | null>(null);
-  // Deux sources pour un seul accent : quand le pointeur quitte la carte pour entrer dans une
-  // fiche, la boucle de rendu annonce « plus rien sous le pointeur » à l'image d'après. Une
-  // seule variable et cet écho effacerait le survol que la fiche vient d'allumer.
-  const [arcSurvole, setArcSurvole] = useState<string | null>(null);
-  const [ficheSurvolee, setFicheSurvolee] = useState<string | null>(null);
-  const [etiquetteSurvolee, setEtiquetteSurvolee] = useState<string | null>(null);
-  const bascules = useBasculesIndicateurs();
-  const mouvementSurvole = ficheSurvolee ?? etiquetteSurvolee ?? arcSurvole;
-  // La carte désigne la piste par son arc ou par son étiquette ; une fiche survolée, non.
-  const mouvementDesigneParLaCarte = ficheSurvolee ? null : (etiquetteSurvolee ?? arcSurvole);
+function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
+  const { country, windows = [], send } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+  // Two sources for one accent: when the pointer leaves the map to enter a card, the render
+  // loop announces "nothing under the pointer" on the next frame. A single variable and
+  // that echo would erase the hover the card just lit.
+  const [hoveredArc, setHoveredArc] = useState<string | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const toggles = useIndicatorToggles();
+  const hoveredMovement = hoveredCard ?? hoveredLabel ?? hoveredArc;
+  // The map designates the track by its arc or its label; a hovered card does not.
+  const mapDesignatedMovement = hoveredCard ? null : (hoveredLabel ?? hoveredArc);
 
-  const selectionner = useCallback(
-    (nom: string | null) => {
-      void naviguer({
-        search: (precedente) => {
-          const { pays: _ecarte, ...reste } = precedente;
-          return nom ? { ...reste, pays: nom } : reste;
+  const select = useCallback(
+    (name: string | null) => {
+      void navigate({
+        search: (previous) => {
+          const { country: _dropped, ...rest } = previous;
+          return name ? { ...rest, country: name } : rest;
         },
         replace: true,
       });
     },
-    [naviguer],
+    [navigate],
   );
 
-  const ouvrirEnvoi = useCallback(
-    (destination: string | null, type: TypeMouvement | null) => {
-      void naviguer({
-        search: (precedente) => {
-          const avecTroupes = avecModale(precedente, 'troupes');
+  const openSend = useCallback(
+    (destination: string | null, type: MovementType | null) => {
+      void navigate({
+        search: (previous) => {
+          const withTroops = withWindow(previous, 'troops');
           return {
-            ...avecTroupes,
-            ...(destination === null ? {} : { pays: destination }),
-            envoi: type ?? 'attaque',
+            ...withTroops,
+            ...(destination === null ? {} : { country: destination }),
+            send: type ?? 'attack',
           };
         },
       });
     },
-    [naviguer],
+    [navigate],
   );
 
-  const roseDeLaCible = useCallback((cible: CibleRose) => roseDe(cible, vue), [vue]);
+  const compassOfTarget = useCallback((target: CompassTarget) => compassOf(target, view), [view]);
 
-  const agirRose = useCallback(
-    (action: ActionRose) => {
-      if (action.cle === 'voir') {
-        selectionner(action.pays);
+  const actOnCompass = useCallback(
+    (action: CompassAction) => {
+      if (action.key === 'view') {
+        select(action.country);
         return;
       }
-      ouvrirEnvoi(action.destination, action.type);
+      openSend(action.destination, action.type);
     },
-    [selectionner, ouvrirEnvoi],
+    [select, openSend],
   );
 
-  const encreParPays = useMemo(
-    () => encreParPaysPris([vue.moi, ...vue.adversaires]),
-    [vue.moi, vue.adversaires],
+  const inkByCountry = useMemo(
+    () => inkByClaimedCountry([view.me, ...view.opponents]),
+    [view.me, view.opponents],
   );
 
-  const etiquettes = useMemo(
-    () => construireEtiquettes(vue, ETAT_FACTICE ? marqueursFactices(vue) : []),
-    [vue],
-  );
+  // Ground markers (outposts, stacks, sited constructions) wait for the server to serve
+  // positions — see `MapMarker`: nothing to plant while 4.7 does not exist.
+  const labels = useMemo(() => buildLabels(view, []), [view]);
 
-  const fermerModale = useCallback(
-    (nom: Modale) => {
-      void naviguer({ search: (precedente) => sansModale(precedente, nom) });
+  const closeWindow = useCallback(
+    (name: BoardWindow) => {
+      void navigate({ search: (previous) => withoutWindow(previous, name) });
     },
-    [naviguer],
+    [navigate],
   );
 
-  const mettreEnAvant = useCallback(
-    (nom: Modale) => {
-      void naviguer({ search: (precedente) => avecModale(precedente, nom), replace: true });
+  const bringForward = useCallback(
+    (name: BoardWindow) => {
+      void navigate({ search: (previous) => withWindow(previous, name), replace: true });
     },
-    [naviguer],
+    [navigate],
   );
 
-  // L'édition du réveil : s'il y a du critique non lu, le journal est déjà posé
-  // sur le bureau en arrivant. Une seule fois par arrivée, et jamais par-dessus
-  // un lien profond qui demande une autre surface.
-  const editionServie = useRef(false);
+  // The morning edition: with unread critical news, the journal is already on the desk on
+  // arrival. Once per arrival, and never over a deep link asking for another surface.
+  const editionServed = useRef(false);
   useEffect(() => {
-    if (editionServie.current) return;
-    editionServie.current = true;
-    if (modales.length) return;
-    if (!vue.journal.some((depeche) => depeche.gravite === 'critique')) return;
-    void naviguer({
-      search: (precedente) => avecModale(precedente, 'journal'),
+    if (editionServed.current) return;
+    editionServed.current = true;
+    if (windows.length) return;
+    if (!view.journal.some((dispatch) => dispatch.severity === 'critical')) return;
+    void navigate({
+      search: (previous) => withWindow(previous, 'journal'),
       replace: true,
     });
-  }, [modales, vue.journal, naviguer]);
+  }, [windows, view.journal, navigate]);
 
   return (
-    <Coque vue={vue}>
+    <Shell view={view}>
       <div className="relative min-w-0 flex-1">
-        <Carte
-          monde={monde}
-          arcs={vue.arcs}
-          etiquettes={etiquettes}
-          encreParPays={encreParPays}
-          paysSelectionne={pays ?? null}
-          nationJoueur={vue.moi.nation}
-          indicateurs={bascules}
-          mouvementAccentue={mouvementSurvole}
-          onSelection={selectionner}
-          onSurvolRegion={setRegionSurvolee}
-          onSurvolArc={setArcSurvole}
-          onSurvolEtiquette={setEtiquetteSurvolee}
-          roseDe={roseDeLaCible}
-          onActionRose={agirRose}
+        <WorldMap
+          world={world}
+          arcs={view.arcs}
+          labels={labels}
+          inkByCountry={inkByCountry}
+          selectedCountry={country ?? null}
+          playerNation={view.me.nation}
+          indicators={toggles}
+          accentedMovement={hoveredMovement}
+          onSelect={select}
+          onRegionHover={setHoveredRegion}
+          onArcHover={setHoveredArc}
+          onLabelHover={setHoveredLabel}
+          compassOf={compassOfTarget}
+          onCompassAction={actOnCompass}
         />
-        {pays && <PanneauPaysSelectionne pays={pays} vue={vue} />}
-        <FriseMouvements
-          vue={vue}
-          mouvementSurvole={mouvementSurvole}
-          mouvementDesigneParLaCarte={mouvementDesigneParLaCarte}
-          onSurvol={setFicheSurvolee}
-          onSelection={selectionner}
+        {country && <SelectedCountryPanel country={country} view={view} />}
+        <MovementTimeline
+          view={view}
+          hoveredMovement={hoveredMovement}
+          mapDesignatedMovement={mapDesignatedMovement}
+          onHover={setHoveredCard}
+          onSelect={select}
         />
         <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-3">
-          {regionSurvolee && <InfoBulleRegion nom={regionSurvolee} />}
+          {hoveredRegion && <RegionTooltip name={hoveredRegion} />}
         </div>
       </div>
       <Suspense fallback={null}>
-        {modales.map((nom, rang) => {
-          const fenetre = {
-            rang,
-            auPremierPlan: rang === modales.length - 1,
-            surMiseEnAvant: () => mettreEnAvant(nom),
-            onFermer: () => fermerModale(nom),
+        {windows.map((name, rank) => {
+          const windowProps = {
+            rank,
+            inFront: rank === windows.length - 1,
+            onBringForward: () => bringForward(name),
+            onClose: () => closeWindow(name),
           };
-          switch (nom) {
+          switch (name) {
             case 'journal':
-              return <ModaleJournal key={nom} vue={vue} {...fenetre} />;
-            case 'troupes':
+              return <JournalWindow key={name} view={view} {...windowProps} />;
+            case 'troops':
               return (
-                <ModaleTroupes
-                  key={nom}
-                  vue={vue}
-                  monde={monde}
-                  pays={pays ?? null}
-                  envoi={envoi ?? null}
-                  {...fenetre}
+                <TroopsWindow
+                  key={name}
+                  view={view}
+                  world={world}
+                  country={country ?? null}
+                  send={send ?? null}
+                  {...windowProps}
                 />
               );
             case 'production':
               return (
-                <ModaleProduction key={nom} nation={vue.moi.nation} jeton={jeton} {...fenetre} />
+                <ProductionWindow key={name} nation={view.me.nation} token={token} {...windowProps} />
               );
             case 'nation':
-              return <ModaleNation key={nom} vue={vue} jeton={jeton} {...fenetre} />;
-            case 'reglages':
-              return <ModaleReglages key={nom} {...fenetre} />;
+              return <NationWindow key={name} view={view} token={token} {...windowProps} />;
+            case 'settings':
+              return <SettingsWindow key={name} {...windowProps} />;
           }
         })}
       </Suspense>
-      {/* le rideau prolonge le noir du lancement jusqu'à la première image de la carte */}
+      {/* the curtain extends the launch's black until the map's first frame */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-40 bg-[var(--desk)]"
-        style={{ animation: 'lever-de-rideau .9s ease forwards' }}
+        style={{ animation: 'curtain-rise .9s ease forwards' }}
       />
-    </Coque>
+    </Shell>
   );
 }
 
-function Chargement() {
+function Loading() {
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)]">
-      <span className="eyebrow-sombre">Préparation du plateau…</span>
+      <span className="eyebrow-dark">{fr.board.loading}</span>
     </div>
   );
 }

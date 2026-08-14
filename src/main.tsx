@@ -2,12 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { ConvexProvider } from 'convex/react';
-import { clientConvex } from './donnees/clientConvex';
-import { appliquerEchelleHud, lireEchelleHud } from './donnees/reglages';
+import { convexClient } from './data/convexClient';
+import { applyHudScale, readHudScale } from './data/settings';
 import { routeTree } from './routeTree.gen';
 import './styles/index.css';
 
-appliquerEchelleHud(lireEchelleHud());
+applyHudScale(readHudScale());
 
 const router = createRouter({ routeTree });
 
@@ -21,6 +21,6 @@ const application = <RouterProvider router={router} />;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {clientConvex ? <ConvexProvider client={clientConvex}>{application}</ConvexProvider> : application}
+    {convexClient ? <ConvexProvider client={convexClient}>{application}</ConvexProvider> : application}
   </StrictMode>,
 );

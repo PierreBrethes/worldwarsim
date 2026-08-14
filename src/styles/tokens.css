@@ -1,6 +1,6 @@
-/* Interface de saison — design tokens
-   Presse illustrée 1940. Angles vifs, aucune ombre, aucun rayon.
-   Le budget de contraste appartient à la couche de jeu. */
+/* Season interface — design tokens
+   1940 illustrated press. Sharp corners, no shadows, no radius.
+   The contrast budget belongs to the game layer. */
 
 :root {
   /* surfaces */
@@ -23,33 +23,33 @@
   --plinth-top: #c7b48e;
   --plinth-bottom: #5f5039;
 
-  /* Les encres de nation ne sont pas des tokens : elles voyagent avec la vue
-     (`encre`, servie par `convex/vue.ts`) parce qu'elles désignent un joueur, pas une
-     surface. Leur seule source est `ENCRE_PAR_NATION` dans `src/domaine/nations.ts`. */
+  /* Nation inks are not tokens: they travel with the view (`ink`, served by
+     `convex/view.ts`) because they designate a player, not a surface. Their only source is
+     `INK_BY_NATION` in `src/domain/nations.ts`. */
 
-  /* ressources — sur fond sombre, puis assombries pour le papier */
-  --ravitaillement: #b07434;
-  --acier: #8fa0b0;
-  --effectifs: #8b9160;
-  --ravitaillement-papier: #8a5a24;
-  --acier-papier: #4d6376;
-  --effectifs-papier: #6a7047;
+  /* resources — on dark background, then darkened for paper */
+  --supply: #b07434;
+  --steel: #8fa0b0;
+  --manpower: #8b9160;
+  --supply-paper: #8a5a24;
+  --steel-paper: #4d6376;
+  --manpower-paper: #6a7047;
 
-  /* sémantique */
-  --critique: #9d4638;
-  --valide: #2b6b46;
+  /* semantic */
+  --critical: #9d4638;
+  --valid: #2b6b46;
   --notable: #b07434;
   --routine: #6e6a5e;
   --interaction: #3f5a7d;
 
-  /* filets */
+  /* rules */
   --rule-strong: 1px solid #2a2118;
   --rule-double: 2px solid #2a2118;
   --rule-medium: 1px solid rgba(42, 33, 24, .32);
   --rule-light: 1px solid rgba(42, 33, 24, .18);
   --rule-dark: 1px solid #4a4436;
 
-  /* typographie */
+  /* typography */
   --font-display: "Bodoni Moda", Georgia, serif;
   --font-body: "Archivo Narrow", "Arial Narrow", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
@@ -68,15 +68,15 @@
   --track-display: .02em;
   --track-masthead: .06em;
 
-  /* espacement */
+  /* spacing */
   --sp-1: 4px;  --sp-2: 6px;  --sp-3: 8px;  --sp-4: 10px;
   --sp-5: 12px; --sp-6: 14px; --sp-7: 18px; --sp-8: 22px;
   --sp-9: 26px; --sp-10: 30px;
 
-  /* échelle du HUD — tout texte et toute cote en dérivent (zoom CSS) */
-  --echelle-hud: 1.2;
+  /* HUD scale — all text and sizing derive from it (CSS zoom) */
+  --hud-scale: 1.2;
 
-  /* géométrie */
+  /* geometry */
   --topbar-h: 58px;
   --rail-w: 52px;
   --dock-w: 430px;
@@ -87,7 +87,7 @@
   --shadow: none;
 }
 
-/* trame de similigravure — toute surface papier */
+/* halftone screen — every paper surface */
 .paper {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(45deg, rgba(42, 33, 24, .055) 0 1px, transparent 1px 5px);
@@ -95,7 +95,7 @@
   border: var(--rule-strong);
 }
 
-/* eyebrow : le libellé le plus fréquent du système */
+/* eyebrow: the system's most frequent label */
 .eyebrow {
   font-size: var(--size-eyebrow);
   letter-spacing: var(--track-eyebrow);
@@ -103,7 +103,7 @@
   color: var(--ink-soft);
 }
 
-/* grain d'impression — overlay plein écran */
+/* print grain — full-screen overlay */
 .grain {
   position: fixed;
   inset: 0;
@@ -116,7 +116,7 @@
 
 body {
   font-family: var(--font-body);
-  font-variant-numeric: tabular-nums; /* non négociable */
+  font-variant-numeric: tabular-nums; /* non-negotiable */
   background: var(--desk);
   color: var(--ink);
 }

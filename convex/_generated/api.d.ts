@@ -8,13 +8,14 @@
  * @module
  */
 
-import type * as chantiers from "../chantiers.js";
-import type * as constantes from "../constantes.js";
-import type * as joueurs from "../joueurs.js";
-import type * as ressources from "../ressources.js";
-import type * as saisons from "../saisons.js";
-import type * as unites from "../unites.js";
-import type * as vue from "../vue.js";
+import type * as constants from "../constants.js";
+import type * as constructions from "../constructions.js";
+import type * as errors from "../errors.js";
+import type * as players from "../players.js";
+import type * as resources from "../resources.js";
+import type * as seasons from "../seasons.js";
+import type * as units from "../units.js";
+import type * as view from "../view.js";
 
 import type {
   ApiFromModules,
@@ -23,13 +24,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  chantiers: typeof chantiers;
-  constantes: typeof constantes;
-  joueurs: typeof joueurs;
-  ressources: typeof ressources;
-  saisons: typeof saisons;
-  unites: typeof unites;
-  vue: typeof vue;
+  constants: typeof constants;
+  constructions: typeof constructions;
+  errors: typeof errors;
+  players: typeof players;
+  resources: typeof resources;
+  seasons: typeof seasons;
+  units: typeof units;
+  view: typeof view;
 }>;
 
 /**

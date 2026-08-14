@@ -1,0 +1,212 @@
+import { Group, Vector3, type Camera, type Raycaster } from 'three';
+import type { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import {
+  pawnTarget,
+  temporalPosition,
+  unrollRoute,
+  type UnrolledSegment,
+} from '@/domain/route-timing';
+import type { ArcView } from '@/domain/player-view';
+import { movementSprite } from '@/emblems/units/manifest';
+import {
+  buildThread,
+  pointOnLeg,
+  projectOnGround,
+  stretchTether,
+  type Thread,
+} from './thread';
+import { Pawn } from './pawn';
+import { ARC_COLORS } from './palette';
+import type { WorldFrame } from './frame';
+
+type RenderedArc = {
+  arc: ArcView;
+  thread: Thread;
+  unrolled: ReadonlyArray<UnrolledSegment>;
+  pawn: Pawn;
+  /** Rewritten in place every frame: it is the movement-head label's anchor. */
+  headPosition: Vector3;
+};
+
+/**
+ * Thickness carries the hierarchy between movements, in pixels and not world units: what is
+ * not mine does not push to the foreground. Within a thread it says nothing — covered and
+ * remaining are the same stroke, and the dashes tell them apart.
+ */
+const THICKNESSES: Readonly<Record<ArcView['state'], number>> = {
+  mine: 2.5,
+  enemyDetected: 2,
+  lastKnown: 2,
+  seaControl: 2,
+};
+
+const TRACE_OPACITY = 0.55;
+
+/**
+ * The accent is a matter of intensity, never of color: a thread's color says whose it is,
+ * changing it on hover would say something else. The designated thread rises, the others
+ * fade — it is the gap that reads, not the absolute value.
+ */
+const ACCENT_DESIGNATED = 1.6;
+const ACCENT_OTHERS = 0.4;
+/** A thread's pointer pick radius, in pixels: a fat line is aimed at on screen. */
+export const ARC_HOVER_THRESHOLD = 6;
+
+export class ArcLayer {
+  readonly group = new Group();
+  /** The head labels' screen positions read here: they move every frame. */
+  readonly headPositions = new Map<string, Vector3>();
+  private readonly pawnPoint = new Vector3();
+  private readonly aheadPoint = new Vector3();
+  private readonly groundPoint = new Vector3();
+  private readonly cameraPosition = new Vector3();
+  private playerNation: string | null = null;
+  private rendered: RenderedArc[] = [];
+  private targets: Line2[] = [];
+  private accented: string | null = null;
+  private width = 1;
+  private height = 1;
+  private unitsPerPixel = 1;
+  /** The dash drift's clock: it lives in the loop, never in React state. */
+  private lastFrameMs = 0;
+
+  constructor(private readonly frame: WorldFrame) {}
+
+  setPlayerNation(nation: string | null): void {
+    if (nation === this.playerNation) return;
+    this.playerNation = nation;
+    this.rebuild();
+  }
+
+  /**
+   * A fat line thickens in pixels: it needs the canvas size to convert. Keeping it here
+   * prevents a thread built after a resize from being born at the wrong scale — the kind of
+   * bug that only shows after moving the window.
+   */
+  resize(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
+    for (const rendered of this.rendered) rendered.thread.setResolution(width, height);
+  }
+
+  display(arcs: ReadonlyArray<ArcView>): void {
+    this.clear();
+    for (const arc of arcs) {
+      const stale = arc.state === 'lastKnown';
+      const thread = buildThread(arc.route, this.frame, ARC_COLORS[arc.state], THICKNESSES[arc.state], {
+        trace: TRACE_OPACITY,
+        progress: stale ? 0.45 : 1,
+      });
+      thread.setResolution(this.width, this.height);
+      thread.setScale(this.unitsPerPixel);
+      this.group.add(thread.object);
+      for (const target of thread.targets) {
+        target.userData.arc = arc.id;
+        this.targets.push(target);
+      }
+
+      const pawn = new Pawn(
+        movementSprite(arc, this.playerNation),
+        ARC_COLORS[arc.state].progress,
+      );
+      pawn.visible = !stale;
+      this.group.add(pawn.object);
+
+      const headPosition = new Vector3();
+      this.headPositions.set(arc.id, headPosition);
+
+      this.rendered.push({ arc, thread, unrolled: unrollRoute(arc.route), pawn, headPosition });
+    }
+    this.applyAccent();
+    this.animate();
+  }
+
+  /**
+   * Hover comes from the timeline or the pointer, but the accent never climbs back to
+   * React: an id comes in, opacities change, the loop keeps running at sixty frames.
+   */
+  accent(id: string | null): void {
+    if (id === this.accented) return;
+    this.accented = id;
+    this.applyAccent();
+  }
+
+  /** The movement id under the pointer, so the timeline highlights its card. */
+  hover(ray: Raycaster): string | null {
+    const hit = ray.intersectObjects(this.targets, false)[0];
+    return (hit?.object.userData.arc as string | undefined) ?? null;
+  }
+
+  /**
+   * The thread is baked once; per frame only an `instanceCount` advances and a pawn moves.
+   * The position comes from time, not distance: a movement straddling three mediums does
+   * not cross the sea at road speed, and it stops at the dock.
+   */
+  animate(camera?: Camera, unitsPerPixel?: number): void {
+    if (camera) this.cameraPosition.copy(camera.position);
+    if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
+
+    const now = performance.now();
+    const elapsed = this.lastFrameMs === 0 ? 0 : (now - this.lastFrameMs) / 1000;
+    this.lastFrameMs = now;
+
+    for (const rendered of this.rendered) {
+      if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
+      rendered.thread.drift(elapsed);
+
+      const position = temporalPosition(rendered.unrolled, rendered.arc.progress);
+      const { legIndex, local } = pawnTarget(position);
+
+      rendered.thread.cut(legIndex, local);
+
+      const leg = rendered.thread.legs[legIndex];
+      if (leg === undefined) continue;
+      pointOnLeg(leg, local, this.pawnPoint);
+      pointOnLeg(leg, Math.min(1, local + 0.01), this.aheadPoint);
+
+      // At the dock, the pawn already wears the silhouette of what it is about to become:
+      // it is the embarkation itself that shows, and the stop that reads.
+      rendered.pawn.wear(
+        position.kind === 'dock'
+          ? rendered.thread.legs[position.legIndex]?.medium ?? leg.medium
+          : leg.medium,
+      );
+      rendered.pawn.place(this.pawnPoint, this.aheadPoint);
+      rendered.pawn.orient(this.cameraPosition);
+      rendered.headPosition.copy(this.pawnPoint);
+
+      if (rendered.thread.tether !== null) {
+        projectOnGround(this.pawnPoint, this.frame, this.groundPoint);
+        stretchTether(rendered.thread.tether, this.pawnPoint, this.groundPoint);
+      }
+    }
+  }
+
+  rebuild(): void {
+    this.display(this.rendered.map((rendered) => rendered.arc));
+  }
+
+  /** Frees every thread and pawn, and detaches them from the scene. */
+  dispose(): void {
+    this.clear();
+    this.group.removeFromParent();
+  }
+
+  private applyAccent(): void {
+    for (const rendered of this.rendered) {
+      rendered.thread.setAccent(
+        this.accented === null ? 1 : rendered.arc.id === this.accented ? ACCENT_DESIGNATED : ACCENT_OTHERS,
+      );
+    }
+  }
+
+  private clear(): void {
+    for (const rendered of this.rendered) {
+      rendered.thread.dispose();
+      rendered.pawn.dispose();
+    }
+    this.rendered = [];
+    this.targets = [];
+    this.headPositions.clear();
+  }
+}

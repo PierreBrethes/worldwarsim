@@ -2,153 +2,168 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { FiletFort, FiletFortInverse, Journal, useTourDePage } from '@/coque/Journal';
-import { DOCTRINES, LIBELLE_DOCTRINE, NATIONS, POUVOIR_PAR_NATION } from '@/domaine/nations';
-import { BanniereDrapeau, Drapeau } from '@/emblemes/Drapeau';
-import { clientConvex } from '@/donnees/clientConvex';
-import { lireJeton, oublierJeton } from '@/donnees/jeton';
-import { Lancement } from '@/coque/Lancement';
+import { fr, nationLabel } from '@/i18n/fr';
+import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
+import { DOCTRINES, NATIONS } from '@/domain/nations';
+import type { PlayableRegion } from '@/domain/ids';
+import { FlagBanner, Flag } from '@/emblems/Flag';
+import { convexClient } from '@/data/convexClient';
+import { errorCode, handleError } from '@/data/errors';
+import { forgetToken, useToken } from '@/data/token';
+import { ErrorScreen } from '@/shell/ErrorScreen';
+import { LaunchSequence } from '@/shell/LaunchSequence';
 
-export const Route = createFileRoute('/salon')({ component: Salon });
+export const Route = createFileRoute('/salon')({
+  component: Lobby,
+  errorComponent: ({ error, reset }) => <LobbyError error={error} reset={reset} />,
+});
 
-const LARGEUR = 760;
-const NUMEROS = ['I', 'II', 'III'] as const;
-
-function Salon() {
-  const jeton = lireJeton();
-  if (!clientConvex || !jeton) return <Navigate to="/accueil" />;
-  return <SalonConnecte jeton={jeton} />;
+/** A dead token at the lobby is no outage: forget it and go back home. */
+function LobbyError({ error, reset }: { error: unknown; reset: () => void }) {
+  const code = errorCode(error);
+  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') {
+    forgetToken();
+    return <Navigate to="/accueil" />;
+  }
+  return <ErrorScreen error={error} reset={reset} />;
 }
 
-function SalonConnecte({ jeton }: { jeton: string }) {
-  const naviguer = useNavigate();
-  const { tournant, tourner } = useTourDePage();
-  const salon = useQuery(api.saisons.salon, { jeton });
-  const reserver = useMutation(api.joueurs.reserverNation);
-  const choisirDoctrine = useMutation(api.joueurs.choisirDoctrine);
-  const declarerPret = useMutation(api.joueurs.declarerPret);
-  const lancer = useMutation(api.saisons.lancer);
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [copie, setCopie] = useState(false);
+const WIDTH = 760;
+const NUMERALS = ['I', 'II', 'III'] as const;
 
-  const versPlateau = useCallback(() => void naviguer({ to: '/plateau' }), [naviguer]);
+function Lobby() {
+  const token = useToken();
+  if (!convexClient || !token) return <Navigate to="/accueil" />;
+  return <ConnectedLobby token={token} />;
+}
 
-  if (salon === undefined) {
+function ConnectedLobby({ token }: { token: string }) {
+  const navigate = useNavigate();
+  const { turning, turn } = usePageTurn();
+  const lobby = useQuery(api.seasons.lobby, { token });
+  const reserve = useMutation(api.players.reserveNation);
+  const chooseDoctrine = useMutation(api.players.chooseDoctrine);
+  const declareReady = useMutation(api.players.declareReady);
+  const launch = useMutation(api.seasons.launch);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
+
+  if (lobby === undefined) {
     return (
       <div className="flex h-full items-center justify-center bg-[var(--desk)]">
-        <span className="eyebrow-sombre">Ouverture du salon…</span>
+        <span className="eyebrow-dark">{fr.lobby.opening}</span>
       </div>
     );
   }
 
-  const agir = (action: () => Promise<unknown>) => {
-    setErreur(null);
-    action().catch((probleme: unknown) =>
-      setErreur(probleme instanceof Error ? probleme.message : String(probleme)),
-    );
+  const act = (action: () => Promise<unknown>) => {
+    setError(null);
+    action().catch((problem: unknown) => handleError(problem, setError));
   };
-  const nationDe = (nation: string) => salon.joueurs.find((joueur) => joueur.nation === nation);
-  const tousPrets = salon.joueurs.length >= 2 && salon.joueurs.every((joueur) => joueur.pret);
-  const cadence = salon.dureeHeures === 48 ? '48 heures' : '7 jours';
-  const enLancement = salon.statut === 'lancee';
+  const holderOf = (nation: string) => lobby.players.find((player) => player.nation === nation);
+  const allReady = lobby.players.length >= 2 && lobby.players.every((player) => player.ready);
+  const pace = lobby.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
+  const launching = lobby.status === 'launched';
+  const regionName =
+    fr.playableRegions[lobby.playableRegion as PlayableRegion] ?? lobby.playableRegion;
 
-  const controles = [
-    { libelle: 'une nation réservée', fait: salon.moi.nation !== null },
-    { libelle: 'une doctrine scellée', fait: salon.moi.doctrine !== null },
-    { libelle: 'tous les joueurs déclarés prêts', fait: tousPrets },
+  const checks = [
+    { label: fr.lobby.checkNation, done: lobby.me.nation !== null },
+    { label: fr.lobby.checkDoctrine, done: lobby.me.doctrine !== null },
+    { label: fr.lobby.checkAllReady, done: allReady },
   ];
-  const manquants = controles.filter((controle) => !controle.fait).length;
-  const placesLibres = Math.min(2, 8 - salon.joueurs.length);
-  const nationsLibres = NATIONS.filter((nation) => nationDe(nation) === undefined).length;
+  const missing = checks.filter((check) => !check.done).length;
+  const freeSeats = Math.min(2, 8 - lobby.players.length);
+  const freeNations = NATIONS.filter((nation) => holderOf(nation) === undefined).length;
 
-  const copierCode = () => {
-    void navigator.clipboard.writeText(salon.code).then(() => {
-      setCopie(true);
-      setTimeout(() => setCopie(false), 1600);
+  const copyCode = () => {
+    void navigator.clipboard.writeText(lobby.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
     });
   };
 
   return (
     <>
       <div className="h-full">
-        <Journal largeur={LARGEUR} tournant={tournant}>
-        <div className="trame-papier @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+        <Newspaper width={WIDTH} turning={turning}>
+        <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
           <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
-            <Drapeau nation={salon.moi.nation} largeur={33} surPapier />
+            <Flag nation={lobby.me.nation} width={33} onPaper />
             <span className="font-[var(--font-display)] text-[17px] font-extrabold tracking-[.02em] uppercase">
-              {salon.moi.nation ?? 'sans nation'}
+              {nationLabel(lobby.me.nation)}
             </span>
             <span className="flex-1" />
-            <span className="eyebrow">salon de saison — {cadence}</span>
-            <span className="eyebrow">région : {salon.regionJouable}</span>
+            <span className="eyebrow">{fr.lobby.header(pace)}</span>
+            <span className="eyebrow">{fr.lobby.regionLabel(regionName)}</span>
             <button
               type="button"
               onClick={() => {
-                oublierJeton();
-                tourner(() => void naviguer({ to: '/accueil' }));
+                forgetToken();
+                turn(() => void navigate({ to: '/accueil' }));
               }}
               className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
             >
-              quitter
+              {fr.lobby.quit}
             </button>
           </div>
 
-          <FiletFort />
+          <ThickRule />
 
           <div className="flex flex-wrap items-center gap-[26px] px-[30px] pt-[18px] pb-4">
             <div className="min-w-0 flex-1">
-              <div className="eyebrow">code de partie — à partager</div>
+              <div className="eyebrow">{fr.lobby.codeLabel}</div>
               <div className="font-[var(--font-display)] text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
-                {salon.code}
+                {lobby.code}
               </div>
-              <div className="text-[11.5px] text-[var(--ink-note)]">
-                Toute personne qui a ce code peut prendre une nation libre.
-              </div>
+              <div className="text-[11.5px] text-[var(--ink-note)]">{fr.lobby.codeNote}</div>
             </div>
             <div className="flex w-[200px] shrink-0 flex-col gap-2">
               <button
                 type="button"
-                onClick={copierCode}
+                onClick={copyCode}
                 className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
               >
-                {copie ? 'code copié' : 'copier le code'}
+                {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
               </button>
               <div className="text-center font-[var(--font-mono)] text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
-                salon ouvert · {salon.joueurs.length} / 8
+                {fr.lobby.openCount(lobby.players.length)}
               </div>
             </div>
           </div>
 
-          <FiletFortInverse />
+          <ThickRuleInverse />
 
           <div className="mx-[30px] flex flex-col @2xl:flex-row @2xl:items-stretch">
             <section className="min-w-0 flex-1 pt-4 pb-2 @2xl:pr-[26px]">
               <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                <span className="eyebrow">nations — premier arrivé, premier servi</span>
-                <span className="text-[10.5px] text-[var(--ink-faint)]">{nationsLibres} libres</span>
+                <span className="eyebrow">{fr.lobby.nationsHeader}</span>
+                <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.lobby.nationsFree(freeNations)}</span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-[9px] @md:grid-cols-3 @2xl:grid-cols-4">
                 {NATIONS.map((nation) => {
-                  const preneur = nationDe(nation);
-                  const aMoi = salon.moi.nation === nation;
-                  const prise = preneur !== undefined && !aMoi;
+                  const holder = holderOf(nation);
+                  const isMine = lobby.me.nation === nation;
+                  const taken = holder !== undefined && !isMine;
                   return (
                     <button
                       key={nation}
                       type="button"
-                      onClick={() => agir(() => reserver({ jeton, nation: aMoi ? null : nation }))}
-                      disabled={prise}
-                      title={POUVOIR_PAR_NATION[nation]}
+                      onClick={() => act(() => reserve({ token, nation: isMine ? null : nation }))}
+                      disabled={taken}
+                      title={fr.nationPowers[nation]}
                       className={`block border border-[var(--ink)] bg-[var(--paper)] text-left transition-transform duration-100 ${
-                        aMoi
+                        isMine
                           ? 'shadow-[0_6px_14px_rgba(0,0,0,.3)] outline-2 outline-offset-1 outline-[var(--notable)] -translate-y-[2px] cursor-pointer'
-                          : prise
+                          : taken
                             ? 'cursor-not-allowed opacity-50'
                             : 'cursor-pointer hover:-translate-y-[1px]'
                       }`}
                     >
                       <span className="relative block">
-                        <BanniereDrapeau nation={nation} />
+                        <FlagBanner nation={nation} />
                         <span
                           aria-hidden
                           className="absolute inset-0"
@@ -160,19 +175,19 @@ function SalonConnecte({ jeton }: { jeton: string }) {
                       </span>
                       <span className="block bg-[var(--ink)] px-2 pt-[6px] pb-[7px] text-[var(--paper)]">
                         <span className="block truncate text-[12px] font-semibold tracking-[.02em]">
-                          {nation}
+                          {fr.nations[nation]}
                         </span>
                         <span
                           className="mt-[2px] block truncate text-[9px] tracking-[.14em] uppercase"
-                          style={{ color: encreDeStatut(aMoi, preneur !== undefined, nation) }}
+                          style={{ color: statusInk(isMine, holder !== undefined, nation) }}
                         >
-                          {aMoi
-                            ? 'vous'
-                            : preneur
-                              ? `prise · ${preneur.pseudo}`
-                              : nation === 'États-Unis'
-                                ? 'à équilibrer'
-                                : 'libre'}
+                          {isMine
+                            ? fr.lobby.you
+                            : holder
+                              ? fr.lobby.takenBy(holder.nickname)
+                              : nation === 'usa'
+                                ? fr.lobby.toBalance
+                                : fr.lobby.free}
                         </span>
                       </span>
                     </button>
@@ -180,8 +195,7 @@ function SalonConnecte({ jeton }: { jeton: string }) {
                 })}
               </div>
               <p className="mt-3 text-[11px] leading-[1.55] text-[var(--ink-note)]">
-                La réservation se relâche d’un clic tant que la saison n’est pas lancée. La richesse des
-                pays neutres (graine) ne sera révélée qu’au lancement.
+                {fr.lobby.reservationNote}
               </p>
             </section>
 
@@ -195,160 +209,158 @@ function SalonConnecte({ jeton }: { jeton: string }) {
 
             <aside className="w-full pt-4 pb-2 @2xl:w-[290px] @2xl:shrink-0 @2xl:pl-[26px]">
               <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                <span className="eyebrow">joueurs</span>
+                <span className="eyebrow">{fr.lobby.playersHeader}</span>
                 <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-faint)]">
-                  {salon.joueurs.length} / 8
+                  {lobby.players.length} / 8
                 </span>
               </div>
               <ul className="mt-2 flex flex-col">
-                {salon.joueurs.map((joueur) => (
+                {lobby.players.map((player) => (
                   <li
-                    key={joueur.pseudo}
+                    key={player.id}
                     className="flex items-center gap-[9px] border-b border-[rgba(42,33,24,.16)] px-[2px] py-[6px]"
                   >
-                    <Drapeau nation={joueur.nation} largeur={18} surPapier />
+                    <Flag nation={player.nation} width={18} onPaper />
                     <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                      {joueur.pseudo}
-                      {joueur.createur && (
+                      {player.nickname}
+                      {player.creator && (
                         <span className="ml-[6px] text-[9px] tracking-[.14em] text-[var(--ink-faint)] uppercase">
-                          fondateur
+                          {fr.lobby.founder}
                         </span>
                       )}
                     </span>
                     <span className="shrink-0 text-[11px] text-[var(--ink-note)]">
-                      {joueur.nation ?? 'sans nation'}
+                      {nationLabel(player.nation)}
                     </span>
                     <span
                       className="shrink-0 text-[9px] tracking-[.14em] uppercase"
-                      style={{ color: joueur.pret ? 'var(--valide)' : 'var(--ink-faint)' }}
+                      style={{ color: player.ready ? 'var(--valid)' : 'var(--ink-faint)' }}
                     >
-                      {joueur.pret ? 'prêt' : 'en attente'}
+                      {player.ready ? fr.lobby.ready : fr.lobby.waiting}
                     </span>
                   </li>
                 ))}
-                {Array.from({ length: placesLibres }, (_, rang) => (
+                {Array.from({ length: freeSeats }, (_, rank) => (
                   <li
-                    key={`libre-${rang}`}
+                    key={`free-${rank}`}
                     className="flex items-center gap-[9px] border-b border-dashed border-[rgba(42,33,24,.28)] px-[2px] py-[6px] text-[var(--ink-faint)]"
                   >
                     <span aria-hidden className="h-[9px] w-[9px] border border-[rgba(42,33,24,.3)]" />
-                    <span className="text-[11px] tracking-[.14em] uppercase">place libre</span>
+                    <span className="text-[11px] tracking-[.14em] uppercase">{fr.lobby.freeSeat}</span>
                   </li>
                 ))}
               </ul>
 
               <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
-                ma doctrine — secrète
+                {fr.lobby.doctrineHeader}
               </div>
               <div className="mt-[10px] flex gap-[6px]">
-                {DOCTRINES.map((doctrine, rang) => (
+                {DOCTRINES.map((doctrine, rank) => (
                   <button
                     key={doctrine}
                     type="button"
-                    onClick={() => agir(() => choisirDoctrine({ jeton, doctrine }))}
+                    onClick={() => act(() => chooseDoctrine({ token, doctrine }))}
                     className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
-                      salon.moi.doctrine === doctrine
+                      lobby.me.doctrine === doctrine
                         ? 'bg-[var(--ink)] text-[var(--paper)]'
                         : 'hover:bg-[rgba(42,33,24,.08)]'
                     }`}
                   >
                     <span className="block font-[var(--font-mono)] text-[9px] opacity-60">
-                      {NUMEROS[rang]}
+                      {NUMERALS[rank]}
                     </span>
                     <span className="mt-[3px] block text-[11px] tracking-[.08em] uppercase">
-                      {LIBELLE_DOCTRINE[doctrine]}
+                      {fr.doctrines[doctrine]}
                     </span>
                   </button>
                 ))}
               </div>
               <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
-                Personne d’autre ne voit ce choix, seulement « prêt / pas prêt ».
+                {fr.lobby.doctrineNote}
               </p>
 
               <div className="mt-4 flex flex-col gap-1">
-                {controles.map((controle) => (
+                {checks.map((check) => (
                   <div
-                    key={controle.libelle}
+                    key={check.label}
                     className="flex items-center gap-[9px] text-[11.5px]"
-                    style={{ color: controle.fait ? 'var(--ink)' : 'var(--ink-faint)' }}
+                    style={{ color: check.done ? 'var(--ink)' : 'var(--ink-faint)' }}
                   >
                     <span className="w-[11px] font-[var(--font-mono)] text-[11px]">
-                      {controle.fait ? '×' : '·'}
+                      {check.done ? '×' : '·'}
                     </span>
-                    <span>{controle.libelle}</span>
+                    <span>{check.label}</span>
                   </div>
                 ))}
               </div>
 
               <button
                 type="button"
-                onClick={() => agir(() => declarerPret({ jeton, pret: !salon.moi.pret }))}
+                onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
                 className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                  salon.moi.pret
+                  lobby.me.ready
                     ? 'bg-[var(--ink)] text-[var(--paper)]'
                     : 'hover:bg-[rgba(42,33,24,.08)]'
                 }`}
               >
-                {salon.moi.pret ? 'je ne suis plus prêt' : 'me déclarer prêt'}
+                {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
               </button>
 
-              {salon.moi.createur ? (
+              {lobby.me.creator ? (
                 <>
                   <button
                     type="button"
-                    disabled={!tousPrets}
-                    onClick={() => agir(() => lancer({ jeton }))}
+                    disabled={!allReady}
+                    onClick={() => act(() => launch({ token }))}
                     className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                      tousPrets
+                      allReady
                         ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
                         : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
                     }`}
                   >
-                    lancer la saison — irréversible
+                    {fr.lobby.launch}
                   </button>
                   <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
-                    {tousPrets
-                      ? 'la graine des pays neutres sera tirée au lancement'
-                      : `il manque ${manquants} condition${manquants > 1 ? 's' : ''}`}
+                    {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
                   </p>
                 </>
               ) : (
                 <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-faint)]">
-                  seul le fondateur lance la saison.
+                  {fr.lobby.creatorOnly}
                 </p>
               )}
             </aside>
           </div>
 
-          {erreur && (
-            <p className="mx-[30px] mt-4 border border-[var(--critique)] px-3 py-2 text-[12.5px]">
-              {erreur}
+          {error && (
+            <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+              {error}
             </p>
           )}
 
           <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
-            <span>la partie commence quand le fondateur lance — pas avant</span>
-            <span className="font-[var(--font-mono)] tracking-[.12em]">salon {salon.code}</span>
+            <span>{fr.lobby.footerLeft}</span>
+            <span className="font-[var(--font-mono)] tracking-[.12em]">{fr.lobby.footerCode(lobby.code)}</span>
           </div>
         </div>
-        </Journal>
+        </Newspaper>
       </div>
 
-      {enLancement && (
-        <Lancement
-          region={salon.regionJouable}
-          cadence={cadence}
-          joueurs={salon.joueurs.length}
-          surFin={versPlateau}
+      {launching && (
+        <LaunchSequence
+          region={regionName}
+          pace={pace}
+          players={lobby.players.length}
+          onEnd={toBoard}
         />
       )}
     </>
   );
 }
 
-function encreDeStatut(aMoi: boolean, prise: boolean, nation: string): string {
-  if (aMoi) return 'var(--notable)';
-  if (prise) return 'var(--critique)';
-  if (nation === 'États-Unis') return 'var(--notable)';
+function statusInk(isMine: boolean, taken: boolean, nation: string): string {
+  if (isMine) return 'var(--notable)';
+  if (taken) return 'var(--critical)';
+  if (nation === 'usa') return 'var(--notable)';
   return 'var(--paper-dim)';
 }

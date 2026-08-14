@@ -1,0 +1,134 @@
+/* Screen-edge indicators — same ink, same pictogram as the map labels.
+   The board's only critical accent lives here: it only serves the inbound heading. */
+
+.edge-indicators {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.indicator-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--paper);
+  cursor: pointer;
+  zoom: var(--hud-scale);
+  pointer-events: auto;
+}
+
+/* The labels' paper reserve, reduced to a pictogram: without it, a light glyph gets lost on
+   the light sea and a dark glyph on the dark desk. */
+.indicator-glyph,
+.indicator-backing {
+  position: absolute;
+  inset: 3px;
+  display: block;
+  color: var(--ink);
+  filter: drop-shadow(0 0 1.6px var(--paper)) drop-shadow(0 0 1.6px var(--paper));
+}
+
+/* The stack's code: the same glyph, shifted two pixels — no new pictogram to learn. */
+.indicator-backing {
+  inset: 5px 1px 1px 5px;
+  opacity: 0.5;
+}
+
+.indicator-count {
+  position: absolute;
+  right: -6px;
+  bottom: -5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--ink);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+/* The timeline's muted grey: what brews elsewhere reads, but demands nothing. */
+.indicator--intel .indicator-glyph,
+.indicator--intel .indicator-backing {
+  color: var(--routine);
+}
+
+/* Identified and offensive: the triangle, thin stroke, never filled. */
+.indicator-triangle {
+  position: absolute;
+  inset: -3px;
+  display: none;
+}
+
+.indicator-triangle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--critical);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 1.5px rgb(15 10 4 / 85%));
+}
+
+.indicator--offensive .indicator-triangle,
+.indicator--imminent .indicator-triangle {
+  display: block;
+}
+
+/* Due time under URGENCY_MS: the same triangle, filled, slow beat. */
+.indicator--imminent .indicator-triangle svg {
+  fill: var(--critical);
+  animation: alert-beat 1.2s ease-in-out infinite;
+}
+
+.indicator--imminent .indicator-glyph,
+.indicator--imminent .indicator-backing {
+  color: var(--paper);
+  filter: none;
+}
+
+@keyframes alert-beat {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* The attention accent — a finished construction nothing follows. Neither red nor alarm:
+   it is an oversight to catch, not a threat. */
+.indicator--attention {
+  outline: 1px solid var(--notable);
+  outline-offset: 1px;
+}
+
+.indicator--attention .indicator-glyph,
+.indicator--attention .indicator-backing {
+  color: var(--notable);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator--imminent .indicator-triangle svg {
+    animation: none;
+  }
+}

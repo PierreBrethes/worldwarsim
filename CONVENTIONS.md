@@ -15,10 +15,10 @@ En pratique :
 
 | Portée | Où | Exemple |
 |---|---|---|
-| utilisé par un seul composant | dans le même fichier, sous le composant | `Compteur`, `Slots` dans `BandeauNation.tsx` |
-| utilisé par une seule route | `routes/-<route>/` — TanStack ignore les dossiers préfixés `-` | `routes/-plateau/PanneauPaysSelectionne.tsx` |
-| utilisé par plusieurs routes | dossier de la couche concernée | `coque/`, `carte/` |
-| logique de jeu, sans UI | `domaine/` | `geo.ts` |
+| utilisé par un seul composant | dans le même fichier, sous le composant | `Counter`, `Slots` dans `NationBanner.tsx` |
+| utilisé par une seule route | `routes/-<route>/` — TanStack ignore les dossiers préfixés `-` | `routes/-plateau/SelectedCountryPanel.tsx` |
+| utilisé par plusieurs routes | dossier de la couche concernée | `shell/`, `map/` |
+| logique de jeu, sans UI | `domain/` | `geo.ts` |
 
 Le fichier grossit ? Ce n'est pas un problème tant que tout ce qu'il contient sert au même endroit.
 Découper un fichier en cinq pour respecter une limite de lignes déplace le désordre, il ne le
@@ -31,7 +31,7 @@ Un commentaire n'existe que pour expliquer **pourquoi**, quand le code seul indu
 ```ts
 // ✗ décrit ce que le code dit déjà
 // on parcourt les pays et on construit un mesh
-for (const pays of monde.pays) { … }
+for (const country of world.countries) { … }
 
 // ✓ explique une décision non évidente
 // La courbure est appliquée aux positions côté CPU, jamais dans un shader : sinon le
@@ -44,14 +44,14 @@ Si un commentaire descriptif semble nécessaire, c'est presque toujours qu'il fa
 
 Le nom porte l'intention ; on doit comprendre un appel sans ouvrir la définition.
 
-- `bordALatitude(latitude)` plutôt que `getEdge(l)`
-- `construirePlateau()`, `chargerVueJoueur()`, `tronconner()` — un verbe, un complément
-- Les booléens s'énoncent : `aMoi`, `plafonneParQg`, `traverseAntimeridien`
+- `edgeAtLatitude(latitude)` plutôt que `getEdge(l)`
+- `buildBoard()`, `loadPlayerView()`, `cutIntoLegs()` — un verbe, un complément
+- Les booléens s'énoncent : `isMine`, `cappedByHq`, `crossesAntimeridian`
 - Pas d'abréviation sauf si elle appartient au domaine (`lonLat`, `km`)
 
-**Le nom d'un type est un garde-fou.** `VueJoueur`, jamais `EtatPartie` : le client ne reçoit pas le
+**Le nom d'un type est un garde-fou.** `PlayerView`, jamais `GameState` : le client ne reçoit pas le
 monde, seulement ce qu'un joueur a le droit d'en voir. Le jour où quelqu'un écrit
-`etatPartie.adversaires[0].armee`, il est trop tard.
+`gameState.opponents[0].army`, il est trop tard.
 
 ## 4. Tidy first
 
@@ -62,17 +62,26 @@ Les rangements se font petits et souvent : extraire une variable nommée, regrou
 ensemble, supprimer un intermédiaire inutile, ordonner les paramètres. Chacun se relit en trente
 secondes.
 
-## 5. Nommer en français
+## 5. Code en anglais, jeu en français
 
-Le domaine, la documentation et le glossaire sont en français. Le code aussi. Mélanger
-`distanceKm` et `getDistance` crée une friction permanente et deux vocabulaires pour la même chose.
+**Le code est en anglais** : identifiants, types, noms de fichiers, commentaires, messages
+d'erreur serveur (codes uniquement — voir `convex/errors.ts`). Mélanger `distanceKm` et
+`obtenirDistance` crée une friction permanente et deux vocabulaires pour la même chose.
 
-Le vocabulaire du jeu est **imposé** : *mouvement* et non convoi, *passe de résolution* et non tour
-de combat, avant-poste *désactivé* ou *détruit* et jamais *pris*. Glossaire complet dans
-`WWS/CONTEXT.md`.
+**Tout texte affiché au joueur passe par `src/i18n/fr.ts`.** C'est la seule table de
+traduction, et le jeu ne parle que français pour l'instant — pas de bascule de langue à
+l'exécution. Un composant qui affiche du texte importe `fr` et n'écrit jamais une chaîne
+française en dur (sauf JSX statique de mise en page sans portée lexicale, ex. `·`).
 
-Restent en anglais : les API tierces (`useEffect`, `Mesh`, `fetch`) et les noms de fichiers de
-composants React, qui suivent la convention `PascalCase.tsx`.
+Le domaine a le droit d'importer `i18n/fr` — c'est un module de constantes pures, aucune
+dépendance React ni Convex. Ce qui reste interdit au domaine, c'est React, three.js et le
+backend (§7).
+
+Le vocabulaire du jeu reste **imposé** dans les libellés : *mouvement* et non convoi, *passe de
+résolution* et non tour de combat, avant-poste *désactivé* ou *détruit* et jamais *pris*.
+Glossaire complet dans `WWS/CONTEXT.md`. Les identifiants anglais correspondants ne cherchent
+pas à traduire ce glossaire mot pour mot (`decoy` pour *leurre*, `outpost` pour *avant-poste*) —
+seule la table `fr.ts` porte le vocabulaire imposé.
 
 ## 6. Pas de fichiers barils
 
@@ -80,12 +89,13 @@ Aucun `index.ts` qui ne fait que ré-exporter. Ils cachent les cycles d'import, 
 tree-shaking et rendent impossible de savoir d'où vient réellement un symbole. Chaque import pointe
 le fichier réel.
 
-Exception : `carte/moteur/index.ts` est le point d'entrée du moteur et contient du code — ce n'est
+Exception : `map/engine/index.ts` est le point d'entrée du moteur et contient du code — ce n'est
 pas un baril.
 
 ## 7. Le domaine reste pur
 
-`src/domaine/` n'importe **ni React, ni three.js, ni le backend**. Du TypeScript et rien d'autre.
+`src/domain/` n'importe **ni React, ni three.js, ni le backend**. Du TypeScript et rien d'autre
+(l'import de `src/i18n/fr.ts` est l'exception du §5 — c'est aussi un module de constantes pures).
 
 C'est le seul code qui devra un jour tourner à l'identique côté client et côté serveur — coût de
 mouvement, résolution de combat, règles de visibilité. Mélangé à du React, il sera à réécrire.
@@ -98,9 +108,9 @@ avec des champs optionnels.
 
 ```ts
 // ✓ un arc adverse n'a structurellement ni type ni pile
-type ArcAffiche =
-  | { etat: 'mien'; type: TypeMouvement; pile: Pile; … }
-  | { etat: 'adverseDetecte'; nationSuspectee: string | null; capDegres: number; … }
+type ArcView =
+  | { state: 'mine'; type: MovementType; stack: Stack; … }
+  | { state: 'enemyDetected'; suspectedNation: string | null; headingDegrees: number; … }
 ```
 
 Le brouillard de guerre est alors garanti par le compilateur et non par la relecture. C'est le piège
@@ -116,9 +126,17 @@ géométrie partout, c'est exactement là que se logent les bugs silencieux.
 
 ## 10. Une frontière, pas dix
 
-Le moteur de carte est une classe impérative pilotée par des appels (`afficherArcs`,
-`selectionner`, `reglerCourbure`). Il ne connaît pas React ; React ne connaît pas three.js. La
-couture tient dans un seul fichier, `carte/Carte.tsx`.
+Le moteur de carte est une classe impérative pilotée par des appels (`displayArcs`,
+`select`, `setCurvature`). Il ne connaît pas React ; React ne connaît pas three.js. La
+couture tient dans un seul fichier, `map/WorldMap.tsx`.
 
-La même règle vaut pour le backend : `chargerPartie()` est la seule porte par où le serveur entre
+La même règle vaut pour le backend : `loadGame()` est la seule porte par où le serveur entre
 dans le client. Changer de source ne toucherait pas une seule vue.
+
+## 11. Les erreurs serveur sont des codes, jamais des phrases
+
+Toute mutation ou query Convex qui échoue le fait via `fail(code, details?)`
+(`convex/errors.ts`), jamais `throw new Error('phrase en français')`. Le code — `NATION_TAKEN`,
+`INSUFFICIENT_RESOURCE`, etc. — traverse le réseau tel quel ; c'est `fr.errors` côté client qui
+le transforme en phrase. Un test qui vérifie une erreur attend le code (`rejects.toThrow('NATION_TAKEN')`),
+jamais un fragment de phrase.

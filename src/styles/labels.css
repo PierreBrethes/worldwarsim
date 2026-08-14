@@ -1,0 +1,229 @@
+/* Map labels — paper reserve.
+   Values taken verbatim from WWS/maquettes/Étiquettes de carte - réserve blanche.dc.html:
+   no cartouche, no shadow, no translucent background. The only relief allowed is the paper
+   reserve around the letters (`-webkit-text-stroke` + `paint-order`). */
+
+.map-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The node the render loop moves: nothing else is written into it per frame. */
+.label-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.label {
+  position: relative;
+  width: 0;
+  height: 0;
+  zoom: var(--hud-scale);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  --label-ink: var(--ink);
+  --figures-ink: #2c5063;
+  --label-callout: 28px;
+  /* The callout's foot lands at the pool's center, not its top edge: that is where the
+     ground is, and a bar stopping above its shadow floats. Half a pool. */
+  --label-sink: 5px;
+}
+
+/* The callout's length is a setting, the block's height derives from it: tuning them
+   separately would unhook the bar's foot from the ground it designates. */
+.label-block {
+  position: absolute;
+  bottom: calc(var(--label-callout) - var(--label-sink));
+  left: -1px;
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+/* One stroke, not two: the national ink bar drops from the text to the base rather than
+   letting a thinner callout do half the way. */
+.label-bar {
+  position: relative;
+  width: 2px;
+  background: var(--label-ink);
+}
+
+/* The callout drops to the anchor itself — the height separating the block from the ground —
+   and not to the base's edge: it is the board point being designated, not the pictogram. */
+.label-bar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 2px;
+  height: var(--label-callout);
+  background: var(--label-ink);
+}
+
+/* An assumed exception to the mockup's "no shadow", requested knowingly: without this pool,
+   the callout ends in a void and one wonders which point it speaks of. It also serves as the
+   base — all that remains from afar, when the text fades — and as the click target, the role
+   the pictogram used to hold.
+
+   It sits entirely under the anchor, never astride it: the bar's foot is the entity's exact
+   position, the shadow is what the ground reflects just below. */
+.label::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -13px;
+  width: 26px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(38 30 20 / 42%), rgb(38 30 20 / 0%));
+  pointer-events: auto;
+}
+
+/* The pictogram holds to the text, across the bar — but out of flow: as a flexbox item it
+   would push the bar rightward and the callout would no longer fall on the entity. The paper
+   reserve is set here and not on the mask, which would cut it out with it. */
+.label-pictogram {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 6px);
+  display: block;
+  color: var(--ink);
+  filter: drop-shadow(0 0 1.6px var(--paper)) drop-shadow(0 0 1.6px var(--paper));
+  transform: translateY(-50%);
+}
+
+/* A movement's head is already planted: its 3D sprite carries its own footing. */
+.label--my-movement::before,
+.label--inbound-movement::before,
+.label--intel::before {
+  content: none;
+}
+
+.label-line--nature {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+.label-line--figures {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--figures-ink);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+.label-line--headcount {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  -webkit-text-stroke: 3px var(--paper);
+  paint-order: stroke fill;
+}
+
+.label-line--countdown {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  -webkit-text-stroke: 3px var(--paper);
+  paint-order: stroke fill;
+}
+
+.label-line--mention {
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  -webkit-text-stroke: 2.5px var(--paper);
+  paint-order: stroke fill;
+}
+
+/* An enemy estimate: intelligence ink, never a nation's ink. */
+.label--inbound-movement,
+.label--intel {
+  --label-ink: #9d4638;
+}
+
+.label--inbound-movement .label-line--countdown,
+.label--intel .label-line--countdown {
+  font-weight: 400;
+  color: #9d4638;
+}
+
+.label--inbound-movement .label-line--mention,
+.label--intel .label-line--mention {
+  color: #7d4a3f;
+}
+
+.label--inbound-movement .label-line--nature,
+.label--intel .label-line--nature {
+  color: #9d4638;
+}
+
+/* The system's single accent — it only serves imminence. */
+.label--urgent .label-line--countdown {
+  color: #b07434;
+}
+
+.label--urgent .label-line--countdown::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 36px;
+  height: 1px;
+  background: #b07434;
+}
+
+.label--urgent .label-line--mention {
+  color: #8a5a29;
+}
+
+/* Movement heads have no national bar: the text sits beside the sprite. */
+.label--my-movement .label-block,
+.label--inbound-movement .label-block,
+.label--intel .label-block {
+  bottom: auto;
+  top: -20px;
+  left: 14px;
+}
+
+.label--my-movement .label-bar,
+.label--inbound-movement .label-bar,
+.label--intel .label-bar {
+  display: none;
+}
+
+/* Detail level: the text and its stroke fade in briefly, the base does not move. */
+.label-block {
+  transition: opacity 0.18s ease;
+}
+
+.label--glyph .label-block {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.label--expanded .label-block {
+  opacity: 1;
+}
+
+.label--clickable::before,
+.label--clickable .label-block {
+  cursor: pointer;
+}

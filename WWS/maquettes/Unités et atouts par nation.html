@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorldWarSim — unités, atouts et troupes signature par nation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900&family=Archivo+Narrow:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --papier:#171208; --encre:#e4d8bd; --encre-pale:#a9968f; --encre-faible:#8d7f6a;
+    --trait:#4a4436; --trait-fin:#302a1e; --nation:#b07434; --nation-clair:#d9a862;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--papier);color:var(--encre);
+    font-family:"Archivo Narrow",Arial Narrow,sans-serif;font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;text-wrap:pretty;line-height:1.5}
+  .page{max-width:1160px;margin:0 auto;padding:44px 40px 100px}
+
+  h1{font-family:"Bodoni Moda",Georgia,serif;font-size:38px;font-weight:800;letter-spacing:.02em;margin:0}
+  .chapo{max-width:720px;font-size:13.5px;color:var(--encre-pale);margin-top:10px}
+  .filet{height:1px;background:var(--trait);margin:26px 0 0}
+  .filet-double{border-top:3px double var(--trait);margin:34px 0 0}
+
+  /* onglets */
+  .onglets{display:flex;flex-wrap:wrap;gap:0;margin-top:28px;border-bottom:1px solid var(--trait)}
+  .onglet{appearance:none;background:none;border:0;border-bottom:3px solid transparent;
+    color:var(--encre-faible);font-family:"Bodoni Moda",Georgia,serif;font-size:17px;font-weight:700;
+    padding:11px 17px 9px;cursor:pointer;letter-spacing:.01em;transition:color .12s}
+  .onglet:hover{color:var(--encre)}
+  .onglet[aria-selected="true"]{color:var(--encre)}
+  .onglet:focus-visible{outline:2px solid var(--nation-clair);outline-offset:-3px}
+  .puce{display:inline-block;width:8px;height:8px;margin-right:8px;vertical-align:1px;border-radius:1px}
+
+  .panneau[hidden]{display:none}
+  .panneau{animation:apparait .18s ease-out}
+  @keyframes apparait{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+  .bandeau{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-top:32px}
+  .bandeau h2{font-family:"Bodoni Moda",Georgia,serif;font-size:31px;font-weight:800;margin:0;color:var(--nation-clair)}
+  .devise{font-size:13px;color:var(--encre-faible);font-style:italic}
+
+  /* cartes atout / troupe */
+  .cartes{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:22px;border:1px solid var(--trait)}
+  .carte{padding:22px 24px 24px}
+  .carte + .carte{border-left:1px solid var(--trait)}
+  .etiquette{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--encre-faible)}
+  .carte h3{font-family:"Bodoni Moda",Georgia,serif;font-size:20px;font-weight:700;margin:9px 0 0;color:var(--encre)}
+  .carte p{font-size:13px;color:var(--encre-pale);margin:8px 0 0}
+  .regle{margin-top:14px;padding-top:12px;border-top:1px dotted var(--trait);
+    font-size:12px;color:var(--encre-faible)}
+  .regle b{color:var(--nation-clair);font-weight:600}
+  .forme{display:inline-block;margin-top:10px;padding:2px 9px;border:1px solid var(--trait);
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;color:var(--encre-faible)}
+
+  /* table des rôles */
+  h4{font-family:"Bodoni Moda",Georgia,serif;font-size:15px;font-weight:700;margin:34px 0 0;
+    letter-spacing:.02em;color:var(--encre)}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+  thead th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--encre-faible);font-weight:500;
+    padding:0 12px 8px 0;border-bottom:1px solid var(--trait)}
+  tbody td{padding:10px 12px 10px 0;border-bottom:1px solid var(--trait-fin);vertical-align:top}
+  tbody tr:hover td{background:rgba(228,216,189,.028)}
+  .role{width:150px;color:var(--encre-faible);font-family:"IBM Plex Mono",monospace;font-size:11px;
+    letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .mk{color:var(--nation-clair);opacity:.75}
+  .materiel{width:290px;color:var(--encre);font-weight:600}
+  .note{color:var(--encre-pale);font-size:12.5px}
+  .creux{color:var(--encre-faible);font-style:italic;font-weight:400}
+
+  .ecart{display:inline-block;margin-left:7px;padding:1px 5px;border:1px solid #6b5a3a;
+    font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.06em;
+    color:#c9a24a;vertical-align:1px;white-space:nowrap;cursor:help}
+  body.sans-ecarts .ecart{display:none}
+
+  .reglages{display:flex;align-items:center;gap:10px;margin-top:20px;font-size:12px;color:var(--encre-faible)}
+  .reglages label{display:flex;align-items:center;gap:7px;cursor:pointer}
+  input[type=checkbox]{accent-color:#b07434;width:14px;height:14px;cursor:pointer}
+
+  .pied{margin-top:26px;font-size:12px;color:var(--encre-faible);max-width:760px}
+  .pied b{color:var(--encre-pale);font-weight:600}
+
+  /* synthèse */
+  .synthese{margin-top:40px}
+  .synthese table{font-size:13px}
+  .synthese .nom{font-family:"Bodoni Moda",Georgia,serif;font-size:15px;font-weight:700;width:120px}
+  .avert{margin-top:30px;border-left:3px solid #9d4638;padding:14px 18px;background:rgba(157,70,56,.07);
+    font-size:12.5px;color:var(--encre-pale);max-width:820px}
+  .avert b{color:#d98d7a}
+  @media (max-width:820px){
+    .cartes{grid-template-columns:1fr}
+    .carte + .carte{border-left:0;border-top:1px solid var(--trait)}
+    .materiel,.role{width:auto}
+    .page{padding:28px 20px 70px}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Unités, atouts et troupes signature</h1>
+  <div class="chapo">Huit nations, onze rôles chacune, matériel réel de l'époque (<a style="color:#b07434;text-decoration:none;border-bottom:1px solid rgba(176,116,52,.45)" href="#pied">sources</a>). Chaque nation reçoit <b style="color:#e4d8bd;font-weight:600">un atout structurel</b> — qui casse une règle de bâtiment ou de gameplay — et <b style="color:#e4d8bd;font-weight:600">une troupe signature</b> que personne d'autre ne peut aligner. La forme de la troupe varie exprès : dixième rôle, MK3 hors plafond, spécialisation offerte ou mécanique propre. Cadre : ADR 0007 (époque 1940), 0013, 0014, 0015.</div>
+  <div class="filet"></div>
+
+  <div class="reglages">
+    <label><input type="checkbox" id="bascule-ecarts" checked> Signaler le matériel postérieur à 1940</label>
+    <span style="opacity:.6">— l'ADR 0007 fige l'époque ; quelques icônes de guerre lui sont postérieures et sont marquées.</span>
+  </div>
+
+  <div class="onglets" role="tablist" id="onglets"></div>
+  <div id="panneaux"></div>
+
+  <div class="filet-double"></div>
+  <div class="synthese">
+    <h4 style="margin-top:22px">Les huit d'un coup d'œil</h4>
+    <table>
+      <thead><tr><th>Nation</th><th>Atout structurel</th><th>Règle brisée</th><th>Troupe signature</th><th>Forme</th></tr></thead>
+      <tbody id="synthese"></tbody>
+    </table>
+  </div>
+
+  <div class="avert">
+    <b>Ce que ce document change dans la fiche 06.</b> Trois pouvoirs sont réécrits parce que l'économie v2 les a vidés ou que la mesure les a condamnés : <b>États-Unis</b> (« ravitaillement → acier » n'a plus d'objet), <b>Chine</b> (l'entretien passe en nourriture), <b>France</b> (le coût croissant avec la distance a sur-corrigé — 1,8 % de victoires pour 4,2 % attendus). Deux sont traduits en termes de bâtiments : <b>URSS</b> et <b>Italie</b>. Trois sont gardés tels quels : <b>Royaume-Uni</b>, <b>Allemagne</b>, <b>Japon</b>. Rien n'est gravé tant qu'une ADR ne le reprend pas.
+  </div>
+
+  <div class="pied" id="pied">
+    <b>Sources et écarts.</b> Le matériel marqué <span style="border:1px solid #6b5a3a;color:#c9a24a;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:1px 5px">hors 1940</span> est postérieur au cadre de l'ADR 0007 mais retenu pour son statut d'icône : Sherman et Tiger (1942), bazooka et Panzerfaust (1942-43), Liberty ship et C-47 (1941), Il-2 (1941), Fletcher (1942), C-46 sur la route de Birmanie (1943). Chaque fiche indique l'équivalent strictement 1940 quand il existe. Les nations sans porte-avions achevé — URSS, Chine, Allemagne (<i>Graf Zeppelin</i>), Italie (<i>Aquila</i>, 90 % achevé, sabordé) — reçoivent un porte-avions générique dégradé, conformément à ta décision : le trou n'interdit pas le rôle, il le rend médiocre.
+  </div>
+
+</div>
+
+<script>
+const NATIONS = [
+  {
+    cle:'france', nom:'France', encre:'#3f5a7d', clair:'#8fa8c6',
+    devise:'Un empire à ravitailler, une métropole à tenir',
+    atout:{
+      titre:'Le rayon impérial',
+      texte:"Un avant-poste français ouvre un rayon de construction sensiblement plus large que celui des autres nations, et peut être fondé sans contrainte d'adjacence. L'empire n'est pas un territoire, c'est une série de points d'appui.",
+      regle:"Casse <b>le rayon fixe de l'avant-poste</b> (ADR 0015). Remplace « projection outre-mer » : le coût croissant avec la distance est supprimé — il avait sur-corrigé le combo n°1 au point d'annuler le pouvoir."
+    },
+    troupe:{
+      titre:'Tirailleurs (troupes coloniales)',
+      texte:"Infanterie qui fonde un avant-poste seule et plus vite, et que l'éloignement de la métropole ne pénalise pas. C'est la troupe qui tient le rayon impérial une fois qu'il est ouvert.",
+      forme:'dixième rôle'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil MAS-36',note:"Le fantassin de 1940, arme réglementaire courte et rustique."},
+      {role:'Infanterie',mk:'MK2',mat:'Canon de 25 mm SA-L Mle 1934 (Hotchkiss)',note:"L'équipe antichar française réelle. Le sprite du dépôt s'appelle <i>infanterie-N2-bazooka</i> — la France n'a jamais eu de bazooka : à renommer ou à assumer."},
+      {role:'Blindé',mk:'MK1',mat:'Renault R35',note:"Char léger d'accompagnement d'infanterie. Sprite déjà dessiné."},
+      {role:'Blindé',mk:'MK2',mat:'Char B1 bis',note:"Lourd, bien blindé, lent, et gourmand en carburant — le pétrole de l'économie v2 a trouvé son symbole. Sprite déjà dessiné."},
+      {role:'Transport terrestre',mk:'',mat:'Laffly S20 / Renault AHN',note:"Le tracteur d'artillerie et le camion de série."},
+      {role:'Chasseur',mk:'',mat:'Dewoitine D.520',note:"Le seul chasseur français à la hauteur du Bf 109, arrivé trop tard et en trop petit nombre. Sprite déjà dessiné."},
+      {role:'Bombardier',mk:'',mat:'Lioré et Olivier LeO 451',note:"Bombardier moderne, rapide, produit trop lentement."},
+      {role:'Transport aérien',mk:'',mat:'Bloch MB.220',note:"Bimoteur de ligne réquisitionné — la France n'a pas d'équivalent du Ju 52."},
+      {role:'Escorte',mk:'',mat:'Contre-torpilleur classe Le Fantasque',note:"Parmi les navires de surface les plus rapides jamais construits — plus de 40 nœuds."},
+      {role:'Cargo',mk:'',mat:'Cargo mixte de la Transat',note:"La liaison avec l'empire : Afrique du Nord, Levant, Indochine."},
+      {role:'Porte-avions',mk:'',mat:'Béarn',note:"L'unique porte-avions français, lent et dépassé dès 1939. Un porte-avions qui est déjà un handicap : bon matériau de jeu."}
+    ]
+  },
+  {
+    cle:'ru', nom:'Royaume-Uni', encre:'#4a4f7a', clair:'#9498c8',
+    devise:'Voir loin, frapper court',
+    atout:{
+      titre:'Maîtrise des mers',
+      texte:"La station d'écoute britannique révèle <i>tous</i> les mouvements maritimes de la carte — sans origine, sans destination, sans identification. On sait que ça bouge et où ça va passer, jamais qui ni quoi.",
+      regle:"Casse <b>le brouillard par défaut</b> (ADR 0005), partiellement. Gardé tel quel : la version « information sans contenu » avait déjà corrigé la suprématie de renseignement gratuite de la v0."
+    },
+    troupe:{
+      titre:'Commandos',
+      texte:"Débarque sans port, désactive un bâtiment adverse, et repart — il n'occupe rien. La seule troupe du jeu conçue pour ne pas tenir de terrain.",
+      forme:'dixième rôle'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil Lee-Enfield No. 1 Mk III',note:"Le tir rapide à verrou le plus efficace de la période."},
+      {role:'Infanterie',mk:'MK2',mat:'Fusil antichar Boys',note:"Dépassé dès 1940 contre les blindages allemands. Le PIAT (1942) prend le relais.",ecart:false},
+      {role:'Blindé',mk:'MK1',mat:'Cruiser Mk IV / Vickers Light Mk VI',note:"Rapide, à peine blindé : la doctrine de croisière avant la leçon de France."},
+      {role:'Blindé',mk:'MK2',mat:'Matilda II',note:"Blindage quasi invulnérable en 1940, canon trop faible et vitesse dérisoire. Un char purement défensif."},
+      {role:'Transport terrestre',mk:'',mat:'Bedford OYD / QL',note:"Le camion de l'armée britannique, sur tous les théâtres."},
+      {role:'Chasseur',mk:'',mat:'Supermarine Spitfire',note:"L'icône de la bataille d'Angleterre — et de la défense réussie."},
+      {role:'Bombardier',mk:'',mat:'Vickers Wellington',note:"Structure géodésique, encaisse des dégâts énormes. Le Lancaster (1942) viendra après.",ecart:false},
+      {role:'Transport aérien',mk:'',mat:'Bristol Bombay',note:"Transport et bombardier léger. Le Dakota ne servira qu'à partir de 1942."},
+      {role:'Escorte',mk:'',mat:'Corvette classe Flower',note:"Petite, lente, atrocement inconfortable, produite en masse : l'escorte de convoi de 1940."},
+      {role:'Cargo',mk:'',mat:'Empire ships',note:"La flotte marchande d'État — la ligne de vie de l'île."},
+      {role:'Porte-avions',mk:'',mat:'HMS Ark Royal / Illustrious',note:"Pont d'envol blindé : encaisse ce qui coulerait un porte-avions américain ou japonais."}
+    ]
+  },
+  {
+    cle:'usa', nom:'États-Unis', encre:'#4a7060', clair:'#8fbfa6',
+    devise:'L\'arsenal des démocraties',
+    atout:{
+      titre:'Prêt-bail',
+      texte:"Les États-Unis peuvent livrer des ressources et du matériel à un autre joueur, en mouvement interceptable. Personne d'autre ne peut transférer quoi que ce soit.",
+      regle:"Casse <b>l'étanchéité des stocks</b> : dans tout le reste du jeu, ce qu'on possède est à soi seul. Remplace « Arsenal », que l'économie v2 a vidé — le ravitaillement et l'acier n'existent plus."
+    },
+    troupe:{
+      titre:'Seabees (bataillon de construction)',
+      texte:"Bâtit un port ou un aérodrome de campagne hors de son territoire, sans avant-poste préalable. Fragile, cher, et à usage unique.",
+      forme:'dixième rôle'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil M1 Garand',note:"Le seul semi-automatique standard d'une armée en 1940 : volume de feu supérieur, point."},
+      {role:'Infanterie',mk:'MK2',mat:'Bazooka M1',note:"Le lance-roquettes qui donne son nom au genre.",ecart:'1942 — en 1940, le fusil antichar M1918 est la seule option'},
+      {role:'Blindé',mk:'MK1',mat:'M3 Stuart',note:"Rapide, fiable, sous-armé. Le char de reconnaissance par excellence."},
+      {role:'Blindé',mk:'MK2',mat:'M4 Sherman',note:"Médiocre pièce par pièce, écrasant par le nombre et la fiabilité — exactement la thèse américaine.",ecart:'1942 — en 1940, le M2 Medium, sans postérité'},
+      {role:'Transport terrestre',mk:'',mat:'GMC CCKW « Deuce and a Half »',note:"Le camion qui a fait le Red Ball Express. La logistique comme arme."},
+      {role:'Chasseur',mk:'',mat:'Curtiss P-40 Warhawk',note:"Le chasseur américain de 1940, et celui des Tigres volants en Chine. Le P-51 Mustang n'arrive qu'en 1942."},
+      {role:'Bombardier',mk:'',mat:'Boeing B-17 Flying Fortress',note:"Bombardement stratégique de jour, à haute altitude, avec une capacité d'encaissement légendaire."},
+      {role:'Transport aérien',mk:'',mat:'Douglas C-47 Skytrain',note:"Le DC-3 militarisé — sans doute l'avion de transport le plus important de la guerre.",ecart:'1941'},
+      {role:'Escorte',mk:'',mat:'Destroyer classe Fletcher',note:"L'escorteur de flotte le plus abouti du conflit.",ecart:'1942 — en 1940, les classes Benson et Gleaves'},
+      {role:'Cargo',mk:'',mat:'Liberty ship',note:"Construit en série soudée, parfois en moins de deux semaines. La production comme doctrine.",ecart:'1941'},
+      {role:'Porte-avions',mk:'',mat:'USS Enterprise (CV-6)',note:"Le navire américain le plus décoré de la guerre."}
+    ]
+  },
+  {
+    cle:'urss', nom:'URSS', encre:'#9d4638', clair:'#d98d7a',
+    devise:'Reculer sans rompre',
+    atout:{
+      titre:'Évacuation industrielle',
+      texte:"Un bâtiment soviétique peut être démonté et reconstruit dans une autre région, à coût réduit et sans repartir de zéro. L'usine fuit l'envahisseur au lieu de tomber.",
+      regle:"Casse <b>l'immobilité des bâtiments</b> (ADR 0013, 0015) : partout ailleurs, un bâtiment posé est posé. Traduit « profondeur stratégique » en termes d'économie v2 — l'idée mesurée reste, le support change."
+    },
+    troupe:{
+      titre:'Partisans',
+      texte:"Ne se produit pas : apparaît d'elle-même sur toute région soviétique où l'adversaire s'est installé, et harcèle ses bâtiments. Un joueur soviétique écrasé continue de coûter cher — c'est la règle n°3 du projet incarnée.",
+      forme:'mécanique propre'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil Mosin-Nagant M91/30',note:"Le fusil du soldat soviétique. La PPSh-41 le complète à partir de 1941."},
+      {role:'Infanterie',mk:'MK2',mat:'Fusil antichar PTRD-41',note:"Long de deux mètres, servi à deux hommes, tiré à bout portant sur les flancs.",ecart:'1941'},
+      {role:'Blindé',mk:'MK1',mat:'BT-7 / T-26',note:"Le parc léger de 1940 — nombreux, rapides, en carton."},
+      {role:'Blindé',mk:'MK2',mat:'T-34',note:"Blindage incliné, large chenille, moteur diesel : le choc technique de 1941. Production lancée fin 1940. Le KV-1, entré en service la même année, est l'alternative strictement lourde."},
+      {role:'Transport terrestre',mk:'',mat:'ZIS-5',note:"Le camion soviétique de base — bientôt épaulé par les Studebaker du prêt-bail."},
+      {role:'Chasseur',mk:'',mat:'Yakovlev Yak-1',note:"Premier des Yak, conçu en 1940. Le Polikarpov I-16, trapu et déjà dépassé, tient encore la ligne."},
+      {role:'Bombardier',mk:'',mat:'Iliouchine Il-2 Chtourmovik',note:"Avion d'assaut blindé, produit à plus de 36 000 exemplaires — le plus construit de l'histoire.",ecart:'1941 — en 1940, le Tupolev SB'},
+      {role:'Transport aérien',mk:'',mat:'Lissounov Li-2',note:"Le DC-3 construit sous licence, redessiné au système métrique."},
+      {role:'Escorte',mk:'',mat:'Destroyer projet 7 (classe Gnevny)',note:"La série de destroyers du plan naval soviétique."},
+      {role:'Cargo',mk:'',mat:'Marine marchande soviétique',note:"Faible et dispersée entre quatre mers sans liaison. Complétée par des Liberty ships du prêt-bail."},
+      {role:'Porte-avions',mk:'',mat:'— aucun —',note:"L'URSS n'a jamais eu de porte-avions ; le projet 71 est resté sur le papier. Porte-avions générique dégradé.",creux:true}
+    ]
+  },
+  {
+    cle:'allemagne', nom:'Allemagne', encre:'#6e6a5e', clair:'#b8b3a2',
+    devise:'La vitesse comme arme',
+    atout:{
+      titre:'Guerre éclair',
+      texte:"Enchaîne deux mouvements offensifs sans respecter le cooldown de slot. Le tempo allemand n'est pas plus de force, c'est moins d'attente.",
+      regle:"Casse <b>la rareté des slots</b> (ADR 0006), qui est le régulateur central du jeu. Gardé tel quel — c'est le pouvoir le plus lisible des huit."
+    },
+    troupe:{
+      titre:'Tiger I — blindé MK3',
+      texte:"Le seul matériel du jeu à dépasser le plafond MK2 commun. Coûte un alliage et un pétrole absurdes, se produit lentement, et gagne presque tous les duels frontaux qu'il engage.",
+      forme:'MK3 hors plafond'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Karabiner 98k',note:"Le fusil de la Wehrmacht, complété par la MG 34 au niveau du groupe."},
+      {role:'Infanterie',mk:'MK2',mat:'Panzerfaust',note:"L'arme antichar jetable qui rend le fantassin dangereux pour un char.",ecart:'1943 — en 1940, le Panzerbüchse 39'},
+      {role:'Blindé',mk:'MK1',mat:'Panzer II',note:"Le cheval de trait de 1940 : mal armé, mais présent partout et bien employé."},
+      {role:'Blindé',mk:'MK2',mat:'Panzer IV',note:"Char d'appui devenu char de bataille — le seul allemand produit du début à la fin."},
+      {role:'Transport terrestre',mk:'',mat:'Opel Blitz',note:"Le camion standard, environ 130 000 exemplaires."},
+      {role:'Chasseur',mk:'',mat:'Messerschmitt Bf 109',note:"Rayon d'action court — ce qui a coûté la bataille d'Angleterre. Une faiblesse à modéliser."},
+      {role:'Bombardier',mk:'',mat:'Junkers Ju 87 Stuka',note:"Bombardement en piqué et sirène de Jéricho : la terreur comme effet recherché."},
+      {role:'Transport aérien',mk:'',mat:'Junkers Ju 52',note:"« Tante Ju ». Transport de troupes et largage de parachutistes."},
+      {role:'Escorte',mk:'',mat:'Destroyer Type 1936',note:"Puissamment armé, machines à haute pression capricieuses."},
+      {role:'Cargo',mk:'',mat:'Cargo type Hansa',note:"Le cargo standardisé allemand, réponse tardive au Liberty ship.",ecart:'1942'},
+      {role:'Porte-avions',mk:'',mat:'Graf Zeppelin — jamais achevé',note:"Lancé en 1938, abandonné, sabordé en 1945. Porte-avions générique dégradé.",creux:true}
+    ]
+  },
+  {
+    cle:'japon', nom:'Japon', encre:'#a44a5e', clair:'#dc90a0',
+    devise:'Le pont d\'envol comme territoire',
+    atout:{
+      titre:'Doctrine du porte-avions',
+      texte:"Réoriente un mouvement en vol, avant mi-parcours, contre un slot supplémentaire. La flotte japonaise décide après avoir vu.",
+      regle:"Casse <b>l'irréversibilité de l'engagement</b> (ADR 0008) — le levier de drame n°1 du jeu. Gardé tel quel, mais c'est le premier candidat au nerf : il annule ce qui fait tenir tout le reste."
+    },
+    troupe:{
+      titre:'Rikusentai (fusiliers marins)',
+      texte:"Débarque depuis un porte-avions ou un cargo sur n'importe quelle région côtière, sans port ni avant-poste. La seule infanterie du jeu qui n'a pas besoin de terre amie pour arriver.",
+      forme:'dixième rôle'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil Arisaka Type 38 / Type 99',note:"Fusil long, calibre modeste, doctrine offensive à la baïonnette."},
+      {role:'Infanterie',mk:'MK2',mat:'Canon antichar Type 1 (47 mm)',note:"L'antichar est le point faible japonais de bout en bout — à conserver comme tel."},
+      {role:'Blindé',mk:'MK1',mat:'Type 95 Ha-Gō',note:"Léger, mobile en jungle, désarmé face à tout blindé occidental."},
+      {role:'Blindé',mk:'MK2',mat:'Type 97 Chi-Ha',note:"Le plus lourd char japonais réellement produit — moyen ailleurs, lourd ici."},
+      {role:'Transport terrestre',mk:'',mat:'Isuzu Type 94',note:"Le camion de l'armée impériale."},
+      {role:'Chasseur',mk:'',mat:'Mitsubishi A6M Zero',note:"Rayon d'action stupéfiant, agilité extrême, aucune protection du pilote. Entré en service en 1940 — pile dans le cadre."},
+      {role:'Bombardier',mk:'',mat:'Aichi D3A « Val »',note:"Bombardier en piqué embarqué — celui de Pearl Harbor. Le G4M « Betty » couvre la longue portée."},
+      {role:'Transport aérien',mk:'',mat:'Nakajima L2D / Mitsubishi Ki-57',note:"Encore un DC-3 sous licence : le même avion sert les deux camps."},
+      {role:'Escorte',mk:'',mat:'Destroyer classe Fubuki',note:"Le premier destroyer moderne au monde — et la torpille Type 93 « Long Lance », sans rivale."},
+      {role:'Cargo',mk:'',mat:'Cargo standard type 2A (maru)',note:"La flotte marchande japonaise, jamais protégée sérieusement : sa vraie faiblesse stratégique."},
+      {role:'Porte-avions',mk:'',mat:'Akagi',note:"Vaisseau amiral de la Kidō Butai. Avec Kaga, Sōryū, Hiryū, la meilleure force embarquée de 1940."}
+    ]
+  },
+  {
+    cle:'italie', nom:'Italie', encre:'#a86c4a', clair:'#d8a17c',
+    devise:'Mare Nostrum',
+    atout:{
+      titre:'Mare Nostrum',
+      texte:"Un mouvement maritime italien peut partir d'un avant-poste côtier, sans port. L'Italie n'a pas besoin d'infrastructure lourde pour exister en mer — elle a besoin d'une côte.",
+      regle:"Casse <b>le départ maritime par un port</b> (ADR 0013). Traduit « reconnaissance aérienne », dont l'objet — voir la composition des piles — a disparu avec les piles (ADR 0014)."
+    },
+    troupe:{
+      titre:'Decima Flottiglia MAS',
+      texte:"Nageurs de combat et torpilles pilotées. Ne combat pas : désactive un port ou un dépôt adverse depuis la mer, sans jamais être détecté en approche.",
+      forme:'dixième rôle'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil Carcano Mod. 91',note:"Les Bersaglieri et les Alpini en font meilleur usage que la ligne."},
+      {role:'Infanterie',mk:'MK2',mat:'Fusil antichar Solothurn S-18',note:"Suisse, importé, insuffisant. L'antichar italien ne suit jamais."},
+      {role:'Blindé',mk:'MK1',mat:'L3/35',note:"Chenillette à deux hommes et mitrailleuses. Vraiment mauvaise — c'est le prix de l'atout naval."},
+      {role:'Blindé',mk:'MK2',mat:'M13/40',note:"Le char moyen italien, entré en service en 1940 : rivé, lent, sous-blindé, mais c'est le meilleur disponible."},
+      {role:'Transport terrestre',mk:'',mat:'Fiat 626',note:"Le camion léger de la Regio Esercito."},
+      {role:'Chasseur',mk:'',mat:'Macchi C.200 Saetta',note:"Maniable et bien construit, moteur en étoile trop faible. Le C.202 Folgore (1941) corrigera le défaut."},
+      {role:'Bombardier',mk:'',mat:'Savoia-Marchetti SM.79 Sparviero',note:"Trimoteur torpilleur — l'arme antinavire italienne la plus efficace de la Méditerranée."},
+      {role:'Transport aérien',mk:'',mat:'Savoia-Marchetti SM.82 Marsupiale',note:"Gros porteur à long rayon d'action, capable d'emporter un chasseur démonté."},
+      {role:'Escorte',mk:'',mat:'Destroyer classe Soldati',note:"Rapides, bien armés, limités par l'absence de radar."},
+      {role:'Cargo',mk:'',mat:'Convois de Libye',note:"La ligne Naples-Tripoli, l'une des routes maritimes les plus contestées de la guerre."},
+      {role:'Porte-avions',mk:'',mat:'Aquila — jamais achevé',note:"Converti du paquebot Roma, 90 % achevé à l'armistice, sabordé par des plongeurs italiens en 1945. Porte-avions générique dégradé.",creux:true}
+    ]
+  },
+  {
+    cle:'chine', nom:'Chine', encre:'#b07434', clair:'#d9a862',
+    devise:'Échanger l\'espace contre le temps',
+    atout:{
+      titre:'Masse',
+      texte:"Aucun plafond d'hommes : les casernements ne bornent pas l'armée chinoise. En contrepartie, l'entretien en nourriture croît avec chaque troupe alignée, sans limite.",
+      regle:"Casse <b>le plafond d'hommes</b> (ADR 0015). Gardé, avec l'entretien reporté de l'ancien ravitaillement vers la nourriture."
+    },
+    troupe:{
+      titre:'Divisions entraînées par les Allemands',
+      texte:"Une spécialisation offerte, réservée à la Chine et plafonnée à quelques troupes : équipement, casque et instruction allemands. L'exact contraire de la Masse, dans la même armée.",
+      forme:'spécialisation réservée'
+    },
+    unites:[
+      {role:'Infanterie',mk:'MK1',mat:'Fusil Zhongzheng (Chiang Kai-shek)',note:"Copie chinoise du Mauser Standardmodell, produite en arsenal national."},
+      {role:'Infanterie',mk:'MK2',mat:'Équipe de charges explosives',note:"La Chine n'a pas d'arme antichar dédiée : on colle la charge sur le blindé. À modéliser comme tel — coût humain élevé, portée nulle."},
+      {role:'Blindé',mk:'MK1',mat:'Panzer I / Vickers 6-ton (importés)',note:"Le 1er bataillon blindé, matériel allemand et britannique acheté avant l'embargo."},
+      {role:'Blindé',mk:'MK2',mat:'T-26 (soviétique)',note:"Livré par Moscou en 1938. La Chine ne produit aucun char : tout son blindé est un cadeau diplomatique."},
+      {role:'Transport terrestre',mk:'',mat:'Camions de la route de Birmanie',note:"1 150 km de piste de montagne. La logistique chinoise est un col, pas un camion."},
+      {role:'Chasseur',mk:'',mat:'Polikarpov I-16 / Curtiss Hawk III',note:"Soviétiques puis américains — et les volontaires des Tigres volants à partir de 1941."},
+      {role:'Bombardier',mk:'',mat:'Tupolev SB',note:"Près de 280 exemplaires livrés par l'URSS : l'essentiel de la force de bombardement chinoise."},
+      {role:'Transport aérien',mk:'',mat:'Curtiss C-46 Commando',note:"Le pont aérien de la Bosse, au-dessus de l'Himalaya, quand la route de Birmanie tombe.",ecart:'1943 — en 1940, les DC-2 et DC-3 de la CNAC'},
+      {role:'Escorte',mk:'',mat:'Croiseur léger Ning Hai',note:"Construit au Japon, coulé par l'aviation japonaise en 1937 puis renfloué et repris par elle. Toute la tragédie chinoise en un navire."},
+      {role:'Cargo',mk:'',mat:'Vapeurs et jonques du Yangzi',note:"Le fleuve tient lieu de marine marchande."},
+      {role:'Porte-avions',mk:'',mat:'— aucun —',note:"La marine chinoise cesse pratiquement d'exister après 1937. Porte-avions générique dégradé.",creux:true}
+    ]
+  }
+];
+
+const onglets = document.getElementById('onglets');
+const panneaux = document.getElementById('panneaux');
+const synthese = document.getElementById('synthese');
+
+const echappe = (t) => String(t);
+
+NATIONS.forEach((n, i) => {
+  const b = document.createElement('button');
+  b.className = 'onglet';
+  b.type = 'button';
+  b.role = 'tab';
+  b.id = 'onglet-' + n.cle;
+  b.setAttribute('aria-controls', 'panneau-' + n.cle);
+  b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+  b.tabIndex = i === 0 ? 0 : -1;
+  b.innerHTML = '<span class="puce" style="background:' + n.clair + '"></span>' + n.nom;
+  b.style.borderBottomColor = i === 0 ? n.clair : 'transparent';
+  b.addEventListener('click', () => selectionner(i));
+  onglets.appendChild(b);
+
+  const p = document.createElement('section');
+  p.className = 'panneau';
+  p.id = 'panneau-' + n.cle;
+  p.role = 'tabpanel';
+  p.setAttribute('aria-labelledby', 'onglet-' + n.cle);
+  p.hidden = i !== 0;
+  p.style.setProperty('--nation', n.encre);
+  p.style.setProperty('--nation-clair', n.clair);
+
+  const lignes = n.unites.map((u) => {
+    const ecart = u.ecart ? '<span class="ecart" title="' + echappe(u.ecart) + '">hors 1940</span>' : '';
+    const mk = u.mk ? ' <span class="mk">' + u.mk + '</span>' : '';
+    return '<tr><td class="role">' + u.role + mk + '</td>' +
+      '<td class="materiel' + (u.creux ? ' creux' : '') + '">' + u.mat + ecart + '</td>' +
+      '<td class="note">' + u.note + '</td></tr>';
+  }).join('');
+
+  p.innerHTML =
+    '<div class="bandeau"><h2>' + n.nom + '</h2><div class="devise">' + n.devise + '</div></div>' +
+    '<div class="cartes">' +
+      '<div class="carte"><div class="etiquette">Atout structurel</div>' +
+        '<h3>' + n.atout.titre + '</h3><p>' + n.atout.texte + '</p>' +
+        '<div class="regle">' + n.atout.regle + '</div></div>' +
+      '<div class="carte"><div class="etiquette">Troupe signature</div>' +
+        '<h3>' + n.troupe.titre + '</h3><p>' + n.troupe.texte + '</p>' +
+        '<div class="forme">' + n.troupe.forme + '</div></div>' +
+    '</div>' +
+    '<h4>Les onze rôles</h4>' +
+    '<table><thead><tr><th>Rôle</th><th>Matériel</th><th>Ce qu\'il raconte</th></tr></thead>' +
+    '<tbody>' + lignes + '</tbody></table>';
+  panneaux.appendChild(p);
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td class="nom" style="color:' + n.clair + '">' + n.nom + '</td>' +
+    '<td>' + n.atout.titre + '</td>' +
+    '<td class="note">' + n.atout.regle.replace(/<[^>]+>/g, '').split('.')[0].replace(/^Casse\s+/, '') + '</td>' +
+    '<td>' + n.troupe.titre + '</td>' +
+    '<td class="note">' + n.troupe.forme + '</td>';
+  synthese.appendChild(tr);
+});
+
+function selectionner(index) {
+  const boutons = [...onglets.children];
+  const sections = [...panneaux.children];
+  boutons.forEach((b, i) => {
+    const actif = i === index;
+    b.setAttribute('aria-selected', actif ? 'true' : 'false');
+    b.tabIndex = actif ? 0 : -1;
+    b.style.borderBottomColor = actif ? NATIONS[i].clair : 'transparent';
+    sections[i].hidden = !actif;
+  });
+  boutons[index].focus();
+}
+
+onglets.addEventListener('keydown', (e) => {
+  const boutons = [...onglets.children];
+  const courant = boutons.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+  if (e.key === 'ArrowRight') { e.preventDefault(); selectionner((courant + 1) % boutons.length); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); selectionner((courant - 1 + boutons.length) % boutons.length); }
+  if (e.key === 'Home') { e.preventDefault(); selectionner(0); }
+  if (e.key === 'End') { e.preventDefault(); selectionner(boutons.length - 1); }
+});
+
+document.getElementById('bascule-ecarts').addEventListener('change', (e) => {
+  document.body.classList.toggle('sans-ecarts', !e.target.checked);
+});
+</script>
+</body>
+</html>

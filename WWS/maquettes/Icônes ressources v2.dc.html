@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900&family=Archivo+Narrow:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#171208; font-family:"Archivo Narrow", Arial Narrow, sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing:antialiased; text-wrap:pretty; }
+  a { color:#b07434; text-decoration:none; border-bottom:1px solid rgba(176,116,52,.45); }
+  a:hover { color:#e4d8bd; border-bottom-color:#e4d8bd; }
+</style>
+</helmet>
+
+<div style="padding:44px 48px 90px; background:#171208; color:#e4d8bd; min-width:1080px">
+
+  <div style="max-width:660px">
+    <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:34px; font-weight:800; letter-spacing:.02em">Icônes des huit ressources</div>
+    <div style="font-size:13px; color:#a9968f; margin-top:8px; line-height:1.55">Économie v2 (ADR 0015). Même doctrine que la planche v1, qu'elle remplace : silhouettes pleines, sans contour ni détail intérieur — c'est ce qui tient à 12 px. Chaque ressource a une forme distincte à la découpe, reconnaissable quand la couleur ne passe pas. Rangée haute : les cinq de la carte. Rangée basse : les trois transformées, et l'alliage hérite des lingots de l'acier v1 — le lingot est le produit, la roche le minerai.</div>
+  </div>
+
+  <!-- rangée 1 : ressources de carte -->
+  <div style="display:flex; gap:0; margin-top:40px; border:1px solid #4a4436">
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#8b9160">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M12 3c1.4 0 2.4.8 2.4 1.8 0 .5-.2.9-.6 1.3 3.1 1.2 5.2 4 5.2 7.6V21H5v-7.3c0-3.6 2.1-6.4 5.2-7.6-.4-.4-.6-.8-.6-1.3C9.6 3.8 10.6 3 12 3z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 3c1.4 0 2.4.8 2.4 1.8 0 .5-.2.9-.6 1.3 3.1 1.2 5.2 4 5.2 7.6V21H5v-7.3c0-3.6 2.1-6.4 5.2-7.6-.4-.4-.6-.8-.6-1.3C9.6 3.8 10.6 3 12 3z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3c1.4 0 2.4.8 2.4 1.8 0 .5-.2.9-.6 1.3 3.1 1.2 5.2 4 5.2 7.6V21H5v-7.3c0-3.6 2.1-6.4 5.2-7.6-.4-.4-.6-.8-.6-1.3C9.6 3.8 10.6 3 12 3z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 3c1.4 0 2.4.8 2.4 1.8 0 .5-.2.9-.6 1.3 3.1 1.2 5.2 4 5.2 7.6V21H5v-7.3c0-3.6 2.1-6.4 5.2-7.6-.4-.4-.6-.8-.6-1.3C9.6 3.8 10.6 3 12 3z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Nourriture</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Sac de grain au goulot noué. Le dôme à oreille est la forme la plus ronde de la planche : la ressource qui fait exister.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8b9160; margin-top:12px">#8b9160</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#b59a83">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M6 4h11a3.5 3.5 0 0 1 0 7H6a3.5 3.5 0 0 1 0-7z"></path><path d="M4 11h13.6l3 8.4H7z" opacity=".8"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 4h11a3.5 3.5 0 0 1 0 7H6a3.5 3.5 0 0 1 0-7z"></path><path d="M4 11h13.6l3 8.4H7z" opacity=".8"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4h11a3.5 3.5 0 0 1 0 7H6a3.5 3.5 0 0 1 0-7z"></path><path d="M4 11h13.6l3 8.4H7z" opacity=".8"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 4h11a3.5 3.5 0 0 1 0 7H6a3.5 3.5 0 0 1 0-7z"></path><path d="M4 11h13.6l3 8.4H7z" opacity=".8"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Tissus</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Rouleau d'étoffe et sa retombée. Le cylindre au drapé oblique ne ressemble à rien d'autre, même flouté.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#b59a83; margin-top:12px">#b59a83</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#7d7869">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M4.4 18.6 7 12.4l3.6 2.4L12.2 8l4.9 3.2 2.5 7.4z"></path><path d="M2.6 19.6h18.8v2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4.4 18.6 7 12.4l3.6 2.4L12.2 8l4.9 3.2 2.5 7.4z"></path><path d="M2.6 19.6h18.8v2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4.4 18.6 7 12.4l3.6 2.4L12.2 8l4.9 3.2 2.5 7.4z"></path><path d="M2.6 19.6h18.8v2H2.6z" opacity=".45"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M4.4 18.6 7 12.4l3.6 2.4L12.2 8l4.9 3.2 2.5 7.4z"></path><path d="M2.6 19.6h18.8v2H2.6z" opacity=".45"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Charbon</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Tas anguleux sur son sol. La seule silhouette dentelée : elle brûle, elle produit.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d7869; margin-top:12px">#7d7869</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#9184a8">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M12 2.6c3.4 4.5 6.1 8 6.1 11.3A6.1 6.1 0 0 1 12 20a6.1 6.1 0 0 1-6.1-6.1C5.9 10.6 8.6 7.1 12 2.6z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2.6c3.4 4.5 6.1 8 6.1 11.3A6.1 6.1 0 0 1 12 20a6.1 6.1 0 0 1-6.1-6.1C5.9 10.6 8.6 7.1 12 2.6z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2.6c3.4 4.5 6.1 8 6.1 11.3A6.1 6.1 0 0 1 12 20a6.1 6.1 0 0 1-6.1-6.1C5.9 10.6 8.6 7.1 12 2.6z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 2.6c3.4 4.5 6.1 8 6.1 11.3A6.1 6.1 0 0 1 12 20a6.1 6.1 0 0 1-6.1-6.1C5.9 10.6 8.6 7.1 12 2.6z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Pétrole</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">La goutte. Forme unique de la planche, comme son rôle : la cible qui cloue les blindés au sol.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9184a8; margin-top:12px">#9184a8</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#8fa0b0">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M4.6 20 7.1 10l3 10zM9.6 20l2.8-14.6L15.3 20zM14.9 20l2.7-8.4 2.2 8.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4.6 20 7.1 10l3 10zM9.6 20l2.8-14.6L15.3 20zM14.9 20l2.7-8.4 2.2 8.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4.6 20 7.1 10l3 10zM9.6 20l2.8-14.6L15.3 20zM14.9 20l2.7-8.4 2.2 8.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M4.6 20 7.1 10l3 10zM9.6 20l2.8-14.6L15.3 20zM14.9 20l2.7-8.4 2.2 8.4z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Minerais</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Trois pics de cristal inégaux. La roche brute — l'aval, en lingots, est juste dessous.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8fa0b0; margin-top:12px">#8fa0b0</div>
+    </div>
+  </div>
+
+  <!-- rangée 2 : transformées -->
+  <div style="display:flex; gap:0; border:1px solid #4a4436; border-top:none; max-width:66%">
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#aab6bf">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M9.4 5.6h5.2l2.4 6.4H7zM4.4 12h5.2l2.4 6.4H2zM14.4 12h5.2l2.4 6.4H12z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Alliage</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Les lingots empilés de l'acier v1, hérités tels quels : la pyramide reste, le nom change.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#aab6bf; margin-top:12px">#aab6bf</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px; border-right:1px solid #4a4436">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#b07434">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M4.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM10.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM16.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM10.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM16.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM10.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM16.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M4.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM10.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21zM16.3 21v-8.8c0-2.3.9-4.2 1.7-5.4.8 1.2 1.7 3.1 1.7 5.4V21z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Munitions</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">Trois obus dressés, en laiton — la couleur bronze du ravitaillement v1 est reprise par ce qui se consomme au feu.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#b07434; margin-top:12px">#b07434</div>
+    </div>
+
+    <div style="flex:1; padding:26px 24px">
+      <div style="display:flex; align-items:flex-end; gap:16px; height:56px; color:#d8cbb2">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M9.4 3h5.2v6.4H21v5.2h-6.4V21H9.4v-6.4H3V9.4h6.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M9.4 3h5.2v6.4H21v5.2h-6.4V21H9.4v-6.4H3V9.4h6.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9.4 3h5.2v6.4H21v5.2h-6.4V21H9.4v-6.4H3V9.4h6.4z"></path></svg>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M9.4 3h5.2v6.4H21v5.2h-6.4V21H9.4v-6.4H3V9.4h6.4z"></path></svg>
+      </div>
+      <div style="font-family:'Bodoni Moda',Georgia,serif; font-size:19px; font-weight:700; margin-top:20px">Bandages</div>
+      <div style="font-size:12px; color:#8d7f6a; line-height:1.5; margin-top:6px">La croix pleine, en lin. Aucune ambiguïté possible : on se remet.</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#d8cbb2; margin-top:12px">#d8cbb2</div>
+    </div>
+  </div>
+
+  <div style="max-width:660px; font-size:12px; color:#8d7f6a; line-height:1.55; margin-top:28px">
+    Cette planche remplace « Icônes ressources.dc.html » (trois ressources v1). Intégration : mêmes chemins SVG dans <span style="font-family:'IBM Plex Mono',monospace">src/emblemes/</span>, une couleur par ressource, silhouette seule — pas de version détaillée. Les types décoratifs (vin, blé, soie…) n'ont <em>pas</em> d'icône : ils sont du texte et de l'art régional, jamais du stock.
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

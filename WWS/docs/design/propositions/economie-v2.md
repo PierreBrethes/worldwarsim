@@ -1,8 +1,9 @@
 # Proposition — Économie v2 : ressources localisées et filières courtes
 
-**Statut : proposition.** Rien ici n'est acté. Ce document prépare la discussion d'équipe ;
-s'il est retenu, il remplace la fiche [02-economie](../02-economie.md) (ravitaillement /
-acier / effectifs) et une ADR gravera la décision. Issu de la session du 14/08/2026.
+**Statut : retenue — gravée par l'[ADR 0015](../../adr/0015-economie-v2-ressources-localisees.md)**,
+qui tranche aussi les questions ouvertes de la fin. Ce document reste comme trace de la
+proposition ; la fiche [02-economie](../02-economie.md) est à réécrire depuis l'ADR.
+Issu de la session du 14/08/2026.
 
 ## Le principe
 

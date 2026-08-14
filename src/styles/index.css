@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 @import './tokens.css';
-@import './etiquettes.css';
-@import './indicateurs.css';
-@import './rose-des-vents.css';
+@import './labels.css';
+@import './indicators.css';
+@import './compass-rose.css';
 
 @theme {
   --font-display: 'Bodoni Moda', Georgia, serif;
@@ -25,9 +25,9 @@ body {
   overflow: hidden;
 }
 
-/* Les pictogrammes sont posés en masque, pas en image : le PNG découpe, la couleur de fond
-   fait l'encre. La réserve de papier, elle, se pose sur un parent — un filtre appliqué sur
-   l'élément masqué serait découpé avec lui et l'ombre disparaîtrait. */
+/* Pictograms are laid as masks, not images: the PNG cuts, the background color makes the
+   ink. The paper reserve, in turn, sits on a parent — a filter applied to the masked element
+   would be cut out with it and the shadow would disappear. */
 .picto {
   display: block;
   background-color: currentColor;
@@ -39,7 +39,7 @@ body {
   -webkit-mask-position: center;
 }
 
-.trame-papier {
+.paper-grain {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(
     45deg,
@@ -49,7 +49,7 @@ body {
 }
 
 .hud {
-  zoom: var(--echelle-hud);
+  zoom: var(--hud-scale);
 }
 
 .eyebrow {
@@ -59,22 +59,22 @@ body {
   color: var(--ink-soft);
 }
 
-.eyebrow-sombre {
+.eyebrow-dark {
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--paper-dim);
 }
 
-/* Une ressource à zéro qui ne rentre pas non plus n'est pas une alerte : c'est un compteur
-   qui n'a rien à dire. Il s'efface sans disparaître — le jour où il repart, il revient. */
-.ressource-tarie {
+/* A depleted resource that isn't refilling either is not an alert: it's a counter with
+   nothing to say. It fades without disappearing — the day it flows again, it comes back. */
+.resource-depleted {
   opacity: 0.42;
 }
 
-/* Le passage d'un écran de journal à l'autre est une page qu'on tourne :
-   l'axe est le pli à gauche, jamais un fondu. */
-@keyframes tour-de-page-sortie {
+/* Moving from one newspaper screen to another is a page being turned:
+   the axis is the left fold, never a crossfade. */
+@keyframes page-turn-out {
   from {
     transform: perspective(2400px) rotateY(0deg);
     opacity: 1;
@@ -85,7 +85,7 @@ body {
   }
 }
 
-@keyframes tour-de-page-entree {
+@keyframes page-turn-in {
   from {
     transform: perspective(2400px) rotateY(72deg) scale(0.985);
     opacity: 0.08;
@@ -96,7 +96,7 @@ body {
   }
 }
 
-@keyframes eclat-magnesium {
+@keyframes magnesium-flash {
   0% {
     opacity: 0;
   }
@@ -108,7 +108,7 @@ body {
   }
 }
 
-@keyframes lever-de-rideau {
+@keyframes curtain-rise {
   from {
     opacity: 1;
   }

@@ -44,7 +44,7 @@ travail à jeter.
 > **avant** la fermeture du 🔴, sur décision explicite. Le pari : le recrutement touche à la
 > *dépense*, pas au revenu de base, donc l'avantage d'isolement géographique ne devrait pas le
 > remettre en cause. Si le 🔴 se résout en indexant le revenu sur la distance, **relire
-> `convex/constantes.ts`** — c'est là que le pari se paie. La décision et sa contrepartie sont
+> `convex/constants.ts`** — c'est là que le pari se paie. La décision et sa contrepartie sont
 > gravées dans l'[ADR 0011](docs/adr/0011-premiere-tranche-du-schema-de-jeu.md).
 
 ---

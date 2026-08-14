@@ -18,7 +18,9 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0008](0008-combat-par-interception.md) | Combat par interception et rejeu, pas de tour par tour | acceptée |
 | [0009](0009-pseudo-et-code-plutot-que-comptes.md) | Pseudo et code de partie plutôt que comptes | acceptée |
 | [0010](0010-convex-auto-heberge-sur-vps.md) | Convex auto-hébergé sur VPS plutôt que Convex cloud | acceptée |
-| [0011](0011-premiere-tranche-du-schema-de-jeu.md) | Première tranche du schéma de jeu écrite avant la fermeture du 🔴 | révisée par 0014 |
+| [0011](0011-premiere-tranche-du-schema-de-jeu.md) | Première tranche du schéma de jeu écrite avant la fermeture du 🔴 | révisée par 0014 et 0015 |
 | [0012](0012-trajets-multimodaux-sur-grille.md) | Trajets multimodaux sur grille raster, calculés dans le domaine | acceptée |
-| [0013](0013-batiments-de-projection-sur-regions.md) | Bâtiments de projection posés sur des régions | acceptée |
+| [0013](0013-batiments-de-projection-sur-regions.md) | Bâtiments de projection posés sur des régions | acceptée, portée révisée par 0015 |
 | [0014](0014-troupes-discretes-et-combat-sequentiel.md) | Troupes discrètes et combat séquentiel à l'initiative de l'attaquant | acceptée |
+| [0015](0015-economie-v2-ressources-localisees.md) | Économie v2 : ressources localisées et filières courtes | acceptée |
+| [0016](0016-code-anglais-jeu-francais.md) | Code en anglais, jeu en français via une table de traduction unique | acceptée |

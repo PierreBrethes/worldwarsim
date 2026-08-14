@@ -1,0 +1,205 @@
+/* Board radial menu — values taken from the `Menu radial.dc.html` mockup.
+   This surface's blue inks are not in `tokens.css`: they belong to the menu, which sits on
+   the sea and the land and must hold there without an opaque cartouche. An assumed palette
+   extension, declared here and nowhere else. */
+
+.compass-rose {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The clicked point, in screen pixels. The HUD zoom applies one level down: carried here, it
+   would also multiply `left` and `top`, and the menu would open beside the click. */
+.rose {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.rose-menu {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  zoom: var(--hud-scale);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  transform: translate(-50%, -50%);
+  animation: rose-open 120ms cubic-bezier(0.2, 0.78, 0.35, 1) both;
+
+  --radial-ink: #22475a;
+  --spoke-ink: #2c5063;
+  --radial-paper: rgb(232 223 200 / 94%);
+  --bubble-paper: #e8dfc8;
+}
+
+/* The translation rides the same property as the scale: separating them would send the menu
+   back to the top-left corner on every opening frame. */
+@keyframes rose-open {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.rose-plot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: visible;
+}
+
+.rose-spoke {
+  stroke: var(--spoke-ink);
+  stroke-width: 0.9;
+}
+
+/* The clicked point's mark: a crosshair, not a cartouche. It is the only place in the menu
+   that speaks of the map rather than the actions — it points at the spot, it does not name it. */
+.rose-crosshair {
+  stroke: var(--ink);
+  stroke-width: 0.9;
+  opacity: 0.85;
+}
+
+.rose-crosshair-circle {
+  fill: rgb(228 216 189 / 50%);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.rose-crosshair-dot {
+  fill: var(--ink);
+}
+
+.rose-medallion {
+  position: absolute;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--radial-ink);
+  border-radius: 50%;
+  background: var(--radial-paper);
+  color: var(--radial-ink);
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  transition: background 90ms linear;
+}
+
+.rose-medallion svg {
+  display: block;
+  fill: currentcolor;
+  pointer-events: none;
+}
+
+/* Hover wets the ink: the medallion fills in, the pictogram falls back to reserve. */
+.rose-medallion--wet,
+.rose-medallion:focus-visible {
+  background: var(--radial-ink);
+  color: var(--bubble-paper);
+  outline: 2px solid rgb(34 71 90 / 22%);
+}
+
+.rose-tie {
+  position: absolute;
+  height: 1px;
+  background: var(--spoke-ink);
+  opacity: 0.8;
+  pointer-events: none;
+  animation: rose-appear 90ms linear both;
+}
+
+.rose-bubble {
+  position: absolute;
+  width: 214px;
+  padding: 3px;
+  border: 1px solid var(--spoke-ink);
+  background: var(--bubble-paper);
+  pointer-events: none;
+  animation: rose-appear 90ms linear both;
+}
+
+@keyframes rose-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.rose-bubble-frame {
+  border: 0.5px solid rgb(44 80 99 / 45%);
+  padding: 9px 11px 11px;
+}
+
+.rose-bubble-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #5c7a87;
+}
+
+/* The rank never wraps: "1 / 2" broken across two lines reads as two numbers. */
+.rose-bubble-rank {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: #8a7658;
+}
+
+.rose-bubble-name {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #1d2c33;
+}
+
+.rose-bubble-rule {
+  height: 1px;
+  margin: 9px 0 8px;
+  background: var(--spoke-ink);
+  opacity: 0.55;
+}
+
+.rose-bubble-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: #16323f;
+}
+
+.rose-bubble-cost {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #7a3a1c;
+}
+
+.rose-bubble-consequence {
+  margin-top: 7px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.35;
+  color: #4a6470;
+}
