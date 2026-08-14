@@ -1,5 +1,10 @@
 # 09 — Unités
 
+> ⚠️ **Fiche en cours de révision par l'[ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md)**
+> (troupes discrètes, PV = effectif, résolution séquentielle à l'initiative de
+> l'attaquant, soins par bandages). Le contenu ci-dessous décrit l'ancien système
+> (piles, matrice simultanée) — à réécrire une fois les taux chiffrés.
+
 **Époque retenue : 1940.** Décision structurante, cf. [ADR 0007](../adr/0007-epoque-1940.md).
 
 ## La règle : une unité doit créer une décision, pas une ligne de stats

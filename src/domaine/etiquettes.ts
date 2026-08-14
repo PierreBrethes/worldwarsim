@@ -48,8 +48,12 @@ export const LIBELLE_SPECIALISATION: Readonly<
 /**
  * Le visage du socle. Provisoire : il suivra un jour le point de départ du trajet plutôt que
  * le genre du marqueur, d'où un champ à part et non une lecture du type d'étiquette.
+ *
+ * Un seul picto d'avant-poste, quelle que soit la spécialisation : trois dessins pour une
+ * distinction que l'étiquette écrit déjà en toutes lettres coûteraient un vocabulaire de plus
+ * à apprendre, pour rien.
  */
-export type PictoEtiquette = 'extraction' | 'relais' | 'ecoute' | 'pile' | 'chantier';
+export type PictoEtiquette = 'avant-poste' | 'pile' | 'chantier';
 
 export type TypeEtiquette =
   | 'avant-poste'
@@ -173,7 +177,7 @@ function etiquetteDeMarqueur(marqueur: MarqueurCarte): EtiquetteCarte {
         ...commun,
         type: 'avant-poste',
         priorite: PRIORITE['avant-poste'],
-        picto: marqueur.specialisation,
+        picto: 'avant-poste',
         paysHote: marqueur.paysHote,
         lignes: [
           { role: 'nature', texte: LIBELLE_SPECIALISATION[marqueur.specialisation] },

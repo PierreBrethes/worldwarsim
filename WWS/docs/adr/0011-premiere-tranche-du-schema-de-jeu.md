@@ -1,6 +1,10 @@
 # ADR 0011 — Première tranche du schéma de jeu écrite avant la fermeture du 🔴
 
-**Statut :** acceptée
+**Statut :** acceptée — **révisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md)**
+
+> ⚠️ Révision (14/08/2026) : le principe « ni position, ni identité » ne tient plus —
+> les troupes deviennent discrètes et localisées. Les tables `unites` et `recrutements`
+> sont à refondre (une ligne par troupe). La datation paresseuse de la file reste valable.
 
 ## Contexte
 

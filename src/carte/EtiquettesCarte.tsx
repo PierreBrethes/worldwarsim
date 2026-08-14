@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { enHeuresMinutes } from '@/domaine/duree';
-import { URGENCE_MS, estCompte, type EtiquetteCarte } from '@/domaine/etiquettes';
+import { URGENCE_MS, estCompte, type EtiquetteCarte, type PictoEtiquette } from '@/domaine/etiquettes';
+import { Picto, type NomPicto } from '@/coque/GlypheIndicateur';
 import type { NiveauDetail, ProjectionEtiquette } from './moteur/etiquettes';
 import type { MoteurCarte } from './moteur';
 
@@ -21,12 +22,13 @@ import type { MoteurCarte } from './moteur';
  * - `etiquette--urgente` — il reste moins de cinq minutes ;
  * - `etiquette--identifie` — mouvement adverse percé par le renseignement ;
  * - `etiquette--cliquable` — le clic sélectionne le pays hôte ;
- * - `etiquette-bloc`, `etiquette-barre`,
+ * - `etiquette-bloc`, `etiquette-barre`, `etiquette-picto`,
  *   `etiquette-ligne--nature | --chiffres | --effectif | --compte | --mention` — l'anatomie.
  *
  * L'anatomie ne compte qu'un trait : la barre d'encre nationale longe le texte puis descend
  * jusqu'à l'ancre. La maquette en dessinait deux — une barre et un appel plus fin — et plantait
- * un picto au sol ; il ne reste que la flaque d'ombre, qui tient lieu de socle.
+ * le picto au sol ; ici il tient au texte, de l'autre côté de la barre, et c'est la flaque
+ * d'ombre qui tient lieu de socle.
  */
 export function EtiquettesCarte({
   etiquettes,
@@ -191,6 +193,11 @@ export function EtiquettesCarte({
                 enregistrer(blocs.current, etiquette.id, noeud);
               }}
             >
+              {etiquette.picto !== null && (
+                <span className="etiquette-picto">
+                  <Picto picto={PICTO_DE_LETIQUETTE[etiquette.picto]} corps={40} taille={36} />
+                </span>
+              )}
               <span className="etiquette-barre" />
               <div>
                 {etiquette.lignes.map((ligne, rang) =>
@@ -216,6 +223,13 @@ export function EtiquettesCarte({
     </div>
   );
 }
+
+/** « pile » est le mot du domaine, « forces » celui du dessin — la même chose vue de deux côtés. */
+const PICTO_DE_LETIQUETTE: Readonly<Record<PictoEtiquette, NomPicto>> = {
+  'avant-poste': 'avant-poste',
+  pile: 'forces',
+  chantier: 'chantier',
+};
 
 type EtatRendu = { visible: boolean; lod: NiveauDetail; rabattue: boolean };
 

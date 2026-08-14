@@ -64,38 +64,10 @@
   paint-order: stroke fill;
 }
 
-/* L'ergot : un trait posé au centre, tourné vers le cap réel de l'entité. Le nœud tournant n'a
-   pas de dimensions — sa rotation se fait donc autour du point qu'il désigne. */
-.indicateur-ergot {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 0;
-  height: 0;
-}
-
-.indicateur-ergot-trait {
-  position: absolute;
-  top: -1px;
-  left: 11px;
-  width: 7px;
-  height: 2px;
-  background: var(--ink);
-  outline: 1px solid var(--paper);
-}
-
 /* Le gris sourd de la frise : ce qui se trame ailleurs se lit, mais ne réclame rien. */
 .indicateur--renseignement .indicateur-glyphe,
 .indicateur--renseignement .indicateur-doublure {
   color: var(--routine);
-}
-
-/* Cap sur moi non identifié : le glyphe reste neutre, seul l'ergot vire au rouge. Poser ici un
-   symbole d'alarme affirmerait une nature qu'on ne connaît pas — et tuerait le leurre. */
-.indicateur--cap-sur-moi .indicateur-ergot-trait {
-  background: var(--critique);
-  height: 3px;
-  top: -1.5px;
 }
 
 /* Identifié et offensif : le triangle, trait fin, jamais rempli. */

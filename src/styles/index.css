@@ -24,6 +24,20 @@ body {
   overflow: hidden;
 }
 
+/* Les pictogrammes sont posés en masque, pas en image : le PNG découpe, la couleur de fond
+   fait l'encre. La réserve de papier, elle, se pose sur un parent — un filtre appliqué sur
+   l'élément masqué serait découpé avec lui et l'ombre disparaîtrait. */
+.picto {
+  display: block;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
 .trame-papier {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(

@@ -1,5 +1,10 @@
 # 08 — Combat
 
+> ⚠️ **Fiche en cours de révision par l'[ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md)**
+> (troupes discrètes, PV = effectif, résolution séquentielle à l'initiative de
+> l'attaquant, soins par bandages). Le contenu ci-dessous décrit l'ancien système
+> (piles, matrice simultanée) — à réécrire une fois les taux chiffrés.
+
 **Statut : figé.** Ce n'est plus la question bloquante — la simulation d'équilibrage peut démarrer.
 
 Le combat se déclenche par **interception**, se résout **automatiquement et de façon

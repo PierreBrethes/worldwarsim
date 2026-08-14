@@ -30,9 +30,18 @@ entier, un joueur peut se retrouver enfermé chez lui — ce qui heurte la prome
 n'est éliminé. Pistes non tranchées : port de fortune coûteux et temporaire, embarquement depuis
 un avant-poste allié, ou domaine dégradé (plus lent, plus cher) plutôt que fermé.
 
-**Le sort des cinq bâtiments d'économie.** Centre logistique et complexe industriel recouvrent en
-partie ce que port, aérodrome et caserne expriment mieux. Fusion, spécialisation ou statu quo ?
+**Le sort des cinq bâtiments d'économie.** Grille de lecture proposée : trois familles de rôle —
+**économie** (QG, industrie, conscription : produire), **projection** (port, aérodrome, caserne :
+partir), **renseignement** (écoute : savoir — et maison naturelle de la future identification).
+Le seul qui flotte est le **centre logistique** : « réduit le temps de trajet et fixe les slots »
+chevauche la famille projection. Candidat à la dissolution — ses effets deviendraient les niveaux
+des bâtiments de projection (un port niveau 2 embarque plus vite). À trancher ensemble.
 → [ADR 0013](docs/adr/0013-batiments-de-projection-sur-regions.md)
+
+**~~Les unités doivent-elles être quelque part ?~~ Tranchée par l'ADR 0014 :** les troupes
+sont discrètes et localisées. Restent à chiffrer les tables de dégâts, les effectifs nominaux,
+la portée des pharmacies et le nombre de troupes par nation.
+→ [ADR 0014](docs/adr/0014-troupes-discretes-et-combat-sequentiel.md)
 
 **Le rayon d'interception.** Fixe, ou fonction de la composition de la force ? S'il est trop grand,
 plus aucun convoi ne passe et la carte se fige. → [08](docs/design/08-combat.md)
@@ -66,7 +75,9 @@ sur le voyage : le largage reste un mouvement, avec son fil aérien visible, par
 aérodrome — sinon il perce le brouillard et l'interception d'un coup, et toute la couche
 d'information s'effondre. Le réalisme fait l'équilibrage : rayon limité depuis l'aérodrome,
 infanterie légère seule, effectif modeste, aucun retour possible. Un coup de main, pas une
-flotte. Reste à définir la condition de déblocage.
+flotte. Reste à définir la condition de déblocage. Depuis l'ADR 0014, le cadre existe : les
+spécialisations sont exclusives, par la recherche au QG — pour l'infanterie mk1,
+médecin OU parachutiste.
 
 **Le pouvoir italien n'a jamais été simulé.** *Reconnaissance aérienne* est arrivé avec la révision
 1940 de la fiche 06, après la campagne de mesure. Il touche au brouillard, que le simulateur ne

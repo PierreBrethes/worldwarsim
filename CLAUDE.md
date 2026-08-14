@@ -29,9 +29,12 @@ oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/con
 **arbitraires**, jamais simulés.
 
 Les sprites d'unités sont rangés par nation dans `src/emblemes/unites/` — **seule la France
-est dessinée**, les sept autres tombent sur le repli en cadre pointillé. Sur la carte, la tête
-d'un mouvement `mien` est le sprite du rôle dominant de la pile, en billboard (lacet caméra
-seul) ; un arc adverse garde le cône anonyme — le brouillard interdit structurellement mieux.
+est dessinée**, les sept autres tombent sur le repli en cadre pointillé. Sur la carte, le jalon
+d'un mouvement `mien` porte le **véhicule du segment en cours** : le sprite du rôle majoritaire
+de la pile sur terre (billboard, lacet caméra seul), la coque en mer, le delta dans le ciel, et
+il change de costume au quai en affichant déjà celui du segment suivant. Un arc adverse garde la
+silhouette de domaine, **identifié ou non** — le brouillard interdit structurellement mieux, et
+la nation sans planche dessinée retombe sur la même silhouette terrestre.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière

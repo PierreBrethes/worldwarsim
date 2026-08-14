@@ -1,6 +1,10 @@
 # ADR 0008 — Combat par interception et rejeu, plutôt que tour par tour interactif
 
-**Statut :** acceptée
+**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md)
+
+> Précision (14/08/2026) : le combat reste automatique, avec interception et rejeu.
+> Seule la formule interne change — résolution séquentielle à l'initiative de
+> l'attaquant, sur des troupes discrètes, au lieu de la simultanée à quatre passes.
 
 ## Contexte
 

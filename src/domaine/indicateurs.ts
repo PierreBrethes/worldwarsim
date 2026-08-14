@@ -68,8 +68,8 @@ export type PointBord = { readonly x: number; readonly y: number; readonly cap: 
 
 /**
  * Le point d'écran d'une ancre hors champ, ramené sur le rectangle intérieur. Le cap n'est pas
- * celui du bord atteint mais celui de la direction réelle : c'est lui que l'ergot montre, et
- * c'est la seule information que le rabattement détruirait.
+ * celui du bord atteint mais celui de la direction réelle : c'est la seule information que le
+ * rabattement détruirait, et elle se calcule ici même si plus rien ne la dessine.
  */
 export function clamperAuBord(
   x: number,
@@ -147,9 +147,10 @@ export function regrouper(
 /**
  * Les trois intensités de la marque d'alerte, et rien d'autre sur la carte n'en porte.
  *
- * `menace` couvre le cap non identifié : le glyphe reste neutre et seul l'ergot vire au rouge.
- * Y planter un symbole d'alarme reviendrait à affirmer une nature qu'on ne connaît pas — et le
- * leurre, qui n'existe que pour être pris pour autre chose, perdrait sa raison d'être.
+ * `menace` couvre le cap non identifié, et depuis le retrait de l'ergot elle ne se voit plus :
+ * le glyphe reste neutre, faute de quoi on affirmerait une nature qu'on ne connaît pas — et le
+ * leurre, qui n'existe que pour être pris pour autre chose, perdrait sa raison d'être. C'est
+ * une marque qui se calcule sans rien dessiner ; le jour où on lui rend un signe, il tient ici.
  */
 export type MarqueAlerte = 'aucune' | 'menace' | 'offensive' | 'imminente';
 

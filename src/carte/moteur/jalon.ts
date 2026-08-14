@@ -7,7 +7,6 @@ import {
   Shape,
   ShapeGeometry,
   Vector3,
-  type Texture,
 } from 'three';
 import type { Milieu } from '@/domaine/trajets';
 import { orienterVersCamera, textureDe } from './billboard';
@@ -20,14 +19,6 @@ import { orienterVersCamera, textureDe } from './billboard';
  */
 const PART_JALON = 0.028;
 const PART_JALON_SILHOUETTE = 0.018;
-
-/**
- * Le sprite d'unité est prêt à revenir : `spriteDeMouvement` sait déjà le trouver, et le
- * billboard qui le portait est resté ici. Il attend que les huit nations soient dessinées —
- * aujourd'hui seule la France l'est, et sept mouvements sur huit retomberaient sur la
- * silhouette : deux vocabulaires visuels pour la même chose. Un seul point à basculer.
- */
-const JALON_PORTE_LE_SPRITE = false;
 
 /**
  * Trois silhouettes, reconnaissables au premier coup d'œil sans étiquette : prisme au sol,
@@ -50,16 +41,20 @@ const SILHOUETTES: Readonly<Record<Milieu, ReadonlyArray<ReadonlyArray<readonly 
 const LARGEUR_PLANCHE = 20;
 
 /**
- * Le jalon d'un mouvement : une seule pièce sur tout le trajet, qui change de silhouette au
+ * Le jalon d'un mouvement : une seule pièce sur tout le trajet, qui change de costume au
  * passage du quai et s'immobilise pendant le transfert. Le billboard ne suit que le lacet de
  * la caméra — une forme qui s'inclinerait avec elle décollerait du plateau, et un `Sprite`
  * three.js glisse dès que l'orbite plonge.
+ *
+ * Le sprite du rôle majoritaire ne prend que le costume terrestre : une colonne se reconnaît
+ * à ce qui la compose, un convoi en mer à sa coque et un vol à son delta — l'infanterie
+ * embarquée voyage sur un navire, pas à pied. `urlSprite` est déjà nul pour tout arc adverse
+ * (`spriteDeMouvement`), donc aucun `if` d'affichage ici ne peut faire fuir un rôle.
  */
 export class Jalon {
   readonly objet = new Group();
-  private readonly formes = new Map<Milieu, Group>();
-  private readonly sprite: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
-  private readonly texture: Texture | null = null;
+  private readonly costumes = new Map<Milieu, Group>();
+  private sprite: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
   private readonly couleur: string;
   private milieu: Milieu = 'terre';
   private aspect = 1;
@@ -68,22 +63,14 @@ export class Jalon {
 
   constructor(urlSprite: string | null, couleur: string) {
     this.couleur = couleur;
-    if (JALON_PORTE_LE_SPRITE && urlSprite !== null) {
-      this.texture = textureDe(urlSprite);
-      const geometrie = new PlaneGeometry(1, 1);
-      geometrie.translate(0, 0.5, 0);
-      this.sprite = new Mesh(
-        geometrie,
-        new MeshBasicMaterial({ map: this.texture, transparent: true, alphaTest: 0.35, side: DoubleSide }),
-      );
-      this.objet.add(this.sprite);
-      return;
-    }
     for (const milieu of ['terre', 'mer', 'air'] as const) {
-      const forme = this.construireSilhouette(milieu);
-      forme.visible = milieu === 'terre';
-      this.formes.set(milieu, forme);
-      this.objet.add(forme);
+      const costume =
+        milieu === 'terre' && urlSprite !== null
+          ? this.construireSprite(urlSprite)
+          : this.construireSilhouette(milieu);
+      costume.visible = milieu === this.milieu;
+      this.costumes.set(milieu, costume);
+      this.objet.add(costume);
     }
   }
 
@@ -92,16 +79,17 @@ export class Jalon {
   }
 
   /**
-   * Le domaine du jalon suit celui du segment sous lui, y compris pour un mouvement adverse :
-   * la silhouette dit terre, mer ou air, et jamais le type ni la composition (fiche 04).
+   * Le costume du jalon suit le milieu du segment sous lui. Pour un mouvement adverse c'est
+   * une silhouette et rien d'autre — terre, mer ou air, jamais le type ni la composition
+   * (fiche 04) : le détail d'un mouvement identifié se lit sur sa fiche de frise, pas ici.
    */
   adopter(milieu: Milieu): void {
     if (milieu === this.milieu) return;
-    const partante = this.formes.get(this.milieu);
-    if (partante) partante.visible = false;
+    const partant = this.costumes.get(this.milieu);
+    if (partant) partant.visible = false;
     this.milieu = milieu;
-    const venante = this.formes.get(milieu);
-    if (venante) venante.visible = true;
+    const venant = this.costumes.get(milieu);
+    if (venant) venant.visible = true;
   }
 
   placer(position: Vector3, pointDevant: Vector3): void {
@@ -109,30 +97,58 @@ export class Jalon {
     this.versLOuest = pointDevant.x < position.x;
   }
 
+  /**
+   * La cote est portée par le costume et non par `objet` : le sprite et la silhouette n'ont ni
+   * la même part d'écran ni le même repère — l'un pend sous son point, l'autre se dresse
+   * dessus — et une échelle commune ferait sauter la taille du jalon au passage du quai.
+   */
   orienter(positionCamera: Vector3): void {
     const distance = this.objet.position.distanceTo(positionCamera);
     orienterVersCamera(this.objet, positionCamera);
-    if (this.sprite === null) {
-      const cote = distance * PART_JALON_SILHOUETTE;
-      this.objet.scale.set(cote * (this.versLOuest ? -1 : 1), cote, cote);
+    const sens = this.versLOuest ? -1 : 1;
+    if (this.sprite !== null && this.milieu === 'terre') {
+      const hauteur = distance * PART_JALON;
+      this.mesurerAspect();
+      this.sprite.scale.set(this.aspect * hauteur * sens, hauteur, 1);
       return;
     }
-    const hauteur = distance * PART_JALON;
-    this.mesurerAspect();
-    this.sprite.scale.set(this.aspect * hauteur * (this.versLOuest ? -1 : 1), hauteur, 1);
+    const costume = this.costumes.get(this.milieu);
+    if (costume === undefined) return;
+    const cote = distance * PART_JALON_SILHOUETTE;
+    costume.scale.set(cote * sens, cote, cote);
   }
 
   detruire(): void {
     this.objet.removeFromParent();
-    this.sprite?.geometry.dispose();
-    this.sprite?.material.dispose();
-    for (const forme of this.formes.values()) {
-      for (const enfant of forme.children) {
-        const maille = enfant as Mesh<ShapeGeometry, MeshBasicMaterial>;
+    for (const costume of this.costumes.values()) {
+      for (const enfant of costume.children) {
+        const maille = enfant as Mesh<ShapeGeometry | PlaneGeometry, MeshBasicMaterial>;
         maille.geometry.dispose();
         maille.material.dispose();
       }
     }
+  }
+
+  /**
+   * La texture reste au cache partagé : deux colonnes de blindés français pointent le même
+   * bitmap, et la libérer ici crèverait celui d'à côté.
+   */
+  private construireSprite(url: string): Group {
+    const geometrie = new PlaneGeometry(1, 1);
+    geometrie.translate(0, 0.5, 0);
+    this.sprite = new Mesh(
+      geometrie,
+      new MeshBasicMaterial({
+        map: textureDe(url),
+        transparent: true,
+        alphaTest: 0.35,
+        side: DoubleSide,
+      }),
+    );
+    this.sprite.renderOrder = 13;
+    const groupe = new Group();
+    groupe.add(this.sprite);
+    return groupe;
   }
 
   private construireSilhouette(milieu: Milieu): Group {
@@ -162,7 +178,9 @@ export class Jalon {
    */
   private mesurerAspect(): void {
     if (this.aspectMesure) return;
-    const image = this.texture?.image as { width?: number; height?: number } | undefined;
+    const image = this.sprite?.material.map?.image as
+      | { width?: number; height?: number }
+      | undefined;
     if (!image?.width || !image.height) return;
     this.aspect = image.width / image.height;
     this.aspectMesure = true;

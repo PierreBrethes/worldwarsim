@@ -72,17 +72,17 @@ export class MoteurCarte {
   private voyage: Voyage | null = null;
   private readonly ecouteursRepos = new Set<() => void>();
 
-  onSurvol: (survol: SurvolCarte) => void = () => {};
-  onSurvolRegion: (nom: string | null) => void = () => {};
-  onSurvolArc: (id: string | null) => void = () => {};
-  onSelection: (nom: string | null) => void = () => {};
+  onSurvol: (survol: SurvolCarte) => void = () => { };
+  onSurvolRegion: (nom: string | null) => void = () => { };
+  onSurvolArc: (id: string | null) => void = () => { };
+  onSelection: (nom: string | null) => void = () => { };
   /** Appelée à chaque image : l'interface y écrit des transformations, jamais un rendu React. */
-  onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => {};
+  onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => { };
   /**
    * Les mêmes projections, pour la couche des indicateurs de bord. Deux appels plutôt qu'un
    * abonnement : ce sont deux couches distinctes du DOM, chacune ne lit que ses champs.
    */
-  onBords: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => {};
+  onBords: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => { };
   private regionSurvolee: string | null = null;
   private arcSurvole: string | null = null;
   private etiquettePays: string | null = null;
@@ -111,8 +111,8 @@ export class MoteurCarte {
     this.controles.dampingFactor = 0.08;
     this.controles.minPolarAngle = 0.3;
     this.controles.maxPolarAngle = 1.15;
-    this.controles.minDistance = 8;
-    this.controles.maxDistance = 640;
+    this.controles.minDistance = 4;
+    this.controles.maxDistance = 300;
     this.controles.screenSpacePanning = false;
 
     this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));

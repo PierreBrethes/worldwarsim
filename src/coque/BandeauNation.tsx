@@ -5,16 +5,16 @@ import { IconeRessource, couleurRessource, type CleRessource } from '@/emblemes/
 import type { RecherchePlateau } from '@/routes/plateau';
 import { avecModale } from '@/routes/plateau';
 import { CartoucheNation } from './CartoucheNation';
-import { IconeJournal } from './Glyphe';
+import { Picto } from './GlypheIndicateur';
 import { useHorloge } from './horloge';
 
 const HAUTEUR_BANDEAU = 42;
 
 /**
- * Le bandeau ne répond plus qu'à une question : quoi de neuf. Tout ce qui se consulte au
- * lieu de se surveiller — nom, doctrine, plage de repos, saison, slots, échéances — vit
- * dans la surface qui le porte. C'est ce dégraissage qui supprime le débordement, pas un
- * défilement horizontal de plus.
+ * Le bandeau répond à « quoi de neuf », et le cartouche dit sous quelles couleurs. Tout le
+ * reste de ce qui se consulte au lieu de se surveiller — plage de repos, saison, slots,
+ * échéances — vit dans la surface qui le porte. C'est ce dégraissage qui supprime le
+ * débordement, pas un défilement horizontal de plus.
  */
 export function BandeauNation({ vue }: { vue: VueJoueur }) {
   const { moi } = vue;
@@ -27,7 +27,7 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
       className="hud flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)]"
       style={{ fontFamily: 'var(--font-body)', height: HAUTEUR_BANDEAU }}
     >
-      <CartoucheNation nation={moi.nation} hauteur={HAUTEUR_BANDEAU} />
+      <CartoucheNation nation={moi.nation} doctrine={moi.doctrine} hauteur={HAUTEUR_BANDEAU} />
 
       <div className="flex-1" />
 
@@ -64,7 +64,7 @@ export function BandeauNation({ vue }: { vue: VueJoueur }) {
         className="flex h-full min-w-0 items-center gap-3 border-l border-[var(--ink-quiet)] px-4 whitespace-nowrap hover:bg-[var(--ink)]"
       >
         <span className="shrink-0" style={{ color: critique ? 'var(--critique)' : 'var(--routine)' }}>
-          <IconeJournal taille={20} />
+          <Picto picto="journal" corps={20} taille={20} />
         </span>
         {/* La manchette vaut mieux que le compteur : un journal titre, il ne dénombre pas.
             Mais un journal sans dépêche n'a pas de titre non plus — il se tait. */}

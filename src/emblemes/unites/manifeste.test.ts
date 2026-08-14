@@ -94,6 +94,27 @@ describe('spriteDeMouvement', () => {
     expect(spriteDeMouvement(adverse, 'France')).toBeNull();
   });
 
+  /**
+   * Percer un mouvement ouvre sa fiche de frise, pas son jalon : la carte reste au domaine.
+   * Sans ce test, la lecture de `identification.pile` paraîtrait un jour légitime.
+   */
+  it('reste muet sur un adverse identifié, pile connue comprise', () => {
+    const identifie: ArcAffiche = {
+      etat: 'adverseDetecte',
+      id: 'MVT-3',
+      depuis: [0, 0],
+      vers: [10, 10],
+      trajet: trajetDirect([0, 0], [1, 1], 'terre', 10),
+      nationSuspectee: 'Allemagne',
+      capDegres: 90,
+      capSurMoi: true,
+      identification: { perce: true, type: 'attaque', pile: { blinde: 9 } },
+      minutesRestantesEstimees: 30,
+      avancement: 0.6,
+    };
+    expect(spriteDeMouvement(identifie, 'France')).toBeNull();
+  });
+
   it('rend null sans planche dessinée ou sur pile vide', () => {
     expect(spriteDeMouvement(mien, 'Japon')).toBeNull();
     expect(spriteDeMouvement({ ...mien, pile: {} }, 'France')).toBeNull();

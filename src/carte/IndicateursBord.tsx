@@ -17,7 +17,7 @@ import type { MoteurCarte } from './moteur';
 
 /**
  * Le bord d'écran. Une entité sortie du champ n'est pas perdue : son étiquette se rabat sur
- * l'arête, ergot pointé vers sa direction réelle, et le clic ramène la caméra dessus.
+ * l'arête, réduite à son seul picto, et le clic ramène la caméra dessus.
  *
  * Deux cadences, jamais mélangées : la position suit la caméra à l'image, écrite en
  * `transform` sur le nœud d'ancre ; l'agrégation, qui décide *quels* nœuds existent, ne se
@@ -49,7 +49,6 @@ export function IndicateursBord({
 
   const [groupes, setGroupes] = useState<ReadonlyArray<GroupeIndicateur>>([]);
   const ancres = useRef(new Map<string, HTMLElement>());
-  const ergots = useRef(new Map<string, HTMLElement>());
   const racines = useRef(new Map<string, HTMLElement>());
   const dernieres = useRef<ReadonlyArray<ProjectionEtiquette>>([]);
 
@@ -80,10 +79,7 @@ export function IndicateursBord({
     return moteur.abonnerRepos(composer);
   }, [moteur, composer]);
 
-  const cumuls = useMemo(
-    () => groupes.map(() => ({ x: 0, y: 0, cosinus: 0, sinus: 0, compte: 0 })),
-    [groupes],
-  );
+  const cumuls = useMemo(() => groupes.map(() => ({ x: 0, y: 0, compte: 0 })), [groupes]);
 
   const appartenance = useMemo(() => {
     const table = new Map<string, number>();
@@ -98,7 +94,7 @@ export function IndicateursBord({
     moteur.onBords = (projections) => {
       dernieres.current = projections;
       for (const cumul of cumuls) {
-        cumul.x = cumul.y = cumul.cosinus = cumul.sinus = cumul.compte = 0;
+        cumul.x = cumul.y = cumul.compte = 0;
       }
 
       for (const projection of projections) {
@@ -109,10 +105,6 @@ export function IndicateursBord({
         if (cumul === undefined) continue;
         cumul.x += projection.bordX;
         cumul.y += projection.bordY;
-        // Les caps se moyennent en vecteurs, jamais en angles : deux membres à ±180° donneraient
-        // un ergot pointé vers le centre de l'écran.
-        cumul.cosinus += Math.cos(projection.cap);
-        cumul.sinus += Math.sin(projection.cap);
         cumul.compte += 1;
       }
 
@@ -126,8 +118,6 @@ export function IndicateursBord({
         }
         ancre.style.display = '';
         ancre.style.transform = `translate3d(${cumul.x / cumul.compte}px, ${cumul.y / cumul.compte}px, 0)`;
-        const ergot = ergots.current.get(groupe.id);
-        if (ergot) ergot.style.transform = `rotate(${Math.atan2(cumul.sinus, cumul.cosinus)}rad)`;
       });
     };
     return () => {
@@ -180,14 +170,6 @@ export function IndicateursBord({
             }}
             onClick={() => moteur?.voyagerVers(groupe.membres)}
           >
-            <span
-              className="indicateur-ergot"
-              ref={(noeud) => {
-                enregistrer(ergots.current, groupe.id, noeud);
-              }}
-            >
-              <span className="indicateur-ergot-trait" />
-            </span>
             <span className="indicateur-triangle" aria-hidden>
               <svg viewBox="0 0 20 20">
                 <path d="M10 1.8 18.4 17.2H1.6z" />

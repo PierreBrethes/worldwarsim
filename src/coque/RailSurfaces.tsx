@@ -6,7 +6,7 @@ import { basculerIndicateur, useBasculesIndicateurs } from '@/donnees/basculesIn
 import type { Modale, RecherchePlateau } from '@/routes/plateau';
 import { basculerModale, modaleOuverte } from '@/routes/plateau';
 import { Glyphe } from './Glyphe';
-import { GlypheIndicateur } from './GlypheIndicateur';
+import { GlypheIndicateur, Picto } from './GlypheIndicateur';
 import { useHorloge } from './horloge';
 
 export function RailSurfaces({
@@ -41,30 +41,30 @@ export function RailSurfaces({
     {
       titre: 'Troupes — inventaire et envoi',
       libelle: 'troupes',
-      icone: <IconeTroupes />,
+      icone: <Picto picto="troupes" corps={20} taille={19} />,
       cible: bascule('troupes'),
       active: modaleOuverte(recherche, 'troupes'),
     },
     {
       titre: 'Production — recrutement d’unités',
       libelle: 'prod.',
-      icone: <IconeProduction />,
+      icone: <Picto picto="production" corps={20} taille={19} />,
       cible: bascule('production'),
       active: modaleOuverte(recherche, 'production'),
     },
     {
       titre: 'Ma nation',
       libelle: 'nation',
-      icone: <IconeNation />,
+      icone: <Picto picto="nation" corps={20} taille={19} />,
       cible: bascule('nation'),
       active: modaleOuverte(recherche, 'nation'),
     },
   ];
 
   const aVenir: ReadonlyArray<{ titre: string; libelle: string; icone: ReactNode }> = [
-    { titre: 'Rejeu de bataille — à venir', libelle: 'rejeu', icone: <IconeRejeu /> },
-    { titre: 'Doctrine — à venir', libelle: 'doctrine', icone: <IconeDoctrine /> },
-    { titre: 'Espionnage — à venir', libelle: 'espion.', icone: <IconeEspionnage /> },
+    { titre: 'Rejeu de bataille — à venir', libelle: 'rejeu', icone: <Picto picto="rejeu" corps={20} taille={19} /> },
+    { titre: 'Doctrine — à venir', libelle: 'doctrine', icone: <Picto picto="doctrine" corps={20} taille={19} /> },
+    { titre: 'Espionnage — à venir', libelle: 'espion.', icone: <Picto picto="renseignement" corps={20} taille={19} /> },
   ];
 
   return (
@@ -181,59 +181,6 @@ function IconeReglages() {
     <Glyphe>
       <path d="M4 6.5h12M4 13.5h12" />
       <path d="M8 4.5v4M13 11.5v4" />
-    </Glyphe>
-  );
-}
-
-function IconeTroupes() {
-  return (
-    <Glyphe>
-      <circle cx="10" cy="4.6" r="2.1" />
-      <path d="M5.5 16.5v-4.2c0-2.4 2-4 4.5-4s4.5 1.6 4.5 4v4.2" />
-      <path d="M3 16.5h14" />
-    </Glyphe>
-  );
-}
-
-function IconeNation() {
-  return (
-    <Glyphe>
-      <path d="M6 17V3.5" />
-      <path d="M6 4h9l-2.2 3L15 10H6" />
-    </Glyphe>
-  );
-}
-
-function IconeProduction() {
-  return (
-    <Glyphe>
-      <path d="M3.5 16.5V8.5l4 3v-3l4 3v-3l4 3v-8h1v13z" />
-    </Glyphe>
-  );
-}
-
-function IconeRejeu() {
-  return (
-    <Glyphe>
-      <path d="M6.5 4.5l9 5.5-9 5.5z" />
-    </Glyphe>
-  );
-}
-
-function IconeDoctrine() {
-  return (
-    <Glyphe>
-      <circle cx="10" cy="10" r="6.2" />
-      <circle cx="10" cy="10" r="2" />
-    </Glyphe>
-  );
-}
-
-function IconeEspionnage() {
-  return (
-    <Glyphe>
-      <path d="M2.5 10C6 5 14 5 17.5 10 14 15 6 15 2.5 10z" />
-      <circle cx="10" cy="10" r="2.2" />
     </Glyphe>
   );
 }
