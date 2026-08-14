@@ -2,6 +2,7 @@
 @import './tokens.css';
 @import './etiquettes.css';
 @import './indicateurs.css';
+@import './rose-des-vents.css';
 
 @theme {
   --font-display: 'Bodoni Moda', Georgia, serif;

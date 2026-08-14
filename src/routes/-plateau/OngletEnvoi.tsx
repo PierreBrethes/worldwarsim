@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { distanceKm, dureeTrajetMinutes, traverseAntimeridien } from '@/domaine/geo';
 import type { Monde } from '@/domaine/monde';
 import { dansLaPlage, lirePlage } from '@/domaine/plage-repos';
@@ -22,16 +22,23 @@ export function OngletEnvoi({
   vue,
   monde,
   pays,
+  typePreregle,
   onFermer,
 }: {
   vue: VueJoueur;
   monde: Monde;
   pays: string | null;
+  /** Le type que la rose des vents a choisi à l'ouverture ; `null` quand on entre par l'onglet. */
+  typePreregle: TypeMouvement | null;
   onFermer: () => void;
 }) {
-  const [type, setType] = useState<TypeMouvement>('attaque');
+  const [type, setType] = useState<TypeMouvement>(typePreregle ?? 'attaque');
   const [cap, setCap] = useState<Cap>('N');
   const [pile, setPile] = useState<Pile>({});
+
+  useEffect(() => {
+    if (typePreregle !== null) setType(typePreregle);
+  }, [typePreregle]);
 
   const domicile = (Object.entries(vue.moi.armeePresente) as ReadonlyArray<[RoleUnite, number]>).filter(
     ([, stock]) => stock > 0,

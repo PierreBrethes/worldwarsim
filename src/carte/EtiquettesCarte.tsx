@@ -35,11 +35,13 @@ export function EtiquettesCarte({
   moteur,
   onSurvolMouvement,
   onSelection,
+  onMenuContextuel,
 }: {
   etiquettes: ReadonlyArray<EtiquetteCarte>;
   moteur: MoteurCarte | null;
   onSurvolMouvement: (id: string | null) => void;
   onSelection: (nom: string | null) => void;
+  onMenuContextuel: (etiquette: EtiquetteCarte, clientX: number, clientY: number) => void;
 }) {
   const ancres = useRef(new Map<string, HTMLElement>());
   const racines = useRef(new Map<string, HTMLElement>());
@@ -185,6 +187,10 @@ export function EtiquettesCarte({
             }}
             onClick={() => {
               if (etiquette.paysHote !== null) onSelection(etiquette.paysHote);
+            }}
+            onContextMenu={(evenement) => {
+              evenement.preventDefault();
+              onMenuContextuel(etiquette, evenement.clientX, evenement.clientY);
             }}
           >
             <div

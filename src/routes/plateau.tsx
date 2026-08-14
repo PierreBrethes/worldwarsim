@@ -7,7 +7,8 @@ import { Coque } from '@/coque/Coque';
 import { construireEtiquettes } from '@/domaine/etiquettes';
 import { encreParPaysPris } from '@/domaine/nations';
 import type { Monde } from '@/domaine/monde';
-import type { VueJoueur } from '@/domaine/vue-joueur';
+import { roseDe, type ActionRose, type CibleRose } from '@/domaine/rose-des-vents';
+import { LIBELLE_TYPE, type TypeMouvement, type VueJoueur } from '@/domaine/vue-joueur';
 import { useBasculesIndicateurs } from '@/donnees/basculesIndicateurs';
 import { chargerPartie } from '@/donnees/chargerPartie';
 import { adapterVueServeur } from '@/donnees/chargerVueJoueurConvex';
@@ -36,10 +37,15 @@ const MODALES = ['journal', 'troupes', 'production', 'nation', 'reglages'] as co
 
 export type Modale = (typeof MODALES)[number];
 
-/** L'ordre du tableau est l'ordre d'empilement : la dernière entrée est au premier plan. */
+/**
+ * L'ordre du tableau des modales est l'ordre d'empilement : la dernière entrée est au premier
+ * plan. `envoi` est le type de mouvement préréglé par la rose des vents ; sa seule présence
+ * ouvre la fenêtre des troupes sur l'onglet d'envoi.
+ */
 export type RecherchePlateau = {
   pays?: string;
   modales?: Modale[];
+  envoi?: TypeMouvement;
 };
 
 export function avecModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
@@ -48,9 +54,11 @@ export function avecModale(recherche: RecherchePlateau, nom: Modale): RechercheP
 }
 
 export function sansModale(recherche: RecherchePlateau, nom: Modale): RecherchePlateau {
-  const { modales, ...reste } = recherche;
+  const { modales, envoi, ...reste } = recherche;
+  // Le préréglage d'envoi appartient à la fenêtre des troupes : il part avec elle.
+  const garde = nom === 'troupes' || envoi === undefined ? reste : { ...reste, envoi };
   const restantes = (modales ?? []).filter((ouverte) => ouverte !== nom);
-  return restantes.length ? { ...reste, modales: restantes } : reste;
+  return restantes.length ? { ...garde, modales: restantes } : garde;
 }
 
 export const basculerModale = (recherche: RecherchePlateau, nom: Modale): RecherchePlateau =>
@@ -73,6 +81,9 @@ export const Route = createFileRoute('/plateau')({
     if (typeof brut.pays === 'string') recherche.pays = brut.pays;
     const modales = lireModales(brut);
     if (modales.length) recherche.modales = modales;
+    if (typeof brut.envoi === 'string' && brut.envoi in LIBELLE_TYPE) {
+      recherche.envoi = brut.envoi as TypeMouvement;
+    }
     return recherche;
   },
   loader: chargerPartie,
@@ -127,7 +138,7 @@ function PlateauReactif({
 }
 
 function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; jeton: string }) {
-  const { pays, modales = [] } = Route.useSearch();
+  const { pays, modales = [], envoi } = Route.useSearch();
   const naviguer = useNavigate({ from: Route.fullPath });
   const [regionSurvolee, setRegionSurvolee] = useState<string | null>(null);
   // Deux sources pour un seul accent : quand le pointeur quitte la carte pour entrer dans une
@@ -152,6 +163,35 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
       });
     },
     [naviguer],
+  );
+
+  const ouvrirEnvoi = useCallback(
+    (destination: string | null, type: TypeMouvement | null) => {
+      void naviguer({
+        search: (precedente) => {
+          const avecTroupes = avecModale(precedente, 'troupes');
+          return {
+            ...avecTroupes,
+            ...(destination === null ? {} : { pays: destination }),
+            envoi: type ?? 'attaque',
+          };
+        },
+      });
+    },
+    [naviguer],
+  );
+
+  const roseDeLaCible = useCallback((cible: CibleRose) => roseDe(cible, vue), [vue]);
+
+  const agirRose = useCallback(
+    (action: ActionRose) => {
+      if (action.cle === 'voir') {
+        selectionner(action.pays);
+        return;
+      }
+      ouvrirEnvoi(action.destination, action.type);
+    },
+    [selectionner, ouvrirEnvoi],
   );
 
   const encreParPays = useMemo(
@@ -209,6 +249,8 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
           onSurvolRegion={setRegionSurvolee}
           onSurvolArc={setArcSurvole}
           onSurvolEtiquette={setEtiquetteSurvolee}
+          roseDe={roseDeLaCible}
+          onActionRose={agirRose}
         />
         {pays && <PanneauPaysSelectionne pays={pays} vue={vue} />}
         <FriseMouvements
@@ -240,6 +282,7 @@ function ContenuPlateau({ monde, vue, jeton }: { monde: Monde; vue: VueJoueur; j
                   vue={vue}
                   monde={monde}
                   pays={pays ?? null}
+                  envoi={envoi ?? null}
                   {...fenetre}
                 />
               );

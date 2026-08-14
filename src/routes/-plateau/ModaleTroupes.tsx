@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useHorloge } from '@/coque/horloge';
 import { SpriteUnite } from '@/emblemes/SpriteUnite';
 import type { Monde } from '@/domaine/monde';
@@ -9,7 +9,7 @@ import type {
   TriTroupes,
 } from '@/domaine/troupes';
 import { compterTroupes, inventorierTroupes, organiserTroupes } from '@/domaine/troupes';
-import type { ArcAffiche, Pile, RoleUnite, VueJoueur } from '@/domaine/vue-joueur';
+import type { ArcAffiche, Pile, RoleUnite, TypeMouvement, VueJoueur } from '@/domaine/vue-joueur';
 import { LIBELLE_TYPE, libellePile, libelleRole, minutesCourantes } from '@/domaine/vue-joueur';
 import { enHeuresMinutes } from '@/domaine/duree';
 import { Modale, PoigneeModale, type ProprietesFenetre } from './Modale';
@@ -41,14 +41,22 @@ export function ModaleTroupes({
   vue,
   monde,
   pays,
+  envoi,
   onFermer,
   ...fenetre
 }: ProprietesFenetre & {
   vue: VueJoueur;
   monde: Monde;
   pays: string | null;
+  /** Le type préréglé par la rose des vents ; sa présence ouvre la fenêtre sur l'envoi. */
+  envoi: TypeMouvement | null;
 }) {
-  const [onglet, setOnglet] = useState<Onglet>('inventaire');
+  const [onglet, setOnglet] = useState<Onglet>(envoi === null ? 'inventaire' : 'envoi');
+
+  // La rose peut prérégler l'envoi sur une fenêtre déjà posée sur le bureau : l'onglet suit.
+  useEffect(() => {
+    if (envoi !== null) setOnglet('envoi');
+  }, [envoi]);
 
   return (
     <Modale nom="troupes" onFermer={onFermer} {...fenetre} alignement="haut" largeur={1040}>
@@ -57,7 +65,7 @@ export function ModaleTroupes({
         {onglet === 'inventaire' ? (
           <Inventaire vue={vue} />
         ) : (
-          <OngletEnvoi vue={vue} monde={monde} pays={pays} onFermer={onFermer} />
+          <OngletEnvoi vue={vue} monde={monde} pays={pays} typePreregle={envoi} onFermer={onFermer} />
         )}
       </div>
     </Modale>

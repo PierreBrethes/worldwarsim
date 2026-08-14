@@ -28,6 +28,9 @@ import { RepereMonde } from './repere';
 
 export type SurvolCarte = { nom: string; ecranX: number; ecranY: number } | null;
 
+/** Ce que le picking rapporte d'un clic droit. `pays` est nul en pleine mer. */
+export type ClicDroitCarte = { pays: string | null; clientX: number; clientY: number };
+
 /**
  * Le temps qu'on laisse à l'orbite pour s'immobiliser avant de recalculer le dégradé des
  * étiquettes qui se recouvrent. Ce calcul mesure du DOM ; le faire pendant que la caméra
@@ -61,6 +64,7 @@ export class MoteurCarte {
   private readonly frontieres: LineSegments<BufferGeometry, LineBasicMaterial>;
   private readonly rayon = new Raycaster();
   private readonly pointeur = new Vector2(-2, -2);
+  private readonly viseur = new Vector2();
   private readonly pointeurEcran = { x: 0, y: 0 };
   private survole: MeshPays | null = null;
   private selection: string | null = null;
@@ -76,6 +80,7 @@ export class MoteurCarte {
   onSurvolRegion: (nom: string | null) => void = () => { };
   onSurvolArc: (id: string | null) => void = () => { };
   onSelection: (nom: string | null) => void = () => { };
+  onClicDroit: (clic: ClicDroitCarte) => void = () => { };
   /** Appelée à chaque image : l'interface y écrit des transformations, jamais un rendu React. */
   onEtiquettes: (projections: ReadonlyArray<ProjectionEtiquette>) => void = () => { };
   /**
@@ -223,6 +228,28 @@ export class MoteurCarte {
   }
 
   /**
+   * Le pays sous un point d'écran, visé à la demande. La rose s'ouvre aussi depuis une
+   * étiquette HTML, qui a mangé le `pointermove` du canevas : lire le survol de la dernière
+   * image donnerait la terre d'avant l'entrée dans l'étiquette, pas celle qu'elle désigne.
+   */
+  paysAuPoint(clientX: number, clientY: number): string | null {
+    const cadre = this.rendu.domElement.getBoundingClientRect();
+    if (!cadre.width || !cadre.height) return null;
+    this.viseur.set(
+      ((clientX - cadre.left) / cadre.width) * 2 - 1,
+      -((clientY - cadre.top) / cadre.height) * 2 + 1,
+    );
+    this.rayon.setFromCamera(this.viseur, this.camera);
+    const impact = this.rayon.intersectObjects(this.pays, false)[0];
+    return (impact?.object as MeshPays | undefined)?.userData.nom ?? null;
+  }
+
+  /** La caméra ne bouge pas tant qu'une rose est ouverte : on ne vise pas une cible mouvante. */
+  figerOrbite(fige: boolean): void {
+    this.controles.enabled = !fige;
+  }
+
+  /**
    * Un pays porte l'encre d'une nation parce qu'un joueur l'a réservée, jamais parce qu'il
    * s'appelle comme elle : la carte reçoit la table des preneurs, elle ne la déduit pas.
    * Tout ce qui n'y figure pas revient en terre neutre — reposer la table suffit à défaire.
@@ -281,9 +308,21 @@ export class MoteurCarte {
     toile.addEventListener('wheel', () => {
       this.voyage = null;
     });
-    toile.addEventListener('pointerup', () => {
+    // Le bouton droit ouvre la rose : sans ce garde, il sélectionnerait aussi le pays au
+    // relâché, et toute rose arriverait sur une sélection qu'on n'a pas demandée.
+    toile.addEventListener('pointerup', (evenement) => {
+      if (evenement.button !== 0) return;
       if (this.aOrbite) return;
       this.onSelection(this.survole?.userData.nom ?? null);
+    });
+
+    toile.addEventListener('contextmenu', (evenement) => {
+      evenement.preventDefault();
+      this.onClicDroit({
+        pays: this.paysAuPoint(evenement.clientX, evenement.clientY),
+        clientX: evenement.clientX,
+        clientY: evenement.clientY,
+      });
     });
   }
 
