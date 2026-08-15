@@ -152,15 +152,16 @@ nation avait sa matrice, on passerait de trente valeurs à deux cent quarante.
 
 L'ADR 0014 impose le terrain comme l'un des trois contre-pouvoirs obligatoires. Or :
 
-1. `CLAUDE.md` interdit qu'une règle de jeu lise `typeDeRegion` sans ADR — la fiche 08 est figée
+1. `CLAUDE.md` interdit qu'une règle de jeu lise `RegionType` sans ADR — la fiche 08 est figée
    « ni grille, ni terrain » ;
-2. `typeDeRegion` est aujourd'hui un **factice** : six régions témoins classées à la main, hachage
+2. `RegionType` est aujourd'hui un **factice** : six régions témoins classées à la main, hachage
    du nom pour toutes les autres. Un modificateur de combat lirait du bruit.
 
-**Rien de ce qui touche au terrain ne peut être codé avant** une ADR qui l'autorise et la passe de
-classification réelle dans `scripts/generer-regions.mjs` (ETOPO pour le relief, Köppen-Geiger pour
-l'aride et le polaire, landcover pour forêt contre plaine) — celle-là même que le prompt
-`gisements-par-region.md` touche déjà. Les deux se font ensemble ou pas du tout.
+**Rien de ce qui touche au terrain ne peut être codé avant l'ADR 0017** — le numéro 0016 est pris
+par l'anglicisation du code — et la passe de classification réelle dans
+`scripts/generate-regions.mjs` (ETOPO pour le relief, Köppen-Geiger pour l'aride et le polaire,
+landcover pour forêt contre plaine) — celle-là même que le prompt `gisements-par-region.md` touche
+déjà. Les deux se font ensemble ou pas du tout.
 
 ## 8. Questions ouvertes
 

@@ -1,0 +1,13 @@
+{
+  "infantry-1-lee-enfield": "infantry-1",
+  "infantry-2-boys": "infantry-2",
+  "armor-1-vickers-mk6": "armor-1",
+  "armor-2-matilda-2": "armor-2",
+  "land-transport-bedford": "landTransport",
+  "fighter-spitfire": "fighter",
+  "bomber-wellington": "bomber",
+  "air-transport-bombay": "airTransport",
+  "escort-flower-K166": "escort",
+  "cargo-merchant": "cargo",
+  "carrier-illustrious": "carrier"
+}

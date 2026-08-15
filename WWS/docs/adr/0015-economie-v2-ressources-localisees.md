@@ -8,7 +8,7 @@ La fiche 02 (ravitaillement / acier / effectifs) a été écrite quand les régi
 portaient rien. Depuis, l'ADR 0013 a posé la projection sur les régions, l'ADR 0014 a
 donné aux bandages un consommateur sans leur donner de producteur, et le blocage le plus
 visible du dépôt reste entier : l'acier ne vient de nulle part, la file de production
-d'une saison réelle reste vide (`convex/unites.test.ts` grave le constat). La
+d'une saison réelle reste vide (`convex/units.test.ts` grave le constat). La
 proposition [économie v2](../design/propositions/economie-v2.md) (session du 14/08) a
 été retenue ; elle laissait quatre questions ouvertes, tranchées ici.
 
@@ -46,7 +46,7 @@ uniquement par de l'infanterie mk1 ou mk2 — ouvre un rayon de quelques région
 **Les quatre questions ouvertes, tranchées par défaut :**
 
 1. **Les taux** (débits, coûts, entretien) sont des placeholders dans
-   `convex/constantes.ts`, jamais tenus pour justes — même contrat que l'ADR 0011.
+   `convex/constants.ts`, jamais tenus pour justes — même contrat que l'ADR 0011.
 2. **Les stocks sont plafonnés bas** sans entrepôt : l'entrepôt devient vite nécessaire,
    donc vite une cible.
 3. **L'acheminement est automatique** : une exploitation verse au stock national. Les
