@@ -6,16 +6,8 @@ import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
 import { formatWindow } from '@/domain/rest-window';
 import type { PlayerView } from '@/domain/player-view';
-import { convexHttpClient } from './convexClient';
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
-
-export async function loadPlayerView(world: World, token: string): Promise<PlayerView> {
-  const client = convexHttpClient();
-  if (!client) throw new Error('VITE_CONVEX_URL missing');
-  const server: ServerView = await client.query(api.view.playerView, { token });
-  return adaptServerView(world, server);
-}
 
 export function adaptServerView(world: World, server: ServerView): PlayerView {
   const countryName = isNation(server.me.nation)

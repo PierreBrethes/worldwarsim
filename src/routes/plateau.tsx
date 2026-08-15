@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
@@ -6,6 +6,7 @@ import { fr } from '@/i18n/fr';
 import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { ErrorScreen } from '@/shell/ErrorScreen';
+import { StaleToken } from '@/shell/StaleToken';
 import { buildLabels } from '@/domain/labels';
 import { inkByClaimedCountry } from '@/domain/nations';
 import type { World } from '@/domain/world';
@@ -15,7 +16,6 @@ import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView } from '@/data/serverView';
 import { errorCode } from '@/data/errors';
-import { forgetToken } from '@/data/token';
 import { MovementTimeline } from './-plateau/MovementTimeline';
 import { RegionTooltip } from './-plateau/RegionTooltip';
 import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
@@ -90,33 +90,30 @@ export const Route = createFileRoute('/plateau')({
     }
     return search;
   },
-  /**
-   * Expected outcomes are settled before rendering: a season still in the lobby goes back
-   * to the lobby, a dead token gets forgotten and the board admits "no game". The rest —
-   * broken link, bug — climbs to `errorComponent`, never a blank page.
-   */
-  loader: async () => {
-    try {
-      return await loadGame();
-    } catch (error) {
-      const code = errorCode(error);
-      if (code === 'SEASON_NOT_LAUNCHED') throw redirect({ to: '/salon' });
-      if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') {
-        forgetToken();
-        return { state: 'none' } as const;
-      }
-      throw error;
-    }
-  },
+  // The loader only fetches the world and the token; the view comes from the subscription,
+  // so the errors that used to surface here now surface at render — see `BoardError`.
+  loader: loadGame,
   pendingComponent: Loading,
-  errorComponent: ({ error, reset }) => <ErrorScreen error={error} reset={reset} />,
+  errorComponent: ({ error, reset }) => <BoardError error={error} reset={reset} />,
   component: Board,
 });
 
+/**
+ * The three outcomes of a failed board subscription. Two are ordinary and get a route of
+ * their own: a season still in the lobby sends the player back to the lobby, a token the
+ * server does not know gets dropped. Everything else is a genuine failure and says so.
+ */
+function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
+  const code = errorCode(error);
+  if (code === 'SEASON_NOT_LAUNCHED') return <Navigate to="/salon" />;
+  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') return <StaleToken to="/accueil" />;
+  return <ErrorScreen error={error} reset={reset} />;
+}
+
 function Board() {
-  const game = Route.useLoaderData();
-  if (game.state === 'none') return <NoGame />;
-  return <LiveBoard world={game.world} initialView={game.view} token={game.token} />;
+  const entry = Route.useLoaderData();
+  if (entry.state === 'none') return <NoGame />;
+  return <LiveBoard world={entry.world} token={entry.token} />;
 }
 
 function NoGame() {
@@ -141,17 +138,15 @@ function NoGame() {
   );
 }
 
-function LiveBoard({
-  world,
-  initialView,
-  token,
-}: {
-  world: World;
-  initialView: PlayerView;
-  token: string;
-}) {
+function LiveBoard({ world, token }: { world: World; token: string }) {
   const server = useQuery(api.view.playerView, { token });
-  const view = server ? adaptServerView(world, server) : initialView;
+  // The adapted view is memoized because it is the identity every panel keys on: rebuilding
+  // it on each render would redo the labels and the compass on every keystroke elsewhere.
+  const view = useMemo(
+    () => (server === undefined ? null : adaptServerView(world, server)),
+    [world, server],
+  );
+  if (view === null) return <Loading />;
   return <BoardContent world={world} view={view} token={token} />;
 }
 

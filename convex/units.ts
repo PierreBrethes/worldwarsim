@@ -3,9 +3,9 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { accruedStock } from '../src/domain/off-season';
 import { TIERS_BY_ROLE } from '../src/domain/troops';
-import type { BuildingKey, ResourceKey, UnitRole } from '../src/domain/ids';
+import type { UnitRole } from '../src/domain/ids';
+import { buildingLevel } from './buildings';
 import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
@@ -15,22 +15,9 @@ import {
   recruitmentCost,
 } from './constants';
 import { fail } from './errors';
-import { credit, debit } from './resources';
+import { credit, debit, resourceRows, resourceSnapshot } from './resources';
 import { playerByToken } from './seasons';
-
-const UNIT_ROLE = v.union(
-  v.literal('infantry'),
-  v.literal('armor'),
-  v.literal('landTransport'),
-  v.literal('fighter'),
-  v.literal('bomber'),
-  v.literal('airTransport'),
-  v.literal('escort'),
-  v.literal('cargo'),
-  v.literal('carrier'),
-);
-
-const UNIT_TIER = v.union(v.literal(1), v.literal(2));
+import { UNIT_ROLE, UNIT_TIER } from './validators';
 
 /**
  * What the production surface needs to know, and nothing more: it does not go through
@@ -50,19 +37,7 @@ export const workshop = query({
       .collect();
     const queue = await queueOf(ctx, player._id);
 
-    const rows = await ctx.db
-      .query('resources')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect();
-    const resource = (key: ResourceKey) => {
-      const row = rows.find((candidate) => candidate.key === key);
-      if (!row) fail('MISSING_RESOURCE', { resource: key });
-      return {
-        stock: Math.floor(accruedStock(row, now, row.cap ?? undefined)),
-        ratePerHour: row.ratePerHour,
-        cap: row.cap,
-      };
-    };
+    const rows = await resourceRows(ctx, player._id);
 
     // A waiting batch's due time is derived from the ones ahead: nothing is dated in the
     // database until a batch has started, otherwise every cancellation would re-date it all.
@@ -85,6 +60,10 @@ export const workshop = query({
     });
 
     return {
+      // The instant the queue was dated. Without it the client cannot tell a remaining time
+      // from a countdown: `minutesLeft` is relative to this reading, and re-reading it as
+      // "now" on every tick froze the queue's clock at its served value.
+      loadedAt: now,
       nation: player.nation ?? '?',
       industryLevel,
       speed: industrySpeed(industryLevel),
@@ -92,9 +71,9 @@ export const workshop = query({
       requiredIndustryLevel: TIER_2_INDUSTRY_LEVEL,
       maxBatch: MAX_UNITS_PER_BATCH,
       maxQueue: MAX_QUEUED_BATCHES,
-      supply: resource('supply'),
-      steel: resource('steel'),
-      manpower: resource('manpower'),
+      supply: resourceSnapshot(rows, 'supply', now),
+      steel: resourceSnapshot(rows, 'steel', now),
+      manpower: resourceSnapshot(rows, 'manpower', now),
       roster: roster.map(({ role, tier, count }) => ({ role, tier, count })),
       queue: datedQueue,
       grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
@@ -156,7 +135,8 @@ export const recruit = mutation({
 export const cancel = mutation({
   args: { token: v.string(), recruitmentId: v.id('recruitments') },
   handler: async (ctx, { token, recruitmentId }) => {
-    const { player } = await playerByToken(ctx, token);
+    const { player, season } = await playerByToken(ctx, token);
+    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
     const batch = await ctx.db.get(recruitmentId);
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
@@ -228,16 +208,4 @@ async function queueOf(ctx: QueryCtx, playerId: Id<'players'>): Promise<Array<Do
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
   return batches.sort((a, b) => a.rank - b.rank);
-}
-
-async function buildingLevel(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  key: BuildingKey,
-): Promise<number> {
-  const buildings = await ctx.db
-    .query('buildings')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-  return buildings.find((candidate) => candidate.key === key)?.level ?? 1;
 }

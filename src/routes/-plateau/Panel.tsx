@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { fr } from '@/i18n/fr';
 
 /** `static`: the panel lets a parent container stack it instead of anchoring itself. */
 type Position = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'static';
@@ -36,7 +37,7 @@ export function Panel({
         <button
           type="button"
           aria-expanded={!collapsed}
-          title={collapsed ? 'déplier' : 'réduire'}
+          title={collapsed ? fr.panel.expand : fr.panel.collapse}
           onClick={() => setCollapsed((previous) => !previous)}
           className="h-[15px] w-[15px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-[13px] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]"
         >

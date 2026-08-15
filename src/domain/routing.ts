@@ -26,6 +26,13 @@ export type ComputedRoute = {
   readonly legs: ReadonlyArray<RouteLeg>;
 };
 
+/**
+ * One projected unit in kilometres, read at the equator. The projection tightens toward the
+ * poles, so this is an average and not an exact scale: enough to turn a route cost into a
+ * duration for a preview, not enough to bill a movement with.
+ */
+export const KM_PER_UNIT = 111;
+
 export const COST_BY_MEDIUM: Readonly<Record<'land' | 'sea', number>> = {
   land: 1.6,
   sea: 1.0,

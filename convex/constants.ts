@@ -65,7 +65,21 @@ export const BASE_CONSTRUCTION_MINUTES = 30;
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS_TO_LAUNCH = 2;
 
-export const DEFAULT_REST_WINDOW = { startMinutes: 23 * 60, endMinutes: 7 * 60 };
+/**
+ * Seven hours per 24, per design sheet 07. The duration is **fixed, not chosen**: the window
+ * forbids any arrival while it lasts, so letting a player set its length would let him set
+ * how long he is untouchable — and a 23-hour window is a permanent shield. He picks when he
+ * sleeps, never how long.
+ */
+export const REST_WINDOW_MINUTES = 7 * 60;
+export const DEFAULT_REST_START_MINUTES = 23 * 60;
+
+export const restWindowFrom = (startMinutes: number) => ({
+  startMinutes,
+  endMinutes: (startMinutes + REST_WINDOW_MINUTES) % 1440,
+});
+
+export const DEFAULT_REST_WINDOW = restWindowFrom(DEFAULT_REST_START_MINUTES);
 
 export function levelCost(level: number): number {
   return Math.round(BASE_BUILDING_COST * LEVEL_COST_FACTOR ** (level - 1));

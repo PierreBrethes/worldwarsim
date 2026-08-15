@@ -11,6 +11,7 @@ import { convexClient } from '@/data/convexClient';
 import { errorCode, handleError } from '@/data/errors';
 import { forgetToken, useToken } from '@/data/token';
 import { ErrorScreen } from '@/shell/ErrorScreen';
+import { StaleToken } from '@/shell/StaleToken';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 
 export const Route = createFileRoute('/salon')({
@@ -18,13 +19,10 @@ export const Route = createFileRoute('/salon')({
   errorComponent: ({ error, reset }) => <LobbyError error={error} reset={reset} />,
 });
 
-/** A dead token at the lobby is no outage: forget it and go back home. */
+/** A dead token at the lobby is no outage: drop it and go back home. */
 function LobbyError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
-  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') {
-    forgetToken();
-    return <Navigate to="/accueil" />;
-  }
+  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') return <StaleToken to="/accueil" />;
   return <ErrorScreen error={error} reset={reset} />;
 }
 
@@ -279,6 +277,14 @@ function ConnectedLobby({ token }: { token: string }) {
                 {fr.lobby.doctrineNote}
               </p>
 
+              <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
+                {fr.lobby.restHeader}
+              </div>
+              <RestWindowForm token={token} declared={lobby.me.restWindow} onError={setError} />
+              <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
+                {fr.lobby.restNote}
+              </p>
+
               <div className="mt-4 flex flex-col gap-1">
                 {checks.map((check) => (
                   <div
@@ -357,6 +363,68 @@ function ConnectedLobby({ token }: { token: string }) {
     </>
   );
 }
+
+/**
+ * The rest window is declared here and nowhere else: it freezes at launch (see
+ * `players.setRestWindow`), so the nation sheet only displays it afterwards. One field, not
+ * two — the duration is fixed at seven hours, and the end is shown as the consequence of the
+ * start rather than as a second thing to choose.
+ */
+function RestWindowForm({
+  token,
+  declared,
+  onError,
+}: {
+  token: string;
+  declared: { startMinutes: number; endMinutes: number };
+  onError: (message: string | null) => void;
+}) {
+  const setRestWindow = useMutation(api.players.setRestWindow);
+  const [start, setStart] = useState(() => asHtmlTime(declared.startMinutes));
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div className="mt-[10px] flex flex-wrap items-center gap-2">
+      <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.lobby.restFrom}</span>
+      <input
+        type="time"
+        value={start}
+        onChange={(event) => {
+          setStart(event.target.value);
+          setSaved(false);
+        }}
+        className="border border-[var(--ink)] bg-transparent px-2 py-[5px] font-[var(--font-mono)] text-[13px] text-[var(--ink)] outline-none"
+      />
+      <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+        {fr.lobby.restUntil(asHtmlTime(endOf(asMinutes(start))))}
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          onError(null);
+          setRestWindow({ token, startMinutes: asMinutes(start) })
+            .then(() => setSaved(true))
+            .catch((problem: unknown) => handleError(problem, onError));
+        }}
+        className="cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+      >
+        {saved ? fr.lobby.restDeclared : fr.lobby.restDeclare}
+      </button>
+    </div>
+  );
+}
+
+/** Mirrors `restWindowFrom` on the server: the preview must show what will be stored. */
+const REST_WINDOW_MINUTES = 7 * 60;
+const endOf = (startMinutes: number) => (startMinutes + REST_WINDOW_MINUTES) % 1440;
+
+const asHtmlTime = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+const asMinutes = (time: string) => {
+  const [hours = '0', minutes = '0'] = time.split(':');
+  return Number(hours) * 60 + Number(minutes);
+};
 
 function statusInk(isMine: boolean, taken: boolean, nation: string): string {
   if (isMine) return 'var(--notable)';

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fr, roleLabel } from '@/i18n/fr';
-import { distanceKm, travelMinutes, crossesAntimeridian } from '@/domain/geo';
+import { travelMinutes } from '@/domain/geo';
+import type { LonLat } from '@/domain/geo';
 import { NATION_BY_COUNTRY } from '@/domain/nations';
+import { KM_PER_UNIT, buildGrid, computeRoute, type RouteGrid } from '@/domain/routing';
 import type { World } from '@/domain/world';
 import { insideWindow, parseWindow } from '@/domain/rest-window';
 import { UnitSprite } from '@/emblems/UnitSprite';
@@ -53,7 +55,12 @@ export function SendTab({
   };
 
   const destination = country ? (world.countries.find((candidate) => candidate.name === country) ?? null) : null;
-  const route = destination ? estimateRoute(view, destination.lonLat) : null;
+  // Dijkstra over the world grid is not free, and the stack steppers re-render on every
+  // click: the estimate is keyed on what actually changes it.
+  const route = useMemo(
+    () => (destination === null ? null : estimateRoute(view, world, destination.lonLat)),
+    [view, world, destination],
+  );
   // The map speaks country names, opponents speak nation ids: go through the seam, the two
   // raw strings never coincide.
   const targetNation = country ? NATION_BY_COUNTRY.get(country) : undefined;
@@ -62,13 +69,16 @@ export function SendTab({
       ? undefined
       : view.opponents.find((opponent) => opponent.nation === targetNation);
   const restWarning =
-    route && targetOpponent
+    route?.reachable && targetOpponent
       ? arrivalInRestWindow(targetOpponent.restWindow, route.arrivalMinutesSinceMidnight)
       : null;
 
   const freeSlots = view.me.slots.total - view.me.slots.used;
   const canSend =
-    destination !== null && freeSlots > 0 && (engaged > 0 || type === 'decoy' || type === 'agent');
+    destination !== null &&
+    route?.reachable === true &&
+    freeSlots > 0 &&
+    (engaged > 0 || type === 'decoy' || type === 'agent');
 
   return (
     <>
@@ -168,7 +178,13 @@ export function SendTab({
             </p>
           )}
 
-          {route && (
+          {route?.reachable === false && (
+            <p className="mt-[14px] border-t border-[rgba(42,33,24,.3)] pt-3 text-[13px] leading-[1.5] text-[var(--critical)]">
+              {fr.send.noRoute}
+            </p>
+          )}
+
+          {route?.reachable && (
             <div className="mt-[14px] flex flex-col gap-[7px] border-t border-[rgba(42,33,24,.3)] pt-3 text-[13px]">
               <span className="flex justify-between">
                 <span className="text-[var(--ink-soft)]">{fr.send.estimatedDuration}</span>
@@ -240,20 +256,57 @@ function Step({ sign, disabled, onClick }: { sign: string; disabled: boolean; on
   );
 }
 
-function estimateRoute(view: PlayerView, toLonLat: World['countries'][number]['lonLat']) {
-  const km = distanceKm(view.me.homePosition, toLonLat);
+/**
+ * The send preview runs the route calculation the server will run (ADR 0012), not a
+ * great-circle line: the grid knows the coasts, the straits and the cost of embarking, and a
+ * preview that ignored them would promise a Paris–Algiers as short as a Paris–Berlin. The
+ * cost comes back in sea-equivalent units, which the season's pace turns into minutes.
+ *
+ * It stays an estimate: the server dates the movement, and it alone.
+ */
+type RouteEstimate =
+  | { readonly reachable: false }
+  | {
+      readonly reachable: true;
+      readonly durationMinutes: number;
+      readonly crosses: boolean;
+      readonly arrivalDisplayed: string;
+      readonly arrivalMinutesSinceMidnight: number;
+    };
+
+function estimateRoute(view: PlayerView, world: World, toLonLat: LonLat): RouteEstimate {
+  const route = computeRoute(gridOf(world), view.me.homePosition, toLonLat, 'combined');
+  if (route === null) return { reachable: false };
+
   const logisticsLevel = view.me.buildings.find((building) => building.key === 'logistics')?.level ?? 1;
-  const durationMinutes = travelMinutes(km, {
+  const durationMinutes = travelMinutes(route.costUnits * KM_PER_UNIT, {
     minutesPer1000km: view.season.travelMinutesPer1000km,
     logisticsLevel,
   });
   const arrival = new Date(Date.now() + durationMinutes * 60_000);
   return {
+    reachable: true,
     durationMinutes,
-    crosses: crossesAntimeridian(view.me.homePosition, toLonLat),
+    // The route wraps when one of its own segments jumps the antimeridian, which the two
+    // declared endpoints cannot tell on their own: a westward detour crosses it, a short
+    // eastward hop between the same two countries does not.
+    crosses: route.points.some(
+      (point, index) => index > 0 && Math.abs(point[0] - route.points[index - 1]![0]) > 180,
+    ),
     arrivalDisplayed: arrival.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     arrivalMinutesSinceMidnight: arrival.getHours() * 60 + arrival.getMinutes(),
   };
+}
+
+/**
+ * The grid is baked once per world and kept: it costs tens of milliseconds, the world never
+ * changes within a season, and the send tab is opened and closed over and over.
+ */
+let cachedGrid: { world: World; grid: RouteGrid } | null = null;
+
+function gridOf(world: World): RouteGrid {
+  if (cachedGrid?.world !== world) cachedGrid = { world, grid: buildGrid(world) };
+  return cachedGrid.grid;
 }
 
 function arrivalInRestWindow(declaredWindow: string, arrivalMinutesSinceMidnight: number): boolean | null {

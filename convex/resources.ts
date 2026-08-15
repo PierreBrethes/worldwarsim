@@ -1,4 +1,4 @@
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { accruedStock } from '../src/domain/off-season';
 import type { ResourceKey } from '../src/domain/ids';
@@ -9,18 +9,45 @@ export type Costs = Readonly<Record<ResourceKey, number>>;
 
 const KEYS: ReadonlyArray<ResourceKey> = ['supply', 'steel', 'manpower'];
 
+export async function resourceRows(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<Array<Doc<'resources'>>> {
+  return ctx.db
+    .query('resources')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+}
+
 export async function resourceRow(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   key: ResourceKey,
 ) {
-  const rows = await ctx.db
-    .query('resources')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
+  const rows = await resourceRows(ctx, playerId);
   const row = rows.find((candidate) => candidate.key === key);
   if (!row) fail('MISSING_RESOURCE', { resource: key });
   return row;
+}
+
+/**
+ * What a resource looks like to the client: the stock accrued up to `now`, floored, plus
+ * what the interface needs to keep extrapolating on its own. Both surfaces that serve
+ * resources — the board view and the workshop — had their own copy of this; they now read
+ * the same one, so a rounding rule cannot differ between two screens showing one stock.
+ */
+export function resourceSnapshot(
+  rows: ReadonlyArray<Doc<'resources'>>,
+  key: ResourceKey,
+  now: number,
+): { stock: number; ratePerHour: number; cap: number | null } {
+  const row = rows.find((candidate) => candidate.key === key);
+  if (!row) fail('MISSING_RESOURCE', { resource: key });
+  return {
+    stock: Math.floor(accruedStock(row, now, row.cap ?? undefined)),
+    ratePerHour: row.ratePerHour,
+    cap: row.cap,
+  };
 }
 
 /**

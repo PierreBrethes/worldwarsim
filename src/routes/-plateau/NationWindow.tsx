@@ -4,7 +4,6 @@ import { api } from '../../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel, stackLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
-import { parseWindow } from '@/domain/rest-window';
 import type { Building, PlayerView } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
@@ -112,7 +111,12 @@ export function NationWindow({
             <p className="mt-2 text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.nationSheet.restNote}
             </p>
-            <RestWindowForm token={token} displayedWindow={view.me.restWindow} onError={setError} />
+            <p className="mt-2 font-[var(--font-mono)] text-[14px] text-[var(--ink)]">
+              {view.me.restWindow}
+            </p>
+            <p className="mt-1 text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
+              {fr.nationSheet.restFrozen}
+            </p>
           </aside>
         </div>
       </div>
@@ -193,58 +197,3 @@ function ConstructionButton({
     </button>
   );
 }
-
-function RestWindowForm({
-  token,
-  displayedWindow,
-  onError,
-}: {
-  token: string;
-  displayedWindow: string;
-  onError: (message: string | null) => void;
-}) {
-  const set = useMutation(api.players.setRestWindow);
-  const window = parseWindow(displayedWindow);
-  const [start, setStart] = useState(window ? asHtmlTime(window.startMinutes) : '23:00');
-  const [end, setEnd] = useState(window ? asHtmlTime(window.endMinutes) : '07:00');
-  const [saved, setSaved] = useState(false);
-
-  return (
-    <div className="mt-2 flex items-center gap-2">
-      <TimeField value={start} onChange={(value) => { setStart(value); setSaved(false); }} />
-      <span className="text-[12px] text-[var(--ink-soft)]">→</span>
-      <TimeField value={end} onChange={(value) => { setEnd(value); setSaved(false); }} />
-      <button
-        type="button"
-        onClick={() => {
-          onError(null);
-          set({ token, startMinutes: asMinutes(start), endMinutes: asMinutes(end) })
-            .then(() => setSaved(true))
-            .catch((problem: unknown) => handleError(problem, onError));
-        }}
-        className="cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-      >
-        {saved ? fr.nationSheet.declared : fr.nationSheet.declare}
-      </button>
-    </div>
-  );
-}
-
-function TimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <input
-      type="time"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="border border-[var(--ink)] bg-transparent px-2 py-[5px] font-[var(--font-mono)] text-[13px] text-[var(--ink)] outline-none"
-    />
-  );
-}
-
-const asHtmlTime = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-
-const asMinutes = (time: string) => {
-  const [hours = '0', minutes = '0'] = time.split(':');
-  return Number(hours) * 60 + Number(minutes);
-};

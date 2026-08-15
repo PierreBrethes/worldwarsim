@@ -47,9 +47,6 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
   'intel',
 ];
 
-export const isCategory = (value: unknown): value is IndicatorCategory =>
-  CATEGORIES.some((category) => category === value);
-
 /**
  * The inner margin: the indicator sits inside the screen, never astride its edge. The badge
  * being centered on the clamped point, half a badge is added to the mockup's fourteen pixels

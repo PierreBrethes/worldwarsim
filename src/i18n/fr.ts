@@ -156,6 +156,8 @@ export const fr = {
     PLAYERS_NOT_READY: (d) =>
       `pas prêts : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'}`,
     INVALID_REST_WINDOW: () => 'plage invalide : minutes entre 0 et 1439',
+    REST_WINDOW_FROZEN: () =>
+      'la plage de repos se déclare au salon — elle est scellée pour toute la saison',
     MISSING_RESOURCE: (d) => `ressource absente : ${resourceName(d.resource)}`,
     INSUFFICIENT_RESOURCE: (d) =>
       `il faut ${num(d.needed)} de ${resourceName(d.resource)} (${num(d.available)} disponibles)`,
@@ -265,6 +267,13 @@ export const fr = {
     freeSeat: 'place libre',
     doctrineHeader: 'ma doctrine — secrète',
     doctrineNote: 'Personne d’autre ne voit ce choix, seulement « prêt / pas prêt ».',
+    restHeader: 'ma plage de repos — publique',
+    restFrom: 'à partir de',
+    restUntil: (end: string) => `jusqu’à ${end}`,
+    restNote:
+      'Sept heures par nuit, durée fixe : vous choisissez quand vous dormez, pas combien de temps. Vos adversaires la voient, et aucun mouvement ne peut arriver pendant — il attend à la frontière. Elle se scelle au lancement, comme la nation et la doctrine.',
+    restDeclare: 'déclarer',
+    restDeclared: 'déclarée ✓',
     checkNation: 'une nation réservée',
     checkDoctrine: 'une doctrine scellée',
     checkAllReady: 'tous les joueurs déclarés prêts',
@@ -450,6 +459,8 @@ export const fr = {
     destinationLabel: 'destination',
     enemyNation: (power: string) => `nation adverse — ${power}`,
     pickDestination: 'Sélectionner un pays sur le plateau pour fixer la destination.',
+    noRoute: 'Aucune route connue vers cette destination.',
+    routeComputing: 'Calcul de la route…',
     estimatedDuration: 'durée estimée',
     arrival: 'arrivée',
     antimeridian: 'antiméridien',
@@ -508,8 +519,7 @@ export const fr = {
     restHeader: 'plage de repos déclarée',
     restNote:
       'Publique : vos adversaires la voient. Un mouvement qui arriverait pendant est immobilisé à la frontière jusqu’à sa fin.',
-    declare: 'déclarer',
-    declared: 'enregistrée ✓',
+    restFrozen: 'Scellée au lancement — elle se déclarait au salon.',
     constructionInProgressTitle: 'un chantier est déjà en cours',
     raiseHqFirst: 'montez le quartier général d’abord',
     upgradeTitle: (name: string, level: number) => `passer ${name} au niveau ${level}`,
@@ -526,6 +536,11 @@ export const fr = {
 
   window: {
     resize: 'redimensionner',
+  },
+
+  panel: {
+    expand: 'déplier',
+    collapse: 'réduire',
   },
 
   selectedCountry: {

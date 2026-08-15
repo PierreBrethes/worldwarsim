@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
-import { NATIONS } from './constants';
+import { NATIONS, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { playerByToken } from './seasons';
+import { DOCTRINE } from './validators';
 
 export const reserveNation = mutation({
   args: { token: v.string(), nation: v.union(v.string(), v.null()) },
@@ -27,10 +28,7 @@ export const reserveNation = mutation({
 });
 
 export const chooseDoctrine = mutation({
-  args: {
-    token: v.string(),
-    doctrine: v.union(v.literal('domination'), v.literal('hegemony'), v.literal('influence')),
-  },
+  args: { token: v.string(), doctrine: DOCTRINE },
   handler: async (ctx, { token, doctrine }) => {
     const { player, season } = await playerByToken(ctx, token);
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
@@ -50,15 +48,23 @@ export const declareReady = mutation({
   },
 });
 
+/**
+ * The rest window is declared in the lobby and frozen at launch, like the nation and the
+ * doctrine. Left open mid-season it becomes a shield one slides: the window is public, so a
+ * player who sees a movement heading his way could move his hours over its arrival and buy
+ * himself a stall at the border. Being able to promise "I sleep at these hours" only means
+ * something if the promise cannot move once the shooting starts.
+ *
+ * The cost, assumed: over a 7-day season, a player whose real schedule changes cannot follow.
+ */
 export const setRestWindow = mutation({
-  args: { token: v.string(), startMinutes: v.number(), endMinutes: v.number() },
-  handler: async (ctx, { token, startMinutes, endMinutes }) => {
-    const { player } = await playerByToken(ctx, token);
-    for (const minutes of [startMinutes, endMinutes]) {
-      if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 1440) {
-        fail('INVALID_REST_WINDOW');
-      }
+  args: { token: v.string(), startMinutes: v.number() },
+  handler: async (ctx, { token, startMinutes }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    if (season.status !== 'lobby') fail('REST_WINDOW_FROZEN');
+    if (!Number.isInteger(startMinutes) || startMinutes < 0 || startMinutes >= 1440) {
+      fail('INVALID_REST_WINDOW');
     }
-    await ctx.db.patch(player._id, { restWindow: { startMinutes, endMinutes } });
+    await ctx.db.patch(player._id, { restWindow: restWindowFrom(startMinutes) });
   },
 });

@@ -154,7 +154,7 @@ function Workshop({ nation, token }: { nation: string; token: string }) {
                   key={queuedBatch.id}
                   batch={queuedBatch}
                   nation={nation}
-                  loadedAt={now}
+                  loadedAt={workshop.loadedAt}
                   now={now}
                   onCancel={() => withdraw(queuedBatch.id)}
                 />
@@ -173,9 +173,9 @@ function Workshop({ nation, token }: { nation: string; token: string }) {
   );
 }
 
-type Workshop = NonNullable<ReturnType<typeof useQuery<typeof api.units.workshop>>>;
+type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.units.workshop>>>;
 
-function ResourceBar({ workshop }: { workshop: Workshop }) {
+function ResourceBar({ workshop }: { workshop: WorkshopView }) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-7 gap-y-2 border-b border-[rgba(42,33,24,.35)] px-4 py-[11px]">
       <StockLine
@@ -234,7 +234,7 @@ function StockLine({
   );
 }
 
-type GridEntry = Workshop['grid'][number];
+type GridEntry = WorkshopView['grid'][number];
 
 function RoleRow({
   entry,
@@ -354,7 +354,7 @@ function QueueRow({
   now,
   onCancel,
 }: {
-  batch: Workshop['queue'][number];
+  batch: WorkshopView['queue'][number];
   nation: string;
   loadedAt: number;
   now: number;

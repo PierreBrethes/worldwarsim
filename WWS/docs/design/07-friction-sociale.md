@@ -52,6 +52,20 @@ La plage publique est meilleure qu'un bouclier caché : elle donne à l'attaquan
 planifier autour, ce qui **ajoute** une décision au lieu d'en retirer une. Et elle se calcule
 entièrement à la création du mouvement — on décale `arrivesAt` — donc elle ne coûte rien côté serveur.
 
+### Quand elle se déclare, et ce qui est choisi
+
+Deux points que la fiche laissait ouverts et que l'implémentation a dû trancher :
+
+- **Elle se déclare au salon et se scelle au lancement**, comme la nation et la doctrine. Restée
+  modifiable en cours de saison, elle devient un bouclier qu'on fait glisser : la plage est
+  publique, donc un joueur qui voit un mouvement venir sur lui n'a qu'à déplacer ses heures sur
+  l'arrivée pour s'offrir une immobilisation à la frontière. Promettre « je dors à ces heures-là »
+  ne veut dire quelque chose que si la promesse ne bouge plus. Contrepartie assumée : sur une
+  saison de sept jours, un joueur dont l'emploi du temps réel change ne peut pas suivre.
+- **La durée est fixe — sept heures — et seul le début se choisit.** Laisser régler la durée,
+  c'est laisser régler sa propre durée d'invulnérabilité : une plage de 23 h est un bouclier
+  permanent. Le joueur choisit *quand* il dort, jamais *combien de temps*.
+
 ## Les quatre leviers de situation drôle
 
 Ce ne sont pas des systèmes à coder, ce sont des propriétés à préserver. Meilleur rendement du

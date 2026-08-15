@@ -179,16 +179,52 @@ describe('constructions', () => {
 });
 
 describe('rest window', () => {
-  it('can be set any time, lobby or launched season', async () => {
+  it('is declared in the lobby and rejects an impossible hour', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
-    await t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 22 * 60, endMinutes: 6 * 60 });
-    await t.mutation(api.seasons.launch, { token: creator });
-    await t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 0, endMinutes: 8 * 60 });
-    const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.restWindow).toEqual({ startMinutes: 0, endMinutes: 8 * 60 });
+    await t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 22 * 60 });
     await expect(
-      t.mutation(api.players.setRestWindow, { token: creator, startMinutes: -1, endMinutes: 0 }),
+      t.mutation(api.players.setRestWindow, { token: creator, startMinutes: -1 }),
     ).rejects.toThrow('INVALID_REST_WINDOW');
+  });
+
+  /**
+   * Seven hours, fixed (design sheet 07). The player chooses when he sleeps, never for how
+   * long: a self-set duration is a self-set span of invulnerability.
+   */
+  it('always spans seven hours, midnight wrap included', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+
+    await t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 9 * 60 });
+    await t.mutation(api.seasons.launch, { token: creator });
+    expect((await t.query(api.view.playerView, { token: creator })).me.restWindow).toEqual({
+      startMinutes: 9 * 60,
+      endMinutes: 16 * 60,
+    });
+  });
+
+  it('wraps past midnight rather than clipping at the end of the day', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 23 * 60 });
+    await t.mutation(api.seasons.launch, { token: creator });
+    expect((await t.query(api.view.playerView, { token: creator })).me.restWindow).toEqual({
+      startMinutes: 23 * 60,
+      endMinutes: 6 * 60,
+    });
+  });
+
+  /**
+   * The window is public: left editable it becomes a shield one slides over an arrival one
+   * has seen coming. It freezes at launch, like the nation and the doctrine.
+   */
+  it('freezes at launch', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    await expect(
+      t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 3 * 60 }),
+    ).rejects.toThrow('REST_WINDOW_FROZEN');
   });
 });

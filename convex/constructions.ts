@@ -2,18 +2,12 @@ import { v } from 'convex/values';
 import { internalMutation, mutation } from './_generated/server';
 import { internal } from './_generated/api';
 import { accruedStock } from '../src/domain/off-season';
+import { cappedByHq, levelOf, playerBuildings } from './buildings';
 import { STARTING, constructionMinutes, levelCost } from './constants';
 import { fail } from './errors';
 import { resourceRow } from './resources';
 import { playerByToken } from './seasons';
-
-const BUILDING_KEY = v.union(
-  v.literal('hq'),
-  v.literal('industry'),
-  v.literal('logistics'),
-  v.literal('conscription'),
-  v.literal('listening'),
-);
+import { BUILDING_KEY } from './validators';
 
 export const start = mutation({
   args: { token: v.string(), building: BUILDING_KEY },
@@ -27,16 +21,10 @@ export const start = mutation({
       .unique();
     if (running) fail('CONSTRUCTION_IN_PROGRESS');
 
-    const buildings = await ctx.db
-      .query('buildings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect();
+    const buildings = await playerBuildings(ctx, player._id);
     const target = buildings.find((candidate) => candidate.key === building);
     if (!target) fail('UNKNOWN_BUILDING');
-    const hq = buildings.find((candidate) => candidate.key === 'hq');
-    if (building !== 'hq' && hq && target.level >= hq.level) {
-      fail('CAPPED_BY_HQ');
-    }
+    if (cappedByHq(building, target.level, levelOf(buildings, 'hq'))) fail('CAPPED_BY_HQ');
 
     const now = Date.now();
     const cost = levelCost(target.level + 1);
@@ -59,10 +47,7 @@ export const finish = internalMutation({
   handler: async (ctx, { constructionId }) => {
     const construction = await ctx.db.get(constructionId);
     if (!construction) return;
-    const buildings = await ctx.db
-      .query('buildings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', construction.playerId))
-      .collect();
+    const buildings = await playerBuildings(ctx, construction.playerId);
     const target = buildings.find((candidate) => candidate.key === construction.building);
     if (target) {
       const level = target.level + 1;

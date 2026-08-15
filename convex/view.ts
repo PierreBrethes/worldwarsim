@@ -1,10 +1,10 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
-import { accruedStock } from '../src/domain/off-season';
 import { nationInk } from '../src/domain/nations';
-import type { ResourceKey } from '../src/domain/ids';
+import { cappedByHq, levelOf, playerBuildings } from './buildings';
 import { constructionMinutes, levelCost } from './constants';
 import { fail } from './errors';
+import { resourceRows, resourceSnapshot } from './resources';
 import { playerByToken } from './seasons';
 
 export const playerView = query({
@@ -14,25 +14,9 @@ export const playerView = query({
     if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
     const now = Date.now();
 
-    const rows = await ctx.db
-      .query('resources')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect();
-    const resource = (key: ResourceKey) => {
-      const row = rows.find((candidate) => candidate.key === key);
-      if (!row) fail('MISSING_RESOURCE', { resource: key });
-      return {
-        stock: Math.floor(accruedStock(row, now, row.cap ?? undefined)),
-        ratePerHour: row.ratePerHour,
-        cap: row.cap,
-      };
-    };
-
-    const buildings = await ctx.db
-      .query('buildings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect();
-    const levelOf = (key: string) => buildings.find((b) => b.key === key)?.level ?? 1;
+    const rows = await resourceRows(ctx, player._id);
+    const buildings = await playerBuildings(ctx, player._id);
+    const hqLevel = levelOf(buildings, 'hq');
     const construction = await ctx.db
       .query('constructions')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
@@ -80,16 +64,16 @@ export const playerView = query({
         doctrine: player.doctrine ?? 'domination',
         progress: 0,
         restWindow: player.restWindow,
-        supply: resource('supply'),
-        steel: resource('steel'),
-        manpower: resource('manpower'),
-        slots: { total: 1 + levelOf('logistics'), used: 0 },
+        supply: resourceSnapshot(rows, 'supply', now),
+        steel: resourceSnapshot(rows, 'steel', now),
+        manpower: resourceSnapshot(rows, 'manpower', now),
+        slots: { total: 1 + levelOf(buildings, 'logistics'), used: 0 },
         buildings: buildings.map((building) => ({
           key: building.key,
           level: building.level,
           nextLevelCost: levelCost(building.level + 1),
           nextLevelMinutes: constructionMinutes(building.level + 1),
-          cappedByHq: building.key !== 'hq' && building.level >= levelOf('hq'),
+          cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         })),
         construction: construction
           ? { name: construction.building, minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000) }
