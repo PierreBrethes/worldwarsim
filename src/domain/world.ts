@@ -23,11 +23,18 @@ export type World = {
 
 export type RegionLine = ReadonlyArray<readonly [x: number, y: number]>;
 
-export type DisplayedRegion = {
-  /** The Natural Earth `adm1_code` — admin-1 names repeat across countries, ids do not. */
+/**
+ * A region, as anything outside the map layer names it. The id travels with the name because
+ * deposits and buildings are indexed by `adm1_code`: admin-1 names repeat from one country to
+ * the next, ids do not, and a tooltip label cannot address a region.
+ */
+export type RegionIdentity = {
   readonly id: string;
   readonly country: string;
   readonly name: string;
+};
+
+export type DisplayedRegion = RegionIdentity & {
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
 };
 

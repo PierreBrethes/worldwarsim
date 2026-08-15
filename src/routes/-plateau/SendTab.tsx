@@ -278,10 +278,12 @@ function estimateRoute(view: PlayerView, world: World, toLonLat: LonLat): RouteE
   const route = computeRoute(gridOf(world), view.me.homePosition, toLonLat, 'combined');
   if (route === null) return { reachable: false };
 
-  const logisticsLevel = view.me.buildings.find((building) => building.key === 'logistics')?.level ?? 1;
+  // The logistics centre is dissolved (ADR 0015) and its effect becomes the level of the
+  // projection buildings — a port of level 2 embarks faster. Which one applies depends on the
+  // domain of the movement, which surface 4.7 owns; until then the discount is neutral.
   const durationMinutes = travelMinutes(route.costUnits * KM_PER_UNIT, {
     minutesPer1000km: view.season.travelMinutesPer1000km,
-    logisticsLevel,
+    logisticsLevel: 1,
   });
   const arrival = new Date(Date.now() + durationMinutes * 60_000);
   return {

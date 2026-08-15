@@ -10,12 +10,12 @@ import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
   MAX_UNITS_PER_BATCH,
-  TIER_2_INDUSTRY_LEVEL,
-  industrySpeed,
+  TIER_2_HQ_LEVEL,
+  chainSpeed,
   recruitmentCost,
 } from './constants';
 import { fail } from './errors';
-import { credit, debit, resourceRows, resourceSnapshot } from './resources';
+import { credit, debit, economyOf, snapshotOf } from './resources';
 import { playerByToken } from './seasons';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 
@@ -30,14 +30,14 @@ export const workshop = query({
     if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
     const now = Date.now();
 
-    const industryLevel = await buildingLevel(ctx, player._id, 'industry');
+    const hqLevel = await buildingLevel(ctx, player._id, 'hq');
     const roster = await ctx.db
       .query('units')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect();
     const queue = await queueOf(ctx, player._id);
 
-    const rows = await resourceRows(ctx, player._id);
+    const economy = await economyOf(ctx, player._id, now);
 
     // A waiting batch's due time is derived from the ones ahead: nothing is dated in the
     // database until a batch has started, otherwise every cancellation would re-date it all.
@@ -45,7 +45,7 @@ export const workshop = query({
     const datedQueue = queue.map((batch) => {
       const duration =
         batch.finishesAt === null
-          ? recruitmentCost(batch.role, batch.tier, batch.count, industryLevel).minutes * 60_000
+          ? recruitmentCost(batch.role, batch.tier, batch.count, hqLevel).minutes * 60_000
           : 0;
       const finishesAt = batch.finishesAt ?? cursor + duration;
       cursor = finishesAt;
@@ -65,23 +65,21 @@ export const workshop = query({
       // "now" on every tick froze the queue's clock at its served value.
       loadedAt: now,
       nation: player.nation ?? '?',
-      industryLevel,
-      speed: industrySpeed(industryLevel),
-      tier2Unlocked: industryLevel >= TIER_2_INDUSTRY_LEVEL,
-      requiredIndustryLevel: TIER_2_INDUSTRY_LEVEL,
+      hqLevel,
+      speed: chainSpeed(hqLevel),
+      tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
+      requiredHqLevel: TIER_2_HQ_LEVEL,
       maxBatch: MAX_UNITS_PER_BATCH,
       maxQueue: MAX_QUEUED_BATCHES,
-      supply: resourceSnapshot(rows, 'supply', now),
-      steel: resourceSnapshot(rows, 'steel', now),
-      manpower: resourceSnapshot(rows, 'manpower', now),
+      alloy: snapshotOf(economy, 'alloy'),
       roster: roster.map(({ role, tier, count }) => ({ role, tier, count })),
       queue: datedQueue,
       grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
         role,
         tiers: TIERS_BY_ROLE[role],
-        unit: recruitmentCost(role, 1, 1, industryLevel),
+        unit: recruitmentCost(role, 1, 1, hqLevel),
         unitTier2:
-          TIERS_BY_ROLE[role] === 2 ? recruitmentCost(role, 2, 1, industryLevel) : null,
+          TIERS_BY_ROLE[role] === 2 ? recruitmentCost(role, 2, 1, hqLevel) : null,
       })),
     };
   },
@@ -97,22 +95,17 @@ export const recruit = mutation({
     if (count > MAX_UNITS_PER_BATCH) fail('BATCH_TOO_LARGE', { maximum: MAX_UNITS_PER_BATCH });
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
 
-    const industryLevel = await buildingLevel(ctx, player._id, 'industry');
-    if (tier === 2 && industryLevel < TIER_2_INDUSTRY_LEVEL) {
-      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_INDUSTRY_LEVEL });
+    const hqLevel = await buildingLevel(ctx, player._id, 'hq');
+    if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
+      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
     }
 
     const queue = await queueOf(ctx, player._id);
     if (queue.length >= MAX_QUEUED_BATCHES) fail('QUEUE_FULL', { maximum: MAX_QUEUED_BATCHES });
 
     const now = Date.now();
-    const cost = recruitmentCost(role, tier, count, industryLevel);
-    await debit(
-      ctx,
-      player._id,
-      { supply: cost.supply, steel: cost.steel, manpower: cost.manpower },
-      now,
-    );
+    const cost = recruitmentCost(role, tier, count, hqLevel);
+    await debit(ctx, player._id, { alloy: cost.alloy }, now);
 
     const last = queue[queue.length - 1];
     const recruitmentId = await ctx.db.insert('recruitments', {
@@ -141,14 +134,9 @@ export const cancel = mutation({
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
 
-    const industryLevel = await buildingLevel(ctx, player._id, 'industry');
-    const cost = recruitmentCost(batch.role, batch.tier, batch.count, industryLevel);
-    await credit(
-      ctx,
-      player._id,
-      { supply: cost.supply, steel: cost.steel, manpower: cost.manpower },
-      Date.now(),
-    );
+    const hqLevel = await buildingLevel(ctx, player._id, 'hq');
+    const cost = recruitmentCost(batch.role, batch.tier, batch.count, hqLevel);
+    await credit(ctx, player._id, { alloy: cost.alloy }, Date.now());
     await ctx.db.delete(recruitmentId);
     return { refunded: cost };
   },
@@ -195,8 +183,8 @@ async function startHead(
   const head = queue[0];
   if (!head || head.finishesAt !== null) return;
 
-  const industryLevel = await buildingLevel(ctx, playerId, 'industry');
-  const { minutes } = recruitmentCost(head.role, head.tier, head.count, industryLevel);
+  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
+  const { minutes } = recruitmentCost(head.role, head.tier, head.count, hqLevel);
   const finishesAt = now + minutes * 60_000;
   await ctx.db.patch(head._id, { finishesAt });
   await ctx.scheduler.runAt(finishesAt, internal.units.deliver, { recruitmentId: head._id });

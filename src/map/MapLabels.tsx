@@ -199,6 +199,11 @@ export function MapLabels({
                 register(blocks.current, label.id, node);
               }}
             >
+              {label.plate !== null && (
+                <span className="label-pictogram">
+                  <img className="label-plate" src={label.plate} alt="" />
+                </span>
+              )}
               {label.pictogram !== null && (
                 <span className="label-pictogram">
                   <Pictogram pictogram={PICTOGRAM_OF_LABEL[label.pictogram]} weight={40} size={36} />

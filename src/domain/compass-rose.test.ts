@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compassOf, type CompassTarget } from './compass-rose';
-import type { PlayerView } from './player-view';
+import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
+import type { BuildSpec, PlayerView } from './player-view';
 
 const view = {
   me: {
@@ -9,7 +10,24 @@ const view = {
     outposts: [
       { id: 'AP-01', hostCountry: 'Norway', lonLat: [0, 0], specialization: 'extraction', garrison: 4, isMine: true },
     ],
+    hqLevel: 1,
+    buildingCap: 5,
+    buildings: [],
+    // Only home ground travels in the view: a region absent from it is a region the player
+    // has no business building on, which is what the enemy-region test leans on.
+    regions: [
+      { id: 'FRA-5333', name: 'Paris', deposit: null, coastal: false, buildings: [] },
+      { id: 'FRA-9999', name: 'Nord', deposit: 'coal', coastal: true, buildings: [{ key: 'mine', level: 1 }] },
+    ],
+    construction: null,
+    resources: Object.fromEntries(
+      RESOURCES.map((key) => [key, { stock: 1000, ratePerHour: 0, cap: 1000 }]),
+    ),
   },
+  buildCatalog: Object.fromEntries(
+    BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20 }]),
+  ) as Record<BuildingKey, BuildSpec>,
+  loadedAt: 0,
   opponents: [{ nation: 'italy' }, { nation: 'ussr' }],
 } as unknown as PlayerView;
 
@@ -82,6 +100,29 @@ describe('radial menu', () => {
   it('no action carries a cost we cannot quantify', () => {
     const compass = compassOf({ kind: 'country', country: 'Spain' }, view);
     expect(compass?.actions.find((action) => action.key === 'view')?.cost).toBeNull();
+  });
+
+  it('adds the crane on one of my regions, without taking the country’s actions away', () => {
+    const compass = compassOf(
+      { kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'France' },
+      view,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['Bâtir ici', 'Voir le pays']);
+    expect(compass?.actions[0]).toMatchObject({ pictogram: 'crane', regionId: 'FRA-5333' });
+    expect(compass?.name).toBe('Paris');
+    expect(compass?.kicker).toBe('région · France');
+  });
+
+  it('withdraws the crane on an enemy region, leaving the fan as it was', () => {
+    expect(
+      labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'Italy' }),
+    ).toEqual(['Voir le pays']);
+  });
+
+  it('withdraws the crane where a building already stands — nothing can go up there', () => {
+    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'France' })).toEqual([
+      'Voir le pays',
+    ]);
   });
 
   it('an outpost points back to its host country', () => {

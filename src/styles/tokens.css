@@ -27,18 +27,31 @@
      `convex/view.ts`) because they designate a player, not a surface. Their only source is
      `INK_BY_NATION` in `src/domain/nations.ts`. */
 
-  /* resources — on dark background, then darkened for paper */
-  --supply: #b07434;
-  --steel: #8fa0b0;
-  --manpower: #8b9160;
-  --supply-paper: #8a5a24;
-  --steel-paper: #4d6376;
-  --manpower-paper: #6a7047;
+  /* The eight resources of the economy v2 — inks straight out of the plate
+     "Icônes ressources v2", then darkened for paper. The three v1 inks survive under new
+     names: bronze goes to ammunition, steel blue to ore, olive to food. */
+  --res-food: #8b9160;
+  --res-textile: #b59a83;
+  --res-coal: #7d7869;
+  --res-oil: #9184a8;
+  --res-ore: #8fa0b0;
+  --res-alloy: #aab6bf;
+  --res-ammunition: #b07434;
+  --res-bandages: #d8cbb2;
+  --res-food-paper: #6a7047;
+  --res-textile-paper: #826146;
+  --res-coal-paper: #605a49;
+  --res-oil-paper: #584973;
+  --res-ore-paper: #4d6376;
+  --res-alloy-paper: #627584;
+  --res-ammunition-paper: #8a5a24;
+  --res-bandages-paper: #836f49;
 
   /* semantic */
   --critical: #9d4638;
   --valid: #2b6b46;
   --notable: #b07434;
+  --notable-paper: #8a5a24;
   --routine: #6e6a5e;
   --interaction: #3f5a7d;
 

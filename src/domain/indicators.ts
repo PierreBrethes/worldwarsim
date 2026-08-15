@@ -1,11 +1,16 @@
 import { URGENCY_MS, isCountdown, type LabelType, type MapLabel } from './labels';
 
 /**
- * An off-screen entity does not vanish: it parks at the screen edge. The six categories are
- * exactly the six label types — an indicator invents nothing, it folds to the edge what the
- * map was showing on the ground, same pictogram, same priority.
+ * An off-screen entity does not vanish: it parks at the screen edge. The categories are
+ * exactly the label types — an indicator invents nothing, it folds to the edge what the map
+ * was showing on the ground, same pictogram, same priority.
+ *
+ * `buildings` are what stands, `constructions` what is being raised: two states of the same
+ * object, but one is an economy read on the map and the other a duration to watch. Merging
+ * them would light a crane over a foundry finished three seasons ago.
  */
 export type IndicatorCategory =
+  | 'buildings'
   | 'outposts'
   | 'constructions'
   | 'forces'
@@ -14,6 +19,7 @@ export type IndicatorCategory =
   | 'intel';
 
 export const CATEGORY_BY_TYPE: Readonly<Record<LabelType, IndicatorCategory>> = {
+  building: 'buildings',
   outpost: 'outposts',
   construction: 'constructions',
   stack: 'forces',
@@ -25,11 +31,16 @@ export const CATEGORY_BY_TYPE: Readonly<Record<LabelType, IndicatorCategory>> = 
 export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
 
 /**
- * The screen edge opens on a single category: what is coming at me. Turning everything on by
- * default would make the border a second dashboard, and red would no longer mean anything —
- * this is the only default that keeps the alert's value as an alert.
+ * The screen edge opens on a single alert category: what is coming at me. Turning everything
+ * on by default would make the border a second dashboard, and red would no longer mean
+ * anything — this is the only default that keeps the alert's value as an alert.
+ *
+ * `buildings` is the exception, and it is not one of degree: the bascule does not only fold
+ * the building to the edge, it decides whether the plate stands on the board at all. Off by
+ * default, the player's own economy would be invisible until he found the button.
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
+  buildings: true,
   outposts: false,
   constructions: false,
   forces: false,
@@ -39,6 +50,7 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
 };
 
 export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
+  'buildings',
   'outposts',
   'constructions',
   'forces',

@@ -105,7 +105,7 @@ function Workshop({ nation, token }: { nation: string; token: string }) {
               ))}
             </div>
             <span className="ml-auto text-[11.5px] text-[var(--ink-soft)]">
-              {fr.production.chainSpeed(workshop.speed.toFixed(2), workshop.industryLevel)}
+              {fr.production.chainSpeed(workshop.speed.toFixed(2), workshop.hqLevel)}
             </span>
           </div>
 
@@ -128,7 +128,7 @@ function Workshop({ nation, token }: { nation: string; token: string }) {
                     }
                     owned={workshop.roster.filter((row) => row.role === entry.role)}
                     tier2Unlocked={workshop.tier2Unlocked}
-                    requiredLevel={workshop.requiredIndustryLevel}
+                    requiredLevel={workshop.requiredHqLevel}
                     onEnqueue={() => enqueue(entry.role)}
                   />
                 ))}
@@ -178,23 +178,13 @@ type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.units.work
 function ResourceBar({ workshop }: { workshop: WorkshopView }) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-7 gap-y-2 border-b border-[rgba(42,33,24,.35)] px-4 py-[11px]">
+      {/* One stock, because one is what a unit costs today. The troops prompt gives
+          recruitment its real bill — men are a ceiling now, not a stock to spend. */}
       <StockLine
-        resource="steel"
-        stock={workshop.steel.stock}
-        ratePerHour={workshop.steel.ratePerHour}
-        cap={workshop.steel.cap}
-      />
-      <StockLine
-        resource="manpower"
-        stock={workshop.manpower.stock}
-        ratePerHour={workshop.manpower.ratePerHour}
-        cap={workshop.manpower.cap}
-      />
-      <StockLine
-        resource="supply"
-        stock={workshop.supply.stock}
-        ratePerHour={workshop.supply.ratePerHour}
-        cap={workshop.supply.cap}
+        resource="alloy"
+        stock={workshop.alloy.stock}
+        ratePerHour={workshop.alloy.ratePerHour}
+        cap={workshop.alloy.cap}
       />
       <span className="ml-auto max-w-[42ch] text-right text-[11.5px] leading-[1.4] text-[var(--ink-soft)] italic">
         {fr.production.manpowerNote}
@@ -308,8 +298,7 @@ function RoleRow({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] text-[var(--ink-soft)]">
-          <Expense resource="steel" value={cost.steel} />
-          <Expense resource="manpower" value={cost.manpower} />
+          <Expense resource="alloy" value={cost.alloy} />
           <span className="font-[var(--font-mono)] text-[11.5px]">
             {asHoursMinutes(cost.minutes)}
           </span>

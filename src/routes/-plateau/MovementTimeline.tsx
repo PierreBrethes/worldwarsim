@@ -265,7 +265,7 @@ function NextArrival({
       <span className="uppercase">{fr.timeline.nextArrival}</span>
       <span
         className="text-[14px] tracking-normal"
-        style={{ color: stalled ? 'var(--notable)' : 'var(--supply)' }}
+        style={{ color: 'var(--notable)' }}
       >
         {stalled ? '⏸ ' : ''}
         {next.estimated ? '~' : ''}
@@ -537,7 +537,7 @@ function Card({
         </span>
         <span
           className="shrink-0 font-[var(--font-mono)] text-[15px]"
-          style={{ color: stalled ? 'var(--supply-paper)' : mine ? 'var(--ink)' : ink }}
+          style={{ color: stalled ? 'var(--notable-paper)' : mine ? 'var(--ink)' : ink }}
         >
           {left === null ? '—' : `${card.estimated ? '~' : ''}${asHoursMinutesSeconds(left)}`}
         </span>
@@ -579,7 +579,7 @@ function Schedule({ card, stalled }: { card: MovementCard; stalled: boolean }) {
   return (
     <span
       className="shrink-0 font-[var(--font-mono)] text-[10.5px] tracking-[.06em]"
-      style={{ color: stalled ? 'var(--supply-paper)' : 'var(--ink-faint)' }}
+      style={{ color: stalled ? 'var(--notable-paper)' : 'var(--ink-faint)' }}
       title={stalled ? fr.timeline.stalledTitle : fr.timeline.arrivalTitle}
     >
       {stalled ? '⏸ ' : '→ '}

@@ -4,8 +4,9 @@ import { api } from '../../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel, stackLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
-import type { Building, PlayerView } from '@/domain/player-view';
+import type { Building, Cost, PlayerView } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
+import { RESOURCES } from '@/domain/ids';
 import { Flag } from '@/emblems/Flag';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { asHoursMinutes } from '@/domain/duration';
@@ -55,18 +56,27 @@ export function NationWindow({
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">
               {fr.nationSheet.buildingsHeader}
             </h2>
-            {view.me.buildings.map((building) => (
-              <BuildingRow
-                key={building.key}
-                building={building}
-                construction={view.me.construction}
-                token={token}
-                onError={setError}
-              />
-            ))}
+            {view.me.buildings.length === 0 ? (
+              <p className="mt-3 text-[12.5px] leading-[1.5] text-[var(--ink-soft)]">
+                {fr.nationSheet.nothingBuilt}
+              </p>
+            ) : (
+              view.me.buildings.map((building) => (
+                <BuildingRow
+                  key={`${building.key}-${building.regionId}`}
+                  building={building}
+                  regionName={regionName(view, building.regionId)}
+                  construction={view.me.construction}
+                  token={token}
+                  onError={setError}
+                />
+              ))
+            )}
             {view.me.construction && (
               <p className="mt-3 border border-[var(--ink)] px-3 py-2 text-[12.5px] text-[var(--ink)]">
-                {fr.nationSheet.constructionRunning}<strong>{view.me.construction.name}</strong>{fr.nationSheet.remains}
+                {fr.nationSheet.constructionRunning}
+                <strong>{view.me.construction.name}</strong>{' '}
+                {fr.nationSheet.inRegion(view.me.construction.regionName)}{fr.nationSheet.remains}
                 <span className="font-[var(--font-mono)]">
                   {asHoursMinutes(currentMinutes(view.me.construction.minutesLeft, view.loadedAt, now))}
                 </span>
@@ -93,18 +103,26 @@ export function NationWindow({
                 <span className="text-[var(--ink-soft)]">{fr.nationSheet.inTransit}</span>
                 <span className="text-right text-[var(--ink)]">{stackLabel(view.me.armyInTransit)}</span>
               </span>
-              <span className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-[6px]">
-                  <span className="flex" style={{ color: resourceColor('manpower', true) }}>
-                    <ResourceIcon resource="manpower" />
+            </div>
+
+            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
+              {fr.nationSheet.stocksHeader}
+            </h2>
+            <div className="mt-2 flex flex-col gap-[5px] text-[12.5px]">
+              {RESOURCES.map((key) => (
+                <span key={key} className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-[6px]">
+                    <span className="flex" style={{ color: resourceColor(key, true) }}>
+                      <ResourceIcon resource={key} />
+                    </span>
+                    <span className="text-[var(--ink-soft)]">{fr.resources[key]}</span>
                   </span>
-                  <span className="text-[var(--ink-soft)]">{fr.resources.manpower}</span>
+                  <span className="font-[var(--font-mono)] text-[var(--ink)]">
+                    {currentStock(view.me.resources[key], view.loadedAt, now)}
+                    {fr.nationSheet.capSuffix(view.me.resources[key].cap)}
+                  </span>
                 </span>
-                <span className="font-[var(--font-mono)] text-[var(--ink)]">
-                  {currentStock(view.me.manpower, view.loadedAt, now)}
-                  {view.me.manpower.cap !== undefined && fr.nationSheet.capSuffix(view.me.manpower.cap)}
-                </span>
-              </span>
+              ))}
             </div>
 
             <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.restHeader}</h2>
@@ -124,22 +142,51 @@ export function NationWindow({
   );
 }
 
+/**
+ * Where a building stands. **One verb per surface** (ADR 0015 and the construction brief): the
+ * map puts buildings down — that is where a place is chosen — and this window raises them and
+ * keeps track of them. The minimal construction screen that used to live here, listing every
+ * usable region with its "build" buttons, was an admitted stopgap and is gone.
+ */
+const regionName = (view: PlayerView, regionId: string): string =>
+  view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
+
+function CostLine({ cost }: { cost: Cost }) {
+  return (
+    <div className="flex items-center justify-end gap-[10px] font-[var(--font-mono)] text-[13px] font-medium text-[var(--ink)]">
+      {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
+        <span key={key} className="flex items-center gap-[4px]">
+          <span className="flex" style={{ color: resourceColor(key, true) }}>
+            <ResourceIcon resource={key} size={13} />
+          </span>
+          {cost[key]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function BuildingRow({
   building,
+  regionName,
   construction,
   token,
   onError,
 }: {
   building: Building;
+  regionName: string;
   construction: PlayerView['me']['construction'];
   token: string;
   onError: (message: string | null) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-[rgba(42,33,24,.16)] py-[9px]">
+    <div className="flex items-center gap-3 border-b border-[rgba(42,33,24,.16)] py-[7px]">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-[14px] font-semibold text-[var(--ink)]">{building.name}</span>
+          <span className="text-[11.5px] text-[var(--ink-soft)]">
+            {fr.nationSheet.inRegion(regionName)}
+          </span>
           <span className="font-[var(--font-mono)] text-[12px] text-[var(--ink-soft)]">{fr.nationSheet.level(building.level)}</span>
           {building.cappedByHq && (
             <span className="text-[10px] tracking-[.12em] text-[var(--critical)] uppercase">{fr.nationSheet.cappedByHq}</span>
@@ -148,12 +195,7 @@ function BuildingRow({
         <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">{fr.buildingEffects[building.key]}</p>
       </div>
       <div className="shrink-0 text-right text-[11.5px] text-[var(--ink-soft)]">
-        <div className="flex items-center justify-end gap-[6px] font-[var(--font-mono)] text-[14px] font-medium text-[var(--ink)]">
-          <span className="flex" style={{ color: resourceColor('supply', true) }}>
-            <ResourceIcon resource="supply" size={14} />
-          </span>
-          {building.nextLevelCost}
-        </div>
+        <CostLine cost={building.nextLevelCost} />
         <div className="font-[var(--font-mono)]">{asHoursMinutes(building.nextLevelMinutes)}</div>
       </div>
       <ConstructionButton building={building} construction={construction} token={token} onError={onError} />
@@ -187,7 +229,7 @@ function ConstructionButton({
       }
       onClick={() => {
         onError(null);
-        start({ token, building: building.key }).catch((problem: unknown) =>
+        start({ token, building: building.key, regionId: building.regionId }).catch((problem: unknown) =>
           handleError(problem, onError),
         );
       }}

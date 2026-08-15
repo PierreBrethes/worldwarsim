@@ -1,9 +1,18 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { gameCode, playableRegion } from '../src/domain/off-season';
+import { RESOURCES } from '../src/domain/ids';
+import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
-import { DEFAULT_REST_WINDOW, MAX_PLAYERS, MIN_PLAYERS_TO_LAUNCH, STARTING } from './constants';
+import { capitalRegionOf } from './regions';
+import {
+  DEFAULT_REST_WINDOW,
+  MAX_PLAYERS,
+  MIN_PLAYERS_TO_LAUNCH,
+  STARTING_STOCK,
+} from './constants';
 
 export async function playerByToken(ctx: QueryCtx, token: string) {
   const player = await ctx.db
@@ -185,35 +194,69 @@ export const launch = mutation({
       launchedAt: now,
       playableRegion: playableRegion(present.length),
     });
+    /**
+     * The starting kit, and **one building**: the headquarters, level 1, on the region of the
+     * 1940 capital (ADR 0015). Everything else is put up or does not exist — but the HQ caps
+     * every other building, so leaving it at zero made the first construction of a season
+     * forcibly the HQ, without a rule saying so and without the kit paying for it.
+     */
     for (const entry of present) {
-      await ctx.db.insert('resources', {
-        playerId: entry._id,
-        key: 'supply',
-        ...STARTING.supply,
-        updatedAt: now,
-        cap: null,
-      });
-      await ctx.db.insert('resources', {
-        playerId: entry._id,
-        key: 'steel',
-        ...STARTING.steel,
-        updatedAt: now,
-        cap: null,
-      });
-      await ctx.db.insert('resources', {
-        playerId: entry._id,
-        key: 'manpower',
-        stock: STARTING.manpower.stock,
-        ratePerHour: STARTING.manpower.ratePerHour,
-        updatedAt: now,
-        cap: STARTING.manpower.cap,
-      });
-      for (const key of ['hq', 'industry', 'logistics', 'conscription', 'listening'] as const) {
-        await ctx.db.insert('buildings', { playerId: entry._id, key, level: 1 });
+      if (!isNation(entry.nation)) fail('UNKNOWN_NATION', { nickname: entry.nickname });
+      for (const key of RESOURCES) {
+        await ctx.db.insert('resources', {
+          playerId: entry._id,
+          key,
+          stock: STARTING_STOCK[key],
+          updatedAt: now,
+        });
       }
+      await ctx.db.insert('buildings', {
+        playerId: entry._id,
+        key: 'hq',
+        regionId: capitalRegionOf(entry.nation),
+        level: 1,
+      });
     }
   },
 });
+
+/**
+ * **The founder scraps the season, for everyone.** No vote and no soft delete: a season is
+ * disposable by design (ADR 0001), and between friends the one who opened the lobby is the one
+ * who closes it. The others hold a token that no longer answers — the lobby and the board both
+ * treat that as a stale token and send them home, which is exactly what happened.
+ *
+ * Scheduled functions are not cancelled: a construction or a batch that fires afterwards finds
+ * nothing to read and returns. That is already how a cancelled batch behaves.
+ */
+export const destroy = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    if (!player.creator) fail('CREATOR_ONLY');
+
+    const present = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect();
+    for (const entry of present) {
+      await erasePlayer(ctx, entry._id);
+      await ctx.db.delete(entry._id);
+    }
+    await ctx.db.delete(season._id);
+  },
+});
+
+async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+  const owned = [
+    ...(await ctx.db.query('constructions').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db.query('recruitments').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db.query('units').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db.query('buildings').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db.query('resources').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+  ];
+  for (const doc of owned) await ctx.db.delete(doc._id);
+}
 
 async function freeCode(ctx: MutationCtx): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {

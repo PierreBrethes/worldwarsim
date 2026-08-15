@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
+import type { Grab } from './dragging';
 
 /** `static`: the panel lets a parent container stack it instead of anchoring itself. */
 type Position = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'static';
@@ -17,21 +18,38 @@ export function Panel({
   marker,
   position,
   width = 260,
+  height,
+  onGrab,
   children,
 }: {
   title: string;
   marker?: string;
   position: Position;
   width?: number;
+  /**
+   * Given, the panel stops sizing itself to its content and its body takes the remaining
+   * room. That is what a caller does once the player has dragged a corner: from then on the
+   * height is his, not the list's.
+   */
+  height?: number;
+  /** The header becomes the panel's grab zone — the only one, as for the windows. */
+  onGrab?: Grab;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
     <section
-      className={`hud paper-grain z-10 border border-[var(--ink)] ${ANCHORING[position]}`}
-      style={{ width }}
+      className={`hud paper-grain z-10 border border-[var(--ink)] ${ANCHORING[position]} ${
+        height === undefined ? '' : 'flex flex-col'
+      }`}
+      style={{ width, height: collapsed ? undefined : height }}
     >
-      <header className="flex items-center gap-2 border-b border-[var(--ink)] px-3 py-2">
+      <header
+        onPointerDown={onGrab}
+        className={`flex shrink-0 items-center gap-2 border-b border-[var(--ink)] px-3 py-2 ${
+          onGrab === undefined ? '' : 'cursor-move'
+        }`}
+      >
         <span className="eyebrow flex-1">{title}</span>
         {marker && <span className="font-[var(--font-mono)] text-[9px] text-[var(--ink-soft)]">{marker}</span>}
         <button
@@ -44,7 +62,15 @@ export function Panel({
           {collapsed ? '+' : '–'}
         </button>
       </header>
-      {!collapsed && <div className="px-3 py-[10px]">{children}</div>}
+      {!collapsed && (
+        <div
+          className={`px-3 py-[10px] ${
+            height === undefined ? '' : 'flex min-h-0 flex-1 flex-col overflow-hidden'
+          }`}
+        >
+          {children}
+        </div>
+      )}
     </section>
   );
 }

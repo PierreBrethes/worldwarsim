@@ -1,4 +1,5 @@
 import { fr, nationLabel } from '@/i18n/fr';
+import { buildOptionsAt } from './construction';
 import { NATION_BY_COUNTRY } from './nations';
 import type { MovementType } from './ids';
 import type { PlayerView } from './player-view';
@@ -10,6 +11,14 @@ import type { PlayerView } from './player-view';
  */
 export type CompassTarget =
   | { readonly kind: 'country'; readonly country: string }
+  /**
+   * The same land, aimed at up close: below the regions' fade-in threshold the right click
+   * lands on an admin-1 region rather than on the country. The id is the Natural Earth
+   * `adm1_code` — admin-1 names repeat from one country to the next, ids do not — and
+   * `country` stays the map country the region belongs to, so the country's own actions keep
+   * working underneath.
+   */
+  | { readonly kind: 'region'; readonly id: string; readonly name: string; readonly country: string }
   | { readonly kind: 'outpost'; readonly id: string; readonly hostCountry: string; readonly name: string }
   | {
       readonly kind: 'force';
@@ -48,6 +57,15 @@ export type CompassAction =
       readonly consequence: string;
       readonly destination: string | null;
       readonly type: MovementType | null;
+    }
+  | {
+      readonly key: 'build';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly regionId: string;
+      readonly regionName: string;
     };
 
 export type Compass = {
@@ -114,6 +132,25 @@ const foundOutpost = (destination: string, view: PlayerView): CompassAction => (
 });
 
 /**
+ * The crane, and the crane only where something can actually go up. **Nothing greyed out,
+ * ever**: on enemy ground or out of reach it is simply not in the fan — what a player cannot
+ * do teaches him nothing, and that is the fog's rule as much as the menu's.
+ *
+ * A ceiling reached does not withdraw it: that block is a circumstance, the panel keeps the
+ * lines and names the remedy. A crane vanishing five minutes after it was there reads as a
+ * bug, not as a rule.
+ */
+const buildOn = (target: Extract<CompassTarget, { kind: 'region' }>): CompassAction => ({
+  key: 'build',
+  pictogram: 'crane',
+  label: fr.compass.build,
+  cost: null,
+  consequence: fr.compass.buildConsequence(target.name),
+  regionId: target.id,
+  regionName: target.name,
+});
+
+/**
  * A target's compass, or `null` when no action leads anywhere — the right click then stays
  * inert rather than opening an empty fan.
  */
@@ -124,6 +161,17 @@ export function compassOf(target: CompassTarget, view: PlayerView): Compass | nu
 
 function build(target: CompassTarget, view: PlayerView): Compass {
   switch (target.kind) {
+    case 'region': {
+      // The country's fan, plus one branch. A region is the same land seen closer: taking
+      // away what the country offered would make zooming in cost the player actions.
+      const country = build({ kind: 'country', country: target.country }, view);
+      const buildable = buildOptionsAt(view, target.id, view.loadedAt).length > 0;
+      return {
+        kicker: fr.compass.region(country.name),
+        name: target.name,
+        actions: [...(buildable ? [buildOn(target)] : []), ...country.actions],
+      };
+    }
     case 'country': {
       const allegiance = countryAllegiance(target.country, view);
       const held = view.me.outposts.some((outpost) => outpost.hostCountry === target.country);

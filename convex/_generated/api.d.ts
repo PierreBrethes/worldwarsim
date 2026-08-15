@@ -11,8 +11,10 @@
 import type * as buildings from "../buildings.js";
 import type * as constants from "../constants.js";
 import type * as constructions from "../constructions.js";
+import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as players from "../players.js";
+import type * as regions from "../regions.js";
 import type * as resources from "../resources.js";
 import type * as seasons from "../seasons.js";
 import type * as units from "../units.js";
@@ -29,8 +31,10 @@ declare const fullApi: ApiFromModules<{
   buildings: typeof buildings;
   constants: typeof constants;
   constructions: typeof constructions;
+  dev: typeof dev;
   errors: typeof errors;
   players: typeof players;
+  regions: typeof regions;
   resources: typeof resources;
   seasons: typeof seasons;
   units: typeof units;

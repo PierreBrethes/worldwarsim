@@ -1,10 +1,16 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
+import { STARTING_STOCK, buildCost } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
+
+/** Moselle: French, inland, and a coal deposit — enough to build anything the tests raise. */
+const MOSELLE = 'FRA-5328';
+/** Paris: where the headquarters of France stands from the first minute (ADR 0015). */
+const PARIS = 'FRA-5333';
 
 async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
@@ -105,15 +111,20 @@ describe('launching', () => {
     await expect(t.mutation(api.seasons.launch, { token: creator })).rejects.toThrow('PLAYERS_NOT_READY');
   });
 
-  it('initializes resources and buildings, and freezes the region', async () => {
+  it('hands out the starting kit, plants the headquarters, and freezes the region', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
     const view = await t.query(api.view.playerView, { token: creator });
     expect(view.me.nation).toBe('france');
-    expect(view.me.supply.stock).toBe(500);
-    expect(view.me.buildings).toHaveLength(5);
+    expect(view.me.resources.alloy.stock).toBe(STARTING_STOCK.alloy);
+    // One building and one only: the headquarters on the capital (ADR 0015).
+    expect(view.me.buildings).toEqual([
+      expect.objectContaining({ key: 'hq', regionId: PARIS, level: 1 }),
+    ]);
     expect(view.me.slots).toEqual({ total: 2, used: 0 });
+    // The home regions that carry a deposit, and only those.
+    expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
     expect(view.season.playableRegion).toBe('europe');
     expect(view.opponents).toHaveLength(1);
     expect(view.opponents[0]).not.toHaveProperty('doctrine');
@@ -124,22 +135,17 @@ describe('lazy accrual', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('credits resources over time with no tick', async () => {
+  /** Nothing is extracted without an exploitation building: the rate comes from the map, not
+   *  from a stored number, and an empty map produces nothing. What a farm changes is in
+   *  `economy.test.ts`. */
+  it('leaves the stocks alone as long as nothing is built', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
     vi.advanceTimersByTime(2 * 3_600_000);
     const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.supply.stock).toBe(500 + 240);
-  });
-
-  it('caps manpower', async () => {
-    const t = boot();
-    const { creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, { token: creator });
-    vi.advanceTimersByTime(100 * 3_600_000);
-    const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.manpower.stock).toBe(120);
+    expect(view.me.resources.food.stock).toBe(STARTING_STOCK.food);
+    expect(view.me.resources.food.ratePerHour).toBe(0);
   });
 });
 
@@ -147,33 +153,49 @@ describe('constructions', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('debits supply, raises the level in time, one at a time', async () => {
+  it('debits the materials, raises the building in time, one construction at a time', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
-    vi.advanceTimersByTime(3_600_000);
 
-    await t.mutation(api.constructions.start, { token: creator, building: 'hq' });
+    const opening = await t.query(api.view.playerView, { token: creator });
+    await t.mutation(api.constructions.start, {
+      token: creator,
+      building: 'mine',
+      regionId: MOSELLE,
+    });
     await expect(
-      t.mutation(api.constructions.start, { token: creator, building: 'logistics' }),
+      t.mutation(api.constructions.start, { token: creator, building: 'hq', regionId: PARIS }),
     ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
 
     const before = await t.query(api.view.playerView, { token: creator });
-    expect(before.me.construction?.name).toBe('hq');
+    expect(before.me.construction?.name).toBe('mine');
+    expect(before.me.resources.alloy.stock).toBe(
+      opening.me.resources.alloy.stock - (buildCost('mine', 1).alloy ?? 0),
+    );
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const after = await t.query(api.view.playerView, { token: creator });
     expect(after.me.construction).toBeNull();
-    expect(after.me.buildings.find((building) => building.key === 'hq')?.level).toBe(2);
+    expect(after.me.buildings).toContainEqual(
+      expect.objectContaining({ key: 'mine', regionId: MOSELLE, level: 1 }),
+    );
   });
 
-  it('refuses to exceed the HQ level', async () => {
+  /** Nothing rises above the headquarters. The rule used to make the HQ the first building of
+   *  a season; now that it stands from the launch, what it governs is the second level. */
+  it('refuses to raise a building above the headquarters', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
-    vi.advanceTimersByTime(10 * 3_600_000);
+    await t.mutation(api.constructions.start, {
+      token: creator,
+      building: 'mine',
+      regionId: MOSELLE,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
     await expect(
-      t.mutation(api.constructions.start, { token: creator, building: 'logistics' }),
+      t.mutation(api.constructions.start, { token: creator, building: 'mine', regionId: MOSELLE }),
     ).rejects.toThrow('CAPPED_BY_HQ');
   });
 });
@@ -226,5 +248,29 @@ describe('rest window', () => {
     await expect(
       t.mutation(api.players.setRestWindow, { token: creator, startMinutes: 3 * 60 }),
     ).rejects.toThrow('REST_WINDOW_FROZEN');
+  });
+});
+
+describe('scrapping a season', () => {
+  it('belongs to the founder and leaves nothing behind', async () => {
+    const t = boot();
+    const { creator, guest } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    await expect(t.mutation(api.seasons.destroy, { token: guest })).rejects.toThrow('CREATOR_ONLY');
+    await t.mutation(api.seasons.destroy, { token: creator });
+
+    // Both tokens answer nothing any more — which is what sends every player home.
+    await expect(t.query(api.seasons.lobby, { token: creator })).rejects.toThrow('UNKNOWN_TOKEN');
+    await expect(t.query(api.seasons.lobby, { token: guest })).rejects.toThrow('UNKNOWN_TOKEN');
+    expect(await t.query(api.seasons.preview, { token: guest })).toBeNull();
+
+    const left = await t.run(async (ctx) => ({
+      seasons: (await ctx.db.query('seasons').collect()).length,
+      players: (await ctx.db.query('players').collect()).length,
+      buildings: (await ctx.db.query('buildings').collect()).length,
+      resources: (await ctx.db.query('resources').collect()).length,
+    }));
+    expect(left).toEqual({ seasons: 0, players: 0, buildings: 0, resources: 0 });
   });
 });

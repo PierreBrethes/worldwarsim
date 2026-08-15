@@ -1,4 +1,10 @@
-# Sprites d'unités — pipeline
+# Sprites — pipeline
+
+Deux jeux d'assets passent par cette chaîne : les **unités**, une planche par nation, et les
+**bâtiments**, une planche unique de quinze visuels neutres. Les sections 1 à 6 décrivent les
+unités ; la section 7 dit ce que les bâtiments font différemment, et pourquoi.
+
+## Unités
 
 Une planche de **onze visuels** par nation, huit nations. **La France et le Royaume-Uni sont
 faits** ; les six autres suivent ce document. L'enjeu n'est pas la beauté d'un sprite isolé :
@@ -169,3 +175,115 @@ test `manifest.test.ts` vérifie la couverture et les paliers.
 
 `UnitSprite` rend un cadre pointillé portant le libellé du rôle quand le visuel est `null`,
 jamais une image cassée : une nation à moitié dessinée est jouable.
+
+---
+
+## 7. Bâtiments
+
+**Quinze visuels, pas cent vingt.** Un par `BuildingKey` de `src/domain/ids.ts`, **neutres**,
+teintés à l'encre nationale **à l'affichage**. Une caserne à pagode pour le Japon serait belle
+et coûterait huit planches, pour un sujet haut de deux centimètres à l'écran.
+
+```
+airfield  arsenal  barracks  billets  depot  farm  foundry  hq
+listening  mill  mine  oilWell  port  quartermaster  warehouse
+```
+
+```
+WWS/sprites/buildings/            les sources — PNG détourés, 1024², pleine résolution
+WWS/sprites/buildings_clean/      le nettoyé, plus echelles.json
+src/emblems/buildings/            l'optimisé — WebP recadrés et mis à l'échelle
+src/emblems/buildings/manifest.ts la table typée, un Record<BuildingKey, …> complet
+```
+
+### Gabarit
+
+Le même que les unités — trois-quarts à ~60°, lumière haut-gauche, fond `#4a7060`, **1024 ×
+1024**, sujet seul — avec une exigence de plus :
+
+**Posé sur le sol, pas flottant.** Le point d'ancrage à l'affichage est la **base** du
+bâtiment, pas son centre : le billboard porte sa géométrie décalée d'une demi-hauteur
+(`engine/buildings.ts`). C'est ce qui décide s'il a l'air planté ou collé.
+
+### L'ombre est opaque ici, et c'est un piège
+
+Sur les planches de bâtiments, l'ombre portée a été rendue **opaque** — mesurée à `alpha =
+254`. Le critère historique de `nettoyer-ombres.py` filtrait sur `alpha < 235` : il passait à
+côté à 100 %.
+
+Pire, **la couleur ne sépare pas** l'ombre du sujet. Mesuré : l'ombre du `port` (valeur 0,28,
+saturation 0,10) et le toit du même `port` (0,31 / 0,15) sont indiscernables. Ce qui les
+sépare, c'est la **matière** — une ombre est un aplat, un toit est texturé. Le second critère
+du script est donc *sombre, peu saturé et **lisse***, décidé **par région connexe** et non par
+pixel : ombres mesurées à 2 457–39 421 px pour une texture de 0,44 à 0,97 ; faux positifs
+(cuves du `depot`, bardage du `warehouse`) 1 911 px au plus pour une texture ≥ 1,14.
+
+Deux effets de bord réglés dans le script, qui se reproduiront sur toute planche du même
+rendu :
+
+- la **pénombre** borde l'ombre d'un dégradé de quelques pixels. Retirer l'ombre sans elle
+  laisse son *contour* dessiné sur le papier — pire que l'ombre ;
+- le liseré d'anticrénelage est **noir** ici, ce qui en fait la texture la plus forte de la
+  planche si on la mesure sans masque : l'ombre s'en trouve ceinturée de fausse matière.
+
+```bash
+python WWS/sprites/nettoyer-ombres.py --source WWS/sprites/buildings \
+                                      --destination WWS/sprites/buildings_clean \
+                                      --controle /tmp/controle
+```
+
+**`--controle` écrit la planche composée sur `neutralLand: #d5c5a0`** — le seul fond où une
+ombre se voit. Changer un seuil sans regarder cette sortie est un pari.
+
+### Sujets ajourés : clé chromatique, pas remplissage
+
+`oilWell` a demandé un traitement à part : le fond était **enclavé entre les barres du
+treillis**, ce qu'aucun détourage par remplissage depuis les bords n'atteint. Pour tout sujet
+ajouré — derrick, pylône, grue, antenne — le détourage doit être une **clé chromatique
+globale**, appliquée à toute l'image, jamais un remplissage propagé depuis l'extérieur.
+
+### L'échelle est une décision, pas un reste de cadrage
+
+Les planches ont été générées une par une : le sujet y occupe de **21,5 % à 57,7 %** du cadre
+selon la planche. Réduites toutes à la même largeur, un entrepôt cadré serré et une fonderie
+cadrée large sortiraient de la même taille — et la hiérarchie de la carte viendrait d'un
+accident de cadrage. C'est le piège de l'[ADR 0015](../docs/adr/0015-economie-v2-ressources-localisees.md)
+sur les quantités comptées en régions, transposé aux pixels.
+
+`optimiser.py` recadre donc sur la **boîte englobante alpha**, puis met à l'échelle **par la
+hauteur** — pas par la largeur : le point d'ancrage étant la base, c'est la hauteur qui décide
+de la présence à l'écran. La table vit dans `buildings_clean/echelles.json`, même mécanique que
+le `noms.json` des unités, `1,00` valant `HAUTEUR_REFERENCE = 512 px`.
+
+| clé | échelle | | clé | échelle |
+|---|---|---|---|---|
+| `hq` | 1,00 | | `arsenal` | 0,75 |
+| `foundry` | 0,90 | | `farm` | 0,70 |
+| `port` | 0,90 | | `warehouse` | 0,70 |
+| `mill` | 0,85 | | `quartermaster` | 0,70 |
+| `barracks` | 0,85 | | `depot` | 0,60 |
+| `mine` | 0,80 | | `billets` | 0,55 |
+| `airfield` | 0,80 | | `listening` | 0,50 |
+| `oilWell` | 0,75 | | | |
+
+**Une clé absente d'`echelles.json` arrête le script en la nommant.** Un repli silencieux à
+`1,0` redonnerait le défaut qu'on corrige, en pire : invisible.
+
+```bash
+python WWS/sprites/optimiser.py --source WWS/sprites/buildings_clean \
+                                --destination src/emblems/buildings
+```
+
+Mesuré : 5,5 Mo de PNG → **460 Ko** de WebP, 15 à 42 Ko par bâtiment.
+
+### Le manifeste et la teinte
+
+`BUILDING_SPRITES` est un `Record<BuildingKey, string | null>` **complet** : une clé ajoutée au
+domaine sans planche casse la compilation au lieu de casser l'affichage, et une absence s'écrit
+`null` — explicitement, jamais par omission. `manifest.test.ts` vérifie la couverture et
+qu'aucune clé ne partage la planche d'une autre.
+
+L'encre nationale est une passe d'affichage, comme le filtre encre des unités (§5) : la
+planche reste neutre sur le disque et `engine/buildings.ts` multiplie la texture par l'encre
+**relevée vers le blanc** — les encres sont sombres par construction, faites pour s'aplatir sur
+du papier, et un produit direct noierait la planche.

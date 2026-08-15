@@ -43,6 +43,7 @@ function ConnectedLobby({ token }: { token: string }) {
   const chooseDoctrine = useMutation(api.players.chooseDoctrine);
   const declareReady = useMutation(api.players.declareReady);
   const launch = useMutation(api.seasons.launch);
+  const destroy = useMutation(api.seasons.destroy);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -329,6 +330,15 @@ function ConnectedLobby({ token }: { token: string }) {
                   <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
                     {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
                   </p>
+                  <DestroyButton
+                    onDestroy={() =>
+                      act(async () => {
+                        await destroy({ token });
+                        forgetToken();
+                        turn(() => void navigate({ to: '/accueil' }));
+                      })
+                    }
+                  />
                 </>
               ) : (
                 <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-faint)]">
@@ -361,6 +371,47 @@ function ConnectedLobby({ token }: { token: string }) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * Two clicks, and the second one is not the same button: destroying a season takes everyone's
+ * game away, and a misclick next to "launch" would be the worst possible one. The cancel sits
+ * where the first click was, so the reflex click lands on it.
+ */
+function DestroyButton({ onDestroy }: { onDestroy: () => void }) {
+  const [armed, setArmed] = useState(false);
+
+  if (!armed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setArmed(true)}
+        className="mt-[10px] w-full cursor-pointer border border-[rgba(42,33,24,.3)] p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-faint)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
+      >
+        {fr.lobby.destroy}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-[10px] flex flex-col gap-[6px]">
+      <button
+        type="button"
+        onClick={() => setArmed(false)}
+        className="w-full cursor-pointer border border-[var(--ink)] p-[9px] text-[10px] tracking-[.2em] uppercase hover:bg-[rgba(42,33,24,.08)]"
+      >
+        {fr.lobby.destroyCancel}
+      </button>
+      <button
+        type="button"
+        onClick={onDestroy}
+        className="w-full cursor-pointer border border-[var(--critical)] bg-[var(--critical)] p-[9px] text-[10px] tracking-[.2em] text-[var(--paper)] uppercase"
+      >
+        {fr.lobby.destroyConfirm}
+      </button>
+      <p className="text-center text-[10.5px] text-[var(--critical)]">{fr.lobby.destroyNote}</p>
+    </div>
   );
 }
 

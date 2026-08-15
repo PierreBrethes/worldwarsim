@@ -1,7 +1,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
-import { recruitmentCost } from './constants';
+import { STARTING_STOCK, recruitmentCost } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -24,8 +24,9 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   return token;
 }
 
-/** Extraction outposts do not exist: without this nudge, nothing is producible. */
-async function creditSteel(t: ReturnType<typeof boot>, token: string, stock: number) {
+/** A fresh nation holds the starting kit and nothing more; the recruitment tests need a
+ *  foundry's worth of alloy without spending the season building one. */
+async function creditAlloy(t: ReturnType<typeof boot>, token: string, stock: number) {
   await t.run(async (ctx) => {
     const player = await ctx.db
       .query('players')
@@ -36,9 +37,9 @@ async function creditSteel(t: ReturnType<typeof boot>, token: string, stock: num
       .query('resources')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect();
-    const steel = rows.find((row) => row.key === 'steel');
-    if (!steel) throw new Error('steel row missing');
-    await ctx.db.patch(steel._id, { stock, updatedAt: Date.now() });
+    const alloy = rows.find((row) => row.key === 'alloy');
+    if (!alloy) throw new Error('alloy row missing');
+    await ctx.db.patch(alloy._id, { stock, updatedAt: Date.now() });
   });
 }
 
@@ -46,7 +47,7 @@ describe('production queue', () => {
   it('only starts the head batch and leaves the followers waiting', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    await creditSteel(t, token, 2000);
+    await creditAlloy(t, token, 2000);
 
     await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 2 });
     await t.mutation(api.units.recruit, { token, role: 'armor', tier: 1, count: 1 });
@@ -68,7 +69,7 @@ describe('production queue', () => {
     try {
       const t = boot();
       const token = await launchedSeason(t);
-      await creditSteel(t, token, 2000);
+      await creditAlloy(t, token, 2000);
       await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 2 });
       await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 3 });
 
@@ -88,14 +89,14 @@ describe('production queue', () => {
   it('refunds a waiting batch and refuses to cancel the one that started', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    await creditSteel(t, token, 2000);
+    await creditAlloy(t, token, 2000);
     await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 1 });
     await t.mutation(api.units.recruit, { token, role: 'armor', tier: 1, count: 2 });
 
     const before = await t.query(api.units.workshop, { token });
     const inChain = before.queue[0]!;
     const waiting = before.queue[1]!;
-    const cost = recruitmentCost('armor', 1, 2, before.industryLevel);
+    const cost = recruitmentCost('armor', 1, 2, before.hqLevel);
 
     await expect(
       t.mutation(api.units.cancel, { token, recruitmentId: inChain.id }),
@@ -105,48 +106,13 @@ describe('production queue', () => {
 
     const after = await t.query(api.units.workshop, { token });
     expect(after.queue).toHaveLength(1);
-    expect(after.steel.stock).toBe(before.steel.stock + cost.steel);
-    expect(after.manpower.stock).toBe(before.manpower.stock + cost.manpower);
+    expect(after.alloy.stock).toBe(before.alloy.stock + cost.alloy);
   });
 
-  it('clips the manpower refund at the conscription cap', async () => {
+  it('rejects a missing tier and tier 2 without the headquarters level', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    await creditSteel(t, token, 2000);
-    await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 1 });
-    const order = await t.mutation(api.units.recruit, {
-      token,
-      role: 'infantry',
-      tier: 1,
-      count: 1,
-    });
-
-    await t.run(async (ctx) => {
-      const player = await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique();
-      if (!player) throw new Error('player not found');
-      const rows = await ctx.db
-        .query('resources')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-        .collect();
-      const manpower = rows.find((row) => row.key === 'manpower');
-      if (!manpower?.cap) throw new Error('cap missing');
-      await ctx.db.patch(manpower._id, { stock: manpower.cap, updatedAt: Date.now() });
-    });
-
-    await t.mutation(api.units.cancel, { token, recruitmentId: order.recruitmentId });
-
-    const after = await t.query(api.units.workshop, { token });
-    expect(after.manpower.cap).not.toBeNull();
-    expect(after.manpower.stock).toBe(after.manpower.cap);
-  });
-
-  it('rejects a missing tier and tier 2 without the industrial complex', async () => {
-    const t = boot();
-    const token = await launchedSeason(t);
-    await creditSteel(t, token, 2000);
+    await creditAlloy(t, token, 2000);
 
     await expect(
       t.mutation(api.units.recruit, { token, role: 'infantry', tier: 2, count: 1 }),
@@ -160,18 +126,20 @@ describe('production queue', () => {
   });
 
   /**
-   * A unit is bought with steel, and steel only comes from extraction outposts, which do not
-   * exist yet: a fresh nation can therefore produce nothing at all.
+   * The reverse of what this file used to record. Steel came from extraction outposts that do
+   * not exist, so a fresh nation could produce nothing at all; the starting kit now carries
+   * an advance of alloy, and the first light troops are affordable on the first minute.
    */
-  it('leaves a fresh nation unable to produce anything', async () => {
+  it('lets a fresh nation produce its first troops out of the starting kit', async () => {
     const t = boot();
     const token = await launchedSeason(t);
     const workshop = await t.query(api.units.workshop, { token });
 
-    expect(workshop.steel.stock).toBe(0);
-    expect(workshop.grid.every((entry) => entry.unit.steel > 0)).toBe(true);
-    await expect(
-      t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 1 }),
-    ).rejects.toThrow('INSUFFICIENT_RESOURCE');
+    expect(workshop.alloy.stock).toBe(STARTING_STOCK.alloy);
+    expect(workshop.grid.every((entry) => entry.unit.alloy > 0)).toBe(true);
+    await t.mutation(api.units.recruit, { token, role: 'infantry', tier: 1, count: 1 });
+
+    const after = await t.query(api.units.workshop, { token });
+    expect(after.queue).toHaveLength(1);
   });
 });

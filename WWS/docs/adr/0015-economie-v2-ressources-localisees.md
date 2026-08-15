@@ -33,11 +33,15 @@ sont décoratifs : le stock ne connaît que les huit types réels. **Les hommes 
 une ressource** : une unité coûte des matières ; l'armée a un plafond d'hommes porté par
 les casernements.
 
-**Le parc de quatorze bâtiments**, tel que la proposition le fixe : QG (unique, chez
+**Le parc de quinze bâtiments**, tel que la proposition le fixe : QG (unique, chez
 soi, porte les slots et la recherche) ; ferme, filature, mine (charbon *ou* minerais
 selon le gisement), puits de pétrole ; fonderie, arsenal, intendance ; caserne,
 aérodrome, port ; station d'écoute ; casernements ; entrepôt (se pille) et dépôt
 (explose).
+
+> **Correction du 15/08** : cette ADR, la proposition dont elle est issue et la fiche 02
+> annonçaient toutes « quatorze » avant d'en lister quinze. Une erreur d'arithmétique
+> recopiée quatre fois. C'est la table qui fait foi, jamais le compte.
 
 **Tout bâtiment se pose sur une région.** L'ADR 0013 avait laissé l'économie au niveau
 de la nation ; cette portée est révisée : l'économie descend aussi. Un bâtiment
@@ -139,6 +143,117 @@ le motif universel de sortir de chez soi, et chaque nation a sa façon d'aller l
 le porte-avions japonais, la Guerre éclair allemande, le rayon impérial français, Mare
 Nostrum italien. Ne pas « varier les manques » pour la variété : ce serait casser la colonne
 vertébrale du système d'expansion.
+
+## Révision du 15/08 — deux règles que l'implémentation a mises au jour
+
+Écrire le back a révélé deux trous que l'ADR laissait, chacun découvert par un refus du code
+plutôt que par une relecture.
+
+### Le quartier général existe au lancement
+
+Depuis que « niveau 1 est le plancher » a disparu, un bâtiment absent est au niveau 0. Or le QG
+plafonne tous les autres : à zéro, il les bloque tous. **Le premier chantier d'une saison était
+donc forcément le QG, sans qu'aucune règle ne le dise** — une règle émergente, invisible dans la
+doc, et que le kit de départ ne payait même pas.
+
+**Décision : le QG est posé au niveau 1 au lancement**, sur la région de la capitale nationale.
+Une nation a une capitale, elle ne la construit pas. C'est la seule exception au principe « un
+bâtiment se construit ou n'existe pas », et elle est explicite plutôt qu'émergente.
+
+Conséquence agréable : le QG a une adresse connue de tous. Bombarder la capitale adverse devient
+une frappe sur son commandement, ses slots et sa recherche — pas sur un bâtiment abstrait.
+
+*Non retenu pour l'instant* : laisser le joueur choisir la région de son QG au salon. C'est une
+vraie décision — près des gisements ou loin du front — mais elle appartient à la surface
+hors-saison, pas à celle-ci.
+
+**Ce que cette décision crée, et qu'il faudra tenir** : le QG devient la cible la plus rentable du
+jeu, connue de tous dès la première minute. Il porte les slots de mouvement *et* la recherche, et
+son adresse est publique. Un raid réussi sur une capitale ne coûte donc pas des ressources — il
+coûte la **capacité d'agir**, ce qui touche directement la règle n°3 du projet : un joueur écrasé
+reste nuisible, jamais éliminé. Le plancher d'un slot empêche la paralysie totale, mais un joueur
+à un slot ne joue plus.
+
+Rien n'est tranché ici parce que le combat n'est pas écrit. La question est posée dans
+[QUESTIONS.md](../../QUESTIONS.md) avec la piste la plus cohérente : le QG se **désactive**, il ne
+se détruit pas et son niveau ne redescend jamais — le même vocabulaire que les avant-postes, pour
+la même raison.
+
+### Une bâtisse par région — et la règle qui en découle
+
+**Décision : une région ne porte qu'un seul bâtiment.** Sans cette limite, rien n'empêche
+d'empiler les quinze au même endroit : la géographie s'arrête aux gisements, le territoire n'est
+pas une ressource, et l'économie entière tient sur un point unique — donc impossible à raider
+utilement.
+
+Avec elle, un territoire devient **fini**, chaque pose coûte une alternative, et l'économie
+s'étale sur la carte, donc s'expose. Propriété émergente qu'on n'a pas eu à écrire : un gisement
+occupant déjà sa région, **la mine et la fonderie ne peuvent plus cohabiter**. L'extraction et la
+transformation se séparent géographiquement toutes seules, et une logistique interne apparaît
+sans qu'aucun convoi n'ait été codé.
+
+**Mais une bâtisse par région est une règle de placement, jamais un plafond.** Comptées sur
+Natural Earth, les huit nations jouables ont : Royaume-Uni 232 régions, Italie 110, France 101,
+URSS 85, États-Unis 51, Japon 47, Chine 32, **Allemagne 16**. Un écart de **14,5×**. Si la région
+était l'emplacement qui plafonne, l'Allemagne aurait un plafond économique quatorze fois plus bas
+que le Royaume-Uni — et elle ne pourrait même pas poser un exemplaire de chaque bâtiment.
+
+Ces nombres ne disent rien des pays : ils disent que Natural Earth compte le Royaume-Uni en
+districts, l'Allemagne en Länder et l'Italie en provinces. Même jeu de données, granularités
+incomparables.
+
+**Le plafond est donc global et indexé sur le QG**, et il doit rester **strictement inférieur à
+16** pour qu'aucune nation ne touche jamais son plafond régional. La contrainte réelle reste le
+temps et les matières, identiques pour tous.
+
+### Le niveau maximal du QG borne tout le jeu
+
+L'implémentation a mis au jour une décision que l'ADR impliquait sans la nommer : **sans niveau de
+QG maximal, le plafond de bâtiments croît sans fin et le garde-fou est incalculable.**
+`MAX_HQ_LEVEL = 5` est donc posé, et **appliqué** — un maximum non appliqué aurait rendu le test
+fictif.
+
+Ce nombre n'est pas un détail de constante : puisque le QG est l'unique étranglement, son niveau
+maximal est le plafond de **tout** :
+
+| Ce qu'il borne | Valeur au maximum |
+|---|---|
+| slots de mouvement (`1 + niveau`) | **6** |
+| niveau de n'importe quel autre bâtiment (`cappedByHq`) | **5** |
+| nombre de bâtiments (`3 + 2 × niveau`) | **13** |
+
+C'est cohérent — c'est même l'expression la plus pure de « le QG est l'unique étranglement » — mais
+ça veut dire qu'**un seul nombre décide de l'ampleur d'une saison**. Il appartient au simulateur,
+pas à l'intuition.
+
+**Ce que le plafond ne corrige pas.** Il égalise le *plafond* économique entre nations, pas la
+*liberté de placement* : treize bâtiments à poser dans les 101 régions françaises est un choix,
+treize dans les seize régions allemandes n'en est presque plus un. Le plafond règle l'ampleur, pas
+la marge de manœuvre. À mesurer.
+
+### La règle générale : aucune quantité de jeu ne se compte en régions
+
+C'est la troisième fois que la même erreur se présente sous un déguisement différent — un chantier
+par région, puis un bâtiment par région, et elle reviendra. Elle se formule une fois :
+
+> **Aucune quantité de jeu ne se compte en régions. Le quartier général est l'unique étranglement.**
+
+Les slots de mouvement sont indexés sur le QG. Le plafond de chantiers, s'il se relâche un jour, le
+sera. Le plafond de bâtiments l'est. Une région est un **lieu**, jamais un **compteur** : le
+découpage administratif d'un fournisseur de données cartographiques n'a pas à équilibrer une
+saison.
+
+### Un chantier à la fois par joueur, jamais par région
+
+Le prompt d'implémentation proposait « un chantier par région ». Le compte des régions admin-1 par
+nation le condamne : **9 pour la Bolivie, 51 pour les États-Unis, 101 pour la France, 232 pour le
+Royaume-Uni**. Ce n'est pas une accélération d'un facteur deux ou trois, c'est un multiplicateur
+qui varie d'un ordre de grandeur d'une nation à l'autre — un déséquilibre national gratuit, offert
+par le découpage administratif de Natural Earth, qui n'a rien à faire dans une règle de jeu.
+
+**Décision : un chantier à la fois par joueur.** Le jour où ce plafond serrera trop, le régulateur
+cohérent est un **plafond global indexé sur le QG**, comme les slots de mouvement — la même
+mécanique, le même bâtiment, une seule idée à retenir. Jamais un compteur par région.
 
 ## Un principe qui sort de là : l'isolement se paie en rareté
 

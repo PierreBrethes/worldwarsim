@@ -33,6 +33,23 @@ export const COUNTRY_BY_NATION: Readonly<Record<Nation, string>> = {
   china: 'China',
 };
 
+/**
+ * The Natural Earth `adm0_a3` of each nation — the code `regions.json` and `deposits.json`
+ * key a region by. `COUNTRY_BY_NATION` above names the same country in English, because
+ * `world.json` keys on the name. Two files, two keys, and no way to compare one to the other:
+ * that is the bug ADR 0016 was written after.
+ */
+export const ADM0_BY_NATION: Readonly<Record<Nation, string>> = {
+  france: 'FRA',
+  uk: 'GBR',
+  usa: 'USA',
+  ussr: 'RUS',
+  germany: 'DEU',
+  japan: 'JPN',
+  italy: 'ITA',
+  china: 'CHN',
+};
+
 export const NATION_BY_COUNTRY: ReadonlyMap<string, Nation> = new Map(
   (Object.entries(COUNTRY_BY_NATION) as ReadonlyArray<[Nation, string]>).map(
     ([nation, country]) => [country, nation],

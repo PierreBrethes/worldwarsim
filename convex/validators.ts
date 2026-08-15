@@ -26,16 +26,31 @@ export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
 export const BUILDING_KEY = v.union(
   v.literal('hq'),
-  v.literal('industry'),
-  v.literal('logistics'),
-  v.literal('conscription'),
+  v.literal('farm'),
+  v.literal('mill'),
+  v.literal('mine'),
+  v.literal('oilWell'),
+  v.literal('foundry'),
+  v.literal('arsenal'),
+  v.literal('quartermaster'),
+  v.literal('barracks'),
+  v.literal('airfield'),
+  v.literal('port'),
   v.literal('listening'),
+  v.literal('billets'),
+  v.literal('warehouse'),
+  v.literal('depot'),
 );
 
 export const RESOURCE_KEY = v.union(
-  v.literal('supply'),
-  v.literal('steel'),
-  v.literal('manpower'),
+  v.literal('food'),
+  v.literal('textile'),
+  v.literal('coal'),
+  v.literal('oil'),
+  v.literal('ore'),
+  v.literal('alloy'),
+  v.literal('ammunition'),
+  v.literal('bandages'),
 );
 
 export const DOCTRINE = v.union(

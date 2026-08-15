@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { URGENCY_MS, type MapLabel } from './labels';
 import {
+  CATEGORIES,
   CATEGORY_BY_TYPE,
   DEFAULT_TOGGLES,
   EDGE_MARGIN,
@@ -32,6 +33,7 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   anchor: { kind: 'movementHead', arc: 'mv-1' },
   ink: null,
   pictogram: null,
+  plate: null,
   lines: [],
   identified: false,
   offensive: false,
@@ -41,14 +43,17 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
 });
 
 describe('toggles', () => {
-  it('only lights inbound on first load', () => {
+  // Buildings sit apart: the bascule governs the board itself, so lighting it costs the edge
+  // nothing and hiding it would cost the player his own economy.
+  it('only lights inbound and buildings on first load', () => {
     expect(Object.entries(DEFAULT_TOGGLES).filter(([, on]) => on)).toEqual([
+      ['buildings', true],
       ['inbound', true],
     ]);
   });
 
-  it('gives a category to each of the six label types', () => {
-    expect(new Set(Object.values(CATEGORY_BY_TYPE)).size).toBe(6);
+  it('gives a category to each label type', () => {
+    expect(new Set(Object.values(CATEGORY_BY_TYPE)).size).toBe(CATEGORIES.length);
   });
 });
 

@@ -43,6 +43,17 @@ prend définitivement la tête qu'à 90 % de la saison.
 
 ## 🟠 Structurantes
 
+**Que devient un quartier général frappé ?** Depuis la révision du 15/08 de l'[ADR 0015](docs/adr/0015-economie-v2-ressources-localisees.md),
+le QG est posé au lancement sur la région de la capitale — donc son **adresse est publique dès la
+première minute**, pour tout le monde. Or il porte les slots de mouvement *et* la recherche. Un raid
+réussi sur une capitale ne prend pas des ressources, il prend la **capacité d'agir** : c'est
+frontalement la règle n°3 (un joueur écrasé reste nuisible, jamais éliminé). Le plancher d'un slot
+évite la paralysie totale, mais un joueur à un slot ne joue plus.
+
+*Piste la plus cohérente, non tranchée* : le QG se **désactive** temporairement, il ne se détruit
+pas et son niveau ne redescend jamais — même vocabulaire que les avant-postes, même raison. À
+trancher avant d'écrire le raid, pas après.
+
 **La soupape anti-élimination des bâtiments de projection.** L'ADR 0013 fait dépendre chaque
 domaine d'un bâtiment : sans port, pas de départ maritime. Si perdre ses ports ferme un domaine
 entier, un joueur peut se retrouver enfermé chez lui — ce qui heurte la promesse qu'aucun joueur

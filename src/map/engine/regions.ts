@@ -5,15 +5,16 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
+  MeshStandardMaterial,
   Shape,
   ShapeGeometry,
+  Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { regionType, type DisplayedRegion, type RegionsData } from '@/domain/world';
 import type { RegionType } from '@/domain/ids';
 import type { Curvature } from './curvature';
-import { PALETTE } from './palette';
+import { builtInk, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { createProp, disposeTerrain, TYPE_TINTS } from './terrain';
 
@@ -26,10 +27,17 @@ export const REGIONS_GONE_DISTANCE = 65;
  */
 const FULL_OPACITY = 0.3;
 
-/** Stacking flush with the slab: highlight under the strokes, strokes under the borders. */
+/** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
+const VISIBLE_SHARE = 0.01;
+
+/** Stacking flush with the slab: fill under the strokes, strokes under the hover and the borders. */
 const STROKE_LIFT = 0.003;
-const HIGHLIGHT_LIFT = 0.001;
+const BUILT_LIFT = 0.001;
+const HOVER_LIFT = 0.0035;
 const PROP_LIFT = 0.001;
+
+/** Thin enough that the contour reads as a pen stroke and not as a second border. */
+const HOVER_OPACITY = 0.85;
 
 type PreparedRegion = {
   readonly region: DisplayedRegion;
@@ -45,12 +53,15 @@ type PreparedRegion = {
  */
 export class RegionLayer {
   readonly lines: LineSegments;
-  readonly highlight: Mesh;
+  readonly built: Mesh;
+  readonly hoverOutline: LineSegments;
   readonly props = new Group();
   private readonly lineMaterial: LineBasicMaterial;
-  private readonly highlightMaterial: MeshBasicMaterial;
+  private readonly builtMaterial: MeshStandardMaterial;
+  private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
+  private builtIds: ReadonlySet<string> = new Set();
   private birth = 0;
   private share = 0;
 
@@ -66,14 +77,27 @@ export class RegionLayer {
     this.lines = new LineSegments(new BufferGeometry(), this.lineMaterial);
     this.lines.visible = false;
 
-    this.highlightMaterial = new MeshBasicMaterial({
-      color: PALETTE.paper,
+    // The same material as the country slab, light included: an unlit fill would read as a
+    // sticker rather than as ink laid on that very ground.
+    this.builtMaterial = new MeshStandardMaterial({
+      color: PALETTE.neutralLand,
+      roughness: 0.97,
+      metalness: 0,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0,
       depthWrite: false,
     });
-    this.highlight = new Mesh(new BufferGeometry(), this.highlightMaterial);
-    this.highlight.visible = false;
+    this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
+    this.built.visible = false;
+
+    this.hoverMaterial = new LineBasicMaterial({
+      color: PALETTE.paper,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    this.hoverOutline = new LineSegments(new BufferGeometry(), this.hoverMaterial);
+    this.hoverOutline.visible = false;
   }
 
   display(data: RegionsData): void {
@@ -112,14 +136,81 @@ export class RegionLayer {
       }
       return { region, box: [minX, minY, maxX, maxY], area: Math.abs(area / 2) };
     });
+    this.rebuild();
   }
 
+  /**
+   * The regions that carry a building, and the ink of the nation that raised them. **Only the
+   * player's own ever arrive here**: `PlayerView` holds no opposing building, so no ownership
+   * test guards this call — the fog is a property of the served data, not of the rendering
+   * (ADR 0005).
+   */
+  showBuilt(regionIds: ReadonlySet<string>, ink: string): void {
+    this.builtIds = regionIds;
+    this.builtMaterial.color.set(builtInk(ink));
+    this.rebuild();
+  }
+
+  /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
+  rebuild(): void {
+    this.built.geometry.dispose();
+    const parts = this.prepared
+      .filter(({ region }) => this.builtIds.has(region.id))
+      .map(({ region }) => this.fillOf(region));
+    if (parts.length === 0) {
+      this.built.geometry = new BufferGeometry();
+      this.built.visible = false;
+      return;
+    }
+    if (parts.length === 1) {
+      this.built.geometry = parts[0]!;
+    } else {
+      this.built.geometry = mergeGeometries(parts, false)!;
+      parts.forEach((part) => part.dispose());
+    }
+    this.built.visible = this.share > VISIBLE_SHARE;
+  }
+
+  /**
+   * The layer is legible on screen — the same threshold that fades it in, and therefore the
+   * one that decides whether the game aims at a region or at its country. It is named rather
+   * than repeated: two literals would drift, and the map would highlight what the right click
+   * no longer targets.
+   */
   get isActive(): boolean {
-    return this.share > 0.01 && this.prepared.length > 0;
+    return this.share > VISIBLE_SHARE && this.prepared.length > 0;
+  }
+
+  /** The fade the whole zoomed-in layer shares — the buildings hang on this one, not on a twin. */
+  get fade(): number {
+    return this.share;
+  }
+
+  /**
+   * Where a building stands on its region. The ring's centroid, unless the shape is hollow
+   * enough to push it outside — a bay, a horseshoe valley — in which case an interior point
+   * is drawn from the name, so the same building never wanders between two reloads.
+   */
+  anchorOf(regionId: string): Vector3 | null {
+    const prepared = this.prepared.find(({ region }) => region.id === regionId);
+    if (prepared === undefined) return null;
+    const [x, y] = interiorPoint(prepared);
+    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + PROP_LIFT);
   }
 
   /** The point is in projected coordinates (those of `world.json`), not world coordinates. */
-  hover(projectedX: number, projectedY: number): string | null {
+  regionAt(projectedX: number, projectedY: number): DisplayedRegion | null {
+    return this.pick(projectedX, projectedY)?.region ?? null;
+  }
+
+  hover(projectedX: number, projectedY: number): DisplayedRegion | null {
+    const kept = this.pick(projectedX, projectedY);
+    this.changeHighlight(kept);
+    return kept?.region ?? null;
+  }
+
+  /** Point in region, smallest first: an enclave beats the envelope that contains it. */
+  private pick(projectedX: number, projectedY: number): PreparedRegion | null {
     let kept: PreparedRegion | null = null;
     for (const candidate of this.prepared) {
       const [minX, minY, maxX, maxY] = candidate.box;
@@ -127,8 +218,7 @@ export class RegionLayer {
       if (kept !== null && candidate.area >= kept.area) continue;
       if (contains(candidate.region, projectedX, projectedY)) kept = candidate;
     }
-    this.changeHighlight(kept);
-    return kept?.region.name ?? null;
+    return kept;
   }
 
   clearHover(): void {
@@ -147,41 +237,74 @@ export class RegionLayer {
     );
     this.lineMaterial.opacity = this.share * FULL_OPACITY;
     this.lines.visible = this.share > 0.01;
+    this.builtMaterial.opacity = this.share;
+    this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
+    this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
-    else this.highlight.visible = this.hoveredRegion !== null;
+    else this.hoverOutline.visible = this.hoveredRegion !== null;
     this.growProps();
   }
 
   dispose(): void {
     this.lines.geometry.dispose();
-    this.highlight.geometry.dispose();
+    this.built.geometry.dispose();
+    this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
-    this.highlightMaterial.dispose();
+    this.builtMaterial.dispose();
+    this.hoverMaterial.dispose();
     // The props share the terrain module's geometries and materials: `disposeTerrain` frees
     // them once, and detaching here keeps the engine's final sweep from meeting them again.
     this.props.clear();
     this.lines.removeFromParent();
-    this.highlight.removeFromParent();
+    this.built.removeFromParent();
+    this.hoverOutline.removeFromParent();
     this.props.removeFromParent();
     disposeTerrain();
   }
 
+  /**
+   * **The hover takes the outline, never the fill.** The three signals of the zoomed-in map
+   * each hold their own channel: the nation fills with its ink, a region that carries a
+   * building fills with that same ink laid heavier, and the hover draws a contour on top. A
+   * hover that filled would erase the "built" reading at the exact moment the player points
+   * at it.
+   */
   private changeHighlight(prepared: PreparedRegion | null): void {
     const region = prepared?.region ?? null;
     if (region === this.hoveredRegion) return;
     this.hoveredRegion = region;
-    this.highlight.geometry.dispose();
+    this.hoverOutline.geometry.dispose();
     this.props.clear();
     if (prepared === null || region === null) {
-      this.highlight.geometry = new BufferGeometry();
-      this.highlight.visible = false;
+      this.hoverOutline.geometry = new BufferGeometry();
+      this.hoverOutline.visible = false;
       return;
     }
 
     const type = regionType(region.name);
-    this.highlightMaterial.color.set(TYPE_TINTS[type]);
+    this.hoverMaterial.color.set(TYPE_TINTS[type]);
     this.sowProps(prepared, type);
 
+    const points: number[] = [];
+    for (const ring of region.rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const [ax, ay] = ring[i]!;
+        const [bx, by] = ring[(i + 1) % ring.length]!;
+        points.push(
+          ...this.frame.toWorld(ax, ay, COUNTRY_THICKNESS + HOVER_LIFT).toArray(),
+          ...this.frame.toWorld(bx, by, COUNTRY_THICKNESS + HOVER_LIFT).toArray(),
+        );
+      }
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+
+    this.hoverOutline.geometry = geometry;
+    this.hoverOutline.visible = true;
+  }
+
+  /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
+  private fillOf(region: DisplayedRegion): BufferGeometry {
     const geometries = region.rings.map((ring) => {
       const shape = new Shape();
       ring.forEach(([x, y], index) => {
@@ -193,19 +316,18 @@ export class RegionLayer {
       return new ShapeGeometry(shape);
     });
     const geometry = geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
+    if (geometries.length > 1) geometries.forEach((part) => part.dispose());
     geometry.rotateX(-Math.PI / 2);
 
     const positions = geometry.attributes.position!;
     for (let i = 0; i < positions.count; i++) {
       positions.setY(
         i,
-        COUNTRY_THICKNESS + HIGHLIGHT_LIFT + this.frame.drop(positions.getX(i), positions.getZ(i)),
+        COUNTRY_THICKNESS + BUILT_LIFT + this.frame.drop(positions.getX(i), positions.getZ(i)),
       );
     }
     positions.needsUpdate = true;
-
-    this.highlight.geometry = geometry;
-    this.highlight.visible = true;
+    return geometry;
   }
 
   /**
@@ -247,6 +369,24 @@ export class RegionLayer {
       child.scale.setScalar(Math.max(0.0001, (child.userData.size as number) * overshoot));
     }
   }
+}
+
+function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
+  const ring = prepared.region.rings.reduce((widest, candidate) =>
+    candidate.length > widest.length ? candidate : widest,
+  );
+  const sum = ring.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0] as [number, number]);
+  const centroid = [sum[0] / ring.length, sum[1] / ring.length] as const;
+  if (contains(prepared.region, centroid[0], centroid[1])) return centroid;
+
+  const [minX, minY, maxX, maxY] = prepared.box;
+  const random = mulberry(seed(prepared.region.name));
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const x = minX + random() * (maxX - minX);
+    const y = minY + random() * (maxY - minY);
+    if (contains(prepared.region, x, y)) return [x, y];
+  }
+  return centroid;
 }
 
 function seed(name: string): number {

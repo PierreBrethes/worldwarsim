@@ -36,6 +36,28 @@ export type MapMarker =
       /** No order follows: once finished, the construction site idles. */
       readonly idle: boolean;
       readonly ink: string;
+    }
+  | {
+      /**
+       * A building stands **on a region**, never on a coordinate: the ground its callout drops
+       * to is the region's interior point, and only the region layer knows it. Carrying a
+       * `lonLat` here would give the label a second position, free to drift from its own foot.
+       */
+      readonly kind: 'building';
+      readonly id: string;
+      readonly regionId: string;
+      readonly hostCountry: string | null;
+      readonly name: string;
+      /** `null` while the first level is still under the crane: nothing stands to be levelled. */
+      readonly level: number | null;
+      /** The plate hung at the top of the callout. `null` leaves the mast bare. */
+      readonly plate: string | null;
+      /**
+       * A first level or an upgrade — the map says the same thing, because the region says the
+       * same thing: work is going on here. The crane takes the plate's place until it is done.
+       */
+      readonly finishesAt: number | null;
+      readonly ink: string;
     };
 
 /**
@@ -51,6 +73,7 @@ export type LabelType =
   | 'outpost'
   | 'stack'
   | 'construction'
+  | 'building'
   | 'my-movement'
   | 'inbound-movement'
   | 'intel';
@@ -71,7 +94,9 @@ export type LabelLine =
  */
 export type LabelAnchor =
   | { readonly kind: 'ground'; readonly lonLat: LonLat }
-  | { readonly kind: 'movementHead'; readonly arc: string };
+  | { readonly kind: 'movementHead'; readonly arc: string }
+  /** Resolved by the region layer, the only holder of a region's interior point. */
+  | { readonly kind: 'region'; readonly regionId: string };
 
 export type MapLabel = {
   readonly id: string;
@@ -82,6 +107,12 @@ export type MapLabel = {
   readonly ink: string | null;
   /** The ground pictogram; `null` for a movement head, whose 3D sprite stands in. */
   readonly pictogram: LabelPictogram | null;
+  /**
+   * A drawn plate hung where the pictogram would go — the building itself rather than a sign
+   * for it. The two are exclusive: a plate is a portrait, a pictogram is a category, and the
+   * crane is what a building wears while it has no portrait to show yet.
+   */
+  readonly plate: string | null;
   readonly lines: ReadonlyArray<LabelLine>;
   /** An enemy movement pierced by intelligence — the mockup marks it with a state. */
   readonly identified: boolean;
@@ -102,15 +133,17 @@ export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role:
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
  * not coming at me — slots below mine and above the construction: an enemy contact reads
- * before a build duration, but after what I pilot myself.
+ * before a build duration, but after what I pilot myself. The building comes last of all: it
+ * is the only label that never moves, so it is the one a player can look for at leisure.
  */
 const PRIORITY: Readonly<Record<LabelType, number>> = {
-  'inbound-movement': 5,
-  'my-movement': 4,
-  intel: 3,
-  construction: 2,
-  outpost: 1,
-  stack: 0,
+  'inbound-movement': 6,
+  'my-movement': 5,
+  intel: 4,
+  construction: 3,
+  outpost: 2,
+  stack: 1,
+  building: 0,
 };
 
 /** Below this remainder, the label switches to the mockup's urgency accent. */
@@ -142,8 +175,12 @@ const exists = <T>(value: T | null): value is T => value !== null;
 function markerLabel(marker: MapMarker): MapLabel {
   const common = {
     id: marker.id,
-    anchor: { kind: 'ground', lonLat: marker.lonLat },
+    anchor:
+      marker.kind === 'building'
+        ? ({ kind: 'region', regionId: marker.regionId } as const)
+        : ({ kind: 'ground', lonLat: marker.lonLat } as const),
     ink: marker.ink,
+    plate: null,
     identified: false,
     offensive: false,
     idle: false,
@@ -187,6 +224,32 @@ function markerLabel(marker: MapMarker): MapLabel {
           { role: 'countdown', dueAt: marker.finishedAt, prefix: fr.labels.constructionPrefix },
         ],
       };
+    case 'building':
+      return {
+        ...common,
+        type: 'building',
+        priority: PRIORITY.building,
+        // Under the crane the portrait is wrong twice over: a first level has nothing to
+        // show, and an upgraded building is not the one standing there tonight.
+        pictogram: marker.finishesAt === null ? null : 'construction',
+        plate: marker.finishesAt === null ? marker.plate : null,
+        hostCountry: marker.hostCountry,
+        lines: [
+          { role: 'nature', text: marker.name },
+          ...(marker.level === null
+            ? []
+            : [{ role: 'figures', text: fr.labels.buildingLevel(marker.level) } as const]),
+          ...(marker.finishesAt === null
+            ? []
+            : [
+                {
+                  role: 'countdown',
+                  dueAt: marker.finishesAt,
+                  prefix: fr.labels.constructionPrefix,
+                } as const,
+              ]),
+        ],
+      };
   }
 }
 
@@ -206,6 +269,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       anchor: { kind: 'movementHead', arc: arc.id },
       ink: null,
       pictogram: null,
+      plate: null,
       identified: false,
       offensive: false,
       idle: false,
@@ -240,6 +304,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     anchor: { kind: 'movementHead', arc: arc.id },
     ink: null,
     pictogram: null,
+    plate: null,
     identified: arc.identification.pierced,
     offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
     idle: false,

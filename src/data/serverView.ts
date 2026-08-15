@@ -26,21 +26,15 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       doctrine: server.me.doctrine,
       progress: server.me.progress,
       restWindow: formatWindow(server.me.restWindow),
-      supply: {
-        stock: server.me.supply.stock,
-        ratePerHour: server.me.supply.ratePerHour,
-      },
-      steel: { stock: server.me.steel.stock, ratePerHour: server.me.steel.ratePerHour },
-      manpower: {
-        stock: server.me.manpower.stock,
-        ratePerHour: server.me.manpower.ratePerHour,
-        cap: server.me.manpower.cap ?? undefined,
-      },
+      resources: server.me.resources,
       slots: server.me.slots,
+      hqLevel: server.me.hqLevel,
+      buildingCap: server.me.buildingCap,
       buildings: server.me.buildings.map((building) => ({
         ...building,
         name: fr.buildings[building.key],
       })),
+      regions: server.me.regions,
       // A deployment ahead of the client returns an object without this field. The adapter is
       // the only boundary: a version gap gets absorbed here, not in the panels, where an
       // `undefined` takes down the whole board.
@@ -49,6 +43,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             name:
               fr.buildings[server.me.construction.name as BuildingKey] ??
               server.me.construction.name,
+            key: server.me.construction.key as BuildingKey,
+            regionId: server.me.construction.regionId,
+            regionName: server.me.construction.regionName,
             minutesLeft: server.me.construction.minutesLeft,
           }
         : null,
@@ -56,6 +53,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       armyInTransit: {},
       outposts: [],
     },
+    buildCatalog: server.buildCatalog,
     arcs: [],
     journal: [],
     opponents: server.opponents.map((opponent) => ({

@@ -39,7 +39,7 @@ pétrole cloue les blindés adverses au sol. C'est une cible qui raconte.
 matières. En revanche l'armée a un **plafond d'hommes**, porté par un bâtiment (les
 casernements, voir parc). Le plafond reste une contrainte d'équilibrage centrale.
 
-## Le parc de bâtiments (14)
+## Le parc de bâtiments (15)
 
 Règle de lecture : un bâtiment = une idée. Le bâtiment qui ouvre un domaine **fabrique
 aussi ses unités** — la production est localisée, donc ciblable.

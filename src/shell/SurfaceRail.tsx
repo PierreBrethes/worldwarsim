@@ -147,7 +147,11 @@ function EdgeToggles({ playerInk }: { playerInk: string }) {
             <button
               type="button"
               aria-pressed={on}
-              title={fr.rail.toggleTitle(fr.indicatorCategories[category], on)}
+              title={
+                category === 'buildings'
+                  ? fr.rail.toggleBuildingsTitle(on)
+                  : fr.rail.toggleTitle(fr.indicatorCategories[category], on)
+              }
               onClick={() => toggleIndicator(category)}
               style={on ? { color: LIT_INK[category] ?? playerInk } : undefined}
               className={
@@ -171,6 +175,7 @@ function EdgeToggles({ playerInk }: { playerInk: string }) {
  * nation's ink, which is not hard-coded: it travels with the view.
  */
 const LIT_INK: Readonly<Record<IndicatorCategory, string | undefined>> = {
+  buildings: undefined,
   outposts: 'var(--paper)',
   constructions: 'var(--paper)',
   forces: 'var(--paper)',

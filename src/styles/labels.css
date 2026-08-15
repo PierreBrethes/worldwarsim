@@ -99,6 +99,31 @@
   transform: translateY(-50%);
 }
 
+/* The building's own plate, hung where a pictogram would be. Sized by its height, as the bake
+   sizes it (`BUILDING_REFERENCE_HEIGHT`): the hierarchy between a foundry and a listening post
+   is drawn into the images, and a common width would flatten it back out. Its reserve is
+   thinner than the pictograms' — a full illustration needs a rim, not a halo. */
+.label-plate {
+  display: block;
+  width: auto;
+  /* Preflight's `max-width: 100%` resolves against a wrapper that is itself shrink-to-fit and
+     pinned by `right`, so its available width is zero — the plate then computes to 0 px wide
+     and the building disappears while the image loads perfectly well. */
+  max-width: none;
+  height: 46px;
+  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1.5px rgb(38 30 20 / 45%));
+}
+
+/* A building is not centred on its text but stands on the mast's head: its base lands at the
+   foot of the block, where the callout begins, and it grows upward. Centring a 46 px plate on
+   two lines of text would sink half the building back down the stroke. The crane inherits the
+   same footing, so nothing jumps when the work ends. */
+.label--building .label-pictogram {
+  top: auto;
+  bottom: -2px;
+  transform: none;
+}
+
 /* A movement's head is already planted: its 3D sprite carries its own footing. */
 .label--my-movement::before,
 .label--inbound-movement::before,

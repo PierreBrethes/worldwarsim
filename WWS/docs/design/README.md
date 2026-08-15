@@ -5,14 +5,14 @@ Une fiche par système. Tous les chiffres sont des **placeholders à simuler**, 
 | # | Fiche | Statut |
 |---|---|---|
 | 01 | [Vision et format de saison](01-vision-et-format.md) | stable |
-| 02 | [Économie et bâtiments](02-economie.md) | stable |
+| 02 | [Économie et bâtiments](02-economie.md) | réécrite 15/08 — taux à simuler |
 | 03 | [Carte et avant-postes](03-carte-et-avant-postes.md) | stable |
 | 04 | [Information : brouillard, espionnage, leurres](04-information.md) | stable |
 | 05 | [Doctrines et conditions de victoire](05-doctrines.md) | stable |
-| 06 | [Nations](06-nations.md) | à équilibrer |
+| 06 | [Nations](06-nations.md) | réécrite 15/08 — à équilibrer |
 | 07 | [Friction sociale : élimination, sommeil, drame](07-friction-sociale.md) | stable |
-| 08 | [Combat](08-combat.md) | figé |
-| 09 | [Unités](09-unites.md) | roster stable, combat non |
+| 08 | [Combat](08-combat.md) | réécrite 15/08 — modèle figé, taux non simulés |
+| 09 | [Unités](09-unites.md) | réécrite 15/08 — roster stable |
 | 10 | [Direction artistique](10-direction-artistique.md) | palette testée, typo à faire |
 | 11 | [Brief UI](11-brief-ui.md) | transmis — 4.1 à 4.4 implémentées |
 | 12 | [Hors-saison : accueil, salon, choix de nation](12-hors-saison.md) | à valider |

@@ -7,18 +7,22 @@ import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
-import { buildLabels } from '@/domain/labels';
-import { inkByClaimedCountry } from '@/domain/nations';
-import type { World } from '@/domain/world';
+import { buildLabels, type MapMarker } from '@/domain/labels';
+import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
+import { buildingSprite } from '@/emblems/buildings/manifest';
+import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import type { MovementType, PlayerView } from '@/domain/player-view';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView } from '@/data/serverView';
 import { errorCode } from '@/data/errors';
+import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { MovementTimeline } from './-plateau/MovementTimeline';
 import { RegionTooltip } from './-plateau/RegionTooltip';
 import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
+
+type BuildingSite = { regionId: string; x: number; y: number };
 
 const JournalWindow = lazy(() =>
   import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
@@ -153,7 +157,10 @@ function LiveBoard({ world, token }: { world: World; token: string }) {
 function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
   const { country, windows = [], send } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+  const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
+  // Where the crane was clicked: the construction panel is anchored to the aimed point, since
+  // what it answers is "here", not "somewhere".
+  const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   // Two sources for one accent: when the pointer leaves the map to enter a card, the render
   // loop announces "nothing under the pointer" on the next frame. A single variable and
   // that echo would erase the hover the card just lit.
@@ -197,12 +204,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const compassOfTarget = useCallback((target: CompassTarget) => compassOf(target, view), [view]);
 
   const actOnCompass = useCallback(
-    (action: CompassAction) => {
-      if (action.key === 'view') {
-        select(action.country);
-        return;
+    (action: CompassAction, at: { x: number; y: number }) => {
+      switch (action.key) {
+        case 'view':
+          select(action.country);
+          return;
+        case 'build':
+          setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
+          return;
+        case 'send':
+          openSend(action.destination, action.type);
       }
-      openSend(action.destination, action.type);
     },
     [select, openSend],
   );
@@ -212,9 +224,71 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [view.me, view.opponents],
   );
 
-  // Ground markers (outposts, stacks, sited constructions) wait for the server to serve
-  // positions — see `MapMarker`: nothing to plant while 4.7 does not exist.
-  const labels = useMemo(() => buildLabels(view, []), [view]);
+  // Nothing filters here: `me.buildings` is the player's own list and there is no other, so
+  // the map cannot ink a region an opponent built on (ADR 0005).
+  const built = useMemo(
+    () => ({
+      regionIds: view.me.buildings.map(({ regionId }) => regionId),
+      ink: view.me.ink,
+    }),
+    [view.me.buildings, view.me.ink],
+  );
+
+  // Buildings are the only ground markers the server can place today: a region id is enough,
+  // and the map layer resolves it. Outposts, stacks and sited constructions still wait for
+  // 4.7 to serve positions — see `MapMarker`.
+  const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
+    if (!toggles.buildings) return [];
+    const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
+    const work = view.me.construction;
+    const finishesAt =
+      work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
+    const standing = view.me.buildings.map((building) => ({
+      kind: 'building' as const,
+      id: `building-${building.regionId}-${building.key}`,
+      regionId: building.regionId,
+      hostCountry: host,
+      name: building.name,
+      level: building.level,
+      plate: buildingSprite(building.key),
+      // An upgrade is work on a building that already stands: the crane takes the plate's
+      // place on the mast that is already there, rather than raising a second one beside it.
+      finishesAt:
+        work !== null && work.regionId === building.regionId && work.key === building.key
+          ? finishesAt
+          : null,
+      ink: view.me.ink,
+    }));
+
+    // A first level has no building to hang the crane on: the site gets its own mast, and
+    // that is the whole point — a region under work reads as such before anything stands.
+    const raising =
+      work === null || standing.some((building) => building.finishesAt !== null)
+        ? []
+        : [
+            {
+              kind: 'building' as const,
+              id: `building-${work.regionId}-${work.key}`,
+              regionId: work.regionId,
+              hostCountry: host,
+              name: work.name,
+              level: null,
+              plate: null,
+              finishesAt,
+              ink: view.me.ink,
+            },
+          ];
+    return [...standing, ...raising];
+  }, [
+    toggles.buildings,
+    view.me.buildings,
+    view.me.construction,
+    view.me.nation,
+    view.me.ink,
+    view.loadedAt,
+  ]);
+
+  const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
   const closeWindow = useCallback(
     (name: BoardWindow) => {
@@ -252,6 +326,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           arcs={view.arcs}
           labels={labels}
           inkByCountry={inkByCountry}
+          built={built}
           selectedCountry={country ?? null}
           playerNation={view.me.nation}
           indicators={toggles}
@@ -262,7 +337,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onLabelHover={setHoveredLabel}
           compassOf={compassOfTarget}
           onCompassAction={actOnCompass}
+          building={buildingSite !== null}
         />
+        {buildingSite && (
+          <ConstructionPanel
+            view={view}
+            token={token}
+            regionId={buildingSite.regionId}
+            at={buildingSite}
+            onClose={() => setBuildingSite(null)}
+          />
+        )}
         {country && <SelectedCountryPanel country={country} view={view} />}
         <MovementTimeline
           view={view}
@@ -272,7 +357,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onSelect={select}
         />
         <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-3">
-          {hoveredRegion && <RegionTooltip name={hoveredRegion} />}
+          {hoveredRegion && <RegionTooltip name={hoveredRegion.name} />}
         </div>
       </div>
       <Suspense fallback={null}>

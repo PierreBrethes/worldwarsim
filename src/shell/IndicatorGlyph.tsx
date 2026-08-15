@@ -20,10 +20,7 @@ export type PictogramName =
   | 'replay'
   | 'doctrine'
   | 'intel'
-  | 'journal'
-  | 'supply'
-  | 'steel'
-  | 'manpower';
+  | 'journal';
 
 /** Two weights per pictogram: stripped for 20 px, detailed for 40 px. */
 export type PictogramWeight = 20 | 40;
@@ -77,6 +74,21 @@ export function IndicatorGlyph({
 type Mark = { readonly pictogram: PictogramName } | { readonly stroke: ReactNode };
 
 const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
+  /**
+   * A drawn stroke, not a pictogram: the fifteen buildings share no silhouette, and picking
+   * one of them — the foundry, the port — would say a nature where the bascule speaks of all
+   * of them. The roof-and-chimney reads as "what stands", which is exactly the category.
+   */
+  buildings: {
+    stroke: (
+      <>
+        <path d="M3.5 16.5v-6l4-3 4 3v6" />
+        <path d="M11.5 16.5v-4h5v4" />
+        <path d="M14 12.5v-3" />
+        <path d="M2.5 16.5h15" />
+      </>
+    ),
+  },
   outposts: { pictogram: 'outpost' },
   constructions: { pictogram: 'construction' },
   forces: { pictogram: 'forces' },

@@ -93,9 +93,14 @@ export const fr = {
   } satisfies Record<MovementType, string>,
 
   resources: {
-    supply: 'ravitaillement',
-    steel: 'acier',
-    manpower: 'effectifs',
+    food: 'nourriture',
+    textile: 'tissus',
+    coal: 'charbon',
+    oil: 'pétrole',
+    ore: 'minerais',
+    alloy: 'alliage',
+    ammunition: 'munitions',
+    bandages: 'bandages',
   } satisfies Record<ResourceKey, string>,
 
   deposits: {
@@ -108,18 +113,38 @@ export const fr = {
 
   buildings: {
     hq: 'Quartier général',
-    industry: 'Complexe industriel',
-    logistics: 'Centre logistique',
-    conscription: 'Conscription',
+    farm: 'Ferme',
+    mill: 'Filature',
+    mine: 'Mine',
+    oilWell: 'Puits de pétrole',
+    foundry: 'Fonderie',
+    arsenal: 'Arsenal',
+    quartermaster: 'Intendance',
+    barracks: 'Caserne',
+    airfield: 'Aérodrome',
+    port: 'Port',
     listening: 'Station d’écoute',
+    billets: 'Casernements',
+    warehouse: 'Entrepôt',
+    depot: 'Dépôt',
   } satisfies Record<BuildingKey, string>,
 
   buildingEffects: {
-    hq: 'débloque les paliers et relève les plafonds de stockage',
-    industry: 'vitesse et rendement de la conversion acier → unités',
-    logistics: 'réduit le temps de trajet et fixe le nombre de slots',
-    conscription: 'régénération et plafond des effectifs',
+    hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
+    farm: 'exploite un gisement de nourriture',
+    mill: 'exploite un gisement de tissus',
+    mine: 'exploite un gisement de charbon ou de minerais, selon la région',
+    oilWell: 'exploite un gisement de pétrole',
+    foundry: 'minerais + charbon → alliage, en continu',
+    arsenal: 'alliage → munitions, en continu',
+    quartermaster: 'tissus → bandages, en continu',
+    barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
+    airfield: 'ouvre le domaine aérien et assemble les avions',
+    port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: 'rayon de révélation passif autour du territoire',
+    billets: 'relève le plafond d’hommes de l’armée',
+    warehouse: 'relève le plafond des matières et de l’alliage — se pille',
+    depot: 'relève le plafond du pétrole et des munitions — explose',
   } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
@@ -171,12 +196,25 @@ export const fr = {
     INSUFFICIENT_RESOURCE: (d) =>
       `il faut ${num(d.needed)} de ${resourceName(d.resource)} (${num(d.available)} disponibles)`,
     CONSTRUCTION_IN_PROGRESS: () => 'un chantier est déjà en cours',
-    UNKNOWN_BUILDING: () => 'bâtiment inconnu',
     CAPPED_BY_HQ: () => 'plafonné par le QG — montez le quartier général d’abord',
+    UNKNOWN_REGION: () => 'région inconnue',
+    UNKNOWN_CAPITAL_REGION: (d) =>
+      `capitale introuvable pour ${nationName(d.nation)} — la partie ne peut pas se lancer`,
+    REGION_NOT_HOME: () =>
+      'on ne bâtit que chez soi — ailleurs, il faut un avant-poste dans le rayon',
+    DEPOSIT_REQUIRED: (d) =>
+      `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
+    NOT_COASTAL: () => 'un port se pose sur une région côtière',
+    REGION_TAKEN: (d) =>
+      `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
+    BUILDING_CAP_REACHED: (d) =>
+      `plafond atteint : ${num(d.cap)} bâtiments — montez le quartier général pour l’élargir`,
+    MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
+    HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     BATCH_TOO_SMALL: () => 'il faut recruter au moins une unité',
     BATCH_TOO_LARGE: (d) => `${num(d.maximum)} unités par lot au plus`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
-    TIER_2_LOCKED: (d) => `palier 2 : complexe industriel niveau ${num(d.requiredLevel)} requis`,
+    TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
     UNKNOWN_BATCH: () => 'lot inconnu',
     BATCH_ALREADY_STARTED: () => 'ce lot a déjà commencé — il ne s’annule plus',
@@ -292,6 +330,10 @@ export const fr = {
     launchSeedNote: 'la graine des pays neutres sera tirée au lancement',
     launchMissing: (count: number) => `il manque ${count} condition${plural(count, '', 's')}`,
     creatorOnly: 'seul le fondateur lance la saison.',
+    destroy: 'supprimer la partie',
+    destroyConfirm: 'confirmer — tout est effacé',
+    destroyCancel: 'annuler',
+    destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
     footerLeft: 'la partie commence quand le fondateur lance — pas avant',
     footerCode: (code: string) => `salon ${code}`,
     pace48: '48 heures',
@@ -340,9 +382,14 @@ export const fr = {
     seasonShort: (season: number) => `S.${season}`,
     toggleTitle: (label: string, on: boolean) =>
       `${label} au bord de l’écran — ${on ? 'allumé' : 'éteint'}`,
+    // The buildings bascule governs the board itself, not only its edge: saying otherwise
+    // would promise a border setting and hide the plates.
+    toggleBuildingsTitle: (on: boolean) =>
+      `bâtiments sur la carte — ${on ? 'affichés' : 'masqués'}`,
   },
 
   indicatorCategories: {
+    buildings: 'bâtiments',
     outposts: 'avant-postes',
     constructions: 'chantiers',
     forces: 'forces',
@@ -355,6 +402,7 @@ export const fr = {
     groupTitle: (count: number, nature: string) => `${count} ${nature} hors champ`,
     singleTitle: (nature: string) => `${nature} — hors champ`,
     natures: {
+      buildings: 'bâtiments',
       outposts: 'avant-postes',
       constructions: 'chantiers',
       forces: 'forces',
@@ -488,20 +536,21 @@ export const fr = {
     opening: 'Ouverture de l’atelier…',
     batch: 'lot',
     chainSpeed: (speed: string, level: number) =>
-      `chaîne ×${speed} — complexe industriel niveau ${level}`,
+      `chaîne ×${speed} — quartier général niveau ${level}`,
     domains: { land: 'terre', air: 'air', sea: 'mer' },
     queueHeader: (count: number, max: number) => `file de production — ${count} / ${max}`,
     queueEmpty: 'Aucun lot en chaîne. Choisissez un lot et enfilez un rôle.',
     atWaking: 'au réveil',
     wakingNote:
       'La file continue pendant la plage de repos, comme les chantiers. Les unités terminées rejoignent l’armée à domicile. Un lot déjà commencé ne s’annule plus ; les suivants sont remboursés intégralement.',
-    manpowerNote: 'Les effectifs ne s’achètent pas : chaque unité produite puise dans la conscription.',
+    manpowerNote:
+      'Les hommes ne sont pas une ressource : une unité coûte des matières, et l’armée est bornée par le plafond des casernements.',
     capOf: (cap: number) => `/ ${cap} plafond`,
     perUnit: '/ unité',
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
-    tier2Locked: (level: number) => `complexe industriel niveau ${level} requis`,
+    tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
     tierLabel: (tier: number) => `palier ${tier}`,
     enqueueTitle: (count: number, role: string, tier: string) => `enfiler ${count} × ${role} ${tier}`,
     inChain: 'en chaîne',
@@ -516,6 +565,10 @@ export const fr = {
     season: (season: number) => `saison ${season}`,
     doctrineLine: (doctrine: string) => `doctrine ${doctrine}`,
     buildingsHeader: 'bâtiments — un chantier à la fois',
+    nothingBuilt:
+      'Rien de bâti. On pose une bâtisse sur la carte : clic droit sur une région à soi, au zoom rapproché.',
+    stocksHeader: 'stocks',
+    inRegion: (region: string) => `en ${region}`,
     level: (level: number) => `niv. ${level}`,
     cappedByHq: 'plafonné par le QG',
     constructionRunning: 'Chantier en cours : ',
@@ -605,10 +658,30 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
+    build: 'Bâtir ici',
+    buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
+    region: (country: string) => `région · ${country}`,
+  },
+
+  construction: {
+    kicker: 'chantier',
+    offerHeader: 'à poser',
+    noDeposit: 'aucun gisement',
+    coastal: 'côtière',
+    depositReason: (deposit: string) => `gisement de ${deposit}`,
+    coastalReason: 'région côtière',
+    // The blocking reason is written once, at the head of the panel — never as fifteen grey
+    // badges. A construction names its deadline, a ceiling names its remedy.
+    heldByConstruction: (name: string, remaining: string) =>
+      `Chantier en cours : ${name} — reste ${remaining}. Un seul à la fois.`,
+    heldByCap: (cap: number) =>
+      `Plafond de bâtiments atteint (${cap}) — élevez votre quartier général pour l’élargir.`,
+    heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
   },
 
   labels: {
     levelAndGarrison: (level: number, garrison: number) => `NIV. ${level} · GARN. ${garrison}`,
+    buildingLevel: (level: number) => `NIV. ${level}`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',
   },
@@ -687,4 +760,14 @@ const nationName = (value: unknown): string =>
 const resourceName = (value: unknown): string =>
   typeof value === 'string' && value in fr.resources
     ? fr.resources[value as ResourceKey]
+    : str(value);
+const buildingName = (value: unknown): string =>
+  typeof value === 'string' && value in fr.buildings
+    ? fr.buildings[value as BuildingKey]
+    : str(value);
+const depositNames = (value: unknown): string =>
+  Array.isArray(value)
+    ? value
+        .map((key) => (typeof key === 'string' && key in fr.deposits ? fr.deposits[key as DepositKey] : str(key)))
+        .join(' ou ')
     : str(value);

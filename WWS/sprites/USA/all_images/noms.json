@@ -1,0 +1,13 @@
+{
+  "infantry-1-garand": "infantry-1",
+  "infantry-2-bazooka": "infantry-2",
+  "armor-1-stuart-m5": "armor-1",
+  "armor-2-sherman-m4": "armor-2",
+  "land-transport-gmc": "landTransport",
+  "fighter-p40-warhawk": "fighter",
+  "bomber-b17": "bomber",
+  "air-transport-c47": "airTransport",
+  "escort-destroyer": "escort",
+  "cargo-liberty": "cargo",
+  "carrier-essex": "carrier"
+}

@@ -11,6 +11,7 @@ import {
   Vector3,
   WebGLRenderer,
   type BufferGeometry,
+  type Intersection,
   type LineBasicMaterial,
   type LineSegments,
   type Mesh,
@@ -19,7 +20,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { isTyping } from '@/map/typing';
-import type { RegionsData, World } from '@/domain/world';
+import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import type { ArcView } from '@/domain/player-view';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { Curvature } from './curvature';
@@ -33,8 +34,34 @@ import { WorldFrame } from './frame';
 
 export type MapHover = { name: string; screenX: number; screenY: number } | null;
 
-/** What picking reports from a right click. `country` is null on the open sea. */
-export type MapRightClick = { country: string | null; clientX: number; clientY: number };
+/**
+ * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
+ * carries no opposing building, so the map has nothing to filter — the fog holds on the shape
+ * of the served data, not on a display test (ADR 0005).
+ */
+export type BuiltRegions = {
+  readonly regionIds: ReadonlyArray<string>;
+  readonly ink: string;
+};
+
+/**
+ * What picking reports from a right click. `country` is null on the open sea; `region` is null
+ * there too, and everywhere the region layer has faded out — far from the ground, the game
+ * aims at a country, up close at a region.
+ */
+export type MapRightClick = {
+  country: string | null;
+  region: RegionIdentity | null;
+  clientX: number;
+  clientY: number;
+};
+
+/**
+ * The trowel, hot spot on its point — top *right* of the drawing, hence `29 3`: at `0 0` the
+ * click would land twenty-nine pixels away from the tool. The fallback keyword is not
+ * decoration either — without it the whole declaration is invalid and silently dropped.
+ */
+const TROWEL_CURSOR = 'url(/cursors/curseur-construire.png) 29 3, crosshair';
 
 /**
  * How long the orbit gets to settle before recomputing the overlap degradation of labels.
@@ -96,6 +123,7 @@ export class MapEngine {
   private animation = 0;
   private gesture: Gesture | null = null;
   private spaceHeld = false;
+  private building = false;
   private screenWidth = 1;
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,7 +138,7 @@ export class MapEngine {
   private hoverDirty = true;
 
   onHover: (hover: MapHover) => void = () => { };
-  onRegionHover: (name: string | null) => void = () => { };
+  onRegionHover: (region: RegionIdentity | null) => void = () => { };
   onArcHover: (id: string | null) => void = () => { };
   onSelect: (name: string | null) => void = () => { };
   onRightClick: (click: MapRightClick) => void = () => { };
@@ -187,11 +215,12 @@ export class MapEngine {
     this.arcs = new ArcLayer(this.frame);
     this.scene.add(this.arcs.group);
 
-    this.labels = new LabelLayer(this.frame);
-
     this.regions = new RegionLayer(this.frame, this.curvature);
+    this.labels = new LabelLayer(this.frame, (regionId) => this.regions.anchorOf(regionId));
+
     this.scene.add(this.regions.lines);
-    this.scene.add(this.regions.highlight);
+    this.scene.add(this.regions.built);
+    this.scene.add(this.regions.hoverOutline);
     this.scene.add(this.regions.props);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
@@ -219,6 +248,10 @@ export class MapEngine {
 
   displayRegions(data: RegionsData): void {
     this.regions.display(data);
+    // The 500 KB land half a second after the board, so the buildings are asked for before
+    // the ground that carries them: a region anchor has no position until now, and without
+    // this their labels would wait for the next curvature change to find their footing.
+    this.labels.rebuild();
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
     this.hoverDirty = true;
@@ -282,15 +315,29 @@ export class MapEngine {
    * the land before entering the label, not the one it designates.
    */
   countryAtPoint(clientX: number, clientY: number): string | null {
+    return (this.aimAt(clientX, clientY)?.object as CountryMesh | undefined)?.userData.name ?? null;
+  }
+
+  /**
+   * The region under a screen point, or `null` when the layer is not on screen — the fade
+   * threshold is the aiming threshold, so the player only ever aims at what he can see.
+   */
+  regionAtPoint(clientX: number, clientY: number): RegionIdentity | null {
+    if (!this.regions.isActive) return null;
+    const point = this.aimAt(clientX, clientY)?.point;
+    if (point === undefined) return null;
+    return this.regions.regionAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
+  }
+
+  private aimAt(clientX: number, clientY: number): Intersection | undefined {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
+    if (!rect.width || !rect.height) return undefined;
     this.aim.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.ray.setFromCamera(this.aim, this.camera);
-    const hit = this.ray.intersectObjects(this.countries, false)[0];
-    return (hit?.object as CountryMesh | undefined)?.userData.name ?? null;
+    return this.ray.intersectObjects(this.countries, false)[0];
   }
 
   /** The camera holds still while a rose is open: one does not aim at a moving target. */
@@ -309,11 +356,21 @@ export class MapEngine {
     }
   }
 
+  /**
+   * The regions that carry one of the player's buildings, inked denser than his country. The
+   * set may arrive before the regions themselves — the layer keeps it and lays it down when
+   * the 500 KB land.
+   */
+  showBuiltRegions(built: BuiltRegions): void {
+    this.regions.showBuilt(new Set(built.regionIds), built.ink);
+  }
+
   setCurvature(intensity: number): void {
     this.frame.curvature = intensity;
     this.curvature.applyAll();
     this.arcs.rebuild();
     this.labels.rebuild();
+    this.regions.rebuild();
     // Every vertex on the board just moved under a pointer that did not.
     this.hoverDirty = true;
   }
@@ -402,6 +459,7 @@ export class MapEngine {
       event.preventDefault();
       this.onRightClick({
         country: this.countryAtPoint(event.clientX, event.clientY),
+        region: this.regionAtPoint(event.clientX, event.clientY),
         clientX: event.clientX,
         clientY: event.clientY,
       });
@@ -483,7 +541,15 @@ export class MapEngine {
     const { style } = this.renderer.domElement;
     if (this.gesture?.panning === true) style.cursor = 'grabbing';
     else if (this.spaceHeld) style.cursor = 'grab';
+    else if (this.building) style.cursor = TROWEL_CURSOR;
     else style.cursor = '';
+  }
+
+  /** The board wears the trowel while a construction panel is open, and only then. */
+  setBuilding(building: boolean): void {
+    if (building === this.building) return;
+    this.building = building;
+    this.refreshCursor();
   }
 
   /**
@@ -551,15 +617,17 @@ export class MapEngine {
 
   /** Region hover only exists once the layer has faded in on screen, never at sea. */
   private updateRegionHover(point: Vector3 | null): void {
-    let name: string | null = null;
+    let region: RegionIdentity | null = null;
     if (point !== null && this.regions.isActive) {
-      name = this.regions.hover(point.x + this.frame.centerX, point.z + this.frame.centerY);
+      region = this.regions.hover(point.x + this.frame.centerX, point.z + this.frame.centerY);
     } else {
       this.regions.clearHover();
     }
-    if (name !== this.hoveredRegion) {
-      this.hoveredRegion = name;
-      this.onRegionHover(name);
+    // Compared by id, never by name: two countries own a "Córdoba", and a pointer sliding
+    // from one to the other must announce the second.
+    if ((region?.id ?? null) !== this.hoveredRegion) {
+      this.hoveredRegion = region?.id ?? null;
+      this.onRegionHover(region);
     }
   }
 

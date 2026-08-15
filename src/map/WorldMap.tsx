@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
-import { loadRegions, type World } from '@/domain/world';
+import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { MapLabel } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import type { CompassAction, CompassTarget, Compass } from '@/domain/compass-rose';
@@ -11,13 +11,18 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type MapHover } from './engine';
+import { MapEngine, type BuiltRegions, type MapHover } from './engine';
 
 type Props = {
   world: World;
   arcs: ReadonlyArray<ArcView>;
   labels: ReadonlyArray<MapLabel>;
   inkByCountry: ReadonlyMap<string, string>;
+  /**
+   * What the player has built, and his ink to lay it in. Opposing buildings are absent from
+   * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
+   */
+  built: BuiltRegions;
   selectedCountry: string | null;
   playerNation: string | null;
   /** The categories whose off-frame entities fold to the screen edge. */
@@ -25,12 +30,15 @@ type Props = {
   /** The id of the movement the timeline designates — the matching arc rises in intensity. */
   accentedMovement: string | null;
   onSelect: (name: string | null) => void;
-  onRegionHover?: (name: string | null) => void;
+  onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
   /** What the target allows. The map asks the question; it does not know the view. */
   compassOf: (target: CompassTarget) => Compass | null;
-  onCompassAction: (action: CompassAction) => void;
+  /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
+  onCompassAction: (action: CompassAction, at: { x: number; y: number }) => void;
+  /** The board wears the trowel while a construction panel is open. */
+  building?: boolean;
 };
 
 export function WorldMap({
@@ -38,6 +46,7 @@ export function WorldMap({
   arcs,
   labels,
   inkByCountry,
+  built,
   selectedCountry,
   playerNation,
   indicators,
@@ -48,6 +57,7 @@ export function WorldMap({
   onLabelHover,
   compassOf,
   onCompassAction,
+  building = false,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
@@ -121,12 +131,18 @@ export function WorldMap({
 
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onRightClick = ({ country, clientX, clientY }) => {
+    readyEngine.onRightClick = ({ country, region, clientX, clientY }) => {
       if (country === null) {
         setRose(null);
         return;
       }
-      openRose({ kind: 'country', country }, clientX, clientY);
+      // Up close the aim lands on a region — a building goes on a region, never on a country.
+      // Beyond the regions' fade, the country is what the map shows and what it targets.
+      const target: CompassTarget =
+        region === null
+          ? { kind: 'country', country }
+          : { kind: 'region', id: region.id, name: region.name, country };
+      openRose(target, clientX, clientY);
     };
     return () => {
       readyEngine.onRightClick = () => {};
@@ -172,6 +188,10 @@ export function WorldMap({
   }, [playerNation]);
 
   useEffect(() => {
+    readyEngine?.setBuilding(building);
+  }, [readyEngine, building]);
+
+  useEffect(() => {
     engine.current?.accentArc(accentedMovement);
   }, [accentedMovement]);
 
@@ -186,6 +206,11 @@ export function WorldMap({
   useEffect(() => {
     engine.current?.colorNations(inkByCountry);
   }, [inkByCountry]);
+
+  useEffect(() => {
+    engine.current?.showBuiltRegions(built);
+  }, [built]);
+
 
   useEffect(() => {
     engine.current?.select(selectedCountry);
@@ -227,7 +252,7 @@ export function WorldMap({
           onClose={closeRose}
           onAction={(action) => {
             closeRose();
-            onCompassAction(action);
+            onCompassAction(action, { x: rose.x, y: rose.y });
           }}
         />
       )}

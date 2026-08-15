@@ -12,12 +12,17 @@
  * everyone — a deposit must be earned, not wallpapered, and a nation is a shape before it is a
  * size. CORRECTIONS then names the mines that give coal and ore their national shape, and
  * enforces the ADR 0015 rule: every playable nation holds four of the five resources at home,
- * one deliberate gap, never two.
+ * one deliberate gap, never two — unless the profile declares the exception and says why.
  *
  * The audit at the end guards three things and fails the build on any of them: an id matching
  * no region, a nation short of two resources, and a home count outside the band — presence is
  * not quantity, and the first pass proved a map can satisfy the ADR rule while handing one
  * nation three times another's economy.
+ *
+ * **Anything computed over the whole world instead of country by country moves a nation when
+ * you edit another one.** It has already cost twice — a global spacing radius, then a single
+ * shared random stream — and the symptom never points at the edit that caused it, so keep the
+ * scope of every global mechanism as small as the fact it encodes.
  *
  * Usage: node scripts/generate-deposits.mjs
  */
@@ -138,7 +143,6 @@ const ORE = {
   'ZAF-1188': 'Sishen — Northern Cape iron',
   'IND-2444': 'Odisha — the Indian iron ranges',
   'CHN-1807': 'Daye — the Hubei iron that fed Hanyang',
-  'JPN-1865': 'Kamaishi — the one Japanese iron mine that counts',
   'AUS-2651': 'Yampi Sound — Western Australia',
 };
 
@@ -217,31 +221,73 @@ const TEXTILE = { spacing: 2.5 };
  */
 const COMMON_PROFILE = { food: 4, textile: 3 };
 
+/**
+ * The two ways out of "one deliberate gap, never two" (ADR 0015). Both are declarations, not
+ * silences: `noGap` for a nation that lacks nothing, `secondGap: [resource, why]` for a nation
+ * whose asset answers precisely that second lack. The reason is carried as data because the
+ * audit prints it on every run — a rule bent in a comment is a rule contradicted by the code
+ * six months later, which is exactly how the ADR and this script came apart.
+ *
+ * A second gap earns its exception only when the nation's asset is the way out of it. A nation
+ * whose asset answers something else has no claim.
+ */
+const declaredNoGap = (nation) => typeof PROFILES[nation].noGap === 'string';
+const declaredSecondGap = (nation) => PROFILES[nation].secondGap?.[0];
+
 const PROFILES = {
   // Iron, not bread: Lorraine minette, Normandy at Soumont, Anjou at Segré. Oil is the gap.
   france: { food: 3, textile: 2 },
   // The island that imports its bread — the one nation whose lack is what defines it — and
   // pays for it with Wales, the Midlands and Yorkshire.
   uk: { food: 2, textile: 2 },
-  // The one nation with no gap, and it is declared rather than engineered: the United States
-  // of 1940 lacked nothing these five resources name. The profile only keeps it from topping
-  // the food column as well. This is the open 🔴 of the project, not a slip — the most
-  // unreachable player is also the least short of anything, and it is the simulator's job to
-  // price that, not this script's to hide it.
-  usa: { food: 3, textile: 3, noGap: true },
+  // The profile only keeps the United States from topping the food column as well. This is the
+  // open 🔴 of the project, not a slip — the most unreachable player is also the least short of
+  // anything, and it is the simulator's job to price that, not this script's to hide it.
+  usa: {
+    food: 3,
+    textile: 3,
+    noGap:
+      'nothing among these five resources was short in the United States of 1940 — its real shortages were rubber, tin and chromium, which the game does not name; inventing an American gap would be the one dishonest line of the table',
+  },
   // Black earth and the Urals, and cloth from Ivanovo alone.
   ussr: { food: 6, textile: 1 },
   // Ruhr, Saar and the central lignite; the ore is the gap, which is why the iron came from
   // Sweden through Narvik.
   germany: { food: 3, textile: 3 },
-  // Silk, first exporter in the world, against imported rice and a single iron mine. The
-  // nation that went to war because it had nothing.
-  japan: { food: 2, textile: 4 },
+  // Silk, first exporter in the world, against imported rice and imported iron. The nation
+  // that went to war because it had nothing.
+  japan: {
+    food: 2,
+    textile: 4,
+    secondGap: [
+      'ore',
+      'Japan in 1940 has neither oil nor iron, and its carrier exists in this game only to go and fetch them — the asset answers the lack exactly, which is what makes the exception admissible',
+    ],
+  },
   // Sardinia and Elba for ore; the coal is the gap, hence the dependency on German deliveries.
   italy: { food: 4, textile: 2 },
   // Plains and silk on a scale nothing else matches, over almost no coal and less ore.
   china: { food: 6, textile: 4 },
 };
+
+const malformed = NATIONS.flatMap((nation) => {
+  const { noGap, secondGap } = PROFILES[nation];
+  const faults = [];
+  if (noGap !== undefined && !declaredNoGap(nation))
+    faults.push(`${nation}: noGap must carry the reason it is granted, not a bare flag`);
+  if (secondGap !== undefined) {
+    const [resource, why] = Array.isArray(secondGap) ? secondGap : [];
+    if (!DEPOSITS.includes(resource))
+      faults.push(`${nation}: secondGap must name one of ${DEPOSITS.join(', ')}`);
+    if (typeof why !== 'string' || why.trim() === '')
+      faults.push(`${nation}: secondGap must say why the nation's asset answers that second lack`);
+  }
+  return faults;
+});
+
+if (malformed.length > 0) {
+  throw new Error(`an exception is a sentence, not a flag:\n  ${malformed.join('\n  ')}`);
+}
 
 const NATION_OF_COUNTRY = new Map(
   Object.entries(NATION_COUNTRIES).map(([nation, country]) => [country, nation]),
@@ -280,6 +326,10 @@ const CORRECTIONS = {
     'ITA-5372': ['ore', 'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente'],
     'FRA-5275': ['ore', 'Soumont and May-sur-Orne, the Normandy iron basin — second to Lorraine, and exported to the Ruhr'],
     'FRA-5321': ['ore', 'Segré in Anjou, worked without interruption through the period'],
+
+    // Japan — the third basin, after Chikuhō and Ishikari: coal is the one thing the archipelago
+    // does hold, which is what makes its lack of oil and iron a shape rather than poverty.
+    'JPN-1864': ['coal', 'the Jōban coalfield around Iwaki, which burned in the Tokyo factories'],
 
     // United Kingdom — coal is the profile, and the ore that goes with Cumbrian haematite.
     'GBR-2032': ['ore', 'Cleveland ironstone, which fed the Teesside furnaces'],
@@ -498,6 +548,7 @@ console.log(
 const starved = [];
 const flat = [];
 const dominant = [];
+const unmet = [];
 const homeTotals = [];
 for (const nation of NATIONS) {
   const counts = home[nation];
@@ -505,20 +556,37 @@ for (const nation of NATIONS) {
   homeTotals.push({ nation, homeTotal });
 
   const missing = DEPOSITS.filter((_, i) => counts[i] === 0);
-  if (missing.length >= 2) starved.push(`${nation} lacks ${missing.join(' and ')}`);
+  const excused = declaredSecondGap(nation);
+  if (excused !== undefined && !missing.includes(excused))
+    unmet.push(`${nation} declares a second gap on ${excused} it does not have`);
+  const undeclared = missing.filter((key) => key !== excused);
+  if (undeclared.length >= 2) starved.push(`${nation} lacks ${undeclared.join(' and ')}`);
 
   const { over, short, atEveryCeiling } = shapeOf(nation);
   if (atEveryCeiling) dominant.push(nation);
   if (over.length === 0) flat.push(`${nation} is over on nothing`);
-  else if (short.length === 0 && PROFILES[nation].noGap !== true) flat.push(`${nation} is short of nothing`);
+  else if (short.length === 0 && !declaredNoGap(nation)) flat.push(`${nation} is short of nothing`);
 
-  const shortText = short.length > 0 ? `−${short.join(' ')}` : PROFILES[nation].noGap === true ? '(no gap, assumed)' : '−nothing';
+  const shortText = short.length > 0 ? `−${short.join(' ')}` : declaredNoGap(nation) ? '(no gap, declared)' : '−nothing';
   // The deliberate gap is an absence, and an absence never reads as "below the median" when
   // six nations out of eight sit at zero oil. It gets its own mark.
   const absent = missing.length > 0 ? `  ∅${missing.join(' ')}` : '';
   console.log(
     `${nation.padEnd(9)}${[...counts, homeTotal].map((count) => String(count).padStart(column)).join('')}   +${over.join(' ')} ${shortText}${absent}`,
   );
+}
+
+/**
+ * Printed on every run, not kept in a comment: an exception that nobody reads is a rule that
+ * has been dropped. Both are read straight from the profiles, so a granted exception and the
+ * sentence that grants it cannot drift apart.
+ */
+console.log('\ndeclared exceptions (ADR 0015):');
+for (const nation of NATIONS) {
+  const { noGap, secondGap } = PROFILES[nation];
+  if (noGap !== undefined) console.log(`  ${nation.padEnd(9)}${'noGap'.padEnd(15)}${noGap}`);
+  if (secondGap !== undefined)
+    console.log(`  ${nation.padEnd(9)}${`secondGap ${secondGap[0]}`.padEnd(15)}${secondGap[1]}`);
 }
 
 /**
@@ -559,12 +627,23 @@ if (dominant.length > 0) {
 if (flat.length > 0) {
   console.error(`\nflat profile — a nation is a shape, not a size:\n  ${flat.join('\n  ')}`);
 }
+if (unmet.length > 0) {
+  console.error(`\nan exception granted for a lack that is not there:\n  ${unmet.join('\n  ')}`);
+}
 if (starved.length > 0) {
-  console.error(`\nADR 0015 — one deliberate gap, never two:\n  ${starved.join('\n  ')}`);
+  console.error(`\nADR 0015 — one deliberate gap, never two unless declared:\n  ${starved.join('\n  ')}`);
 }
 if (lopsided) {
   console.error(
     `\nhome deposits outside the ${BAND}× band: ${richest.nation} ${richest.homeTotal} against ${poorest.nation} ${poorest.homeTotal}`,
   );
 }
-if (unknown.length > 0 || starved.length > 0 || lopsided || flat.length > 0 || dominant.length > 0) process.exit(1);
+if (
+  unknown.length > 0 ||
+  starved.length > 0 ||
+  unmet.length > 0 ||
+  lopsided ||
+  flat.length > 0 ||
+  dominant.length > 0
+)
+  process.exit(1);

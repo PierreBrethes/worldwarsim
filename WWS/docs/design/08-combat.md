@@ -1,166 +1,187 @@
 # 08 — Combat
 
-> ⚠️ **Fiche en cours de révision par l'[ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md)**
-> (troupes discrètes, PV = effectif, résolution séquentielle à l'initiative de
-> l'attaquant, soins par bandages). Le contenu ci-dessous décrit l'ancien système
-> (piles, matrice simultanée) — à réécrire une fois les taux chiffrés.
+**Statut : modèle figé, taux non simulés.** Réécrite le 15/08/2026 depuis l'[ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md).
+La version précédente — piles fusionnables, matrice 9×9, résolution simultanée à quatre passes —
+n'existe plus.
 
-**Statut : figé.** Ce n'est plus la question bloquante — la simulation d'équilibrage peut démarrer.
+**Les nombres ne sont pas ici.** Ils vivent dans
+[propositions/chiffrage-combat.md](propositions/chiffrage-combat.md), vérifiés par
+`WWS/simulation/verif-chiffrage.mjs`, et finiront dans `convex/constants.ts`. Cette fiche décrit le
+modèle et les intentions ; dupliquer les tables ici garantirait qu'elles divergent.
 
 Le combat se déclenche par **interception**, se résout **automatiquement et de façon
-déterministe**, et se regarde ensuite en **rejeu cinématique**. Il n'y a aucune couche tactique
-interactive. Cf. [ADR 0008](../adr/0008-combat-par-interception.md).
+déterministe**, et se regarde ensuite en **rejeu**. Il n'y a aucune couche tactique interactive.
+Cf. [ADR 0008](../adr/0008-combat-par-interception.md).
 
 ---
 
-## 1. Le déclenchement : la zone d'interception
+## 1. Des troupes discrètes
 
-Toute force — en transit ou stationnée sur un avant-poste — porte un **rayon d'interception**.
-Si un mouvement adverse traverse ce rayon, le combat se résout au point de contact, en vol.
+Une nation aligne un nombre borné de troupes uniques — ordre de grandeur 10 à 30, plafonné par les
+casernements. **Une troupe ne fusionne jamais avec une autre.**
 
-C'est ce qui donne enfin un sens au positionnement : blocus d'un détroit, escorte d'un convoi,
-embuscade sur une route connue. Et ça rend le renseignement directement monnayable — savoir *où*
-passe un convoi permet de se placer sur sa route.
+**Ses points de vie sont son effectif nominal, lisible** : 50 soldats, 12 chars légers, 6 chars
+lourds, 12 appareils. Les dégâts se lisent en hommes et en machines perdus, jamais en pourcentage.
+C'est la qualité recherchée : « 50 soldats contre 50 soldats, j'en perds 16, il en perd 22 » se
+comprend sans manuel.
 
-**Le calcul est déjà écrit.** C'est la même intersection segment/cercle que les fenêtres de
-révélation du brouillard ([technique/brouillard-et-fanout.md](../technique/brouillard-et-fanout.md)),
-faite au même moment : à la création du mouvement. Un mouvement connaît sa courbe, ses dates, et la
-position de tous les intercepteurs existants. On en déduit la date et le lieu du contact, et on
-planifie la résolution.
+**Le porte-avions ne se compte pas en coques.** Un navire à 1 point de vie meurt d'un coup et ne se
+lit pas. Ses points de vie sont son **groupe aérien embarqué** — ce qui est aussi exactement sa
+valeur de jeu. « Il a perdu huit appareils » se comprend ; « il est à 60 % de coque » ne veut rien
+dire.
 
-Rayon d'interception indicatif : fonction de la composition (les chasseurs et escortes l'élargissent,
-les transports non) et du niveau du centre logistique.
+**Les transports sont des troupes.** Un transport a une capacité d'emport typée — un porte-avions
+emporte tant d'infanteries, tant de véhicules, tant d'avions. C'est la seule forme de regroupement
+qui subsiste. En mer on voit le navire, pas la cargaison : un transport vide est indiscernable d'un
+plein, et le leurre y gagne.
 
----
+## 2. Le déclenchement : la zone d'interception
 
-## 2. La matrice d'efficacité
+Toute force — en mouvement ou stationnée sur un avant-poste — porte un **rayon d'interception**. Si
+un mouvement adverse traverse ce rayon, le combat se résout au point de contact.
 
-Ligne = attaquant, colonne = défenseur, valeur = multiplicateur de dégâts. `·` = ne peut pas
-atteindre.
+C'est ce qui donne son sens au positionnement : blocus d'un détroit, escorte d'un convoi, embuscade
+sur une route connue. Et ça rend le renseignement directement monnayable — savoir *où* passe une
+force permet de se placer sur sa route.
 
-| Attaquant \ Défenseur | Inf | Bli | TrT | Cha | Bom | TrA | Esc | Car | PAv |
-|---|---|---|---|---|---|---|---|---|---|
-| **Infanterie** | 1.0 | 0.5 | 1.5 | 0.3 | 0.3 | 0.4 | · | · | · |
-| **Blindé** | 1.8 | 1.0 | 2.0 | · | · | 0.2 | · | · | · |
-| **Transport terrestre** | 0.2 | 0.1 | 0.3 | · | · | · | · | · | · |
-| **Chasseur** | 0.6 | 0.3 | 1.2 | 1.0 | 1.9 | 2.2 | 0.4 | 0.8 | 0.5 |
-| **Bombardier** | 1.2 | 1.8 | 1.6 | 0.2 | 0.5 | 0.6 | 1.7 | 1.5 | 2.0 |
-| **Transport aérien** | · | · | · | · | · | · | · | · | · |
-| **Escorte** | 0.3 | 0.2 | 0.4 | 0.5 | 0.5 | 0.5 | 1.0 | 1.9 | 1.4 |
-| **Cargo** | · | · | · | · | · | · | 0.1 | 0.2 | 0.1 |
-| **Porte-avions** | 0.4 | 0.2 | 0.8 | 1.5 | 1.2 | 1.4 | 0.9 | 1.1 | 0.8 |
+**Le calcul est déjà écrit** : même intersection segment/cercle que les fenêtres de révélation du
+brouillard, faite au même moment, à la création du mouvement. Un mouvement connaît sa courbe, ses
+dates et la position des intercepteurs existants ; on en déduit la date et le lieu du contact, et
+on planifie la résolution.
 
-Tous ces chiffres sont des **placeholders à simuler**.
+**L'interception inverse l'initiative** : le défenseur qui intercepte devient l'attaquant de
+l'engagement. C'est le premier des trois contre-pouvoirs exigés par l'ADR 0014.
 
-### L'asymétrie est le sujet
+Le rayon lui-même **n'est pas chiffré**. Voir §8.
 
-Chasseur → Bombardier vaut 1.9 ; Bombardier → Chasseur vaut 0.2. La même paire donne un massacre ou
-une déroute selon qui attaque.
+## 3. La résolution : une passe, initiative à l'attaquant
 
-C'est ce qui fait de la composition d'armée une décision : on ne choisit pas « la bonne unité », on
-choisit **qui on veut être en position d'attaquer**.
+**Un engagement = une passe de résolution.** L'attaquant frappe. Le défenseur riposte avec ses
+seuls survivants, et seulement s'il **peut** atteindre l'attaquant — un canon antichar ne riposte
+pas à un bombardier. Fin.
 
-### Ce ne sont pas 81 paramètres libres
+Une seule passe est un choix fort, et il est mesuré : avec les mêmes valeurs, trois passes
+transforment quatorze couples de rôles sur soixante-quinze en annihilations totales. Si le rejeu
+paraît vide avec un seul échange, la réponse est de découper visuellement la passe, pas d'en
+ajouter.
 
-L'objection évidente tombe grâce à la structure par domaines :
-
-- ~30 cases sont **inatteignables** — elles sont vides, il n'y a rien à régler ;
-- les trois transports sont **quasi nuls** partout : ce sont des victimes, pas des combattants ;
-- restent **une vingtaine de cases** réellement à équilibrer.
-
-Vingt valeurs, c'est tenable pour un dev solo. Quatre-vingt-une ne l'était pas.
-
-### Deux intentions de design
-
-**Le porte-avions a délibérément une ligne médiocre.** Sa force est la **portée** — il déplace le
-point de lancement aérien. Lui donner en plus de bons chiffres supprimerait toute raison de
-construire autre chose.
-
-**Le brouillard est ce qui rend la matrice intéressante.** En information parfaite, on voit la
-composition adverse et on la contre exactement : le pierre-papier-ciseaux devient un calcul. Dans le
-brouillard, on compose **contre un inconnu** — et l'espionnage devient rentable, puisqu'il
-transforme un pari en certitude.
-
----
-
-## 3. La résolution
-
-Déterministe, sans aléa. Dans un jeu asynchrone, le hasard ne se subit pas : on ne peut pas y
+**Déterministe, sans aléa.** Dans un jeu asynchrone, le hasard ne se subit pas : on ne peut pas y
 réagir.
 
-1. Les modificateurs globaux s'appliquent **avant** la matrice, pour rester lisibles :
-   **cap d'arrivée** (§4), **bonus défenseur**, effets d'embargo ou de sabotage en cours.
-2. Chaque camp tire avec sa puissance **d'avant-passe** : les pertes sont **simultanées**.
-   C'est ce qui préserve le levier de drame n°3 — deux joueurs qui s'attaquent mutuellement
-   s'écrasent mutuellement.
-3. Trois à quatre passes, puis application du **plancher de pertes** (fiche 07) et du butin.
+**Déroute plutôt que mort.** Une troupe tombée sous un quart de son effectif nominal rompt le
+contact et se replie vers son rattachement. Elle est hors de combat, pas détruite. C'est la règle
+n°3 du projet — un joueur écrasé reste nuisible, jamais éliminé — appliquée au niveau de la troupe.
 
-Les dégâts d'un rôle attaquant se répartissent sur les rôles adverses au prorata de leur part dans
-la pile, pondérée par la matrice.
+## 4. La table de dégâts
 
----
+Ligne = attaquant, colonne = défenseur. La valeur est la **part de l'effectif nominal du défenseur
+détruite par une passe d'un attaquant à pleine force**, avant modificateurs.
 
-## 4. Le cap d'arrivée
+**Soixante-quinze couples sont atteignables sur cent vingt et un.** L'objection « c'est trop de
+paramètres » tombe grâce à la structure par domaines : les cases vides ne se règlent pas, les trois
+transports sont des victimes partout, et il reste une trentaine de valeurs qui portent réellement
+la décision.
 
-L'orientation n'a de sens que si l'on peut manœuvrer — ce qui n'est pas le cas ici. Mais au niveau
-stratégique elle en a un, naturel et **gratuit** : la direction depuis laquelle la force arrive. Le
-cap de chaque arc est déjà calculé par la carte.
+**L'asymétrie est le sujet.** Chasseur → bombardier vaut beaucoup ; bombardier → chasseur vaut
+presque rien. La même paire donne un massacre ou une déroute selon qui attaque. On ne choisit pas
+« la bonne unité », on choisit **qui on veut être en position d'attaquer**.
 
-- attaquer par la mer ou par voie terrestre ;
-- converger à deux depuis deux directions opposées, ce qui donne un bonus de tenaille ;
-- arriver dans le dos d'une force engagée ailleurs.
+**Le porte-avions a délibérément une ligne médiocre.** Sa force est la portée — il déplace le point
+de lancement aérien. Lui donner en plus de bons chiffres supprimerait toute raison de construire
+autre chose.
 
-C'est un modificateur global multiplicatif, lisible, qui récompense la planification sans demander
-une seule interaction pendant la bataille.
+**Le brouillard est ce qui rend la table intéressante.** En information parfaite, on voit la
+composition adverse et on la contre exactement : le pierre-feuille-ciseaux devient un calcul. Dans
+le brouillard, on compose **contre un inconnu** — et l'espionnage devient rentable, puisqu'il
+transforme un pari en certitude.
 
----
+## 5. Les modificateurs
 
-## 5. Le rejeu cinématique
+Ils s'appliquent **avant** la table, pour rester lisibles.
 
-Quand un combat se résout, on peut **plonger sur le point de contact** : zoom serré, silhouettes
-1940 placées, déroulé des passes.
-
-C'est un **rejeu**, pas une partie. On obtient tout le spectacle et toute la lisibilité d'une
-bataille tactique — ce qui était l'envie de départ — sans aucun problème de synchronicité. Le joueur
-absent au moment du combat le regarde en se reconnectant, exactement dans le même état que celui qui
-était en ligne.
-
----
-
-## 6. Les nations modifient une ligne ou une colonne
-
-Jamais la matrice entière. Une nation = un chiffre.
-
-| Nation | Modification |
+| Modificateur | Qui en profite |
 |---|---|
-| Allemagne | ligne **Blindé** × 1.25 |
-| Royaume-Uni | colonne **Chasseur** en défense × 1.3 |
-| Japon | ligne **Porte-avions** × 1.3 |
-| URSS | colonne **Infanterie** en défense × 1.3 |
-| États-Unis | ligne **Bombardier** × 1.25 |
+| **Bonus du défenseur** | défenseur — deuxième contre-pouvoir de l'ADR 0014 |
+| **Terrain de la région défendue** | défenseur — défendre en montagne doit compter |
+| **Tenaille** : deux mouvements convergents | attaquant |
+| **Munitions à sec** | pénalise celui qui n'en a plus — il ne cesse pas de combattre, il devient mauvais |
+| **Interception en route** | inverse l'initiative |
 
-Si chaque nation avait sa propre matrice, on passerait de 20 valeurs à 160.
+**L'avantage d'initiative est volontairement mince** — de l'ordre de 1,4 contre 1 en plaine, et il
+s'inverse en montagne. L'ADR 0014 craignait « un festival d'agression » ; la mesure existante dit
+que la Domination gagne 72 % des saisons sans outils de soustraction. Une attaque frontale sans
+tenaille, sans supériorité aérienne et sans avantage de terrain doit être un mauvais calcul.
 
----
+**Le terrain n'existe pas encore.** `RegionType` est aujourd'hui un factice — six régions témoins
+classées à la main, hachage du nom pour les autres — et `CLAUDE.md` interdit qu'une règle de jeu le
+lise sans ADR. Rien de ce qui touche au terrain ne peut être codé avant l'**ADR 0017** et la passe
+de classification réelle dans `scripts/generate-regions.mjs`.
 
-## 7. Garde-fous
+## 6. Le cap d'arrivée
 
-**La matrice ne doit pas décider seule.** Sans coût différencié, temps de production et plafond
-d'effectifs, tout le monde converge vers la même pile optimale et le pierre-papier-ciseaux ne sert
+L'orientation n'a de sens que si l'on peut manœuvrer, ce qui n'est pas le cas ici. Mais au niveau
+stratégique elle en a un, naturel et **gratuit** : la direction depuis laquelle la force arrive. Le
+cap de chaque mouvement est déjà calculé par la carte.
+
+Attaquer par la mer ou par voie terrestre ; converger à deux depuis deux directions opposées, ce
+qui donne le bonus de tenaille ; arriver dans le dos d'une force engagée ailleurs. Un modificateur
+lisible qui récompense la planification sans demander une seule interaction pendant la bataille.
+
+## 7. Soins, munitions, entretien
+
+**Les blessures se soignent.** Une troupe entamée se reconstitue en consommant des **bandages**, en
+se repliant vers une **pharmacie** — amélioration d'avant-poste — ou chez elle. La pharmacie est
+plus chère et plus rapide, et surtout plus proche : le choix est distance contre ressource. Le soin
+crée des mouvements de retour, et la carte vit dans les deux sens.
+
+**Les munitions se consomment au combat**, proportionnellement à l'effectif engagé. À sec, une
+troupe se bat à taux réduit.
+
+**L'entretien en nourriture se paie sur l'effectif *nominal*, pas courant.** Une troupe entamée
+coûte autant qu'une troupe pleine — sinon perdre des hommes devient une économie.
+
+## 8. Les nations modifient une ligne ou une colonne
+
+Jamais la table entière. Allemagne sur la ligne blindé, Royaume-Uni sur la colonne chasseur en
+défense, Japon sur la ligne porte-avions, URSS sur la colonne infanterie en défense, États-Unis sur
+la ligne bombardier.
+
+France, Italie et Chine ne touchent pas la table : leur asymétrie passe par l'atout structurel, la
+troupe signature et la géographie ([06 — Nations](06-nations.md)). Si chaque nation avait sa propre
+table, on passerait d'une trentaine de valeurs à deux cent quarante.
+
+## 9. Garde-fous
+
+**La table ne doit pas décider seule.** Sans coût différencié, temps de production et plafond
+d'hommes, tout le monde converge vers la même armée optimale et le pierre-feuille-ciseaux ne sert
 plus à rien.
 
-**Aucune unité ne doit être un contre absolu.** Une valeur au-dessus de ~2.2 rend une composition
-non jouable plutôt que risquée.
+**Aucune unité ne doit être un contre absolu.** `verif-chiffrage.mjs` rejoue les soixante-quinze
+couples et échoue sur toute destruction quasi totale sans riposte — hors les trois transports, qui
+sont des victimes par design.
 
----
+## 10. Le rejeu
 
-## 8. Ce qui reste ouvert
+Quand un combat se résout, on peut **plonger sur le point de contact** : zoom serré, silhouettes
+1940 placées, déroulé de la passe.
 
-- **Le rayon d'interception** : fixe, ou fonction de la composition ? S'il est trop grand, plus
-  aucun convoi ne passe et le jeu se fige.
-- **Peut-on refuser le combat ?** Une force rapide devrait pouvoir se dérober au prix d'un
-  détour. Sans cette issue, l'interception devient une punition sans contre-jeu.
-- **L'option B**, l'auto-battler à plans, reste en réserve : chaque joueur enregistrerait à l'avance
-  formation, orientation et cibles prioritaires. C'est la seule façon de rendre de la décision
-  tactique sans casser l'asynchrone. À reconsidérer si le combat automatique paraît trop passif
-  après la première saison.
+C'est un **rejeu**, pas une partie. On obtient le spectacle et la lisibilité d'une bataille
+tactique sans aucun problème de synchronicité. Le joueur absent au moment du combat le regarde en
+se reconnectant, exactement dans le même état que celui qui était en ligne.
+
+## 11. Ce qui reste ouvert
+
+- **Le rayon d'interception.** Fixe, ou fonction de la composition de la force ? S'il est trop
+  grand, plus aucun mouvement ne passe et la carte se fige. C'est le trou le plus béant de cette
+  fiche : le premier des trois contre-pouvoirs n'a aucun nombre, et le simulateur ne le modélise
+  pas — il faudra trancher à la main.
+- **Peut-on refuser le combat ?** Une force rapide devrait pouvoir se dérober au prix d'un détour.
+  Sans cette issue, l'interception est une punition sans contre-jeu. Couplé à la question
+  précédente.
+- **La supériorité aérienne.** Dans le chiffrage actuel, l'aviation ne se contre que par
+  l'aviation : le sol ne lui oppose qu'une valeur symbolique portée par l'infanterie MK2. C'est le
+  point le plus fragile du modèle, et la première chose à mesurer.
+- **L'option B**, l'auto-battler à plans, reste en réserve : plan de bataille enregistré à
+  l'avance, résolution déterministe. Seule façon connue de rendre de la décision tactique sans
+  casser l'asynchrone. À reconsidérer si le combat automatique paraît trop passif après la première
+  saison.

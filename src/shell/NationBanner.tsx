@@ -1,4 +1,5 @@
 import { Link, useSearch } from '@tanstack/react-router';
+import { Fragment } from 'react';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
 import { currentStock } from '@/domain/player-view';
@@ -9,6 +10,13 @@ import { Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
 const BANNER_HEIGHT = 42;
+
+/**
+ * Three of the eight, because the banner cannot hold eight (ADR 0015 leaves the hierarchy
+ * open, to be settled with surface 4.5). These three are what the loop actually spends today:
+ * alloy buys every building and every unit, coal and food are what the first ones cost.
+ */
+const BANNER_RESOURCES: ReadonlyArray<ResourceKey> = ['alloy', 'coal', 'food'];
 
 /**
  * The banner answers "what's new", and the cartouche says under which colors. Everything
@@ -32,27 +40,18 @@ export function NationBanner({ view }: { view: PlayerView }) {
       <div className="flex-1" />
 
       <Group>
-        <Counter
-          resource="supply"
-          label={fr.resources.supply}
-          value={currentStock(me.supply, view.loadedAt, now)}
-          rate={me.supply.ratePerHour}
-        />
-        <Separator />
-        <Counter
-          resource="steel"
-          label={fr.resources.steel}
-          value={currentStock(me.steel, view.loadedAt, now)}
-          rate={me.steel.ratePerHour}
-        />
-        <Separator />
-        <Counter
-          resource="manpower"
-          label={fr.resources.manpower}
-          value={currentStock(me.manpower, view.loadedAt, now)}
-          rate={me.manpower.ratePerHour}
-          cap={me.manpower.cap}
-        />
+        {BANNER_RESOURCES.map((key, index) => (
+          <Fragment key={key}>
+            {index > 0 && <Separator />}
+            <Counter
+              resource={key}
+              label={fr.resources[key]}
+              value={currentStock(me.resources[key], view.loadedAt, now)}
+              rate={me.resources[key].ratePerHour}
+              cap={me.resources[key].cap}
+            />
+          </Fragment>
+        ))}
       </Group>
 
       <div className="flex-1" />

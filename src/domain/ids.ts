@@ -30,7 +30,22 @@ export type UnitTier = 1 | 2;
 
 export type MovementType = 'attack' | 'raid' | 'outpost' | 'agent' | 'decoy';
 
-export type ResourceKey = 'supply' | 'steel' | 'manpower';
+/**
+ * The eight resources of the economy v2 (ADR 0015). The five first are extracted from a
+ * deposit, the three last are transformed from them — one step of chain, never two.
+ */
+export const RESOURCES = [
+  'food',
+  'textile',
+  'coal',
+  'oil',
+  'ore',
+  'alloy',
+  'ammunition',
+  'bandages',
+] as const;
+
+export type ResourceKey = (typeof RESOURCES)[number];
 
 /**
  * The five map resources of the economy v2 (ADR 0015): what a region can hold, one at most.
@@ -41,7 +56,33 @@ export const DEPOSITS = ['food', 'textile', 'coal', 'oil', 'ore'] as const;
 
 export type DepositKey = (typeof DEPOSITS)[number];
 
-export type BuildingKey = 'hq' | 'industry' | 'logistics' | 'conscription' | 'listening';
+/**
+ * The buildings of the economy v2 (ADR 0015), in family order: command, exploitation,
+ * transformation, projection, intelligence, ceiling, storage. Every one of them sits on a
+ * region, and none exists before it is built.
+ *
+ * There are fifteen. The ADR, the design sheet and the prompt all say "fourteen" and then
+ * list these fifteen — the count is the typo, the table is the decision.
+ */
+export const BUILDINGS = [
+  'hq',
+  'farm',
+  'mill',
+  'mine',
+  'oilWell',
+  'foundry',
+  'arsenal',
+  'quartermaster',
+  'barracks',
+  'airfield',
+  'port',
+  'listening',
+  'billets',
+  'warehouse',
+  'depot',
+] as const;
+
+export type BuildingKey = (typeof BUILDINGS)[number];
 
 export type PlayableRegion = 'europe' | 'europe-med' | 'world';
 

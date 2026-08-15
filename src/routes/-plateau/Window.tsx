@@ -5,15 +5,13 @@ import {
   useEffect,
   useRef,
   useState,
-  type PointerEvent as PointerEventReact,
   type ReactNode,
 } from 'react';
 import { fr } from '@/i18n/fr';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
+import { followDrag, onControl, scaleOf, type Grab } from './dragging';
 
-type Handle = (event: PointerEventReact<HTMLElement>) => void;
-
-const HandleContext = createContext<Handle>(() => {});
+const HandleContext = createContext<Grab>(() => {});
 
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 200;
@@ -63,11 +61,11 @@ export function FloatingWindow({
   const [geometry, setGeometry] = useState(() => readWindowGeometry(name));
   const { offset, size } = geometry;
 
-  const grab = useCallback<Handle>(
+  const grab = useCallback<Grab>(
     (event) => {
       if (event.button !== 0) return;
       // A click on a header button (close, tab) stays a click, never a drag.
-      if ((event.target as HTMLElement).closest('button, a, input, select, textarea')) return;
+      if (onControl(event)) return;
       event.preventDefault();
       const scale = scaleOf(container.current);
       const startX = event.clientX - offset.x * scale;
@@ -87,7 +85,7 @@ export function FloatingWindow({
     [offset, size, name],
   );
 
-  const resize = useCallback<Handle>(
+  const resize = useCallback<Grab>(
     (event) => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -167,22 +165,3 @@ export function FloatingWindow({
   );
 }
 
-function followDrag(onDrag: (drag: PointerEvent) => void, onRelease: () => void) {
-  const release = () => {
-    window.removeEventListener('pointermove', onDrag);
-    window.removeEventListener('pointerup', release);
-    onRelease();
-  };
-  window.addEventListener('pointermove', onDrag);
-  window.addEventListener('pointerup', release);
-}
-
-/**
- * `.hud` carries a `zoom`, and the pointer measures in screen pixels while the width is
- * written in layout pixels: without this ratio, every drag drifts as soon as the player
- * changed the interface scale.
- */
-function scaleOf(element: HTMLElement | null): number {
-  if (!element || element.offsetWidth === 0) return 1;
-  return element.getBoundingClientRect().width / element.offsetWidth;
-}

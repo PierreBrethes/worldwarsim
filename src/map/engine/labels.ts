@@ -61,7 +61,15 @@ export class LabelLayer {
   private readonly toward = new Vector3();
   private anchors: ReadonlyArray<NamedAnchor> = [];
 
-  constructor(private readonly frame: WorldFrame) {}
+  /**
+   * A region anchor is resolved, not computed: its interior point comes from the region
+   * layer, which is also what plants the building plate there. One point, one source — the
+   * label cannot end up designating a spot the sprite does not stand on.
+   */
+  constructor(
+    private readonly frame: WorldFrame,
+    private readonly groundOfRegion: (regionId: string) => Vector3 | null,
+  ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
     this.anchors = anchors;
@@ -70,6 +78,12 @@ export class LabelLayer {
     for (const { id, anchor } of anchors) {
       if (anchor.kind === 'ground') {
         this.fixed.set(id, this.frame.projectLonLat(anchor.lonLat, ANCHOR_ELEVATION));
+      }
+      // The 500 KB of regions land after the board: until they do, the anchor has no ground
+      // and the label stays unprojected — `rebuild` picks it up when they arrive.
+      if (anchor.kind === 'region') {
+        const at = this.groundOfRegion(anchor.regionId);
+        if (at !== null) this.fixed.set(id, at);
       }
       this.projections.push({
         id,
@@ -85,7 +99,7 @@ export class LabelLayer {
     }
   }
 
-  /** The curvature changed: the ground moved under the fixed anchors, they must be re-set. */
+  /** The ground moved under the fixed anchors — curvature, or regions landing: re-set them. */
   rebuild(): void {
     this.setAnchors(this.anchors);
   }
