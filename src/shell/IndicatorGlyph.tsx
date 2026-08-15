@@ -42,7 +42,7 @@ export function Pictogram({
   weight: PictogramWeight;
   size: number;
 }) {
-  const cut = `url('/pictos/${pictogram}-${weight}.png')`;
+  const cut = `url('/pictograms/${pictogram}-${weight}.png')`;
   const mask: CSSProperties = {
     width: size,
     height: size,

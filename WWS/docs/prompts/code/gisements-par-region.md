@@ -11,6 +11,12 @@ le schéma a besoin des identifiants de région que ce travail introduit.
 **Identifiants en anglais, libellés en français** (ADR 0016). Toute clé introduite ici est
 un identifiant anglais ; tout texte que le joueur pourrait lire passe par `src/i18n/fr.ts`.
 
+**Prérequis matériel.** Régénérer `regions.json` demande le geojson admin-1 de Natural
+Earth 10m (`ne_10m_admin_1_states_provinces.geojson`, dossier `geojson/` de
+github.com/nvkelso/natural-earth-vector), qui n'est pas dans le dépôt et se passe en
+argument au script. **Vérifie qu'il est là avant de commencer** ; s'il manque, dis-le et
+arrête-toi — ne fabrique pas de données de substitution.
+
 ## Contexte
 
 L'économie v2 place des gisements — nourriture, tissus, charbon, pétrole, minerais —
@@ -46,8 +52,9 @@ en deux lignes, **arrête-toi et signale-le** plutôt que de le contourner.
 
 1. **Identifiant stable dans `regions.json`.** Étends `scripts/generate-regions.mjs` pour
    émettre, par région : `id` (le `adm1_code` Natural Earth ; c'est le seul champ unique du
-   jeu 10m — repli sur `iso_3166_2` puis `pays/nom` si absent, en signalant les replis en
-   console) et `country` (`adm0_a3`). Adapte les lecteurs existants de `regions.json`
+   jeu 10m — repli sur `iso_3166_2`, puis sur la paire `adm0_a3` + nom si absent, en
+   signalant les replis en console) et `country` (`adm0_a3`). Adapte les lecteurs de
+   `regions.json`
    (survol, accessoires de terrain) sans changer leur comportement.
 
 2. **`scripts/generate-deposits.mjs`**, hors ligne, déterministe (graine fixée en constante

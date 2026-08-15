@@ -71,6 +71,15 @@ n'entrent pas en concurrence avec les encres de nation, mais c'est une extension
   complète.
 - **Les unités.** Silhouettes à plat, encre unique, dans l'esprit des planches de reconnaissance
   d'aéronefs de l'époque.
+- **Les cinq curseurs de souris** (`public/cursors/`, 32×32, références dans
+  `maquettes/pictos/references/`) sont **dessinés mais non branchés** — aucun code ne les a
+  jamais chargés. Ils attendent les surfaces qui les nomment : *cible* le ciblage d'un
+  mouvement (4.7), *construire* la pose de bâtiments de l'économie v2 (ADR 0015),
+  *renseignement* l'écran d'information (4.8), *défaut* et *interactif* le survol du plateau.
+  Le moteur de carte ne pose aujourd'hui que `grab` / `grabbing`, en mots-clés CSS
+  (`map/engine/index.ts`, retour visuel du mode déplacement) : ce n'est pas le même besoin.
+  Ne pas les supprimer en croyant à du code mort — ce sont des assets en avance sur leur
+  surface.
 
 ## Le bon moment pour une passe de design
 

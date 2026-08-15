@@ -9,6 +9,7 @@
 import type { ErrorCode } from '../../convex/errors';
 import type {
   BuildingKey,
+  DepositKey,
   Doctrine,
   Medium,
   MovementType,
@@ -96,6 +97,14 @@ export const fr = {
     steel: 'acier',
     manpower: 'effectifs',
   } satisfies Record<ResourceKey, string>,
+
+  deposits: {
+    food: 'nourriture',
+    textile: 'tissus',
+    coal: 'charbon',
+    oil: 'pétrole',
+    ore: 'minerais',
+  } satisfies Record<DepositKey, string>,
 
   buildings: {
     hq: 'Quartier général',

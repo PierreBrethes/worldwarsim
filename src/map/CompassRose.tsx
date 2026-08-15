@@ -204,7 +204,7 @@ function placeBubble(
 
 /**
  * The mockup's pictogram plate, taken stroke for stroke. It is inline SVG, not a PNG mask
- * like `Pictogram`: these six drawings do not exist in `public/pictos/`, and a twenty-unit
+ * like `Pictogram`: these six drawings do not exist in `public/pictograms/`, and a twenty-unit
  * path gains nothing from going through a file.
  */
 const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {

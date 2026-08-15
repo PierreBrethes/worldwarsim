@@ -1,6 +1,15 @@
 # ADR 0015 — Économie v2 : ressources localisées et filières courtes
 
-**Statut :** acceptée
+**Statut :** acceptée — **critère de distribution renforcé le 15/08/2026** (voir plus bas)
+
+> ⚠️ **Révision (15/08/2026) : « un manque volontaire, jamais deux » ne suffit pas — il est
+> **complété**, pas remplacé.** Le critère mesure une **présence**, jamais une quantité ni une
+> forme. Deux passes de génération l'ont montré coup sur coup — d'abord un écart de 3,2× entre
+> la nation la mieux dotée et la moins bien, puis, une fois l'écart ramené dans une bande, un
+> aplatissement complet : sept nations sur huit au plafond en nourriture, et hors pétrole un
+> écart résiduel de 1,33×. Trois garde-fous s'y ajoutent, décrits à la fin de ce document, et
+> la règle du manque unique devient **exceptionnable sur déclaration**. Le reste de l'ADR est
+> inchangé.
 
 ## Contexte
 
@@ -85,6 +94,67 @@ qui se voit s'attaque.
   (question UI ouverte, à trancher avec la surface 4.5).
 - **Huit icônes de ressources** remplacent les trois existantes — doctrine de la
   maquette « Icônes ressources » : silhouettes SVG pleines, distinctes à la découpe.
+
+## Révision du 15/08 — les trois garde-fous de la distribution
+
+Le point 4 des questions tranchées ci-dessus posait « un manque volontaire, jamais deux ».
+La règle **reste** — elle protège la promesse anti-élimination : une nation qui démarre avec
+deux dépendances dures peut être étranglée avant d'avoir joué. Mais elle ne suffit pas, parce
+qu'elle ne regarde ni **combien** ni **quelle forme**. Trois garde-fous s'y ajoutent, tous
+portés par l'audit de `scripts/generate-deposits.mjs`, qui fait échouer le script :
+
+1. **La bande** — sur les huit nations jouables, `total max ≤ 2 × total min`. Une nation
+   n'est jamais annexée (ADR 0004) : un gisement à domicile est définitivement acquis, donc
+   un écart de départ est un écart permanent.
+2. **Aucun profil plat** — chaque nation déclare au moins un excédent et un manque, chacun
+   sourcé historiquement. C'est ce qui empêche la bande d'être obtenue en saturant tout le
+   monde aux plafonds.
+3. **Aucune nation au plafond partout** — corollaire du précédent, vérifié séparément parce
+   que c'est exactement la façon dont la deuxième passe a triché sans le vouloir.
+
+### Les exceptions se déclarent, elles ne se contournent pas
+
+Deux nations sortent du cadre, et chacune le dit dans son profil plutôt que de le subir en
+silence :
+
+- **`noGap`** — les États-Unis n'ont aucun manque. Rien dans nos cinq ressources ne manquait
+  aux États-Unis de 1940 ; en fabriquer un serait la seule ligne malhonnête de la table.
+- **`secondGap`** — une nation peut manquer d'une **seconde** ressource si son atout répond
+  précisément à ce manque. Le Japon en est le seul cas : ni pétrole ni minerais, et un
+  porte-avions dont toute la raison d'être est d'aller les chercher. C'est le Japon
+  historique, celui qui entre en guerre *parce qu'il n'a rien*.
+
+Une exception non déclarée reste un échec du script. Une exception déclarée est **imprimée
+dans l'audit** avec sa justification : on la voit à chaque exécution, elle ne se perd pas
+dans un commentaire. C'est la différence entre une règle qu'on assouplit et une règle qu'on
+contourne.
+
+**Ce que le critère précédent avait raté, et qui compte** : le manque doit porter sur ce qui
+*définit* une nation, pas sur un peu de tout. Le Royaume-Uni sans nourriture, c'est l'île
+qui importe son pain, ses convois et sa Maîtrise des mers — le manque, l'atout et l'histoire
+disent la même chose. C'est le modèle ; la platitude en est le contraire exact.
+
+**Le pétrole reste le manque de six nations sur huit, et ce n'est pas un défaut.** Il devient
+le motif universel de sortir de chez soi, et chaque nation a sa façon d'aller le chercher —
+le porte-avions japonais, la Guerre éclair allemande, le rayon impérial français, Mare
+Nostrum italien. Ne pas « varier les manques » pour la variété : ce serait casser la colonne
+vertébrale du système d'expansion.
+
+## Un principe qui sort de là : l'isolement se paie en rareté
+
+Le Japon est à demi coupé du monde et sa géologie est misérable : les deux se compensent, et
+sa pauvreté est ce qui rend crédible qu'il doive sortir. C'est la forme que devrait prendre
+la réponse au 🔴 — richesse et accessibilité vont en sens inverse.
+
+Les États-Unis sont l'exception qui reste ouverte : les plus inatteignables **et** les mieux
+dotés. On ne la corrige pas ici, parce que l'histoire refuse de payer — les États-Unis de
+1940 ne manquaient de rien qui figure dans nos cinq ressources ; leurs vraies pénuries
+étaient le caoutchouc, l'étain et le chrome, qui n'existent pas dans ce jeu. Inventer un
+manque américain serait de la fiction au service d'un tableau.
+
+La distribution des gisements **borne** donc le déséquilibre américain sans le supprimer.
+La question reste ouverte dans [QUESTIONS.md](../../QUESTIONS.md) et c'est au simulateur
+refondu de chiffrer ce que l'exception coûte.
 
 ## Ce qu'on abandonne
 

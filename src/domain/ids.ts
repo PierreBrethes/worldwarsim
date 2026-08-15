@@ -32,6 +32,15 @@ export type MovementType = 'attack' | 'raid' | 'outpost' | 'agent' | 'decoy';
 
 export type ResourceKey = 'supply' | 'steel' | 'manpower';
 
+/**
+ * The five map resources of the economy v2 (ADR 0015): what a region can hold, one at most.
+ * Baked offline into `public/deposits.json` by `scripts/generate-deposits.mjs` — no game rule
+ * derives a deposit at runtime.
+ */
+export const DEPOSITS = ['food', 'textile', 'coal', 'oil', 'ore'] as const;
+
+export type DepositKey = (typeof DEPOSITS)[number];
+
 export type BuildingKey = 'hq' | 'industry' | 'logistics' | 'conscription' | 'listening';
 
 export type PlayableRegion = 'europe' | 'europe-med' | 'world';

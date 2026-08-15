@@ -9,6 +9,25 @@ Ce qui n'est pas tranché. Rien ne se code tant que les questions marquées 🔴
 aggrave le problème au lieu de le corriger — il récompense l'isolement, qui est déjà un avantage.
 → [rapport de simulation](docs/technique/rapport-simulation.md)
 
+*Le principe dégagé le 15/08 : **l'isolement se paie en rareté.*** Richesse et accessibilité
+doivent aller en sens inverse. Le Japon en est la démonstration réussie — à demi coupé du monde,
+sans fer ni pétrole ni riz, il doit sortir ou mourir, et son porte-avions comme ses Rikusentai
+disent déjà cela. La géographie et l'atout racontent la même chose.
+
+*Ce qui reste ouvert, précisément.* Les États-Unis sont l'inverse exact : les plus inatteignables
+**et** les mieux dotés (16 gisements, seule nation sans manque). Les deux avantages vont dans le
+même sens au lieu de s'annuler. La distribution des gisements ([ADR 0015](docs/adr/0015-economie-v2-ressources-localisees.md),
+révision du 15/08) **borne** l'écart à 2× mais ne le supprime pas, et elle ne peut pas : les
+États-Unis de 1940 ne manquaient de rien qui figure dans les cinq ressources du jeu — leurs vraies
+pénuries étaient le caoutchouc, l'étain et le chrome. Inventer un manque américain serait de la
+fiction au service d'un tableau.
+
+Donc le levier n'est pas économique. Restent trois pistes, aucune tranchée : le **coût de la
+distance** (déjà le levier central mesuré, 14 min / 1 000 km), l'**obligation de bâtir et défendre
+des ports** pour exister ailleurs ([ADR 0013](docs/adr/0013-batiments-de-projection-sur-regions.md)),
+et une **condition de victoire** qui exige d'agir loin de chez soi. C'est au simulateur refondu de
+dire laquelle mord — le rapport actuel ne vaut plus une ligne depuis les ADR 0013, 0014 et 0015.
+
 ## 🟢 Tranchées par la simulation
 
 **Le temps de trajet : 14 min pour 1 000 km.** La question était mal posée : il n'y a pas de ratio

@@ -24,6 +24,9 @@ export type World = {
 export type RegionLine = ReadonlyArray<readonly [x: number, y: number]>;
 
 export type DisplayedRegion = {
+  /** The Natural Earth `adm1_code` — admin-1 names repeat across countries, ids do not. */
+  readonly id: string;
+  readonly country: string;
   readonly name: string;
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
 };
@@ -40,10 +43,18 @@ export type RegionsData = {
 export async function loadRegions(url = '/regions.json'): Promise<RegionsData> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`regions not found: ${url}`);
-  const raw = (await response.json()) as { lignes: RegionLine[]; regions: Array<{ n: string; p: [number, number][][] }> };
+  const raw = (await response.json()) as {
+    lines: RegionLine[];
+    regions: Array<{ id: string; country: string; n: string; p: [number, number][][] }>;
+  };
   return {
-    lines: raw.lignes,
-    regions: raw.regions.map((region) => ({ name: region.n, rings: region.p })),
+    lines: raw.lines,
+    regions: raw.regions.map((region) => ({
+      id: region.id,
+      country: region.country,
+      name: region.n,
+      rings: region.p,
+    })),
   };
 }
 
@@ -82,7 +93,7 @@ type RawWorld = {
   countries: Array<{ n: string; c: [number, number]; ll: [number, number]; p: [number, number][][] }>;
 };
 
-export async function loadWorld(url = '/monde.json'): Promise<World> {
+export async function loadWorld(url = '/world.json'): Promise<World> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`world not found: ${url}`);
   const raw = (await response.json()) as RawWorld;

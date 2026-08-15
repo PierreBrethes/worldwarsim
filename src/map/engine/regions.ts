@@ -118,7 +118,7 @@ export class RegionLayer {
     return this.share > 0.01 && this.prepared.length > 0;
   }
 
-  /** The point is in projected coordinates (those of `monde.json`), not world coordinates. */
+  /** The point is in projected coordinates (those of `world.json`), not world coordinates. */
   hover(projectedX: number, projectedY: number): string | null {
     let kept: PreparedRegion | null = null;
     for (const candidate of this.prepared) {

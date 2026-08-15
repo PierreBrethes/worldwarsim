@@ -595,7 +595,7 @@ const cardInk = (card: MovementCard, view: PlayerView): string => {
 };
 
 /**
- * The card prints the French name; the map only knows `monde.json`'s English labels — the
+ * The card prints the French name; the map only knows `world.json`'s English labels — the
  * arc carries both, the timeline re-translates nothing.
  */
 const mapDestination = (card: MovementCard, view: PlayerView): string | null => {

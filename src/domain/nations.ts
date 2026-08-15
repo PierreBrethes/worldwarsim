@@ -15,7 +15,7 @@ export const INK_BY_NATION: Readonly<Record<Nation, string>> = {
 };
 
 /**
- * The `monde.json` country each playable nation sits on. The table is required because the
+ * The `world.json` country each playable nation sits on. The table is required because the
  * world is named in English by Natural Earth while nations are game ids: nothing coincides
  * by accident, everything goes through here.
  *

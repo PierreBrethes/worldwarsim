@@ -97,7 +97,7 @@ describe('east-west wrapping', () => {
 describe('on the real world', () => {
   it('engraves the sea gates: Gibraltar stays open', async () => {
     const { readFileSync } = await import('node:fs');
-    const raw = JSON.parse(readFileSync('public/monde.json', 'utf8')) as {
+    const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
       meta: { sphere: World['sphere']; outline: World['outline'] };
       countries: Array<{ n: string; c: [number, number]; ll: [number, number]; p: [number, number][][] }>;
     };
