@@ -2,12 +2,20 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
-import { cappedByHq, levelOf, playerBuildings } from './buildings';
-import { buildCost, buildMinutes, buildingCap, type Costs } from './constants';
+import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
+import {
+  buildCost,
+  buildMinutes,
+  buildingCap,
+  isCommanded,
+  troopCap,
+  type Costs,
+} from './constants';
 import { fail } from './errors';
 import { homeCountryOf, regionFacts, regionsOf } from './regions';
-import { economyOf, snapshotAll } from './resources';
+import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { playerByToken } from './seasons';
+import { troopsOf } from './troops';
 
 export const playerView = query({
   args: { token: v.string() },
@@ -40,16 +48,22 @@ export const playerView = query({
       if (facts) carrying.set(facts.id, facts);
     }
 
-    // Tiers are summed here: the board counts riflemen, only the workshop distinguishes
-    // their equipment.
-    const units = await ctx.db
-      .query('units')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect();
+    const troops = await troopsOf(ctx, player._id);
+
+    /**
+     * A troop attached to a building that no longer stands **comes home** — it is not lost,
+     * and it is not re-hung on the headquarters (ADR 0014, rule 3 of the project). The move is
+     * resolved on reading rather than written back: a query cannot write, and a row pointing at
+     * a razed building means exactly "at home" until something else moves it.
+     */
+    const standing = new Set(buildings.map((building) => building._id));
+    const stationOf = (troop: (typeof troops)[number]) =>
+      troop.stationedAt !== null && standing.has(troop.stationedAt) ? troop.stationedAt : null;
+
+    // The board counts troops by role and forgets their tier: only the workshop distinguishes
+    // equipment. The strengths travel per troop, just below.
     const armyPresent: Record<string, number> = {};
-    for (const unit of units) {
-      if (unit.count > 0) armyPresent[unit.role] = (armyPresent[unit.role] ?? 0) + unit.count;
-    }
+    for (const troop of troops) armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
 
     const buildCatalog = Object.fromEntries(
       BUILDINGS.map((key) => [key, { cost: buildCost(key, 1), minutes: buildMinutes(key, 1) }]),
@@ -87,6 +101,40 @@ export const playerView = query({
         progress: 0,
         restWindow: player.restWindow,
         resources: snapshotAll(economy),
+        /**
+         * The three chains and what each one is doing — the industry window's whole reason to
+         * exist. The state comes out of the settlement itself (`settleStocks`), never out of a
+         * second reading of the stocks: a client that re-derived "à sec" from a stock at zero
+         * would call a chain starved the very instant a mine keeps it fed hour for hour.
+         *
+         * The level is summed over the sites, like the rate it explains: two foundries at one
+         * convert what one at two does.
+         */
+        chains: economy.chains.map(({ conversion, state, missing, made }) => {
+          const lot = economy.orders.find((order) => order.chain === conversion.by) ?? null;
+          return {
+            by: conversion.by,
+            output: conversion.output,
+            inputs: conversion.inputs.map(([resource, quantity]) => ({ resource, quantity })),
+            /**
+             * **The real rate first, the nominal second.** A starved arsenal printing "3 / h"
+             * beside "À SEC — ALLIAGE" tells the player he is making three an hour; he is
+             * making none. The real one is what the outlook actually pushed through, so it
+             * cannot disagree with the badge next to it.
+             */
+            perHour: made / OUTLOOK_HOURS,
+            nominalPerHour: conversion.perHour,
+            level: totalLevelOf(buildings, conversion.by),
+            state,
+            missing,
+            commanded: isCommanded(conversion.by),
+            order: lot === null ? null : { ordered: lot.ordered, produced: Math.floor(lot.produced) },
+            maxOrder: maxOrderOf(economy, conversion.by),
+          };
+        }),
+        /** What each exploitation pulls out, site by site — `resources` only carries the sum,
+         *  which cannot name the mine that sits on nothing. */
+        extraction: extractionSites(buildings),
         // The slots follow the headquarters since the logistics centre was dissolved
         // (ADR 0015). One slot outlives the building: a nation always has one movement to
         // make, even with its capital flattened.
@@ -104,6 +152,9 @@ export const playerView = query({
          */
         buildingCap: buildingCap(hqLevel),
         buildings: buildings.map((building) => ({
+          // The instance, not the key: a nation can hold three barracks, and a link that
+          // carried `barracks` would open the one in Normandy for a click in Brittany.
+          id: building._id,
           key: building.key,
           regionId: building.regionId,
           level: building.level,
@@ -132,6 +183,20 @@ export const playerView = query({
             }
           : null,
         armyPresent,
+        /**
+         * How many troops may stand at once, carried by the billets (ADR 0014). Served beside
+         * the troops themselves so the board can say "18 / 24" without a second count of its
+         * own — the list below is complete, so its length is the count.
+         */
+        troopCap: troopCap(totalLevelOf(buildings, 'billets')),
+        troops: troops.map((troop) => ({
+          id: troop._id,
+          role: troop.role,
+          tier: troop.tier,
+          strength: troop.currentStrength,
+          nominalStrength: troop.nominalStrength,
+          stationedAt: stationOf(troop),
+        })),
       },
       /**
        * What a first level costs, for the fifteen keys. The client needs it to price the lines

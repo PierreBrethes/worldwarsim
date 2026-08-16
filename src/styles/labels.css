@@ -99,10 +99,12 @@
   transform: translateY(-50%);
 }
 
-/* The building's own plate, hung where a pictogram would be. Sized by its height, as the bake
-   sizes it (`BUILDING_REFERENCE_HEIGHT`): the hierarchy between a foundry and a listening post
-   is drawn into the images, and a common width would flatten it back out. Its reserve is
-   thinner than the pictograms' — a full illustration needs a rim, not a halo. */
+/* The building's own plate, hung where a pictogram would be. All fifteen share one height and
+   there is no size hierarchy between them: an assumed decision, taken on the real plates at
+   the map's real scale (`WWS/sprites/README.md` §7). What tells a foundry from a listening
+   post is the silhouette, never the pixels. Height is the pinned axis because the marker hangs
+   by its top; widths differ freely. Its reserve is thinner than the pictograms' — a full
+   illustration needs a rim, not a halo. */
 .label-plate {
   display: block;
   width: auto;
@@ -122,6 +124,41 @@
   top: auto;
   bottom: -2px;
   transform: none;
+}
+
+/* A deposit designates a *potential*, a building a possession — so the deposit gets none of
+   the building's apparatus: no mast, no shadow pool, no words, and the resource's own ink
+   instead of the nation's. It sits flat on the ground point, slightly to the side, so the two
+   read together on a worked region without either fighting for the eye. Half the plate's
+   height and no relief: if they ever compete, the player stops knowing what he holds from what
+   he could take. */
+.label--deposit::before {
+  content: none;
+}
+
+.label--deposit .label-bar {
+  display: none;
+}
+
+.label--deposit .label-block {
+  bottom: -8px;
+  left: 6px;
+  /* The layer is read, never clicked: a pictogram catching the pointer would steal the right
+     click that opens the crane on the very region it marks. */
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* The level-of-detail threshold never reaches a deposit: it is gone with the admin-1 layer
+   long before the camera is far enough to fold anything. The rule is written anyway, because
+   the day the two distances move it is the mark that must survive, never the words. */
+.label--deposit.label--glyph .label-block {
+  opacity: 0.85;
+}
+
+.label-deposit {
+  display: block;
+  filter: drop-shadow(0 0 1.4px var(--paper)) drop-shadow(0 0 1.4px var(--paper));
 }
 
 /* A movement's head is already planted: its 3D sprite carries its own footing. */
@@ -246,6 +283,25 @@
 
 .label--expanded .label-block {
   opacity: 1;
+}
+
+/* A folded building keeps its portrait and drops only its words. Everywhere else the glyph
+   level is the whole block fading out, but a building's block *contains* the plate: fading it
+   erased the building itself, and since one building stands per region, two departments a few
+   pixels apart in a wide view folded each other away. Only the headquarters survived — first
+   in the list, so it wins every tie at equal priority.
+
+   The bar goes with the words: it is the mast the caption hangs from, and a mast holding
+   nothing is a stroke with no errand. The callout below it stays — it is what designates the
+   ground. */
+.label--building.label--glyph .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--building.label--glyph .label-lines,
+.label--building.label--glyph .label-bar {
+  display: none;
 }
 
 .label--clickable::before,

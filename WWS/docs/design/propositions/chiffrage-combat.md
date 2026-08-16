@@ -32,9 +32,15 @@ ne se lit pas. Ses points de vie sont son **groupe aérien** — ce qui est auss
 valeur de jeu (fiche 09 : il déplace le point de lancement aérien). « Il a perdu 8 appareils » se
 comprend ; « il est à 60 % de coque » ne veut rien dire.
 
-Nombre de troupes par nation : **8 au départ, plafond 24**, relevé de 4 par niveau de
-casernements. On reste dans la fourchette 10–30 de l'ADR 0014, et les slots de mouvement
-(ADR 0006) restent le régulateur — on ne déplace jamais tout à la fois.
+Nombre de troupes par nation : **8 au départ, plafond 24**, relevé de **2 par niveau cumulé de
+Baraquements** — le pas se dérive de la cible et du nombre de niveaux qui la saturent (8), il ne
+s'écrit pas. Le plafond lit la **somme des niveaux de toutes les instances**, et comme aucun
+bâtiment ne peut atteindre le niveau du QG, **un seul Baraquements plafonne à 16** : atteindre 24
+coûte au minimum deux emplacements. On reste dans la fourchette 10–30 de l'ADR 0014, et les slots
+de mouvement (ADR 0006) restent le régulateur — on ne déplace jamais tout à la fois.
+
+Le porte-avions n'a **qu'un seul palier** : le tableau ci-dessus ne donne pas d'effectif nominal
+pour un MK2, et sa force est la portée, pas la puissance (fiche 08).
 
 ## 2. La table de dégâts
 

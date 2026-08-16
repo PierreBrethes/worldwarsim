@@ -30,6 +30,8 @@ type Props = {
   /** The id of the movement the timeline designates — the matching arc rises in intensity. */
   accentedMovement: string | null;
   onSelect: (name: string | null) => void;
+  /** A click on a building's mast opens its surface instead of selecting the country. */
+  onOpenBuilding?: (buildingId: string) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
@@ -52,6 +54,7 @@ export function WorldMap({
   indicators,
   accentedMovement,
   onSelect,
+  onOpenBuilding,
   onRegionHover,
   onArcHover,
   onLabelHover,
@@ -231,6 +234,7 @@ export function WorldMap({
         engine={readyEngine}
         onMovementHover={onLabelHover ?? (() => {})}
         onSelect={onSelect}
+        onOpenBuilding={onOpenBuilding ?? (() => {})}
         onContextMenu={onLabelMenu}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />

@@ -32,12 +32,34 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
  * reading every time both are built.
  */
 export const CHAINS: Readonly<
-  Record<'foundry' | 'arsenal' | 'quartermaster', Omit<Conversion, 'perHour'> & { perHourPerLevel: number }>
+  Record<
+    'foundry' | 'arsenal' | 'quartermaster',
+    Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }
+  >
 > = {
   foundry: { output: 'alloy', inputs: [['ore', 2], ['coal', 1]], perHourPerLevel: 4 },
   arsenal: { output: 'ammunition', inputs: [['alloy', 1]], perHourPerLevel: 3 },
   quartermaster: { output: 'bandages', inputs: [['textile', 1]], perHourPerLevel: 3 },
 };
+
+export type ChainKey = keyof typeof CHAINS;
+
+/**
+ * **A chain runs on its own as long as its input serves nothing else. The moment it eats a
+ * matter spent elsewhere, the player says how much.** The alloy pays for buildings, for
+ * upgrades and for troops, so an arsenal at level 3 quietly takes 216 a day from a nation
+ * saving 430 for a carrier — a defect nobody can see, since no screen ever names it.
+ *
+ * Written down rather than derived from the cost tables: coal appears in half the building
+ * bills without anyone thinking of the foundry as commanded, so a derivation would command
+ * every chain and the decision would stop being one. Extending it is an edit here, which is
+ * exactly what the rule wants — the day textile is spent elsewhere, the quartermaster joins
+ * the list and nothing else moves.
+ */
+export const COMMANDED_CHAINS: ReadonlyArray<ChainKey> = ['arsenal'];
+
+export const isCommanded = (key: BuildingKey): boolean =>
+  (COMMANDED_CHAINS as ReadonlyArray<string>).includes(key);
 
 /**
  * Low by default, so the warehouse and the depot become necessary — and therefore targets,
@@ -129,10 +151,36 @@ export const STARTING_STOCK: Readonly<Record<ResourceKey, number>> = {
 };
 
 /**
- * Cost and duration of **a single tier-1 unit**, in alloy. Provisional on two counts: the
- * troops prompt rewrites recruitment on per-building queues, and the men a unit costs are now
- * a ceiling carried by the billets, not a stock to spend. Kept only so the production surface
- * keeps working across the two prompts.
+ * **The hit points of a troop are its readable strength** (ADR 0014), reported straight from
+ * `chiffrage-combat.md` §1 — 50 soldiers, 12 tanks, 6 ships. The carrier counts its air group,
+ * not its hulls: a carrier at one hit point dies at a stroke and reads as nothing.
+ *
+ * Absent means the tier does not exist for that role; `TIERS_BY_ROLE` says the same thing and
+ * `troops.test.ts` holds the two together rather than trusting them to stay in step.
+ */
+export const NOMINAL_STRENGTH: Readonly<
+  Record<UnitRole, Readonly<Partial<Record<UnitTier, number>>>>
+> = {
+  infantry: { 1: 50, 2: 30 },
+  armor: { 1: 12, 2: 6 },
+  landTransport: { 1: 24 },
+  fighter: { 1: 12 },
+  bomber: { 1: 9 },
+  airTransport: { 1: 6 },
+  escort: { 1: 6 },
+  cargo: { 1: 8 },
+  carrier: { 1: 24 },
+};
+
+export function nominalStrength(role: UnitRole, tier: UnitTier): number {
+  const strength = NOMINAL_STRENGTH[role][tier];
+  if (strength === undefined) throw new Error(`no tier ${tier} for ${role}`);
+  return strength;
+}
+
+/**
+ * Cost and duration of **one tier-1 troop**. A batch is a troop, so nothing here multiplies by
+ * a count any more (ADR 0014).
  */
 export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: number }>> = {
   infantry: { alloy: 18, minutes: 20 },
@@ -146,28 +194,88 @@ export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: n
   carrier: { alloy: 430, minutes: 480 },
 };
 
+/**
+ * The ammunition a troop leaves with, **derived** rather than tabulated: the chiffrage spends
+ * one round per five points of strength and per engagement (§5), so a fresh troop carries two
+ * engagements' worth. Nine hand-written numbers would be nine chances to contradict that rule.
+ *
+ * This is the initial load only. Neither upkeep nor continuous consumption is coded — no rate
+ * is figured anywhere, and `economyOf` has no path for a stock that drains.
+ */
+export const INITIAL_AMMUNITION_ENGAGEMENTS = 2;
+export const STRENGTH_PER_ROUND = 5;
+
+export const ammunitionLoad = (role: UnitRole, tier: UnitTier): number =>
+  Math.ceil(nominalStrength(role, tier) / STRENGTH_PER_ROUND) * INITIAL_AMMUNITION_ENGAGEMENTS;
+
 export const TIER_2_FACTOR = 1.6;
 
 /**
- * The industrial complex is dissolved (ADR 0015), and research moved to the headquarters
- * along with the movement slots. Tier 2 and the speed of the line follow it there rather than
- * being dropped — a placeholder home, until the troops prompt gives the projection buildings
- * their own queues.
+ * Research lives at the headquarters since the industrial complex was dissolved (ADR 0015).
+ * The tier-2 gate and the speed of the line stay there and do **not** migrate onto the
+ * projection buildings, which only carry their own queue.
  */
 export const TIER_2_HQ_LEVEL = 2;
-export const MAX_UNITS_PER_BATCH = 20;
+
+/**
+ * The length of one **building's** queue. Nearly inert since a batch became a single troop:
+ * the troop ceiling below bites long before twelve batches pile up in a single barracks. Kept
+ * as a guard against an unbounded queue, not as a balance knob.
+ */
 export const MAX_QUEUED_BATCHES = 12;
+
+/**
+ * **One ceiling, and it counts troops — never men.** Adding the nominal strengths would add
+ * tanks to destroyers: 50 soldiers, 12 tanks and 6 ships are not the same unit of measure.
+ *
+ * The step is **derived**: moving `TROOP_CAP_TARGET` alone moves the ceiling, which is what
+ * lets the simulator sweep it without a second number to fix by hand.
+ *
+ * **Assumed: this is an anti-swarm rule, not a balance between domains.** A ceiling counted in
+ * troops only bites on the cheap roles — 24 infantries cost 432 alloy, 24 carriers would cost
+ * 10 320, so the ceiling speaks for the infantry and the cost speaks for the navy. Without it
+ * a single barracks turns out some 500 infantries over a seven-day season. Making it bite
+ * everywhere would take a per-role price in "slots" — one more table to balance, refused on
+ * purpose. Do not "fix" this.
+ *
+ * There is no per-domain ceiling either: land, air and sea draw on the same stock, exactly as
+ * the movement slots do (ADR 0006). That is what gives the choice of doctrine its weight.
+ */
+export const TROOP_CAP_BASE = 8;
+export const TROOP_CAP_TARGET = 24;
+export const BILLETS_LEVELS_TO_CAP = 8;
+
+export const TROOP_CAP_PER_BILLETS_LEVEL =
+  (TROOP_CAP_TARGET - TROOP_CAP_BASE) / BILLETS_LEVELS_TO_CAP;
+
+/**
+ * The ceiling reads the **sum of the levels of every billets** — a ceiling adds up over sites,
+ * where the headquarters cap and the tier gates read the best instance alone.
+ *
+ * **The second billets is a compulsory toll, and that is the decision.** `cappedByHq` forbids
+ * any building from reaching the headquarters' level, so a billets stops at 4 under a
+ * headquarters at 5: **one billets caps a nation at 16 troops** and can never saturate.
+ * Reaching 24 costs at least **two building slots** out of the thirteen the headquarters
+ * carries — a full army is paid for in economy. Each extra site saves matter (2×4: 594 alloy,
+ * 4×2: 280), so the trade reads plainly and hides no optimum.
+ */
+export const troopCap = (billetsTotalLevel: number): number =>
+  Math.min(
+    TROOP_CAP_TARGET,
+    Math.floor(TROOP_CAP_BASE + TROOP_CAP_PER_BILLETS_LEVEL * billetsTotalLevel),
+  );
 
 export function chainSpeed(hqLevel: number): number {
   return 1 + Math.max(0, hqLevel - 1) * 0.225;
 }
 
-export function recruitmentCost(role: UnitRole, tier: UnitTier, count: number, hqLevel: number) {
+export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number) {
   const base = COST_BY_ROLE[role];
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
   return {
-    alloy: Math.round(base.alloy * factor) * count,
-    minutes: Math.round((base.minutes * factor * count) / chainSpeed(hqLevel)),
+    alloy: Math.round(base.alloy * factor),
+    ammunition: ammunitionLoad(role, tier),
+    minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
   };
 }
 

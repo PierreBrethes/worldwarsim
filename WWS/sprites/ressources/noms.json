@@ -1,0 +1,46 @@
+{
+  "_lecture": "Une clé de ResourceKey par planche. Les noms de fichiers sortis du générateur ne portent qu'un UUID : cette table est le seul lien entre une image et sa ressource. Appariement vérifié le 16/08 sur le rapport largeur/hauteur de chaque boîte englobante, pas sur l'ordre du dossier.",
+
+  "alloy": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_268052e6-3880-44bc-b86b-31bdfbcdc1e3_0_nobg.png",
+    "sujet": "six lingots trapézoïdaux empilés en pyramide",
+    "ratio": 1.48
+  },
+  "coal": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_5f8c40bc-3c79-453a-83b4-a40063812698_0_nobg.png",
+    "sujet": "tas de blocs de charbon anguleux",
+    "ratio": 1.76,
+    "reserve": "contraste 2,80 sur le bandeau de nuit — sous le plancher de 3:1, 33 % de pixels quasi noirs. À compenser par un liseré de papier à l'affichage, ou à régénérer plus clair."
+  },
+  "ore": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_95aac757-dd76-4ece-9e25-0309457e04cb_0_nobg.png",
+    "sujet": "berline de mine chargée de roche brute, deux roues",
+    "ratio": 1.12
+  },
+  "textile": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_96370692-e6b6-4328-8e8b-f5a033a8ae7d_0_nobg.png",
+    "sujet": "balle de tissu sanglée, un pan retombant",
+    "ratio": 1.27
+  },
+  "oil": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_ca004054-ae69-4988-9215-521b81fd45ac_0_nobg.png",
+    "sujet": "fût de 200 litres debout, trois cerclages, bonde sur le dessus",
+    "ratio": 0.62
+  },
+  "food": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_d855c78d-cada-4c2f-869d-d7d7ee4ac3f9_0_nobg.png",
+    "sujet": "sac de jute ficelé au col, grains tombés au pied",
+    "ratio": 0.73
+  },
+  "ammunition": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_f59c2ea6-7d54-4c1e-95ea-e6a4a8260e6b_0_nobg.png",
+    "sujet": "trois cartouches de fusil debout, ogive et étui laiton",
+    "ratio": 0.81,
+    "reserve": "écart au brief, qui demandait des obus. Assumé : une cartouche se lit plus vite qu'un obus à 13 px. Conséquence à connaître — un porte-avions consomme des munitions illustrées par des balles."
+  },
+  "bandages": {
+    "fichier": "default_emblme_plat_pour_interface_de_jeu_de_stratgie_annes_19_1940_f9bc6221-f453-420e-8dd5-030f1033bff1_0_nobg.png",
+    "sujet": "rouleau de gaze, une extrémité déroulée, épingle de sûreté posée devant",
+    "ratio": 1.06
+  }
+}

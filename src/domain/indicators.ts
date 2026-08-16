@@ -8,9 +8,15 @@ import { URGENCY_MS, isCountdown, type LabelType, type MapLabel } from './labels
  * `buildings` are what stands, `constructions` what is being raised: two states of the same
  * object, but one is an economy read on the map and the other a duration to watch. Merging
  * them would light a crane over a foundry finished three seasons ago.
+ *
+ * `deposits` are neither: what the ground holds, whether or not anything works it. They ride
+ * the same bascule idiom because they answer the same question — *what is on this region* —
+ * and they must stay separable from it, since a player looks for a deposit precisely when he
+ * has not built there yet.
  */
 export type IndicatorCategory =
   | 'buildings'
+  | 'deposits'
   | 'outposts'
   | 'constructions'
   | 'forces'
@@ -20,6 +26,7 @@ export type IndicatorCategory =
 
 export const CATEGORY_BY_TYPE: Readonly<Record<LabelType, IndicatorCategory>> = {
   building: 'buildings',
+  deposit: 'deposits',
   outpost: 'outposts',
   construction: 'constructions',
   stack: 'forces',
@@ -38,9 +45,15 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  * `buildings` is the exception, and it is not one of degree: the bascule does not only fold
  * the building to the edge, it decides whether the plate stands on the board at all. Off by
  * default, the player's own economy would be invisible until he found the button.
+ *
+ * `deposits` is on for the same reason and a sharper one: it is the layer that answers "where
+ * do I put a mine", and the fallback for a player who never finds the button is to right-click
+ * a hundred regions one by one. Counted on `public/deposits.json`, a playable nation holds
+ * nine to seventeen of them — the layer is thin enough that showing it costs nothing to read.
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
+  deposits: true,
   outposts: false,
   constructions: false,
   forces: false,
@@ -51,6 +64,7 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
 
 export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
   'buildings',
+  'deposits',
   'outposts',
   'constructions',
   'forces',

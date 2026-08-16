@@ -1,4 +1,4 @@
-import type { Medium, MovementType, UnitRole, UnitTier } from './ids';
+import type { BuildingKey, Medium, MovementType, UnitRole, UnitTier } from './ids';
 import type { ArcView, PlayerView, Stack } from './player-view';
 
 export type { UnitTier };
@@ -17,9 +17,26 @@ export const DOMAIN_BY_ROLE: Readonly<Record<UnitRole, UnitDomain>> = {
 };
 
 /**
+ * Which building forms a domain's troops (ADR 0015). It names a **key**, never an instance:
+ * every barracks holds its own queue, which is what makes a second one worth building.
+ */
+export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
+  land: 'barracks',
+  air: 'airfield',
+  sea: 'port',
+};
+
+export const projectionKeyOf = (role: UnitRole): BuildingKey =>
+  PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
+
+/**
  * How many equipment tiers a role knows. Two for those whose gear gets replaced mid-season,
  * one for the others: this table decides what a workshop may produce, not the presence of a
  * sprite.
+ *
+ * The carrier has **one**: `chiffrage-combat.md` §1 gives eleven nominal strengths and none
+ * for a tier-2 carrier, so the tier is not codable without inventing a number. Its strength is
+ * reach, not power (design sheet 08).
  */
 export const TIERS_BY_ROLE: Readonly<Record<UnitRole, UnitTier>> = {
   infantry: 2,
@@ -30,7 +47,7 @@ export const TIERS_BY_ROLE: Readonly<Record<UnitRole, UnitTier>> = {
   airTransport: 1,
   escort: 1,
   cargo: 1,
-  carrier: 2,
+  carrier: 1,
 };
 
 export const tierLabel = (tier: UnitTier): string => `MK${tier}`;
@@ -74,6 +91,13 @@ export type TroopSituation =
 
 export type SituationKind = TroopSituation['kind'];
 
+/**
+ * **A line counts troops, not men — and that is a knowing lie for now.** Since ADR 0014 a
+ * troop is discrete and its hit points are its readable strength, which `PlayerView` already
+ * carries per troop. This inventory still adds them up by role, so the screen says "3
+ * infanteries" where the truth is "50 / 32 / 12 soldats". The data is there; only the rendering
+ * waits on its brief.
+ */
 export type TroopLine = {
   readonly key: string;
   readonly role: UnitRole;

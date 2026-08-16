@@ -1,6 +1,6 @@
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
-import type { MovementType, Specialization, UnitRole } from './ids';
+import type { DepositKey, MovementType, Specialization, UnitRole } from './ids';
 import type { ArcView, PlayerView, Stack } from './player-view';
 
 /**
@@ -45,6 +45,12 @@ export type MapMarker =
        */
       readonly kind: 'building';
       readonly id: string;
+      /**
+       * The row a click opens, `null` while the first level is still under the crane: nothing
+       * stands yet, so there is no line to open anywhere. The instance and not the key — a
+       * nation holding three barracks has three lines, and only one of them is this mast.
+       */
+      readonly buildingId: string | null;
       readonly regionId: string;
       readonly hostCountry: string | null;
       readonly name: string;
@@ -58,6 +64,21 @@ export type MapMarker =
        */
       readonly finishesAt: number | null;
       readonly ink: string;
+    }
+  | {
+      /**
+       * What the ground holds before anyone works it. Same anchor as a building — the region's
+       * interior point — but neither its ink nor its words: a deposit is a potential, and only
+       * what is held gets a nation's ink.
+       *
+       * Nor its reach. A building says what a nation *holds* and stays legible from orbit; a
+       * deposit only answers "where do I build", so it comes and goes with the admin-1 layer
+       * that makes building possible at all (`withRegionLayer`, `map/engine/labels.ts`).
+       */
+      readonly kind: 'deposit';
+      readonly id: string;
+      readonly regionId: string;
+      readonly deposit: DepositKey;
     };
 
 /**
@@ -74,6 +95,7 @@ export type LabelType =
   | 'stack'
   | 'construction'
   | 'building'
+  | 'deposit'
   | 'my-movement'
   | 'inbound-movement'
   | 'intel';
@@ -81,7 +103,7 @@ export type LabelType =
 /**
  * A line's role, not its shape: the mockup decides that a nature line is spaced capitals and
  * a figures line is tabular. The domain never fabricates countdown text — it hands the due
- * time, the display layer ticks it once per second and nothing recomputes in between.
+ * time, the display layer counts it down once per second and nothing recomputes in between.
  */
 export type LabelLine =
   | { readonly role: 'nature' | 'figures' | 'headcount' | 'mention'; readonly text: string }
@@ -113,6 +135,12 @@ export type MapLabel = {
    * crane is what a building wears while it has no portrait to show yet.
    */
   readonly plate: string | null;
+  /**
+   * The resource lying under the region. The third and last face a label can wear, and the
+   * only one that belongs to the ground rather than to a nation — hence a marker that carries
+   * no ink beside it.
+   */
+  readonly deposit: DepositKey | null;
   readonly lines: ReadonlyArray<LabelLine>;
   /** An enemy movement pierced by intelligence — the mockup marks it with a state. */
   readonly identified: boolean;
@@ -125,6 +153,12 @@ export type MapLabel = {
   readonly idle: boolean;
   /** The country a click selects; `null` when the label is not clickable. */
   readonly hostCountry: string | null;
+  /**
+   * The building a click opens the surface of. It takes precedence over `hostCountry`: a click
+   * that opened a window *and* moved the country selection would do two things for one gesture,
+   * and only one of them was asked for.
+   */
+  readonly buildingId: string | null;
 };
 
 export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role: 'countdown' }> =>
@@ -133,17 +167,21 @@ export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role:
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
  * not coming at me — slots below mine and above the construction: an enemy contact reads
- * before a build duration, but after what I pilot myself. The building comes last of all: it
+ * before a build duration, but after what I pilot myself. The building comes near-last: it
  * is the only label that never moves, so it is the one a player can look for at leisure.
+ *
+ * The deposit comes below even that, and the order is the whole rule of its layer: it says a
+ * *potential* where everything above says a possession, so it never pushes anything aside.
  */
 const PRIORITY: Readonly<Record<LabelType, number>> = {
-  'inbound-movement': 6,
-  'my-movement': 5,
-  intel: 4,
-  construction: 3,
-  outpost: 2,
-  stack: 1,
-  building: 0,
+  'inbound-movement': 7,
+  'my-movement': 6,
+  intel: 5,
+  construction: 4,
+  outpost: 3,
+  stack: 2,
+  building: 1,
+  deposit: 0,
 };
 
 /** Below this remainder, the label switches to the mockup's urgency accent. */
@@ -176,14 +214,16 @@ function markerLabel(marker: MapMarker): MapLabel {
   const common = {
     id: marker.id,
     anchor:
-      marker.kind === 'building'
+      marker.kind === 'building' || marker.kind === 'deposit'
         ? ({ kind: 'region', regionId: marker.regionId } as const)
         : ({ kind: 'ground', lonLat: marker.lonLat } as const),
-    ink: marker.ink,
+    ink: marker.kind === 'deposit' ? null : marker.ink,
     plate: null,
+    deposit: null,
     identified: false,
     offensive: false,
     idle: false,
+    buildingId: null,
   } as const;
 
   switch (marker.kind) {
@@ -229,6 +269,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'building',
         priority: PRIORITY.building,
+        buildingId: marker.buildingId,
         // Under the crane the portrait is wrong twice over: a first level has nothing to
         // show, and an upgraded building is not the one standing there tonight.
         pictogram: marker.finishesAt === null ? null : 'construction',
@@ -250,6 +291,18 @@ function markerLabel(marker: MapMarker): MapLabel {
               ]),
         ],
       };
+    case 'deposit':
+      return {
+        ...common,
+        type: 'deposit',
+        priority: PRIORITY.deposit,
+        pictogram: null,
+        deposit: marker.deposit,
+        // A click on a deposit says nothing the ground does not: the region's own click
+        // already selects the country, and the crane already opens on the right list.
+        hostCountry: null,
+        lines: [],
+      };
   }
 }
 
@@ -270,10 +323,12 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ink: null,
       pictogram: null,
       plate: null,
+      deposit: null,
       identified: false,
       offensive: false,
       idle: false,
       hostCountry: null,
+      buildingId: null,
       lines: [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }],
     };
   }
@@ -305,10 +360,12 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     ink: null,
     pictogram: null,
     plate: null,
+    deposit: null,
     identified: arc.identification.pierced,
     offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
     idle: false,
     hostCountry: null,
+    buildingId: null,
     lines: [...schedule, second],
   };
 }

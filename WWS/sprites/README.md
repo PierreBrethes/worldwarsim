@@ -180,9 +180,10 @@ jamais une image cassée : une nation à moitié dessinée est jouable.
 
 ## 7. Bâtiments
 
-**Quinze visuels, pas cent vingt.** Un par `BuildingKey` de `src/domain/ids.ts`, **neutres**,
-teintés à l'encre nationale **à l'affichage**. Une caserne à pagode pour le Japon serait belle
-et coûterait huit planches, pour un sujet haut de deux centimètres à l'écran.
+**Quinze visuels, pas cent vingt.** Un par `BuildingKey` de `src/domain/ids.ts`, **neutres —
+et neutres ils restent à l'affichage** (voir « le manifeste » plus bas : aucune teinte n'est
+appliquée, et c'est délibéré). Une caserne à pagode pour le Japon serait belle et coûterait
+huit planches, pour un sujet haut de deux centimètres à l'écran.
 
 ```
 airfield  arsenal  barracks  billets  depot  farm  foundry  hq
@@ -191,7 +192,7 @@ listening  mill  mine  oilWell  port  quartermaster  warehouse
 
 ```
 WWS/sprites/buildings/            les sources — PNG détourés, 1024², pleine résolution
-WWS/sprites/buildings_clean/      le nettoyé, plus echelles.json
+WWS/sprites/buildings_clean/      le nettoyé
 src/emblems/buildings/            l'optimisé — WebP recadrés et mis à l'échelle
 src/emblems/buildings/manifest.ts la table typée, un Record<BuildingKey, …> complet
 ```
@@ -201,9 +202,19 @@ src/emblems/buildings/manifest.ts la table typée, un Record<BuildingKey, …> c
 Le même que les unités — trois-quarts à ~60°, lumière haut-gauche, fond `#4a7060`, **1024 ×
 1024**, sujet seul — avec une exigence de plus :
 
-**Posé sur le sol, pas flottant.** Le point d'ancrage à l'affichage est la **base** du
-bâtiment, pas son centre : le billboard porte sa géométrie décalée d'une demi-hauteur
-(`engine/buildings.ts`). C'est ce qui décide s'il a l'air planté ou collé.
+**Sujet entier, base visible, jamais coupé.** La règle de dessin est inchangée, sa
+justification non : à l'affichage la planche n'est **pas un sprite posé au sol**, c'est la
+vignette d'un **jalon** — elle pend au bout d'un mât, dans la couche DOM
+(`src/map/MapLabels.tsx`, classe `.label-plate`), et c'est le pied du mât qui désigne la
+région. Il n'y a **pas de billboard 3D pour les bâtiments et pas de `engine/buildings.ts`**.
+Un bâtiment coupé en bas ou vu en plongée reste inutilisable : au bout d'un mât comme au sol,
+il se lit comme une erreur.
+
+**Pourquoi le jalon a gagné contre le sprite posé** (tranché le 15/08, contre le plan initial
+de `docs/prompts/code/batiments-sur-la-carte.md`) : les régions admin-1 varient d'un facteur
+mille en surface. Un sprite posé au sol hérite de ce désordre — la même caserne serait un
+timbre sur la Iakoutie et un pâté sur Monaco. Le mât **découple la taille du symbole de celle
+de la région**, ce qui est précisément la propriété qu'on cherchait.
 
 ### L'ombre est opaque ici, et c'est un piège
 
@@ -242,48 +253,143 @@ treillis**, ce qu'aucun détourage par remplissage depuis les bords n'atteint. P
 ajouré — derrick, pylône, grue, antenne — le détourage doit être une **clé chromatique
 globale**, appliquée à toute l'image, jamais un remplissage propagé depuis l'extérieur.
 
-### L'échelle est une décision, pas un reste de cadrage
+### L'échelle : hauteur unique, tranché le 16/08
 
-Les planches ont été générées une par une : le sujet y occupe de **21,5 % à 57,7 %** du cadre
-selon la planche. Réduites toutes à la même largeur, un entrepôt cadré serré et une fonderie
-cadrée large sortiraient de la même taille — et la hiérarchie de la carte viendrait d'un
-accident de cadrage. C'est le piège de l'[ADR 0015](../docs/adr/0015-economie-v2-ressources-localisees.md)
-sur les quantités comptées en régions, transposé aux pixels.
+**Les quinze planches s'affichent à la même hauteur.** Il n'y a pas de hiérarchie de taille
+entre un quartier général et une cabane d'écoute sur la carte.
 
-`optimiser.py` recadre donc sur la **boîte englobante alpha**, puis met à l'échelle **par la
-hauteur** — pas par la largeur : le point d'ancrage étant la base, c'est la hauteur qui décide
-de la présence à l'écran. La table vit dans `buildings_clean/echelles.json`, même mécanique que
-le `noms.json` des unités, `1,00` valant `HAUTEUR_REFERENCE = 512 px`.
+La table `echelles.json` (`hq` 1,00 → `listening` 0,50) a existé et **n'a jamais rien produit** :
+le CSS du jalon épingle `height: 46px` sur toutes les vignettes, ce qui écrase l'échelle cuite
+à l'export. La contradiction a vécu un mois sans être vue.
 
-| clé | échelle | | clé | échelle |
-|---|---|---|---|---|
-| `hq` | 1,00 | | `arsenal` | 0,75 |
-| `foundry` | 0,90 | | `farm` | 0,70 |
-| `port` | 0,90 | | `warehouse` | 0,70 |
-| `mill` | 0,85 | | `quartermaster` | 0,70 |
-| `barracks` | 0,85 | | `depot` | 0,60 |
-| `mine` | 0,80 | | `billets` | 0,55 |
-| `airfield` | 0,80 | | `listening` | 0,50 |
-| `oilWell` | 0,75 | | | |
+Elle a été tranchée en la regardant, pas en la raisonnant — planches réelles, fond de terre
+nue, taille réelle de la carte. Deux constats :
 
-**Une clé absente d'`echelles.json` arrête le script en la nommant.** Un repli silencieux à
-`1,0` redonnerait le défaut qu'on corrige, en pire : invisible.
+- l'amplitude 1,00 → 0,50 était confortable sur un cadre de 512 px et **brutale à 46** : les
+  trois derniers sujets tombaient sous 25 px, sous le seuil de lisibilité que ce README pose
+  lui-même plus bas ;
+- à taille égale, la carte ne perd rien. **La hiérarchie passe entièrement par la silhouette** —
+  c'est la règle « une masse, pas un détail » qui porte la distinction, pas les pixels.
+
+Ce qui reste vrai du raisonnement d'origine : `optimiser.py` recadre sur la **boîte englobante
+alpha** puis normalise **par la hauteur**, pas par la largeur. Sans ce recadrage, un entrepôt
+cadré serré et une fonderie cadrée large sortiraient de tailles différentes — et la carte
+hériterait d'un accident de cadrage. C'est le piège de l'[ADR 0015](../docs/adr/0015-economie-v2-ressources-localisees.md)
+sur les quantités comptées en régions, transposé aux pixels. Ce qui change, c'est qu'après
+normalisation **toutes les clés valent 1,00**.
+
+**Conséquence acceptée :** un sujet élancé (`oilWell`, ratio 0,49) et un sujet large
+(`airfield`, ratio 1,38) auront la même hauteur et des largeurs très différentes. C'est le
+prix de la normalisation par la hauteur, et c'est le bon axe : le jalon pend par le haut, la
+hauteur est ce qui décide de sa présence.
 
 ```bash
 python WWS/sprites/optimiser.py --source WWS/sprites/buildings_clean \
-                                --destination src/emblems/buildings
+                                --destination src/emblems/buildings --recadrer
 ```
 
-Mesuré : 5,5 Mo de PNG → **460 Ko** de WebP, 15 à 42 Ko par bâtiment.
+`--recadrer` est ce qui sépare les deux régimes du script depuis la suppression
+d'`echelles.json` : sans lui, on est dans le régime des unités (réduction seule, cadrage
+inchangé).
 
-### Le manifeste et la teinte
+Mesuré : 5,5 Mo de PNG → **121 Ko** de WebP, 5 à 12 Ko par bâtiment.
+
+**`HAUTEUR_REFERENCE` vaut 160 px, tranché le 16/08 après mesure.** Les vignettes s'affichent à
+46 px : 160 couvre un écran 3× DPR avec une échelle HUD jusqu'à ~1,16, ou 2× DPR jusqu'à ~1,74.
+La référence précédente de 512 px sur-échantillonnait d'un facteur 11 pour 618 Ko. Contrôlé à
+l'œil, planches avant/après rendues à 138 px (46 px sur 3× DPR) sur fond de terre nue : aucune
+n'est visiblement plus floue, y compris les sujets à traits fins (`oilWell`, `listening`).
+
+Le poids ne suit pas le nombre de pixels : ÷10,2 en surface ne donne que ÷5,1 en octets. Un WebP
+petit paie proportionnellement plus d'en-tête et de détail par pixel — l'attendu de 60 Ko était
+optimiste du double, le gain reste de 5×.
+
+**Rien n'est perdu en la baissant.** `buildings_clean/` garde les sources pleine résolution et
+regénérer est une commande : le jour où une fenêtre affiche une planche en grand, remonter la
+constante coûte une minute.
+
+### Le manifeste, et pourquoi il n'y a pas de teinte
 
 `BUILDING_SPRITES` est un `Record<BuildingKey, string | null>` **complet** : une clé ajoutée au
 domaine sans planche casse la compilation au lieu de casser l'affichage, et une absence s'écrit
 `null` — explicitement, jamais par omission. `manifest.test.ts` vérifie la couverture et
 qu'aucune clé ne partage la planche d'une autre.
 
-L'encre nationale est une passe d'affichage, comme le filtre encre des unités (§5) : la
-planche reste neutre sur le disque et `engine/buildings.ts` multiplie la texture par l'encre
-**relevée vers le blanc** — les encres sont sombres par construction, faites pour s'aplatir sur
-du papier, et un produit direct noierait la planche.
+**Les planches de bâtiments ne sont pas teintées, et ne doivent pas l'être.** Contrairement aux
+unités (§5), aucun filtre encre n'est appliqué : `.label-plate` ne porte qu'une réserve de
+papier et une ombre portée.
+
+Ce n'est pas un oubli, c'est une conséquence du brouillard. **`PlayerView` ne sert jamais les
+bâtiments adverses** ([ADR 0005](../docs/adr/0005-brouillard-par-defaut.md)) : tout bâtiment
+affiché appartient déjà au joueur qui regarde. Une teinte nationale ne distinguerait donc rien
+de rien — elle coûterait une passe de rendu pour porter zéro information.
+
+Ce qui porte l'appartenance sur la carte, c'est le **remplissage de la région** (l'encre du
+pays, plus dense là où l'on a bâti) et la **barre du jalon**, qui est à l'encre nationale. Le
+sujet, lui, reste neutre.
+
+**Ce que ça libère, et qui n'a pas encore été exploité :** la règle de génération « toit clair
+plutôt que sombre, l'encre a besoin de place » n'existait que pour ce filtre. Sans teinte, les
+planches peuvent être **plus contrastées et plus sombres** — les quinze actuelles ont été
+générées sous une contrainte qui n'a plus lieu d'être.
+
+---
+
+## 8. Ressources
+
+Huit planches, une par `ResourceKey`, sorties du même générateur que les bâtiments et passées
+au même régime : recadrage sur la boîte englobante alpha puis normalisation par la hauteur.
+
+```bash
+python WWS/sprites/optimiser.py --source WWS/sprites/ressources \
+                                --destination src/emblems/resources --recadrer
+```
+
+Mesuré : 2,5 Mo de PNG → **64 Ko** de WebP, 6 à 11 Ko par ressource.
+
+### Deux jeux, pas deux versions
+
+`ResourceIcon` (vectoriel, `currentColor`) et `RESOURCE_PLATES` (illustré) **coexistent**, et le
+partage se fait sur la taille d'affichage, jamais sur le goût : sous ~20 px la texture d'une
+illustration se réduit en bouillie, et le contour vectoriel gagne. La planche tient donc tout ce
+qui se dessine à 20 px et au-dessus — bandeau compris, à 20 px, et fenêtres à 22-44 — et le
+vectoriel garde les lignes de facture à 11 et 12 px, où il n'a pas de concurrent. `Plate.tsx`
+porte la règle en commentaire, à l'endroit où on serait tenté de l'oublier.
+
+**Le bandeau y est passé sur décision explicite**, contre ce que disait
+`docs/prompts/code/bandeau-huit-ressources.md`. Ça se paie en largeur : les huit planches boîtées
+prennent 200 px là où les huit vectoriels tenaient en 104, donc les chiffres des compteurs ne
+sortent qu'à partir de `2xl` (1536 px) au lieu de `xl`. L'ordre de sacrifice n'a pas bougé — les
+chiffres cèdent avant les icônes, un groupe calme avant un groupe à sec — seul son seuil a
+glissé, ce qui est exactement ce qu'un ordre sert à encaisser.
+
+Sur fond de nuit, la passe d'encre est **relevée** au lieu d'être assombrie
+(`brightness(1.18)` contre `.94` sur papier) : `.94` est une correction contre le papier et
+pousse du mauvais côté sur `--desk`. Deux fonds, deux valeurs — `resourceColor` porte la même
+bascule `onPaper` depuis que le vectoriel existe.
+
+Les planches **portent leur propre encre** et ne reçoivent aucune teinte : ce sont des objets
+posés sur du papier, pas des silhouettes coloriées par l'appelant. C'est pour ça que
+`resourceColor` reste utile au vectoriel et n'a rien à dire ici.
+
+### Le `noms.json` des ressources est inversé, et c'est voulu
+
+Les unités sortent d'un dossier rangé à la main, donc leur table dit
+`{"chasseur-D520": "chasseur"}` — le fichier porte déjà un nom de matériel. Les ressources
+sortent du générateur avec un UUID pour seul nom : leur table part de la **clé** et pointe vers
+le fichier, parce que la clé est le seul bout lisible. Elle garde à côté le sujet dessiné, le
+ratio de la boîte englobante et les réserves mesurées — l'appariement a été vérifié sur ces
+ratios, pas sur l'ordre du dossier, et aplatir la table pour uniformiser les deux formes ferait
+perdre la seule trace de cette vérification.
+
+`charger()` normalise les deux formes. Depuis, **une table présente fait autorité** : un PNG
+qu'elle ne nomme pas est ignoré avec un mot dans le compte rendu — le dossier des ressources
+traîne un rejet de génération qui, sans cette règle, sortirait en `Default_Emblme_….webp`.
+
+### Le charbon, mesuré
+
+`noms.json` note la seule réserve chiffrée : la planche du charbon tombe à **2,80 de contraste**
+sur `--desk` (`#0f0a04`), sous le plancher de 3:1 admis pour un pictogramme, avec 33 % de pixels
+quasi noirs. Sur fond de papier, aucun problème — c'est le fond de nuit qui l'avale. Le bandeau,
+qui est le seul fond sombre, applique `.resource-reserve` (`drop-shadow(0 0 1px var(--paper))`)
+aux **huit** icônes vectorielles : une exception par ressource serait une exception à maintenir.

@@ -38,12 +38,12 @@ describe('unit sprite manifest', () => {
   });
 
   /**
-   * The design gives the carrier two tiers (`catalogueProduction`), the plate only drew one.
-   * The manifest then serves the same image at both levels rather than nothing — this test
-   * will fall the day the missing sprite arrives, and that is the point.
+   * The carrier used to claim two tiers with a single plate drawn. The mismatch closed from
+   * the design side, not the art side: `chiffrage-combat.md` §1 gives no nominal strength for
+   * a tier-2 carrier, so the tier does not exist (ADR 0014). One tier, one plate.
    */
-  it('flags the carrier’s tier 2 as not drawn yet', () => {
-    expect(TIERS_BY_ROLE.carrier).toBe(2);
+  it('gives the carrier a single tier and a single plate', () => {
+    expect(TIERS_BY_ROLE.carrier).toBe(1);
     expect(france().carrier?.kind).toBe('single');
   });
 

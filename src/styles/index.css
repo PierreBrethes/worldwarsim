@@ -72,6 +72,15 @@ body {
   opacity: 0.42;
 }
 
+/* A reserve of paper around the cut, so a dark silhouette lifts off the night desk. Measured:
+   coal falls to 2.80 of contrast against `--desk`, under the 3:1 floor for a pictogram, with
+   a third of its pixels near-black. The gesture is the map's — `.label-plate` carries the same
+   drop-shadow — and it goes on all eight, never on coal alone: one exception per resource is
+   one exception to maintain. */
+.resource-reserve {
+  filter: drop-shadow(0 0 1px var(--paper));
+}
+
 /* Moving from one newspaper screen to another is a page being turned:
    the axis is the left fold, never a crossfade. */
 @keyframes page-turn-out {

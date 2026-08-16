@@ -216,7 +216,11 @@ export class MapEngine {
     this.scene.add(this.arcs.group);
 
     this.regions = new RegionLayer(this.frame, this.curvature);
-    this.labels = new LabelLayer(this.frame, (regionId) => this.regions.anchorOf(regionId));
+    this.labels = new LabelLayer(
+      this.frame,
+      (regionId) => this.regions.anchorOf(regionId),
+      () => (this.regions.isActive ? this.regions.fade : 0),
+    );
 
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.built);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } f
 import { asHoursMinutes } from '@/domain/duration';
 import { URGENCY_MS, isCountdown, type MapLabel, type LabelPictogram } from '@/domain/labels';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
+import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
 
@@ -16,14 +17,17 @@ import type { MapEngine } from './engine';
  * - `map-labels` — the layer, pointer-transparent;
  * - `label-anchor` — the node the loop moves;
  * - `label` — the root; carries every state;
- * - `label--outpost | --stack | --construction | --my-movement |
+ * - `label--outpost | --stack | --construction | --building | --deposit | --my-movement |
  *   --inbound-movement | --intel` — the type;
  * - `label--glyph | --expanded` — the detail level;
  * - `label--urgent` — under five minutes left;
  * - `label--identified` — enemy movement pierced by intelligence;
  * - `label--clickable` — the click selects the host country;
- * - `label-block`, `label-bar`, `label-pictogram`,
+ * - `label-block`, `label-bar`, `label-pictogram`, `label-deposit`, `label-lines`,
  *   `label-line--nature | --figures | --headcount | --countdown | --mention` — the anatomy.
+ *
+ * The caption is wrapped in `label-lines` rather than left bare: a folded building keeps its
+ * portrait and drops only its words, so the wrapper is what the glyph level hides there.
  *
  * The anatomy has one stroke only: the national ink bar runs along the text then drops to
  * the anchor. The mockup drew two — a bar plus a thinner callout — and planted the
@@ -35,12 +39,14 @@ export function MapLabels({
   engine,
   onMovementHover,
   onSelect,
+  onOpenBuilding,
   onContextMenu,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
   onMovementHover: (id: string | null) => void;
   onSelect: (name: string | null) => void;
+  onOpenBuilding: (buildingId: string) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
@@ -48,6 +54,7 @@ export function MapLabels({
   const blocks = useRef(new Map<string, HTMLElement>());
   const countdowns = useRef(new Map<string, HTMLElement>());
   const states = useRef(new Map<string, RenderState>());
+  const pendingDegrade = useRef(0);
 
   const apply = useCallback((id: string, state: RenderState) => {
     const root = roots.current.get(id);
@@ -94,6 +101,21 @@ export function MapLabels({
     }
   }, [labels, apply]);
 
+  /**
+   * One degradation per frame at most, and only when something asked for it. Crossing the
+   * detail threshold used to leave a label expanded and unfolded until the next second-long
+   * lap: it appeared, then vanished a beat later — a flicker the player read as a second zoom
+   * notch. Measuring straight from the render loop would thrash layout sixty times a second
+   * instead; a frame of delay costs nothing and bounds the work.
+   */
+  const scheduleDegrade = useCallback(() => {
+    if (pendingDegrade.current !== 0) return;
+    pendingDegrade.current = requestAnimationFrame(() => {
+      pendingDegrade.current = 0;
+      degrade();
+    });
+  }, [degrade]);
+
   const refreshCountdowns = useCallback(() => {
     const now = Date.now();
     for (const label of labels) {
@@ -108,7 +130,7 @@ export function MapLabels({
 
   useLayoutEffect(() => {
     states.current = new Map(
-      labels.map((label) => [label.id, { visible: false, lod: 'glyph', folded: false }]),
+      labels.map((label) => [label.id, { visible: false, lod: 'glyph', folded: false, fade: 1 }]),
     );
     refreshCountdowns();
   }, [labels, refreshCountdowns]);
@@ -127,7 +149,15 @@ export function MapLabels({
 
   useEffect(() => {
     if (!engine) return;
-    engine.setLabelAnchors(labels.map(({ id, anchor }) => ({ id, anchor })));
+    // A deposit belongs to the zoomed-in layer, not merely to a region: it comes and goes with
+    // the admin-1 borders, on their fade and not on a threshold of its own.
+    engine.setLabelAnchors(
+      labels.map(({ id, anchor, type }) => ({
+        id,
+        anchor,
+        withRegionLayer: type === 'deposit',
+      })),
+    );
   }, [engine, labels]);
 
   useEffect(() => {
@@ -144,10 +174,19 @@ export function MapLabels({
         }
         if (!projection.visible) continue;
 
+        // Rounded before comparing: the fade is a continuous ramp, and writing a style on
+        // every hundredth of it would touch the DOM sixty times a second for nothing.
+        const fade = Math.round(projection.fade * 20) / 20;
+        if (fade !== state.fade) {
+          state.fade = fade;
+          anchor.style.opacity = fade === 1 ? '' : String(fade);
+        }
+
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
         if (projection.lod !== state.lod) {
           state.lod = projection.lod;
           apply(projection.id, state);
+          scheduleDegrade();
         }
       }
     };
@@ -155,8 +194,10 @@ export function MapLabels({
     return () => {
       engine.onLabels = () => {};
       unsubscribe();
+      if (pendingDegrade.current !== 0) cancelAnimationFrame(pendingDegrade.current);
+      pendingDegrade.current = 0;
     };
-  }, [engine, apply, degrade]);
+  }, [engine, apply, degrade, scheduleDegrade]);
 
   return (
     <div className="map-labels">
@@ -186,7 +227,10 @@ export function MapLabels({
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
             }}
             onClick={() => {
-              if (label.hostCountry !== null) onSelect(label.hostCountry);
+              // A building's mast opens its surface and nothing else: opening a window *and*
+              // moving the country selection would be two answers to one click.
+              if (label.buildingId !== null) onOpenBuilding(label.buildingId);
+              else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -204,13 +248,21 @@ export function MapLabels({
                   <img className="label-plate" src={label.plate} alt="" />
                 </span>
               )}
+              {label.deposit !== null && (
+                <span
+                  className="label-deposit"
+                  style={{ color: resourceColor(label.deposit, true) }}
+                >
+                  <ResourceIcon resource={label.deposit} size={15} />
+                </span>
+              )}
               {label.pictogram !== null && (
                 <span className="label-pictogram">
                   <Pictogram pictogram={PICTOGRAM_OF_LABEL[label.pictogram]} weight={40} size={36} />
                 </span>
               )}
               <span className="label-bar" />
-              <div>
+              <div className="label-lines">
                 {label.lines.map((line, rank) =>
                   line.role === 'countdown' ? (
                     <div
@@ -242,7 +294,7 @@ const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   construction: 'construction',
 };
 
-type RenderState = { visible: boolean; lod: DetailLevel; folded: boolean };
+type RenderState = { visible: boolean; lod: DetailLevel; folded: boolean; fade: number };
 
 function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement | null): void {
   if (node) map.set(id, node);
@@ -255,7 +307,7 @@ function classesOf(label: MapLabel): string {
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
-    label.hostCountry === null ? '' : 'label--clickable',
+    label.hostCountry === null && label.buildingId === null ? '' : 'label--clickable',
   ]
     .filter(Boolean)
     .join(' ');

@@ -34,20 +34,24 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   ink: null,
   pictogram: null,
   plate: null,
+  deposit: null,
   lines: [],
   identified: false,
   offensive: false,
   idle: false,
+  buildingId: null,
   hostCountry: null,
   ...override,
 });
 
 describe('toggles', () => {
-  // Buildings sit apart: the bascule governs the board itself, so lighting it costs the edge
-  // nothing and hiding it would cost the player his own economy.
-  it('only lights inbound and buildings on first load', () => {
+  // Buildings and deposits sit apart: their bascules govern the board itself, so lighting
+  // them costs the edge nothing, and hiding them would cost the player his own economy and
+  // the only map of where he may put one.
+  it('only lights inbound, buildings and deposits on first load', () => {
     expect(Object.entries(DEFAULT_TOGGLES).filter(([, on]) => on)).toEqual([
       ['buildings', true],
+      ['deposits', true],
       ['inbound', true],
     ]);
   });

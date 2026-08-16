@@ -23,8 +23,14 @@ export async function playerBuildings(
 export const levelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: BuildingKey): number =>
   buildings.reduce((best, building) => (building.key === key ? Math.max(best, building.level) : best), 0);
 
-/** What a family of buildings is worth altogether — the measure an output adds up over sites,
- *  where a ceiling reads only the best one. */
+/**
+ * What a family of buildings is worth altogether. **A ceiling adds up over sites** — storage
+ * reads this, and so does the troop ceiling the billets carry. What reads the best instance
+ * alone is `levelOf`: the headquarters cap and the tier gates, which are gates, not ceilings.
+ *
+ * The comment used to claim the opposite while `resources.ts` already summed. Summing is the
+ * decision: it is what makes a second site an alternative to a taller one.
+ */
 export const totalLevelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: BuildingKey): number =>
   buildings.reduce((sum, building) => (building.key === key ? sum + building.level : sum), 0);
 

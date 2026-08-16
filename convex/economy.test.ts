@@ -1,10 +1,12 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
-import { NATIONS, type BuildingKey, type Nation } from '../src/domain/ids';
+import { DEPOSITS, NATIONS, type BuildingKey, type Nation, type ResourceKey } from '../src/domain/ids';
 import { ADM0_BY_NATION } from '../src/domain/nations';
+import { EXPLOITED_DEPOSITS, PRODUCER_OF } from '../src/domain/economy';
 import {
   BASE_CAP,
+  CHAINS,
   EXTRACTION_PER_HOUR,
   MAX_HQ_LEVEL,
   STARTING_STOCK,
@@ -65,6 +67,32 @@ async function raise(
       .unique();
     if (!player) throw new Error('player not found');
     await ctx.db.insert('buildings', { playerId: player._id, key, regionId, level });
+  });
+}
+
+/** Puts a stock where the test needs it. Reaching a ceiling by waiting is not an option: a
+ *  single settlement window clamps the inputs at their own ceiling first, so a foundry left
+ *  alone for a week converts less than the same foundry read every hour. */
+async function fill(
+  t: ReturnType<typeof boot>,
+  token: string,
+  key: ResourceKey,
+  stock: number,
+) {
+  await t.run(async (ctx) => {
+    const player = await ctx.db
+      .query('players')
+      .withIndex('byToken', (q) => q.eq('token', token))
+      .unique();
+    if (!player) throw new Error('player not found');
+    const row = (
+      await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).find((candidate) => candidate.key === key);
+    if (!row) throw new Error(`no ${key} row`);
+    await ctx.db.patch(row._id, { stock });
   });
 }
 
@@ -155,6 +183,90 @@ describe('transformation', () => {
   });
 });
 
+describe('what the industry window reads', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const chainOf = (view: { me: { chains: ReadonlyArray<{ by: string }> } }, key: string) => {
+    const chain = view.me.chains.find((candidate) => candidate.by === key);
+    if (!chain) throw new Error(`no chain served for ${key}`);
+    return chain;
+  };
+
+  /** The whole reason for the window: "pourquoi mon alliage ne monte plus" has an answer, and
+   *  the answer is a resource name. */
+  it('names the coal a foundry runs out of', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    await raise(t, token, 'mine', MEURTHE); // ore, and no coal mine anywhere
+    vi.advanceTimersByTime(20 * 3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.resources.coal.stock).toBe(0);
+    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
+  });
+
+  it('calls a full output overflowing, not starved', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    await raise(t, token, 'mine', MEURTHE);
+    await raise(t, token, 'mine', PAS_DE_CALAIS);
+    await fill(t, token, 'alloy', BASE_CAP);
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.resources.alloy.stock).toBe(view.me.resources.alloy.cap);
+    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing', missing: null });
+  });
+
+  /** An absent chain is information; an absent line is a hole. */
+  it('serves the three chains even when nothing is built, extinguished', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.chains.map((chain) => chain.by)).toEqual(['foundry', 'arsenal', 'quartermaster']);
+    for (const chain of view.me.chains) {
+      expect(chain).toMatchObject({ state: 'off', perHour: 0, level: 0 });
+    }
+  });
+
+  it('reports the site of every exploitation, mute ones included', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'farm', MARNE);
+    await raise(t, token, 'mine', ARDENNES); // no deposit at all under it
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.extraction).toEqual([
+      { key: 'farm', regionId: MARNE, level: 1, deposit: 'food', perHour: EXTRACTION_PER_HOUR.food },
+      { key: 'mine', regionId: ARDENNES, level: 1, deposit: null, perHour: 0 },
+    ]);
+    // And the mute mine adds nothing to the national rate it is listed beside.
+    expect(view.me.resources.ore.ratePerHour).toBe(0);
+    expect(view.me.resources.coal.ratePerHour).toBe(0);
+  });
+
+  /**
+   * The verdict is read an hour ahead, never off the window just settled: a player who just
+   * paid for something reads zero minutes, where nothing was asked of any chain — and every
+   * one of them would report as running.
+   */
+  it('still names the missing input right after a spend has reset the window', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    await raise(t, token, 'mine', MEURTHE);
+    vi.advanceTimersByTime(20 * 3_600_000);
+    await t.mutation(api.constructions.start, { token, building: 'farm', regionId: MARNE });
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
+  });
+});
+
 describe('storage', () => {
   it('raises the ceiling of what it stores, and only that', async () => {
     const t = boot();
@@ -168,6 +280,27 @@ describe('storage', () => {
     expect(after.me.resources.alloy.cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
     // Oil and ammunition are the depot's half, and the warehouse does nothing for them.
     expect(after.me.resources.oil.cap).toBe(BASE_CAP);
+  });
+
+  /**
+   * **A ceiling adds up over sites** — the doctrine `totalLevelOf` carries, and the one the
+   * troop ceiling reads too. What reads the best instance alone is a *gate*: the headquarters
+   * cap and the tier gates.
+   */
+  it('adds the levels of every store, so two at one are worth one at two', async () => {
+    const spread = boot();
+    const scattered = await launchedSeason(spread);
+    await raise(spread, scattered, 'warehouse', MOSELLE);
+    await raise(spread, scattered, 'warehouse', ARDENNES);
+
+    const stacked = boot();
+    const tall = await launchedSeason(stacked);
+    await raise(stacked, tall, 'warehouse', MOSELLE, 2);
+
+    const twoSites = await spread.query(api.view.playerView, { token: scattered });
+    const oneSite = await stacked.query(api.view.playerView, { token: tall });
+    expect(twoSites.me.resources.alloy.cap).toBe(oneSite.me.resources.alloy.cap);
+    expect(twoSites.me.resources.alloy.cap).toBe(BASE_CAP + 2 * STORAGE_CAP_PER_LEVEL);
   });
 });
 
@@ -316,5 +449,141 @@ describe('one building per region, and a global ceiling', () => {
     const smallest = Math.min(...counts);
     expect(smallest).toBe(16); // Germany, counted in Länder
     expect(buildingCap(MAX_HQ_LEVEL)).toBeLessThan(smallest);
+  });
+});
+
+describe('the arsenal is commanded', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const chainOf = <T extends { by: string }>(
+    view: { me: { chains: ReadonlyArray<T> } },
+    key: string,
+  ): T => {
+    const chain = view.me.chains.find((candidate) => candidate.by === key);
+    if (!chain) throw new Error(`no chain served for ${key}`);
+    return chain;
+  };
+
+  /**
+   * The defect the rule exists to correct, and nobody could see it: an arsenal at level 3 took
+   * 216 alloy a day from a player saving 430 for a carrier, with no way to stop it.
+   */
+  it('takes nothing until it is told to, and says so rather than reading as broken', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'arsenal', MOSELLE);
+    vi.advanceTimersByTime(20 * 3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.resources.alloy.stock).toBe(STARTING_STOCK.alloy);
+    expect(view.me.resources.ammunition.stock).toBe(STARTING_STOCK.ammunition);
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'idle', commanded: true, order: null });
+  });
+
+  /** The foundry keeps running on its own: its inputs are spent nowhere else. */
+  it('leaves the uncommanded chains alone', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    vi.advanceTimersByTime(10 * 3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(chainOf(view, 'foundry')).toMatchObject({ commanded: false });
+    expect(view.me.resources.alloy.stock).toBeGreaterThan(STARTING_STOCK.alloy);
+  });
+
+  it('converts exactly the lot, once, and then falls silent again', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 12 });
+
+    // Four hours at three an hour would make twelve; twenty hours make twelve all the same.
+    vi.advanceTimersByTime(20 * 3_600_000);
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.resources.ammunition.stock).toBe(STARTING_STOCK.ammunition + 12);
+    expect(view.me.resources.alloy.stock).toBe(STARTING_STOCK.alloy - 12);
+    expect(chainOf(view, 'arsenal')).toMatchObject({
+      state: 'idle',
+      order: { ordered: 12, produced: 12 },
+    });
+  });
+
+  /**
+   * The figure the brief calls false: "3 / h" printed beside "à sec" is the interface telling
+   * a player he is producing when he is not.
+   */
+  it('serves the real rate, with the nominal beside it', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'arsenal', MOSELLE);
+
+    const idle = chainOf(await t.query(api.view.playerView, { token }), 'arsenal');
+    expect(idle).toMatchObject({ perHour: 0, nominalPerHour: 3 });
+
+    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 60 });
+    const running = chainOf(await t.query(api.view.playerView, { token }), 'arsenal');
+    expect(running).toMatchObject({ perHour: 3, nominalPerHour: 3, state: 'running' });
+  });
+
+  /** Nothing is taken in advance, so dropping a lot returns nothing — and owes nothing. */
+  it('leaves the unconverted matter where it was when a lot is dropped', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 90 });
+    vi.advanceTimersByTime(2 * 3_600_000);
+    await t.mutation(api.industry.cancelOrder, { token, chain: 'arsenal' });
+    vi.advanceTimersByTime(20 * 3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    // Six made in two hours, and not one more after the drop.
+    expect(view.me.resources.ammunition.stock).toBe(STARTING_STOCK.ammunition + 6);
+    expect(view.me.resources.alloy.stock).toBe(STARTING_STOCK.alloy - 6);
+    expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'idle', order: null });
+  });
+
+  it('refuses a lot the input reserve cannot cover, and names the ceiling', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'arsenal', MOSELLE);
+
+    await expect(
+      t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: STARTING_STOCK.alloy + 1 }),
+    ).rejects.toThrow(/ORDER_ABOVE_RESERVE/);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(chainOf(view, 'arsenal').maxOrder).toBe(STARTING_STOCK.alloy);
+  });
+
+  it('refuses to command a chain that runs on its own', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+
+    await expect(
+      t.mutation(api.industry.order, { token, chain: 'foundry', quantity: 10 }),
+    ).rejects.toThrow(/CHAIN_NOT_COMMANDED/);
+  });
+});
+
+/**
+ * The map that turns a shortfall into a sentence — "jamais : aucune mine de charbon". It has
+ * to name the building the two production tables actually give, or the advice sends the player
+ * to raise something that yields nothing.
+ */
+describe('what produces what', () => {
+  it('names, for each resource, the building the tables say makes it', () => {
+    for (const [resource, building] of Object.entries(PRODUCER_OF) as ReadonlyArray<
+      [ResourceKey, BuildingKey]
+    >) {
+      const deposit = DEPOSITS.find((key) => key === resource);
+      if (deposit !== undefined) {
+        expect(EXPLOITED_DEPOSITS[building]).toContain(deposit);
+      } else {
+        expect(CHAINS[building as keyof typeof CHAINS].output).toBe(resource);
+      }
+    }
   });
 });

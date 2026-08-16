@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildableOn, type Site } from './construction';
+import { buildableOn, upgradeHold, type Site } from './construction';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
-import type { BuildSpec } from './player-view';
+import type { Building, BuildSpec, PlayerView } from './player-view';
 
 const CATALOG = Object.fromEntries(
   BUILDINGS.map((key) => [key, { cost: { alloy: 20 }, minutes: 30 }]),
@@ -85,5 +85,82 @@ describe('what merely holds a line back', () => {
 
   it('leaves a payable line clickable', () => {
     expect(buildableOn(site(), CATALOG).every((option) => option.hold === null)).toBe(true);
+  });
+});
+
+describe('what holds a raise back', () => {
+  const LOADED_AT = 1_000_000;
+
+  const building = (overrides: Partial<Building> = {}): Building => ({
+    id: 'building-1',
+    key: 'foundry',
+    name: 'Fonderie',
+    regionId: 'FRA-5328',
+    level: 1,
+    nextLevelCost: { alloy: 90, coal: 54 },
+    nextLevelMinutes: 90,
+    cappedByHq: false,
+    ...overrides,
+  });
+
+  const viewWith = (overrides: {
+    stocks?: Partial<Record<ResourceKey, number>>;
+    construction?: PlayerView['me']['construction'];
+  }): PlayerView =>
+    ({
+      me: {
+        construction: overrides.construction ?? null,
+        resources: Object.fromEntries(
+          RESOURCES.map((key) => [
+            key,
+            { stock: overrides.stocks?.[key] ?? 1000, ratePerHour: 0, cap: 1000 },
+          ]),
+        ),
+      },
+      loadedAt: LOADED_AT,
+    }) as unknown as PlayerView;
+
+  it('lets a payable raise through', () => {
+    expect(upgradeHold(building(), viewWith({}), LOADED_AT)).toBeNull();
+  });
+
+  /** A single construction per player (ADR 0015): it holds every other raise, not just its own. */
+  it('holds every raise while a construction runs', () => {
+    const running = {
+      name: 'Mine',
+      key: 'mine' as const,
+      regionId: 'FRA-5325',
+      regionName: 'Meurthe-et-Moselle',
+      minutesLeft: 20,
+    };
+    expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toEqual({
+      kind: 'constructionRunning',
+    });
+  });
+
+  it('reads the headquarters ceiling off the view rather than deciding it again', () => {
+    expect(upgradeHold(building({ cappedByHq: true }), viewWith({}), LOADED_AT)).toEqual({
+      kind: 'cappedByHq',
+    });
+  });
+
+  /** The whole point of anticipating the refusal: the shortfall is named, never "impossible". */
+  it('names the resource that is short, and by how much', () => {
+    const hold = upgradeHold(building(), viewWith({ stocks: { coal: 12 } }), LOADED_AT);
+    expect(hold).toEqual({ kind: 'materials', resource: 'coal', needed: 54, available: 12 });
+  });
+
+  it('reads the stock as it stands now, not as it was served', () => {
+    const view = {
+      me: {
+        construction: null,
+        resources: Object.fromEntries(
+          RESOURCES.map((key) => [key, { stock: key === 'coal' ? 50 : 1000, ratePerHour: 60, cap: 1000 }]),
+        ),
+      },
+      loadedAt: LOADED_AT,
+    } as unknown as PlayerView;
+    expect(upgradeHold(building(), view, LOADED_AT)?.kind).toBe('materials');
+    expect(upgradeHold(building(), view, LOADED_AT + 10 * 60_000)).toBeNull();
   });
 });

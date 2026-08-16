@@ -16,9 +16,15 @@ import quartermaster from './quartermaster.webp';
 import warehouse from './warehouse.webp';
 
 /**
- * **Fifteen visuals, not a hundred and twenty.** One per `BuildingKey`, neutral, tinted with
- * the national ink at display time — a pagoda barracks for Japan would be beautiful and would
- * cost eight plates for a sprite two centimetres tall on screen.
+ * **Fifteen visuals, not a hundred and twenty.** One per `BuildingKey` — a pagoda barracks for
+ * Japan would be beautiful and would cost eight plates for a sprite two centimetres tall on
+ * screen.
+ *
+ * The plates are neutral, **and they stay neutral on screen**: no national ink is laid over
+ * them, unlike the unit sprites. `PlayerView` never serves an enemy building, so everything
+ * displayed already belongs to the player looking — a tint would cost a render pass to carry
+ * no information at all. What carries ownership is the region fill and the marker's bar. Full
+ * reasoning in `WWS/sprites/README.md` §7.
  *
  * The `Record` is complete: a key added to the domain without a plate stops the compilation
  * instead of showing a hole on the board, and a missing visual is written `null` — explicitly,
@@ -43,14 +49,6 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];
-
-/**
- * The plates are scaled by their **height** at bake time (`WWS/sprites/optimiser.py`): the
- * headquarters is the reference at 512 px, a listening post half of it. The board must
- * therefore give the sprite its own share of the screen and not a common one, otherwise the
- * hierarchy baked into the assets is flattened at draw time.
- */
-export const BUILDING_REFERENCE_HEIGHT = 512;
 
 export const isBuildingKey = (value: string): value is BuildingKey =>
   (BUILDINGS as ReadonlyArray<string>).includes(value);

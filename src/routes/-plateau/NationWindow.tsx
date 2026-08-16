@@ -1,28 +1,47 @@
-import { useMutation } from 'convex/react';
-import { useState } from 'react';
-import { api } from '../../../convex/_generated/api';
+import { MAX_HQ_LEVEL, TIER_2_HQ_LEVEL, chainSpeed } from '../../../convex/constants';
 import { fr, doctrineLabel, nationLabel, stackLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
-import { handleError } from '@/data/errors';
-import type { Building, Cost, PlayerView } from '@/domain/player-view';
-import { currentMinutes, currentStock } from '@/domain/player-view';
-import { RESOURCES } from '@/domain/ids';
+import { DEPOSITS } from '@/domain/ids';
+import type { Building, PlayerView } from '@/domain/player-view';
+import { currentMinutes } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { BuildingPlate } from '@/emblems/Plate';
 import { asHoursMinutes } from '@/domain/duration';
+import { FOCUS_MARK, useFocusRow } from './focus';
+import { UpgradeControl } from './UpgradeControl';
 import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
 
+/**
+ * What the nation holds, and what the headquarters lets it hold. **One verb per surface**: a
+ * building is raised where it is used — Industry or Production — so no cost and no button
+ * appear in the census below. The headquarters is the exception because it is the exception:
+ * this window is its only surface (`WINDOW_OF_BUILDING`), so its line carries the button.
+ *
+ * What this sheet owns alone is the **building budget**: `buildingCap` is the game's central
+ * throttle (ADR 0015 — nothing is ever counted in regions, the headquarters is the only
+ * bottleneck), and a number buried in a fifteen-line list is not a home for it.
+ */
 export function NationWindow({
   view,
   token,
+  focused,
   onClose,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
   token: string;
+  /** The building whose line the window was opened on, `null` when it was opened bare. */
+  focused: string | null;
 }) {
-  const [error, setError] = useState<string | null>(null);
   const now = useClock();
+  const hq = view.me.buildings.find((building) => building.key === 'hq') ?? null;
+  /**
+   * **The headquarters is counted in.** It used to sit in its block above and out of the list,
+   * so "3 sur 5" surmounted two lines and the two contradicted each other at a glance — and it
+   * is the figure the player stops believing, not the list. The census is the only place the
+   * fifteen are read at once, and a whole reading may not be missing one of them.
+   */
+  const census = view.me.buildings;
 
   return (
     <FloatingWindow name="nation" onClose={onClose} {...windowProps} alignment="top" width={880}>
@@ -53,24 +72,37 @@ export function NationWindow({
 
         <div className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-auto @2xl:flex-row @2xl:items-start @2xl:gap-[26px]">
           <section className="min-w-0 flex-1">
-            <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">
+            <HeadquartersBlock
+              hq={hq}
+              regionName={hq === null ? '' : regionName(view, hq.regionId)}
+              view={view}
+              token={token}
+              now={now}
+              focused={hq !== null && focused === hq.id}
+            />
+
+            <BuildingBudget taken={view.me.buildings.length} cap={view.me.buildingCap} />
+
+            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
               {fr.nationSheet.buildingsHeader}
             </h2>
-            {view.me.buildings.length === 0 ? (
+            {census.length === 0 ? (
               <p className="mt-3 text-[12.5px] leading-[1.5] text-[var(--ink-soft)]">
                 {fr.nationSheet.nothingBuilt}
               </p>
             ) : (
-              view.me.buildings.map((building) => (
-                <BuildingRow
-                  key={`${building.key}-${building.regionId}`}
-                  building={building}
-                  regionName={regionName(view, building.regionId)}
-                  construction={view.me.construction}
-                  token={token}
-                  onError={setError}
-                />
-              ))
+              <>
+                {census.map((building) => (
+                  <BuildingRow
+                    key={`${building.key}-${building.regionId}`}
+                    building={building}
+                    regionName={regionName(view, building.regionId)}
+                  />
+                ))}
+                <p className="mt-2 text-[11px] leading-[1.4] text-[var(--ink-quiet)] italic">
+                  {fr.nationSheet.buildingsNote}
+                </p>
+              </>
             )}
             {view.me.construction && (
               <p className="mt-3 border border-[var(--ink)] px-3 py-2 text-[12.5px] text-[var(--ink)]">
@@ -82,16 +114,13 @@ export function NationWindow({
                 </span>
               </p>
             )}
-            {error && (
-              <p className="mt-3 border border-[var(--critical)] px-3 py-2 text-[12.5px] text-[var(--ink)]">
-                {error}
-              </p>
-            )}
           </section>
 
           <aside className="w-full @2xl:w-[280px] @2xl:shrink-0">
             <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.powerHeader}</h2>
             <p className="mt-2 text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
+
+            <NationalGap regions={view.me.regions} />
 
             <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.armyHeader}</h2>
             <div className="mt-2 flex flex-col gap-[5px] text-[12.5px]">
@@ -105,25 +134,10 @@ export function NationWindow({
               </span>
             </div>
 
-            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
-              {fr.nationSheet.stocksHeader}
-            </h2>
-            <div className="mt-2 flex flex-col gap-[5px] text-[12.5px]">
-              {RESOURCES.map((key) => (
-                <span key={key} className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-[6px]">
-                    <span className="flex" style={{ color: resourceColor(key, true) }}>
-                      <ResourceIcon resource={key} />
-                    </span>
-                    <span className="text-[var(--ink-soft)]">{fr.resources[key]}</span>
-                  </span>
-                  <span className="font-[var(--font-mono)] text-[var(--ink)]">
-                    {currentStock(view.me.resources[key], view.loadedAt, now)}
-                    {fr.nationSheet.capSuffix(view.me.resources[key].cap)}
-                  </span>
-                </span>
-              ))}
-            </div>
+            {/* The eight stocks are **not** here. No decision taken on this sheet spends
+                anything, so the column was eight lines and eight ceilings repeating the
+                banner — and, without a warehouse, repeating the same 400 eight times. A datum
+                has one home; the banner is the exception, because it watches. */}
 
             <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.restHeader}</h2>
             <p className="mt-2 text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
@@ -142,100 +156,178 @@ export function NationWindow({
   );
 }
 
-/**
- * Where a building stands. **One verb per surface** (ADR 0015 and the construction brief): the
- * map puts buildings down — that is where a place is chosen — and this window raises them and
- * keeps track of them. The minimal construction screen that used to live here, listing every
- * usable region with its "build" buttons, was an admitted stopgap and is gone.
- */
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
 
-function CostLine({ cost }: { cost: Cost }) {
-  return (
-    <div className="flex items-center justify-end gap-[10px] font-[var(--font-mono)] text-[13px] font-medium text-[var(--ink)]">
-      {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
-        <span key={key} className="flex items-center gap-[4px]">
-          <span className="flex" style={{ color: resourceColor(key, true) }}>
-            <ResourceIcon resource={key} size={13} />
-          </span>
-          {cost[key]}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function BuildingRow({
-  building,
+/**
+ * The headquarters and what it carries. Nothing here is a second implementation of a rule:
+ * the ceiling and the slots arrive served, the chain speed and the tier-2 gate are read from
+ * `constants.ts` itself — a formula copied into a caption is a formula that drifts.
+ */
+function HeadquartersBlock({
+  hq,
   regionName,
-  construction,
+  view,
   token,
-  onError,
+  now,
+  focused,
 }: {
-  building: Building;
+  hq: Building | null;
   regionName: string;
-  construction: PlayerView['me']['construction'];
+  view: PlayerView;
   token: string;
-  onError: (message: string | null) => void;
+  now: number;
+  focused: boolean;
 }) {
+  const block = useFocusRow<HTMLElement>(focused);
+  const level = view.me.hqLevel;
+
   return (
-    <div className="flex items-center gap-3 border-b border-[rgba(42,33,24,.16)] py-[7px]">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[14px] font-semibold text-[var(--ink)]">{building.name}</span>
-          <span className="text-[11.5px] text-[var(--ink-soft)]">
-            {fr.nationSheet.inRegion(regionName)}
-          </span>
-          <span className="font-[var(--font-mono)] text-[12px] text-[var(--ink-soft)]">{fr.nationSheet.level(building.level)}</span>
-          {building.cappedByHq && (
-            <span className="text-[10px] tracking-[.12em] text-[var(--critical)] uppercase">{fr.nationSheet.cappedByHq}</span>
-          )}
-        </div>
-        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">{fr.buildingEffects[building.key]}</p>
+    <section
+      ref={block}
+      className={`border border-[var(--ink)] px-3 py-[10px] ${focused ? FOCUS_MARK : ''}`}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {hq !== null && <BuildingPlate building="hq" height={44} />}
+        <h2 className="eyebrow">{fr.nationSheet.hqHeader}</h2>
+        {hq !== null && (
+          <>
+            <span className="text-[11.5px] text-[var(--ink-soft)]">
+              {fr.nationSheet.inRegion(regionName)}
+            </span>
+            <span className="font-[var(--font-mono)] text-[12px] text-[var(--ink)]">
+              {fr.nationSheet.hqLevelLine(level, MAX_HQ_LEVEL)}
+            </span>
+            <span className="ml-auto">
+              <UpgradeControl building={hq} view={view} token={token} now={now} />
+            </span>
+          </>
+        )}
       </div>
-      <div className="shrink-0 text-right text-[11.5px] text-[var(--ink-soft)]">
-        <CostLine cost={building.nextLevelCost} />
-        <div className="font-[var(--font-mono)]">{asHoursMinutes(building.nextLevelMinutes)}</div>
-      </div>
-      <ConstructionButton building={building} construction={construction} token={token} onError={onError} />
-    </div>
+
+      {hq === null ? (
+        <p className="mt-2 text-[12.5px] leading-[1.5] text-[var(--critical)]">
+          {fr.nationSheet.hqMissing}
+        </p>
+      ) : (
+        <>
+          <p className="mt-[10px] text-[10px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
+            {fr.nationSheet.hqCarriesHeader}
+          </p>
+          {/* The building ceiling is deliberately absent: it is written three centimetres
+              below, as a bar, and a figure and a bar for one fact make the player doubt the
+              figure. The bar wins — it is a reading, where "5 au plus" has to be parsed. */}
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-[2px] text-[12px] text-[var(--ink-soft)]">
+            <li>{fr.nationSheet.hqSlots(view.me.slots.total)}</li>
+            <li>{fr.nationSheet.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
+            <li>
+              {level >= TIER_2_HQ_LEVEL
+                ? fr.nationSheet.hqTier2
+                : fr.nationSheet.hqTier2Locked(TIER_2_HQ_LEVEL)}
+            </li>
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 
-function ConstructionButton({
-  building,
-  construction,
-  token,
-  onError,
-}: {
-  building: Building;
-  construction: PlayerView['me']['construction'];
-  token: string;
-  onError: (message: string | null) => void;
-}) {
-  const start = useMutation(api.constructions.start);
-  const blocked = construction !== null || building.cappedByHq;
+/**
+ * The resource the nation holds no deposit of — beside the power, because it is its
+ * counterpart: the ADR 0015 gap is what forces a nation out of its own ground, and the power
+ * is what it goes out with. Two nations have none, and one has two: the sentence counts.
+ *
+ * **Derived, never tabulated.** The deposits held are the ones under the ground the player
+ * may build on; the gap is the rest of `DEPOSITS`. A hard-coded table would go on saying
+ * "pétrole" the day `generate-deposits.mjs` hands France an oil field — and it would go on
+ * saying it after an outpost has won one abroad, which is the same lie in the other
+ * direction.
+ */
+function NationalGap({ regions }: { regions: PlayerView['me']['regions'] }) {
+  const held = new Set(regions.map((region) => region.deposit));
+  const missing = DEPOSITS.filter((deposit) => !held.has(deposit));
+
   return (
-    <button
-      type="button"
-      disabled={blocked}
-      title={
-        construction
-          ? fr.nationSheet.constructionInProgressTitle
-          : building.cappedByHq
-            ? fr.nationSheet.raiseHqFirst
-            : fr.nationSheet.upgradeTitle(building.name, building.level + 1)
-      }
-      onClick={() => {
-        onError(null);
-        start({ token, building: building.key, regionId: building.regionId }).catch((problem: unknown) =>
-          handleError(problem, onError),
-        );
-      }}
-      className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 py-[7px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35"
-    >
-      {fr.nationSheet.construction}
-    </button>
+    <>
+      <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
+        {fr.nationSheet.gapHeader}
+      </h2>
+      <p
+        className="mt-2 text-[13px] leading-[1.5]"
+        style={{ color: missing.length === 0 ? 'var(--ink-soft)' : 'var(--ink)' }}
+      >
+        {missing.length === 0
+          ? fr.nationSheet.gapNone
+          : fr.nationSheet.gap(missing.map((deposit) => fr.deposits[deposit]))}
+      </p>
+    </>
+  );
+}
+
+/**
+ * The budget, as a reading rather than a figure. A bar and not "9 / 13": this is the most
+ * structuring trade of a season, and a fraction has to be parsed before it is understood.
+ *
+ * The count comes from the list itself — `buildings.length` — because the view deliberately
+ * does not serve it a second time (`view.ts`): two numbers for one fact can disagree.
+ */
+function BuildingBudget({ taken, cap }: { taken: number; cap: number }) {
+  const filled = cap === 0 ? 0 : Math.min(1, taken / cap);
+  const free = cap - taken;
+
+  return (
+    <section className="mt-4">
+      <h2 className="eyebrow flex items-baseline gap-3 border-b border-[var(--ink)] pb-[6px]">
+        {fr.nationSheet.budgetHeader}
+        <span className="ml-auto font-[var(--font-mono)] text-[12px] normal-case tracking-normal text-[var(--ink)]">
+          {fr.nationSheet.budgetTaken(taken, cap)}
+        </span>
+      </h2>
+      <div className="mt-2 h-[10px] w-full border border-[var(--ink)]">
+        <div
+          className="h-full"
+          style={{
+            width: `${filled * 100}%`,
+            background: free <= 0 ? 'var(--critical)' : 'var(--ink)',
+          }}
+        />
+      </div>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[11.5px] leading-[1.4]">
+        <span style={{ color: free <= 0 ? 'var(--critical)' : 'var(--ink-soft)' }}>
+          {fr.nationSheet.budgetFree(free)}
+        </span>
+        <span className="text-[var(--ink-quiet)] italic">{fr.nationSheet.budgetNote}</span>
+      </p>
+    </section>
+  );
+}
+
+/**
+ * One line, on one line: what I hold, never what I may do with it. Dense on purpose — this is
+ * the only reading of the whole estate, and it is used to compare levels, which wants a column
+ * that scans rather than a card that reads.
+ */
+function BuildingRow({ building, regionName }: { building: Building; regionName: string }) {
+  return (
+    <div className="flex items-center gap-x-[10px] border-b border-[rgba(42,33,24,.16)] py-[5px]">
+      <BuildingPlate building={building.key} height={24} />
+      <span className="w-[132px] shrink-0 truncate text-[13px] font-semibold text-[var(--ink)]">
+        {fr.buildings[building.key]}
+      </span>
+      <span className="w-[94px] shrink-0 truncate text-[11.5px] text-[var(--ink-soft)]">
+        {fr.nationSheet.inRegion(regionName)}
+      </span>
+      <span className="w-[52px] shrink-0 font-[var(--font-mono)] text-[11.5px] text-[var(--ink)]">
+        {fr.nationSheet.level(building.level)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--ink-soft)]">
+        {fr.buildingEffects[building.key]}
+      </span>
+      {building.cappedByHq && (
+        <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--critical)] uppercase">
+          {fr.nationSheet.cappedByHq}
+        </span>
+      )}
+    </div>
   );
 }

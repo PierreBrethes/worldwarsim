@@ -1,6 +1,14 @@
-import { BUILDINGS, type BuildingKey, type DepositKey, type ResourceKey } from './ids';
+import { BUILDINGS, RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from './ids';
 import { EXPLOITED_DEPOSITS, placementRefusal } from './economy';
-import { currentStock, type BuildSpec, type Cost, type PlayerView, type RegionView } from './player-view';
+import {
+  currentStock,
+  type Building,
+  type BuildSpec,
+  type Cost,
+  type PlayerView,
+  type RegionView,
+  type Resource,
+} from './player-view';
 
 /**
  * Why a building is offered here rather than elsewhere. It is the sentence that teaches the
@@ -132,4 +140,65 @@ export function buildOptionsAt(
 ): ReadonlyArray<BuildOption> {
   const site = siteOf(view, regionId, now);
   return site === null ? [] : buildableOn(site, view.buildCatalog);
+}
+
+/**
+ * What holds a **raise** back, `null` when nothing does. Raising is not placing: the region is
+ * already held and already counted, so neither the one-per-region rule nor the building ceiling
+ * has anything to say — which is why this reads the three refusals `constructions.start` can
+ * still raise, and not `placementRefusal`.
+ *
+ * None of them is re-decided here. The single construction and the headquarters ceiling arrive
+ * cooked in the view (`me.construction`, `building.cappedByHq`); the bill is the served cost
+ * against the served stock. A fourth rule appearing in this function would mean the view is
+ * short of a field — the answer is to serve it, never to guess it.
+ */
+export type UpgradeHold =
+  | { readonly kind: 'constructionRunning' }
+  | { readonly kind: 'cappedByHq' }
+  | {
+      readonly kind: 'materials';
+      readonly resource: ResourceKey;
+      readonly needed: number;
+      readonly available: number;
+    };
+
+/**
+ * When the missing matter will be there. **A refusal that counts is a wall; a refusal that
+ * dates itself is a plan** — "il faut 72 de charbon (0 disponibles)" tells a player he has
+ * lost, "disponible dans 4 h 20" tells him to come back.
+ *
+ * `never` is the one that earns its place. When nothing produces the matter — no mine, so no
+ * coal, ever — a countdown would be a lie, and the honest sentence names the building to
+ * raise. The ceiling counts as never too: a bill above what the warehouses can hold is not
+ * waiting on time, it is waiting on a warehouse.
+ */
+export type Availability =
+  | { readonly kind: 'now' }
+  | { readonly kind: 'inMinutes'; readonly minutes: number }
+  | { readonly kind: 'never' };
+
+export function availabilityOf(needed: number, held: Resource, stock: number): Availability {
+  if (stock >= needed) return { kind: 'now' };
+  if (needed > held.cap || held.ratePerHour <= 0) return { kind: 'never' };
+  return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
+}
+
+export function upgradeHold(
+  building: Building,
+  view: PlayerView,
+  now: number,
+): UpgradeHold | null {
+  if (view.me.construction !== null) return { kind: 'constructionRunning' };
+  if (building.cappedByHq) return { kind: 'cappedByHq' };
+
+  // The first shortfall in resource order, never a list: a bill is paid whole or not at all
+  // (`debit` checks every cost before debiting any), so naming one is naming the blockage.
+  for (const resource of RESOURCES) {
+    const needed = building.nextLevelCost[resource] ?? 0;
+    if (needed === 0) continue;
+    const available = currentStock(view.me.resources[resource], view.loadedAt, now);
+    if (available < needed) return { kind: 'materials', resource, needed, available };
+  }
+  return null;
 }

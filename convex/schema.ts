@@ -56,24 +56,67 @@ export default defineSchema({
     level: v.number(),
   }).index('byPlayer', ['playerId']),
 
-  /** The headcount at home, one row per role/tier pair. Neither position nor identity: a
-   *  unit exists individually nowhere as long as combat is not written. */
-  units: defineTable({
+  /**
+   * **One row per troop** (ADR 0014): discrete, unique, never merged with another. Its hit
+   * points are `currentStrength`, read against the `nominalStrength` it was formed at — 50
+   * soldiers, 12 tanks, 24 embarked aircraft.
+   *
+   * `stationedAt` is an attachment, not a position: movements will come and carry a troop
+   * around later. **`null` means "at home"**, and it is the answer to a troop whose building
+   * is gone — it comes home, it does not die (rule 3 of the project). It is deliberately not
+   * re-hung on the headquarters: the headquarters projects nothing, and whether it can be
+   * destroyed at all is not settled (ADR 0015, sent back to `QUESTIONS.md`).
+   *
+   * No `specialization` field: ADR 0014 only names variants for tier-1 infantry (medic or
+   * paratrooper) and defers the eight other roles, so the type would have to be invented. It
+   * arrives with the research ADR.
+   */
+  troops: defineTable({
     playerId: v.id('players'),
     role: UNIT_ROLE,
     tier: UNIT_TIER,
-    count: v.number(),
+    nominalStrength: v.number(),
+    currentStrength: v.number(),
+    stationedAt: v.union(v.id('buildings'), v.null()),
   }).index('byPlayer', ['playerId']),
 
-  /** A queue ordered by `rank`. Only the head batch carries a `finishesAt`: the followers
-   *  have not started, and they are exactly the ones that can be cancelled for a refund. */
+  /**
+   * One sequential queue **per projection building**, ordered by `rank`: two barracks form in
+   * parallel, which is what makes the second one worth its slot. A batch is one troop.
+   *
+   * Only the head of a queue carries a `finishesAt`: the followers have not started, they are
+   * dated nowhere, and they are exactly the ones a cancellation refunds in full without
+   * re-dating anything.
+   */
   recruitments: defineTable({
     playerId: v.id('players'),
+    buildingId: v.id('buildings'),
     role: UNIT_ROLE,
     tier: UNIT_TIER,
-    count: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('byBuilding', ['buildingId']),
+
+  /**
+   * A **lot** standing on a chain that does not run by itself (`COMMANDED_CHAINS`): exactly
+   * this many units of output, once, and then the line falls silent again. Not a permanent
+   * order and not a throughput — the rate belongs to the building's level.
+   *
+   * `produced` advances with the settlement, exactly as a stock does, and for the same reason:
+   * `settleStocks` is the only place that decides how much came out, so a query can read the
+   * lot forward without writing and a mutation banks it on its way past (`writeStocks`).
+   *
+   * At most one row per chain and per player: a finished lot is kept, at `produced ===
+   * ordered`, because "lot terminé — 200 munitions livrées" is what the surface has to show.
+   */
+  orders: defineTable({
+    playerId: v.id('players'),
+    chain: BUILDING_KEY,
+    ordered: v.number(),
+    produced: v.number(),
+    placedAt: v.number(),
   }).index('byPlayer', ['playerId']),
 
   constructions: defineTable({

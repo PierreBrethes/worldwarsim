@@ -8,6 +8,7 @@ import { Shell } from '@/shell/Shell';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { buildLabels, type MapMarker } from '@/domain/labels';
+import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { RegionIdentity, World } from '@/domain/world';
@@ -20,6 +21,7 @@ import { errorCode } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { MovementTimeline } from './-plateau/MovementTimeline';
 import { RegionTooltip } from './-plateau/RegionTooltip';
+import { ReservesPanel } from './-plateau/ReservesPanel';
 import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
 
 type BuildingSite = { regionId: string; x: number; y: number };
@@ -33,6 +35,9 @@ const TroopsWindow = lazy(() =>
 const ProductionWindow = lazy(() =>
   import('./-plateau/ProductionWindow').then((module) => ({ default: module.ProductionWindow })),
 );
+const IndustryWindow = lazy(() =>
+  import('./-plateau/IndustryWindow').then((module) => ({ default: module.IndustryWindow })),
+);
 const NationWindow = lazy(() =>
   import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
 );
@@ -40,7 +45,7 @@ const SettingsWindow = lazy(() =>
   import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
 );
 
-const WINDOWS = ['journal', 'troops', 'production', 'nation', 'settings'] as const;
+const WINDOWS = ['journal', 'troops', 'production', 'industry', 'nation', 'settings'] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
 
@@ -55,7 +60,41 @@ export type BoardSearch = {
   country?: string;
   windows?: BoardWindow[];
   send?: MovementType;
+  /**
+   * The building whose line the opened surface focuses on — an **instance id**, never a key:
+   * `?building=barracks` would open the barracks of Normandy for a click on the one in
+   * Brittany. A stale id is not an error, it is a window without a focus.
+   */
+  building?: string;
 };
+
+/**
+ * **Where a building is *used*, never where it is maintained.** One rule for the fifteen, so
+ * that a click means the same thing everywhere: *see what this building does for me.* The
+ * record is complete on purpose — a key added to the domain without a destination has to break
+ * the compilation, never produce a dead click.
+ */
+const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
+  hq: 'nation',
+  farm: 'industry',
+  mill: 'industry',
+  mine: 'industry',
+  oilWell: 'industry',
+  foundry: 'industry',
+  arsenal: 'industry',
+  quartermaster: 'industry',
+  warehouse: 'industry',
+  depot: 'industry',
+  listening: 'industry',
+  barracks: 'production',
+  airfield: 'production',
+  port: 'production',
+  billets: 'production',
+};
+
+/** The three surfaces a focus can live in. Closing one of them lets it go — there is a single
+ *  `building` in the URL, so a focus that outlived its window would resurface unasked. */
+const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['industry', 'production', 'nation'];
 
 export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
   const others = (search.windows ?? []).filter((open) => open !== name);
@@ -63,9 +102,14 @@ export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch 
 }
 
 export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
-  const { windows, send, ...rest } = search;
-  // The send preset belongs to the troops window: it leaves with it.
-  const kept = name === 'troops' || send === undefined ? rest : { ...rest, send };
+  const { windows, send, building, ...rest } = search;
+  // The send preset belongs to the troops window: it leaves with it, and the building focus
+  // leaves with whichever surface could have been carrying it.
+  const withSend = name === 'troops' || send === undefined ? rest : { ...rest, send };
+  const kept =
+    FOCUSED_WINDOWS.includes(name) || building === undefined
+      ? withSend
+      : { ...withSend, building };
   const remaining = (windows ?? []).filter((open) => open !== name);
   return remaining.length ? { ...kept, windows: remaining } : kept;
 }
@@ -92,6 +136,7 @@ export const Route = createFileRoute('/plateau')({
     if (typeof raw.send === 'string' && MOVEMENT_TYPES.includes(raw.send)) {
       search.send = raw.send as MovementType;
     }
+    if (typeof raw.building === 'string' && raw.building.length > 0) search.building = raw.building;
     return search;
   },
   // The loader only fetches the world and the token; the view comes from the subscription,
@@ -155,7 +200,7 @@ function LiveBoard({ world, token }: { world: World; token: string }) {
 }
 
 function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
-  const { country, windows = [], send } = Route.useSearch();
+  const { country, windows = [], send, building: focused } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
@@ -201,6 +246,26 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [navigate],
   );
 
+  /**
+   * A click on a mast opens the surface where that building is *used*. The key is read off the
+   * view rather than carried in the URL: what travels is the instance, and a razed one simply
+   * finds no key — the window then opens without a focus, which is the honest fallback and the
+   * one `ProductionWindow` already applies to a vanished site.
+   */
+  const openBuilding = useCallback(
+    (buildingId: string) => {
+      const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
+      if (standing === undefined) return;
+      void navigate({
+        search: (previous) => ({
+          ...withWindow(previous, WINDOW_OF_BUILDING[standing.key]),
+          building: buildingId,
+        }),
+      });
+    },
+    [navigate, view.me.buildings],
+  );
+
   const compassOfTarget = useCallback((target: CompassTarget) => compassOf(target, view), [view]);
 
   const actOnCompass = useCallback(
@@ -238,7 +303,25 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   // and the map layer resolves it. Outposts, stacks and sited constructions still wait for
   // 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
-    if (!toggles.buildings) return [];
+    // Same rule as the buildings above and for the same reason: `me.regions` is the ground the
+    // player may build on and there is no other, so an opponent's deposit cannot reach the map
+    // — there is nothing to filter on nationality (ADR 0005).
+    const deposits: ReadonlyArray<MapMarker> = toggles.deposits
+      ? view.me.regions.flatMap((region) =>
+          region.deposit === null
+            ? []
+            : [
+                {
+                  kind: 'deposit' as const,
+                  id: `deposit-${region.id}`,
+                  regionId: region.id,
+                  deposit: region.deposit,
+                },
+              ],
+        )
+      : [];
+
+    if (!toggles.buildings) return deposits;
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt =
@@ -246,6 +329,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: `building-${building.regionId}-${building.key}`,
+      buildingId: building.id,
       regionId: building.regionId,
       hostCountry: host,
       name: building.name,
@@ -269,6 +353,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             {
               kind: 'building' as const,
               id: `building-${work.regionId}-${work.key}`,
+              // A first level under the crane opens nothing: no line stands for it yet.
+              buildingId: null,
               regionId: work.regionId,
               hostCountry: host,
               name: work.name,
@@ -278,10 +364,12 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...standing, ...raising];
+    return [...deposits, ...standing, ...raising];
   }, [
     toggles.buildings,
+    toggles.deposits,
     view.me.buildings,
+    view.me.regions,
     view.me.construction,
     view.me.nation,
     view.me.ink,
@@ -332,6 +420,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           indicators={toggles}
           accentedMovement={hoveredMovement}
           onSelect={select}
+          onOpenBuilding={openBuilding}
           onRegionHover={setHoveredRegion}
           onArcHover={setHoveredArc}
           onLabelHover={setHoveredLabel}
@@ -348,7 +437,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             onClose={() => setBuildingSite(null)}
           />
         )}
-        {country && <SelectedCountryPanel country={country} view={view} />}
         <MovementTimeline
           view={view}
           hoveredMovement={hoveredMovement}
@@ -356,8 +444,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onHover={setHoveredCard}
           onSelect={select}
         />
-        <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-3">
-          {hoveredRegion && <RegionTooltip name={hoveredRegion.name} />}
+        {/* The top right is the reserves' now — permanently. What answers a *gesture* (the
+            pointer on a region, a selected country) reads at the other end of the same column,
+            clear of the timeline's band: two things one glances at, one place to look. */}
+        <ReservesPanel view={view} />
+        <div className="absolute right-4 bottom-[84px] z-10 flex flex-col items-end gap-3">
+          {country && <SelectedCountryPanel country={country} view={view} />}
+          {hoveredRegion && (
+            <RegionTooltip id={hoveredRegion.id} name={hoveredRegion.name} view={view} />
+          )}
         </div>
       </div>
       <Suspense fallback={null}>
@@ -384,10 +479,34 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               );
             case 'production':
               return (
-                <ProductionWindow key={name} nation={view.me.nation} token={token} {...windowProps} />
+                <ProductionWindow
+                  key={name}
+                  view={view}
+                  token={token}
+                  focused={focused ?? null}
+                  {...windowProps}
+                />
+              );
+            case 'industry':
+              return (
+                <IndustryWindow
+                  key={name}
+                  view={view}
+                  token={token}
+                  focused={focused ?? null}
+                  {...windowProps}
+                />
               );
             case 'nation':
-              return <NationWindow key={name} view={view} token={token} {...windowProps} />;
+              return (
+                <NationWindow
+                  key={name}
+                  view={view}
+                  token={token}
+                  focused={focused ?? null}
+                  {...windowProps}
+                />
+              );
             case 'settings':
               return <SettingsWindow key={name} {...windowProps} />;
           }

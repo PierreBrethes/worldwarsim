@@ -6,8 +6,15 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
  * only level-of-detail setting, and it can be tuned without reading the rest of the file.
+ *
+ * It governs the **plate as well as the text** — the building's picture hangs inside
+ * `.label-block`, which is what the glyph level fades out. Raised from 110 to 220 so a nation
+ * reads its own buildings without diving onto them: the plate keeps its 46 px whatever the
+ * distance, so what a farther camera buys is more buildings on screen, not smaller ones. The
+ * overlap degradation is what keeps the crowd readable, and it folds buildings first — they
+ * are the lowest priority, being the only labels that never move.
  */
-export const LABEL_EXPANDED_DISTANCE = 110;
+export const LABEL_EXPANDED_DISTANCE = 220;
 
 /**
  * The anchor sits on the crust, not above it: the callout must start from the ground it
@@ -36,6 +43,12 @@ export type LabelProjection = {
   y: number;
   lod: DetailLevel;
   /**
+   * The label lives and dies with the admin-1 layer, so it inherits its fade rather than a
+   * threshold of its own. `1` for everything else — a label that does not hang on the regions
+   * is never dimmed by them.
+   */
+  fade: number;
+  /**
    * Off-frame but in front of the horizon: the anchor parks at the screen edge. An anchor
    * gone behind the curvature has no right to it — we do not point at what cannot be seen.
    */
@@ -46,7 +59,17 @@ export type LabelProjection = {
   heading: number;
 };
 
-export type NamedAnchor = { readonly id: string; readonly anchor: LabelAnchor };
+export type NamedAnchor = {
+  readonly id: string;
+  readonly anchor: LabelAnchor;
+  /**
+   * The label is part of the zoomed-in layer, not merely anchored on one of its regions: it
+   * appears and fades with the admin-1 borders. A building says what a nation *holds* and is
+   * worth seeing from orbit; what the ground *contains* is only useful once the eye is close
+   * enough to build on it.
+   */
+  readonly withRegionLayer: boolean;
+};
 
 /**
  * The engine's anchor registry. It knows neither DOM nor React: it says where each label
@@ -54,6 +77,7 @@ export type NamedAnchor = { readonly id: string; readonly anchor: LabelAnchor };
  */
 export class LabelLayer {
   private readonly fixed = new Map<string, Vector3>();
+  private readonly withRegions = new Set<string>();
   private readonly projections: LabelProjection[] = [];
   private readonly point = new Vector3();
   private readonly normalized = new Vector3();
@@ -69,13 +93,16 @@ export class LabelLayer {
   constructor(
     private readonly frame: WorldFrame,
     private readonly groundOfRegion: (regionId: string) => Vector3 | null,
+    /** How much of the admin-1 layer is on screen, `0` when it is not — one source, no twin. */
+    private readonly regionShare: () => number,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
     this.anchors = anchors;
     this.fixed.clear();
+    this.withRegions.clear();
     this.projections.length = 0;
-    for (const { id, anchor } of anchors) {
+    for (const { id, anchor, withRegionLayer } of anchors) {
       if (anchor.kind === 'ground') {
         this.fixed.set(id, this.frame.projectLonLat(anchor.lonLat, ANCHOR_ELEVATION));
       }
@@ -91,11 +118,13 @@ export class LabelLayer {
         x: 0,
         y: 0,
         lod: 'glyph',
+        fade: withRegionLayer ? 0 : 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
         heading: 0,
       });
+      if (withRegionLayer) this.withRegions.add(id);
     }
   }
 
@@ -116,10 +145,14 @@ export class LabelLayer {
     mobilePositions: ReadonlyMap<string, Vector3>,
   ): ReadonlyArray<LabelProjection> {
     camera.getWorldDirection(this.gaze);
+    const share = this.regionShare();
 
     for (const projection of this.projections) {
+      projection.fade = this.withRegions.has(projection.id) ? share : 1;
       const position = this.fixed.get(projection.id) ?? mobilePositions.get(projection.id);
-      if (position === undefined) {
+      // Faded out is not merely invisible: it does not park at the edge either. An indicator
+      // pointing at a layer the eye cannot reach would send the camera to nothing.
+      if (position === undefined || projection.fade === 0) {
         projection.visible = false;
         projection.atEdge = false;
         continue;

@@ -1,0 +1,167 @@
+import { useMutation } from 'convex/react';
+import { useState } from 'react';
+import { api } from '../../../convex/_generated/api';
+import { aBuilding, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
+import { handleError } from '@/data/errors';
+import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construction';
+import { PRODUCER_OF } from '@/domain/economy';
+import { asHoursMinutes } from '@/domain/duration';
+import { DEPOSITS, RESOURCES } from '@/domain/ids';
+import {
+  currentMinutes,
+  currentStock,
+  type Building,
+  type Cost,
+  type PlayerView,
+} from '@/domain/player-view';
+import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+
+/**
+ * Raising a level, on the line of the building itself — in Industry, in Production and on the
+ * nation sheet alike. A deliberate relaxation of "one verb per surface": raising is the most
+ * frequent action of the game after recruiting, and sending the player to another window for
+ * it would turn every upgrade into three clicks. **The map puts down, the window uses and
+ * raises.**
+ *
+ * One component and not three: the acceptance is that raising from Industry and raising from
+ * the nation sheet do exactly the same thing, and the surest way to hold that is to have one
+ * caller of `constructions.start`.
+ *
+ * **The button is never absent, only prevented and explained.** A button that disappears
+ * leaves the player looking for what he did wrong.
+ */
+export function UpgradeControl({
+  building,
+  view,
+  token,
+  now,
+}: {
+  building: Building;
+  view: PlayerView;
+  token: string;
+  now: number;
+}) {
+  const start = useMutation(api.constructions.start);
+  const [error, setError] = useState<string | null>(null);
+  const hold = upgradeHold(building, view, now);
+  const next = building.level + 1;
+
+  const running = view.me.construction;
+  const held =
+    hold === null
+      ? null
+      : upgradeHoldText(
+          hold,
+          running === null
+            ? null
+            : fr.construction.heldByConstruction(
+                running.name,
+                asHoursMinutes(currentMinutes(running.minutesLeft, view.loadedAt, now)),
+              ),
+        );
+
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-[3px]">
+      <div className="flex items-center gap-[10px]">
+        <CostLine cost={building.nextLevelCost} lacking={hold?.kind === 'materials'} />
+        <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+          {asHoursMinutes(building.nextLevelMinutes)}
+        </span>
+        <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-quiet)]">
+          {fr.upgrade.toLevel(next)}
+        </span>
+        <button
+          type="button"
+          disabled={held !== null}
+          title={held ?? fr.upgrade.title(building.name, next)}
+          onClick={() => {
+            setError(null);
+            start({ token, building: building.key, regionId: building.regionId }).catch(
+              (problem: unknown) => handleError(problem, setError),
+            );
+          }}
+          className="cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
+        >
+          {fr.upgrade.action}
+        </button>
+      </div>
+      {held !== null && (
+        <span className="max-w-[42ch] text-right text-[11px] leading-[1.35] text-[var(--ink-soft)]">
+          {held}
+        </span>
+      )}
+      {hold?.kind === 'materials' && (
+        <WhenAffordable hold={hold} view={view} now={now} />
+      )}
+      {error !== null && (
+        <span className="max-w-[42ch] text-right text-[11px] leading-[1.35] text-[var(--critical)]">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The line the borrowed idea buys (brief §5): a shortfall is followed by *when* it stops being
+ * one — and, when nothing produces the matter, by the building that would. "Jamais : aucune
+ * mine" is not a harder refusal than "il faut 72 de charbon", it is the only one that tells
+ * the player what to do next.
+ */
+function WhenAffordable({
+  hold,
+  view,
+  now,
+}: {
+  hold: Extract<UpgradeHold, { kind: 'materials' }>;
+  view: PlayerView;
+  now: number;
+}) {
+  const held = view.me.resources[hold.resource];
+  const when = availabilityOf(hold.needed, held, currentStock(held, view.loadedAt, now));
+  if (when.kind === 'now') return null;
+
+  const producer = PRODUCER_OF[hold.resource];
+  const deposit = DEPOSITS.find((key) => key === hold.resource) ?? null;
+
+  return (
+    <span
+      className="max-w-[42ch] text-right text-[11px] leading-[1.35]"
+      style={{ color: when.kind === 'never' ? 'var(--critical)' : 'var(--ink-soft)' }}
+    >
+      {when.kind === 'inMinutes' ? (
+        fr.upgrade.availableIn(asHoursMinutes(when.minutes))
+      ) : (
+        <>
+          <span className="font-semibold">
+            {deposit === null
+              ? fr.upgrade.never(noBuilding(producer))
+              : fr.upgrade.neverOnDeposit(noBuilding(producer), fr.deposits[deposit])}
+          </span>{' '}
+          <span className="text-[var(--ink-soft)]">
+            — {fr.upgrade.neverNote(aBuilding(producer))}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** The bill in the critical ink when it cannot be paid: the figures are the explanation. */
+function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
+  return (
+    <span
+      className="flex items-center justify-end gap-[8px] font-[var(--font-mono)] text-[12.5px]"
+      style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
+    >
+      {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
+        <span key={key} className="flex items-center gap-[3px]">
+          <span className="flex" style={{ color: lacking ? undefined : resourceColor(key, true) }}>
+            <ResourceIcon resource={key} size={12} />
+          </span>
+          {cost[key]}
+        </span>
+      ))}
+    </span>
+  );
+}

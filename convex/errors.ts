@@ -35,13 +35,20 @@ export type ErrorCode =
   | 'BUILDING_CAP_REACHED'
   | 'MAX_LEVEL_REACHED'
   | 'HQ_ALREADY_BUILT'
-  | 'BATCH_TOO_SMALL'
-  | 'BATCH_TOO_LARGE'
+  | 'UNKNOWN_BUILDING'
+  | 'WRONG_PROJECTION_BUILDING'
+  | 'TROOP_CAP_REACHED'
   | 'SINGLE_TIER_ROLE'
   | 'TIER_2_LOCKED'
   | 'QUEUE_FULL'
   | 'UNKNOWN_BATCH'
-  | 'BATCH_ALREADY_STARTED';
+  | 'BATCH_ALREADY_STARTED'
+  | 'CHAIN_NOT_COMMANDED'
+  | 'CHAIN_NOT_STANDING'
+  | 'EMPTY_ORDER'
+  | 'ORDER_ABOVE_RESERVE'
+  | 'ORDER_RUNNING'
+  | 'NO_ORDER';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };
 

@@ -15,7 +15,7 @@ export function SelectedCountryPanel({ country, view }: { country: string; view:
     <Panel
       title={opponent ? fr.selectedCountry.enemyTitle : fr.selectedCountry.neutralTitle}
       marker={fr.selectedCountry.marker}
-      position="topRight"
+      position="static"
       width={280}
     >
       <h2 className="font-[var(--font-display)] text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">

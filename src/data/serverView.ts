@@ -34,6 +34,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         ...building,
         name: fr.buildings[building.key],
       })),
+      chains: server.me.chains,
+      extraction: server.me.extraction,
       regions: server.me.regions,
       // A deployment ahead of the client returns an object without this field. The adapter is
       // the only boundary: a version gap gets absorbed here, not in the panels, where an
@@ -51,6 +53,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         : null,
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
+      troopCap: server.me.troopCap,
+      troops: server.me.troops,
       outposts: [],
     },
     buildCatalog: server.buildCatalog,

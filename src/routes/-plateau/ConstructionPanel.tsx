@@ -11,6 +11,7 @@ import { asHoursMinutes } from '@/domain/duration';
 import { RESOURCES } from '@/domain/ids';
 import { currentMinutes, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { BuildingPlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 
 const MIN_WIDTH = 260;
@@ -159,6 +160,13 @@ export function ConstructionPanel({
           </button>
         </div>
 
+        {/* A deliberate echo of the nation sheet's bar: a datum reappears elsewhere when it is
+            the subject of the decision taken there, and choosing where to build is that
+            decision. The count is the list — `buildings.length` — never a third served number. */}
+        <p className="mt-2 shrink-0 font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+          {fr.construction.budget(view.me.buildings.length, view.me.buildingCap)}
+        </p>
+
         <HeldNotice view={view} options={options} now={now} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
@@ -236,8 +244,9 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
       type="button"
       disabled={held}
       onClick={onOrder}
-      className="flex w-full items-baseline gap-2 border-b border-[rgba(42,33,24,.16)] py-[7px] text-left last:border-0 enabled:cursor-pointer enabled:hover:bg-[rgba(42,33,24,.07)] disabled:cursor-default"
+      className="flex w-full items-center gap-2 border-b border-[rgba(42,33,24,.16)] py-[7px] text-left last:border-0 enabled:cursor-pointer enabled:hover:bg-[rgba(42,33,24,.07)] disabled:cursor-default"
     >
+      <BuildingPlate building={option.key} height={30} />
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-semibold text-[var(--ink)]">
           {fr.buildings[option.key]}

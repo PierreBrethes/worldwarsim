@@ -7,7 +7,7 @@ import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
 import type { BoardWindow, BoardSearch } from '@/routes/plateau';
 import { toggleWindow, windowOpen } from '@/routes/plateau';
 import { Glyph } from './Glyph';
-import { IndicatorGlyph, Pictogram } from './IndicatorGlyph';
+import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
 export function SurfaceRail({
@@ -52,6 +52,13 @@ export function SurfaceRail({
       icon: <Pictogram pictogram="production" weight={20} size={19} />,
       target: toggled('production'),
       active: windowOpen(search, 'production'),
+    },
+    {
+      title: fr.rail.industry.title,
+      label: fr.rail.industry.label,
+      icon: <IndustryGlyph size={19} />,
+      target: toggled('industry'),
+      active: windowOpen(search, 'industry'),
     },
     {
       title: fr.rail.nation.title,
@@ -150,7 +157,9 @@ function EdgeToggles({ playerInk }: { playerInk: string }) {
               title={
                 category === 'buildings'
                   ? fr.rail.toggleBuildingsTitle(on)
-                  : fr.rail.toggleTitle(fr.indicatorCategories[category], on)
+                  : category === 'deposits'
+                    ? fr.rail.toggleDepositsTitle(on)
+                    : fr.rail.toggleTitle(fr.indicatorCategories[category], on)
               }
               onClick={() => toggleIndicator(category)}
               style={on ? { color: LIT_INK[category] ?? playerInk } : undefined}
@@ -176,6 +185,8 @@ function EdgeToggles({ playerInk }: { playerInk: string }) {
  */
 const LIT_INK: Readonly<Record<IndicatorCategory, string | undefined>> = {
   buildings: undefined,
+  // The ground's, not a nation's: a deposit is there before anyone claims it.
+  deposits: 'var(--paper)',
   outposts: 'var(--paper)',
   constructions: 'var(--paper)',
   forces: 'var(--paper)',

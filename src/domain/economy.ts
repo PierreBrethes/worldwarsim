@@ -64,9 +64,62 @@ export function placementRefusal(
 /** A transformation, as the settlement reads it: what one unit of output costs in inputs, and
  *  how many units an hour the building can push through. */
 export type Conversion = {
+  readonly by: BuildingKey;
   readonly output: ResourceKey;
   readonly inputs: ReadonlyArray<readonly [ResourceKey, number]>;
   readonly perHour: number;
+  /**
+   * How many units of output are still owed on a standing lot — `null` for a chain that runs
+   * on its own, whatever the stocks.
+   *
+   * **Zero is not "no ceiling": it is a chain awaiting an order**, and that is the whole point
+   * of the field. A chain that eats a matter spent elsewhere may not help itself to it — an
+   * arsenal at level 3 takes 216 alloy a day from a player saving for a carrier, and nothing
+   * on screen says so.
+   */
+  readonly quota?: number | null;
+};
+
+/**
+ * Why a conversion made less than its nominal rate. A stock cannot say it — "my alloy stopped
+ * rising" has two different answers, "your foundry has no coal" and "your alloy is at the
+ * ceiling", and they call for opposite moves.
+ *
+ * The four states come out of the arbitration itself and out of nothing else, which is the
+ * whole reason the report leaves `settleStocks` rather than being recomputed beside it: a
+ * second loop making the same trade-off is a second chance to make it differently.
+ */
+export type ChainState = 'off' | 'idle' | 'running' | 'starved' | 'overflowing';
+
+export type ChainReport = {
+  readonly conversion: Conversion;
+  readonly state: ChainState;
+  /** The input that ran out first, named — `null` outside `starved`. Naming it is the point:
+   *  "entrées insuffisantes" sends the player looking, "charbon" sends him building. */
+  readonly missing: ResourceKey | null;
+  /** How much output actually came out over the window. Over an hour it **is** the real rate,
+   *  which is the figure a starved chain must print instead of its nominal one. */
+  readonly made: number;
+};
+
+/**
+ * Which building brings a resource into the world. It answers the refusal that names its cause
+ * — "jamais : aucune mine de charbon" beats "il faut 72 de charbon (0 disponibles)", because
+ * the first one says what to build.
+ *
+ * Written out rather than inverted from `EXPLOITED_DEPOSITS` and `CHAINS`: the mine works two
+ * deposits, so the inversion is not a function. `convex/economy.test.ts` holds it against both
+ * tables rather than trusting this paragraph.
+ */
+export const PRODUCER_OF: Readonly<Record<ResourceKey, BuildingKey>> = {
+  food: 'farm',
+  textile: 'mill',
+  coal: 'mine',
+  oil: 'oilWell',
+  ore: 'mine',
+  alloy: 'foundry',
+  ammunition: 'arsenal',
+  bandages: 'quartermaster',
 };
 
 export const emptyStocks = (): Record<ResourceKey, number> =>
@@ -81,38 +134,169 @@ export const emptyStocks = (): Record<ResourceKey, number> =>
  * the alloy a foundry makes at 9 h is available to the arsenal in the same reading. Strict
  * simultaneity would idle the arsenal for one read every time a foundry is built, which is a
  * worse lie about a continuous process than the ordering is.
+ *
+ * It returns the report of every conversion beside the stocks because the two are the same
+ * arbitration: `room` and `affordable` already decide how much is made, so saying *why* costs
+ * nothing here and would cost a divergence anywhere else.
+ *
+ * **A window is an integration, not a step.** Reading three days as one accrual clipped to the
+ * ceiling, then one conversion off the clipped figure, made a mine at level 2 look as though it
+ * had brought up four hundred ore instead of twelve hundred: half of a three-day absence lost
+ * in silence, and only for the player without a warehouse. Hence the two ledgers below — what
+ * *flowed*, and what is *stored* — and the fixed point that gives a saturating output back the
+ * room a downstream chain frees. The whole thing stays analytic: **no loop here counts hours.**
  */
-export function settleStocks({
-  stocks,
-  ratePerHour,
-  cap,
-  conversions,
-  hours,
-}: {
+export function settleStocks(settlement: {
   stocks: Stocks;
   ratePerHour: Stocks;
   cap: Stocks;
   conversions: ReadonlyArray<Conversion>;
   hours: number;
-}): Record<ResourceKey, number> {
-  const elapsed = Math.max(0, hours);
-  const settled = emptyStocks();
-  for (const key of RESOURCES) {
-    settled[key] = Math.min(cap[key], stocks[key] + ratePerHour[key] * elapsed);
+}): { stocks: Record<ResourceKey, number>; chains: ReadonlyArray<ChainReport> } {
+  /**
+   * The space left in a bac is not what a chain may pour into it: whatever a downstream chain
+   * takes back out over the same window is room too — an arsenal emptying the alloy as it is
+   * cast keeps the foundry running well past the four hundredth ingot.
+   *
+   * That draw is settled by iteration, not by a formula, because it depends on the production
+   * it authorises. The first pass lifts the ceilings to get an upper bound, and each pass
+   * afterwards can only lower it, so it converges — **in a number of passes bounded by the
+   * number of chains, never by the hours elapsed.** Three chains, four passes at worst; a
+   * week's absence costs exactly what a minute's does.
+   */
+  let allowance: ReadonlyArray<number> = settlement.conversions.map(
+    () => Number.POSITIVE_INFINITY,
+  );
+  let settled = integrate(settlement, allowance);
+  for (let pass = 0; pass <= settlement.conversions.length; pass += 1) {
+    const drawn = drawnDownstream(settlement.conversions, settled.chains);
+    if (drawn.every((value, rank) => value === allowance[rank])) break;
+    allowance = drawn;
+    settled = integrate(settlement, allowance);
   }
-
-  for (const conversion of conversions) {
-    const room = cap[conversion.output] - settled[conversion.output];
-    if (room <= 0) continue;
-    const affordable = conversion.inputs.reduce(
-      (limit, [key, quantity]) => Math.min(limit, settled[key] / quantity),
-      conversion.perHour * elapsed,
-    );
-    const made = Math.max(0, Math.min(room, affordable));
-    if (made === 0) continue;
-    for (const [key, quantity] of conversion.inputs) settled[key] -= made * quantity;
-    settled[conversion.output] += made;
-  }
-
   return settled;
+}
+
+/**
+ * What the chains **after** each one take out of its output, over the window. Only later ones:
+ * `CHAINS` is ordered upstream first, so what a chain feeds is always behind it.
+ */
+function drawnDownstream(
+  conversions: ReadonlyArray<Conversion>,
+  probe: ReadonlyArray<ChainReport>,
+): ReadonlyArray<number> {
+  return conversions.map((conversion, rank) =>
+    conversions.slice(rank + 1).reduce((drawn, later, offset) => {
+      const perUnit = later.inputs.find(([key]) => key === conversion.output)?.[1] ?? 0;
+      return drawn + perUnit * (probe[rank + 1 + offset]?.made ?? 0);
+    }, 0),
+  );
+}
+
+function integrate(
+  {
+    stocks,
+    ratePerHour,
+    cap,
+    conversions,
+    hours,
+  }: {
+    stocks: Stocks;
+    ratePerHour: Stocks;
+    cap: Stocks;
+    conversions: ReadonlyArray<Conversion>;
+    hours: number;
+  },
+  /** Extra output allowed past the bac's own space, because a later chain will take it. */
+  allowance: ReadonlyArray<number>,
+): { stocks: Record<ResourceKey, number>; chains: ReadonlyArray<ChainReport> } {
+  const elapsed = Math.max(0, hours);
+
+  /**
+   * **What went through the player's hands over the window** — the opening stock plus
+   * everything extracted or produced, *never* clipped to the ceiling. This is the ledger a
+   * conversion may spend from, and keeping it apart from the stored stock is the whole fix:
+   * a ceiling bounds what accumulates, it has never bounded what flows.
+   *
+   * **Where the drain will plug in** (`consommation-continue.md`): the accrual below is a net
+   * rate, so an upkeep that eats food is `ratePerHour` turning negative and nothing else here
+   * changes shape. What that prompt owes is the instant a reserve hit zero — a negative rate
+   * makes `passed` fall through zero mid-window, and a chain fed by it did run until then.
+   */
+  const passed = emptyStocks();
+  const settled = emptyStocks();
+  const store = (key: ResourceKey) => {
+    settled[key] = Math.max(0, Math.min(cap[key], passed[key]));
+  };
+  for (const key of RESOURCES) {
+    passed[key] = stocks[key] + ratePerHour[key] * elapsed;
+    store(key);
+  }
+
+  const chains = conversions.map((conversion, rank) => {
+    // The lot caps what is asked of the line, never the line's own speed: the rate comes from
+    // the building's level, and a throttle would only let a player slow his own works down.
+    const quota = conversion.quota ?? Number.POSITIVE_INFINITY;
+    const nominal = Math.min(conversion.perHour * elapsed, quota);
+    // The output's ceiling still bounds it, and reads the *stored* level: what a full bac
+    // refuses is one more unit in it, so a foundry with nowhere to put its alloy stops rather
+    // than burning ore into a spill.
+    const room =
+      Math.max(0, cap[conversion.output] - settled[conversion.output]) + (allowance[rank] ?? 0);
+
+    let affordable = nominal;
+    let scarcest: ResourceKey | null = null;
+    for (const [key, quantity] of conversion.inputs) {
+      const limit = passed[key] / quantity;
+      if (limit < affordable) {
+        affordable = limit;
+        scarcest = key;
+      }
+    }
+
+    const made = Math.max(0, Math.min(room, affordable));
+    for (const [key, quantity] of conversion.inputs) {
+      passed[key] -= made * quantity;
+      store(key);
+    }
+    passed[conversion.output] += made;
+    store(conversion.output);
+
+    return {
+      conversion,
+      made,
+      ...verdict(conversion.perHour, made, nominal, room, affordable, scarcest, quota),
+    };
+  });
+
+  return { stocks: settled, chains };
+}
+
+/**
+ * The ceiling wins the tie: at equal bite, an output with nowhere to go is what the player can
+ * act on first, and calling it "à sec" would send him mining ore he already cannot store.
+ *
+ * **`idle` is tested before the nominal is met**, and it has to be: a lot of zero asks for
+ * nothing, so nothing is refused, and the line would report as running. A chain awaiting an
+ * order and a chain out of matter are opposite situations — one wants a click, the other a
+ * mine — and the whole reason the state exists is that they must not look alike.
+ *
+ * A window of zero hours makes every chain look as if it ran — nothing was asked of it, so
+ * nothing was refused. That is why the industry report is read off an hour ahead rather than
+ * off the window just settled (`economyOf`).
+ */
+function verdict(
+  perHour: number,
+  made: number,
+  nominal: number,
+  room: number,
+  affordable: number,
+  scarcest: ResourceKey | null,
+  quota: number,
+): { state: ChainState; missing: ResourceKey | null } {
+  if (perHour <= 0) return { state: 'off', missing: null };
+  if (quota <= 0) return { state: 'idle', missing: null };
+  if (made >= nominal) return { state: 'running', missing: null };
+  if (room <= affordable) return { state: 'overflowing', missing: null };
+  return { state: 'starved', missing: scarcest };
 }

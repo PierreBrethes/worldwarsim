@@ -11,6 +11,13 @@ visible. Ce prompt les fait entrer dans `src/` proprement, puis débloque la par
 
 Ignore le dossier `_to_delete/` : ce sont les versions remplacées, Pierre les videra.
 
+> **Périmé sur un point, gardé comme trace.** La table d'échelle par clé (`echelles.json`,
+> points 2 et 5 ci-dessous) a été **supprimée le 16/08** : elle n'a jamais rien produit, le CSS
+> du jalon épinglant une hauteur commune. Les quinze planches sortent désormais à la même
+> hauteur — cf. [`echelles-a-plat.md`](echelles-a-plat.md) et `WWS/sprites/README.md` §7. Le
+> recadrage sur la boîte englobante alpha et la normalisation par la hauteur, eux, sont
+> toujours en place.
+
 ## Ce qui ne va pas aujourd'hui, mesuré
 
 Deux défauts, tous deux invisibles tant qu'on regarde les planches sur fond sombre.

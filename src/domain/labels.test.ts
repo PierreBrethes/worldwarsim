@@ -136,6 +136,29 @@ describe('buildLabels', () => {
     expect(labels[0]?.hostCountry).toBe('Norway');
     expect(labels[1]?.hostCountry).toBeNull();
   });
+
+  it('hangs a deposit on its region, without ink, words, or the right to push anything aside', () => {
+    const [deposit, building] = buildLabels(viewWith([]), [
+      { kind: 'deposit', id: 'deposit-FR-60', regionId: 'FR-60', deposit: 'coal' },
+      {
+        kind: 'building',
+        id: 'building-FR-60-mine',
+        buildingId: 'b-1',
+        regionId: 'FR-60',
+        hostCountry: 'France',
+        name: 'Mine',
+        level: 1,
+        plate: '/mine.webp',
+        finishesAt: null,
+        ink: '#2f4f78',
+      },
+    ]);
+    expect(deposit?.anchor).toEqual({ kind: 'region', regionId: 'FR-60' });
+    expect(deposit?.deposit).toBe('coal');
+    expect(deposit?.ink).toBeNull();
+    expect(deposit?.lines).toEqual([]);
+    expect(deposit?.priority).toBeLessThan(building?.priority ?? 0);
+  });
 });
 
 describe('abbreviateStack', () => {

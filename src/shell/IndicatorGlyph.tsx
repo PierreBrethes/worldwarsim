@@ -50,6 +50,24 @@ export function Pictogram({
 }
 
 /**
+ * The industry surface's mark. A drawn stroke and not a `Pictogram`, because the eleven
+ * pictograms are baked PNG masks and there is no industry plate to bake from — the same
+ * reason the buildings bascule and the settings icon are drawn.
+ *
+ * Two chimneys over a shed: it says *what transforms*, where a foundry or a mine would name
+ * one of the ten buildings the window gathers.
+ */
+export function IndustryGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M2.5 17.5v-7l4 2.5v-2.5l4 2.5v-2.5l4 2.5V17.5z" />
+      <path d="M15.5 17.5v-13h2.5v13" />
+      <path d="M2.5 17.5h15" />
+    </Glyph>
+  );
+}
+
+/**
  * One mark per category, and the same everywhere: what the rail lights is what parks at the
  * screen edge. Two drawings for the same category would make the toggle a guessing game.
  *
@@ -86,6 +104,21 @@ const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
         <path d="M11.5 16.5v-4h5v4" />
         <path d="M14 12.5v-3" />
         <path d="M2.5 16.5h15" />
+      </>
+    ),
+  },
+  /**
+   * A drawn stroke again, and for the mirror reason: the five deposits each have their own
+   * silhouette in `ResourceIcon`, and lighting the bascule with one of them — the drop, the
+   * grain sack — would promise a filter on that resource. The seam under the ground line says
+   * *what lies beneath*, which is the category.
+   */
+  deposits: {
+    stroke: (
+      <>
+        <path d="M2.5 6.5h15" />
+        <path d="M7 13.8 4.4 10.6 7 7.4l2.6 3.2z" />
+        <path d="M14 16 12 13.4l2-2.6 2 2.6z" />
       </>
     ),
   },

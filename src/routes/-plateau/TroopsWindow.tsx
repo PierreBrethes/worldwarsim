@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fr, roleLabel, stackLabel } from '@/i18n/fr';
+import { aBuilding, fr, noBuilding, roleLabel, stackLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import type { World } from '@/domain/world';
@@ -9,7 +9,7 @@ import type {
   TroopLine,
   TroopSort,
 } from '@/domain/troops';
-import { countTroops, inventoryTroops, organizeTroops } from '@/domain/troops';
+import { PROJECTION_BY_DOMAIN, countTroops, inventoryTroops, organizeTroops } from '@/domain/troops';
 import type { ArcView, MovementType, PlayerView, Stack, UnitRole } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { asHoursMinutes } from '@/domain/duration';
@@ -108,6 +108,39 @@ function Header({
   );
 }
 
+/**
+ * **An empty inventory names its cause.** A filter that hides everything and an army that does
+ * not exist are two different sentences, and the second one has a remedy: the domain is shut
+ * until the building that opens it stands. The matter comes after — an arsenal waits for an
+ * order, not for ore — so the barracks is the single limiting factor and the only thing worth
+ * printing (brief §5).
+ */
+function EmptyInventory({ view, filtered }: { view: PlayerView; filtered: boolean }) {
+  if (filtered) {
+    return <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.troops.emptyFilter}</p>;
+  }
+
+  const opener = PROJECTION_BY_DOMAIN.land;
+  const standing = view.me.buildings.some((building) => building.key === opener);
+
+  return (
+    <div className="px-4 py-8">
+      <p className="font-[var(--font-display)] text-[20px] text-[var(--ink)]">
+        {fr.troops.noTroops}
+      </p>
+      {!standing && (
+        <p className="mt-2 flex items-center gap-[9px] text-[13px] font-semibold text-[var(--critical)]">
+          <span className="h-[8px] w-[8px] shrink-0 bg-[var(--critical)]" />
+          {fr.production.blockedBy(noBuilding(opener))}
+        </p>
+      )}
+      <p className="mt-[6px] max-w-[62ch] text-[12.5px] leading-[1.5] text-[var(--ink-soft)]">
+        {standing ? fr.troops.noTroopsYet : fr.troops.noTroopsBlocked(aBuilding(opener))}
+      </p>
+    </div>
+  );
+}
+
 function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -156,9 +189,7 @@ function Inventory({ view }: { view: PlayerView }) {
 
         <div className="max-h-[420px] min-h-[220px] flex-1 overflow-auto @4xl:max-h-none">
           {lines.length === 0 ? (
-            <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">
-              {fr.troops.emptyFilter}
-            </p>
+            <EmptyInventory view={view} filtered={countTroops(inventory) > 0} />
           ) : (
             lines.map((line) => (
               <InventoryLine

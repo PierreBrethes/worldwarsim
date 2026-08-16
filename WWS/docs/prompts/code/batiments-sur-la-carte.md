@@ -1,5 +1,25 @@
 # Prompt Claude Code — les bâtiments sur la carte, et la teinte des régions bâties
 
+> **PROMPT CONSOMMÉ — passé le 15/08 (commit `30eb625`). Le corps ci-dessous est conservé tel
+> qu'il a été écrit : c'est la trace de ce qui était prévu, pas la description de ce qui tourne.
+> Trois écarts à l'exécution, tranchés le 16/08 et gravés dans `WWS/sprites/README.md` §7 —
+> **c'est ce README qui fait foi, pas ce prompt** :**
+>
+> 1. **Pas de billboard 3D.** Les points 1 et 2 décrivent un sprite posé sur la région,
+>    réutilisant `engine/billboard.ts` / `engine/pawn.ts`. Le code fait un **jalon DOM** :
+>    une vignette au bout d'un mât dans `src/map/MapLabels.tsx` (`.label-plate`), et
+>    `engine/buildings.ts` n'existe pas. Raison : les régions admin-1 varient d'un facteur
+>    mille en surface, un sprite posé hérite de ce désordre — le mât découple la taille du
+>    symbole de celle de la région.
+> 2. **Pas de teinte sur le sprite.** Le point 1 exige un sujet teinté à l'encre nationale.
+>    Il ne l'est pas, et il ne doit pas l'être : `PlayerView` ne sert jamais les bâtiments
+>    adverses, donc tout ce qui s'affiche appartient déjà au joueur — la teinte porterait zéro
+>    information. **Le point 3, en revanche, est bien en place** : la teinte des *régions*
+>    bâties (même encre, plus dense) est appliquée, et le survol est passé sur le contour
+>    comme le prévoit le point 4.
+> 3. **Pas de hiérarchie de taille.** Les quinze vignettes s'affichent à la même hauteur.
+>    `echelles.json` n'a jamais rien produit et a été abandonné le 16/08.
+
 Lis `CLAUDE.md`, `WWS/CONTEXT.md`, l'[ADR 0005](../../adr/0005-brouillard-par-defaut.md) —
 le brouillard, c'est la contrainte principale ici — et la fiche
 [10 — Direction artistique](../../design/10-direction-artistique.md). Ne commit pas, ne push pas.

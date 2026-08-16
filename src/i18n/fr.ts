@@ -7,6 +7,8 @@
  * no Convex, no DOM.
  */
 import type { ErrorCode } from '../../convex/errors';
+import type { UpgradeHold } from '../domain/construction';
+import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
   DepositKey,
@@ -22,6 +24,16 @@ import type {
 } from '../domain/ids';
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
+
+/** Building names are capitalised as titles; mid-sentence they are common nouns again. */
+const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + label.slice(1);
+
+/** One decimal at most, and never a trailing `.0`: rates come out of a settlement, not a table. */
+const tenths = (value: number): string => String(Math.round(value * 10) / 10);
+
+/** "a, b et c" — the French list, the last conjunction spelled rather than commaed. */
+const andList = (items: ReadonlyArray<string>): string =>
+  items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} et ${items.at(-1)}`;
 
 export const fr = {
   nations: {
@@ -124,10 +136,34 @@ export const fr = {
     airfield: 'Aérodrome',
     port: 'Port',
     listening: 'Station d’écoute',
-    billets: 'Casernements',
+    billets: 'Baraquements',
     warehouse: 'Entrepôt',
     depot: 'Dépôt',
   } satisfies Record<BuildingKey, string>,
+
+  /**
+   * The gender of each building name. It exists because the interface has to say "aucune
+   * caserne" and "aucun aérodrome" in the same sentence template — naming the single limiting
+   * factor (brief §5) is the most frequent phrase of the game, and a wrong article in it reads
+   * as a bug in a screen whose whole job is to be believed.
+   */
+  buildingGender: {
+    hq: 'm',
+    farm: 'f',
+    mill: 'f',
+    mine: 'f',
+    oilWell: 'm',
+    foundry: 'f',
+    arsenal: 'm',
+    quartermaster: 'f',
+    barracks: 'f',
+    airfield: 'm',
+    port: 'm',
+    listening: 'f',
+    billets: 'm',
+    warehouse: 'm',
+    depot: 'm',
+  } satisfies Record<BuildingKey, 'm' | 'f'>,
 
   buildingEffects: {
     hq: 'unique et chez soi — plafonne les autres, porte les slots de mouvement et la recherche',
@@ -136,13 +172,13 @@ export const fr = {
     mine: 'exploite un gisement de charbon ou de minerais, selon la région',
     oilWell: 'exploite un gisement de pétrole',
     foundry: 'minerais + charbon → alliage, en continu',
-    arsenal: 'alliage → munitions, en continu',
+    arsenal: 'alliage → munitions, sur commande',
     quartermaster: 'tissus → bandages, en continu',
     barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: 'rayon de révélation passif autour du territoire',
-    billets: 'relève le plafond d’hommes de l’armée',
+    billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des matières et de l’alliage — se pille',
     depot: 'relève le plafond du pétrole et des munitions — explose',
   } satisfies Record<BuildingKey, string>,
@@ -211,13 +247,23 @@ export const fr = {
       `plafond atteint : ${num(d.cap)} bâtiments — montez le quartier général pour l’élargir`,
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
-    BATCH_TOO_SMALL: () => 'il faut recruter au moins une unité',
-    BATCH_TOO_LARGE: (d) => `${num(d.maximum)} unités par lot au plus`,
+    UNKNOWN_BUILDING: () => 'bâtiment inconnu',
+    WRONG_PROJECTION_BUILDING: (d) =>
+      `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
+    TROOP_CAP_REACHED: (d) =>
+      `plafond atteint : ${num(d.cap)} troupes, file comprise — bâtissez ou montez des baraquements`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
     UNKNOWN_BATCH: () => 'lot inconnu',
     BATCH_ALREADY_STARTED: () => 'ce lot a déjà commencé — il ne s’annule plus',
+    CHAIN_NOT_COMMANDED: (d) => `${buildingName(d.chain)} tourne seule — elle ne se commande pas`,
+    CHAIN_NOT_STANDING: (d) => `aucun ${buildingName(d.building)} debout`,
+    EMPTY_ORDER: () => 'un lot d’au moins une unité',
+    ORDER_ABOVE_RESERVE: (d) => `la réserve d’entrée ne permet que ${num(d.maximum)}`,
+    ORDER_RUNNING: (d) =>
+      `un lot court déjà : ${num(d.produced)} sur ${num(d.ordered)} — annulez-le d’abord`,
+    NO_ORDER: () => 'aucun lot en cours',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
   unexpectedError: 'une erreur imprévue est survenue — réessayez',
@@ -358,20 +404,59 @@ export const fr = {
     backHome: 'retour à l’accueil',
     loading: 'Préparation du plateau…',
     regionLabel: 'Région',
+    /**
+     * What the ground holds, and nothing else. The terrain type used to read here: it came
+     * from a hash of the region's name, so the tooltip was printing an invention where the
+     * one true fact about the region was available and unused.
+     */
+    regionDeposit: (deposit: string) => `gisement de ${deposit}`,
+    regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
+    regionCoastal: 'côtière — port possible',
   },
 
   banner: {
     journalEmpty: 'journal — rien à signaler',
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
-    rate: (label: string, rate: number) => `${label} — ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
+    slots: 'slots de mouvement',
+    slotsCount: (used: number, total: number) => `${used} / ${total}`,
+    slotsTitle: (used: number, total: number) =>
+      `${used} slot${plural(used, '', 's')} engagé${plural(used, '', 's')} sur ${total}`,
+    counter: (label: string, stock: number, cap: number, rate: number) =>
+      `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
     doctrine: (doctrine: string) => `doctrine ${doctrine}`,
+    site: 'chantier',
+    siteTitle: (name: string, region: string) => `${name} — ${region}`,
+  },
+
+  /**
+   * The reserves left the banner for a panel of their own: eight figures set flat on a 32 px
+   * strip could not carry the chains, and the arrows had nowhere to live. Vertical, they do.
+   */
+  reserves: {
+    header: 'réserves',
+    cap: (cap: number) => `plafond ${cap}`,
+    collapsed: 'replié',
+    alerts: (count: number) => `${count} alerte${plural(count, '', 's')}`,
+    quiet: 'Rien à signaler',
+    expand: 'déplier les réserves',
+    collapse: 'replier les réserves',
+    flow: (building: string, perHour: number) => `${building} — ${tenths(perHour)} / h`,
+    /** The settled net rate, sign included: a reserve that drains says so with a minus. */
+    rate: (perHour: number) => `${perHour > 0 ? '+' : ''}${tenths(perHour)} / h`,
+    /** The cause, never the symptom: a chain out of matter with nothing that makes it. */
+    starvedNoSource: (none: string, resource: string) => `à sec — ${none} · ${resource}`,
+    saturated: (perHour: number) => `saturé — ${tenths(perHour)} / h perdus`,
+    cappedAlert: (resource: string, perHour: number) =>
+      `${resource} au plafond — ${tenths(perHour)} / h perdus`,
+    haltedAlert: (building: string, resource: string) => `${building} à l’arrêt — ${resource} à sec`,
   },
 
   rail: {
     troops: { title: 'Troupes — inventaire et envoi', label: 'troupes' },
     production: { title: 'Production — recrutement d’unités', label: 'prod.' },
+    industry: { title: 'Industrie — chaînes, gisements et réserves', label: 'indus.' },
     nation: { title: 'Ma nation', label: 'nation' },
     replay: { title: 'Rejeu de bataille — à venir', label: 'rejeu' },
     doctrine: { title: 'Doctrine — à venir', label: 'doctrine' },
@@ -386,10 +471,14 @@ export const fr = {
     // would promise a border setting and hide the plates.
     toggleBuildingsTitle: (on: boolean) =>
       `bâtiments sur la carte — ${on ? 'affichés' : 'masqués'}`,
+    // Same reading as the buildings bascule, same reason: it governs the board, not the edge.
+    toggleDepositsTitle: (on: boolean) =>
+      `gisements sur la carte — ${on ? 'affichés' : 'masqués'}`,
   },
 
   indicatorCategories: {
     buildings: 'bâtiments',
+    deposits: 'gisements',
     outposts: 'avant-postes',
     constructions: 'chantiers',
     forces: 'forces',
@@ -403,6 +492,7 @@ export const fr = {
     singleTitle: (nature: string) => `${nature} — hors champ`,
     natures: {
       buildings: 'bâtiments',
+      deposits: 'gisements',
       outposts: 'avant-postes',
       constructions: 'chantiers',
       forces: 'forces',
@@ -477,6 +567,10 @@ export const fr = {
     sorts: { role: 'rôle', count: 'nombre', due: 'échéance' },
     countOf: (shown: number, total: number) => `${shown} unités sur ${total}`,
     emptyFilter: 'Aucune troupe ne répond à ce filtre.',
+    noTroops: 'Aucune troupe.',
+    noTroopsBlocked: (a: string) =>
+      `${a.charAt(0).toUpperCase()}${a.slice(1)} ouvre le domaine terre. L’alliage et les munitions suivront : l’arsenal attend un ordre, pas des matières.`,
+    noTroopsYet: 'Rien en service. La file de production tient les lots en cours.',
     atHome: 'à domicile',
     garrisonAt: (country: string) => `garnison — ${country}`,
     movementsHeader: 'mouvements en cours',
@@ -534,58 +628,217 @@ export const fr = {
   production: {
     header: 'production',
     opening: 'Ouverture de l’atelier…',
-    batch: 'lot',
-    chainSpeed: (speed: string, level: number) =>
-      `chaîne ×${speed} — quartier général niveau ${level}`,
     domains: { land: 'terre', air: 'air', sea: 'mer' },
-    queueHeader: (count: number, max: number) => `file de production — ${count} / ${max}`,
-    queueEmpty: 'Aucun lot en chaîne. Choisissez un lot et enfilez un rôle.',
+    site: 'site',
+    siteOption: (region: string, level: number) => `${region} — niv. ${level}`,
+    // The single limiting factor, never the list of conditions (brief §5).
+    blockedBy: (none: string) => `bloqué : ${none}`,
+    noSite: (building: string) =>
+      `Aucun bâtiment de ce type. Bâtissez ${building} pour former ce domaine.`,
+    queueHeader: 'files de production',
+    queueOf: (region: string, count: number, max: number) => `${region} — ${count} / ${max}`,
+    queueEmpty: 'Aucune troupe en chaîne. Choisissez un site et enfilez un rôle.',
     atWaking: 'au réveil',
     wakingNote:
-      'La file continue pendant la plage de repos, comme les chantiers. Les unités terminées rejoignent l’armée à domicile. Un lot déjà commencé ne s’annule plus ; les suivants sont remboursés intégralement.',
-    manpowerNote:
-      'Les hommes ne sont pas une ressource : une unité coûte des matières, et l’armée est bornée par le plafond des casernements.',
-    capOf: (cap: number) => `/ ${cap} plafond`,
-    perUnit: '/ unité',
+      'Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle. Une troupe déjà commencée ne s’annule plus ; les suivantes sont remboursées intégralement.',
+    troopCapLine: (inService: number, queued: number, cap: number) =>
+      `${inService} en service · ${queued} en file — plafond ${cap}`,
+    troopCapNote:
+      'Les hommes ne sont pas une ressource : une troupe coûte des matières, et l’armée est bornée en nombre de troupes par les baraquements. La file compte dans le plafond.',
+    perTroop: '/ troupe',
     strongAgainst: 'fort contre',
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
     tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
     tierLabel: (tier: number) => `palier ${tier}`,
-    enqueueTitle: (count: number, role: string, tier: string) => `enfiler ${count} × ${role} ${tier}`,
+    enqueueTitle: (role: string, tier: string, site: string) => `enfiler ${role} ${tier} — ${site}`,
+    enqueue: '+ 1 troupe',
     inChain: 'en chaîne',
     pending: 'en attente',
-    cancelStarted: 'un lot commencé ne s’annule plus',
+    cancelStarted: 'une troupe commencée ne s’annule plus',
     cancelRefund: 'annuler et rembourser',
     cancel: 'annuler',
   },
+
+  upgrade: {
+    action: 'améliorer',
+    title: (name: string, level: number) => `passer ${name} au niveau ${level}`,
+    toLevel: (level: number) => `→ niv. ${level}`,
+    /**
+     * A refusal that names its cause beats a refusal that counts (brief §5). "Il faut 72 de
+     * charbon (0 disponibles)" is a wall; "disponible dans 4 h 20" is a plan, and when nothing
+     * produces the matter at all, the only useful sentence names the building to raise.
+     */
+    availableIn: (time: string) => `disponible dans ${time}`,
+    never: (none: string) => `jamais : ${none}`,
+    neverOnDeposit: (none: string, deposit: string) => `jamais : ${none} de ${deposit}`,
+    neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
+  },
+
+  industry: {
+    header: 'industrie',
+    lead: 'Les stocks disent où vous en êtes ; cette fenêtre dit ce qui coule et ce qui est bloqué.',
+
+    chainsHeader: 'chaînes de conversion',
+    chainArrow: '→',
+    chainRecipe: (quantity: number, resource: string) => `${quantity} ${resource}`,
+    chainStates: {
+      off: 'éteinte',
+      idle: 'en attente d’ordre',
+      running: 'tourne',
+      starved: 'à sec',
+      overflowing: 'débordée',
+    } satisfies Record<ChainState, string>,
+    starvedOn: (resource: string) => `à sec — ${resource}`,
+    chainNotes: {
+      off: (building: string) => `${building} : rien de bâti, rien ne se convertit.`,
+      idle: 'En attente d’ordre, pas en panne : rien n’est consommé.',
+      running: 'Débit nominal — rien à faire.',
+      starved: (resource: string) =>
+        `L’entrée manque : la chaîne ne produit rien. Exploitez ou stockez du ${resource}.`,
+      overflowing: 'Sortie au plafond : ce qui se convertirait se perdrait. Stockez ou dépensez.',
+    },
+    // The real rate leads, the nominal follows — never the other way round (brief §2.1).
+    nominalRate: (rate: number) => `nominal ${tenths(rate)} / h`,
+    depositsHeader: 'gisements exploités',
+    depositsEmpty:
+      'Aucune exploitation debout. Une ferme, une filature, une mine ou un puits se pose sur une région à gisement.',
+    noDeposit: 'aucun gisement exploitable — ne produit rien',
+    depositLine: (deposit: string, level: number) => `${deposit} — niv. ${level}`,
+
+    /**
+     * The gauge carries the ratio to the ceiling **without writing the ceiling** — that is
+     * what removes the eighteen repetitions of "/ 400 plafond" (brief §3). The figure lives in
+     * the banner, where one wants the value; the gauge lives here, where one wants the margin.
+     */
+    reservesHeader: 'réserves',
+    reservesNote: 'jauge pleine = production perdue',
+    reservesMark:
+      'Le repère à 85 % est le seuil où le chiffre revient : « reste N avant plafond » ne s’écrit qu’au-delà.',
+    headroom: (left: number) => `reste ${left} avant plafond`,
+    atCap: 'saturé — production perdue',
+    gaugeTitle: (resource: string, stock: number, cap: number) =>
+      `${resource} — ${stock} sur ${cap}`,
+
+    /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
+    lot: {
+      awaiting: 'en attente d’ordre',
+      awaitingNote: 'rien n’est consommé',
+      nothingOrdered: 'aucune commande en cours',
+      keepsAvailable: (resource: string) =>
+        `Le ${resource} reste disponible pour les bâtiments et les troupes.`,
+      commandsItself: 'se commande',
+      order: 'commander un lot',
+      launch: 'lancer le lot',
+      cancel: 'annuler le lot',
+      close: 'refermer',
+      quantity: (output: string) => output,
+      maxOf: (maximum: number, resource: string) => `max ${maximum} — le stock d’${resource}`,
+      inReserve: (quantity: number, resource: string) => `${quantity} ${resource} en réserve`,
+      costs: 'coûte',
+      costOf: (quantity: number, resource: string) => `${quantity} ${resource}`,
+      duration: 'durée',
+      ends: 'fin',
+      coversNight: 'couvre la nuit',
+      coversYes: 'oui, et au-delà',
+      coversNo: (hours: string) => `non — ${hours} seulement`,
+      coversNone: 'aucun lot',
+      once: 'Une fois, exactement cette quantité. La chaîne s’arrête ensuite.',
+      impossible: (resource: string) => `lot impossible : aucun ${resource} en réserve`,
+      bottleneck: (a: string, resource: string) =>
+        `Le goulot nommé : bâtissez ${a}, elle seule fait de l’${resource}.`,
+      progress: (made: number, ordered: number, output: string) =>
+        `${made} sur ${ordered} ${output}`,
+      remaining: (time: string) => `reste ${time}`,
+      remainingUnknown: 'à l’arrêt — la chaîne ne produit rien',
+      endsAt: (time: string) => `fin ${time}`,
+      cancelNote:
+        'L’annulation ne rembourse rien parce que rien n’a été pris d’avance : la matière est consommée au fil des heures. Ce qui n’est pas converti reste en réserve.',
+      delivered: (quantity: number, output: string) => `${quantity} ${output} livrées`,
+      done: 'lot terminé',
+      doneNote: (building: string, resource: string) =>
+        `${building} se tait et rend l’${resource} au reste de la nation.`,
+    },
+
+    othersHeader: 'autres bâtiments',
+    othersEmpty: 'Ni entrepôt, ni dépôt, ni station d’écoute.',
+    listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
+    listeningTemporary:
+      'La station d’écoute est ici en attendant la fenêtre Espionnage : un jalon inerte serait pire.',
+
+    level: (level: number) => `niv. ${level}`,
+    // The real rate is a settled quantity, not a table entry: it arrives with a tail of
+    // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
+    perHour: (rate: number) => `${tenths(rate)} / h`,
+    inRegion: (region: string) => `en ${region}`,
+  },
+
+  /**
+   * What a troop's strength is counted in — its hit points are read in men and machines
+   * (ADR 0014), never in a percentage.
+   */
+  strengthUnits: {
+    infantry: 'soldats',
+    armor: 'chars',
+    landTransport: 'camions',
+    fighter: 'appareils',
+    bomber: 'appareils',
+    airTransport: 'appareils',
+    escort: 'navires',
+    cargo: 'navires',
+    carrier: 'appareils embarqués',
+  } satisfies Record<UnitRole, string>,
 
   nationSheet: {
     kicker: 'fiche de nation',
     season: (season: number) => `saison ${season}`,
     doctrineLine: (doctrine: string) => `doctrine ${doctrine}`,
-    buildingsHeader: 'bâtiments — un chantier à la fois',
+    hqHeader: 'quartier général',
+    hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
+    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
+    hqCarriesHeader: 'ce qu’il porte',
+    hqSlots: (total: number) => `${total} slots de mouvement`,
+    hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
+    hqTier2: 'palier 2 ouvert en production',
+    hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
+    budgetHeader: 'budget d’emplacements',
+    budgetTaken: (taken: number, cap: number) => `${taken} sur ${cap}`,
+    budgetFree: (free: number) =>
+      free <= 0
+        ? 'plus un emplacement libre'
+        : free === 1
+          ? '1 emplacement libre'
+          : `${free} emplacements libres`,
+    budgetNote:
+      'Le quartier général est le seul goulot : aucune quantité ne se compte en régions.',
+    /** The headquarters is counted in — the census and the budget above it would otherwise
+     *  disagree to the eye, and it is the figure that loses (brief §2.2). */
+    buildingsHeader: 'recensement des bâtiments — un chantier à la fois',
+    buildingsNote: 'On élève un bâtiment là où on l’emploie : Industrie ou Production.',
     nothingBuilt:
       'Rien de bâti. On pose une bâtisse sur la carte : clic droit sur une région à soi, au zoom rapproché.',
-    stocksHeader: 'stocks',
     inRegion: (region: string) => `en ${region}`,
     level: (level: number) => `niv. ${level}`,
     cappedByHq: 'plafonné par le QG',
     constructionRunning: 'Chantier en cours : ',
     remains: ' — reste ',
     powerHeader: 'pouvoir national',
+    /**
+     * The counterpart of the power, and it belongs beside it: the ADR 0015 gap is a design
+     * decision, not an accident of the map, and today a player only discovers it by searching
+     * his own ground in vain for a season.
+     */
+    gapHeader: 'manque national',
+    gapNone: 'Aucun manque : les cinq gisements sont chez soi.',
+    gap: (deposits: ReadonlyArray<string>) =>
+      `Aucun gisement de ${andList(deposits)} sur son sol. Ce qui manque se prend ailleurs.`,
     armyHeader: 'armée',
     present: 'présente',
     inTransit: 'en transit',
-    capSuffix: (cap: number) => ` / ${cap} plafond`,
     restHeader: 'plage de repos déclarée',
     restNote:
       'Publique : vos adversaires la voient. Un mouvement qui arriverait pendant est immobilisé à la frontière jusqu’à sa fin.',
     restFrozen: 'Scellée au lancement — elle se déclarait au salon.',
-    constructionInProgressTitle: 'un chantier est déjà en cours',
-    raiseHqFirst: 'montez le quartier général d’abord',
-    upgradeTitle: (name: string, level: number) => `passer ${name} au niveau ${level}`,
-    construction: 'chantier',
   },
 
   settingsWindow: {
@@ -668,6 +921,17 @@ export const fr = {
     offerHeader: 'à poser',
     noDeposit: 'aucun gisement',
     coastal: 'côtière',
+    /**
+     * The budget, said **before** the ceiling bites. `heldByCap` below only speaks once every
+     * line is refused, which is the moment it is too late to plan — choosing where to build is
+     * the decision this panel exists for, and it is made against what is left.
+     */
+    budget: (taken: number, cap: number) =>
+      `${taken} sur ${cap} emplacements — ${
+        cap - taken <= 0
+          ? 'plus un libre'
+          : `${cap - taken} libre${plural(cap - taken, '', 's')}`
+      }`,
     depositReason: (deposit: string) => `gisement de ${deposit}`,
     coastalReason: 'région côtière',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
@@ -730,6 +994,38 @@ export const fr = {
     },
   },
 } as const;
+
+/**
+ * Why a raise is greyed out, in the **same words the server would use** — the refusal sentence
+ * is written once, in `fr.errors`, and the anticipation borrows it rather than paraphrasing it.
+ * A player must not read one thing before the click and another after it.
+ *
+ * The running construction is the exception, and deliberately: the error code carries no name
+ * and no deadline, where the view does. "Come back in twenty minutes" is information; "un
+ * chantier est déjà en cours" is a wall.
+ */
+export function upgradeHoldText(hold: UpgradeHold, running: string | null): string {
+  switch (hold.kind) {
+    case 'constructionRunning':
+      return running ?? fr.errors.CONSTRUCTION_IN_PROGRESS();
+    case 'cappedByHq':
+      return fr.errors.CAPPED_BY_HQ();
+    case 'materials':
+      return fr.errors.INSUFFICIENT_RESOURCE({
+        resource: hold.resource,
+        needed: hold.needed,
+        available: hold.available,
+      });
+  }
+}
+
+/** `aucune caserne`, `aucun aérodrome` — the sentence that names a blockage, declined. */
+export const noBuilding = (key: BuildingKey): string =>
+  `${fr.buildingGender[key] === 'f' ? 'aucune' : 'aucun'} ${lowerFirst(fr.buildings[key])}`;
+
+/** `une caserne`, `un aérodrome` — the sentence that names the remedy. */
+export const aBuilding = (key: BuildingKey): string =>
+  `${fr.buildingGender[key] === 'f' ? 'une' : 'un'} ${lowerFirst(fr.buildings[key])}`;
 
 /** Formats a stack for display: `3 blindés · 12 infanterie`, or an em dash when empty. */
 export function stackLabel(stack: Partial<Record<UnitRole, number>>): string {

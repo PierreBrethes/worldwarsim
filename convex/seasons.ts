@@ -251,7 +251,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
   const owned = [
     ...(await ctx.db.query('constructions').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
     ...(await ctx.db.query('recruitments').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
-    ...(await ctx.db.query('units').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db.query('troops').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
     ...(await ctx.db.query('buildings').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
     ...(await ctx.db.query('resources').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
   ];

@@ -13,11 +13,12 @@ import type * as constants from "../constants.js";
 import type * as constructions from "../constructions.js";
 import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
+import type * as industry from "../industry.js";
 import type * as players from "../players.js";
 import type * as regions from "../regions.js";
 import type * as resources from "../resources.js";
 import type * as seasons from "../seasons.js";
-import type * as units from "../units.js";
+import type * as troops from "../troops.js";
 import type * as validators from "../validators.js";
 import type * as view from "../view.js";
 
@@ -33,11 +34,12 @@ declare const fullApi: ApiFromModules<{
   constructions: typeof constructions;
   dev: typeof dev;
   errors: typeof errors;
+  industry: typeof industry;
   players: typeof players;
   regions: typeof regions;
   resources: typeof resources;
   seasons: typeof seasons;
-  units: typeof units;
+  troops: typeof troops;
   validators: typeof validators;
   view: typeof view;
 }>;

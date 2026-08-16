@@ -1,8 +1,9 @@
 # Prompts d'image — les quinze bâtiments
 
 Même gabarit que les unités (`sprites.md`), une seule planche pour les huit nations : les
-bâtiments sont **neutres**, teintés à l'encre nationale à l'affichage. Une caserne à pagode pour
-le Japon serait belle et coûterait huit planches.
+bâtiments sont **neutres**, et le restent à l'affichage — contrairement aux unités, **aucune
+teinte à l'encre nationale n'est appliquée** (`WWS/sprites/README.md` §7). Une caserne à pagode
+pour le Japon serait belle et coûterait huit planches.
 
 ## Le gabarit, identique pour les quinze
 
@@ -20,9 +21,11 @@ vue plongeante verticale.
 Aucun texte, aucun logo, aucun véhicule, aucun personnage, un seul bâtiment.
 ```
 
-**Le détail qui décide de tout : la base doit être visible et nette.** Le point d'ancrage à
-l'affichage est le bas du bâtiment, pas son centre — c'est ce qui fait qu'il a l'air planté dans la
-région plutôt que collé dessus. Un sujet coupé en bas est inutilisable.
+**Le détail qui décide de tout : la base doit être visible et nette.** Un sujet coupé en bas est
+inutilisable. Non pas parce qu'il serait posé au sol — à l'affichage la planche est la **vignette
+d'un jalon**, elle pend au bout d'un mât et c'est le pied du mât qui désigne la région — mais
+parce qu'un bâtiment tronqué se lit comme une image cassée, au bout d'un mât comme au sol. Le
+sujet doit être **entier et fermé en bas**.
 
 ## Les quinze sujets
 
@@ -58,18 +61,25 @@ reviendront sur les quatorze autres, autant les traiter comme structurels :
 2. **Il grave parfois un numéro dans l'image.** Une planche qui porte du texte cuit est à refaire
    ou à recadrer — un tampon ne se retire pas proprement.
 3. **Le sujet occupe ~50 % du cadre, pas 80 %.** Ne pas relancer pour ça : le cadrage se règle
-   **à la découpe**, pas à la génération. Recadrer sur la boîte englobante alpha, puis reposer
-   dans un carré à une **échelle donnée par une table par clé** — sinon la baraque en tôle sort
-   aussi grosse que la fonderie, et la carte perd toute hiérarchie.
+   **à la découpe**, pas à la génération. Recadrer sur la boîte englobante alpha, puis normaliser
+   **par la hauteur** — sinon un entrepôt cadré serré et une fonderie cadrée large sortiraient de
+   tailles différentes, et la carte hériterait d'un accident de cadrage. Les quinze clés sont
+   normalisées à la **même hauteur** : il n'y a pas de hiérarchie de taille (tranché le 16/08,
+   `WWS/sprites/README.md` §7).
 
 **La leçon de fond : un mât nu ne distingue rien.** À quarante pixels, une ligne d'un pixel
 disparaît et le quartier général devient une maison en pierre quelconque. Chaque sujet doit porter
 **une masse** qui le signe — un volume, pas un détail. Pour le `hq`, c'est le drapeau déployé et la
 tourelle d'angle ; pour les autres, la cheminée, l'arc, le treillis, le demi-cylindre, la cuve.
 
-**Toit clair plutôt que sombre.** Le sprite est teinté à l'encre nationale à l'affichage : un toit
-presque noir sature le filtre et les huit nations se ressemblent. Matériaux moyens, tôle grise,
-béton — l'encre a besoin de place.
+~~**Toit clair plutôt que sombre.**~~ **Périmé depuis le 16/08.** Cette règle n'existait que pour
+le filtre encre, qui n'est pas appliqué aux bâtiments. Les planches peuvent donc être **plus
+contrastées et plus sombres** qu'elles ne le sont. Les quinze actuelles ont été générées sous
+cette contrainte : si une série est relancée, la lever.
+
+La contrainte qui la remplace est plus simple et plus dure : **la silhouette porte seule la
+distinction.** Puisque les quinze s'affichent à la même hauteur, ni la taille ni la couleur ne
+séparent un dépôt d'un arsenal — seule la forme le fait.
 
 ## Après la génération
 

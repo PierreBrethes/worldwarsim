@@ -7,10 +7,12 @@ import type {
   ResourceKey,
   Specialization,
   UnitRole,
+  UnitTier,
 } from './ids';
+import type { ChainState } from './economy';
 import type { ComputedRoute } from './routing';
 
-export type { Doctrine, MovementType, UnitRole };
+export type { ChainState, Doctrine, MovementType, UnitRole };
 
 export type Stack = Partial<Record<UnitRole, number>>;
 
@@ -92,6 +94,22 @@ export type ArcView =
       readonly progress: number;
     };
 
+/**
+ * One troop, as its owner sees it (ADR 0014). Its hit points **are** its strength, read
+ * against the nominal it was formed at: "32 / 50 soldats" is the whole health bar.
+ *
+ * `stationedAt` names the building it hangs from, `null` meaning at home — including the troop
+ * whose building is gone. No enemy troop ever travels in this list.
+ */
+export type TroopView = {
+  readonly id: string;
+  readonly role: UnitRole;
+  readonly tier: UnitTier;
+  readonly strength: number;
+  readonly nominalStrength: number;
+  readonly stationedAt: string | null;
+};
+
 export type OutpostView = {
   readonly id: string;
   readonly hostCountry: string;
@@ -111,6 +129,8 @@ export type Resource = {
 export type Cost = Readonly<Partial<Record<ResourceKey, number>>>;
 
 export type Building = {
+  /** The row's own identifier — what a deep link carries, since a key names a family. */
+  readonly id: string;
   readonly key: BuildingKey;
   readonly name: string;
   readonly regionId: string;
@@ -118,6 +138,43 @@ export type Building = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly cappedByHq: boolean;
+};
+
+/**
+ * A conversion chain as the industry window reads it, standing or not. `state` is served, never
+ * re-derived here: it is the settlement's own arbitration (`settleStocks`), and a second guess
+ * made from the stocks would contradict the numbers it sits next to.
+ */
+export type ChainView = {
+  readonly by: BuildingKey;
+  readonly output: ResourceKey;
+  readonly inputs: ReadonlyArray<{ readonly resource: ResourceKey; readonly quantity: number }>;
+  /** **What actually comes out**, per hour. A chain out of matter reads zero here and keeps
+   *  its `nominalPerHour` beside it — printing the nominal alone is a lie the player acts on. */
+  readonly perHour: number;
+  readonly nominalPerHour: number;
+  /** Summed over the sites, like the rate: zero means nobody built it, and the line reads off. */
+  readonly level: number;
+  readonly state: ChainState;
+  readonly missing: ResourceKey | null;
+  /** Runs on a lot rather than on its own, because its input is spent elsewhere too
+   *  (`COMMANDED_CHAINS`). Nothing else about the line changes. */
+  readonly commanded: boolean;
+  /** The standing lot — `null` when none was ever placed. `produced === ordered` is a lot
+   *  delivered, kept so the surface can say so rather than falling silent. */
+  readonly order: { readonly ordered: number; readonly produced: number } | null;
+  /** The largest lot the input reserve allows right now, in units of output. */
+  readonly maxOrder: number;
+};
+
+/** One exploitation and its yield. `deposit` is what the region holds — a building over a
+ *  deposit it cannot work reads with a rate of zero, never as an absent line. */
+export type ExtractionSiteView = {
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly level: number;
+  readonly deposit: DepositKey | null;
+  readonly perHour: number;
 };
 
 /** What a first level of a building costs and takes, per key: the construction panel's price list. */
@@ -188,6 +245,8 @@ export type PlayerView = {
      */
     readonly buildingCap: number;
     readonly buildings: ReadonlyArray<Building>;
+    readonly chains: ReadonlyArray<ChainView>;
+    readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
     readonly construction:
       | {
@@ -200,6 +259,9 @@ export type PlayerView = {
       | null;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
+    /** How many troops may stand at once, carried by the billets. `troops` holds the count. */
+    readonly troopCap: number;
+    readonly troops: ReadonlyArray<TroopView>;
     readonly outposts: ReadonlyArray<OutpostView>;
   };
   /** Level-one price list, served by the server: balance numbers have one home, `constants.ts`. */

@@ -14,7 +14,7 @@ export const reset = internalMutation({
     const tables = [
       'constructions',
       'recruitments',
-      'units',
+      'troops',
       'buildings',
       'resources',
       'players',
