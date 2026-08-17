@@ -9,7 +9,8 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { asHoursMinutes } from '@/domain/duration';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
-import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
+import { DragHandle } from './Draggable';
+import { FloatingWindow, type WindowProps } from './Window';
 
 /**
  * What the nation holds, and what the headquarters lets it hold. **One verb per surface**: a
@@ -46,7 +47,7 @@ export function NationWindow({
   return (
     <FloatingWindow name="nation" onClose={onClose} {...windowProps} alignment="top" width={880}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[26px] pt-[18px] pb-6">
-        <WindowHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+        <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.nationSheet.kicker}</span>
           <span>{fr.nationSheet.season(view.season.number)}</span>
           <button
@@ -56,7 +57,7 @@ export function NationWindow({
           >
             {fr.common.close}
           </button>
-        </WindowHandle>
+        </DragHandle>
 
         <div className="mt-2 flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-1 border-t-2 border-b border-[var(--ink)] py-3">
           <span className="self-center">

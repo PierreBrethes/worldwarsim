@@ -7,7 +7,8 @@ import {
   keepHudScale,
   readHudScale,
 } from '@/data/settings';
-import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
+import { DragHandle } from './Draggable';
+import { FloatingWindow, type WindowProps } from './Window';
 
 export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
   const [scale, setScale] = useState(readHudScale);
@@ -21,7 +22,7 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
   return (
     <FloatingWindow name="settings" onClose={onClose} {...windowProps} width={420}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <WindowHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
+        <DragHandle className="flex shrink-0 items-center justify-between border-b border-[var(--ink)] px-4 py-[9px]">
           <span className="eyebrow">{fr.settingsWindow.header}</span>
           <button
             type="button"
@@ -30,7 +31,7 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
           >
             {fr.common.close}
           </button>
-        </WindowHandle>
+        </DragHandle>
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
           <div className="flex items-baseline justify-between">

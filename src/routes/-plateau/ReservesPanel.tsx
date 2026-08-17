@@ -9,6 +9,7 @@ import { ResourceIcon } from '@/emblems/ResourceIcon';
 import { ResourcePlate } from '@/emblems/Plate';
 import { Gauge } from '@/shell/Gauge';
 import { useClock } from '@/shell/clock';
+import { DragHandle, Draggable } from './Draggable';
 
 /** The plates hold from 20 px down to nothing else: below that an illustration turns to mush
  *  and `ResourceIcon` takes over — which is what the folded alerts use. */
@@ -37,8 +38,11 @@ export function ReservesPanel({ view }: { view: PlayerView }) {
   const alerts = alertsOf(view, now);
 
   return (
-    <section className="hud absolute top-4 right-4 z-10 w-[200px] border border-[var(--ink-quiet)] font-[var(--font-body)]">
-      <header className="flex items-center gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[9px] py-[7px]">
+    <Draggable
+      remember="reserves"
+      className="hud absolute top-4 right-4 z-10 w-[200px] border border-[var(--ink-quiet)] font-[var(--font-body)]"
+    >
+      <DragHandle className="flex items-center gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[9px] py-[7px]">
         <span className="eyebrow-dark flex-1 tracking-[.2em]">{fr.reserves.header}</span>
         <Marker view={view} collapsed={collapsed} alerts={alerts.length} />
         <button
@@ -50,7 +54,7 @@ export function ReservesPanel({ view }: { view: PlayerView }) {
         >
           {collapsed ? '+' : '–'}
         </button>
-      </header>
+      </DragHandle>
 
       <div style={{ background: 'rgba(0,0,0,.55)' }}>
         {collapsed ? (
@@ -63,7 +67,7 @@ export function ReservesPanel({ view }: { view: PlayerView }) {
           ))
         )}
       </div>
-    </section>
+    </Draggable>
   );
 }
 

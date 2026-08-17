@@ -1,6 +1,10 @@
-import type { PointerEvent as PointerEventReact } from 'react';
+import { useCallback, useState, type PointerEvent as PointerEventReact, type RefObject } from 'react';
 
 export type Grab = (event: PointerEventReact<HTMLElement>) => void;
+
+export type Offset = { readonly x: number; readonly y: number };
+
+export const ORIGIN: Offset = { x: 0, y: 0 };
 
 /**
  * A pointer drag followed to the window rather than to the element: the pointer leaves a
@@ -30,3 +34,50 @@ export function scaleOf(element: HTMLElement | null): number {
 /** A grab that a click on a control must not start: a close button stays a button. */
 export const onControl = (event: PointerEventReact<HTMLElement>): boolean =>
   (event.target as HTMLElement).closest('button, a, input, select, textarea') !== null;
+
+/**
+ * **The one drag of the board.** Every surface laid over the map moves the same way — a window,
+ * a widget, a panel opened at a click — and it moves the same way because they all read this
+ * hook rather than each rewriting the same twenty lines. They had drifted apart already: three
+ * copies existed, and only one of them refused a drag started on a button.
+ *
+ * The offset lives here and the position does not: where a surface is anchored is the caller's
+ * business — a corner, a click point, the middle of the screen — and this only says how far the
+ * player has pushed it from there.
+ *
+ * `onSettle` fires on release and not on every move: a surface that remembers its place writes
+ * once per drag rather than sixty times a second.
+ */
+export function useDragOffset({
+  container,
+  from = ORIGIN,
+  onSettle,
+}: {
+  container: RefObject<HTMLElement | null>;
+  from?: Offset;
+  onSettle?: (offset: Offset) => void;
+}): { offset: Offset; grab: Grab } {
+  const [offset, setOffset] = useState<Offset>(from);
+
+  const grab = useCallback<Grab>(
+    (event) => {
+      // The right button belongs to the map, and a click on a control stays a click.
+      if (event.button !== 0 || onControl(event)) return;
+      event.preventDefault();
+      const scale = scaleOf(container.current);
+      const startX = event.clientX - offset.x * scale;
+      const startY = event.clientY - offset.y * scale;
+      let latest = offset;
+      followDrag(
+        (drag) => {
+          latest = { x: (drag.clientX - startX) / scale, y: (drag.clientY - startY) / scale };
+          setOffset(latest);
+        },
+        () => onSettle?.(latest),
+      );
+    },
+    [offset, container, onSettle],
+  );
+
+  return { offset, grab };
+}

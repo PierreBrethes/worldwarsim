@@ -536,7 +536,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           focus={focus}
         />
         {buildingSite && (
+          /* Keyed on where it was aimed: a panel opened at a second point is a second panel,
+             and it must not inherit the push the player gave the first (`Draggable`). */
           <ConstructionPanel
+            key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
             view={view}
             token={token}
             regionId={buildingSite.regionId}
@@ -546,6 +549,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )}
         {garrison && (
           <GarrisonPanel
+            key={`${garrison.stationId}-${garrison.x}-${garrison.y}`}
             view={view}
             stationId={garrison.stationId}
             at={garrison}

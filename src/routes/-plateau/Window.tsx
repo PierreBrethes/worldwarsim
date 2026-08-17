@@ -1,17 +1,8 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
-import { followDrag, onControl, scaleOf, type Grab } from './dragging';
-
-const HandleContext = createContext<Grab>(() => {});
+import { HandleContext } from './Draggable';
+import { followDrag, scaleOf, useDragOffset, type Grab, type Offset } from './dragging';
 
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 200;
@@ -27,20 +18,6 @@ export type WindowProps = {
   inFront: boolean;
   onBringForward: () => void;
 };
-
-/**
- * A window's header wraps itself in this: it is the only zone it can be dragged by. The
- * drag lives in `FloatingWindow` and not with the caller, otherwise every window would
- * reinvent its own grab and they would drift apart.
- */
-export function WindowHandle({ className = '', children }: { className?: string; children: ReactNode }) {
-  const grab = useContext(HandleContext);
-  return (
-    <div onPointerDown={grab} className={`cursor-move ${className}`}>
-      {children}
-    </div>
-  );
-}
 
 export function FloatingWindow({
   name,
@@ -58,32 +35,16 @@ export function FloatingWindow({
   children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [geometry, setGeometry] = useState(() => readWindowGeometry(name));
-  const { offset, size } = geometry;
+  const [start] = useState(() => readWindowGeometry(name));
+  const [size, setSize] = useState(start.size);
 
-  const grab = useCallback<Grab>(
-    (event) => {
-      if (event.button !== 0) return;
-      // A click on a header button (close, tab) stays a click, never a drag.
-      if (onControl(event)) return;
-      event.preventDefault();
-      const scale = scaleOf(container.current);
-      const startX = event.clientX - offset.x * scale;
-      const startY = event.clientY - offset.y * scale;
-      let latest = offset;
-      followDrag(
-        (drag) => {
-          latest = {
-            x: (drag.clientX - startX) / scale,
-            y: (drag.clientY - startY) / scale,
-          };
-          setGeometry((previous) => ({ ...previous, offset: latest }));
-        },
-        () => keepWindowGeometry(name, { offset: latest, size }),
-      );
-    },
-    [offset, size, name],
+  /** The move is the board's, shared with every widget and panel (`dragging.ts`); only the
+   *  corner below belongs to a window, because only a window is resized. */
+  const settle = useCallback(
+    (offset: Offset) => keepWindowGeometry(name, { offset, size }),
+    [name, size],
   );
+  const { offset, grab } = useDragOffset({ container, from: start.offset, onSettle: settle });
 
   const resize = useCallback<Grab>(
     (event) => {
@@ -103,7 +64,7 @@ export function FloatingWindow({
             width: Math.max(MIN_WIDTH, startWidth + (drag.clientX - startX) / scale),
             height: Math.max(MIN_HEIGHT, startHeight + (drag.clientY - startY) / scale),
           };
-          setGeometry((previous) => ({ ...previous, size: latest }));
+          setSize(latest);
         },
         () => keepWindowGeometry(name, { offset, size: latest }),
       );

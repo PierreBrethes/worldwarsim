@@ -5,7 +5,8 @@ import type {
   PlayerView,
   ReductionBoard,
 } from '@/domain/player-view';
-import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
+import { DragHandle } from './Draggable';
+import { FloatingWindow, type WindowProps } from './Window';
 
 const COLUMNS: ReadonlyArray<{ severity: DispatchSeverity; ink: string }> = [
   { severity: 'critical', ink: 'var(--critical)' },
@@ -28,7 +29,7 @@ export function JournalWindow({
   return (
     <FloatingWindow name="journal" onClose={onClose} {...windowProps} alignment="top" width={1040}>
       <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[30px] pt-[26px] pb-5">
-        <WindowHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+        <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.journal.editionOf(time)}</span>
           <span>
             {fr.journal.seasonDay(view.season.number, day, Math.ceil(view.season.durationHours / 24))}
@@ -40,7 +41,7 @@ export function JournalWindow({
           >
             {fr.common.close}
           </button>
-        </WindowHandle>
+        </DragHandle>
 
         <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px] text-center">
           <h2 className="font-[var(--font-display)] text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">

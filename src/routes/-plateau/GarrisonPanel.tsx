@@ -3,6 +3,7 @@ import { fr, roleLabel } from '@/i18n/fr';
 import { marchingTroopIds, troopsAt } from '@/domain/troops';
 import type { PlayerView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { Draggable } from './Draggable';
 import { Panel } from './Panel';
 
 /**
@@ -66,7 +67,9 @@ export function GarrisonPanel({
   const fromBottom = at.y > window.innerHeight / 2;
 
   return (
-    <div
+    /* Aimed at a point and therefore remembering none: the push the player gives it lasts as
+       long as the panel does. See `Draggable`. */
+    <Draggable
       className="absolute z-20"
       style={{
         left: fromRight ? undefined : at.x,
@@ -152,6 +155,6 @@ export function GarrisonPanel({
           )
         )}
       </Panel>
-    </div>
+    </Draggable>
   );
 }

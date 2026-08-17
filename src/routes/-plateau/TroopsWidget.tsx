@@ -7,6 +7,7 @@ import { marchingTroopIds, representativeRole, stationGroups, type StationGroup 
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { keepTroopsCollapsed, readTroopsCollapsed } from '@/data/settings';
 import { useClock } from '@/shell/clock';
+import { DragHandle, Draggable } from './Draggable';
 
 /**
  * **The widget of troops — the only home of the list** since the Troops window died (decision
@@ -56,8 +57,11 @@ export function TroopsWidget({
   const stationName = useMemo(() => namer(view), [view]);
 
   return (
-    <section className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-[var(--font-body)]">
-      <header className="flex items-baseline gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[11px] py-[7px]">
+    <Draggable
+      remember="troops"
+      className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-[var(--font-body)]"
+    >
+      <DragHandle className="flex items-baseline gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[11px] py-[7px]">
         <span className="eyebrow-dark flex-1 tracking-[.22em]">{fr.troops.header}</span>
         <span className="font-[var(--font-mono)] text-[10px] text-[var(--paper-dim-2)]">
           {collapsed
@@ -76,7 +80,7 @@ export function TroopsWidget({
         >
           {collapsed ? '+' : '–'}
         </button>
-      </header>
+      </DragHandle>
 
       <div style={{ background: 'rgba(0,0,0,.55)' }}>
         {collapsed ? (
@@ -123,7 +127,7 @@ export function TroopsWidget({
           </>
         )}
       </div>
-    </section>
+    </Draggable>
   );
 }
 

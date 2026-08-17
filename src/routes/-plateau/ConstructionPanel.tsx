@@ -5,7 +5,8 @@ import { fr } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
-import { followDrag, onControl, scaleOf, type Grab } from './dragging';
+import { Draggable } from './Draggable';
+import { followDrag, scaleOf, type Grab } from './dragging';
 import { buildableOn, siteOf, type BuildOption, type BuildReason } from '@/domain/construction';
 import { asHoursMinutes } from '@/domain/duration';
 import { RESOURCES, type BuildingKey } from '@/domain/ids';
@@ -50,28 +51,10 @@ export function ConstructionPanel({
   const [error, setError] = useState<string | null>(null);
   const start = useMutation(api.constructions.start);
   const box = useRef<HTMLDivElement>(null);
-  const [moved, setMoved] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState(() => readWindowGeometry(GEOMETRY).size);
 
   const fromRight = at.x > window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
-
-  const grab = useCallback<Grab>(
-    (event) => {
-      // A click on the close button stays a click, and the right button belongs to the map.
-      if (event.button !== 0 || onControl(event)) return;
-      event.preventDefault();
-      const scale = scaleOf(box.current);
-      const startX = event.clientX - moved.x * scale;
-      const startY = event.clientY - moved.y * scale;
-      followDrag(
-        (drag) =>
-          setMoved({ x: (drag.clientX - startX) / scale, y: (drag.clientY - startY) / scale }),
-        () => {},
-      );
-    },
-    [moved],
-  );
 
   /**
    * The corner pulls away from the anchored edge, whichever it is — on the right half of the
@@ -125,16 +108,15 @@ export function ConstructionPanel({
   };
 
   return (
-    <div
-      ref={box}
+    <Draggable
       className="absolute z-20"
       style={{
         left: fromRight ? undefined : at.x,
         right: fromRight ? `calc(100% - ${at.x}px)` : undefined,
         top: fromBottom ? undefined : at.y,
         bottom: fromBottom ? `calc(100% - ${at.y}px)` : undefined,
-        transform: `translate(${moved.x}px, ${moved.y}px)`,
       }}
+      innerRef={box}
     >
       <Panel
         title={region.name}
@@ -142,7 +124,6 @@ export function ConstructionPanel({
         position="static"
         width={size?.width ?? 310}
         {...(size ? { height: size.height } : {})}
-        onGrab={grab}
       >
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
           <span>{region.deposit === null ? fr.construction.noDeposit : fr.deposits[region.deposit]}</span>
@@ -199,7 +180,7 @@ export function ConstructionPanel({
           }, transparent 0 3px, var(--ink) 3px 4px)`,
         }}
       />
-    </div>
+    </Draggable>
   );
 }
 

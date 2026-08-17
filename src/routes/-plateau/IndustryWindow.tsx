@@ -14,7 +14,8 @@ import { currentStock } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
-import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
+import { DragHandle } from './Draggable';
+import { FloatingWindow, type WindowProps } from './Window';
 
 /**
  * What the nation *makes*, where the nation sheet only says what it *holds*. The question this
@@ -41,7 +42,7 @@ export function IndustryWindow({
   return (
     <FloatingWindow name="industry" onClose={onClose} {...windowProps} alignment="top" width={920}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <WindowHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+        <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.industry.header}</span>
           <span className="flex-1" />
           <button
@@ -51,7 +52,7 @@ export function IndustryWindow({
           >
             {fr.common.close}
           </button>
-        </WindowHandle>
+        </DragHandle>
 
         <p className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
           {fr.industry.lead}
