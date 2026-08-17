@@ -34,8 +34,4 @@ describe('the board’s search state', () => {
     expect(toggled.building).toBeUndefined();
   });
 
-  it('keeps the send preset out of the troops window’s absence', () => {
-    const sending = { ...withWindow({}, 'troops'), send: 'attack' as const };
-    expect(withoutWindow(sending, 'troops').send).toBeUndefined();
-  });
 });

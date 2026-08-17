@@ -1,13 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { countTroops, inventoryTroops, organizeTroops, representativeRole } from './troops';
-import type { ArcView, PlayerView } from './player-view';
+import { marchingTroopIds, representativeRole, stationGroups, troopsAt } from './troops';
+import type { ArcView, PlayerView, TroopView } from './player-view';
 import { directRoute } from './routing';
 
+const troop = (id: string, role: TroopView['role'], stationedAt: string | null): TroopView => ({
+  id,
+  role,
+  tier: 1,
+  strength: 40,
+  nominalStrength: 50,
+  stationedAt,
+});
+
 const me = {
-  armyPresent: { infantry: 8, fighter: 2 },
+  troops: [
+    troop('T-1', 'infantry', 'BAT-01'),
+    troop('T-2', 'infantry', 'BAT-01'),
+    troop('T-3', 'armor', 'BAT-01'),
+    troop('T-4', 'infantry', 'AP-01'),
+    troop('T-5', 'fighter', null),
+  ],
   outposts: [
-    { id: 'AP-01', hostCountry: 'Hungary', lonLat: [0, 0], specialization: 'extraction', garrison: 20, isMine: true },
-    { id: 'AP-02', hostCountry: 'Ireland', lonLat: [0, 0], specialization: 'extraction', garrison: 0, isMine: true },
+    { id: 'AP-01', hostCountry: 'Hungary', lonLat: [0, 0], specialization: 'relay', garrison: 1, disabledMinutesLeft: null, isMine: true },
   ],
 } as unknown as PlayerView['me'];
 
@@ -23,7 +37,8 @@ const arcs: ReadonlyArray<ArcView> = [
     originLabel: 'France',
     destinationLabel: 'Tchad',
     type: 'attack',
-    stack: { armor: 3, escort: 1 },
+    stack: { armor: 1 },
+    troopIds: ['T-3'],
     minutesLeft: 8,
     borderWait: null,
     progress: 0.5,
@@ -43,55 +58,46 @@ const arcs: ReadonlyArray<ArcView> = [
   },
 ];
 
-describe('troop inventory', () => {
-  it('gathers home, my movements and garrisons', () => {
-    const lines = inventoryTroops(me, arcs);
-    expect(lines.map((line) => line.key)).toEqual([
-      'home-infantry',
+describe('what stands still', () => {
+  const marching = marchingTroopIds(arcs);
+
+  it('groups by address then by role', () => {
+    expect(stationGroups(me, marching).map((group) => group.key)).toEqual([
+      'AP-01-infantry',
+      'BAT-01-infantry',
       'home-fighter',
-      'MVT-001-armor',
-      'MVT-001-escort',
-      'AP-01-garrison',
     ]);
-    expect(countTroops(lines)).toBe(34);
   });
 
-  it('never exposes an enemy arc’s stack', () => {
-    const lines = inventoryTroops(me, arcs);
-    expect(lines.some((line) => line.key.startsWith('ARC-'))).toBe(false);
+  it('leaves a marching column out — it is observed, never ordered again', () => {
+    expect(stationGroups(me, marching).some((group) => group.role === 'armor')).toBe(false);
+    expect(stationGroups(me, new Set()).some((group) => group.role === 'armor')).toBe(true);
   });
 
-  it('files each role under its domain', () => {
-    const lines = inventoryTroops(me, arcs);
-    const byKey = new Map(lines.map((line) => [line.key, line.unitDomain]));
-    expect(byKey.get('home-fighter')).toBe('air');
-    expect(byKey.get('MVT-001-escort')).toBe('sea');
-    expect(byKey.get('AP-01-garrison')).toBe('land');
+  it('names the outpost as an address of its own', () => {
+    const garrison = stationGroups(me, marching).find((group) => group.stationId === 'AP-01');
+    expect(garrison?.kind).toBe('outpost');
+    expect(stationGroups(me, marching).find((group) => group.stationId === null)?.kind).toBe('home');
+  });
+
+  it('adds the hit points of the group against the nominal it was formed at', () => {
+    const barracks = stationGroups(me, marching).find((group) => group.key === 'BAT-01-infantry');
+    expect(barracks?.count).toBe(2);
+    expect(barracks?.strength).toBe(80);
+    expect(barracks?.nominalStrength).toBe(100);
+  });
+
+  it('never reads an enemy arc — it has no troops to expose', () => {
+    expect(marching).toEqual(new Set(['T-3']));
   });
 });
 
-describe('filter and sort', () => {
-  const lines = inventoryTroops(me, arcs);
-
-  it('keeps a single situation', () => {
-    const moving = organizeTroops(lines, { situation: 'movement', unitDomain: 'all' }, 'role');
-    expect(moving.map((line) => line.key)).toEqual(['MVT-001-armor', 'MVT-001-escort']);
-  });
-
-  it('keeps a single domain', () => {
-    const land = organizeTroops(lines, { situation: 'all', unitDomain: 'land' }, 'count');
-    expect(land.map((line) => line.count)).toEqual([20, 8, 3]);
-  });
-
-  it('sorts by due time pushing what does not move to the back', () => {
-    const byDue = organizeTroops(lines, { situation: 'all', unitDomain: 'all' }, 'due');
-    expect(byDue[0]?.key).toBe('MVT-001-armor');
-    expect(byDue[1]?.key).toBe('MVT-001-escort');
-  });
-
-  it('leaves the original inventory intact', () => {
-    organizeTroops(lines, { situation: 'all', unitDomain: 'all' }, 'count');
-    expect(lines[0]?.key).toBe('home-infantry');
+describe('troopsAt', () => {
+  it('answers one address, marching columns excluded', () => {
+    expect(troopsAt(me, 'BAT-01', marchingTroopIds(arcs)).map((held) => held.id)).toEqual([
+      'T-1',
+      'T-2',
+    ]);
   });
 });
 

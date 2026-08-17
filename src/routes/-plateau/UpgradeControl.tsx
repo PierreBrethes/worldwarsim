@@ -14,7 +14,7 @@ import {
   type Cost,
   type PlayerView,
 } from '@/domain/player-view';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { ResourcePlate } from '@/emblems/Plate';
 
 /**
  * Raising a level, on the line of the building itself — in Industry, in Production and on the
@@ -147,18 +147,26 @@ function WhenAffordable({
   );
 }
 
-/** The bill in the critical ink when it cannot be paid: the figures are the explanation. */
+/**
+ * The bill in the critical ink when it cannot be paid: the figures are the explanation.
+ *
+ * The **illustrated plates**, as the industry window prices everything else (`Quantity`): a
+ * raise is read where there is room for them, and two objects on paper are told apart faster
+ * than two silhouettes at twelve pixels. The vector stays where space is short — the banner,
+ * and the fifteen lines of the placement panel.
+ *
+ * A plate carries its own ink and takes no tint, so only the figure turns critical. That is
+ * the half that has to: the resource is *what* is missing, the number is *how much*.
+ */
 function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
-      className="flex items-center justify-end gap-[8px] font-[var(--font-mono)] text-[12.5px]"
+      className="flex items-center justify-end gap-[10px] font-[var(--font-mono)] text-[12.5px]"
       style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
     >
       {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
-        <span key={key} className="flex items-center gap-[3px]">
-          <span className="flex" style={{ color: lacking ? undefined : resourceColor(key, true) }}>
-            <ResourceIcon resource={key} size={12} />
-          </span>
+        <span key={key} className="flex items-center gap-[4px]">
+          <ResourcePlate resource={key} height={20} />
           {cost[key]}
         </span>
       ))}

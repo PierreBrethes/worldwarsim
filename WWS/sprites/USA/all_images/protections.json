@@ -1,0 +1,4 @@
+{
+  "_lecture": "Rectangles [x0, y0, x1, y1] où --sol ne retire rien. La bâche du GMC est un aplat gris-vert lisse de 11 850 px : elle passe la graine de l'ombre de sol comme le sol lui-même, et aucun seuil ne les sépare. L'ombre au sol du camion est en dehors (y 603-788), donc la protection ne lui coûte rien.",
+  "land-transport-gmc": [[120, 320, 410, 570]]
+}

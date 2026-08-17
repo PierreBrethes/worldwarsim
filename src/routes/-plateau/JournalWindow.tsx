@@ -1,5 +1,10 @@
 import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
-import type { JournalDispatch, DispatchSeverity, PlayerView } from '@/domain/player-view';
+import type {
+  JournalDispatch,
+  DispatchSeverity,
+  PlayerView,
+  ReductionBoard,
+} from '@/domain/player-view';
 import { FloatingWindow, WindowHandle, type WindowProps } from './Window';
 
 const COLUMNS: ReadonlyArray<{ severity: DispatchSeverity; ink: string }> = [
@@ -131,6 +136,7 @@ export function JournalWindow({
             })}
           </div>
 
+          <ReductionTable board={view.season.reduction} />
         </div>
 
         <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
@@ -150,6 +156,50 @@ export function JournalWindow({
         </div>
       </article>
     </FloatingWindow>
+  );
+}
+
+/**
+ * **Le tableau de la victoire de test — public et nominatif, et c'est voulu.** La fiche 05 tient
+ * la doctrine secrète ; ici il n'y a pas de doctrine, donc rien à protéger, et un test entre amis
+ * veut qu'on se chambre (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour
+ * où les trois doctrines arrivent — il ne se transforme pas en barre de progression.
+ */
+function ReductionTable({ board }: { board: ReductionBoard }) {
+  if (board.standings.length === 0) return null;
+  return (
+    <section className="mt-4 border-t border-[var(--ink)] pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
+          {fr.victory.kicker}
+        </span>
+        <span className="font-[var(--font-display)] text-[12.5px] text-[var(--ink-quiet)] italic">
+          {fr.victory.scaffold}
+        </span>
+      </div>
+      <div className="mt-[7px] flex flex-wrap gap-x-5 gap-y-[6px]">
+        {board.standings.map((standing) => (
+          <span key={standing.nickname} className="flex items-baseline gap-[7px] text-[13px]">
+            <span
+              className="h-2 w-2 shrink-0 self-center"
+              style={{
+                background: standing.isReduced ? 'var(--critical)' : 'transparent',
+                border: standing.isReduced ? 'none' : '1px solid rgba(42,33,24,.5)',
+              }}
+            />
+            <span className={standing.isMine ? 'font-bold text-[var(--ink)]' : 'text-[var(--ink)]'}>
+              {standing.nation === null ? standing.nickname : nationLabel(standing.nation)}
+            </span>
+            <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.victory.tally(standing.reduced, board.target)}
+            </span>
+            <span className="text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+              {standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark}
+            </span>
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 

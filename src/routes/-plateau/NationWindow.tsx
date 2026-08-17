@@ -1,4 +1,4 @@
-import { MAX_HQ_LEVEL, TIER_2_HQ_LEVEL, chainSpeed } from '../../../convex/constants';
+import { SEASON_FORMATS, chainSpeed } from '../../../convex/constants';
 import { fr, doctrineLabel, nationLabel, stackLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { DEPOSITS } from '@/domain/ids';
@@ -74,7 +74,6 @@ export function NationWindow({
           <section className="min-w-0 flex-1">
             <HeadquartersBlock
               hq={hq}
-              regionName={hq === null ? '' : regionName(view, hq.regionId)}
               view={view}
               token={token}
               now={now}
@@ -166,14 +165,12 @@ const regionName = (view: PlayerView, regionId: string): string =>
  */
 function HeadquartersBlock({
   hq,
-  regionName,
   view,
   token,
   now,
   focused,
 }: {
   hq: Building | null;
-  regionName: string;
   view: PlayerView;
   token: string;
   now: number;
@@ -192,11 +189,11 @@ function HeadquartersBlock({
         <h2 className="eyebrow">{fr.nationSheet.hqHeader}</h2>
         {hq !== null && (
           <>
-            <span className="text-[11.5px] text-[var(--ink-soft)]">
-              {fr.nationSheet.inRegion(regionName)}
-            </span>
+            {/* No region here: a nation has one capital and does not choose it (ADR 0015), so
+                the line said the same thing every season — and the census below already names
+                the ground of every building, that one included. */}
             <span className="font-[var(--font-mono)] text-[12px] text-[var(--ink)]">
-              {fr.nationSheet.hqLevelLine(level, MAX_HQ_LEVEL)}
+              {fr.nationSheet.hqLevelLine(level, SEASON_FORMATS[view.season.format].maxHqLevel)}
             </span>
             <span className="ml-auto">
               <UpgradeControl building={hq} view={view} token={token} now={now} />
@@ -221,9 +218,9 @@ function HeadquartersBlock({
             <li>{fr.nationSheet.hqSlots(view.me.slots.total)}</li>
             <li>{fr.nationSheet.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
             <li>
-              {level >= TIER_2_HQ_LEVEL
+              {level >= view.me.tier2HqLevel
                 ? fr.nationSheet.hqTier2
-                : fr.nationSheet.hqTier2Locked(TIER_2_HQ_LEVEL)}
+                : fr.nationSheet.hqTier2Locked(view.me.tier2HqLevel)}
             </li>
           </ul>
         </>

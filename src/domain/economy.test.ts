@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { emptyStocks, settleStocks, type Conversion, type Stocks } from './economy';
+import {
+  clipToCapacity,
+  emptyStocks,
+  settleStocks,
+  type Conversion,
+  type Stocks,
+} from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
 
 const stocksOf = (held: Partial<Record<ResourceKey, number>>): Stocks => ({
@@ -32,6 +38,56 @@ function settleOne(conversion: Conversion, held: Partial<Record<ResourceKey, num
   if (report === undefined) throw new Error('a conversion settles into exactly one report');
   return { stocks: settled.stocks, report };
 }
+
+/**
+ * The starting kit of a format opens above what a nation without a warehouse can store, and
+ * the warehouse is placed by the player, not handed to him. Clipping the opening stock would
+ * confiscate the difference between the launch and his first click — silently, which is the
+ * defect the whole starting line exists to kill.
+ */
+describe('a stock that opens above its ceiling', () => {
+  it('is held, not confiscated', () => {
+    const settled = settleStocks({
+      stocks: stocksOf({ alloy: CEILING * 2 }),
+      ratePerHour: emptyStocks(),
+      cap: ceilings(),
+      conversions: [],
+      hours: 3,
+    });
+    expect(settled.stocks.alloy).toBe(CEILING * 2);
+  });
+
+  it('takes nothing more in while it stands there', () => {
+    const { stocks, report } = settleOne(foundry(4), { alloy: CEILING * 2, ore: 200, coal: 200 }, 10);
+    expect(stocks.alloy).toBe(CEILING * 2);
+    expect(report.made).toBe(0);
+    expect(report.state).toBe('overflowing');
+  });
+
+  it('comes back under the ceiling once it has been spent down', () => {
+    const settled = settleStocks({
+      stocks: stocksOf({ alloy: CEILING - 10 }),
+      ratePerHour: stocksOf({ alloy: 100 }),
+      cap: ceilings(),
+      conversions: [],
+      hours: 10,
+    });
+    expect(settled.stocks.alloy).toBe(CEILING);
+  });
+
+  /** The other half of the rule (ADR 0017): what a reading never takes, a lost store does. */
+  it('is clipped when the capacity itself falls, and says by how much', () => {
+    const { stocks, lost } = clipToCapacity(
+      stocksOf({ alloy: CEILING * 2, coal: CEILING - 40 }),
+      ceilings(),
+    );
+    expect(stocks.alloy).toBe(CEILING);
+    expect(lost.alloy).toBe(CEILING);
+    // Untouched below the ceiling, and reported as nothing lost rather than as no answer.
+    expect(stocks.coal).toBe(CEILING - 40);
+    expect(lost.coal).toBe(0);
+  });
+});
 
 describe('the state of a conversion', () => {
   it('names the input that ran out, and not the one still there', () => {

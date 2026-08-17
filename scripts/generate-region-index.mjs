@@ -1,6 +1,7 @@
 /**
- * Bakes `public/region-index.json` — the three facts the **server** needs about a region, and
- * nothing else: its name, the country it belongs to, and whether it touches the sea.
+ * Bakes `public/region-index.json` — the four facts the **server** needs about a region, and
+ * nothing else: its name, the country it belongs to, whether it touches the sea, and the
+ * lon/lat point where anything put on it stands.
  *
  * `regions.json` cannot answer them on the server: it weighs 2.5 MB of polygons because it
  * exists for the map, and the Convex bundle has no business carrying geometry to decide that
@@ -15,9 +16,17 @@
  * surrounding region's ring is dropped at bake time, and without the coastline check they
  * would all come out as ports.
  *
+ * **The point is a pole of inaccessibility, un-projected** — the same treatment the world gives
+ * a country. It is what turns a region into a distance: an outpost's reach is measured in
+ * kilometres from point to point (ADR 0015), never in regions, and a movement leaves from the
+ * point of the region its barracks stands on. A centroid would fall in the sea off Norway; the
+ * pole of inaccessibility stays inside the shape.
+ *
  * Usage: node scripts/generate-region-index.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { geoNaturalEarth1 } from 'd3-geo';
+import polylabel from 'polylabel';
 
 /**
  * How far a region edge may sit from a coastline edge and still be the same shore. The two
@@ -27,6 +36,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
  */
 const COAST_TOLERANCE = 0.6;
 const CELL = 1;
+
+/** The frame `generate-world.mjs` and `generate-regions.mjs` project into. Reading it back is
+ *  what lets a projected ring answer in lon/lat. */
+const WIDTH = 400;
+const HEIGHT = 208;
 
 const world = JSON.parse(readFileSync('public/world.json', 'utf8'));
 const raw = JSON.parse(readFileSync('public/regions.json', 'utf8'));
@@ -81,12 +95,36 @@ const nearShore = (x, y) => {
 
 const regionEdges = countEdges(raw.regions.map((region) => region.p));
 
+const projection = geoNaturalEarth1().fitExtent(
+  [
+    [0, 0],
+    [WIDTH, HEIGHT],
+  ],
+  { type: 'Sphere' },
+);
+
+const areaOf = (ring) => {
+  let twice = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [ax, ay] = ring[i];
+    const [bx, by] = ring[(i + 1) % ring.length];
+    twice += ax * by - bx * ay;
+  }
+  return Math.abs(twice) / 2;
+};
+
+const rounded = (value) => Math.round(value * 100) / 100;
+
 const name = {};
 const country = {};
 const coastal = [];
+const point = {};
 for (const region of raw.regions) {
   name[region.id] = region.n;
   country[region.id] = region.country;
+  const largest = region.p.reduce((a, b) => (areaOf(a) >= areaOf(b) ? a : b));
+  const [lon, lat] = projection.invert(polylabel([largest], 0.5));
+  point[region.id] = [rounded(lon), rounded(lat)];
   const touchesSea = region.p.some((ring) =>
     ring.some((point, index) => {
       if (index === 0) return false;
@@ -98,7 +136,12 @@ for (const region of raw.regions) {
   if (touchesSea) coastal.push(region.id);
 }
 
-const output = { name, country, coastal };
+/** A region the server can name but cannot place is a region a rule would refuse to reason
+ *  about hours later, without saying why. It fails here instead. */
+const pointless = Object.keys(country).filter((id) => !Number.isFinite(point[id]?.[0]));
+if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.join(', ')}`);
+
+const output = { name, country, coastal, point };
 writeFileSync('public/region-index.json', JSON.stringify(output));
 
 const size = (JSON.stringify(output).length / 1024).toFixed(0);

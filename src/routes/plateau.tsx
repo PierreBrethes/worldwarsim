@@ -2,6 +2,7 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
 import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
@@ -11,26 +12,57 @@ import { buildLabels, type MapMarker } from '@/domain/labels';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
+import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
-import type { MovementType, PlayerView } from '@/domain/player-view';
+import type { Column, MovementAim } from '@/domain/movement-orders';
+import type { ArcView, MovementType, PlayerView } from '@/domain/player-view';
+import { PROJECTION_BY_DOMAIN } from '@/domain/troops';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { loadGame } from '@/data/loadGame';
-import { adaptServerView } from '@/data/serverView';
+import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { errorCode } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
-import { MovementTimeline } from './-plateau/MovementTimeline';
+import { GarrisonPanel } from './-plateau/GarrisonPanel';
+import { MovementPreview } from './-plateau/MovementPreview';
 import { RegionTooltip } from './-plateau/RegionTooltip';
+import { TroopsWidget } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
 import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
+/** The garrison panel's subject and the point it is anchored to. */
+type OpenGarrison = {
+  readonly stationId: string | null;
+  readonly preselect: ReadonlyArray<string>;
+  readonly x: number;
+  readonly y: number;
+};
+
+/**
+ * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
+ * function reads — built once here so the fan does not rebuild it on every hover.
+ */
+type ArmedColumn = {
+  readonly buildingId: string;
+  readonly troopIds: ReadonlyArray<string>;
+  readonly rule: Column;
+};
+
+/** An aim named on the map: what the preview card sits on and what the mutation will carry. */
+type Order = {
+  readonly aim: MovementAim;
+  readonly type: MovementType;
+  readonly x: number;
+  readonly y: number;
+};
+
+/** The three buildings a column leaves from (ADR 0013) — their mast opens a garrison. */
+const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
+
 const JournalWindow = lazy(() =>
   import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
-);
-const TroopsWindow = lazy(() =>
-  import('./-plateau/TroopsWindow').then((module) => ({ default: module.TroopsWindow })),
 );
 const ProductionWindow = lazy(() =>
   import('./-plateau/ProductionWindow').then((module) => ({ default: module.ProductionWindow })),
@@ -45,21 +77,20 @@ const SettingsWindow = lazy(() =>
   import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
 );
 
-const WINDOWS = ['journal', 'troops', 'production', 'industry', 'nation', 'settings'] as const;
+const WINDOWS = ['journal', 'production', 'industry', 'nation', 'settings'] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
 
-const MOVEMENT_TYPES: ReadonlyArray<string> = ['attack', 'raid', 'outpost', 'agent', 'decoy'];
-
 /**
- * The windows array's order is the stacking order: the last entry is in front. `send` is
- * the movement type preset by the compass rose; its mere presence opens the troops window
- * on the send tab.
+ * The windows array's order is the stacking order: the last entry is in front.
+ *
+ * **Nothing about a movement lives here.** Composing a column and aiming it happen on the map,
+ * in the widget and in the panels it opens (decision 12a) — a half-armed column in a URL would
+ * be a shareable link to a state the server never heard of.
  */
 export type BoardSearch = {
   country?: string;
   windows?: BoardWindow[];
-  send?: MovementType;
   /**
    * The building whose line the opened surface focuses on — an **instance id**, never a key:
    * `?building=barracks` would open the barracks of Normandy for a click on the one in
@@ -102,14 +133,10 @@ export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch 
 }
 
 export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
-  const { windows, send, building, ...rest } = search;
-  // The send preset belongs to the troops window: it leaves with it, and the building focus
-  // leaves with whichever surface could have been carrying it.
-  const withSend = name === 'troops' || send === undefined ? rest : { ...rest, send };
+  const { windows, building, ...rest } = search;
+  // The building focus leaves with whichever surface could have been carrying it.
   const kept =
-    FOCUSED_WINDOWS.includes(name) || building === undefined
-      ? withSend
-      : { ...withSend, building };
+    FOCUSED_WINDOWS.includes(name) || building === undefined ? rest : { ...rest, building };
   const remaining = (windows ?? []).filter((open) => open !== name);
   return remaining.length ? { ...kept, windows: remaining } : kept;
 }
@@ -133,9 +160,6 @@ export const Route = createFileRoute('/plateau')({
     if (typeof raw.country === 'string') search.country = raw.country;
     const windows = readWindows(raw);
     if (windows.length) search.windows = windows;
-    if (typeof raw.send === 'string' && MOVEMENT_TYPES.includes(raw.send)) {
-      search.send = raw.send as MovementType;
-    }
     if (typeof raw.building === 'string' && raw.building.length > 0) search.building = raw.building;
     return search;
   },
@@ -200,7 +224,7 @@ function LiveBoard({ world, token }: { world: World; token: string }) {
 }
 
 function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
-  const { country, windows = [], send, building: focused } = Route.useSearch();
+  const { country, windows = [], building: focused } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
@@ -212,10 +236,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [hoveredArc, setHoveredArc] = useState<string | null>(null);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  /**
+   * **The whole movement flow, in three states and one direction.** A garrison is opened, a
+   * column is armed out of it, an aim is named on the map — and the only way back is to close.
+   * Nothing here can redirect a movement already gone: there is no state for it, and that is
+   * the guarantee rather than a missing button (decision 13a).
+   */
+  const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
+  const [column, setColumn] = useState<ArmedColumn | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [focus, setFocus] = useState<{ ids: ReadonlyArray<string>; nonce: number } | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredCard ?? hoveredLabel ?? hoveredArc;
-  // The map designates the track by its arc or its label; a hovered card does not.
-  const mapDesignatedMovement = hoveredCard ? null : (hoveredLabel ?? hoveredArc);
 
   const select = useCallback(
     (name: string | null) => {
@@ -230,32 +262,37 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [navigate],
   );
 
-  const openSend = useCallback(
-    (destination: string | null, type: MovementType | null) => {
-      void navigate({
-        search: (previous) => {
-          const withTroops = withWindow(previous, 'troops');
-          return {
-            ...withTroops,
-            ...(destination === null ? {} : { country: destination }),
-            send: type ?? 'attack',
-          };
-        },
-      });
+  /**
+   * **One selection state, two doors.** The widget's *stationnaire* card and the building's own
+   * mast open this same panel with the same troops pre-checked — never two flows for one thing.
+   * The camera goes to the mast either way, so the panel always names something one can see.
+   */
+  const openGarrison = useCallback(
+    (stationId: string | null, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
+      setColumn(null);
+      setOrder(null);
+      setGarrison({ stationId, preselect, ...at });
+      const marker = markerOfStation(view, stationId);
+      if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
     },
-    [navigate],
+    [view],
   );
 
   /**
-   * A click on a mast opens the surface where that building is *used*. The key is read off the
-   * view rather than carried in the URL: what travels is the instance, and a razed one simply
-   * finds no key — the window then opens without a focus, which is the honest fallback and the
-   * one `ProductionWindow` already applies to a vanished site.
+   * A click on a mast opens what that building *is used for*. For a projection building that is
+   * its garrison — the column leaves from there (ADR 0013), and that is the same door the widget
+   * opens. Everything else keeps opening the surface where the building's line lives; the key is
+   * read off the view rather than carried in the URL, so a razed instance simply finds none.
    */
   const openBuilding = useCallback(
-    (buildingId: string) => {
+    (buildingId: string, clientX: number, clientY: number) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
       if (standing === undefined) return;
+      if (PROJECTION_KEYS.includes(standing.key)) {
+        const rect = document.body.getBoundingClientRect();
+        openGarrison(buildingId, [], { x: clientX - rect.left, y: clientY - rect.top });
+        return;
+      }
       void navigate({
         search: (previous) => ({
           ...withWindow(previous, WINDOW_OF_BUILDING[standing.key]),
@@ -263,10 +300,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         }),
       });
     },
-    [navigate, view.me.buildings],
+    [navigate, openGarrison, view.me.buildings],
   );
 
-  const compassOfTarget = useCallback((target: CompassTarget) => compassOf(target, view), [view]);
+  /**
+   * The fan the right click opens. Armed, it holds **only** the marches the server will accept
+   * for that target — same function, same rule (ADR 0015). Unarmed, it is the ordinary fan.
+   */
+  const compassOfTarget = useCallback(
+    (target: CompassTarget) => compassOf(target, view, column?.rule ?? null),
+    [view, column],
+  );
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
@@ -277,12 +321,24 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
           return;
-        case 'send':
-          openSend(action.destination, action.type);
+        case 'aim':
+          setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
       }
     },
-    [select, openSend],
+    [select],
   );
+
+  // Escape disarms the aim — and only the aim: the rose stops the key before it gets here.
+  useEffect(() => {
+    if (column === null) return;
+    const disarm = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setColumn(null);
+      setOrder(null);
+    };
+    document.addEventListener('keydown', disarm);
+    return () => document.removeEventListener('keydown', disarm);
+  }, [column]);
 
   const inkByCountry = useMemo(
     () => inkByClaimedCountry([view.me, ...view.opponents]),
@@ -299,9 +355,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [view.me.buildings, view.me.ink],
   );
 
-  // Buildings are the only ground markers the server can place today: a region id is enough,
-  // and the map layer resolves it. Outposts, stacks and sited constructions still wait for
-  // 4.7 to serve positions — see `MapMarker`.
+  // Buildings hang from a region id and the map layer resolves it; an outpost carries its own
+  // point, because it *is* a point and colours no ground (fiche 03). Stacks and sited
+  // constructions still wait for 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
     // Same rule as the buildings above and for the same reason: `me.regions` is the ground the
     // player may build on and there is no other, so an opponent's deposit cannot reach the map
@@ -321,7 +377,25 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )
       : [];
 
-    if (!toggles.buildings) return deposits;
+    /**
+     * **A founded outpost has to stand on the board.** Without this the column that planted it
+     * becomes a garrison hanging from a point nothing draws: the troops leave the *stationnaires*
+     * of the widget for an address the map never shows, and the whole march reads as "nothing
+     * happened". `me.outposts` is mine only — the fog keeps an opponent's point out of the answer
+     * itself (`view.ts`), so there is nothing to filter on nationality here.
+     */
+    const outposts: ReadonlyArray<MapMarker> = view.me.outposts.map((outpost) => ({
+      kind: 'outpost' as const,
+      id: `outpost-${outpost.id}`,
+      lonLat: outpost.lonLat,
+      hostCountry: outpost.hostCountry,
+      specialization: outpost.specialization,
+      level: outpost.level,
+      garrison: outpost.garrison,
+      ink: view.me.ink,
+    }));
+
+    if (!toggles.buildings) return [...deposits, ...outposts];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt =
@@ -364,11 +438,12 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...standing, ...raising];
+    return [...deposits, ...outposts, ...standing, ...raising];
   }, [
     toggles.buildings,
     toggles.deposits,
     view.me.buildings,
+    view.me.outposts,
     view.me.regions,
     view.me.construction,
     view.me.nation,
@@ -406,12 +481,42 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     });
   }, [windows, view.journal, navigate]);
 
+  const preview = useQuery(
+    api.movements.preview,
+    column === null || order === null
+      ? 'skip'
+      : {
+          token,
+          buildingId: column.buildingId as Id<'buildings'>,
+          troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+          target:
+            order.aim.kind === 'region'
+              ? { kind: 'region' as const, regionId: order.aim.regionId }
+              : { kind: 'outpost' as const, outpostId: order.aim.outpostId as Id<'outposts'> },
+          type: order.type,
+        },
+  );
+
+  /**
+   * **The aimed arc is the route the server just computed**, drawn with the board's own thread
+   * and nothing else — never a great-circle approximation laid on top. It joins the arcs of the
+   * movements in flight in the same list, so it inherits the same stroke, the same pawn, the
+   * same everything.
+   */
+  const arcs = useMemo<ReadonlyArray<ArcView>>(
+    () =>
+      column === null || order === null || !preview
+        ? view.arcs
+        : [...view.arcs, previewArc(column, order, preview)],
+    [view.arcs, column, order, preview],
+  );
+
   return (
     <Shell view={view}>
       <div className="relative min-w-0 flex-1">
         <WorldMap
           world={world}
-          arcs={view.arcs}
+          arcs={arcs}
           labels={labels}
           inkByCountry={inkByCountry}
           built={built}
@@ -427,6 +532,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           compassOf={compassOfTarget}
           onCompassAction={actOnCompass}
           building={buildingSite !== null}
+          aiming={column !== null}
+          focus={focus}
         />
         {buildingSite && (
           <ConstructionPanel
@@ -437,12 +544,44 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             onClose={() => setBuildingSite(null)}
           />
         )}
-        <MovementTimeline
+        {garrison && (
+          <GarrisonPanel
+            view={view}
+            stationId={garrison.stationId}
+            at={garrison}
+            preselect={garrison.preselect}
+            onClose={() => setGarrison(null)}
+            onPrepare={(buildingId, troopIds) => {
+              setGarrison(null);
+              setColumn(armedColumn(view, buildingId, troopIds));
+            }}
+          />
+        )}
+        {column && order && (
+          <MovementPreview
+            token={token}
+            buildingId={column.buildingId}
+            troopIds={column.troopIds}
+            aim={order.aim}
+            type={order.type}
+            at={order}
+            preview={preview}
+            freeSlots={view.me.slots.total - view.me.slots.used}
+            onClose={() => {
+              setOrder(null);
+              setColumn(null);
+            }}
+          />
+        )}
+        {column && !order && <AimBanner view={view} column={column} />}
+        <TroopsWidget
           view={view}
           hoveredMovement={hoveredMovement}
-          mapDesignatedMovement={mapDesignatedMovement}
           onHover={setHoveredCard}
-          onSelect={select}
+          onOpenGarrison={(stationId, preselect) =>
+            openGarrison(stationId, preselect, { x: 24, y: 92 })
+          }
+          onFollow={(arcId) => setFocus({ ids: [arcId], nonce: Date.now() })}
         />
         {/* The top right is the reserves' now — permanently. What answers a *gesture* (the
             pointer on a region, a selected country) reads at the other end of the same column,
@@ -466,17 +605,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           switch (name) {
             case 'journal':
               return <JournalWindow key={name} view={view} {...windowProps} />;
-            case 'troops':
-              return (
-                <TroopsWindow
-                  key={name}
-                  view={view}
-                  world={world}
-                  country={country ?? null}
-                  send={send ?? null}
-                  {...windowProps}
-                />
-              );
             case 'production':
               return (
                 <ProductionWindow
@@ -526,6 +654,110 @@ function Loading() {
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)]">
       <span className="eyebrow-dark">{fr.board.loading}</span>
+    </div>
+  );
+}
+
+/**
+ * The column as the shared rule reads it, built from what the player is allowed to see. It is
+ * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
+ * two callers.
+ */
+function armedColumn(
+  view: PlayerView,
+  buildingId: string,
+  troopIds: ReadonlyArray<string>,
+): ArmedColumn {
+  const roles = troopIds.flatMap((troopId) => {
+    const troop = view.me.troops.find((candidate) => candidate.id === troopId);
+    return troop ? [troop.role] : [];
+  });
+  return {
+    buildingId,
+    troopIds,
+    rule: {
+      roles,
+      myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
+      myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
+    },
+  };
+}
+
+/**
+ * The aimed arc, in the `mine` state because it is the player's own: it carries a type and a
+ * stack, and the union makes that the only thing it can be. It is a preview and nothing on the
+ * board treats it otherwise — it disappears with the card that describes it.
+ */
+function previewArc(
+  column: ArmedColumn,
+  order: Order,
+  preview: NonNullable<MovementPreviewed>,
+): ArcView {
+  const points = preview.route.points.map((point) => [point.lon, point.lat] as LonLat);
+  return {
+    state: 'mine',
+    id: PREVIEW_ARC,
+    from: points[0] ?? [0, 0],
+    to: points[points.length - 1] ?? [0, 0],
+    route: {
+      mode: preview.route.mode,
+      points,
+      distanceUnits: preview.route.distanceUnits,
+      costUnits: preview.route.costUnits,
+      legs: preview.route.legs,
+    },
+    originCountry: '',
+    destinationCountry: order.aim.kind === 'region' ? order.aim.country : order.aim.hostCountry,
+    originLabel: preview.originName,
+    destinationLabel: preview.destinationName,
+    type: order.type,
+    stack: column.rule.roles.reduce<Record<string, number>>(
+      (counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }),
+      {},
+    ),
+    troopIds: column.troopIds,
+    /**
+     * **Nothing has left**: the pawn sits at the barracks and the thread is entirely ahead. The
+     * duration of the trip is not written here on purpose — the map walks a column against its
+     * own clock from exactly this pair (`paceOf`, `map/engine/arcs.ts`), and a preview carrying
+     * a real countdown would crawl off the barracks while the player is still deciding. What the
+     * trip costs is read on the aiming card, from `preview.minutes`, which is the only place it
+     * means anything before the slot is spent.
+     */
+    minutesLeft: 0,
+    borderWait:
+      preview.holdUntil === null
+        ? null
+        : { resolutionInMinutes: Math.max(0, (preview.holdUntil - Date.now()) / 60_000) },
+    progress: 0,
+  };
+}
+
+const PREVIEW_ARC = 'preview';
+
+/** Where a station stands on the board, as the label layer names it. An outpost has no mast of
+ *  its own yet — the camera then holds still rather than flying somewhere approximate. */
+function markerOfStation(view: PlayerView, stationId: string | null): string | null {
+  const building = view.me.buildings.find((candidate) => candidate.id === stationId);
+  return building === undefined ? null : `building-${building.regionId}-${building.key}`;
+}
+
+/**
+ * What the board says while a column is armed: the pile, where it stands, and the two gestures
+ * that matter. It names the way out, because a mode one cannot leave is a trap.
+ */
+function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
+  const building = view.me.buildings.find((candidate) => candidate.id === column.buildingId);
+  return (
+    <div className="hud absolute top-4 left-4 z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
+      <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">
+        {fr.aim.armed}
+      </div>
+      <div className="mt-1 font-[var(--font-mono)] text-[11px] leading-[1.7] text-[var(--paper-dim)]">
+        <div>{fr.aim.column(column.troopIds.length, building?.name ?? fr.troops.atHome)}</div>
+        <div>{fr.aim.gesture}</div>
+        <div>{fr.aim.disarm}</div>
+      </div>
     </div>
   );
 }

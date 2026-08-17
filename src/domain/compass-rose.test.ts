@@ -8,10 +8,11 @@ const view = {
     nation: 'france',
     slots: { total: 4, used: 1 },
     outposts: [
-      { id: 'AP-01', hostCountry: 'Norway', lonLat: [0, 0], specialization: 'extraction', garrison: 4, isMine: true },
+      { id: 'AP-01', hostCountry: 'Norway', lonLat: [0, 0], specialization: 'relay', garrison: 4, isMine: true },
     ],
     hqLevel: 1,
     buildingCap: 5,
+    foundation: [],
     buildings: [],
     // Only home ground travels in the view: a region absent from it is a region the player
     // has no business building on, which is what the enemy-region test leans on.
@@ -25,7 +26,7 @@ const view = {
     ),
   },
   buildCatalog: Object.fromEntries(
-    BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20 }]),
+    BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
   ) as Record<BuildingKey, BuildSpec>,
   loadedAt: 0,
   opponents: [{ nation: 'italy' }, { nation: 'ussr' }],
@@ -43,47 +44,30 @@ describe('radial menu', () => {
     expect(labelsOf({ kind: 'country', country: 'Italy' })).toEqual(['Voir le pays']);
   });
 
-  it('opens the outpost founding on a neutral country, before "view"', () => {
-    expect(labelsOf({ kind: 'country', country: 'Spain' })).toEqual([
-      'Fonder un avant-poste',
-      'Voir le pays',
-    ]);
-  });
-
-  it('withdraws founding where I already hold an outpost, and says so in context', () => {
+  it('says a neutral country is held without offering anything more there', () => {
     const compass = compassOf({ kind: 'country', country: 'Norway' }, view);
     expect(compass?.actions.map((action) => action.label)).toEqual(['Voir le pays']);
     expect(compass?.kicker).toBe('pays neutre · avant-poste tenu');
   });
 
-  it('prefills the founding destination and prices it in slots', () => {
-    const founding = compassOf({ kind: 'country', country: 'Spain' }, view)?.actions[0];
-    expect(founding).toMatchObject({
-      pictogram: 'anchor',
-      destination: 'Spain',
-      type: 'outpost',
-      cost: '1 slot · 3 libres',
-    });
-  });
-
-  it('opens sending on one of my forces, without a destination when it is at home', () => {
+  /**
+   * A column in flight is observed and never commanded: the fan on one of my forces holds the
+   * land underneath and nothing else. No handler exists to redirect it — that is the check.
+   */
+  it('offers no order on a movement in flight', () => {
     const compass = compassOf(
       { kind: 'force', id: 'stack-home', country: 'France', name: '24 INF · 6 BLD', headcount: 30 },
       view,
     );
-    expect(compass?.actions.map((action) => action.label)).toEqual([
-      'Envoyer un mouvement',
-      'Voir le pays',
-    ]);
-    expect(compass?.actions[0]).toMatchObject({ pictogram: 'propeller', destination: null, type: null });
+    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
     expect(compass?.kicker).toBe('ma force · 30 unités');
     expect(compass?.name).toBe('24 INF · 6 BLD');
   });
 
-  it('drops "view" when picking has no land under the force', () => {
+  it('stays shut on a force with no land under it — nothing left to offer', () => {
     expect(
       labelsOf({ kind: 'force', id: 'stack-sea', country: null, name: '12 ESC', headcount: 12 }),
-    ).toEqual(['Envoyer un mouvement']);
+    ).toBeNull();
   });
 
   it('names the nation rather than the map country', () => {
@@ -127,10 +111,74 @@ describe('radial menu', () => {
 
   it('an outpost points back to its host country', () => {
     const compass = compassOf(
-      { kind: 'outpost', id: 'AP-01', hostCountry: 'Norway', name: 'extraction' },
+      { kind: 'outpost', id: 'AP-01', hostCountry: 'Norway', name: 'relais logistique' },
       view,
     );
     expect(compass?.kicker).toBe('avant-poste · Norway');
     expect(compass?.actions).toEqual([expect.objectContaining({ key: 'view', country: 'Norway' })]);
+  });
+});
+
+describe('in aim', () => {
+  const column = {
+    roles: ['infantry' as const],
+    myRegionIds: new Set(['FRA-5333', 'FRA-9999']),
+    myOutpostIds: new Set(['AP-01']),
+  };
+
+  it('shows the marches and nothing else — no crane, no "view"', () => {
+    const compass = compassOf(
+      { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' },
+      view,
+      column,
+    );
+    expect(compass?.actions.map((action) => action.key)).toEqual(['aim', 'aim']);
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'attaque',
+      'fondation d’avant-poste',
+    ]);
+    expect(compass?.kicker).toBe('visée armée · 1 troupe');
+  });
+
+  it('carries the aim and the type on the action, priced in slots', () => {
+    const compass = compassOf(
+      { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' },
+      view,
+      column,
+    );
+    expect(compass?.actions[1]).toMatchObject({
+      pictogram: 'cabin',
+      type: 'outpost',
+      aim: { kind: 'region', regionId: 'ESP-1234', country: 'Spain' },
+      cost: '1 slot · 3 libres',
+    });
+  });
+
+  /** Contextual, never greyed out: on my own ground the fan simply does not open. */
+  it('stays shut on ground of mine', () => {
+    expect(
+      compassOf({ kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'France' }, view, column),
+    ).toBeNull();
+    expect(
+      compassOf({ kind: 'outpost', id: 'AP-01', hostCountry: 'Norway', name: 'relais' }, view, column),
+    ).toBeNull();
+  });
+
+  /**
+   * The server marches at a region or at an outpost. Beyond the regions' fade-in threshold the
+   * map only knows the country, and no aim can be made of it — the player comes closer.
+   */
+  it('stays shut on a whole country', () => {
+    expect(compassOf({ kind: 'country', country: 'Spain' }, view, column)).toBeNull();
+  });
+
+  it('withdraws the foundation as soon as the column is not infantry alone', () => {
+    const mixed = { ...column, roles: ['infantry' as const, 'armor' as const] };
+    const compass = compassOf(
+      { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' },
+      view,
+      mixed,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
   });
 });

@@ -5,6 +5,7 @@ import type {
   Doctrine,
   MovementType,
   ResourceKey,
+  SeasonFormat,
   Specialization,
   UnitRole,
   UnitTier,
@@ -52,6 +53,12 @@ export type ArcView =
       readonly destinationLabel: string;
       readonly type: MovementType;
       readonly stack: Stack;
+      /**
+       * The troops this movement carries. They keep their address — a movement never takes it
+       * from them — so without this list the widget would offer a marching column to a second
+       * order, from the very building it left.
+       */
+      readonly troopIds: ReadonlyArray<string>;
       readonly minutesLeft: number;
       /**
        * An arrival falling inside the target's rest window stalls the movement at the
@@ -98,8 +105,9 @@ export type ArcView =
  * One troop, as its owner sees it (ADR 0014). Its hit points **are** its strength, read
  * against the nominal it was formed at: "32 / 50 soldats" is the whole health bar.
  *
- * `stationedAt` names the building it hangs from, `null` meaning at home — including the troop
- * whose building is gone. No enemy troop ever travels in this list.
+ * `stationedAt` names what it hangs from — a building, or the outpost its column founded —
+ * `null` meaning at home, including the troop whose building is gone. No enemy troop ever
+ * travels in this list.
  */
 export type TroopView = {
   readonly id: string;
@@ -115,8 +123,43 @@ export type OutpostView = {
   readonly hostCountry: string;
   readonly lonLat: LonLat;
   readonly specialization: Specialization;
+  readonly level: number;
   readonly garrison: number;
+  /** A raid puts a point out of service for a while; `null` is a point that is standing. It is
+   *  **deactivated**, never taken — nothing here says who put it out. */
+  readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
+};
+
+/**
+ * One engagement as its own participant reads it afterwards: what each side brought, what each
+ * side left on the ground. Never the enemy's composition by role — the fog does not lift because
+ * shots were exchanged (ADR 0005); a head count and a butcher's bill is what a commander gets.
+ */
+export type CombatReport = {
+  readonly id: string;
+  readonly at: number;
+  readonly cause: 'arrival' | 'interception';
+  readonly side: 'attacker' | 'defender';
+  readonly won: boolean;
+  readonly hostCountry: string;
+  readonly outpostDisabled: boolean;
+  readonly mine: CombatTally;
+  readonly theirs: CombatTally;
+  /**
+   * Set when this pass is the one that put the defender under the bar of the **test victory**
+   * (`victory.ts`) — scaffolding, and named on both sides on purpose: the progress of the
+   * simplified Domination is public, which is where it departs from design sheet 05.
+   */
+  readonly reduced: { readonly by: string; readonly whom: string } | null;
+};
+
+export type CombatTally = {
+  readonly troops: number;
+  /** In men and machines, never in percent (ADR 0014). */
+  readonly lost: number;
+  readonly routed: number;
+  readonly destroyed: number;
 };
 
 export type Resource = {
@@ -177,8 +220,17 @@ export type ExtractionSiteView = {
   readonly perHour: number;
 };
 
-/** What a first level of a building costs and takes, per key: the construction panel's price list. */
-export type BuildSpec = { readonly cost: Cost; readonly minutes: number };
+/**
+ * What a first level of a building costs and takes, per key: the construction panel's price
+ * list. `unlockedAtHqLevel` travels with the price because it decides the same thing — whether
+ * a line exists at all — and a client-side copy of the tier table is how the panel and the
+ * server stop refusing the same things.
+ */
+export type BuildSpec = {
+  readonly cost: Cost;
+  readonly minutes: number;
+  readonly unlockedAtHqLevel: number;
+};
 
 /**
  * A region the player may build on: his own country, plus wherever he has already built. What
@@ -218,14 +270,39 @@ export type JournalDispatch = {
   readonly resolutionAt: string | null;
 };
 
+/**
+ * **The board of the test victory — scaffolding, to be replaced whole** by the three doctrines
+ * of design sheet 05 (`domain/victory.ts` says why). It is the one place this type hands over
+ * something about everybody: the simplified Domination is public and named, deliberately, and
+ * a capacity is neither a position nor a composition — the fog loses nothing.
+ */
+export type ReductionBoard = {
+  /** How many distinct players one has to hold under the bar, `⌈(n−1)/2⌉`. */
+  readonly target: number;
+  readonly concludedAt: number | null;
+  readonly winnerNation: string | null;
+  readonly standings: ReadonlyArray<ReductionStanding>;
+};
+
+export type ReductionStanding = {
+  readonly nation: string | null;
+  readonly nickname: string;
+  readonly isMine: boolean;
+  /** Read at the instant: he rebuilds over the bar, he leaves his executioner's count. */
+  readonly isReduced: boolean;
+  readonly reduced: number;
+};
+
 export type PlayerView = {
   readonly season: {
     readonly number: number;
+    readonly format: SeasonFormat;
     readonly durationHours: number;
     readonly elapsedHours: number;
     readonly players: number;
     readonly playableRegion: string;
     readonly travelMinutesPer1000km: number;
+    readonly reduction: ReductionBoard;
   };
   readonly me: {
     readonly nation: string;
@@ -244,6 +321,13 @@ export type PlayerView = {
      * standing against it is `buildings.length`: the list is complete, so it holds the count.
      */
     readonly buildingCap: number;
+    /** The headquarters level that opens mark 2 in this format — served, never derived here. */
+    readonly tier2HqLevel: number;
+    /**
+     * The buildings the season still owes, in placement order — placed for nothing and at
+     * once, wherever the player decides. Empty once the foundation stands.
+     */
+    readonly foundation: ReadonlyArray<BuildingKey>;
     readonly buildings: ReadonlyArray<Building>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;

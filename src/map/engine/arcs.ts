@@ -26,6 +26,16 @@ type RenderedArc = {
   pawn: Pawn;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
+  /**
+   * **The share walked, advanced by the loop and not by React.** `arc.progress` is a snapshot
+   * taken the instant the server's answer was adapted; reading it every frame renders a column
+   * that never moves until something else happens to re-render the board. The widget already
+   * counts down against its own clock, and the map has to do the same — with the difference
+   * that here it costs no re-render at all.
+   */
+  progress: number;
+  /** Share of the trip per millisecond, zero for anything that is not travelling. */
+  pace: number;
 };
 
 /**
@@ -89,7 +99,7 @@ export class ArcLayer {
     for (const rendered of this.rendered) rendered.thread.setResolution(width, height);
   }
 
-  display(arcs: ReadonlyArray<ArcView>): void {
+  display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
     this.clear();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
@@ -115,7 +125,15 @@ export class ArcLayer {
       const headPosition = new Vector3();
       this.headPositions.set(arc.id, headPosition);
 
-      this.rendered.push({ arc, thread, unrolled: unrollRoute(arc.route), pawn, headPosition });
+      this.rendered.push({
+        arc,
+        thread,
+        unrolled: unrollRoute(arc.route),
+        pawn,
+        headPosition,
+        progress: carried?.get(arc.id) ?? arc.progress,
+        pace: paceOf(arc),
+      });
     }
     this.applyAccent();
     this.animate();
@@ -147,14 +165,16 @@ export class ArcLayer {
     if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
 
     const now = performance.now();
-    const elapsed = this.lastFrameMs === 0 ? 0 : (now - this.lastFrameMs) / 1000;
+    const sinceLastFrame = this.lastFrameMs === 0 ? 0 : now - this.lastFrameMs;
+    const elapsed = sinceLastFrame / 1000;
     this.lastFrameMs = now;
 
     for (const rendered of this.rendered) {
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
       rendered.thread.drift(elapsed);
 
-      const position = temporalPosition(rendered.unrolled, rendered.arc.progress);
+      rendered.progress = Math.min(1, rendered.progress + sinceLastFrame * rendered.pace);
+      const position = temporalPosition(rendered.unrolled, rendered.progress);
       const { legIndex, local } = pawnTarget(position);
 
       rendered.thread.cut(legIndex, local);
@@ -182,8 +202,16 @@ export class ArcLayer {
     }
   }
 
+  /**
+   * A rebuild is a change of geometry — the curvature moved, the player's nation landed — never
+   * a change of hour. The share walked is carried over, otherwise a nudge of the curvature
+   * slider would snap every column back to where the last server answer found it.
+   */
   rebuild(): void {
-    this.display(this.rendered.map((rendered) => rendered.arc));
+    this.display(
+      this.rendered.map((rendered) => rendered.arc),
+      new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered.progress])),
+    );
   }
 
   /** Frees every thread and pawn, and detaches them from the scene. */
@@ -209,4 +237,22 @@ export class ArcLayer {
     this.targets = [];
     this.headPositions.clear();
   }
+}
+
+/**
+ * How fast a column walks its own thread, as a share of the trip per millisecond — derived from
+ * the one thing the server dates, the minutes it has left. **Zero is a still pawn and not a bug**:
+ * a last known position is a memory, a sea control is a standing fact, and a detected arc whose
+ * heading was never pierced has no arrival to count down to. The fog is why the union answers
+ * `null` there, and the map must not invent a pace to fill it.
+ */
+function paceOf(arc: ArcView): number {
+  const left =
+    arc.state === 'mine'
+      ? arc.minutesLeft
+      : arc.state === 'enemyDetected'
+        ? arc.estimatedMinutesLeft
+        : null;
+  if (left === null || left <= 0 || arc.progress >= 1) return 0;
+  return (1 - arc.progress) / (left * 60_000);
 }

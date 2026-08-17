@@ -5,8 +5,11 @@ modèle de l'[ADR 0014](../../adr/0014-troupes-discretes-et-combat-sequentiel.md
 nominaux, table de dégâts, modificateurs, soins, munitions. Ils sont *lisibles* et *cohérents*,
 pas *équilibrés* : c'est le simulateur refondu qui tranchera. Session du 14/08/2026.
 
-Tout ce qui suit est vérifié par `WWS/simulation/verif-chiffrage.mjs`, qui rejoue les 75 couples
-atteignables et échoue sur un contre absolu ou une riposte nulle non voulue.
+Tout ce qui suit est vérifié par `src/domain/combat.test.ts`, qui rejoue les 75 couples
+atteignables **contre la résolution réelle** et échoue sur un contre absolu ou une riposte nulle
+non voulue. Le garde-fou tournait auparavant dans `WWS/simulation/verif-chiffrage.mjs`, sur une
+copie de la table ; la copie a été retirée le jour où les valeurs sont entrées dans
+`convex/constants.ts` — deux tables, c'est une table qui dérive.
 
 ## 1. Les effectifs nominaux
 

@@ -50,11 +50,15 @@ export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
  * do I put a mine", and the fallback for a player who never finds the button is to right-click
  * a hundred regions one by one. Counted on `public/deposits.json`, a playable nation holds
  * nine to seventeen of them — the layer is thin enough that showing it costs nothing to read.
+ *
+ * `outposts` joins them for exactly the argument written above, and the layer is thinner still:
+ * a point is a column already spent, and its garrison has **no other address on the board**.
+ * Folded by default, founding one reads as nothing having happened at all.
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
   deposits: true,
-  outposts: false,
+  outposts: true,
   constructions: false,
   forces: false,
   'my-movements': false,

@@ -6,8 +6,10 @@ unités ; la section 7 dit ce que les bâtiments font différemment, et pourquoi
 
 ## Unités
 
-Une planche de **onze visuels** par nation, huit nations. **La France et le Royaume-Uni sont
-faits** ; les six autres suivent ce document. L'enjeu n'est pas la beauté d'un sprite isolé :
+Une planche de **onze visuels** par nation, huit nations. **La France, le Royaume-Uni et les
+États-Unis sont faits** — seules la France et les États-Unis sont branchés au front, la planche
+britannique s'arrête pour l'instant à `units_uk_clean/` ; les cinq autres nations suivent ce
+document. L'enjeu n'est pas la beauté d'un sprite isolé :
 c'est que les quatre-vingt-huit tiennent ensemble sur une même planche, au même angle et sous
 la même lumière. Un seul sujet généré de trois-quarts arrière se voit immédiatement et ne se
 rattrape pas au filtre.
@@ -92,6 +94,39 @@ et hors silhouette, mais clair.
 
 Mesuré sur la planche britannique : 2 300 à 9 000 pixels d'ombre par sprite, 222 000 au total.
 
+### `--sol`, l'ombre qui a sa propre matière
+
+La planche américaine a été rendue **sur un plan de sol**, pas sur le fond vert : son ombre est
+opaque, vaste, et par endroits **plus claire que le plafond de valeur** du critère précédent
+(0,46 mesuré contre 0,42 admis) — passée sans `--sol`, elle ressort en plaques vertes sous les
+ailes du B-17 et en croissant sous le Stuart, et le nettoyage mange au passage l'antenne du char,
+trop fine pour survivre au critère de semi-transparence.
+
+Ce qui sépare cette ombre-là, c'est la **chromaticité**. Le sol est un gris-vert neutre : ses
+rapports `R/V` et `B/V` tiennent dans une fenêtre étroite qu'aucun matériau du sujet ne visite —
+l'olive du blindé sort par le rouge (0,97), l'aluminium du B-17 est neutre (1,00), la coque du
+destroyer sort par le bleu. Trois précautions rendent le critère utilisable :
+
+- **une planche a une ombre de sol ou n'en a pas.** Tant qu'aucune plaque n'atteint 1 600 px,
+  rien ne part : c'est ce qui sauve le destroyer, dont cinq aplats de coque (622 à 1 484 px)
+  passeraient sinon pour de l'ombre. La preuve faite, les éclats de 600 px comptent aussi — le
+  B-17 découpe son ombre en une dizaine de morceaux dont deux seulement atteignent le seuil de
+  preuve ;
+- **la frange se reprend à l'alpha**, pas à la couleur : au bord extrême elle vaut `(0,1,0)`,
+  elle n'a plus de chromaticité du tout, et la laisser dessine le *contour* de l'ombre retirée ;
+- **`protections.json` existe pour ce qui ne se sépare pas.** La bâche du GMC *est* un aplat
+  gris-vert de 11 850 px : aucun seuil ne la distingue du sol. Un rectangle `[x0, y0, x1, y1]`
+  par planche la met hors d'atteinte, et le fichier dit pourquoi.
+
+```bash
+python WWS/sprites/nettoyer-ombres.py --source WWS/sprites/USA/all_images \
+                                      --destination WWS/sprites/units_usa_clean \
+                                      --controle /tmp/controle --sol
+```
+
+Mesuré sur la planche américaine : cinq sujets posés au sol perdent 16 000 à 89 000 px, les six
+autres — les navires, les fantassins, le Sherman, le C-47 — moins de 1 400 px de poussière.
+
 ## 3. Nommage
 
 Un fichier du front porte la **clé `UnitRole`** de `src/domain/ids.ts`, et rien d'autre — pas
@@ -108,10 +143,11 @@ Le suffixe `-1` / `-2` ne s'écrit que pour les **rôles à palier**, listés pa
 dans `src/domain/troops.ts` : infanterie, blindé et **porte-avions**. Les six autres n'ont
 qu'un visuel et pas de suffixe.
 
-**Les deux planches sont incomplètes, chacune à sa façon.** La France n'a pas de `cargo` — le
-Royaume-Uni est le premier du projet à en avoir un — et aucune des deux n'a le palier 2 du
-porte-avions ; le manifeste sert alors la même image aux deux niveaux, et `manifest.test.ts`
-garde la trace du manque.
+**La France est incomplète, les États-Unis non.** La France n'a pas de `cargo` ; le Royaume-Uni
+est le premier du projet à en avoir un, et **les États-Unis sont la première planche complète
+branchée au front** — les neuf rôles répondent. Le palier 2 du porte-avions n'existe nulle part
+et n'a pas à exister : la fiche de chiffrage ne lui donne aucune force nominale, donc le rôle n'a
+qu'un palier (ADR 0014). `manifest.test.ts` garde la trace des deux constats.
 
 Le nom de matériel, lui, **est affiché** — « Blindé — Matilda II » sur la surface 4.6. Il vit
 dans `src/emblems/units/equipment.ts`, une table par nation, jamais dans le nom de fichier ni

@@ -21,8 +21,21 @@ const FRANCE: NationEquipment = {
   carrier: ['2 appareils'],
 };
 
+const USA: NationEquipment = {
+  infantry: ['M1 Garand', 'bazooka M1'],
+  armor: ['M5 Stuart', 'M4 Sherman'],
+  landTransport: ['GMC CCKW'],
+  fighter: ['P-40 Warhawk'],
+  bomber: ['B-17'],
+  airTransport: ['C-47'],
+  escort: ['destroyer Fletcher'],
+  cargo: ['Liberty ship'],
+  carrier: ['USS Essex'],
+};
+
 const EQUIPMENT_BY_NATION: Readonly<Partial<Record<Nation, NationEquipment>>> = {
   france: FRANCE,
+  usa: USA,
 };
 
 export function equipmentLabel(

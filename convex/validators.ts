@@ -59,13 +59,70 @@ export const DOCTRINE = v.union(
   v.literal('influence'),
 );
 
+/**
+ * `concluded` is a season somebody won — read on, never played on. The wipe stays manual: one
+ * reads the game back before erasing it (`seasons.destroy`), so a concluded season is a normal
+ * state of the board and not a missing row.
+ */
 export const SEASON_STATUS = v.union(
   v.literal('lobby'),
   v.literal('launched'),
-  v.literal('finished'),
+  v.literal('concluded'),
 );
 
 export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
+
+/** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
+export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
+
+/**
+ * The five kinds of movement of the design, plus the one the resolution creates on its own.
+ * `agent` and `decoy` wait for the fog surfaces; the union is the vocabulary, and narrowing it
+ * to what is coded would make every later kind a schema migration.
+ */
+export const MOVEMENT_TYPE = v.union(
+  v.literal('attack'),
+  v.literal('raid'),
+  v.literal('outpost'),
+  v.literal('agent'),
+  v.literal('decoy'),
+  v.literal('return'),
+);
+
+/** What an attack marches at: a region somebody else holds, or an outpost. A raid only ever
+ *  takes the second. */
+export const ATTACK_TARGET = v.union(
+  v.object({ kind: v.literal('region'), regionId: v.string() }),
+  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+);
+
+/** The same, plus the one nobody orders: a column on its way back to what it hangs from. */
+export const MOVEMENT_TARGET = v.union(ATTACK_TARGET, v.object({ kind: v.literal('home') }));
+
+export const COMBAT_SIDE = v.union(v.literal('attacker'), v.literal('defender'));
+
+export const TROOP_STATE = v.union(
+  v.literal('standing'),
+  v.literal('routed'),
+  v.literal('destroyed'),
+);
+
+/**
+ * A point on the globe, in degrees. Named fields rather than the `[lon, lat]` tuple the domain
+ * passes around: a two-number array is a shape a validator cannot keep in order, and the pair
+ * being the wrong way round is the one mistake nothing else would catch.
+ */
+export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
+
+/**
+ * One stretch of a route under a single medium. It travels with the movement because the map
+ * draws the thread from it — a polyline alone cannot say where the column embarks, and the
+ * dock is a third of what a combined trip costs (`src/domain/route-timing.ts`).
+ */
+export const ROUTE_LEG = v.object({
+  medium: v.union(v.literal('land'), v.literal('sea'), v.literal('air')),
+  distanceUnits: v.number(),
+});
 
 export const REST_WINDOW = v.object({
   startMinutes: v.number(),

@@ -31,7 +31,7 @@ type Props = {
   accentedMovement: string | null;
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
-  onOpenBuilding?: (buildingId: string) => void;
+  onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
@@ -41,6 +41,14 @@ type Props = {
   onCompassAction: (action: CompassAction, at: { x: number; y: number }) => void;
   /** The board wears the trowel while a construction panel is open. */
   building?: boolean;
+  /** A column is armed: the cursor becomes the aim and the right click names a march. */
+  aiming?: boolean;
+  /**
+   * What the camera is asked to fly to, by label id. The nonce is what makes a second request
+   * on the same target land: asking twice for the same building is an ordinary gesture, and an
+   * identity-compared prop would swallow the second one.
+   */
+  focus?: { readonly ids: ReadonlyArray<string>; readonly nonce: number } | null;
 };
 
 export function WorldMap({
@@ -61,6 +69,8 @@ export function WorldMap({
   compassOf,
   onCompassAction,
   building = false,
+  aiming = false,
+  focus = null,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
@@ -193,6 +203,15 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setBuilding(building);
   }, [readyEngine, building]);
+
+  useEffect(() => {
+    readyEngine?.setAiming(aiming);
+  }, [readyEngine, aiming]);
+
+  useEffect(() => {
+    if (focus === null) return;
+    readyEngine?.journeyTo(focus.ids);
+  }, [readyEngine, focus]);
 
   useEffect(() => {
     engine.current?.accentArc(accentedMovement);

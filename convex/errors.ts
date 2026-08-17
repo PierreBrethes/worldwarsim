@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'SEASON_GONE'
   | 'SEASON_NOT_LAUNCHED'
   | 'SEASON_ALREADY_LAUNCHED'
+  | 'SEASON_CONCLUDED'
   | 'UNKNOWN_GAME_CODE'
   | 'NO_FREE_GAME_CODE'
   | 'LOBBY_FULL'
@@ -28,11 +29,12 @@ export type ErrorCode =
   | 'CAPPED_BY_HQ'
   | 'UNKNOWN_REGION'
   | 'UNKNOWN_CAPITAL_REGION'
-  | 'REGION_NOT_HOME'
   | 'DEPOSIT_REQUIRED'
   | 'NOT_COASTAL'
   | 'REGION_TAKEN'
   | 'BUILDING_CAP_REACHED'
+  | 'BUILDING_LOCKED'
+  | 'ROLE_LOCKED'
   | 'MAX_LEVEL_REACHED'
   | 'HQ_ALREADY_BUILT'
   | 'UNKNOWN_BUILDING'
@@ -48,7 +50,20 @@ export type ErrorCode =
   | 'EMPTY_ORDER'
   | 'ORDER_ABOVE_RESERVE'
   | 'ORDER_RUNNING'
-  | 'NO_ORDER';
+  | 'NO_ORDER'
+  | 'OUT_OF_OUTPOST_REACH'
+  | 'MOVEMENT_IN_FLIGHT'
+  | 'NO_LAND_ROUTE'
+  | 'UNKNOWN_TROOP'
+  | 'TROOP_NOT_AT_ORIGIN'
+  | 'INFANTRY_ONLY'
+  | 'LAND_MOVEMENT_ONLY'
+  | 'UNKNOWN_OUTPOST'
+  | 'FRIENDLY_TARGET'
+  | 'EMPTY_MOVEMENT'
+  | 'REGION_TARGET_ONLY'
+  | 'OUTPOST_TARGET_ONLY'
+  | 'NOT_ORDERABLE';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };
 

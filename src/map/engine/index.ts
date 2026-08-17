@@ -63,6 +63,10 @@ export type MapRightClick = {
  */
 const TROWEL_CURSOR = 'url(/cursors/curseur-construire.png) 29 3, crosshair';
 
+/** The aim wears a plain crosshair: there is no drawn cursor for it, and inventing one here
+ *  would put a drawing decision in the engine. */
+const AIM_CURSOR = 'crosshair';
+
 /**
  * How long the orbit gets to settle before recomputing the overlap degradation of labels.
  * That computation measures the DOM; doing it while the camera turns would cost a layout
@@ -124,6 +128,7 @@ export class MapEngine {
   private gesture: Gesture | null = null;
   private spaceHeld = false;
   private building = false;
+  private aiming = false;
   private screenWidth = 1;
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -546,6 +551,7 @@ export class MapEngine {
     if (this.gesture?.panning === true) style.cursor = 'grabbing';
     else if (this.spaceHeld) style.cursor = 'grab';
     else if (this.building) style.cursor = TROWEL_CURSOR;
+    else if (this.aiming) style.cursor = AIM_CURSOR;
     else style.cursor = '';
   }
 
@@ -553,6 +559,13 @@ export class MapEngine {
   setBuilding(building: boolean): void {
     if (building === this.building) return;
     this.building = building;
+    this.refreshCursor();
+  }
+
+  /** The board is in aim: a column is armed and the next right click names its march. */
+  setAiming(aiming: boolean): void {
+    if (aiming === this.aiming) return;
+    this.aiming = aiming;
     this.refreshCursor();
   }
 

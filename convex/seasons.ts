@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { gameCode, playableRegion } from '../src/domain/off-season';
 import { RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
@@ -11,7 +11,9 @@ import {
   DEFAULT_REST_WINDOW,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
-  STARTING_STOCK,
+  SEASON_FORMATS,
+  formatOf,
+  startingStock,
 } from './constants';
 
 export async function playerByToken(ctx: QueryCtx, token: string) {
@@ -23,6 +25,25 @@ export async function playerByToken(ctx: QueryCtx, token: string) {
   const season = await ctx.db.get(player.seasonId);
   if (!season) fail('SEASON_GONE');
   return { player, season };
+}
+
+/**
+ * **What a season has to be for an order to be given on it.** A concluded season answers with a
+ * code of its own rather than "not launched": it *was* launched, somebody won it, and telling a
+ * player his season never started is the kind of message that sends him looking for a bug.
+ *
+ * It stays readable — the board and the journal serve a concluded season (`view.ts`), because
+ * the wipe is manual and one reads the game back before erasing it.
+ */
+export function requirePlayable(season: Doc<'seasons'>): void {
+  if (season.status === 'concluded') fail('SEASON_CONCLUDED');
+  requireStarted(season);
+}
+
+/** What a season has to be to be **looked at**. A concluded one passes: it is the game one
+ *  reads back before the wipe, and a board that shuts the moment it is won says nothing. */
+export function requireStarted(season: Doc<'seasons'>): void {
+  if (season.status === 'lobby') fail('SEASON_NOT_LAUNCHED');
 }
 
 export const create = mutation({
@@ -41,6 +62,8 @@ export const create = mutation({
       seed: Math.floor(Math.random() * 2 ** 31),
       playableRegion: null,
       launchedAt: null,
+      winnerId: null,
+      concludedAt: null,
     });
     const token = crypto.randomUUID();
     await ctx.db.insert('players', {
@@ -120,6 +143,8 @@ export const preview = query({
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
       .collect();
+    const winnerId = season.winnerId ?? null;
+    const winner = winnerId === null ? null : await ctx.db.get(winnerId);
     return {
       code: season.code,
       status: season.status,
@@ -130,6 +155,9 @@ export const preview = query({
       nickname: player.nickname,
       nation: player.nation,
       doctrine: player.doctrine,
+      /** Enough for the home screen to say who took the season without opening the board — the
+       *  only end screen the test victory gets, with the journal's headline. */
+      winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
     };
   },
 });
@@ -195,18 +223,24 @@ export const launch = mutation({
       playableRegion: playableRegion(present.length),
     });
     /**
-     * The starting kit, and **one building**: the headquarters, level 1, on the region of the
-     * 1940 capital (ADR 0015). Everything else is put up or does not exist — but the HQ caps
-     * every other building, so leaving it at zero made the first construction of a season
-     * forcibly the HQ, without a rule saying so and without the kit paying for it.
+     * The starting kit, and **one building**: the headquarters, on the region of the 1940
+     * capital (ADR 0015), at the level its format plants it. Everything else is put up or does
+     * not exist — but the HQ caps every other building, so leaving it at zero made the first
+     * construction of a season forcibly the HQ, without a rule saying so.
+     *
+     * The foundation of the format is **not** raised here: nothing is placed for the player.
+     * A launched season whose foundation is still owed is a normal state, and the free
+     * placements wait for him to choose his regions (`constructions.start`).
      */
+    const format = formatOf(season.durationHours);
+    const kit = startingStock(format);
     for (const entry of present) {
       if (!isNation(entry.nation)) fail('UNKNOWN_NATION', { nickname: entry.nickname });
       for (const key of RESOURCES) {
         await ctx.db.insert('resources', {
           playerId: entry._id,
           key,
-          stock: STARTING_STOCK[key],
+          stock: kit[key],
           updatedAt: now,
         });
       }
@@ -214,7 +248,7 @@ export const launch = mutation({
         playerId: entry._id,
         key: 'hq',
         regionId: capitalRegionOf(entry.nation),
-        level: 1,
+        level: SEASON_FORMATS[format].hqLevelAtLaunch,
       });
     }
   },

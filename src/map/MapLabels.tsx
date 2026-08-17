@@ -46,7 +46,8 @@ export function MapLabels({
   engine: MapEngine | null;
   onMovementHover: (id: string | null) => void;
   onSelect: (name: string | null) => void;
-  onOpenBuilding: (buildingId: string) => void;
+  /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
+  onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
@@ -226,11 +227,12 @@ export function MapLabels({
             onPointerLeave={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
             }}
-            onClick={() => {
+            onClick={(event) => {
               // A building's mast opens its surface and nothing else: opening a window *and*
               // moving the country selection would be two answers to one click.
-              if (label.buildingId !== null) onOpenBuilding(label.buildingId);
-              else if (label.hostCountry !== null) onSelect(label.hostCountry);
+              if (label.buildingId !== null) {
+                onOpenBuilding(label.buildingId, event.clientX, event.clientY);
+              } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onContextMenu={(event) => {
               event.preventDefault();

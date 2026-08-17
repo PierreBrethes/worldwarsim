@@ -14,12 +14,37 @@ npm run test     # vitest
 ## Ce qui existe
 
 Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
-journal d'événements, la colonne des mouvements en cours et l'envoi d'un mouvement. Les données
+journal d'événements, et **le flux de mouvement en carte** — widget de troupes, panneau de
+garnison, visée, rose des vents de mouvement, aperçu d'arc et envoi. Les données
 viennent **uniquement** du backend Convex, par le jeton de partie (accueil → salon → saison
 réelle, carte vierge) ; sans jeton, `/plateau` affiche « aucune partie en cours » et renvoie à
 l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le hors-saison et
-l'état de nation (ADR 0009, 0010) ; mouvements et combat n'existent pas encore : « envoyer » ne
-fait rien, le rejeu attend la surface 4.7.
+l'état de nation (ADR 0009, 0010). **Trois mouvements terrestres existent côté serveur**
+(`convex/movements.ts`) : la marche qui fonde un avant-poste, l'attaque et le raid — plus le
+**retour**, que personne n'ordonne et que la résolution crée seule. Pas de naval, pas d'aérien,
+pas d'agent ni de leurre.
+
+**Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
+(`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
+modificateurs dans `convex/constants.ts`). L'**interception** en route inverse l'initiative ; son
+rayon est un placeholder assumé et non simulé, le trou le plus béant du modèle (fiche 08 §11). Un
+raid gagné **désactive** l'avant-poste, jamais ne le prend. Chaque engagement laisse un **compte
+rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
+sur ce compte rendu, sans re-résoudre.
+
+**Le mouvement s'ordonne depuis la carte, et de nulle part ailleurs** (décisions 12a et 13a,
+`WWS/docs/design/propositions/flux-mouvement-en-carte.md`). La fenêtre Troupes, la modale
+« Envoi d'un mouvement » et le widget des trajets sont **supprimés**. À leur place : un **widget
+de troupes** repliable (`src/routes/-plateau/TroopsWidget.tsx`) à deux sections aux pouvoirs
+délibérément différents — *stationnaires* dirigeables, *en mouvement* observables et **sans
+aucun gestionnaire d'action** ; un **panneau de garnison** qui compose la pile (le clic sur le mât
+d'un bâtiment de projection et la carte du widget ouvrent le même, un seul état de sélection) ;
+puis la **visée** : clic droit sur la cible, rose des vents contextuelle, aperçu d'arc et
+confirmation « envoyer — irréversible » au bout de l'arc. Les types proposés par la rose et ceux
+que le serveur accepte sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien
+n'est grisé, jamais (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
+réelle et l'heure d'arrivée, seul le serveur date un mouvement. Le bloc « Renseignement » de la
+maquette n'est **pas** implémenté : aucun système de détection n'existe (question 14 du 18/08).
 
 **La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
@@ -32,8 +57,9 @@ oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/con
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.
 
-Les sprites d'unités sont rangés par nation dans `src/emblems/units/` — **seule la France
-est dessinée**, les sept autres tombent sur le repli en cadre pointillé. Sur la carte, le jalon
+Les sprites d'unités sont rangés par nation dans `src/emblems/units/` — **la France et les
+États-Unis sont dessinés** (les États-Unis sont la première planche complète : `cargo` compris),
+les six autres nations tombent sur le repli en cadre pointillé. Sur la carte, le jalon
 d'un mouvement `mien` porte le **véhicule du segment en cours** : le sprite du rôle majoritaire
 de la pile sur terre (billboard, lacet caméra seul), la coque en mer, le delta dans le ciel, et
 il change de costume au quai en affichant déjà celui du segment suivant. Un arc adverse garde la
@@ -60,9 +86,10 @@ obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif 
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
-canaux gravés (`SEA_GATES`). Rien ne l'appelle encore — c'est la surface 4.7 côté
-serveur qui le consommera ; le droit de passage terrestre par les pays neutres n'est pas
-tranché.
+canaux gravés (`SEA_GATES`). **Le serveur l'appelle** (`convex/routes.ts`, grille construite une
+fois par isolat depuis `world.json` : 1,33 M de cellules en 31 ms, un Dijkstra entre 13 et
+125 ms) — pour l'instant en mode terrestre seul ; le droit de passage par les pays neutres
+n'est toujours pas tranché.
 
 ## Architecture
 
@@ -70,7 +97,7 @@ tranché.
 src/domain/      TS pur. Aucune importation React ni Convex (sauf src/i18n/fr, ADR 0016). Testé.
 src/data/        adaptateur Convex vers PlayerView, jeton, réglages, client Convex.
 src/i18n/        table de traduction unique (fr.ts) — tout texte affiché au joueur.
-convex/          schéma + fonctions serveur (hors-saison, état de nation, production). Testé.
+convex/          schéma + fonctions serveur (hors-saison, nation, production, combat). Testé.
 src/emblems/     drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.
 deploiement/     docker compose (backend Convex auto-hébergé + front), guide VPS et CI.
 scripts/         générateurs de données cartographiques (monde.json, regions.json).
@@ -115,14 +142,30 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 
 ## Ce qui reste
 
-Les surfaces 4.5, 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
-grisées. Le reste du schéma de jeu (mouvements, combat, occupation, revenus) n'est pas écrit,
-délibérément : le dernier point bloquant du design (l'avantage d'isolement géographique) n'est pas
-tranché.
+Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
+grisées. La §4.5 de la fiche 11 est **périmée** : le flux de mouvement en carte l'a remplacée. Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
+dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
 
-**Le blocage le plus visible aujourd'hui** : l'acier ne vient que des avant-postes d'extraction,
-qui n'existent pas. Il démarre à 0 et rien ne le produit, or toute unité s'achète en acier — donc
-en saison réelle la file de production reste vide. `convex/units.test.ts` grave le constat.
+**L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
+`OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière ; la **destruction** après
+plusieurs raids attend le pillage, et rien ne les compte. Il ouvre un rayon de
+`OUTPOST_REACH_KM` autour de son point, où l'on bâtit comme chez soi (le puits en Arabie), et
+**héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient
+garnison, et cette garnison est ce qu'une attaque trouve debout.
+
+**La saison se gagne, par un échafaudage assumé.** Une seule condition, publique et nominative :
+la **Domination simplifiée** (`src/domain/victory.ts` pour la règle, `convex/victory.ts` pour le
+branchement, `REDUCTION_FACTOR` dans `convex/constants.ts`). Un joueur est *réduit* quand sa
+capacité tombe sous la moitié de son nominal ; le premier qui en tient `⌈(n−1)/2⌉` sous la barre
+**au moment où sa passe la leur fait franchir** prend la saison, qui passe en `concluded` — elle
+se relit, elle ne se joue plus, et le wipe reste manuel. **Réduit n'est pas éliminé** : la
+capacité se calcule depuis les troupes à l'instant, jamais stockée, donc un joueur qui reconstruit
+sort du compte de son bourreau. Ce module a vocation à être **remplacé** par les trois doctrines
+secrètes de la fiche 05, pas amendé — aucun champ n'y prépare une doctrine.
+
+**Ni terrain, ni tenaille, ni soin.** Le modificateur de terrain attend l'ADR qui autorise une
+règle à lire `RegionType` ; la tenaille attend une définition de la convergence ; une troupe
+entamée reste entamée — la boucle de soin attend la pharmacie et `consommation-continue.md`.
 
 Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque écran 4.x y est
 spécifié. L'oublier coûte une réécriture.

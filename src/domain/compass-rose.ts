@@ -1,5 +1,6 @@
 import { fr, nationLabel } from '@/i18n/fr';
 import { buildOptionsAt } from './construction';
+import { legalMovementTypes, type Column, type MovementAim } from './movement-orders';
 import { NATION_BY_COUNTRY } from './nations';
 import type { MovementType } from './ids';
 import type { PlayerView } from './player-view';
@@ -33,7 +34,14 @@ export type CompassTarget =
  * economy v2, the helmet the agent, the rifles the force sheet — and are declared here so
  * that when the day comes there is only wiring to write, never a drawing to find.
  */
-export type CompassPictogram = 'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles';
+export type CompassPictogram =
+  | 'cabin'
+  | 'crane'
+  | 'anchor'
+  | 'helmet'
+  | 'propeller'
+  | 'rifles'
+  | 'pennant';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -49,14 +57,19 @@ export type CompassAction =
       readonly consequence: string;
       readonly country: string;
     }
+  /**
+   * The aimed march. It only exists while a column is armed, and the fan then holds **exactly**
+   * the types the server will accept for this target — `legalMovementTypes` is the same
+   * function the mutations refuse with, not a copy of its table (ADR 0015).
+   */
   | {
-      readonly key: 'send';
+      readonly key: 'aim';
       readonly pictogram: CompassPictogram;
       readonly label: string;
       readonly cost: string | null;
       readonly consequence: string;
-      readonly destination: string | null;
-      readonly type: MovementType | null;
+      readonly aim: MovementAim;
+      readonly type: MovementType;
     }
   | {
       readonly key: 'build';
@@ -108,27 +121,28 @@ const viewCountry = (country: string): CompassAction => ({
   country,
 });
 
-const sendMovement = (destination: string | null, view: PlayerView): CompassAction => ({
-  key: 'send',
-  pictogram: 'propeller',
-  label: fr.compass.sendMovement,
-  cost: slotCost(view),
-  consequence:
-    destination === null
-      ? fr.compass.sendConsequenceBlank
-      : fr.compass.sendConsequenceTo(countryName(destination)),
-  destination,
-  type: null,
-});
+/**
+ * The pictogram plate of the aiming fan, taken from the mockup: the crossed rifles for the
+ * assault, the pennant for the raid, the cabin for a point planted. The three the game cannot
+ * order yet are here so the day they land there is a branch to fill, never a drawing to find.
+ */
+const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
+  attack: 'rifles',
+  raid: 'pennant',
+  outpost: 'cabin',
+  agent: 'helmet',
+  decoy: 'propeller',
+  return: 'anchor',
+};
 
-const foundOutpost = (destination: string, view: PlayerView): CompassAction => ({
-  key: 'send',
-  pictogram: 'anchor',
-  label: fr.compass.foundOutpost,
+const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassAction => ({
+  key: 'aim',
+  pictogram: AIM_PICTOGRAM[type],
+  label: fr.movementTypes[type],
   cost: slotCost(view),
-  consequence: fr.compass.foundConsequence(countryName(destination)),
-  destination,
-  type: 'outpost',
+  consequence: fr.compass.marchConsequence(fr.movementTypes[type]),
+  aim,
+  type,
 });
 
 /**
@@ -153,10 +167,37 @@ const buildOn = (target: Extract<CompassTarget, { kind: 'region' }>): CompassAct
 /**
  * A target's compass, or `null` when no action leads anywhere — the right click then stays
  * inert rather than opening an empty fan.
+ *
+ * `column` is what the player has armed from a garrison. Given, the board is **in aim** and the
+ * fan holds nothing but marches; the ordinary actions step aside, because a right click while
+ * aiming means "this one, and how" and nothing else.
  */
-export function compassOf(target: CompassTarget, view: PlayerView): Compass | null {
-  const compass = build(target, view);
-  return compass.actions.length === 0 ? null : compass;
+export function compassOf(
+  target: CompassTarget,
+  view: PlayerView,
+  column: Column | null = null,
+): Compass | null {
+  const compass = column === null ? build(target, view) : aim(target, view, column);
+  return compass === null || compass.actions.length === 0 ? null : compass;
+}
+
+/**
+ * The aiming fan. A **country** carries none: the server marches at a region or at an outpost,
+ * and a whole country is not a place one can walk to — beyond the regions' fade-in threshold
+ * the player has to come closer before he can aim.
+ */
+function aim(target: CompassTarget, view: PlayerView, column: Column): Compass | null {
+  if (target.kind !== 'region' && target.kind !== 'outpost') return null;
+  const aimed: MovementAim =
+    target.kind === 'region'
+      ? { kind: 'region', regionId: target.id, country: target.country }
+      : { kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry };
+
+  return {
+    kicker: fr.compass.aiming(column.roles.length),
+    name: target.name,
+    actions: legalMovementTypes(aimed, column).map((type) => march(type, aimed, view)),
+  };
 }
 
 function build(target: CompassTarget, view: PlayerView): Compass {
@@ -175,7 +216,6 @@ function build(target: CompassTarget, view: PlayerView): Compass {
     case 'country': {
       const allegiance = countryAllegiance(target.country, view);
       const held = view.me.outposts.some((outpost) => outpost.hostCountry === target.country);
-      const foundable = allegiance === 'neutral' && !held;
       return {
         kicker:
           allegiance === 'neutral'
@@ -186,10 +226,7 @@ function build(target: CompassTarget, view: PlayerView): Compass {
               ? fr.compass.myTerritory
               : fr.compass.enemyNation,
         name: countryName(target.country),
-        actions: [
-          ...(foundable ? [foundOutpost(target.country, view)] : []),
-          viewCountry(target.country),
-        ],
+        actions: [viewCountry(target.country)],
       };
     }
     case 'outpost':
@@ -198,16 +235,16 @@ function build(target: CompassTarget, view: PlayerView): Compass {
         name: target.name,
         actions: [viewCountry(target.hostCountry)],
       };
-    case 'force': {
-      const atHome = target.country !== null && countryAllegiance(target.country, view) === 'mine';
+    /**
+     * A column on the map is a movement in flight, and **a movement in flight takes no order**:
+     * the fan says where it is, never what to do with it. The irreversibility is the game's
+     * thesis, not an interface limitation (decision 13a).
+     */
+    case 'force':
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions: [
-          sendMovement(atHome ? null : target.country, view),
-          ...(target.country === null ? [] : [viewCountry(target.country)]),
-        ],
+        actions: target.country === null ? [] : [viewCountry(target.country)],
       };
-    }
   }
 }

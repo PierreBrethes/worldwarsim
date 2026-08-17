@@ -56,27 +56,45 @@ administratif — la carte se colore, le front avance, et le coût en données r
 
 | Spécialisation | Effet |
 |---|---|
-| **Relais logistique** | les convois passant dans son rayon accélèrent |
-| **Extraction** | produit de l'acier, débit fonction de la richesse du pays hôte |
+| **Relais logistique** | les mouvements passant dans son rayon accélèrent |
 | **Écoute** | révèle les arcs ennemis passant dans son rayon |
 
-Le relais logistique est le porteur des trois. C'est le seul qui interagit avec le cœur du jeu — le
+Le relais logistique est le porteur des deux. C'est le seul qui interagit avec le cœur du jeu — le
 temps de déplacement — et il crée immédiatement l'arbitrage central : est-ce que j'investis dans une
 armée, ou dans ma capacité à la projeter ?
+
+D'autres spécialisations viendront (une pharmacie de campagne a été évoquée) ; le type les accueille
+sans migration, c'est tout ce qu'on leur doit aujourd'hui.
+
+> **L'Extraction a disparu de cette liste (décision du 18/08).** Un avant-poste ne remplace aucun
+> bâtiment : ce qui extrait à l'étranger, ce sont les **vrais bâtiments de l'économie v2**
+> (ADR 0015), posés dans le rayon que l'avant-poste ouvre — comptés, plafonnés par le QG, et
+> pillables le jour où le pillage existe. L'avant-poste ouvre le terrain ; il ne produit rien.
+>
+> **Amendement signalé, non implémenté** : le score d'Hégémonie se compte aujourd'hui en
+> « avant-poste-heures d'extraction ». Il devra se recompter en **bâtiment-heures à l'étranger**.
+> Les doctrines ne sont pas codées — cet amendement attend qu'elles le soient (fiche 05).
+
+**Le rayon se mesure en kilomètres, jamais en nombre de régions** (`OUTPOST_REACH_KM`) : Natural
+Earth découpe le Royaume-Uni en 232 districts et l'Allemagne en 16 Länder, un rayon compté en
+régions ferait de la cartographie l'équilibreur du jeu. L'effet reste « quelques régions autour » ;
+leur nombre varie selon le pays, et c'est la géographie qui parle.
 
 ### Règles
 
 - **On peut stationner des troupes sur n'importe quelle spécialisation.** Réserver la garnison aux
-  relais rendait les extractions indéfendables, donc la doctrine Hégémonie annulable par n'importe
-  qui pour le prix d'un petit raid.
+  relais rendait les autres indéfendables, donc la doctrine Hégémonie annulable par n'importe qui
+  pour le prix d'un petit raid.
 - **Un raid désactive temporairement**, puis laisse une fenêtre d'immunité. Un avant-poste ne change
   jamais de propriétaire ; il peut être **détruit** après plusieurs raids, ce qui libère
   l'emplacement.
 - **La richesse des pays est tirée par la graine de saison.** Si le Golfe est toujours le Golfe, les
   trois meilleures cases sont connues avant le début, la première heure décide des 47 suivantes, et
   toutes les saisons se ressemblent.
-- **Rendement décroissant par joueur sur un même pays hôte.** Le 3ᵉ avant-poste rapporte nettement
-  moins que le 1ᵉʳ. Force l'étalement, donc l'exposition.
+- **Rendement décroissant par joueur sur un même pays hôte.** Force l'étalement, donc l'exposition.
+  Depuis la disparition de l'Extraction, la règle porte sur les **bâtiments** posés à l'étranger,
+  pas sur les avant-postes : le 3ᵉ puits en Arabie rapporte moins que le 1ᵉʳ. Non codée — elle
+  attend qu'un joueur ait plus d'un extracteur à l'étranger, sans quoi elle ne se mesure pas.
 
 ## Pays neutres (PNJ)
 

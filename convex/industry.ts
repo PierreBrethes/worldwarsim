@@ -4,7 +4,7 @@ import { playerBuildings, totalLevelOf } from './buildings';
 import { isCommanded } from './constants';
 import { fail } from './errors';
 import { maxOrderOf, settle } from './resources';
-import { playerByToken } from './seasons';
+import { playerByToken, requirePlayable } from './seasons';
 import { BUILDING_KEY } from './validators';
 
 /**
@@ -19,7 +19,7 @@ export const order = mutation({
   args: { token: v.string(), chain: BUILDING_KEY, quantity: v.number() },
   handler: async (ctx, { token, chain, quantity }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+    requirePlayable(season);
     if (!isCommanded(chain)) fail('CHAIN_NOT_COMMANDED', { chain });
 
     const buildings = await playerBuildings(ctx, player._id);
@@ -63,7 +63,7 @@ export const cancelOrder = mutation({
   args: { token: v.string(), chain: BUILDING_KEY },
   handler: async (ctx, { token, chain }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+    requirePlayable(season);
 
     const now = Date.now();
     const economy = await settle(ctx, player._id, now);

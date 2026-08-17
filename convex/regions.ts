@@ -1,3 +1,4 @@
+import type { LonLat } from '../src/domain/geo';
 import type { DepositKey, Nation } from '../src/domain/ids';
 import { ADM0_BY_NATION, isNation } from '../src/domain/nations';
 import depositsAsset from '../public/deposits.json';
@@ -6,9 +7,16 @@ import { fail } from './errors';
 
 /**
  * The map, as a rule reads it. Two baked assets and no geometry: `deposits.json` says what a
- * region holds, `region-index.json` names it and says which country it belongs to and whether
- * it touches the sea. `regions.json` itself never comes near the server — it weighs 2.5 MB of
- * polygons drawn for the screen, and no placement rule needs a polygon to refuse a port.
+ * region holds, `region-index.json` names it, says which country it belongs to, whether it
+ * touches the sea, and **where it stands** — one lon/lat point per region, the pole of
+ * inaccessibility of its largest ring. `regions.json` itself never comes near the server — it
+ * weighs 2.5 MB of polygons drawn for the screen, and no placement rule needs a polygon to
+ * refuse a port.
+ *
+ * The point is what makes a region a place rather than a name: an outpost's reach is measured
+ * in kilometres from it (ADR 0015), and a land movement leaves from the point of the region
+ * its barracks stands on. A region is still never a *unit of count* — the ban of ADR 0015
+ * stands, and it is the reason the reach is a radius and not a ring of neighbours.
  *
  * The name travels with the facts on purpose: the client would otherwise have to fetch those
  * 2.5 MB to write "Nord" next to a mine. A region name is a proper noun out of Natural Earth,
@@ -21,6 +29,7 @@ import { fail } from './errors';
 const NAME_OF_REGION = indexAsset.name as Readonly<Record<string, string | undefined>>;
 const COUNTRY_OF_REGION = indexAsset.country as Readonly<Record<string, string | undefined>>;
 const COASTAL = new Set<string>(indexAsset.coastal);
+const POINT_OF_REGION = indexAsset.point as unknown as Readonly<Record<string, LonLat | undefined>>;
 const DEPOSIT_OF_REGION = depositsAsset as Readonly<Record<string, DepositKey | undefined>>;
 
 export type RegionFacts = {
@@ -28,17 +37,25 @@ export type RegionFacts = {
   readonly name: string;
   readonly country: string;
   readonly coastal: boolean;
+  readonly point: LonLat;
   readonly deposit: DepositKey | null;
 };
 
+/**
+ * A region the index cannot place answers `null`, exactly like one it does not know: a rule
+ * that cannot measure a distance to it cannot decide anything about it either. The generator
+ * refuses to bake such a region, so this only fires on an asset left behind by a regeneration.
+ */
 export function regionFacts(regionId: string): RegionFacts | null {
   const country = COUNTRY_OF_REGION[regionId];
-  if (country === undefined) return null;
+  const point = POINT_OF_REGION[regionId];
+  if (country === undefined || point === undefined) return null;
   return {
     id: regionId,
     name: NAME_OF_REGION[regionId] ?? regionId,
     country,
     coastal: COASTAL.has(regionId),
+    point,
     deposit: DEPOSIT_OF_REGION[regionId] ?? null,
   };
 }

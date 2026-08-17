@@ -31,6 +31,8 @@ export type BuildOption = {
   readonly minutes: number;
   readonly reason: BuildReason | null;
   readonly hold: BuildHold | null;
+  /** Owed by the format's foundation: placed for nothing, standing at once. */
+  readonly free: boolean;
 };
 
 /** The region as placement reads it, plus what the player is: the two halves of the rule. */
@@ -44,6 +46,8 @@ export type Site = {
   readonly hqLevel: number;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
   readonly constructionRunning: boolean;
+  /** What the season still owes (`me.foundation`), served — never re-derived here. */
+  readonly foundation: ReadonlyArray<BuildingKey>;
 };
 
 /**
@@ -63,31 +67,52 @@ export function buildableOn(site: Site, catalog: Readonly<Record<BuildingKey, Bu
     // Nothing rises above the headquarters, and a level-1 building needs one standing.
     if (key === 'hq' ? site.hqLevel > 0 : site.hqLevel === 0) return [];
 
-    const byNature = placementRefusal(key, region, {
-      onRegion: site.standing,
-      standing: 0,
-      cap: Number.POSITIVE_INFINITY,
-    });
+    const spec = catalog[key];
+    /**
+     * The tier is **not** lifted with the circumstances: a key the headquarters does not open
+     * yet is not offered at all (ADR 0015 wants the panel contextual, never a wall of grey).
+     * What holds a line back today it says; what the season has not reached it does not draw.
+     */
+    const byNature = placementRefusal(
+      key,
+      region,
+      { onRegion: site.standing, standing: 0, cap: Number.POSITIVE_INFINITY, hqLevel: site.hqLevel },
+      spec.unlockedAtHqLevel,
+    );
     if (byNature !== null) return [];
 
-    const spec = catalog[key];
-    const asThingsStand = placementRefusal(key, region, {
-      onRegion: site.standing,
-      standing: site.standingCount,
-      cap: site.cap,
-    });
+    const asThingsStand = placementRefusal(
+      key,
+      region,
+      {
+        onRegion: site.standing,
+        standing: site.standingCount,
+        cap: site.cap,
+        hqLevel: site.hqLevel,
+      },
+      spec.unlockedAtHqLevel,
+    );
+
+    /**
+     * A key the foundation still owes is placed for nothing and stands at once — so it carries
+     * no bill and no delay, and matter can never hold it back. The ceiling still can: the
+     * foundation buys the price and the wait, never a place on the map.
+     */
+    const free = site.foundation.includes(key);
+    const cost = free ? {} : spec.cost;
 
     return [
       {
         key,
-        cost: spec.cost,
-        minutes: spec.minutes,
+        cost,
+        minutes: free ? 0 : spec.minutes,
         reason: reasonFor(key, site.deposit),
+        free,
         hold: site.constructionRunning
           ? 'constructionRunning'
           : asThingsStand === 'BUILDING_CAP_REACHED'
             ? 'buildingCap'
-            : affordable(spec.cost, site.stocks)
+            : free || affordable(cost, site.stocks)
               ? null
               : 'materials',
       } satisfies BuildOption,
@@ -129,6 +154,7 @@ export function siteOf(view: PlayerView, regionId: string, now: number): Site | 
     hqLevel: view.me.hqLevel,
     stocks,
     constructionRunning: view.me.construction !== null,
+    foundation: view.me.foundation,
   };
 }
 

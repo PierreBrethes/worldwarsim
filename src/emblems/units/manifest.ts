@@ -12,6 +12,17 @@ import infantry2 from './france/infantry-2.webp';
 import carrier from './france/carrier.webp';
 import airTransport from './france/airTransport.webp';
 import landTransport from './france/landTransport.webp';
+import usaArmor1 from './usa/armor-1.webp';
+import usaArmor2 from './usa/armor-2.webp';
+import usaBomber from './usa/bomber.webp';
+import usaFighter from './usa/fighter.webp';
+import usaEscort from './usa/escort.webp';
+import usaInfantry1 from './usa/infantry-1.webp';
+import usaInfantry2 from './usa/infantry-2.webp';
+import usaCargo from './usa/cargo.webp';
+import usaCarrier from './usa/carrier.webp';
+import usaAirTransport from './usa/airTransport.webp';
+import usaLandTransport from './usa/landTransport.webp';
 
 /**
  * A tiered role exposes both of its levels, the others structurally only have one. The union
@@ -40,8 +51,22 @@ const FRANCE: NationSprites = {
   carrier: { kind: 'single', url: carrier },
 };
 
+/** The first complete plate of the project: all nine roles, `cargo` included. */
+const USA: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [usaInfantry1, usaInfantry2] },
+  armor: { kind: 'tiered', tiers: [usaArmor1, usaArmor2] },
+  landTransport: { kind: 'single', url: usaLandTransport },
+  fighter: { kind: 'single', url: usaFighter },
+  bomber: { kind: 'single', url: usaBomber },
+  airTransport: { kind: 'single', url: usaAirTransport },
+  escort: { kind: 'single', url: usaEscort },
+  cargo: { kind: 'single', url: usaCargo },
+  carrier: { kind: 'single', url: usaCarrier },
+};
+
 export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>> = {
   france: FRANCE,
+  usa: USA,
 };
 
 /**

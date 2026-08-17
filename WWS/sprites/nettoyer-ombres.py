@@ -26,6 +26,25 @@ delà de trois pixels du sujet, invisibles sur fond sombre.
    0,97 ; faux positifs (cuves du `depot`, bardage du `warehouse`) 1 911 px au plus à
    `texture` 1,14 et au-delà. Les deux seuils passent entre les deux populations.
 
+3. *L'ombre de sol* — celle de la planche américaine, sous `--sol`. Le sujet y est posé sur un
+   plan de sol rendu, et l'ombre en garde la matière : opaque, large, aussi claire par endroits
+   que le sujet lui-même (valeur mesurée jusqu'à 0,46, contre le plafond de 0,42 du critère
+   précédent, qui la laisse donc en plaques). Ce qui la sépare, c'est la **chromaticité** : le
+   sol est gris-vert neutre, ses rapports `R/V` et `B/V` restent dans une fenêtre étroite
+   (0,80-0,955 et 0,78-1,00) qu'aucun matériau du sujet ne visite — l'olive du blindé a `R/V`
+   à 0,97, l'aluminium du B-17 est neutre à 1,00, la coque du destroyer sort par le bleu. La
+   fenêtre étroite sert de **graine** ; l'ombre entière se reprend ensuite par propagation dans
+   une fenêtre large, parce que sa frange s'éclaircit et se colore en s'estompant.
+
+   Deux effets de bord, tous deux mesurés sur cette planche :
+
+   - la frange d'alpha, elle, n'a plus de couleur du tout (`(0,1,0)` à l'extrême bord) : aucun
+     critère chromatique ne l'atteint, et elle laisse le **contour** de l'ombre dessiné sur le
+     papier. Elle se reprend à l'alpha seul, au voisinage de l'ombre ;
+   - une surface du sujet assez vaste, assez lisse et assez neutre passe la graine — la bâche
+     du GMC. Aucun seuil ne l'en sépare : la bâche *est* un aplat gris-vert. C'est le
+     `protections.json` du dossier source qui la met hors d'atteinte, planche par planche.
+
 **Le contrôle se fait sur fond clair, toujours** : `--controle` écrit la planche nettoyée
 composée sur le papier de la carte (`neutralLand`), le seul fond où une ombre se voit. Un
 changement de seuil sans ce contrôle est un pari.
@@ -34,6 +53,7 @@ Dépend de Pillow, NumPy et SciPy — outil de préparation d'assets, jamais lan
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -58,6 +78,25 @@ PENOMBRE = 6
 TEXTURE_PENOMBRE_MAX = 8.0
 POUSSIERE = 120
 ECART_MAX = 60
+
+# L'ombre de sol. La fenêtre étroite fait la graine, la large la propagation ; `VERT_MAX` écarte
+# les gris clairs du sujet, qui partagent la chromaticité du sol mais pas sa valeur.
+ROUGE_SUR_VERT = (0.80, 0.955)
+BLEU_SUR_VERT = (0.78, 1.00)
+VERT_MAX = 175
+ROUGE_SUR_VERT_LARGE = (0.74, 0.99)
+BLEU_SUR_VERT_LARGE = (0.72, 1.06)
+VERT_MAX_LARGE = 200
+TEXTURE_SOL_MAX = 2.5
+TEXTURE_SOL_LARGE_MAX = 6.0
+EROSION_GRAINE = 4
+AIRE_GRAINE = 1600
+AIRE_ECLAT = 600
+TEXTURE_MOYENNE_SOL_MAX = 1.2
+BAVURE = 2
+FRANGE = 14
+FRANGE_OPACITE = 245
+ILOT_MAX = 3000
 
 PAPIER = (0xD5, 0xC5, 0xA0)
 
@@ -126,6 +165,89 @@ def ombre_opaque(pixels: np.ndarray) -> np.ndarray:
     return ombre | penombre
 
 
+def ombre_de_sol(pixels: np.ndarray, protection: np.ndarray) -> np.ndarray:
+    canaux = pixels[..., :3].astype(float)
+    alpha = pixels[..., 3].astype(int)
+    rouge, vert, bleu = canaux[..., 0], canaux[..., 1], canaux[..., 2]
+    reference = np.maximum(vert, 1)
+    matiere = texture(canaux.mean(-1), alpha > 0)
+
+    def fenetre(rsv, bsv, vmax, tmax):
+        return (
+            (alpha > 0)
+            & (rouge / reference > rsv[0]) & (rouge / reference < rsv[1])
+            & (bleu / reference > bsv[0]) & (bleu / reference < bsv[1])
+            & (vert < vmax)
+            & (matiere < tmax)
+            & ~protection
+        )
+
+    etroite = fenetre(ROUGE_SUR_VERT, BLEU_SUR_VERT, VERT_MAX, TEXTURE_SOL_MAX)
+    large = fenetre(
+        ROUGE_SUR_VERT_LARGE, BLEU_SUR_VERT_LARGE, VERT_MAX_LARGE, TEXTURE_SOL_LARGE_MAX
+    )
+
+    # L'érosion casse les ponts d'un pixel entre l'ombre et le sujet qu'elle touche : sans elle,
+    # la région connexe emporte la chenille du blindé et sa texture moyenne fait rejeter le tout.
+    noyau = ndimage.binary_erosion(etroite, iterations=EROSION_GRAINE)
+    regions, nombre = ndimage.label(noyau)
+    candidates = [
+        regions == indice
+        for indice in range(1, nombre + 1)
+        if matiere[regions == indice].mean() < TEXTURE_MOYENNE_SOL_MAX
+    ]
+
+    # Une planche a une ombre de sol ou n'en a pas : le sujet est posé au sol ou il vole. Tant
+    # qu'aucune plaque n'est assez vaste pour le prouver, rien ne part — c'est ce qui protège le
+    # destroyer, dont cinq aplats de coque (622 à 1 484 px) passeraient sinon pour de l'ombre.
+    # La preuve faite, les éclats comptent aussi : le B-17 découpe son ombre en une dizaine de
+    # morceaux dont deux seulement atteignent le seuil de preuve.
+    prouvee = any(region.sum() >= AIRE_GRAINE for region in candidates)
+    seuil = AIRE_ECLAT if prouvee else AIRE_GRAINE
+    graines = np.zeros_like(noyau)
+    for region in candidates:
+        if region.sum() >= seuil:
+            graines |= region
+
+    ombre = ndimage.binary_propagation(graines, mask=etroite)
+    ombre = ndimage.binary_propagation(ombre, mask=large)
+    ombre = ndimage.binary_dilation(ombre, iterations=BAVURE) & (alpha > 0) & ~protection
+
+    frange = (
+        ndimage.binary_dilation(ombre, iterations=FRANGE)
+        & (alpha > 0)
+        & (alpha < FRANGE_OPACITE)
+        & ~protection
+    )
+    ombre |= frange
+
+    # Ce que l'ombre laisse derrière elle, ce sont des îlots — la frange extérieure des plaques
+    # que le sujet a découpées. `isolats` ne les voit pas : plus gros que sa poussière, plus
+    # près du sujet que son écart. Et la couleur ne les rattrape pas non plus, c'est justement
+    # ce qui les a fait survivre — une frange d'alpha n'a plus de chromaticité (mesuré : 0,20 à
+    # 0,55 de pixels dans la fenêtre, contre 0,64 pour l'avion). Sur une planche posée au sol,
+    # ce qui se détache du sujet et reste petit est du sol : c'est l'aire qui tranche.
+    reste = (alpha > 0) & ~ombre
+    regions, nombre = ndimage.label(reste)
+    if nombre > 1:
+        aires = ndimage.sum(reste, regions, range(1, nombre + 1))
+        sujet = int(np.argmax(aires)) + 1
+        for indice in range(1, nombre + 1):
+            if indice == sujet or aires[indice - 1] >= ILOT_MAX:
+                continue
+            ilot = regions == indice
+            if not protection[ilot].any():
+                ombre |= ilot
+    return ombre
+
+
+def zone_protegee(forme: tuple[int, int], rectangles: list[list[int]]) -> np.ndarray:
+    protection = np.zeros(forme, dtype=bool)
+    for x0, y0, x1, y1 in rectangles:
+        protection[y0:y1, x0:x1] = True
+    return protection
+
+
 def isolats(alpha: np.ndarray) -> np.ndarray:
     """Ce qui reste après les deux retraits et n'est pas le sujet.
 
@@ -150,13 +272,22 @@ def isolats(alpha: np.ndarray) -> np.ndarray:
     return np.isin(regions, perdus) if perdus else np.zeros_like(presence)
 
 
-def nettoyer(image: Image.Image) -> tuple[Image.Image, int, int]:
+def nettoyer(
+    image: Image.Image, sol: bool, protections: list[list[int]]
+) -> tuple[Image.Image, int, int]:
     pixels = np.array(image.convert("RGBA"))
-    diffuse = ombre_semi_transparente(pixels)
-    portee = ombre_opaque(pixels)
-    pixels[..., 3] = np.where(diffuse | portee, 0, pixels[..., 3])
+    if sol:
+        protegee = zone_protegee(pixels.shape[:2], protections)
+        retire = ombre_de_sol(pixels, protegee)
+        diffuse, portee = 0, int(retire.sum())
+    else:
+        diffus = ombre_semi_transparente(pixels)
+        opaque = ombre_opaque(pixels)
+        retire = diffus | opaque
+        diffuse, portee = int(diffus.sum()), int(opaque.sum())
+    pixels[..., 3] = np.where(retire, 0, pixels[..., 3])
     pixels[..., 3] = np.where(isolats(pixels[..., 3]), 0, pixels[..., 3])
-    return Image.fromarray(pixels), int(diffuse.sum()), int(portee.sum())
+    return Image.fromarray(pixels), diffuse, portee
 
 
 def sur_papier(image: Image.Image) -> Image.Image:
@@ -164,20 +295,26 @@ def sur_papier(image: Image.Image) -> Image.Image:
     return Image.alpha_composite(fond, image.convert("RGBA")).convert("RGB")
 
 
-def traiter(source: Path, destination: Path, controle: Path | None) -> None:
+def traiter(source: Path, destination: Path, controle: Path | None, sol: bool) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     if controle is not None:
         controle.mkdir(parents=True, exist_ok=True)
+    table = source / "protections.json"
+    protections = json.loads(table.read_text(encoding="utf-8")) if table.exists() else {}
     for fichier in sorted(source.glob("*.png")):
-        nettoye, diffuse, portee = nettoyer(Image.open(fichier))
+        nettoye, diffuse, portee = nettoyer(
+            Image.open(fichier), sol, protections.get(fichier.stem, [])
+        )
         cible = destination / fichier.name
         nettoye.save(cible)
         if controle is not None:
             sur_papier(nettoye).save(controle / fichier.name)
-        print(
-            f"{fichier.name:22} {diffuse:>7} px diffus + {portee:>7} px opaques retirés"
-            f" → {cible.name}"
+        compte = (
+            f"{portee:>7} px de sol retirés"
+            if sol
+            else f"{diffuse:>7} px diffus + {portee:>7} px opaques retirés"
         )
+        print(f"{fichier.name:26} {compte} → {cible.name}")
 
 
 if __name__ == "__main__":
@@ -186,5 +323,10 @@ if __name__ == "__main__":
     analyseur.add_argument("--source", type=Path, required=True)
     analyseur.add_argument("--destination", type=Path, required=True)
     analyseur.add_argument("--controle", type=Path, default=None)
+    analyseur.add_argument(
+        "--sol",
+        action="store_true",
+        help="ombre de plan de sol, séparée à la chromaticité — la planche américaine",
+    )
     arguments = analyseur.parse_args()
-    traiter(arguments.source, arguments.destination, arguments.controle)
+    traiter(arguments.source, arguments.destination, arguments.controle, arguments.sol)

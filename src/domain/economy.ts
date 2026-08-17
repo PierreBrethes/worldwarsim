@@ -28,6 +28,7 @@ export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean 
 export type PlacementRefusal =
   | 'REGION_TAKEN'
   | 'BUILDING_CAP_REACHED'
+  | 'BUILDING_LOCKED'
   | 'DEPOSIT_REQUIRED'
   | 'NOT_COASTAL';
 
@@ -41,21 +42,32 @@ export type Holdings = {
   readonly onRegion: BuildingKey | null;
   readonly standing: number;
   readonly cap: number;
+  /** What the headquarters stands at, which is what opens the catalogue by tier. */
+  readonly hqLevel: number;
 };
 
 /**
  * Refusals are ordered from the most local to the most general, because that is the order in
  * which they are actionable: a taken region names another region to aim at, a reached ceiling
  * names the headquarters to raise.
+ *
+ * `unlockedAtHqLevel` comes in as a number rather than being read from a table here: the tiers
+ * are balance figures and live with the other ones (`convex/constants.ts`, `UNLOCKED_AT`),
+ * which the pure domain may not import. The server passes the table's entry, the screen passes
+ * the one served in its catalogue — one value, one place it is decided.
  */
 export function placementRefusal(
   key: BuildingKey,
   region: { readonly deposit: DepositKey | null; readonly coastal: boolean },
   holdings: Holdings,
+  unlockedAtHqLevel: number,
 ): PlacementRefusal | null {
   const raising = holdings.onRegion === key;
   if (holdings.onRegion !== null && !raising) return 'REGION_TAKEN';
   if (!raising && holdings.standing >= holdings.cap) return 'BUILDING_CAP_REACHED';
+  // The headquarters gates every other key and never itself: at level 0 it is what the player
+  // is missing, not what he is refused, and a season plants it anyway (ADR 0015).
+  if (key !== 'hq' && holdings.hqLevel < unlockedAtHqLevel) return 'BUILDING_LOCKED';
   if (EXPLOITED_DEPOSITS[key] && !exploits(key, region.deposit)) return 'DEPOSIT_REQUIRED';
   if (key === 'port' && !region.coastal) return 'NOT_COASTAL';
   return null;
@@ -178,6 +190,37 @@ export function settleStocks(settlement: {
 }
 
 /**
+ * **The other half of the ceiling** (ADR 0017). A ceiling bounds what comes in and never what
+ * is held — that is `settleStocks` above. So a stock standing above its ceiling has to come
+ * down somewhere, and the decision is that it comes down **when the capacity does**: what no
+ * longer fits is lost once, at that instant, and never again by a later reading.
+ *
+ * It is an event, not a rule, and that is why it is a function of its own rather than a clause
+ * inside the settlement: a settlement runs on every read, and this must run on exactly one.
+ *
+ * **Nothing calls it yet, on purpose.** No building is destroyed, dismantled or lowered today;
+ * the real caller comes with pillage, where an emptied warehouse must cost its owner something
+ * (fiche 02). It is written and tested before that, because the sense of the ceiling itself was
+ * once decided in passing in the middle of another subject, and that cost a silent confiscation.
+ *
+ * `lost` carries every resource, zeros included, so that a caller reading it never has to ask
+ * whether a missing key means nothing lost or nothing known — the player's journal is what will
+ * name the ones that are not zero.
+ */
+export function clipToCapacity(
+  stocks: Stocks,
+  cap: Stocks,
+): { stocks: Record<ResourceKey, number>; lost: Record<ResourceKey, number> } {
+  const kept = emptyStocks();
+  const lost = emptyStocks();
+  for (const key of RESOURCES) {
+    kept[key] = Math.min(stocks[key], cap[key]);
+    lost[key] = Math.max(0, stocks[key] - cap[key]);
+  }
+  return { stocks: kept, lost };
+}
+
+/**
  * What the chains **after** each one take out of its output, over the window. Only later ones:
  * `CHAINS` is ordered upstream first, so what a chain feeds is always behind it.
  */
@@ -225,8 +268,20 @@ function integrate(
    */
   const passed = emptyStocks();
   const settled = emptyStocks();
+  /**
+   * **A ceiling bounds what comes in, never what is already held.** The starting kit of a
+   * format hands out more alloy than a nation without a warehouse can store (ADR 0015 wants
+   * the store necessary, hence a target); clipping the opening stock would confiscate the
+   * difference between the launch and the moment the player places that warehouse — silently,
+   * which is exactly the defect the foundation exists to kill.
+   *
+   * So the bar is `max(cap, opening stock)`: nothing can *rise* past the ceiling, and a stock
+   * that starts above it stays there until it is spent. It comes back under the ceiling on its
+   * own, since every window opens on what the last one left.
+   */
+  const held = (key: ResourceKey) => Math.max(cap[key], stocks[key]);
   const store = (key: ResourceKey) => {
-    settled[key] = Math.max(0, Math.min(cap[key], passed[key]));
+    settled[key] = Math.max(0, Math.min(held(key), passed[key]));
   };
   for (const key of RESOURCES) {
     passed[key] = stocks[key] + ratePerHour[key] * elapsed;

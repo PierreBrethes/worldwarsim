@@ -3,6 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from '../src/domain/ids';
 import {
   EXPLOITED_DEPOSITS,
+  clipToCapacity,
   emptyStocks,
   exploits,
   settleStocks,
@@ -295,6 +296,35 @@ export async function settle(
 }
 
 /**
+ * **The single door to the clipping of ADR 0017**, and it must stay single: two mutations
+ * clipping on their own are two chances to disagree about when a stock is lost, and this
+ * repository has already paid for that once.
+ *
+ * It is called **after** the storage has gone — the ceiling is read off the buildings as they
+ * stand, so a warehouse still in the table is a warehouse still holding. The order is the whole
+ * contract: remove, then clip.
+ *
+ * The player is settled to `now` first, at his old shape, so that the hours he did hold the
+ * store are his; only what is left over the new ceiling is taken, once. Returns what was lost,
+ * for the journal entry the pillage will owe him — nothing here writes it, since nothing here
+ * knows why the store fell.
+ *
+ * **No caller today**, deliberately: nothing destroys or lowers a building yet. See the
+ * function it leans on, `clipToCapacity`.
+ */
+export async function clipToStorage(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<Record<ResourceKey, number>> {
+  const economy = await settle(ctx, playerId, now);
+  const { stocks, lost } = clipToCapacity(economy.stocks, economy.cap);
+  if (RESOURCES.every((key) => lost[key] === 0)) return lost;
+  await writeStocks(ctx, economy, stocks, now);
+  return lost;
+}
+
+/**
  * Every cost is checked before any is debited: a partial spend would leave a player short of
  * coal without having received anything, and nothing here knows how to roll back.
  */
@@ -321,8 +351,14 @@ export async function debit(
   await writeStocks(ctx, economy, remaining, now);
 }
 
-/** The refund of a cancelled batch. It respects the ceiling: returning alloy above what the
- *  warehouses hold would make it vanish at the next reading, better to clip it right away. */
+/**
+ * The refund of a cancelled batch, whole. It used to be clipped to the ceiling, because a
+ * stock above it vanished at the next reading; the ceiling now bounds what *comes in* rather
+ * than what is held (`settleStocks`), so clipping here would be the one place that still
+ * confiscates — and it would confiscate exactly what the player had already paid.
+ *
+ * A refund cannot lift anyone above where he was: it hands back what a debit took.
+ */
 export async function credit(
   ctx: MutationCtx,
   playerId: Id<'players'>,
@@ -332,7 +368,7 @@ export async function credit(
   const economy = await economyOf(ctx, playerId, now);
   const stocks = { ...economy.stocks };
   for (const [key, gain] of Object.entries(gains) as ReadonlyArray<[ResourceKey, number]>) {
-    stocks[key] = Math.min(economy.cap[key], stocks[key] + gain);
+    stocks[key] += gain;
   }
   await writeStocks(ctx, economy, stocks, now);
 }

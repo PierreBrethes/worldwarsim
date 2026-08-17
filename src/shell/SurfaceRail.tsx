@@ -40,13 +40,6 @@ export function SurfaceRail({
     active: boolean;
   }> = [
     {
-      title: fr.rail.troops.title,
-      label: fr.rail.troops.label,
-      icon: <Pictogram pictogram="troops" weight={20} size={19} />,
-      target: toggled('troops'),
-      active: windowOpen(search, 'troops'),
-    },
-    {
       title: fr.rail.production.title,
       label: fr.rail.production.label,
       icon: <Pictogram pictogram="production" weight={20} size={19} />,

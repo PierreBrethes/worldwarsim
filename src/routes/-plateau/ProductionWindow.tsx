@@ -202,6 +202,7 @@ function Workshop({
                         owned={workshop.roster.filter((row) => row.role === entry.role)}
                         tier2Unlocked={workshop.tier2Unlocked}
                         requiredLevel={workshop.requiredHqLevel}
+                        hqLevel={workshop.hqLevel}
                         site={site}
                         onEnqueue={() => site && enqueue(entry.role, site.id)}
                       />
@@ -339,6 +340,7 @@ function RoleRow({
   owned,
   tier2Unlocked,
   requiredLevel,
+  hqLevel,
   site,
   onEnqueue,
 }: {
@@ -349,10 +351,13 @@ function RoleRow({
   owned: ReadonlyArray<{ tier: number; count: number }>;
   tier2Unlocked: boolean;
   requiredLevel: number;
+  hqLevel: number;
   site: Facility | null;
   onEnqueue: () => void;
 }) {
   const { role, tiers } = entry;
+  // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
+  const roleLocked = hqLevel < (entry.unlockedAtHqLevel ?? 0);
   const cost = tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit;
   const sheet = fr.unitSheets[role];
   const equipment = equipmentLabel(nation, role, tier);
@@ -397,6 +402,11 @@ function RoleRow({
             {roleLabel(role, 1)}
           </span>
           {equipment && <span className="text-[12px] text-[var(--ink-soft)]">— {equipment}</span>}
+          {roleLocked && (
+            <span className="text-[11.5px] text-[var(--critical)]">
+              {fr.production.roleLocked(entry.unlockedAtHqLevel)}
+            </span>
+          )}
           <span className="ml-auto font-[var(--font-mono)] text-[14px] text-[var(--ink)]">
             {total}
           </span>
@@ -435,12 +445,14 @@ function RoleRow({
 
       <button
         type="button"
-        disabled={site === null}
+        disabled={site === null || roleLocked}
         onClick={onEnqueue}
         title={
-          site === null
-            ? fr.production.noSite(fr.buildings[entry.producedBy])
-            : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
+          roleLocked
+            ? fr.production.roleLocked(entry.unlockedAtHqLevel)
+            : site === null
+              ? fr.production.noSite(fr.buildings[entry.producedBy])
+              : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
         }
         className="shrink-0 cursor-pointer self-center border border-[var(--ink)] px-[11px] py-[6px] text-[10px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-30"
       >

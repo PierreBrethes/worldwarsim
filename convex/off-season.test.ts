@@ -1,11 +1,14 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
-import { STARTING_STOCK, buildCost } from './constants';
+import { SEASON_FORMATS, buildCost, startingStock } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
+
+/** Every test here launches a 48-hour season: the skirmish kit is the one it hands out. */
+const KIT = startingStock('skirmish');
 
 /** Moselle: French, inland, and a coal deposit — enough to build anything the tests raise. */
 const MOSELLE = 'FRA-5328';
@@ -117,12 +120,15 @@ describe('launching', () => {
     await t.mutation(api.seasons.launch, { token: creator });
     const view = await t.query(api.view.playerView, { token: creator });
     expect(view.me.nation).toBe('france');
-    expect(view.me.resources.alloy.stock).toBe(STARTING_STOCK.alloy);
-    // One building and one only: the headquarters on the capital (ADR 0015).
+    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    // One building and one only: the headquarters on the capital (ADR 0015), at the level the
+    // format plants it — the foundation is owed, never raised for the player.
+    const hqLevel = SEASON_FORMATS.skirmish.hqLevelAtLaunch;
     expect(view.me.buildings).toEqual([
-      expect.objectContaining({ key: 'hq', regionId: PARIS, level: 1 }),
+      expect.objectContaining({ key: 'hq', regionId: PARIS, level: hqLevel }),
     ]);
-    expect(view.me.slots).toEqual({ total: 2, used: 0 });
+    expect(view.me.foundation).toEqual(SEASON_FORMATS.skirmish.foundation);
+    expect(view.me.slots).toEqual({ total: 1 + hqLevel, used: 0 });
     // The home regions that carry a deposit, and only those.
     expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
     expect(view.season.playableRegion).toBe('europe');
@@ -144,7 +150,7 @@ describe('lazy accrual', () => {
     await t.mutation(api.seasons.launch, { token: creator });
     vi.advanceTimersByTime(2 * 3_600_000);
     const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.resources.food.stock).toBe(STARTING_STOCK.food);
+    expect(view.me.resources.food.stock).toBe(KIT.food);
     expect(view.me.resources.food.ratePerHour).toBe(0);
   });
 });
@@ -153,7 +159,40 @@ describe('constructions', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  /** The billets, not the mine: the mine belongs to the foundation, and what a foundation
+   *  placement costs and waits is nothing at all. */
   it('debits the materials, raises the building in time, one construction at a time', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    const opening = await t.query(api.view.playerView, { token: creator });
+    await t.mutation(api.constructions.start, {
+      token: creator,
+      building: 'billets',
+      regionId: MOSELLE,
+    });
+    await expect(
+      t.mutation(api.constructions.start, { token: creator, building: 'hq', regionId: PARIS }),
+    ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
+
+    const before = await t.query(api.view.playerView, { token: creator });
+    expect(before.me.construction?.name).toBe('billets');
+    expect(before.me.resources.alloy.stock).toBe(
+      opening.me.resources.alloy.stock - (buildCost('billets', 1).alloy ?? 0),
+    );
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const after = await t.query(api.view.playerView, { token: creator });
+    expect(after.me.construction).toBeNull();
+    expect(after.me.buildings).toContainEqual(
+      expect.objectContaining({ key: 'billets', regionId: MOSELLE, level: 1 }),
+    );
+  });
+
+  /** A key the season still owes is placed for nothing and stands at once — no bill, no
+   *  construction to wait on, and the region is still the player's to choose. */
+  it('places a foundation building for nothing, standing at once', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
@@ -164,36 +203,34 @@ describe('constructions', () => {
       building: 'mine',
       regionId: MOSELLE,
     });
-    await expect(
-      t.mutation(api.constructions.start, { token: creator, building: 'hq', regionId: PARIS }),
-    ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
 
-    const before = await t.query(api.view.playerView, { token: creator });
-    expect(before.me.construction?.name).toBe('mine');
-    expect(before.me.resources.alloy.stock).toBe(
-      opening.me.resources.alloy.stock - (buildCost('mine', 1).alloy ?? 0),
-    );
-
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
     const after = await t.query(api.view.playerView, { token: creator });
     expect(after.me.construction).toBeNull();
     expect(after.me.buildings).toContainEqual(
       expect.objectContaining({ key: 'mine', regionId: MOSELLE, level: 1 }),
     );
+    expect(after.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
+    // One mine of the two the foundation owes is settled; the rest is still owed.
+    expect(after.me.foundation).toEqual(
+      SEASON_FORMATS.skirmish.foundation.filter((_, rank) => rank !== 0),
+    );
   });
 
   /** Nothing rises above the headquarters. The rule used to make the HQ the first building of
-   *  a season; now that it stands from the launch, what it governs is the second level. */
+   *  a season; now that it stands from the launch, what it governs is how high the rest goes —
+   *  in skirmish, the level of the headquarters the format plants, and not one more. */
   it('refuses to raise a building above the headquarters', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
-    await t.mutation(api.constructions.start, {
-      token: creator,
-      building: 'mine',
-      regionId: MOSELLE,
-    });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    for (let level = 1; level <= SEASON_FORMATS.skirmish.hqLevelAtLaunch; level += 1) {
+      await t.mutation(api.constructions.start, {
+        token: creator,
+        building: 'mine',
+        regionId: MOSELLE,
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    }
     await expect(
       t.mutation(api.constructions.start, { token: creator, building: 'mine', regionId: MOSELLE }),
     ).rejects.toThrow('CAPPED_BY_HQ');

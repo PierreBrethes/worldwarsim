@@ -3,8 +3,9 @@ import { buildableOn, upgradeHold, type Site } from './construction';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
 import type { Building, BuildSpec, PlayerView } from './player-view';
 
+/** Everything open at a headquarters of 1: the tier is under test on its own, below. */
 const CATALOG = Object.fromEntries(
-  BUILDINGS.map((key) => [key, { cost: { alloy: 20 }, minutes: 30 }]),
+  BUILDINGS.map((key) => [key, { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: 1 }]),
 ) as Record<BuildingKey, BuildSpec>;
 
 const RICH = Object.fromEntries(RESOURCES.map((key) => [key, 1000])) as Record<ResourceKey, number>;
@@ -19,6 +20,7 @@ const site = (overrides: Partial<Site> = {}): Site => ({
   hqLevel: 1,
   stocks: RICH,
   constructionRunning: false,
+  foundation: [],
   ...overrides,
 });
 
@@ -44,6 +46,24 @@ describe('what a region can carry', () => {
 
   it('offers nothing but the headquarters when none stands', () => {
     expect(keysOn({ hqLevel: 0 })).toEqual(['hq']);
+  });
+
+  /**
+   * A key the headquarters has not reached is **not drawn**, never drawn grey: the panel is
+   * contextual (ADR 0015), and a line that can only be refused teaches nothing about the ground
+   * it sits on. What holds a line back today it still says — that is `hold`, not this.
+   */
+  it('does not offer a key the headquarters has not opened yet', () => {
+    const gated: Record<BuildingKey, BuildSpec> = {
+      ...CATALOG,
+      airfield: { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: 3 },
+    };
+    expect(buildableOn(site({ hqLevel: 2 }), gated).map((option) => option.key)).not.toContain(
+      'airfield',
+    );
+    expect(buildableOn(site({ hqLevel: 3 }), gated).map((option) => option.key)).toContain(
+      'airfield',
+    );
   });
 
   it('offers nothing at all on a region already taken — one building per region', () => {
@@ -76,7 +96,7 @@ describe('what merely holds a line back', () => {
   it('holds only what the stocks cannot pay for', () => {
     const cheap: Record<BuildingKey, BuildSpec> = {
       ...CATALOG,
-      barracks: { cost: { alloy: 5 }, minutes: 10 },
+      barracks: { cost: { alloy: 5 }, minutes: 10, unlockedAtHqLevel: 1 },
     };
     const options = buildableOn(site({ stocks: { ...BROKE, alloy: 5 } }), cheap);
     expect(options.find((option) => option.key === 'barracks')?.hold).toBeNull();

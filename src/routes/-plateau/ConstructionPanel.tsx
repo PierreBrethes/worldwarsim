@@ -8,7 +8,7 @@ import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { followDrag, onControl, scaleOf, type Grab } from './dragging';
 import { buildableOn, siteOf, type BuildOption, type BuildReason } from '@/domain/construction';
 import { asHoursMinutes } from '@/domain/duration';
-import { RESOURCES } from '@/domain/ids';
+import { RESOURCES, type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -167,6 +167,8 @@ export function ConstructionPanel({
           {fr.construction.budget(view.me.buildings.length, view.me.buildingCap)}
         </p>
 
+        <FoundationNotice owed={view.me.foundation} />
+
         <HeldNotice view={view} options={options} now={now} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
@@ -198,6 +200,28 @@ export function ConstructionPanel({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * What the season still owes. It stands above the blocking reason on purpose: a player who has
+ * five free placements in hand is not held back by anything, and reading "matières
+ * insuffisantes" first would send him counting his alloy for buildings he is not paying for.
+ */
+function FoundationNotice({ owed }: { owed: ReadonlyArray<BuildingKey> }) {
+  if (owed.length === 0) return null;
+  const counted = [...new Set(owed)].map(
+    (key) => [key, owed.filter((held) => held === key).length] as const,
+  );
+
+  return (
+    <p className="mt-2 shrink-0 border border-[var(--ink)] px-2 py-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
+      {fr.construction.foundationNotice(
+        counted
+          .map(([key, count]) => fr.construction.foundationCount(fr.buildings[key], count))
+          .join(', '),
+      )}
+    </p>
   );
 }
 
@@ -256,9 +280,15 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
         )}
       </span>
       <span className="shrink-0 text-right">
-        <CostLine cost={option.cost} lacking={option.hold === 'materials'} />
+        {option.free ? (
+          <span className="block font-[var(--font-mono)] text-[12px] tracking-[.08em] text-[var(--ink)] uppercase">
+            {fr.construction.free}
+          </span>
+        ) : (
+          <CostLine cost={option.cost} lacking={option.hold === 'materials'} />
+        )}
         <span className="block font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
-          {asHoursMinutes(option.minutes)}
+          {option.free ? fr.construction.immediate : asHoursMinutes(option.minutes)}
         </span>
       </span>
     </button>

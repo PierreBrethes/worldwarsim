@@ -29,10 +29,12 @@ personnel.
 | Direction artistique | **validée en prototype**, typographie à faire |
 | Brief UI | **prêt à transmettre** |
 | Surfaces 4.1 à 4.4 | **implémentées sur Convex**, `src/` à la racine du dépôt ; le fixture de démonstration a été retiré |
+| Flux de mouvement en carte | **implémenté** (décisions 12a et 13a) : widget de troupes, panneau de garnison, visée, rose de mouvement, aperçu d'arc, envoi. La fenêtre Troupes, la modale d'envoi et le widget des trajets sont supprimés. Bloc « Renseignement » non implémenté — question 14 encore ouverte |
 | Surface 4.6 — Production | **implémentée sur Convex** : file de recrutement, annulation remboursée, paliers MK1/MK2 |
-| Sprites d'unités | **France dessinée** (10 WebP, 240 Ko) ; sept nations à générer — pipeline dans `sprites/README.md` |
-| Schéma de données | hors-saison et état de nation (ADR 0010) ; **première tranche du schéma de jeu écrite** (`unites`, `recrutements`) |
-| Code de jeu serveur | accueil/salon/lancement, ressources **et production** servis par Convex ; mouvements et combat : rien |
+| Sprites d'unités | **France** (10 WebP, 240 Ko) et **États-Unis** (11 WebP, 224 Ko, planche complète) branchés ; Royaume-Uni détouré mais pas branché ; cinq nations à générer — pipeline dans `sprites/README.md` |
+| Schéma de données | hors-saison et état de nation (ADR 0010) ; schéma de jeu écrit jusqu'au combat (`troops`, `recruitments`, `movements`, `outposts`, `engagements`) |
+| Code de jeu serveur | accueil/salon/lancement, ressources, production, **mouvements terrestres et passe de combat** servis par Convex ; naval, aérien, agent, leurre, pillage : rien |
+| Condition de victoire | **échafaudage de test** : Domination simplifiée, publique et nominative (`src/domain/victory.ts`, `convex/victory.ts`, étape 5 du plan de progression). Le triangle de la fiche 05 reste la cible ; ce module se **remplace**, il ne s'amende pas |
 
 **Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
 nation sont gravés (fiche 12, ADR 0009-0010) : leur schéma existe. Le schéma de **jeu** — mouvements,

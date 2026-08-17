@@ -47,6 +47,21 @@ describe('unit sprite manifest', () => {
     expect(france().carrier?.kind).toBe('single');
   });
 
+  /**
+   * The United States are the first nation drawn down to the last role — France has no cargo.
+   * A `null` slipping into that plate would go unseen on screen: `UnitSprite` falls back to
+   * its dotted frame, which is exactly what a half-drawn nation is supposed to look like.
+   */
+  it('leaves no role undrawn for the United States', () => {
+    const sprites = SPRITES_BY_NATION.usa;
+    if (sprites === undefined) throw new Error('the United States must be in the manifest');
+    for (const role of ROLES) {
+      expect(sprites[role], role).not.toBeNull();
+    }
+    expect(spriteUrl('usa', 'infantry', 1)).not.toBe(spriteUrl('usa', 'infantry', 2));
+    expect(spriteUrl('usa', 'cargo', 1)).not.toBeNull();
+  });
+
   it('serves one image per tier, and nothing where the visual is missing', () => {
     expect(spriteUrl('france', 'infantry', 1)).not.toBe(spriteUrl('france', 'infantry', 2));
     expect(spriteUrl('france', 'carrier', 1)).toBe(spriteUrl('france', 'carrier', 2));
@@ -69,6 +84,7 @@ describe('movementSprite', () => {
     destinationLabel: 'Tchad',
     type: 'attack',
     stack: { infantry: 2, armor: 5 },
+    troopIds: [],
     minutesLeft: 60,
     borderWait: null,
     progress: 0.4,

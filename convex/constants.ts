@@ -9,8 +9,16 @@
  * eats. Nothing more was measured.
  */
 
-import type { BuildingKey, DepositKey, ResourceKey, UnitRole } from '../src/domain/ids';
+import type {
+  BuildingKey,
+  DepositKey,
+  ResourceKey,
+  SeasonFormat,
+  UnitRole,
+} from '../src/domain/ids';
+import type { CombatRules, DamageTable } from '../src/domain/combat';
 import type { Conversion } from '../src/domain/economy';
+import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
 
 export { NATIONS } from '../src/domain/ids';
@@ -94,6 +102,38 @@ export const BUILDING_SPEC: Readonly<
 };
 
 /**
+ * **One headquarters level, one new question** (`plan-progression-v1.md`). The catalogue opens
+ * in three steps and each one changes the *nature* of the season rather than its volume: the
+ * ground at 1, the army and the ear at 2, projection at 3. A step that only adds more of the
+ * same is a step nobody notices.
+ *
+ * Exhaustive by type: dropping a key breaks the build rather than quietly unlocking it at zero.
+ * It is the **only** prerequisite a building has — no chain of one building requiring another,
+ * ADR 0015 keeps the headquarters as the single bottleneck.
+ *
+ * **The warehouse and the depot stay at 1, and that is not a rounding.** Storage is what
+ * protects the absent player (the ceiling bites hardest on whoever cannot come back to spend),
+ * so raising it would punish exactly the one who can do nothing about it.
+ */
+export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
+  hq: 1,
+  farm: 1,
+  mill: 1,
+  mine: 1,
+  oilWell: 1,
+  foundry: 1,
+  quartermaster: 1,
+  warehouse: 1,
+  depot: 1,
+  barracks: 2,
+  billets: 2,
+  arsenal: 2,
+  listening: 2,
+  airfield: 3,
+  port: 3,
+};
+
+/**
  * **No game quantity is ever counted in regions. The headquarters is the only bottleneck.**
  * (ADR 0015.) A region is a place, never a counter: Natural Earth cuts the United Kingdom into
  * districts and Germany into Länder — 232 against 16 — so anything indexed on a region count
@@ -107,15 +147,113 @@ export const BUILDING_SPEC: Readonly<
 export const BUILDING_CAP_BASE = 3;
 export const BUILDING_CAP_PER_HQ_LEVEL = 2;
 
-/** Five buildings at the launch, thirteen at the highest headquarters. */
+/**
+ * Five buildings at a headquarters of 1, thirteen at the highest. Where a season *starts* on
+ * that ladder is its format's business (`SEASON_FORMATS` below): a skirmish opens at 7.
+ */
 export const buildingCap = (hqLevel: number): number =>
   BUILDING_CAP_BASE + BUILDING_CAP_PER_HQ_LEVEL * hqLevel;
 
+export type SeasonFormatSpec = {
+  readonly durationHours: number;
+  /** Where the headquarters stands from the first minute (ADR 0015). */
+  readonly hqLevelAtLaunch: number;
+  readonly maxHqLevel: number;
+  /**
+   * The buildings the season starts *owing* the player. Ordered, with repetitions: two mines
+   * are two placements, and which deposit each one works is the player's to choose.
+   */
+  readonly foundation: ReadonlyArray<BuildingKey>;
+  /**
+   * **Measured, not chosen** (`node WWS/simulation/opening/run.mjs --sweep`, assiduous player).
+   * Over 48 hours: 800 gives 24 actions, 1000 gives 30, 1300 gives 34 and 1800 gives 34 too —
+   * past 1300 the troop ceiling answers, not the kit. The campaign is measured on the same
+   * yardstick over its own first 48 hours, where 500 is where the empty connections stop
+   * falling.
+   *
+   * **Fragile, and knowingly so**: the curve is not monotonic in places (the campaign takes 26
+   * actions at 350 and 28 at 800), because there the order of the clicks weighs more than the
+   * parameters do. That is a symptom, never a knob.
+   */
+  readonly startingAlloy: number;
+  /**
+   * **The fuse.** Oil is the one resource a nation can be born unable to make: the deposit
+   * script says so of Japan outright. This reserve is what pays the *first journey towards*
+   * oil — the column that walks to a well abroad and the outpost that opens the ground to
+   * build it on — and the fact that it runs out is the engine of the nations that lack it.
+   *
+   * A placeholder like everything here, and short-lived as a *quantity*: the day
+   * `consommation-continue.md` makes the motorised drink, this stops being a stock and becomes
+   * a dated fuse. **It will then have to be sized in journeys, never in litres.**
+   *
+   * No table per nation, deliberately: one number per format. The asymmetry comes from the map
+   * — the nations with oil replenish, the others live on the reserve — and eight hand-written
+   * values would be eight more numbers to balance for an effect geography gives away free.
+   */
+  readonly startingOil: number;
+};
+
+/**
+ * **Two formats, one economy.** Extraction rates, chains and bills are the same in both: what a
+ * format changes is *where a player enters the curve*, never its slope. Stretching the season
+ * does not stretch the night, and the seven-hour rest window (design sheet 07) would turn
+ * absurd if a longer format ran a faster economy.
+ *
+ * Everything that differs is in this table and nowhere else. A second extraction rate or a
+ * second cost appearing beside a format key means the wrong road was taken.
+ */
+export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = {
+  skirmish: {
+    durationHours: 48,
+    hqLevelAtLaunch: 2,
+    maxHqLevel: 3,
+    foundation: ['mine', 'mine', 'foundry', 'warehouse', 'farm', 'arsenal'],
+    startingAlloy: 1000,
+    startingOil: 60,
+  },
+  campaign: {
+    durationHours: 168,
+    hqLevelAtLaunch: 1,
+    maxHqLevel: 5,
+    foundation: ['mine', 'mine', 'foundry'],
+    startingAlloy: 500,
+    startingOil: 40,
+  },
+};
+
+export function formatOf(durationHours: number): SeasonFormat {
+  const found = (Object.keys(SEASON_FORMATS) as ReadonlyArray<SeasonFormat>).find(
+    (key) => SEASON_FORMATS[key].durationHours === durationHours,
+  );
+  if (found === undefined) throw new Error(`no season format lasting ${durationHours} h`);
+  return found;
+}
+
+/**
+ * What the foundation still owes, in placement order. A key held on several regions consumes
+ * one debt each time, so the two mines of the table are two free placements and the third is
+ * paid for like anything else.
+ */
+export function foundationOwed(
+  format: SeasonFormat,
+  standing: ReadonlyArray<BuildingKey>,
+): ReadonlyArray<BuildingKey> {
+  const owed = [...SEASON_FORMATS[format].foundation];
+  for (const key of standing) {
+    const rank = owed.indexOf(key);
+    if (rank >= 0) owed.splice(rank, 1);
+  }
+  return owed;
+}
+
 /**
  * The headquarters stops somewhere, otherwise the building ceiling it carries never stops
- * either — and the guard rail above would be unprovable.
+ * either — and the guard rail above would be unprovable. The longest format sets it: the
+ * ceiling has to hold for the season that climbs the highest.
  */
-export const MAX_HQ_LEVEL = 5;
+export const MAX_HQ_LEVEL = Math.max(
+  ...Object.values(SEASON_FORMATS).map((spec) => spec.maxHqLevel),
+);
 
 export const LEVEL_COST_FACTOR = 1.8;
 
@@ -134,21 +272,29 @@ export function buildMinutes(key: BuildingKey, level: number): number {
 }
 
 /**
- * Enough to **deploy**, not to settle (fiche 02): a barracks, a farm and a mill, plus an
- * advance of alloy and ammunition for the first light troops. The headquarters is *not* in
- * the list any more — it stands at level 1 from the launch (ADR 0015), so the kit no longer
- * carries its 60 alloy and 40 coal.
+ * Enough to **deploy**, not to settle (fiche 02): an advance of matter for the first hours.
+ * The headquarters is *not* in the list — it stands from the launch (ADR 0015), at the level
+ * its format says.
+ *
+ * **The alloy and the oil are missing here on purpose**: they are the two figures a format
+ * sets — the alloy decides where a player enters the curve, the oil how far the first journey
+ * can go. Everything else is shared, and a second copy of it under a format key would be the
+ * doubling the table exists to avoid.
  */
-export const STARTING_STOCK: Readonly<Record<ResourceKey, number>> = {
+export const STARTING_STOCK: Readonly<Record<Exclude<ResourceKey, 'alloy' | 'oil'>, number>> = {
   food: 120,
   textile: 40,
   coal: 20,
-  oil: 0,
   ore: 20,
-  alloy: 100,
   ammunition: 40,
   bandages: 0,
 };
+
+export const startingStock = (format: SeasonFormat): Readonly<Record<ResourceKey, number>> => ({
+  ...STARTING_STOCK,
+  alloy: SEASON_FORMATS[format].startingAlloy,
+  oil: SEASON_FORMATS[format].startingOil,
+});
 
 /**
  * **The hit points of a troop are its readable strength** (ADR 0014), reported straight from
@@ -214,8 +360,30 @@ export const TIER_2_FACTOR = 1.6;
  * Research lives at the headquarters since the industrial complex was dissolved (ADR 0015).
  * The tier-2 gate and the speed of the line stay there and do **not** migrate onto the
  * projection buildings, which only carry their own queue.
+ *
+ * **The gate is counted above the launch, never in the absolute** (ADR 0017). Written as an
+ * absolute 2, it opened mark 2 in the first minute of a skirmish, whose format plants the
+ * headquarters at 2 — a step that does not exist is not a step. One constant, one threshold
+ * derived per format: two thresholds written by hand would drift the day a format moves its
+ * launch.
  */
-export const TIER_2_HQ_LEVEL = 2;
+export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
+
+export const tier2HqLevel = (format: SeasonFormat): number =>
+  SEASON_FORMATS[format].hqLevelAtLaunch + TIER_2_LEVELS_ABOVE_LAUNCH;
+
+/**
+ * **The weapon and its counter arrive together** (`plan-progression-v1.md`, question 6c). Armor
+ * leaves the launch of a skirmish for the level that opens mark 2: the damage table makes
+ * mark-2 infantry the answer to a tank (.65/.45 against .15/.05), so opening the tank first
+ * would hand out thirty-three hours of unanswerable armor.
+ *
+ * It **reads the mark-2 threshold** rather than holding a table of its own — one number moves
+ * both, which is precisely the decision. Every other role is carried by its projection
+ * building, and `UNLOCKED_AT` locks those; zero here means "nothing above the building".
+ */
+export const roleHqLevel = (role: UnitRole, format: SeasonFormat): number =>
+  role === 'armor' ? tier2HqLevel(format) : 0;
 
 /**
  * The length of one **building's** queue. Nearly inert since a batch became a single troop:
@@ -279,8 +447,185 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
   };
 }
 
+/**
+ * **The damage table of `chiffrage-combat.md` §2, copied literally.** The value is the share of
+ * the defender's nominal strength that a full-strength attacker destroys in one pass, before
+ * modifiers; a **missing** cell is "cannot reach", never a zero — seventy-five reachable couples
+ * out of a hundred and twenty-one.
+ *
+ * Not a knob. These figures exist to be *measured as they stand*: `combat.test.ts` replays the
+ * seventy-five couples and fails the suite on an absolute counter or an unintended null riposte,
+ * exactly as `WWS/simulation/verif-chiffrage.mjs` used to on a copy of them.
+ *
+ * Three deliberate departures from design sheet 08 are baked in and must survive any edit: the
+ * token anti-air value of mark-2 infantry (.06 to .12, so a pure air force pays *something*),
+ * the fighter as the only answer to the bomber, and the carrier's mediocre line — its strength
+ * is reach, not power.
+ */
+export const DAMAGE_TABLE: DamageTable = {
+  infantry1: { infantry1: 0.5, infantry2: 0.55, armor1: 0.15, armor2: 0.05, landTransport: 0.7 },
+  infantry2: {
+    infantry1: 0.35,
+    infantry2: 0.4,
+    armor1: 0.65,
+    armor2: 0.45,
+    landTransport: 0.6,
+    fighter: 0.06,
+    bomber: 0.1,
+    airTransport: 0.12,
+  },
+  armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.25, landTransport: 0.85 },
+  armor2: { infantry1: 0.75, infantry2: 0.7, armor1: 0.75, armor2: 0.5, landTransport: 0.9 },
+  landTransport: { infantry1: 0.1, infantry2: 0.1, armor1: 0.05, armor2: 0.02, landTransport: 0.15 },
+  fighter: {
+    infantry1: 0.25,
+    infantry2: 0.25,
+    armor1: 0.1,
+    armor2: 0.05,
+    landTransport: 0.45,
+    fighter: 0.5,
+    bomber: 0.75,
+    airTransport: 0.85,
+    escort: 0.1,
+    cargo: 0.25,
+    carrier: 0.12,
+  },
+  bomber: {
+    infantry1: 0.45,
+    infantry2: 0.45,
+    armor1: 0.6,
+    armor2: 0.55,
+    landTransport: 0.6,
+    fighter: 0.08,
+    bomber: 0.2,
+    airTransport: 0.25,
+    escort: 0.55,
+    cargo: 0.6,
+    carrier: 0.65,
+  },
+  airTransport: {},
+  escort: {
+    infantry1: 0.1,
+    infantry2: 0.1,
+    armor1: 0.05,
+    armor2: 0.02,
+    landTransport: 0.12,
+    fighter: 0.15,
+    bomber: 0.15,
+    airTransport: 0.18,
+    escort: 0.5,
+    cargo: 0.7,
+    carrier: 0.45,
+  },
+  cargo: { escort: 0.05, cargo: 0.1, carrier: 0.05 },
+  carrier: {
+    infantry1: 0.15,
+    infantry2: 0.15,
+    armor1: 0.08,
+    armor2: 0.04,
+    landTransport: 0.25,
+    fighter: 0.4,
+    bomber: 0.35,
+    airTransport: 0.45,
+    escort: 0.3,
+    cargo: 0.4,
+    carrier: 0.3,
+  },
+};
+
+/**
+ * The modifiers of `chiffrage-combat.md` §4 that a rule may read **today**. Two of the five are
+ * missing on purpose:
+ *
+ * - **the terrain**, because `RegionType` is a stand-in — six regions classified by hand and a
+ *   hash of the name for the rest — and `CLAUDE.md` forbids a game rule from reading it without
+ *   its own ADR. A terrain modifier would multiply noise;
+ * - **the pincer** (×1.20), because "two converging movements" has no definition yet: how close
+ *   in time, how wide an angle, measured where. It is one number and three decisions, and
+ *   improvising it here would settle them by accident.
+ */
+export const DEFENDER_BONUS = 1.15;
+export const ROUT_THRESHOLD = 0.25;
+export const DRY_AMMUNITION_FACTOR = 0.6;
+
+export const COMBAT_RULES: CombatRules = {
+  damage: DAMAGE_TABLE,
+  defenderBonus: DEFENDER_BONUS,
+  routThreshold: ROUT_THRESHOLD,
+  dryAmmunitionFactor: DRY_AMMUNITION_FACTOR,
+  strengthPerRound: STRENGTH_PER_ROUND,
+};
+
+/**
+ * **The most gaping hole in the model, and it is not simulated** (design sheet 08 §11). Every
+ * force — marching or garrisoning — carries this radius, and an opposing movement that crosses
+ * it is brought to contact. Too wide and nothing ever gets through: the map freezes and the
+ * game stops being about projection. Too narrow and interception, the first of the three
+ * counter-powers ADR 0014 demands against the attacker's initiative, never fires.
+ *
+ * Two hundred kilometres is a **placeholder with no measurement behind it whatsoever** — it is
+ * roughly a quarter of an hour of marching at the measured pace, which is the only thing that
+ * can be said for it. The simulator does not model interception; this number will have to be
+ * settled by hand, and it is the first thing the first campaign must look at.
+ */
+export const INTERCEPTION_RADIUS_KM = 200;
+
+/**
+ * How long a raid keeps an outpost deactivated, and how long it may not be raided again after
+ * that (design sheet 03). **Neither figure is in the design** — the sheet says "temporarily"
+ * and "then an immunity window", and stops there. Both are placeholders shaped only so the pair
+ * reads: a night out of service, half a night of respite, on a 48-hour season.
+ *
+ * The immunity is what keeps the rule from collapsing into a permanent shutdown by relays of
+ * cheap raids — without it, deactivation is destruction with extra steps, and destruction is
+ * explicitly not on the table until looting exists.
+ */
+export const OUTPOST_DISABLED_HOURS = 6;
+export const OUTPOST_IMMUNITY_HOURS = 3;
+
+/**
+ * **How far an outpost opens the ground around it**, in kilometres (ADR 0015). A placeholder
+ * like the rest, and the only shape the rule may take: no quantity is counted in regions, so
+ * the reach is a radius. Four hundred kilometres is a handful of Romanian counties, one
+ * Australian state and no French department at all — the effect is "a few regions around", the
+ * count is the geography's business.
+ */
+export const OUTPOST_REACH_KM = 400;
+
+/**
+ * **The one measured number of movement**, straight out of the simulation report: 14 minutes
+ * per 1 000 km, on land, the lever the whole game turns on. Everything else about a duration
+ * is derived from it — a route already carries its cost in sea-equivalent units (ADR 0012:
+ * land ×1.6, transfers +8), so the minute price of one cost unit is that measurement read
+ * back through the land multiplier. Writing the two numbers by hand would let them drift, and
+ * a drift here moves every trip in the game.
+ */
+export const MINUTES_PER_1000_KM_ON_LAND = 14;
+
+export const MINUTES_PER_ROUTE_UNIT =
+  (MINUTES_PER_1000_KM_ON_LAND * KM_PER_UNIT) / (1000 * COST_BY_MEDIUM.land);
+
+export const routeMinutes = (costUnits: number): number =>
+  Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
+
+/**
+ * **One movement in flight per player, in the meantime.** The regulator of ADR 0006 is the
+ * movement slot, carried by a building that the economy v2 dissolved — until it is re-hung
+ * somewhere, this stands in its place: a single constraint that bounds the fan-out and
+ * prejudges nothing about the slots to come. It is a placeholder, not a decision.
+ */
+export const MOVEMENTS_IN_FLIGHT = 1;
+
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS_TO_LAUNCH = 2;
+
+/**
+ * **The bar of the test victory** (`src/domain/victory.ts`): a player is reduced when his
+ * standing capacity falls under this share of the nominal it was formed at. A placeholder like
+ * every other number of the game that has not been simulated — and it goes with the scaffold it
+ * serves, the day the doctrines of design sheet 05 land.
+ */
+export const REDUCTION_FACTOR = 0.5;
 
 /**
  * Seven hours per 24, per design sheet 07. The duration is **fixed, not chosen**: the window

@@ -6,7 +6,7 @@ n'existe plus.
 
 **Les nombres ne sont pas ici.** Ils vivent dans
 [propositions/chiffrage-combat.md](propositions/chiffrage-combat.md), vérifiés par
-`WWS/simulation/verif-chiffrage.mjs`, et finiront dans `convex/constants.ts`. Cette fiche décrit le
+`src/domain/combat.test.ts`, et vivent dans `convex/constants.ts`. Cette fiche décrit le
 modèle et les intentions ; dupliquer les tables ici garantirait qu'elles divergent.
 
 Le combat se déclenche par **interception**, se résout **automatiquement et de façon
@@ -156,7 +156,7 @@ table, on passerait d'une trentaine de valeurs à deux cent quarante.
 d'hommes, tout le monde converge vers la même armée optimale et le pierre-feuille-ciseaux ne sert
 plus à rien.
 
-**Aucune unité ne doit être un contre absolu.** `verif-chiffrage.mjs` rejoue les soixante-quinze
+**Aucune unité ne doit être un contre absolu.** `src/domain/combat.test.ts` rejoue les soixante-quinze
 couples et échoue sur toute destruction quasi totale sans riposte — hors les trois transports, qui
 sont des victimes par design.
 

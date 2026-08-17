@@ -10,16 +10,18 @@ import { levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
-  TIER_2_HQ_LEVEL,
   chainSpeed,
+  formatOf,
   nominalStrength,
   recruitmentCost,
+  roleHqLevel,
+  tier2HqLevel,
   troopCap,
 } from './constants';
 import { fail } from './errors';
 import { regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf } from './resources';
-import { playerByToken } from './seasons';
+import { playerByToken, requirePlayable, requireStarted } from './seasons';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 
 /** Derived from the domain table rather than written a second time: one key, one domain. */
@@ -37,11 +39,13 @@ export const workshop = query({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+    requireStarted(season);
     const now = Date.now();
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
+    const format = formatOf(season.durationHours);
+    const tier2 = tier2HqLevel(format);
     const troops = await troopsOf(ctx, player._id);
     const waiting = await recruitmentsOf(ctx, player._id);
     const economy = await economyOf(ctx, player._id, now);
@@ -70,8 +74,10 @@ export const workshop = query({
       nation: player.nation ?? '?',
       hqLevel,
       speed: chainSpeed(hqLevel),
-      tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
-      requiredHqLevel: TIER_2_HQ_LEVEL,
+      // The threshold of the format, never the constant: the case the screen greys out and the
+      // recruitment the server refuses read the same number, computed once (ADR 0017).
+      tier2Unlocked: hqLevel >= tier2,
+      requiredHqLevel: tier2,
       maxQueue: MAX_QUEUED_BATCHES,
       // Standing troops and queued batches share one ceiling, otherwise the queue is where a
       // nation stores the army it is not allowed to have.
@@ -86,6 +92,13 @@ export const workshop = query({
         role,
         tiers: TIERS_BY_ROLE[role],
         producedBy: projectionKeyOf(role),
+        /**
+         * What the headquarters must reach before this role is recruitable at all — zero for
+         * the roles their projection building already carries. Served, like the mark-2
+         * threshold above, so the line the screen greys and the recruitment the server refuses
+         * are the same number.
+         */
+        unlockedAtHqLevel: roleHqLevel(role, format),
         unit: priced(role, 1, hqLevel),
         unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
       })),
@@ -102,7 +115,7 @@ export const recruit = mutation({
   },
   handler: async (ctx, { token, buildingId, role, tier }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+    requirePlayable(season);
 
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
@@ -112,9 +125,14 @@ export const recruit = mutation({
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
-      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
+    const format = formatOf(season.durationHours);
+    const tier2 = tier2HqLevel(format);
+    if (tier === 2 && hqLevel < tier2) {
+      fail('TIER_2_LOCKED', { requiredLevel: tier2 });
     }
+    // The tank waits for the level that arms its counter, whatever tier is asked for.
+    const roleLevel = roleHqLevel(role, format);
+    if (hqLevel < roleLevel) fail('ROLE_LOCKED', { role, requiredLevel: roleLevel });
 
     /**
      * The queue counts against the ceiling. Leaving it out would make the queue a way of
@@ -156,7 +174,7 @@ export const cancel = mutation({
   args: { token: v.string(), recruitmentId: v.id('recruitments') },
   handler: async (ctx, { token, recruitmentId }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+    requirePlayable(season);
     const batch = await ctx.db.get(recruitmentId);
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');

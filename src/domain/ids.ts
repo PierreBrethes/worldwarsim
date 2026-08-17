@@ -28,7 +28,19 @@ export type UnitRole =
 
 export type UnitTier = 1 | 2;
 
-export type MovementType = 'attack' | 'raid' | 'outpost' | 'agent' | 'decoy';
+/**
+ * `return` is the only one no player ever orders: a routed column and a column that has fought
+ * are put on the road home by the resolution itself, outside the slots. It is a movement all
+ * the same — it takes time, it can be seen, and it can be intercepted.
+ */
+export type MovementType = 'attack' | 'raid' | 'outpost' | 'agent' | 'decoy' | 'return';
+
+/**
+ * The two season formats. What each one is worth — duration, headquarters at launch, ceiling,
+ * foundation, starting alloy — lives in the single table of `convex/constants.ts`; only the
+ * name belongs here, beside the rest of the vocabulary.
+ */
+export type SeasonFormat = 'skirmish' | 'campaign';
 
 /**
  * The eight resources of the economy v2 (ADR 0015). The five first are extracted from a
@@ -88,7 +100,19 @@ export type PlayableRegion = 'europe' | 'europe-med' | 'world';
 
 export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' | 'tundra';
 
-export type Specialization = 'extraction' | 'relay' | 'listening';
+/**
+ * What an outpost is *for*, chosen when it is founded and never changed again (fiche 03).
+ *
+ * **Extraction is gone** (decision of 18/08): an outpost replaces no building. Extracting
+ * abroad is the economy's own buildings (ADR 0015), put up in the reach the outpost opens —
+ * counted, capped and lootable like any other, which an outpost was never going to be.
+ *
+ * The two that remain are shells: their effects wait for the systems that read them, the relay
+ * for movement timing and the listening post for the fog. Others are expected — a field
+ * pharmacy has been floated — and the union takes them without a migration, which is all they
+ * are owed today.
+ */
+export type Specialization = 'relay' | 'listening';
 
 /** Land, sea, sky — the three environments a route can traverse. */
 export type Medium = 'land' | 'sea' | 'air';

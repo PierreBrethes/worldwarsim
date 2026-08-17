@@ -94,6 +94,7 @@ export const fr = {
     outpost: 'fondation d’avant-poste',
     agent: 'agent',
     decoy: 'leurre',
+    return: 'retour',
   } satisfies Record<MovementType, string>,
 
   movementTypesPlural: {
@@ -102,6 +103,7 @@ export const fr = {
     outpost: 'avant-postes',
     agent: 'agents',
     decoy: 'leurres',
+    return: 'retours',
   } satisfies Record<MovementType, string>,
 
   resources: {
@@ -199,7 +201,6 @@ export const fr = {
   } satisfies Record<RegionType, string>,
 
   specializations: {
-    extraction: 'extraction',
     relay: 'relais logistique',
     listening: 'station d’écoute',
   } satisfies Record<Specialization, string>,
@@ -215,6 +216,8 @@ export const fr = {
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
+    SEASON_CONCLUDED: () =>
+      'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
@@ -236,8 +239,10 @@ export const fr = {
     UNKNOWN_REGION: () => 'région inconnue',
     UNKNOWN_CAPITAL_REGION: (d) =>
       `capitale introuvable pour ${nationName(d.nation)} — la partie ne peut pas se lancer`,
-    REGION_NOT_HOME: () =>
-      'on ne bâtit que chez soi — ailleurs, il faut un avant-poste dans le rayon',
+    OUT_OF_OUTPOST_REACH: (d) =>
+      d.nearestKm === null
+        ? `hors de chez soi, il faut un avant-poste à moins de ${num(d.reachKm)} km — vous n’en avez aucun`
+        : `aucun avant-poste à moins de ${num(d.reachKm)} km — le plus proche est à ${num(d.nearestKm)} km`,
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
     NOT_COASTAL: () => 'un port se pose sur une région côtière',
@@ -245,6 +250,10 @@ export const fr = {
       `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
     BUILDING_CAP_REACHED: (d) =>
       `plafond atteint : ${num(d.cap)} bâtiments — montez le quartier général pour l’élargir`,
+    BUILDING_LOCKED: (d) =>
+      `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
+    ROLE_LOCKED: (d) =>
+      `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
@@ -264,6 +273,19 @@ export const fr = {
     ORDER_RUNNING: (d) =>
       `un lot court déjà : ${num(d.produced)} sur ${num(d.ordered)} — annulez-le d’abord`,
     NO_ORDER: () => 'aucun lot en cours',
+    MOVEMENT_IN_FLIGHT: (d) =>
+      `un seul mouvement en vol à la fois (${num(d.maximum)}) — attendez son arrivée`,
+    NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
+    UNKNOWN_TROOP: () => 'troupe inconnue',
+    TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas dans cette caserne',
+    INFANTRY_ONLY: () => 'seule l’infanterie fonde un avant-poste',
+    LAND_MOVEMENT_ONLY: () => 'seules les troupes terrestres marchent depuis une caserne',
+    UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
+    FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
+    EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
+    REGION_TARGET_ONLY: () => 'on fonde un avant-poste sur une région, pas sur un point tenu',
+    OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
+    NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
   unexpectedError: 'une erreur imprévue est survenue — réessayez',
@@ -454,7 +476,6 @@ export const fr = {
   },
 
   rail: {
-    troops: { title: 'Troupes — inventaire et envoi', label: 'troupes' },
     production: { title: 'Production — recrutement d’unités', label: 'prod.' },
     industry: { title: 'Industrie — chaînes, gisements et réserves', label: 'indus.' },
     nation: { title: 'Ma nation', label: 'nation' },
@@ -502,30 +523,67 @@ export const fr = {
     },
   },
 
-  timeline: {
-    header: 'mouvements en vol',
-    collapse: 'replier la frise',
-    expand: 'déplier la frise',
-    slots: 'slots',
-    slotsTitle: 'slots de mouvement occupés',
-    empty: 'rien en vol',
-    nextArrival: 'proch. arrivée',
-    all: 'tous',
-    mine: 'les miens',
-    inbound: 'cap sur moi',
-    intel: 'renseignement',
-    unknownOrigin: 'origine inconnue',
-    heading: (degrees: string) => `cap ${degrees}°`,
-    unidentified: 'non identifié',
-    unknownComposition: 'nature et composition non observées',
-    identified: '· identifié',
-    unknownTime: 'heure inconnue',
-    stalledTitle: 'immobilisé à la frontière : plage de repos de la cible',
-    arrivalTitle: 'heure d’arrivée',
-    none: 'aucun mouvement en vol',
-    inFlight: (count: number) => `${count} en vol`,
-    inboundCount: (count: number) => `${count} cap sur moi`,
-    nextArrivalShort: (time: string) => `proch. arrivée ${time}`,
+
+  /**
+   * **Une passe de résolution se raconte en hommes et en machines**, jamais en pourcentage
+   * (ADR 0014) : « 2 troupes contre 1, j'en perds 16, il en perd 22 » se comprend sans manuel,
+   * et c'est la seule qualité qu'on demande à cette phrase.
+   */
+  combat: {
+    dispatch: ({
+      where,
+      intercepted,
+      attacking,
+      won,
+      mine,
+      theirs,
+      outpostDisabled,
+    }: {
+      where: string;
+      intercepted: boolean;
+      attacking: boolean;
+      won: boolean;
+      mine: { troops: number; lost: number; routed: number; destroyed: number };
+      theirs: { troops: number; lost: number; routed: number; destroyed: number };
+      outpostDisabled: boolean;
+    }) => {
+      const opening = intercepted
+        ? attacking
+          ? `interception ${where}`
+          : `colonne interceptée ${where}`
+        : attacking
+          ? `engagement ${where}`
+          : `attaque reçue ${where}`;
+      const forces = `${mine.troops} contre ${theirs.troops}`;
+      const toll = `j’en perds ${mine.lost}, il en perd ${theirs.lost}`;
+      const after = [
+        won ? 'terrain tenu' : 'terrain perdu',
+        mine.routed > 0
+          ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi`
+          : null,
+        theirs.routed > 0 ? `${theirs.routed} déroute${plural(theirs.routed, '', 's')} en face` : null,
+        outpostDisabled ? 'avant-poste désactivé' : null,
+      ].filter((piece): piece is string => piece !== null);
+      return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
+    },
+    disabledUntil: (time: string) => `désactivé — retour à ${time}`,
+  },
+
+  /**
+   * **La victoire de test — un échafaudage, pas une décision de design.** Une seule condition,
+   * publique et nominative, en attendant les trois doctrines secrètes de la fiche 05
+   * (`src/domain/victory.ts`). Le vocabulaire suit : on *réduit* un joueur, on ne l'élimine
+   * jamais — il rejoue, il reconstruit, et il sort alors du compte de son bourreau.
+   */
+  victory: {
+    kicker: 'domination — victoire de test',
+    scaffold: 'condition unique et publique, en attendant les doctrines',
+    dispatch: (by: string, whom: string) => `${by} a réduit ${whom}`,
+    concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
+    tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
+    reducedMark: 'réduit',
+    standingMark: 'debout',
+    homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
   },
 
   journal: {
@@ -553,76 +611,77 @@ export const fr = {
     backToBoard: 'retour au plateau',
   },
 
+  /**
+   * **Le widget de troupes** — la seule maison de la liste depuis la décision 13a. Deux
+   * sections, deux pouvoirs : les stationnaires se dirigent, les mouvements en vol
+   * s'observent, et le vocabulaire de chaque section doit rendre cette différence lisible
+   * sans qu'on ait à lire une phrase.
+   */
   troops: {
     header: 'troupes',
-    inventory: 'inventaire',
-    send: 'envoi',
-    slotsLine: (used: number, free: number) =>
-      `${used} slot${plural(used, '', 's')} engagé${plural(used, '', 's')} · ${free} disponible${plural(free, '', 's')}`,
-    situation: 'situation',
-    situations: { all: 'toutes', home: 'à domicile', movement: 'en mouvement', garrison: 'en garnison' },
-    domain: 'domaine',
-    domains: { all: 'tous', land: 'terre', air: 'air', sea: 'mer' },
-    sort: 'tri',
-    sorts: { role: 'rôle', count: 'nombre', due: 'échéance' },
-    countOf: (shown: number, total: number) => `${shown} unités sur ${total}`,
-    emptyFilter: 'Aucune troupe ne répond à ce filtre.',
-    noTroops: 'Aucune troupe.',
-    noTroopsBlocked: (a: string) =>
-      `${a.charAt(0).toUpperCase()}${a.slice(1)} ouvre le domaine terre. L’alliage et les munitions suivront : l’arsenal attend un ordre, pas des matières.`,
-    noTroopsYet: 'Rien en service. La file de production tient les lots en cours.',
+    collapsed: 'replié',
+    expand: 'déplier le widget de troupes',
+    collapse: 'replier le widget de troupes',
+    cap: (standing: number, cap: number) => `${standing} / ${cap}`,
+    slots: (used: number, total: number) => `slots ${used} / ${total}`,
+    stationary: 'stationnaires',
+    stationaryPower: 'dirigeables',
+    moving: 'en mouvement',
+    movingPower: 'observables',
+    none: 'aucune troupe en service',
     atHome: 'à domicile',
     garrisonAt: (country: string) => `garnison — ${country}`,
-    movementsHeader: 'mouvements en cours',
-    intelNote:
-      'Un arc adverse n’expose ni son type ni sa composition, et n’entre donc pas à l’inventaire. Un arc grisé est une dernière position connue, horodatée.',
-    arcMine: (type: string) => `mien — ${type}`,
-    arcDetected: 'adverse détecté',
-    arcHeading: (degrees: number) => `arc relevé — cap ${degrees}°`,
-    arcUnknownComposition: 'composition inconnue',
-    arcLastKnown: 'dernière position connue',
-    arcFrozen: (degrees: number) => `arc figé — cap ${degrees}°`,
-    arcSeenAgo: (minutes: number) => `vu il y a ${minutes} min`,
-    arcSeaControl: 'maîtrise des mers',
-    arcEndsErased: 'extrémités effacées',
-    arcNoEnds: 'ni origine ni destination',
+    strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
+    open: (station: string) => `voir ${station} et composer un mouvement`,
+    remaining: (duration: string) => `${duration} restant`,
+    arrivalAt: (time: string) => `arrivée ${time}`,
+    restMark: (time: string) => `arrive en repos — libre à ${time}`,
+    // The decoy is visible to its owner alone (fiche 04) — the adversary sees an ordinary arc.
+    decoyMark: 'leurre — visible de vous seul',
+    observe: (route: string) => `suivre ${route}`,
+    foldedQuiet: 'rien en vol',
+    foldedFlight: (count: number, next: string) =>
+      `${count} mouvement${plural(count, '', 's')} en vol — prochaine arrivée dans ${next}`,
+    foldedStanding: (count: number) =>
+      `${count} stationnaire${plural(count, '', 's')}`,
   },
 
-  send: {
-    header: 'envoi d’un mouvement',
-    slotCost: (freeAfter: number) =>
-      `coût 1 slot — ${freeAfter} disponible${plural(freeAfter, '', 's')} après envoi`,
-    noSlot: 'aucun slot disponible',
-    typeLabel: 'type',
-    decoyNote: 'Le leurre part avec zéro unité. Il est indiscernable d’un mouvement réel côté adverse.',
-    stackLabel: 'composition de la pile',
-    stackRight: 'reste à domicile après envoi',
-    atHomeOf: (left: number, total: number) => `${left} / ${total} à domicile`,
-    transitNote: 'Les forces en transit ne défendent plus le territoire national.',
-    headingLabel: 'cap d’arrivée',
-    headingButton: (heading: string) => `cap ${heading}`,
-    headingNotes: {
-      N: 'cap nord — pas de bonus, exposé aux escortes en garnison',
-      E: 'cap est — favorise les blindés à la première passe',
-      S: 'cap sud — allonge le trajet, réduit le bonus défenseur',
-      O: 'cap ouest — favorise l’appui aérien à la première passe',
-    },
-    destinationLabel: 'destination',
-    enemyNation: (power: string) => `nation adverse — ${power}`,
-    pickDestination: 'Sélectionner un pays sur le plateau pour fixer la destination.',
-    noRoute: 'Aucune route connue vers cette destination.',
-    routeComputing: 'Calcul de la route…',
-    estimatedDuration: 'durée estimée',
-    arrival: 'arrivée',
-    antimeridian: 'antiméridien',
-    crossed: 'traversé',
-    notCrossed: 'non traversé',
-    cost: 'coût',
-    restWarningKicker: 'plage de repos de la cible',
-    restWarning: (window: string) =>
-      `L’arrivée tombe dans la plage publique (${window}). Le mouvement sera immobilisé à la frontière jusqu’à la fin de la plage.`,
-    cancel: 'annuler',
+  /**
+   * **Le panneau de garnison** : on y coche des troupes discrètes, jamais de compteurs +/− —
+   * elles sont 24 au plus (brief « flux de mouvement en carte »).
+   */
+  garrison: {
+    kicker: 'garnison',
+    home: 'à domicile',
+    projection: 'bâtiment de projection',
+    troopCount: (count: number) => `${count} troupe${plural(count, '', 's')}`,
+    empty: 'Aucune troupe ne stationne ici.',
+    column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
+    noColumn: 'pile : aucune troupe cochée',
+    prepare: 'préparer un mouvement',
+    // A garrison abroad has no barracks to leave from: the server only marches from a
+    // projection building (ADR 0013), and saying so beats a refusal after the click.
+    notProjection: 'Une colonne part d’un bâtiment de projection — celle-ci tient son point.',
+  },
+
+  /** La visée en carte : ce qui remplace la modale d’envoi. */
+  aim: {
+    armed: 'visée armée',
+    column: (count: number, station: string) =>
+      `pile ${count} troupe${plural(count, '', 's')} — ${station}`,
+    gesture: 'survol : destinations légales · clic droit : type',
+    disarm: 'échap — désarme la visée',
+    previewKicker: 'aperçu de trajet',
+    slot: '1 slot',
+    heading: (destination: string, type: string) => `${destination} — ${type}`,
+    computing: 'calcul de la route…',
+    noRoute: 'Aucune route terrestre vers cette destination.',
+    duration: (duration: string, count: number) =>
+      `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
+    arrival: (time: string) => `arrivée ${time}`,
+    restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
     submit: 'envoyer — irréversible',
+    cancel: 'annuler',
   },
 
   production: {
@@ -650,6 +709,8 @@ export const fr = {
     weakAgainst: 'faible contre',
     supportNote: 'Ne combat pas, mais peut se faire détruire ou intercepter.',
     tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
+    /** The tank waits for the level that arms its counter — said before the click, not after. */
+    roleLocked: (level: number) => `verrouillé — quartier général niveau ${level} requis`,
     tierLabel: (tier: number) => `palier ${tier}`,
     enqueueTitle: (role: string, tier: string, site: string) => `enfiler ${role} ${tier} — ${site}`,
     enqueue: '+ 1 troupe',
@@ -897,11 +958,9 @@ export const fr = {
   compass: {
     seeCountry: 'Voir le pays',
     seeCountryConsequence: (name: string) => `Sélectionne ${name} et ouvre son panneau de bord.`,
-    sendMovement: 'Envoyer un mouvement',
-    sendConsequenceBlank: 'Ouvre la fenêtre d’envoi sur l’onglet mouvement.',
-    sendConsequenceTo: (name: string) => `Ouvre la fenêtre d’envoi, ${name} en destination.`,
-    foundOutpost: 'Fonder un avant-poste',
-    foundConsequence: (name: string) => `Ouvre l’envoi préréglé sur la fondation, vers ${name}.`,
+    marchConsequence: (type: string) =>
+      `Trace l’arc réel et propose l’envoi : ${type}.`,
+    aiming: (count: number) => `visée armée · ${count} troupe${plural(count, '', 's')}`,
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
     neutralHeld: 'pays neutre · avant-poste tenu',
     neutralFree: 'pays neutre · sans avant-poste',
@@ -941,6 +1000,15 @@ export const fr = {
     heldByCap: (cap: number) =>
       `Plafond de bâtiments atteint (${cap}) — élevez votre quartier général pour l’élargir.`,
     heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
+    /**
+     * A launched season whose foundation is not placed is a normal state — so it is said, and
+     * said where the placement happens. What the format takes back is the price and the wait;
+     * the region stays the player's, and the sentence has to make that difference audible.
+     */
+    foundationNotice: (owed: string) => `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
+    foundationCount: (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name),
+    free: 'offert',
+    immediate: 'immédiat',
   },
 
   labels: {

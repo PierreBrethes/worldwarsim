@@ -96,7 +96,9 @@ function ConnectedHome() {
    * board. The sequence then serves as an airlock — it covers the map's loading.
    */
   const resume = () => {
-    if (preview?.status === 'launched') setResuming(true);
+    // A concluded season walks back onto the board like a running one: the wipe is manual, and
+    // reading the game back is exactly what the season is kept for.
+    if (preview?.status === 'launched' || preview?.status === 'concluded') setResuming(true);
     else toLobby();
   };
 
@@ -150,7 +152,12 @@ function ConnectedHome() {
                     {preview.doctrine ? ` · ${fr.banner.doctrine(doctrineLabel(preview.doctrine) ?? '')}` : ''}
                   </span>
                   <span>
-                    {preview.status === 'lobby' ? fr.home.resumeLobby(preview.code) : fr.home.resumeSeason} ·{' '}
+                    {preview.status === 'concluded' && preview.winnerNation
+                      ? fr.victory.homeConcluded(nationLabel(preview.winnerNation))
+                      : preview.status === 'lobby'
+                        ? fr.home.resumeLobby(preview.code)
+                        : fr.home.resumeSeason}{' '}
+                    ·{' '}
                     {fr.playableRegions[preview.playableRegion as PlayableRegion] ?? preview.playableRegion}
                   </span>
                   <span className="text-[var(--notable)]">{fr.common.players(preview.players)}</span>
@@ -163,7 +170,9 @@ function ConnectedHome() {
                 <span className="block font-[var(--font-mono)] text-[16px] text-[var(--paper)]">
                   {preview.status === 'lobby'
                     ? fr.home.open
-                    : remaining(preview.launchedAt, preview.durationHours)}
+                    : preview.status === 'concluded'
+                      ? fr.home.finished
+                      : remaining(preview.launchedAt, preview.durationHours)}
                 </span>
               </span>
             </button>

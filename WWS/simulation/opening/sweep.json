@@ -1,0 +1,2247 @@
+[
+ {
+  "format": "skirmish",
+  "alloy": 200,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 0
+   },
+   {
+    "minute": 1080,
+    "actions": 0
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 0
+   },
+   {
+    "minute": 2340,
+    "actions": 0
+   },
+   {
+    "minute": 2520,
+    "actions": 0
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   }
+  ],
+  "totalActions": 13,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 6,
+  "deadPct": 50,
+  "busyPct": 13.125,
+  "longestGap": 795,
+  "hqTimes": {},
+  "finalHq": 2,
+  "troops": 0,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 7,
+  "stocks": {
+   "food": 929,
+   "textile": 40,
+   "coal": 401,
+   "oil": 0,
+   "ore": 146,
+   "alloy": 26,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 300,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 0
+   },
+   {
+    "minute": 1260,
+    "actions": 0
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 1
+   },
+   {
+    "minute": 2160,
+    "actions": 0
+   },
+   {
+    "minute": 2340,
+    "actions": 0
+   },
+   {
+    "minute": 2520,
+    "actions": 0
+   },
+   {
+    "minute": 2700,
+    "actions": 0
+   }
+  ],
+  "totalActions": 13,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 6,
+  "deadPct": 50,
+  "busyPct": 13.125,
+  "longestGap": 861,
+  "hqTimes": {},
+  "finalHq": 2,
+  "troops": 0,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 7,
+  "stocks": {
+   "food": 809,
+   "textile": 40,
+   "coal": 401,
+   "oil": 0,
+   "ore": 146,
+   "alloy": 126,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 420,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 0
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 0
+   },
+   {
+    "minute": 2340,
+    "actions": 0
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   }
+  ],
+  "totalActions": 15,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 4,
+  "deadPct": 33.33333333333333,
+  "busyPct": 19.23611111111111,
+  "longestGap": 1215,
+  "hqTimes": {
+   "3": 2666
+  },
+  "finalHq": 3,
+  "troops": 0,
+  "lost": 0,
+  "troopCap": 10,
+  "sites": 8,
+  "stocks": {
+   "food": 925,
+   "textile": 40,
+   "coal": 271,
+   "oil": 0,
+   "ore": 146,
+   "alloy": 27,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 600,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 3
+   },
+   {
+    "minute": 2700,
+    "actions": 0
+   }
+  ],
+  "totalActions": 19,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 2,
+  "deadPct": 16.666666666666664,
+  "busyPct": 23.993055555555557,
+  "longestGap": 555,
+  "hqTimes": {
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 1,
+  "lost": 0,
+  "troopCap": 10,
+  "sites": 9,
+  "stocks": {
+   "food": 895,
+   "textile": 40,
+   "coal": 271,
+   "oil": 0,
+   "ore": 239,
+   "alloy": 32,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 800,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 7
+   }
+  ],
+  "totalActions": 24,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 1,
+  "deadPct": 8.333333333333332,
+  "busyPct": 31.07638888888889,
+  "longestGap": 555,
+  "hqTimes": {
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 3,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 8,
+  "stocks": {
+   "food": 881,
+   "textile": 40,
+   "coal": 137,
+   "oil": 0,
+   "ore": 138,
+   "alloy": 26,
+   "ammunition": 78,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 1000,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 13
+   }
+  ],
+  "totalActions": 30,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 1,
+  "deadPct": 8.333333333333332,
+  "busyPct": 34.0625,
+  "longestGap": 555,
+  "hqTimes": {
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 6,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 8,
+  "stocks": {
+   "food": 881,
+   "textile": 40,
+   "coal": 137,
+   "oil": 0,
+   "ore": 138,
+   "alloy": 18,
+   "ammunition": 46,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 1300,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 17
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   }
+  ],
+  "totalActions": 34,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 1,
+  "deadPct": 8.333333333333332,
+  "busyPct": 37.77777777777778,
+  "longestGap": 454,
+  "hqTimes": {
+   "3": 1406
+  },
+  "finalHq": 3,
+  "troops": 8,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 8,
+  "stocks": {
+   "food": 784,
+   "textile": 40,
+   "coal": 173,
+   "oil": 0,
+   "ore": 201,
+   "alloy": 93,
+   "ammunition": 38,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "skirmish",
+  "alloy": 1800,
+  "name": "skirmish — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 8
+   },
+   {
+    "minute": 540,
+    "actions": 1
+   },
+   {
+    "minute": 720,
+    "actions": 1
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 17
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   }
+  ],
+  "totalActions": 34,
+  "foundationPlacements": 6,
+  "medianActions": 1,
+  "deadSessions": 1,
+  "deadPct": 8.333333333333332,
+  "busyPct": 37.77777777777778,
+  "longestGap": 454,
+  "hqTimes": {
+   "3": 1406
+  },
+  "finalHq": 3,
+  "troops": 8,
+  "lost": 0,
+  "troopCap": 8,
+  "sites": 8,
+  "stocks": {
+   "food": 784,
+   "textile": 40,
+   "coal": 350,
+   "oil": 0,
+   "ore": 555,
+   "alloy": 416,
+   "ammunition": 38,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 200,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 0
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 1
+   },
+   {
+    "minute": 2160,
+    "actions": 0
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 0
+   },
+   {
+    "minute": 2700,
+    "actions": 0
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 0
+   },
+   {
+    "minute": 3600,
+    "actions": 0
+   },
+   {
+    "minute": 3780,
+    "actions": 1
+   },
+   {
+    "minute": 3960,
+    "actions": 0
+   },
+   {
+    "minute": 4140,
+    "actions": 0
+   },
+   {
+    "minute": 4740,
+    "actions": 0
+   },
+   {
+    "minute": 4860,
+    "actions": 1
+   },
+   {
+    "minute": 5040,
+    "actions": 0
+   },
+   {
+    "minute": 5220,
+    "actions": 0
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 0
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 0
+   },
+   {
+    "minute": 6660,
+    "actions": 0
+   },
+   {
+    "minute": 6840,
+    "actions": 0
+   },
+   {
+    "minute": 7020,
+    "actions": 0
+   },
+   {
+    "minute": 7620,
+    "actions": 0
+   },
+   {
+    "minute": 7740,
+    "actions": 1
+   },
+   {
+    "minute": 7920,
+    "actions": 1
+   },
+   {
+    "minute": 8100,
+    "actions": 1
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 1
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 0
+   },
+   {
+    "minute": 9540,
+    "actions": 1
+   },
+   {
+    "minute": 9720,
+    "actions": 0
+   },
+   {
+    "minute": 9900,
+    "actions": 1
+   }
+  ],
+  "totalActions": 22,
+  "foundationPlacements": 3,
+  "medianActions": 0,
+  "deadSessions": 24,
+  "deadPct": 57.14285714285714,
+  "busyPct": 10.267857142857142,
+  "longestGap": 1470,
+  "hqTimes": {
+   "2": 1161,
+   "3": 7886
+  },
+  "finalHq": 3,
+  "troops": 2,
+  "lost": 0,
+  "troopCap": 18,
+  "sites": 9,
+  "stocks": {
+   "food": 1075,
+   "textile": 40,
+   "coal": 710,
+   "oil": 0,
+   "ore": 465,
+   "alloy": 24,
+   "ammunition": 0,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 300,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 0
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 1
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 0
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 1
+   },
+   {
+    "minute": 3600,
+    "actions": 0
+   },
+   {
+    "minute": 3780,
+    "actions": 0
+   },
+   {
+    "minute": 3960,
+    "actions": 0
+   },
+   {
+    "minute": 4140,
+    "actions": 0
+   },
+   {
+    "minute": 4740,
+    "actions": 1
+   },
+   {
+    "minute": 4860,
+    "actions": 0
+   },
+   {
+    "minute": 5040,
+    "actions": 1
+   },
+   {
+    "minute": 5220,
+    "actions": 1
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 1
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 0
+   },
+   {
+    "minute": 6660,
+    "actions": 1
+   },
+   {
+    "minute": 6840,
+    "actions": 0
+   },
+   {
+    "minute": 7020,
+    "actions": 1
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 0
+   },
+   {
+    "minute": 8100,
+    "actions": 0
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 1
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 0
+   },
+   {
+    "minute": 9540,
+    "actions": 0
+   },
+   {
+    "minute": 9720,
+    "actions": 0
+   },
+   {
+    "minute": 9900,
+    "actions": 1
+   }
+  ],
+  "totalActions": 26,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 20,
+  "deadPct": 47.61904761904761,
+  "busyPct": 13.958333333333334,
+  "longestGap": 1284,
+  "hqTimes": {
+   "2": 1161,
+   "3": 4886
+  },
+  "finalHq": 3,
+  "troops": 2,
+  "lost": 0,
+  "troopCap": 20,
+  "sites": 9,
+  "stocks": {
+   "food": 1659,
+   "textile": 40,
+   "coal": 1403,
+   "oil": 0,
+   "ore": 640,
+   "alloy": 40,
+   "ammunition": 0,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 420,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 0
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 1
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 2
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 0
+   },
+   {
+    "minute": 3420,
+    "actions": 0
+   },
+   {
+    "minute": 3600,
+    "actions": 1
+   },
+   {
+    "minute": 3780,
+    "actions": 0
+   },
+   {
+    "minute": 3960,
+    "actions": 0
+   },
+   {
+    "minute": 4140,
+    "actions": 0
+   },
+   {
+    "minute": 4740,
+    "actions": 0
+   },
+   {
+    "minute": 4860,
+    "actions": 0
+   },
+   {
+    "minute": 5040,
+    "actions": 4
+   },
+   {
+    "minute": 5220,
+    "actions": 0
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 2
+   },
+   {
+    "minute": 6180,
+    "actions": 6
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 0
+   },
+   {
+    "minute": 6660,
+    "actions": 0
+   },
+   {
+    "minute": 6840,
+    "actions": 0
+   },
+   {
+    "minute": 7020,
+    "actions": 0
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 1
+   },
+   {
+    "minute": 8100,
+    "actions": 1
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 1
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 1
+   },
+   {
+    "minute": 9540,
+    "actions": 0
+   },
+   {
+    "minute": 9720,
+    "actions": 1
+   },
+   {
+    "minute": 9900,
+    "actions": 0
+   }
+  ],
+  "totalActions": 35,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 21,
+  "deadPct": 50,
+  "busyPct": 12.53968253968254,
+  "longestGap": 1389,
+  "hqTimes": {
+   "2": 1161,
+   "3": 7766
+  },
+  "finalHq": 3,
+  "troops": 8,
+  "lost": 0,
+  "troopCap": 16,
+  "sites": 9,
+  "stocks": {
+   "food": 400,
+   "textile": 40,
+   "coal": 400,
+   "oil": 0,
+   "ore": 400,
+   "alloy": 48,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 600,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 1
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 2
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 2
+   },
+   {
+    "minute": 3420,
+    "actions": 0
+   },
+   {
+    "minute": 3600,
+    "actions": 1
+   },
+   {
+    "minute": 3780,
+    "actions": 2
+   },
+   {
+    "minute": 3960,
+    "actions": 0
+   },
+   {
+    "minute": 4140,
+    "actions": 2
+   },
+   {
+    "minute": 4740,
+    "actions": 6
+   },
+   {
+    "minute": 4860,
+    "actions": 0
+   },
+   {
+    "minute": 5040,
+    "actions": 0
+   },
+   {
+    "minute": 5220,
+    "actions": 0
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 0
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 1
+   },
+   {
+    "minute": 6660,
+    "actions": 1
+   },
+   {
+    "minute": 6840,
+    "actions": 1
+   },
+   {
+    "minute": 7020,
+    "actions": 1
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 1
+   },
+   {
+    "minute": 8100,
+    "actions": 0
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 0
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 1
+   },
+   {
+    "minute": 9540,
+    "actions": 0
+   },
+   {
+    "minute": 9720,
+    "actions": 0
+   },
+   {
+    "minute": 9900,
+    "actions": 0
+   }
+  ],
+  "totalActions": 38,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 17,
+  "deadPct": 40.476190476190474,
+  "busyPct": 14.037698412698413,
+  "longestGap": 1389,
+  "hqTimes": {
+   "2": 981,
+   "3": 6326
+  },
+  "finalHq": 3,
+  "troops": 8,
+  "lost": 0,
+  "troopCap": 20,
+  "sites": 9,
+  "stocks": {
+   "food": 400,
+   "textile": 40,
+   "coal": 400,
+   "oil": 0,
+   "ore": 400,
+   "alloy": 110,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 800,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 2
+   },
+   {
+    "minute": 3600,
+    "actions": 1
+   },
+   {
+    "minute": 3780,
+    "actions": 1
+   },
+   {
+    "minute": 3960,
+    "actions": 1
+   },
+   {
+    "minute": 4140,
+    "actions": 1
+   },
+   {
+    "minute": 4740,
+    "actions": 1
+   },
+   {
+    "minute": 4860,
+    "actions": 0
+   },
+   {
+    "minute": 5040,
+    "actions": 0
+   },
+   {
+    "minute": 5220,
+    "actions": 0
+   },
+   {
+    "minute": 5400,
+    "actions": 1
+   },
+   {
+    "minute": 5580,
+    "actions": 0
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 0
+   },
+   {
+    "minute": 6660,
+    "actions": 0
+   },
+   {
+    "minute": 6840,
+    "actions": 1
+   },
+   {
+    "minute": 7020,
+    "actions": 0
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 0
+   },
+   {
+    "minute": 8100,
+    "actions": 0
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 0
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 0
+   },
+   {
+    "minute": 9540,
+    "actions": 1
+   },
+   {
+    "minute": 9720,
+    "actions": 0
+   },
+   {
+    "minute": 9900,
+    "actions": 0
+   }
+  ],
+  "totalActions": 28,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 19,
+  "deadPct": 45.23809523809524,
+  "busyPct": 16.884920634920636,
+  "longestGap": 1341,
+  "hqTimes": {
+   "2": 981,
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 2,
+  "lost": 0,
+  "troopCap": 20,
+  "sites": 9,
+  "stocks": {
+   "food": 400,
+   "textile": 40,
+   "coal": 400,
+   "oil": 0,
+   "ore": 400,
+   "alloy": 108,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 1000,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 1
+   },
+   {
+    "minute": 3600,
+    "actions": 2
+   },
+   {
+    "minute": 3780,
+    "actions": 1
+   },
+   {
+    "minute": 3960,
+    "actions": 1
+   },
+   {
+    "minute": 4140,
+    "actions": 1
+   },
+   {
+    "minute": 4740,
+    "actions": 1
+   },
+   {
+    "minute": 4860,
+    "actions": 1
+   },
+   {
+    "minute": 5040,
+    "actions": 1
+   },
+   {
+    "minute": 5220,
+    "actions": 1
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 0
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 1
+   },
+   {
+    "minute": 6660,
+    "actions": 1
+   },
+   {
+    "minute": 6840,
+    "actions": 0
+   },
+   {
+    "minute": 7020,
+    "actions": 0
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 0
+   },
+   {
+    "minute": 8100,
+    "actions": 0
+   },
+   {
+    "minute": 8280,
+    "actions": 0
+   },
+   {
+    "minute": 8460,
+    "actions": 0
+   },
+   {
+    "minute": 9060,
+    "actions": 4
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 2
+   },
+   {
+    "minute": 9540,
+    "actions": 2
+   },
+   {
+    "minute": 9720,
+    "actions": 2
+   },
+   {
+    "minute": 9900,
+    "actions": 2
+   }
+  ],
+  "totalActions": 41,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 19.88095238095238,
+  "longestGap": 1262,
+  "hqTimes": {
+   "2": 981,
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 8,
+  "lost": 0,
+  "troopCap": 20,
+  "sites": 9,
+  "stocks": {
+   "food": 400,
+   "textile": 40,
+   "coal": 400,
+   "oil": 0,
+   "ore": 400,
+   "alloy": 203,
+   "ammunition": 119,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 1300,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 1
+   },
+   {
+    "minute": 3600,
+    "actions": 2
+   },
+   {
+    "minute": 3780,
+    "actions": 1
+   },
+   {
+    "minute": 3960,
+    "actions": 1
+   },
+   {
+    "minute": 4140,
+    "actions": 1
+   },
+   {
+    "minute": 4740,
+    "actions": 1
+   },
+   {
+    "minute": 4860,
+    "actions": 1
+   },
+   {
+    "minute": 5040,
+    "actions": 1
+   },
+   {
+    "minute": 5220,
+    "actions": 1
+   },
+   {
+    "minute": 5400,
+    "actions": 0
+   },
+   {
+    "minute": 5580,
+    "actions": 1
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 0
+   },
+   {
+    "minute": 6480,
+    "actions": 1
+   },
+   {
+    "minute": 6660,
+    "actions": 0
+   },
+   {
+    "minute": 6840,
+    "actions": 0
+   },
+   {
+    "minute": 7020,
+    "actions": 1
+   },
+   {
+    "minute": 7620,
+    "actions": 0
+   },
+   {
+    "minute": 7740,
+    "actions": 0
+   },
+   {
+    "minute": 7920,
+    "actions": 0
+   },
+   {
+    "minute": 8100,
+    "actions": 4
+   },
+   {
+    "minute": 8280,
+    "actions": 2
+   },
+   {
+    "minute": 8460,
+    "actions": 0
+   },
+   {
+    "minute": 9060,
+    "actions": 6
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 0
+   },
+   {
+    "minute": 9540,
+    "actions": 4
+   },
+   {
+    "minute": 9720,
+    "actions": 2
+   },
+   {
+    "minute": 9900,
+    "actions": 0
+   }
+  ],
+  "totalActions": 47,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 20.327380952380953,
+  "longestGap": 950,
+  "hqTimes": {
+   "2": 981,
+   "3": 2006
+  },
+  "finalHq": 3,
+  "troops": 11,
+  "lost": 0,
+  "troopCap": 20,
+  "sites": 9,
+  "stocks": {
+   "food": 400,
+   "textile": 40,
+   "coal": 400,
+   "oil": 0,
+   "ore": 400,
+   "alloy": 220,
+   "ammunition": 119,
+   "bandages": 0
+  }
+ },
+ {
+  "format": "campaign",
+  "alloy": 1800,
+  "name": "campaign — assidu",
+  "sessions": [
+   {
+    "minute": 420,
+    "actions": 4
+   },
+   {
+    "minute": 540,
+    "actions": 2
+   },
+   {
+    "minute": 720,
+    "actions": 0
+   },
+   {
+    "minute": 900,
+    "actions": 1
+   },
+   {
+    "minute": 1080,
+    "actions": 1
+   },
+   {
+    "minute": 1260,
+    "actions": 1
+   },
+   {
+    "minute": 1860,
+    "actions": 1
+   },
+   {
+    "minute": 1980,
+    "actions": 0
+   },
+   {
+    "minute": 2160,
+    "actions": 1
+   },
+   {
+    "minute": 2340,
+    "actions": 1
+   },
+   {
+    "minute": 2520,
+    "actions": 1
+   },
+   {
+    "minute": 2700,
+    "actions": 1
+   },
+   {
+    "minute": 3300,
+    "actions": 1
+   },
+   {
+    "minute": 3420,
+    "actions": 0
+   },
+   {
+    "minute": 3600,
+    "actions": 1
+   },
+   {
+    "minute": 3780,
+    "actions": 1
+   },
+   {
+    "minute": 3960,
+    "actions": 1
+   },
+   {
+    "minute": 4140,
+    "actions": 1
+   },
+   {
+    "minute": 4740,
+    "actions": 2
+   },
+   {
+    "minute": 4860,
+    "actions": 1
+   },
+   {
+    "minute": 5040,
+    "actions": 1
+   },
+   {
+    "minute": 5220,
+    "actions": 1
+   },
+   {
+    "minute": 5400,
+    "actions": 1
+   },
+   {
+    "minute": 5580,
+    "actions": 1
+   },
+   {
+    "minute": 6180,
+    "actions": 1
+   },
+   {
+    "minute": 6300,
+    "actions": 1
+   },
+   {
+    "minute": 6480,
+    "actions": 1
+   },
+   {
+    "minute": 6660,
+    "actions": 1
+   },
+   {
+    "minute": 6840,
+    "actions": 1
+   },
+   {
+    "minute": 7020,
+    "actions": 0
+   },
+   {
+    "minute": 7620,
+    "actions": 1
+   },
+   {
+    "minute": 7740,
+    "actions": 1
+   },
+   {
+    "minute": 7920,
+    "actions": 1
+   },
+   {
+    "minute": 8100,
+    "actions": 0
+   },
+   {
+    "minute": 8280,
+    "actions": 1
+   },
+   {
+    "minute": 8460,
+    "actions": 0
+   },
+   {
+    "minute": 9060,
+    "actions": 1
+   },
+   {
+    "minute": 9180,
+    "actions": 0
+   },
+   {
+    "minute": 9360,
+    "actions": 0
+   },
+   {
+    "minute": 9540,
+    "actions": 1
+   },
+   {
+    "minute": 9720,
+    "actions": 0
+   },
+   {
+    "minute": 9900,
+    "actions": 0
+   }
+  ],
+  "totalActions": 37,
+  "foundationPlacements": 3,
+  "medianActions": 1,
+  "deadSessions": 10,
+  "deadPct": 23.809523809523807,
+  "busyPct": 27.3015873015873,
+  "longestGap": 740,
+  "hqTimes": {
+   "2": 981,
+   "3": 2006,
+   "4": 3562
+  },
+  "finalHq": 4,
+  "troops": 2,
+  "lost": 0,
+  "troopCap": 22,
+  "sites": 11,
+  "stocks": {
+   "food": 1682,
+   "textile": 40,
+   "coal": 1814,
+   "oil": 0,
+   "ore": 1115,
+   "alloy": 122,
+   "ammunition": 120,
+   "bandages": 0
+  }
+ }
+]

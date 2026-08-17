@@ -1,5 +1,5 @@
-import type { BuildingKey, Medium, MovementType, UnitRole, UnitTier } from './ids';
-import type { ArcView, PlayerView, Stack } from './player-view';
+import type { BuildingKey, Medium, UnitRole, UnitTier } from './ids';
+import type { ArcView, PlayerView, Stack, TroopView } from './player-view';
 
 export type { UnitTier };
 export type UnitDomain = Medium;
@@ -66,7 +66,12 @@ export type UnitSheet =
     }
   | { readonly kind: 'support'; readonly contribution: string };
 
-const ROLE_ORDER: ReadonlyArray<UnitRole> = [
+/**
+ * The canonical order of the roles. It orders the inventory, and since the combat pass it also
+ * orders the strikes of an engagement — one table, so a column cannot fire in one order and be
+ * listed in another.
+ */
+export const ROLE_ORDER: ReadonlyArray<UnitRole> = [
   'infantry',
   'armor',
   'landTransport',
@@ -78,40 +83,34 @@ const ROLE_ORDER: ReadonlyArray<UnitRole> = [
   'carrier',
 ];
 
-export type TroopSituation =
-  | { readonly kind: 'home' }
-  | {
-      readonly kind: 'movement';
-      readonly arcId: string;
-      readonly movementType: MovementType;
-      readonly destination: string;
-      readonly minutesLeft: number;
-    }
-  | { readonly kind: 'garrison'; readonly outpostId: string; readonly hostCountry: string };
-
-export type SituationKind = TroopSituation['kind'];
+/**
+ * **A troop's address is the thing it hangs from** (decision 12a, ADR 0013 and 0014): a
+ * building, the outpost its column founded, or nothing at all — which reads "at home" and is
+ * what a troop whose building was razed comes back to.
+ */
+export type StationKind = 'building' | 'outpost' | 'home';
 
 /**
- * **A line counts troops, not men — and that is a knowing lie for now.** Since ADR 0014 a
- * troop is discrete and its hit points are its readable strength, which `PlayerView` already
- * carries per troop. This inventory still adds them up by role, so the screen says "3
- * infanteries" where the truth is "50 / 32 / 12 soldats". The data is there; only the rendering
- * waits on its brief.
+ * One card of the widget's *stationnaires* section: the troops of one role standing at one
+ * address. They are grouped rather than listed one by one because the ceiling is 24 and the
+ * widget must never need a scrollbar — and because "Fantassins · 6" is what one selects, not
+ * six identical rows.
+ *
+ * `troopIds` travels with the card: it is what the garrison panel pre-checks, so the two doors
+ * of the flow open on **one** selection state and never on two.
  */
-export type TroopLine = {
+export type StationGroup = {
   readonly key: string;
+  readonly stationId: string | null;
+  readonly kind: StationKind;
   readonly role: UnitRole;
   readonly unitDomain: UnitDomain;
+  readonly troopIds: ReadonlyArray<string>;
   readonly count: number;
-  readonly situation: TroopSituation;
+  /** Hit points against the nominal they were formed at (ADR 0014) — the whole health bar. */
+  readonly strength: number;
+  readonly nominalStrength: number;
 };
-
-export type TroopFilter = {
-  readonly situation: SituationKind | 'all';
-  readonly unitDomain: UnitDomain | 'all';
-};
-
-export type TroopSort = 'role' | 'count' | 'due';
 
 /**
  * The role that gives a movement its face on the map: the most numerous of the stack, ties
@@ -132,93 +131,65 @@ export function representativeRole(stack: Stack): UnitRole | null {
 }
 
 /**
- * An outpost only exposes the head count of its garrison, not a stack: only infantry
- * garrisons an outpost (design sheet 09), so the inventory reports it under that role.
+ * **The troops that stand still, by address and by role.** A troop marching is not here: it
+ * hangs from the movement that carries it, and the widget's other section observes those —
+ * they are not selectable, and the split between the two lists is the whole point (decision
+ * 13a).
+ *
+ * The stations come in the order the addresses were served and the roles in the canonical one,
+ * so the list does not reshuffle under the pointer between two subscriptions.
  */
-export function inventoryTroops(
+export function stationGroups(
   me: PlayerView['me'],
-  arcs: ReadonlyArray<ArcView>,
-): ReadonlyArray<TroopLine> {
-  const lines: TroopLine[] = [];
+  marching: ReadonlySet<string>,
+): ReadonlyArray<StationGroup> {
+  const garrisoned = new Set(me.outposts.map((outpost) => outpost.id));
+  const byKey = new Map<string, StationGroup>();
+  const rank: string[] = [];
 
-  for (const [role, count] of countsOf(me.armyPresent)) {
-    lines.push(line(`home-${role}`, role, count, { kind: 'home' }));
+  for (const troop of me.troops) {
+    if (marching.has(troop.id)) continue;
+    const stationId = troop.stationedAt;
+    const kind: StationKind =
+      stationId === null ? 'home' : garrisoned.has(stationId) ? 'outpost' : 'building';
+    const key = `${stationId ?? 'home'}-${troop.role}`;
+    const held = byKey.get(key);
+    if (held === undefined) rank.push(key);
+    byKey.set(key, {
+      key,
+      stationId,
+      kind,
+      role: troop.role,
+      unitDomain: DOMAIN_BY_ROLE[troop.role],
+      troopIds: [...(held?.troopIds ?? []), troop.id],
+      count: (held?.count ?? 0) + 1,
+      strength: (held?.strength ?? 0) + troop.strength,
+      nominalStrength: (held?.nominalStrength ?? 0) + troop.nominalStrength,
+    });
   }
 
-  for (const arc of arcs) {
-    if (arc.state !== 'mine') continue;
-    for (const [role, count] of countsOf(arc.stack)) {
-      lines.push(
-        line(`${arc.id}-${role}`, role, count, {
-          kind: 'movement',
-          arcId: arc.id,
-          movementType: arc.type,
-          destination: arc.destinationLabel,
-          minutesLeft: arc.minutesLeft,
-        }),
-      );
-    }
-  }
-
-  for (const outpost of me.outposts) {
-    if (!outpost.isMine || outpost.garrison <= 0) continue;
-    lines.push(
-      line(`${outpost.id}-garrison`, 'infantry', outpost.garrison, {
-        kind: 'garrison',
-        outpostId: outpost.id,
-        hostCountry: outpost.hostCountry,
-      }),
+  return rank
+    .map((key) => byKey.get(key)!)
+    .sort(
+      (a, b) =>
+        String(a.stationId).localeCompare(String(b.stationId)) ||
+        ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
     );
-  }
-
-  return lines;
 }
 
-export function organizeTroops(
-  lines: ReadonlyArray<TroopLine>,
-  filter: TroopFilter,
-  sort: TroopSort,
-): ReadonlyArray<TroopLine> {
-  const kept = lines.filter(
-    (candidate) =>
-      (filter.situation === 'all' || candidate.situation.kind === filter.situation) &&
-      (filter.unitDomain === 'all' || candidate.unitDomain === filter.unitDomain),
-  );
-  return kept.sort(compare(sort));
+/** The troops hanging from one address — what the garrison panel composes a column from. */
+export function troopsAt(
+  me: PlayerView['me'],
+  stationId: string | null,
+  marching: ReadonlySet<string>,
+): ReadonlyArray<TroopView> {
+  return me.troops
+    .filter((troop) => troop.stationedAt === stationId && !marching.has(troop.id))
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
 }
 
-export function countTroops(lines: ReadonlyArray<TroopLine>): number {
-  return lines.reduce((sum, candidate) => sum + candidate.count, 0);
-}
-
-function line(
-  key: string,
-  role: UnitRole,
-  count: number,
-  situation: TroopSituation,
-): TroopLine {
-  return { key, role, unitDomain: DOMAIN_BY_ROLE[role], count, situation };
-}
-
-function countsOf(stack: PlayerView['me']['armyPresent']): ReadonlyArray<[UnitRole, number]> {
-  return (Object.entries(stack) as ReadonlyArray<[UnitRole, number]>).filter(
-    ([, count]) => count > 0,
-  );
-}
-
-function compare(sort: TroopSort): (a: TroopLine, b: TroopLine) => number {
-  switch (sort) {
-    case 'role':
-      return (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || b.count - a.count;
-    case 'count':
-      return (a, b) => b.count - a.count;
-    case 'due':
-      return (a, b) => dueMinutes(a) - dueMinutes(b);
-  }
-}
-
-function dueMinutes(candidate: TroopLine): number {
-  return candidate.situation.kind === 'movement'
-    ? candidate.situation.minutesLeft
-    : Number.POSITIVE_INFINITY;
+/** Every troop a movement of mine carries: they have an address, but they are not standing at
+ *  it, and offering them to a second order is the one thing the two sections exist to prevent. */
+export function marchingTroopIds(arcs: ReadonlyArray<ArcView>): ReadonlySet<string> {
+  return new Set(arcs.flatMap((arc) => (arc.state === 'mine' ? [...arc.troopIds] : [])));
 }

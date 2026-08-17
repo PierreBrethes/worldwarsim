@@ -24,14 +24,14 @@ export function keepHudScale(percent: number): void {
   applyHudScale(percent);
 }
 
-const TIMELINE_COLLAPSED_KEY = 'wws-timeline-collapsed';
+const TROOPS_COLLAPSED_KEY = 'wws-troops-collapsed';
 
-/** A collapsed timeline stays collapsed: it is a desk-clutter choice, not a screen state. */
-export const readTimelineCollapsed = (): boolean =>
-  localStorage.getItem(TIMELINE_COLLAPSED_KEY) === 'collapsed';
+/** A folded widget stays folded: it is a desk-clutter choice, not a screen state. */
+export const readTroopsCollapsed = (): boolean =>
+  localStorage.getItem(TROOPS_COLLAPSED_KEY) === 'collapsed';
 
-export const keepTimelineCollapsed = (collapsed: boolean): void => {
-  localStorage.setItem(TIMELINE_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded');
+export const keepTroopsCollapsed = (collapsed: boolean): void => {
+  localStorage.setItem(TROOPS_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded');
 };
 
 const GESTURE_HINT_KEY = 'wws-gesture-hint';
