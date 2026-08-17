@@ -32,7 +32,6 @@ import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE } from './regions';
 import { WorldFrame } from './frame';
 
-export type MapHover = { name: string; screenX: number; screenY: number } | null;
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -142,7 +141,6 @@ export class MapEngine {
    */
   private hoverDirty = true;
 
-  onHover: (hover: MapHover) => void = () => { };
   onRegionHover: (region: RegionIdentity | null) => void = () => { };
   onArcHover: (id: string | null) => void = () => { };
   onSelect: (name: string | null) => void = () => { };
@@ -161,7 +159,6 @@ export class MapEngine {
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => { };
   private hoveredRegion: string | null = null;
   private hoveredArc: string | null = null;
-  private countryTooltip: string | null = null;
 
   constructor(
     private readonly container: HTMLElement,
@@ -623,13 +620,6 @@ export class MapEngine {
     }
 
     this.hovered = touched ?? null;
-
-    const tooltip = this.hovered?.userData.name ?? null;
-    if (tooltip === this.countryTooltip) return;
-    this.countryTooltip = tooltip;
-    this.onHover(
-      tooltip ? { name: tooltip, screenX: this.pointerScreen.x, screenY: this.pointerScreen.y } : null,
-    );
   }
 
   /** Region hover only exists once the layer has faded in on screen, never at sea. */

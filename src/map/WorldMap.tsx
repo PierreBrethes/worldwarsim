@@ -11,7 +11,7 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type BuiltRegions, type MapHover } from './engine';
+import { MapEngine, type BuiltRegions } from './engine';
 
 type Props = {
   world: World;
@@ -74,7 +74,6 @@ export function WorldMap({
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
-  const [hover, setHover] = useState<MapHover>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   // The label layer can only attach once the engine exists: it needs the instance, not a
@@ -84,7 +83,6 @@ export function WorldMap({
   useEffect(() => {
     if (!container.current) return;
     const instance = new MapEngine(container.current, world);
-    instance.onHover = setHover;
     engine.current = instance;
     setReadyEngine(instance);
     if (import.meta.env.DEV) (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
@@ -262,7 +260,6 @@ export function WorldMap({
           <RouteScale arc={designatedArc} />
         </div>
       )}
-      {hover && <CountryTooltip hover={hover} />}
       {gestureHint && <GestureHint />}
       <ControlsCard />
       {rose && (
@@ -345,15 +342,4 @@ function lineText(
 ): string | null {
   const line = label.lines.find((candidate) => candidate.role === role);
   return line === undefined || line.role === 'countdown' ? null : line.text;
-}
-
-function CountryTooltip({ hover }: { hover: NonNullable<MapHover> }) {
-  return (
-    <div
-      className="hud pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[160%] border border-[var(--ink-quiet)] bg-[var(--desk)] px-2 py-[3px] font-[var(--font-body)] text-[11.5px] text-[var(--paper)] whitespace-nowrap"
-      style={{ left: hover.screenX, top: hover.screenY }}
-    >
-      {hover.name}
-    </div>
-  );
 }
