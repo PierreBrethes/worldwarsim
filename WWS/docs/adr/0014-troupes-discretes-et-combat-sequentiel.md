@@ -1,6 +1,6 @@
 # ADR 0014 — Troupes discrètes et combat séquentiel à l'initiative de l'attaquant
 
-**Statut :** acceptée
+**Statut :** acceptée — précisée par l'[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md)
 
 ## Contexte
 
