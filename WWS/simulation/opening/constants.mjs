@@ -101,6 +101,8 @@ export const SEASON_FORMATS = {
     durationHours: 48,
     hqLevelAtLaunch: 2,
     maxHqLevel: 3,
+    buildingCapBase: 5,
+    buildingCapPerHqLevel: 3,
     foundation: ['mine', 'mine', 'foundry', 'warehouse', 'farm', 'arsenal'],
     startingAlloy: 1000,
     startingOil: 60,
@@ -109,6 +111,8 @@ export const SEASON_FORMATS = {
     durationHours: 168,
     hqLevelAtLaunch: 1,
     maxHqLevel: 5,
+    buildingCapBase: 3,
+    buildingCapPerHqLevel: 2,
     foundation: ['mine', 'mine', 'foundry'],
     startingAlloy: 500,
     startingOil: 40,
@@ -177,9 +181,9 @@ export const DEFAULT_TUNING = {
   orePerHour: 9,
   coalPerHour: 10,
   oreInput: 2,
-  // Copied from `BUILDING_CAP_BASE` / `BUILDING_CAP_PER_HQ_LEVEL`, where they used to be a
-  // hypothesis (6 / 1.4, so 8 at a headquarters at 2). The instrument mirrors, it does not
-  // propose: a scenario that wants to sweep the ceiling overrides them by name.
+  // The building ceiling belongs to the format now (`SEASON_FORMATS`), and `scenarios.mjs`
+  // overrides these two from it. Kept so a bare scenario still has a ceiling, and so a sweep
+  // can still ask what widening it buys. The instrument mirrors, it does not propose.
   buildingCapBase: 3,
   buildingCapPerHqLevel: 2,
   /** Overridden by the season's format; kept so a bare scenario still has a ceiling. */
@@ -222,6 +226,16 @@ export const buildCost = (key, level, tuning) => {
 
 export const buildMinutes = (key, level, tuning) =>
   Math.round(BUILDING_SPEC[key].minutes * tuning.levelCostFactor ** (level - 1));
+
+/** Mirrors `unlockLevel` in `convex/constants.ts`: `UNLOCKED_AT` holds the campaign's levels,
+ *  every other format reprojects them onto its own run. A skirmish's run is one step, so its
+ *  whole catalogue opens at the launch. */
+export const unlockLevel = (key, format) => {
+  const ref = SEASON_FORMATS.campaign;
+  const spec = SEASON_FORMATS[format];
+  const advance = (UNLOCKED_AT[key] - ref.hqLevelAtLaunch) / (ref.maxHqLevel - ref.hqLevelAtLaunch);
+  return spec.hqLevelAtLaunch + Math.floor(advance * (spec.maxHqLevel - spec.hqLevelAtLaunch));
+};
 
 export const buildingCap = (hqLevel, tuning) =>
   Math.floor(tuning.buildingCapBase + tuning.buildingCapPerHqLevel * hqLevel);

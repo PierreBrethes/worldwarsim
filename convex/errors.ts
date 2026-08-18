@@ -57,13 +57,14 @@ export type ErrorCode =
   | 'UNKNOWN_TROOP'
   | 'TROOP_NOT_AT_ORIGIN'
   | 'INFANTRY_ONLY'
-  | 'LAND_MOVEMENT_ONLY'
+  | 'NO_PORT_AT_DEPARTURE'
+  | 'NO_AIRFIELD_AT_DEPARTURE'
+  | 'NOT_ENOUGH_LIFT'
   | 'UNKNOWN_OUTPOST'
   | 'FRIENDLY_TARGET'
   | 'EMPTY_MOVEMENT'
   | 'REGION_TARGET_ONLY'
   | 'OUTPOST_TARGET_ONLY'
-  | 'BARRACKS_TARGET_ONLY'
   | 'NOT_ORDERABLE';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };

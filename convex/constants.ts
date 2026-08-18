@@ -141,31 +141,65 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
+ * **`unlockLevel` says what a format makes reachable; `tier2HqLevel` says when progression
+ * crosses a step. They are opposites on purpose and must never be merged** — a width against a
+ * depth. A short format has to open its catalogue *early*, or the steps it never climbs are
+ * simply lines it never sees; and it has to keep its mark-2 step *ahead*, or raising the
+ * headquarters rewards nothing. Somebody will try to unify them; this paragraph is why not.
+ *
+ * `UNLOCKED_AT` holds the campaign's levels — the reference format, whose run goes from a
+ * headquarters of 1 to 5 — and every other format reprojects them onto its own run as a
+ * fraction of the way through. In a campaign it is the identity.
+ *
+ * A skirmish's run is **one single step**, so everything lands on its launch: the port and the
+ * aerodrome are there from the first minute. That is the answer, not a side effect — a
+ * catalogue tiered over a single step tiers nothing, it only delays. What paces a skirmish is
+ * alloy and time, never the headquarters.
+ */
+export function unlockLevel(key: BuildingKey, format: SeasonFormat): number {
+  const reference = SEASON_FORMATS.campaign;
+  const spec = SEASON_FORMATS[format];
+  const referenceRun = reference.maxHqLevel - reference.hqLevelAtLaunch;
+  const advance = (UNLOCKED_AT[key] - reference.hqLevelAtLaunch) / referenceRun;
+  return spec.hqLevelAtLaunch + Math.floor(advance * (spec.maxHqLevel - spec.hqLevelAtLaunch));
+}
+
+/**
  * **No game quantity is ever counted in regions. The headquarters is the only bottleneck.**
  * (ADR 0015.) A region is a place, never a counter: Natural Earth cuts the United Kingdom into
  * districts and Germany into Länder — 232 against 16 — so anything indexed on a region count
  * would let a cartography vendor balance a season.
  *
- * Hence a **global** ceiling on standing buildings, carried by the headquarters like the
- * movement slots. It must stay strictly under the region count of the smallest playable nation,
- * or the one-per-region rule would start capping Germany and nobody else — `economy.test.ts`
- * asserts it rather than trusting this paragraph.
+ * Hence a ceiling on standing buildings carried by the headquarters, like the movement slots.
+ * **The ladder belongs to the format**, not to the game: written globally it read the same at
+ * a headquarters of 2 whether that was a skirmish's launch or a campaign's second step, and a
+ * skirmish came out with *zero* free placement at launch and one for the whole season — the
+ * foundation and the headquarters ate the seven. ADR 0017 had set the appointment: it held
+ * only because recruitment filled the hole, and it was to be looked at when movements existed.
+ *
+ * Whatever the format, the ceiling must stay strictly under the region count of the smallest
+ * playable nation, or the one-per-region rule would start capping Germany and nobody else —
+ * `economy.test.ts` asserts it on every format rather than trusting this paragraph.
  */
-export const BUILDING_CAP_BASE = 3;
-export const BUILDING_CAP_PER_HQ_LEVEL = 2;
-
-/**
- * Five buildings at a headquarters of 1, thirteen at the highest. Where a season *starts* on
- * that ladder is its format's business (`SEASON_FORMATS` below): a skirmish opens at 7.
- */
-export const buildingCap = (hqLevel: number): number =>
-  BUILDING_CAP_BASE + BUILDING_CAP_PER_HQ_LEVEL * hqLevel;
+export const buildingCap = (format: SeasonFormat, hqLevel: number): number => {
+  const spec = SEASON_FORMATS[format];
+  return spec.buildingCapBase + spec.buildingCapPerHqLevel * hqLevel;
+};
 
 export type SeasonFormatSpec = {
   readonly durationHours: number;
   /** Where the headquarters stands from the first minute (ADR 0015). */
   readonly hqLevelAtLaunch: number;
   readonly maxHqLevel: number;
+  /**
+   * The building ceiling this format's headquarters carries, as a base and a step. What these
+   * two describe is not the ceiling but **the free placements left once the foundation and the
+   * headquarters are standing** — four at a skirmish's launch and seven at its end, one at a
+   * campaign's launch and nine at its end. A format that opens on a fat foundation has to
+   * carry a wider ladder for the same room to choose.
+   */
+  readonly buildingCapBase: number;
+  readonly buildingCapPerHqLevel: number;
   /**
    * The buildings the season starts *owing* the player. Ordered, with repetitions: two mines
    * are two placements, and which deposit each one works is the player's to choose.
@@ -214,6 +248,8 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
     durationHours: 48,
     hqLevelAtLaunch: 2,
     maxHqLevel: 3,
+    buildingCapBase: 5,
+    buildingCapPerHqLevel: 3,
     foundation: ['mine', 'mine', 'foundry', 'warehouse', 'farm', 'arsenal'],
     startingAlloy: 1000,
     startingOil: 60,
@@ -222,6 +258,8 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
     durationHours: 168,
     hqLevelAtLaunch: 1,
     maxHqLevel: 5,
+    buildingCapBase: 3,
+    buildingCapPerHqLevel: 2,
     foundation: ['mine', 'mine', 'foundry'],
     startingAlloy: 500,
     startingOil: 40,
@@ -252,15 +290,6 @@ export function foundationOwed(
   }
   return owed;
 }
-
-/**
- * The headquarters stops somewhere, otherwise the building ceiling it carries never stops
- * either — and the guard rail above would be unprovable. The longest format sets it: the
- * ceiling has to hold for the season that climbs the highest.
- */
-export const MAX_HQ_LEVEL = Math.max(
-  ...Object.values(SEASON_FORMATS).map((spec) => spec.maxHqLevel),
-);
 
 export const LEVEL_COST_FACTOR = 1.8;
 
@@ -375,6 +404,10 @@ export const TIER_2_FACTOR = 1.6;
  * headquarters at 2 — a step that does not exist is not a step. One constant, one threshold
  * derived per format: two thresholds written by hand would drift the day a format moves its
  * launch.
+ *
+ * **This is a depth, and `unlockLevel` is a width — do not merge them.** The catalogue has to
+ * open early in a short format; this step has to stay ahead of the player in one, or climbing
+ * buys nothing. See the paragraph above `unlockLevel`.
  */
 export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
 

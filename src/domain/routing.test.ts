@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from './world';
-import { COST_BY_MEDIUM, TRANSFER_COST, buildGrid, computeRoute } from './routing';
+import { COST_BY_MEDIUM, TRANSFER_COST, buildGrid, computeRoute, countryAt } from './routing';
 
 /**
  * A toy world: 100×50 rectangular sphere (identity projection in x, linear latitudes in y),
@@ -139,5 +139,41 @@ describe('on the real world', () => {
     const land = computeRoute(worldGrid, [2.35, 48.85], [13.4, 52.5], 'land');
     expect(land).not.toBeNull();
     expect(land!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+  });
+});
+
+/**
+ * The one question a lon/lat cannot answer alone, and the reason the rings are on the server at
+ * all: a destination owes a rest window to whoever holds the ground it lands on.
+ */
+describe('the country under a point', () => {
+  const realWorld = async (): Promise<World> => {
+    const { readFileSync } = await import('node:fs');
+    const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
+      meta: { sphere: World['sphere']; outline: World['outline'] };
+      countries: Array<{
+        n: string;
+        c: [number, number];
+        ll: [number, number];
+        p: [number, number][][];
+      }>;
+    };
+    return {
+      sphere: raw.meta.sphere,
+      outline: raw.meta.outline,
+      countries: raw.countries.map((c) => ({
+        name: c.n,
+        representativePoint: c.c,
+        lonLat: c.ll,
+        rings: c.p,
+      })),
+    };
+  };
+
+  it('names the land, and answers nothing at sea', async () => {
+    const world = await realWorld();
+    expect(countryAt(world, [25.2, 44.6])).toBe('Romania');
+    expect(countryAt(world, [2.35, 48.86])).toBe('France');
+    expect(countryAt(world, [-30, 40])).toBeNull();
   });
 });

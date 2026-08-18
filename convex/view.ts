@@ -11,7 +11,7 @@ import {
   formatOf,
   isCommanded,
   tier2HqLevel,
-  UNLOCKED_AT,
+  unlockLevel,
   troopCap,
   type Costs,
 } from './constants';
@@ -94,7 +94,7 @@ export const playerView = query({
           cost: buildCost(key, 1),
           minutes: buildMinutes(key, 1),
           // The tier travels with the price so the panel offers exactly what the server takes.
-          unlockedAtHqLevel: UNLOCKED_AT[key],
+          unlockedAtHqLevel: unlockLevel(key, format),
         },
       ]),
     ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
@@ -225,7 +225,7 @@ export const playerView = query({
          * The count of standing buildings is not served beside it: `buildings` below is the
          * whole list, so its length *is* the count. Two numbers for one fact would diverge.
          */
-        buildingCap: buildingCap(hqLevel),
+        buildingCap: buildingCap(format, hqLevel),
         /**
          * The headquarters level that opens mark 2 **in this format** (ADR 0017). Served rather
          * than read off a constant by the screen: the line that says "verrouillé jusqu'au QG 3"

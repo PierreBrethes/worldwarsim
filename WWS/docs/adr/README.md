@@ -20,9 +20,10 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0010](0010-convex-auto-heberge-sur-vps.md) | Convex auto-hébergé sur VPS plutôt que Convex cloud | acceptée |
 | [0011](0011-premiere-tranche-du-schema-de-jeu.md) | Première tranche du schéma de jeu écrite avant la fermeture du 🔴 | révisée par 0014 et 0015 |
 | [0012](0012-trajets-multimodaux-sur-grille.md) | Trajets multimodaux sur grille raster, calculés dans le domaine | acceptée |
-| [0013](0013-batiments-de-projection-sur-regions.md) | Bâtiments de projection posés sur des régions | acceptée, portée révisée par 0015 |
+| [0013](0013-batiments-de-projection-sur-regions.md) | Bâtiments de projection posés sur des régions | acceptée, portée révisée par 0015, amendée par 0019 |
 | [0014](0014-troupes-discretes-et-combat-sequentiel.md) | Troupes discrètes et combat séquentiel à l'initiative de l'attaquant | acceptée, précisée par 0018 |
 | [0015](0015-economie-v2-ressources-localisees.md) | Économie v2 : ressources localisées et filières courtes | acceptée |
 | [0016](0016-code-anglais-jeu-francais.md) | Code en anglais, jeu en français via une table de traduction unique | acceptée |
 | [0017](0017-format-de-saison-et-socle-place.md) | Format de saison, socle placé, et ce que borne un plafond de stockage | acceptée |
-| [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au recrutement seul | acceptée |
+| [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au recrutement seul | acceptée, §3 amendé par 0019 |
+| [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée |

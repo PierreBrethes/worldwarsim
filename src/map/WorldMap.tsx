@@ -8,7 +8,12 @@ import { fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { MapLabel } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
-import type { CompassAction, CompassTarget, Compass } from '@/domain/compass-rose';
+import {
+  countryName,
+  type CompassAction,
+  type CompassTarget,
+  type Compass,
+} from '@/domain/compass-rose';
 import type { ArcView } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { ControlsCard } from './ControlsCard';
@@ -147,7 +152,32 @@ export function WorldMap({
 
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onRightClick = ({ country, region, clientX, clientY }) => {
+    readyEngine.onRightClick = ({ country, region, point, clientX, clientY }) => {
+      /**
+       * **Aiming, the board answers everywhere.** The place under the pointer is a lon/lat at
+       * every scale and over water too, so the silence the player used to get when zoomed out —
+       * or off a coast — is structurally gone (ADR 0019 §1). The region travels alongside it
+       * because a foundation still needs one; the fan sorts out which type takes which.
+       */
+      if (aiming) {
+        if (point === null) {
+          setRose(null);
+          return;
+        }
+        openRose(
+          {
+            kind: 'point',
+            lon: point[0],
+            lat: point[1],
+            regionId: region?.id ?? null,
+            country,
+            name: region?.name ?? (country === null ? fr.compass.openWater : countryName(country)),
+          },
+          clientX,
+          clientY,
+        );
+        return;
+      }
       if (country === null) {
         setRose(null);
         return;
@@ -163,7 +193,7 @@ export function WorldMap({
     return () => {
       readyEngine.onRightClick = () => {};
     };
-  }, [readyEngine, openRose]);
+  }, [readyEngine, openRose, aiming]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.

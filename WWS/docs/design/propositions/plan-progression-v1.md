@@ -1,5 +1,10 @@
 # Plan de progression V1 — une question nouvelle à chaque palier de QG
 
+> ⚠️ **Mesures périmées (18/08/2026).** Le plafond de bâtisses est passé dans le format
+> (ADR 0019, révision de l'ADR 0017) : l'escarmouche assidue sort désormais à **41 actions,
+> 11 bâtiments, aucune connexion vide**. Tous les chiffres d'ouverture de cette note datent
+> d'avant, et le calibrage de `startingAlloy` qui en découlait n'a pas été refait.
+
 **Statut : proposition V1, à développer puis tester en conditions réelles.** Deux ou trois points
 sensibles sont assumés et nommés en fin de document — le but est un premier tour de saison entre
 amis, pas un équilibrage final. Chiffres : `WWS/simulation/opening/` (état du 17/08). Ce plan ne

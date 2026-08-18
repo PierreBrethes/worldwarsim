@@ -4,12 +4,22 @@ import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
+  nominalStrength,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_REACH_KM,
   REST_WINDOW_MINUTES,
-  UNLOCKED_AT,
+  unlockLevel,
 } from './constants';
+import { ConvexError } from 'convex/values';
+import type { BuildingKey, UnitRole } from '../src/domain/ids';
+import {
+  legalMovementTypes,
+  refusalOf,
+  type Column,
+  type MovementAim,
+} from '../src/domain/movement-orders';
 import { regionFacts } from './regions';
+import { pointOf } from './movements';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -19,6 +29,7 @@ const boot = () => convexTest(schema, modules);
 const MARNE = 'FRA-5323'; // where the barracks stands
 const PRAHOVA = 'ROU-310'; // Romanian oil, 1 800 km east — nobody's home country
 const RUHR = 'DEU-1572'; // German, and far out of any Romanian reach
+const RIYADH = 'SAU-1097'; // Ar Riyad — a second neutral, to prove neutrals are not one country
 const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
@@ -54,7 +65,7 @@ async function playerOf(t: ReturnType<typeof boot>, token: string) {
 async function raise(
   t: ReturnType<typeof boot>,
   token: string,
-  key: 'barracks' | 'port',
+  key: BuildingKey,
   regionId: string,
 ): Promise<Id<'buildings'>> {
   const playerId = await playerOf(t, token);
@@ -79,11 +90,11 @@ async function setHqLevel(t: ReturnType<typeof boot>, token: string, level: numb
 async function form(
   t: ReturnType<typeof boot>,
   token: string,
-  role: 'infantry' | 'armor',
+  role: UnitRole,
   stationedAt: Id<'buildings'> | null,
 ): Promise<Id<'troops'>> {
   const playerId = await playerOf(t, token);
-  const strength = role === 'infantry' ? 50 : 12;
+  const strength = nominalStrength(role, 1);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
       playerId,
@@ -166,7 +177,7 @@ describe('a land movement founds an outpost', () => {
 
     const sent = await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -189,6 +200,33 @@ describe('a land movement founds an outpost', () => {
     expect(await movementsOf(t, token)).toHaveLength(0);
   });
 
+  /**
+   * The intention, graven. Romania and Arabia are two hosts, and every rule of fiche 03 that is
+   * still unwritten — decreasing yield per host, finite trade capacity, relation per player,
+   * expulsion of a country saturated with outposts — has this string for its key. It was worth
+   * nothing while every country nobody plays answered the same one.
+   */
+  it('gives two outposts in two neutral countries two different hosts', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+
+    for (const regionId of [PRAHOVA, RIYADH]) {
+      await t.mutation(api.movements.foundOutpost, {
+        token,
+        origin: { kind: 'building', buildingId: barracks },
+        regionId,
+        specialization: 'relay',
+        troopIds: [await form(t, token, 'infantry', barracks)],
+      });
+      // One movement slot: the second column leaves only once the first has planted its point.
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    }
+
+    const hosts = (await outpostsOf(t, token)).map((outpost) => outpost.hostCountry);
+    expect([...hosts].sort()).toEqual(['ROU', 'SAU']);
+  });
+
   it('hangs the column on the outpost it founded, and nowhere else', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
@@ -197,7 +235,7 @@ describe('a land movement founds an outpost', () => {
 
     await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'listening',
       troopIds: [troop],
@@ -221,7 +259,7 @@ describe('a land movement founds an outpost', () => {
     await expect(
       t.mutation(api.movements.foundOutpost, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: RUHR,
         specialization: 'relay',
         troopIds: [troop],
@@ -229,25 +267,25 @@ describe('a land movement founds an outpost', () => {
     ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
   });
 
-  it('carries infantry, from a barracks, one column at a time', async () => {
+  it('carries infantry, from any address of mine, one column at a time', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
-    const port = await raise(t, token, 'port', MARNE);
     const infantry = await form(t, token, 'infantry', barracks);
     const armor = await form(t, token, 'armor', barracks);
     const elsewhere = await form(t, token, 'infantry', null);
     const send = (over: Record<string, unknown>) =>
       t.mutation(api.movements.foundOutpost, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: PRAHOVA,
         specialization: 'relay',
         troopIds: [infantry],
         ...over,
       });
 
-    await expect(send({ buildingId: port })).rejects.toThrow('WRONG_PROJECTION_BUILDING');
+    // A land column leaves from any address of mine, port included: ADR 0013 gates the sea and
+    // the air at departure, never the march (ADR 0019 §2).
     await expect(send({ troopIds: [] })).rejects.toThrow('EMPTY_MOVEMENT');
     await expect(send({ troopIds: [armor] })).rejects.toThrow('INFANTRY_ONLY');
     await expect(send({ troopIds: [elsewhere] })).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
@@ -274,7 +312,7 @@ describe('the rest window holds an arrival at the border', () => {
 
     const sent = await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PSKOV,
       specialization: 'relay',
       troopIds: [troop],
@@ -303,7 +341,7 @@ describe('the rest window holds an arrival at the border', () => {
 
     await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -327,7 +365,7 @@ describe('an outpost opens a radius to build in', () => {
     const troop = await form(t, token, 'infantry', barracks);
     await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -363,17 +401,20 @@ describe('an outpost opens a radius to build in', () => {
   /**
    * **The two rules stack, they do not stand in for one another.** The reach says *where* a
    * building may go up, the catalogue tier says *whether the season has reached it* — so a
-   * region an outpost has opened still refuses an airfield until the headquarters is at 3.
+   * region an outpost has opened still refuses an airfield until the headquarters reaches the
+   * level this format opens projection at (`unlockLevel`, one step for a skirmish).
    */
   it('stacks the tier of the catalogue on top of the reach', async () => {
     const t = boot();
     const token = await withOutpostAtPrahova(t);
+    const opensAt = unlockLevel('airfield', 'skirmish');
+    await setHqLevel(t, token, opensAt - 1);
 
     await expect(
       t.mutation(api.constructions.start, { token, building: 'airfield', regionId: PRAHOVA }),
     ).rejects.toThrow('BUILDING_LOCKED');
 
-    await setHqLevel(t, token, UNLOCKED_AT.airfield);
+    await setHqLevel(t, token, opensAt);
 
     // The reach keeps its own say at that level: an opened tier is not a passport.
     await expect(
@@ -420,7 +461,7 @@ describe('an attack marches at somebody', () => {
 
     await t.mutation(api.movements.attack, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PRAHOVA },
     });
@@ -443,7 +484,7 @@ describe('an attack marches at somebody', () => {
 
     await t.mutation(api.movements.attack, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PRAHOVA },
     });
@@ -476,7 +517,7 @@ describe('an attack marches at somebody', () => {
     await expect(
       t.mutation(api.movements.attack, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         troopIds: [troop],
         target: { kind: 'region', regionId: MARNE },
       }),
@@ -505,7 +546,7 @@ describe('what the server refuses is what the fan never offers', () => {
     await expect(
       t.mutation(api.movements.foundOutpost, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: MARNE,
         specialization: 'relay',
         troopIds: [troop],
@@ -522,7 +563,7 @@ describe('what the server refuses is what the fan never offers', () => {
     await expect(
       t.mutation(api.movements.foundOutpost, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: PRAHOVA,
         specialization: 'relay',
         troopIds: [tank],
@@ -538,7 +579,7 @@ describe('what the server refuses is what the fan never offers', () => {
     await expect(
       t.mutation(api.movements.attack, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         troopIds: [],
         target: { kind: 'region', regionId: PRAHOVA },
       }),
@@ -563,7 +604,7 @@ describe('the preview says what the march will be', () => {
 
     const preview = await t.query(api.movements.preview, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PRAHOVA },
       type: 'outpost',
@@ -575,7 +616,7 @@ describe('the preview says what the march will be', () => {
 
     const sent = await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -593,7 +634,7 @@ describe('the preview says what the march will be', () => {
 
     const preview = await t.query(api.movements.preview, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PSKOV },
       type: 'attack',
@@ -623,7 +664,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
 
     await t.mutation(api.movements.raid, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [first, second],
       outpostId,
     });
@@ -658,7 +699,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
 
     await t.mutation(api.movements.raid, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       outpostId,
     });
@@ -677,63 +718,61 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const outpostId = await plant(t, token, prahovaPoint(), 'ROU');
 
     await expect(
-      t.mutation(api.movements.raid, { token, buildingId: barracks, troopIds: [troop], outpostId }),
+      t.mutation(api.movements.raid, {
+        token,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        outpostId,
+      }),
     ).rejects.toThrow('FRIENDLY_TARGET');
   });
 });
 
-describe('a garrison recalls itself', () => {
+/**
+ * The non-regression suite of ADR 0019: where a column stands stopped deciding what it may ask
+ * for. A garrison on an outpost is a column like any other — it attacks, it raids, it founds.
+ */
+describe('a garrison marches out of its outpost', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
   });
   afterEach(() => vi.useRealTimers());
 
-  it('walks home and hangs itself on the barracks it aimed at', async () => {
+  it('attacks a foreign region straight from the point it holds', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    await raise(t, token, 'barracks', MARNE);
     const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
     const held = await garrison(t, token, outpostId);
 
-    const sent = await t.mutation(api.movements.recall, {
+    const sent = await t.mutation(api.movements.attack, {
       token,
-      outpostId,
+      origin: { kind: 'outpost', outpostId },
       troopIds: [held],
-      regionId: MARNE,
+      target: { kind: 'region', regionId: RUHR },
     });
-    expect(sent.minutes).toBeGreaterThan(20);
+    expect(sent.minutes).toBeGreaterThan(0);
+    expect((await t.query(api.view.playerView, { token })).me.slots.used).toBe(1);
+  });
 
+  it('founds a second point from the first — no barracks anywhere in the chain', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await raise(t, token, 'barracks', MARNE);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const held = await garrison(t, token, outpostId);
+
+    await t.mutation(api.movements.foundOutpost, {
+      token,
+      origin: { kind: 'outpost', outpostId },
+      regionId: RUHR,
+      specialization: 'relay',
+      troopIds: [held],
+    });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const troop = await t.run(async (ctx) => ctx.db.get(held));
-    expect(troop!.stationedAt).toBe(barracks);
-    expect(await movementsOf(t, token)).toHaveLength(0);
-  });
-
-  it('spends a slot like any ordinary march, not like a return', async () => {
-    const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'barracks', MARNE);
-    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
-    const held = await garrison(t, token, outpostId);
-
-    await t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: MARNE });
-
-    const view = await t.query(api.view.playerView, { token });
-    expect(view.me.slots.used).toBe(1);
-  });
-
-  it('refuses a region carrying none of my barracks', async () => {
-    const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'barracks', MARNE);
-    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
-    const held = await garrison(t, token, outpostId);
-
-    await expect(
-      t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: RUHR }),
-    ).rejects.toThrow('BARRACKS_TARGET_ONLY');
+    expect(await t.run(async (ctx) => (await ctx.db.query('outposts').collect()).length)).toBe(2);
   });
 
   it("refuses a troop that is not this outpost's own garrison", async () => {
@@ -744,23 +783,214 @@ describe('a garrison recalls itself', () => {
     const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
 
     await expect(
-      t.mutation(api.movements.recall, { token, outpostId, troopIds: [stray], regionId: MARNE }),
+      t.mutation(api.movements.attack, {
+        token,
+        origin: { kind: 'outpost', outpostId },
+        troopIds: [stray],
+        target: { kind: 'region', regionId: RUHR },
+      }),
     ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
   });
+});
 
-  it('comes home even if the barracks was razed since — it does not die for it', async () => {
+/**
+ * The second half of ADR 0019 §1: a destination is the place the player designated, never the
+ * centre of the region that happens to contain it.
+ */
+describe('a march aimed at a point', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** Deliberately off the Prahova centroid: the whole test is that the gap survives the trip. */
+  const AIMED: LonLat = [25.2, 44.6];
+
+  it('walks to that point and to no centroid', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
-    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
-    const held = await garrison(t, token, outpostId);
+    const troop = await form(t, token, 'infantry', barracks);
 
-    await t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: MARNE });
-    await t.run(async (ctx) => ctx.db.delete(barracks));
+    await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'point', point: { lon: AIMED[0], lat: AIMED[1] } },
+    });
+
+    const [movement] = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    expect(movement!.to).toEqual({ lon: AIMED[0], lat: AIMED[1] });
+    expect(distanceKm(pointOf(movement!.to), regionFacts(PRAHOVA)!.point)).toBeGreaterThan(50);
+    /**
+     * The host is read off the geometry, never sent by the client. Romania is nobody's home
+     * country, and it is still Romania: the empty string is the open sea's answer alone
+     * (`hostAtPoint`), because the rules keyed on a host cannot be written on a string that
+     * makes Arabia and Bolivia the same place.
+     */
+    expect(movement!.hostCountry).toBe('ROU');
+  });
+
+  it('answers the same route in the preview as the march will take', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+
+    const seen = await t.query(api.movements.preview, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'point', point: { lon: AIMED[0], lat: AIMED[1] } },
+      type: 'attack',
+    });
+    expect(seen).not.toBeNull();
+    const last = seen!.route.points[seen!.route.points.length - 1]!;
+    expect(distanceKm(pointOf(last), AIMED)).toBeLessThan(60);
+  });
+
+  /** Nobody defends a coordinate yet: the column finds empty ground and turns around. */
+  it('finds nobody there and comes home rather than fighting', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+
+    await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'point', point: { lon: AIMED[0], lat: AIMED[1] } },
+    });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const troop = await t.run(async (ctx) => ctx.db.get(held));
-    expect(troop!.stationedAt).toBeNull();
+    expect(await t.run(async (ctx) => (await ctx.db.query('engagements').collect()).length)).toBe(
+      0,
+    );
+    expect(await t.run(async (ctx) => (await ctx.db.get(troop))!.stationedAt)).toBe(barracks);
+  });
+});
+
+/**
+ * ADR 0013 makes the distant action expensive, never impossible (ADR 0019 §2), and design sheet
+ * 09 says how: **a land troop crosses aboard a transport, or it does not cross**. The door is
+ * back on the pile — which is what lets the fan be exact — and the crossing is now a fleet one
+ * builds, protects and can lose rather than a supplement on a trip.
+ */
+describe('the door of the sea, read on the pile', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const NORD = 'FRA-5330'; // coastal, facing the Channel
+  const KENT: LonLat = [0.73, 51.21]; // across the water, and only across it
+
+  /**
+   * The whole column leaves from the quay: the transport is moored there and its passengers
+   * board it there. `stationedAt` is one address per movement — the day a column may be composed
+   * from several is `adresse-sur-la-carte.md`, not this prompt.
+   */
+  const embark = async (
+    t: ReturnType<typeof boot>,
+    token: string,
+    roles: ReadonlyArray<UnitRole>,
+    { port = true }: { port?: boolean } = {},
+  ) => {
+    await raise(t, token, 'barracks', NORD);
+    const quay = port ? await raise(t, token, 'port', NORD) : await raise(t, token, 'depot', NORD);
+    const troopIds: Array<Id<'troops'>> = [];
+    for (const role of roles) troopIds.push(await form(t, token, role, quay));
+    return t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds,
+      target: { kind: 'point', point: { lon: KENT[0], lat: KENT[1] } },
+    });
+  };
+
+  it('carries infantry across the Channel aboard a cargo, by land and sea', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await embark(t, token, ['infantry', 'infantry', 'cargo']);
+
+    const [movement] = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    expect(movement!.legs.some((leg) => leg.medium === 'sea')).toBe(true);
+    expect(movement!.legs.some((leg) => leg.medium === 'land')).toBe(true);
+    /** The transfer is billed: a crossing costs more than its distance weighted by medium. */
+    expect(movement!.costUnits).toBeGreaterThan(movement!.distanceUnits);
+    /** The United Kingdom is a playable nation, so the ground has a host to owe a window to. */
+    expect(movement!.hostCountry).toBe('GBR');
+  });
+
+  /**
+   * The same two, with nothing to ride: they route on the land alone, and the land stops at the
+   * shore. `NO_LAND_ROUTE` at last says exactly what happened — no renaming needed.
+   */
+  it('leaves the same two on the shore when no ship carries them', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await expect(embark(t, token, ['infantry', 'infantry'])).rejects.toThrow('NO_LAND_ROUTE');
+  });
+
+  it('refuses a seventh passenger for six places, and says how many of each', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const seven: ReadonlyArray<UnitRole> = Array<UnitRole>(7).fill('infantry');
+
+    const refused = await embark(t, token, [...seven, 'cargo']).catch(
+      (problem: unknown) => problem,
+    );
+    expect(refused).toBeInstanceOf(ConvexError);
+    expect(
+      (refused as ConvexError<{ code: string; needed: number; offered: number }>).data,
+    ).toMatchObject({
+      code: 'NOT_ENOUGH_LIFT',
+      needed: 7,
+      offered: 6,
+    });
+  });
+
+  /**
+   * And the fan knows it **without a route**: `legalMovementTypes` reads the same pile the
+   * mutation reads, so nothing is ever offered that the server then turns down (ADR 0015). No
+   * Dijkstra runs on either side of this assertion.
+   */
+  it('refuses a cargo leaving ground with no port, and the fan says so with no route', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await expect(embark(t, token, ['infantry', 'cargo'], { port: false })).rejects.toThrow(
+      'NO_PORT_AT_DEPARTURE',
+    );
+
+    const aim: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1] };
+    const quayless: Column = {
+      roles: ['infantry', 'cargo'],
+      myRegionIds: new Set([NORD]),
+      myOutpostIds: new Set(),
+      departureBuildings: new Set<BuildingKey>(['barracks', 'depot']),
+    };
+    expect(refusalOf('attack', aim, quayless)).toBe('NO_PORT_AT_DEPARTURE');
+    expect(legalMovementTypes(aim, quayless)).toEqual([]);
+  });
+
+  it('asks no port of a column that only walks', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+
+    await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: RUHR },
+    });
+
+    const [movement] = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    expect(movement!.legs.every((leg) => leg.medium === 'land')).toBe(true);
   });
 });
 
@@ -785,7 +1015,7 @@ describe('an interception inverts the initiative', () => {
 
     await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -819,7 +1049,7 @@ describe('an interception inverts the initiative', () => {
 
     await t.mutation(api.movements.foundOutpost, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       regionId: PRAHOVA,
       specialization: 'relay',
       troopIds: [troop],
@@ -851,7 +1081,7 @@ describe('a routed column walks itself home', () => {
 
     const sent = await t.mutation(api.movements.attack, {
       token,
-      buildingId: barracks,
+      origin: { kind: 'building', buildingId: barracks },
       troopIds: [worn],
       target: { kind: 'region', regionId: PRAHOVA },
     });
@@ -870,7 +1100,7 @@ describe('a routed column walks itself home', () => {
     await expect(
       t.mutation(api.movements.foundOutpost, {
         token,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: RUHR,
         specialization: 'relay',
         troopIds: [other],

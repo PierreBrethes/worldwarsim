@@ -103,6 +103,8 @@ export function seasonOf(format, overrides = {}) {
     foundation: overrides.foundation ?? foundationOrders(format),
     tuning: {
       maxHqLevel: spec.maxHqLevel,
+      buildingCapBase: spec.buildingCapBase,
+      buildingCapPerHqLevel: spec.buildingCapPerHqLevel,
       tier2HqLevel: tier2HqLevel(format),
       ...(overrides.tuning ?? {}),
     },

@@ -20,6 +20,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { isTyping } from '@/map/typing';
+import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import type { ArcView } from '@/domain/player-view';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
@@ -50,6 +51,8 @@ export type BuiltRegions = {
 export type MapRightClick = {
   country: string | null;
   region: RegionIdentity | null;
+  /** The place itself, land or water — `null` only when the ray leaves the board entirely. */
+  point: LonLat | null;
   clientX: number;
   clientY: number;
 };
@@ -115,6 +118,8 @@ export class MapEngine {
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly countries: CountryMesh[];
+  /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
+  private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
   private readonly ray = new Raycaster();
   private readonly pointer = new Vector2(-2, -2);
@@ -196,14 +201,15 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
-    for (const object of buildBoard(
+    const board = buildBoard(
       world,
       this.frame,
       this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
-    )) {
-      this.scene.add(object);
-    }
+    );
+    this.surface = board.surface;
+    this.scene.add(board.surface);
+    for (const object of board.decor) this.scene.add(object);
 
     this.scene.add(buildCoastalWash(world, this.frame, this.curvature));
 
@@ -324,6 +330,17 @@ export class MapEngine {
   }
 
   /**
+   * **The place under a screen point, at every scale and over water too.** The ray is given the
+   * sea as well as the land, because a point aimed at the open sea is a legal destination and a
+   * ray that only knew the continents would answer nothing there (ADR 0019 §1).
+   */
+  pointAt(clientX: number, clientY: number): LonLat | null {
+    const hit = this.aimAt(clientX, clientY, true)?.point;
+    if (hit === undefined) return null;
+    return this.frame.lonLatAt(hit.x + this.frame.centerX, hit.z + this.frame.centerY);
+  }
+
+  /**
    * The region under a screen point, or `null` when the layer is not on screen — the fade
    * threshold is the aiming threshold, so the player only ever aims at what he can see.
    */
@@ -334,7 +351,7 @@ export class MapEngine {
     return this.regions.regionAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
   }
 
-  private aimAt(clientX: number, clientY: number): Intersection | undefined {
+  private aimAt(clientX: number, clientY: number, includeSea = false): Intersection | undefined {
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return undefined;
     this.aim.set(
@@ -342,7 +359,8 @@ export class MapEngine {
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.ray.setFromCamera(this.aim, this.camera);
-    return this.ray.intersectObjects(this.countries, false)[0];
+    const targets = includeSea ? [...this.countries, this.surface] : this.countries;
+    return this.ray.intersectObjects(targets, false)[0];
   }
 
   /** The camera holds still while a rose is open: one does not aim at a moving target. */
@@ -465,6 +483,7 @@ export class MapEngine {
       this.onRightClick({
         country: this.countryAtPoint(event.clientX, event.clientY),
         region: this.regionAtPoint(event.clientX, event.clientY),
+        point: this.pointAt(event.clientX, event.clientY),
         clientX: event.clientX,
         clientY: event.clientY,
       });

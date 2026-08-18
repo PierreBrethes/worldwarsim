@@ -117,7 +117,7 @@ function formats() {
     const block = body.match(new RegExp(`${key}\\s*:\\s*\\{([\\s\\S]*?)\\n  \\}`));
     if (!block) { unverified.push(`SEASON_FORMATS.${key}`); continue; }
     const held = mirror.SEASON_FORMATS[key];
-    for (const field of ['durationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'startingAlloy', 'startingOil']) {
+    for (const field of ['durationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil']) {
       const found = block[1].match(new RegExp(`${field}:\\s*(\\d+)`));
       if (!found) { unverified.push(`SEASON_FORMATS.${key}.${field}`); continue; }
       report(`SEASON_FORMATS.${key}.${field}`, found[1], held[field]);
@@ -135,8 +135,6 @@ function formats() {
 
 scalar('BASE_CAP', mirror.BASE_CAP);
 scalar('STORAGE_CAP_PER_LEVEL', mirror.STORAGE_CAP_PER_LEVEL);
-scalar('BUILDING_CAP_BASE', mirror.DEFAULT_TUNING.buildingCapBase);
-scalar('BUILDING_CAP_PER_HQ_LEVEL', mirror.DEFAULT_TUNING.buildingCapPerHqLevel);
 scalar('LEVEL_COST_FACTOR', mirror.DEFAULT_TUNING.levelCostFactor);
 scalar('TROOP_CAP_BASE', mirror.TROOP_CAP_BASE);
 scalar('TROOP_CAP_TARGET', mirror.TROOP_CAP_TARGET);

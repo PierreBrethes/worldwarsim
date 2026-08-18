@@ -24,7 +24,12 @@ import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { errorCode } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
-import { MovementPreview } from './-plateau/MovementPreview';
+import {
+  MovementPreview,
+  wireOrigin,
+  wireTarget,
+  type ColumnOrigin,
+} from './-plateau/MovementPreview';
 import { RegionTooltip } from './-plateau/RegionTooltip';
 import { TroopsWidget } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
@@ -45,7 +50,10 @@ type OpenGarrison = {
  * function reads — built once here so the fan does not rebuild it on every hover.
  */
 type ArmedColumn = {
-  readonly buildingId: string;
+  /** A building's id or an outpost's — the address the widget and the garrison panel select on.
+   *  `origin` is the same thing in the shape the server takes. */
+  readonly stationId: string;
+  readonly origin: ColumnOrigin;
   readonly troopIds: ReadonlyArray<string>;
   readonly rule: Column;
 };
@@ -58,7 +66,8 @@ type Order = {
   readonly y: number;
 };
 
-/** The three buildings a column leaves from (ADR 0013) — their mast opens a garrison. */
+/** The three buildings that station a column — their mast opens a garrison. Since ADR 0019 they
+ *  no longer decide what it may ask for, only where a domain gate is read. */
 const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_DOMAIN);
 
 const JournalWindow = lazy(() =>
@@ -482,39 +491,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     });
   }, [windows, view.journal, navigate]);
 
-  /**
-   * **Two queries, one card.** A garrison leaves an outpost, which has no `regionFacts` of its
-   * own — `recallPreview` reads it, `preview` reads a barracks, and only one of the two is ever
-   * live: `useQuery` cannot itself branch, so both are called and the idle one is skipped.
-   */
-  const fromOutpost = column !== null && column.rule.origin === 'outpost';
-  const buildingPreview = useQuery(
+  const preview = useQuery(
     api.movements.preview,
-    column === null || order === null || fromOutpost
+    column === null || order === null
       ? 'skip'
       : {
           token,
-          buildingId: column.buildingId as Id<'buildings'>,
+          origin: wireOrigin(column.origin),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-          target:
-            order.aim.kind === 'region'
-              ? { kind: 'region' as const, regionId: order.aim.regionId }
-              : { kind: 'outpost' as const, outpostId: order.aim.outpostId as Id<'outposts'> },
+          target: wireTarget(order.aim),
           type: order.type,
         },
   );
-  const recallPreview = useQuery(
-    api.movements.recallPreview,
-    column === null || order === null || !fromOutpost || order.aim.kind !== 'region'
-      ? 'skip'
-      : {
-          token,
-          outpostId: column.buildingId as Id<'outposts'>,
-          troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-          regionId: order.aim.regionId,
-        },
-  );
-  const preview = fromOutpost ? recallPreview : buildingPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -583,7 +571,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         {column && order && (
           <MovementPreview
             token={token}
-            buildingId={column.buildingId}
+            origin={column.origin}
             troopIds={column.troopIds}
             aim={order.aim}
             type={order.type}
@@ -604,7 +592,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           // while it is open — home reads as `null`, so it must not fall through to the column
           // below — then the column it armed for as long as an aim is still live, or `undefined`
           // for neither: one selection, wherever the flow currently stands (decision 13a).
-          selectedStation={garrison !== null ? garrison.stationId : column?.buildingId}
+          selectedStation={garrison !== null ? garrison.stationId : column?.stationId}
           onHover={setHoveredCard}
           onOpenGarrison={(stationId, preselect) =>
             openGarrison(stationId, preselect, { x: 24, y: 92 })
@@ -691,33 +679,37 @@ function Loading() {
  * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
  * two callers.
  *
- * `originId` is a building's or an outpost's id, whichever door the garrison panel was opened
+ * `stationId` is a building's or an outpost's id, whichever door the garrison panel was opened
  * from — the two doors open the same panel (decision 13a), so which one it was is read off
  * `view.me.outposts` rather than carried separately.
  */
 function armedColumn(
   view: PlayerView,
-  originId: string,
+  stationId: string,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
   const roles = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
     return troop ? [troop.role] : [];
   });
-  const fromOutpost = view.me.outposts.some((outpost) => outpost.id === originId);
+  const departure = view.me.buildings.find((building) => building.id === stationId);
   return {
-    buildingId: originId,
+    stationId,
+    origin: { kind: departure === undefined ? 'outpost' : 'building', id: stationId },
     troopIds,
     rule: {
       roles,
       myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
-      myBarracksRegionIds: new Set(
-        view.me.buildings
-          .filter((building) => building.key === 'barracks')
-          .map((building) => building.regionId),
+      /** An outpost is a point and carries no region, so a garrison finds no gate under it and
+       *  walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
+      departureBuildings: new Set(
+        departure === undefined
+          ? []
+          : view.me.buildings
+              .filter((building) => building.regionId === departure.regionId)
+              .map((building) => building.key),
       ),
-      origin: fromOutpost ? 'outpost' : 'building',
     },
   };
 }
@@ -746,7 +738,13 @@ function previewArc(
       legs: preview.route.legs,
     },
     originCountry: '',
-    destinationCountry: order.aim.kind === 'region' ? order.aim.country : order.aim.hostCountry,
+    /** A point belongs to nobody until the arrival says otherwise — the arc stays neutral. */
+    destinationCountry:
+      order.aim.kind === 'region'
+        ? order.aim.country
+        : order.aim.kind === 'outpost'
+          ? order.aim.hostCountry
+          : '',
     originLabel: preview.originName,
     destinationLabel: preview.destinationName,
     type: order.type,
@@ -786,8 +784,8 @@ function markerOfStation(view: PlayerView, stationId: string | null): string | n
  * that matter. It names the way out, because a mode one cannot leave is a trap.
  */
 function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
-  const building = view.me.buildings.find((candidate) => candidate.id === column.buildingId);
-  const outpost = view.me.outposts.find((candidate) => candidate.id === column.buildingId);
+  const building = view.me.buildings.find((candidate) => candidate.id === column.stationId);
+  const outpost = view.me.outposts.find((candidate) => candidate.id === column.stationId);
   const station =
     building?.name ?? (outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome);
   return (

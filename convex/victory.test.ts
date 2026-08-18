@@ -117,7 +117,7 @@ async function overrun(t: ReturnType<typeof boot>, attacker: string, victim: str
 
   await t.mutation(api.movements.attack, {
     token: attacker,
-    buildingId: barracks,
+    origin: { kind: 'building', buildingId: barracks },
     troopIds: column,
     target: { kind: 'outpost', outpostId: outpost },
   });
@@ -202,7 +202,7 @@ describe('the simplified Domination', () => {
     await expect(
       t.mutation(api.movements.foundOutpost, {
         token: victim!,
-        buildingId: barracks,
+        origin: { kind: 'building', buildingId: barracks },
         regionId: PRAHOVA,
         specialization: 'relay',
         troopIds: [troop],

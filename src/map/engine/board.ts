@@ -180,12 +180,17 @@ function buildRim(
   return { band, stroke };
 }
 
+/**
+ * The sea comes back apart from the rest because it is the only piece of the board a pointer
+ * needs to hit: a right click on open water still names a place, and the plinth, the graticule
+ * and the rim are decoration a ray must go straight through.
+ */
 export function buildBoard(
   world: World,
   frame: WorldFrame,
   curvature: Curvature,
   anisotropy: number,
-): Object3D[] {
+): { surface: Mesh; decor: Object3D[] } {
   const surface = new Mesh(
     curvature.register(buildSurface(world, frame)),
     seaMaterial(world, anisotropy),
@@ -223,5 +228,5 @@ export function buildBoard(
     new LineBasicMaterial({ color: PALETTE.rimStroke, transparent: true, opacity: 0.85 }),
   );
 
-  return [surface, plinth, graticule, rim, sharpOutline];
+  return { surface, decor: [plinth, graticule, rim, sharpOutline] };
 }

@@ -141,8 +141,7 @@ describe('in aim', () => {
     roles: ['infantry' as const],
     myRegionIds: new Set(['FRA-5333', 'FRA-9999']),
     myOutpostIds: new Set(['AP-01']),
-    myBarracksRegionIds: new Set<string>(),
-    origin: 'building' as const,
+    departureBuildings: new Set<BuildingKey>(['barracks']),
   };
 
   it('shows the marches and nothing else — no crane, no "view"', () => {
@@ -195,12 +194,94 @@ describe('in aim', () => {
     expect(compassOf({ kind: 'country', country: 'Spain' }, view, column)).toBeNull();
   });
 
+  /** The rose reads `refusalOf` and nothing else: a shut gate empties the fan there too. */
+  it('stays shut when the column cannot leave the ground it stands on', () => {
+    const naval = { ...column, roles: ['cargo' as const] };
+    expect(
+      compassOf({ kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' }, view, naval),
+    ).toBeNull();
+  });
+
+  it('opens the same fan for that column once a port stands there', () => {
+    const naval = {
+      ...column,
+      roles: ['cargo' as const],
+      departureBuildings: new Set<BuildingKey>(['port']),
+    };
+    const compass = compassOf(
+      { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' },
+      view,
+      naval,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
+  });
+
   it('withdraws the foundation as soon as the column is not infantry alone', () => {
     const mixed = { ...column, roles: ['infantry' as const, 'armor' as const] };
     const compass = compassOf(
       { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'Spain' },
       view,
       mixed,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
+  });
+});
+
+/**
+ * The defect ADR 0019 names: zoomed out no region is drawn, so the aim used to find a country
+ * and answer nothing. A point is a place at every scale, which is what closes it.
+ */
+describe('aiming at a point', () => {
+  const column = {
+    roles: ['infantry' as const],
+    myRegionIds: new Set(['FRA-5333']),
+    myOutpostIds: new Set(['AP-01']),
+    departureBuildings: new Set<BuildingKey>(['barracks']),
+  };
+
+  it('opens a fan with no region under it at all — zoomed out, or at sea', () => {
+    const compass = compassOf(
+      { kind: 'point', lon: 25.2, lat: 44.6, regionId: null, country: 'Romania', name: 'Roumanie' },
+      view,
+      column,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
+    expect(compass?.actions[0]).toMatchObject({
+      type: 'attack',
+      aim: { kind: 'point', lon: 25.2, lat: 44.6 },
+    });
+  });
+
+  /**
+   * With a region under the point, the region answers: it is the only aim an arrival can turn
+   * into defenders. The point is what answers where no region does.
+   */
+  it('lets the region take the marches when there is one, and never twice the same type', () => {
+    const compass = compassOf(
+      {
+        kind: 'point',
+        lon: 25.2,
+        lat: 44.6,
+        regionId: 'ROU-310',
+        country: 'Romania',
+        name: 'Prahova',
+      },
+      view,
+      column,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'attaque',
+      'fondation d’avant-poste',
+    ]);
+    expect(compass?.actions[0]).toMatchObject({ aim: { kind: 'region', regionId: 'ROU-310' } });
+    expect(compass?.actions[1]).toMatchObject({ aim: { kind: 'region', regionId: 'ROU-310' } });
+  });
+
+  it('still opens over water, where no country answers', () => {
+    const compass = compassOf(
+      { kind: 'point', lon: -30, lat: 40, regionId: null, country: null, name: 'haute mer' },
+      view,
+      column,
     );
     expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
   });

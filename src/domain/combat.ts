@@ -182,6 +182,13 @@ function winnerOf(
  * share of, and a defender cannot put a transport in front of its tanks to soak the pass. That
  * is a choice: fodder is an economy of the swarm, and the troop ceiling exists to refuse the
  * swarm. Letting a body block a strike would hand the ceiling straight back.
+ *
+ * **Open question, and it belongs here rather than in the order.** Since a land troop only
+ * crosses aboard a transport (`LIFT_CAPACITY`, design sheet 09), a convoy intercepted at sea is
+ * a hull *with a cargo of infantry*. This pass knows the hull is no shield; it knows nothing of
+ * what it carries. Do the passengers drown with it, come ashore entamés, or never come into
+ * range at all? Nothing here answers, and nothing here should — it is a rule of the resolution
+ * pass, to be decided on its own and written down before it is coded.
  */
 function pick(
   shooter: Fighter,

@@ -1,6 +1,21 @@
 # ADR 0017 — Format de saison, socle placé, et ce que borne un plafond de stockage
 
-**Statut :** acceptée
+**Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
+
+> ⚠️ **Révision (18/08/2026) : le plafond de bâtisses appartient désormais au format.**
+> `BUILDING_CAP_BASE` et `BUILDING_CAP_PER_HQ_LEVEL` n'existent plus ; `buildingCap(format,
+> hqLevel)` lit `SeasonFormatSpec`. En `skirmish` : 5 + 3 par palier, soit onze au lancement et
+> quatorze au maximum — **quatre puis sept emplacements libres** après le socle, contre zéro puis
+> un. La campagne ne bouge pas (3 + 2). Et `UNLOCKED_AT` se reprojette sur la course du format
+> (`unlockLevel`) : en escarmouche, qui n'a qu'un palier, tout le catalogue s'ouvre au lancement —
+> port et aérodrome compris.
+>
+> **Toutes les mesures d'ouverture citées plus bas datent d'avant ce changement.** Le sweep
+> relancé sur le miroir corrigé donne, pour l'escarmouche assidue, **41 actions, 11 bâtiments et
+> aucune connexion vide**, là où cette ADR mesurait 30 actions et une connexion vide sur douze.
+> Le calibrage de `startingAlloy` à 1000 découlait de cette courbe et **n'a pas été refait** : les
+> nombres du § « Deux formats, une seule économie » décrivent une pente qui n'existe plus. Les
+> lire comme de l'histoire, jamais comme une consigne.
 
 Prolonge [0001](0001-saison-longue-asynchrone.md) (saison longue asynchrone) et
 [0015](0015-economie-v2-ressources-localisees.md) (économie v2) sans les rouvrir : le quartier
@@ -121,12 +136,15 @@ arbitrage entre deux lectures du même chiffre.
   plafond** : au-delà, le surplus disparaissait au premier règlement, donc la courbe plafonnait.
   Une fois le plafond corrigé, la vraie marche est à 1300, où c'est le plafond de troupes qui
   répond, pas le portefeuille.
-- **En `skirmish`, le plafond de bâtiments vaut 7 au QG 2** (`buildingCap` : 3 + 2 × 2) —
-  exactement le QG plus les six clés du socle. Le joueur n'a donc **aucun emplacement libre
-  avant le QG 3**. Mesuré : ça tient (30 actions, 1 connexion vide) parce que le recrutement
-  occupe le trou, pas parce que la construction respire. À surveiller quand les mouvements
-  existeront. Le test `leaves every format room for its foundation, its headquarters and one
-  free choice` (`convex/economy.test.ts`) grave la marge au plafond de QG du format.
+- ~~**En `skirmish`, le plafond de bâtiments vaut 7 au QG 2**~~ — **caduc depuis le 18/08/2026.**
+  Le constat était juste et le rendez-vous qu'il fixait — « ça tient parce que le recrutement
+  occupe le trou, pas parce que la construction respire ; **à surveiller quand les mouvements
+  existeront** » — est arrivé exactement comme prévu. Les mouvements ont fait apparaître qu'un
+  port et une caserne ne tenaient pas dans un seul emplacement libre, et le plafond est passé
+  dans le format (voir la révision en tête). Le garde-fou, lui, ne bouge pas : le plafond de
+  **chaque** format doit rester strictement sous le nombre de régions de la plus petite nation
+  jouable — seize Länder allemands — sans quoi le découpage de Natural Earth équilibrerait la
+  saison. `convex/economy.test.ts` le vérifie par format et non plus sur une constante globale.
 - **L'écrêtage à la perte de stockage** — sans lui, piller un entrepôt ne coûterait rien à sa
   victime, alors que la fiche 02 en fait une cible. Écrit depuis, sur le prompt
   `WWS/docs/prompts/code/ecretage-et-palier.md` : `clipToCapacity` dans `src/domain/economy.ts`,

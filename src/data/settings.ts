@@ -75,24 +75,20 @@ export type WindowGeometry = {
 const FRESH_GEOMETRY: WindowGeometry = { offset: { x: 0, y: 0 }, size: null };
 
 /**
- * A window tucked away on a large screen must not become unreachable on a small one: the
- * geometry read back is clamped to the current frame, measured in layout pixels since that
- * is the unit the window is written in.
+ * A window resized on a large screen must not overflow a small one; the *place* is left exactly
+ * as the player left it, because a guess made here without the box's own measurements is a guess
+ * that teleports a surface legitimately pushed far. Keeping it on screen belongs to the drag
+ * itself, which measures the box (`frameFor` in `dragging.ts`).
  */
 export function readWindowGeometry(name: string): WindowGeometry {
   const geometry = readLayout()[name];
   if (!geometry) return FRESH_GEOMETRY;
   const scale = readHudScale() / 100;
-  const viewWidth = window.innerWidth / scale;
-  const viewHeight = window.innerHeight / scale;
   return {
-    offset: {
-      x: clamp(geometry.offset.x, -viewWidth / 2, viewWidth / 2),
-      y: clamp(geometry.offset.y, -viewHeight / 2, viewHeight / 2),
-    },
+    offset: geometry.offset,
     size: geometry.size && {
-      width: Math.min(geometry.size.width, viewWidth),
-      height: Math.min(geometry.size.height, viewHeight),
+      width: Math.min(geometry.size.width, window.innerWidth / scale),
+      height: Math.min(geometry.size.height, window.innerHeight / scale),
     },
   };
 }
@@ -114,8 +110,4 @@ function readObject(key: string): Record<string, unknown> {
   } catch {
     return {};
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

@@ -1,0 +1,156 @@
+# ADR 0019 — Mouvement libre, troupes posées, et l'avant-poste qui ravitaille
+
+**Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
+le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
+objet.
+
+## Contexte
+
+Le modèle en place attachait chaque troupe à un bâtiment. `stationedAt` était *un rattachement,
+jamais une position* ; une colonne partait d'une caserne ou d'un avant-poste, et ce qu'elle
+pouvait demander dépendait de cette origine (`Column.origin`). La décision du 18/08 qui a fait de
+la colonne fondatrice la garnison de son avant-poste a ouvert une cascade de questions — que peut
+demander une garnison, vers où peut-elle se replier, comment le lui dire — dont aucune n'avait de
+bonne réponse et dont la dernière, en partie, se manifestait comme une panne de clic droit.
+
+Le symptôme a fait remonter la cause : **le rattachement à un bâtiment est un modèle plus
+contraignant que ce que le jeu demande.** Il produisait une origine, donc des ordres légaux par
+origine, donc un vocabulaire de repli, donc un écran muet quand rien n'était légal.
+
+Trois modèles étaient en présence :
+
+1. le rattachement (ce qui était codé) ;
+2. le mouvement libre sans aucune contrainte — toute troupe part de partout vers partout ;
+3. le mouvement libre borné par les **domaines** — libre sur terre, conditionné par un bâtiment
+   pour entrer en mer ou dans les airs.
+
+## Décision
+
+**Le modèle 3, augmenté d'un coût d'entretien qui dépend de l'ancrage.**
+
+### 1. Le mouvement est libre, la destination est un point
+
+Une troupe se déplace d'où elle est vers un point de la carte, choisi par le joueur, jamais le
+centre d'une région. Aucune origine ne restreint ce qu'elle peut demander. Un mouvement en cours
+reste **irréversible** : c'est la thèse du jeu et cette décision ne l'entame pas.
+
+Le point plutôt que la région n'ajoute aucune géométrie : la grille de routage travaille déjà en
+raster (ADR 0012), l'avant-poste est déjà un point (ADR 0004), et l'interception est déjà une
+intersection segment/cercle (ADR 0008). La règle générale devient lisible — **les points sont
+pour ce qui bouge et ce qui se conteste, les régions pour ce qui produit.**
+
+### 2. Les domaines restent des portes
+
+Embarquer exige un port au départ, décoller exige un aérodrome. L'ADR 0013 est conservé là où il
+paie : il reste la seule chose qui rende l'action lointaine structurellement coûteuse, et c'est
+l'un des trois leviers listés contre l'avantage d'isolement géographique (`QUESTIONS.md`, 🔴). Le
+mouvement terrestre, lui, ne demande plus rien.
+
+### 3. Une troupe peut rester sur la carte, et elle n'y engage rien
+
+Une troupe posée hors de tout bâtiment est **une cible, jamais un attaquant**. Elle ne déclenche
+aucune passe de résolution et n'intercepte rien ; il faut qu'un mouvement vienne la chercher. La
+passe de résolution (ADR 0018) n'est pas touchée, et son exception `except: aim.outpostId` —
+écrite pour empêcher une garnison d'intercepter la colonne qui marchait sur elle — devient
+inutile et disparaît.
+
+### 4. L'entretien dépend de l'ancrage, et l'avant-poste ravitaille
+
+`consommation-continue.md` (D1) pose un forfait d'entretien identique pour tous les rôles, et
+(D3) qu'à sec **rien ne meurt** : la file de recrutement s'arrête. Une troupe posée au bout du
+monde coûterait donc exactement ce que coûte une troupe restée chez soi, et ne mourrait jamais —
+« à ses risques et périls » ne désignerait aucun risque, et vingt sentinelles gratuites videraient
+le brouillard (ADR 0005) de son contenu.
+
+L'entretien est donc **multiplié selon l'ancrage** :
+
+| Où se tient la troupe | Entretien |
+|---|---|
+| Sur son territoire national | ×1 |
+| Dans le rayon d'un de **ses** avant-postes (`OUTPOST_REACH_KM`) | ×1 |
+| Partout ailleurs | `UPKEEP_UNSUPPLIED_MULTIPLIER` |
+
+Une constante et un multiplicateur : D1 tient, aucune table de neuf nombres. Rien ne meurt : D3
+tient. **Un avant-poste allié ne ravitaille pas** — le ravitaillement deviendrait une monnaie
+diplomatique avant que la diplomatie existe.
+
+**L'avant-poste devient un point de ravitaillement avancé.** Il ne projette pas la force, il la
+nourrit.
+
+### 5. Les trois valeurs, et ce qu'elles valent
+
+**`UPKEEP_UNSUPPLIED_MULTIPLIER` vaut 2.** Ce n'est pas une valeur mesurée — même statut que
+`INTERCEPTION_RADIUS_KM` (ADR 0018 §5) : un point de départ délibérément léger, choisi pour que
+la règle existe et se mesure plutôt que pour équilibrer quoi que ce soit. Le risque connu est
+qu'à ×2 le surcoût se noie dans une économie où l'alliage est le goulot et la nourriture
+abondante ; si la mesure le confirme, la valeur monte, la règle ne change pas.
+
+**`SCOUT_RADIUS_KM` vaut 60.** Choisi pour le réalisme d'une infanterie, et franchement plus court
+que `INTERCEPTION_RADIUS_KM` (200) et que `OUTPOST_REACH_KM` (400) — sans quoi une sentinelle
+verrait aussi loin qu'on intercepte et rendrait la station d'écoute et l'agent dormant
+décoratifs. **Destinée à devenir une statistique de rôle** : un appareil de reconnaissance ne voit
+pas ce que voit un fantassin. Elle reste une constante unique tant que rien ne lit une seconde
+valeur — poser une table de neuf nombres avant d'avoir un second consommateur est la faute que D1
+de `consommation-continue.md` a déjà écartée une fois.
+
+**Un avant-poste allié ne ravitaille pas.** Décision, pas placeholder ; elle se rouvre le jour où
+l'alliance est un objet du jeu.
+
+## Justification
+
+**Contre le modèle 1.** Il produisait une règle par origine, un ordre de repli au vocabulaire
+trompeur, et un écran muet — trois problèmes dont aucun n'existe dans le jeu, tous créés par le
+modèle de données. Il fallait trois correctifs pour rendre lisible une contrainte dont personne
+n'avait établi qu'elle servait le jeu.
+
+**Contre le modèle 2.** Un naval qui part de n'importe où retire le seul coût structurel de
+l'action lointaine, au moment précis où le remplacement n'est pas trouvé. Le 🔴 empirerait.
+
+**Pourquoi l'entretien par ancrage plutôt qu'une attrition.** L'attrition tue, et la règle n°3 du
+projet interdit d'éliminer un joueur. Un surcoût d'entretien punit sans supprimer, se voit
+immédiatement, et se répare en rentrant ou en fondant un avant-poste. Il transforme la distance en
+**coût continu** là où elle n'était qu'un temps de trajet payé une fois — ce qui prolonge
+exactement le levier que la simulation a mesuré comme central (14 min / 1 000 km).
+
+**Ce que la décision fait gagner au raid.** Jusqu'ici on désactivait un avant-poste pour couper une
+exploitation : une cible économique sous un vocabulaire militaire. Il devient possible de le
+désactiver pour **affamer l'armée qui campe dans son rayon**. La promesse et la règle se
+rejoignent.
+
+## Conséquences
+
+- **Suppressions.** `Column.origin` (`src/domain/movement-orders.ts:31`), l'ordre `recall`, le
+  type de mouvement `outpost` (fonder devient une action d'une colonne déjà arrivée), la décision
+  12a de `flux-mouvement-en-carte.md`, l'exception `except: aim.outpostId` de l'ADR 0018 §3. Ce
+  chantier retire plus de code qu'il n'en ajoute.
+- **`stationedAt` devient une adresse à trois formes** : un bâtiment, un avant-poste, ou un point.
+  Jamais deux, jamais aucune hors mouvement — l'invariant posé par `garnison-adresse.md` survit
+  tel quel, et le champ reste unique pour la raison que le schéma donne déjà.
+- **Le widget de troupes perd son regroupement par bâtiment.** Une troupe n'a plus de bâtiment
+  pour adresse ; le regroupement est à maquetter.
+- **Le repérage est un système nouveau, et le seul.** Une troupe posée voit ce qui passe dans
+  `SCOUT_RADIUS_KM` : un fil, un cap, un domaine — jamais le type ni la composition, ce que la
+  fiche 04 accorde déjà à un mouvement détecté non identifié. L'agent dormant garde la portée,
+  l'identification et la discrétion ; sans cet écart, six couples nation × doctrine adossés à
+  Influence tomberaient avec lui.
+- **On ne se poste pas pour voir ce qui vole déjà.** La détection se calcule au départ du
+  mouvement, comme l'interception (ADR 0018 §3), et n'est jamais recalculée. Une troupe posée
+  après un départ ne verra pas ce mouvement. C'est structurel, c'est gratuit, et c'est un bon
+  design : le renseignement est un pari, pas une réaction. À écrire à l'écran, sinon ce sera lu
+  comme un défaut.
+- **Le plafond de troupes devient le seul frein à la dispersion.** Chaque sentinelle est une
+  troupe qui ne combat pas, sur vingt-quatre. L'arbitrage est bon ; il n'est pas mesuré.
+- **Fiches à reprendre** : 03 (l'avant-poste gagne le ravitaillement), 04 (quatrième source de
+  détection), et `flux-mouvement-en-carte.md` dont la décision 12a est annulée.
+
+## Ce qu'on abandonne
+
+L'idée qu'une troupe a toujours une maison. Avec elle, la lecture immédiate d'une armée rangée par
+bâtiment, et la garantie qu'aucune force ne traîne quelque part sans que le joueur s'en souvienne.
+Ce qui la remplace est un coût qui rappelle sa présence : une troupe oubliée au bout du monde se
+paie en nourriture jusqu'à ce que la file de recrutement s'arrête.
+
+Réversible en partie seulement. Rétablir une origine contrainte après avoir laissé les joueurs
+poser des troupes partout serait vécu comme un retrait, pas comme un correctif — c'est le genre de
+décision qu'on prend avant la première saison test, et cet ADR est écrit pour être relu à ce
+moment-là.

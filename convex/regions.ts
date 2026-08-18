@@ -1,6 +1,7 @@
 import type { LonLat } from '../src/domain/geo';
+import { distanceKm } from '../src/domain/geo';
 import type { DepositKey, Nation } from '../src/domain/ids';
-import { ADM0_BY_NATION, isNation } from '../src/domain/nations';
+import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
 import depositsAsset from '../public/deposits.json';
 import indexAsset from '../public/region-index.json';
 import { fail } from './errors';
@@ -60,8 +61,42 @@ export function regionFacts(regionId: string): RegionFacts | null {
   };
 }
 
+/**
+ * The region whose point stands closest to a lon/lat — hence, through `country`, **whose ground
+ * this is**. `region-index.json` carries the `adm0_a3` of all 163 countries of the world, the
+ * hundred and fifty-five nobody plays included, so it answers the one question `world.json`
+ * cannot: that file names a country in English and carries no code at all.
+ *
+ * A pole of inaccessibility is not a border, so a point laid right on one may fall to the
+ * neighbour. Nothing keyed on a host is decided at that precision — a rest window, a yield, a
+ * relation are owed by a country, not by a metre of it.
+ */
+export function nearestRegion(point: LonLat): RegionFacts | null {
+  const closest = Object.entries(POINT_OF_REGION).reduce<{ id: string; km: number } | null>(
+    (best, [regionId, regionPoint]) => {
+      if (regionPoint === undefined) return best;
+      const km = distanceKm(point, regionPoint);
+      return best === null || km < best.km ? { id: regionId, km } : best;
+    },
+    null,
+  );
+  return closest === null ? null : regionFacts(closest.id);
+}
+
 export const homeCountryOf = (nation: string | null): string | null =>
   isNation(nation) ? ADM0_BY_NATION[nation] : null;
+
+/**
+ * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges
+ * the two — for the eight playable nations only.** It answers the empty string everywhere else,
+ * which is why it must never be asked about a point: a point in Arabia is not a point in no
+ * country. `hostAtPoint` in `routes.ts` is the function for that, and it reads the codes off
+ * `region-index.json` rather than off a table of eight.
+ */
+export const adm0Of = (worldCountry: string | null): string => {
+  const nation = worldCountry === null ? undefined : NATION_BY_COUNTRY.get(worldCountry);
+  return nation === undefined ? '' : ADM0_BY_NATION[nation];
+};
 
 /**
  * Where the headquarters already stands when a season opens (ADR 0015): the 1940 capital, as

@@ -10,6 +10,29 @@ import { handleError } from '@/data/errors';
 import type { MovementPreviewed } from '@/data/serverView';
 
 /**
+ * The aim in the shape the mutations take. The point is passed through as it was named — the
+ * client resolves nothing about it either (ADR 0019 §1).
+ */
+export const wireTarget = (aim: MovementAim) =>
+  aim.kind === 'region'
+    ? ({ kind: 'region', regionId: aim.regionId } as const)
+    : aim.kind === 'outpost'
+      ? ({ kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> } as const)
+      : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+
+/**
+ * Where a column stands, in the plain strings `PlayerView` carries — the branded ids go back on
+ * at the one place that needs them, the call itself. Since ADR 0019 the origin no longer says
+ * what may be asked for; it says which address the order leaves from, and that is all.
+ */
+export type ColumnOrigin = { readonly kind: 'building' | 'outpost'; readonly id: string };
+
+export const wireOrigin = (origin: ColumnOrigin) =>
+  origin.kind === 'outpost'
+    ? ({ kind: 'outpost', outpostId: origin.id as Id<'outposts'> } as const)
+    : ({ kind: 'building', buildingId: origin.id as Id<'buildings'> } as const);
+
+/**
  * **The confirmation sits at the end of the arc, not in the middle of the screen**: the gesture
  * finishes where the movement arrives. It prints what the player is about to buy — the real
  * duration of the real route, the hour of arrival, the target's rest window if it bites, and the
@@ -20,7 +43,7 @@ import type { MovementPreviewed } from '@/data/serverView';
  */
 export function MovementPreview({
   token,
-  buildingId,
+  origin,
   troopIds,
   aim,
   type,
@@ -30,9 +53,7 @@ export function MovementPreview({
   onClose,
 }: {
   token: string;
-  /** A building's id for the three ordinary marches, an outpost's for a recall (question 21,
-   *  18/08) — `type` already says which, so the cast at the call site is safe by construction. */
-  buildingId: string;
+  origin: ColumnOrigin;
   troopIds: ReadonlyArray<string>;
   aim: MovementAim;
   type: MovementType;
@@ -47,7 +68,6 @@ export function MovementPreview({
   const foundOutpost = useMutation(api.movements.foundOutpost);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
-  const recall = useMutation(api.movements.recall);
 
   const send = () => {
     setError(null);
@@ -56,44 +76,34 @@ export function MovementPreview({
     // which table it came from. The branded ids are put back on at the one place that needs
     // them: the call itself.
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
-    const from = buildingId as Id<'buildings'>;
+    const from = wireOrigin(origin);
     const order =
-      type === 'recall' && aim.kind === 'region'
-        ? recall({
+      type === 'outpost' && aim.kind === 'region'
+        ? foundOutpost({
             token,
-            outpostId: buildingId as Id<'outposts'>,
-            troopIds: ids,
+            origin: from,
             regionId: aim.regionId,
+            /**
+             * The relay, always: the compass rose asks for a *type of march*, not for what the
+             * point will be specialised in. Choosing between relay and listening station is the
+             * outpost's own decision and has no surface yet (fiche 03).
+             */
+            specialization: 'relay',
+            troopIds: ids,
           })
-        : type === 'outpost' && aim.kind === 'region'
-          ? foundOutpost({
+        : type === 'raid' && aim.kind === 'outpost'
+          ? raid({
               token,
-              buildingId: from,
-              regionId: aim.regionId,
-              /**
-               * The relay, always: the compass rose asks for a *type of march*, not for what the
-               * point will be specialised in. Choosing between relay and listening station is the
-               * outpost's own decision and has no surface yet (fiche 03).
-               */
-              specialization: 'relay',
+              origin: from,
               troopIds: ids,
+              outpostId: aim.outpostId as Id<'outposts'>,
             })
-          : type === 'raid' && aim.kind === 'outpost'
-            ? raid({
-                token,
-                buildingId: from,
-                troopIds: ids,
-                outpostId: aim.outpostId as Id<'outposts'>,
-              })
-            : attack({
-                token,
-                buildingId: from,
-                troopIds: ids,
-                target:
-                  aim.kind === 'region'
-                    ? { kind: 'region', regionId: aim.regionId }
-                    : { kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> },
-              });
+          : attack({
+              token,
+              origin: from,
+              troopIds: ids,
+              target: wireTarget(aim),
+            });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);
@@ -121,7 +131,7 @@ export function MovementPreview({
             <span className="font-[var(--font-mono)] tracking-[.06em]">{fr.aim.slot}</span>
           </div>
           <h3 className="mt-[3px] font-[var(--font-display)] text-[18px] leading-[1.15] font-extrabold">
-            {fr.aim.heading(preview?.destinationName ?? '—', fr.movementTypes[type])}
+            {fr.aim.heading(destinationOf(aim, preview), fr.movementTypes[type])}
           </h3>
           <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
 
@@ -176,4 +186,14 @@ export function MovementPreview({
       </div>
     </div>
   );
+}
+
+/**
+ * What the card calls the destination. A region and an outpost are named by the server, which
+ * holds the index; a **point** has no name to give — so it is written as what it is, a pair of
+ * coordinates, rather than borrowed from the country it happens to fall in (ADR 0019 §1).
+ */
+function destinationOf(aim: MovementAim, preview: MovementPreviewed | undefined): string {
+  if (aim.kind === 'point') return fr.aim.pointAt(aim.lon, aim.lat);
+  return preview?.destinationName ?? '—';
 }

@@ -7,7 +7,7 @@ import { buildingAt, cappedByHq, levelOf, playerBuildings } from './buildings';
 import {
   OUTPOST_REACH_KM,
   SEASON_FORMATS,
-  UNLOCKED_AT,
+  unlockLevel,
   buildCost,
   buildMinutes,
   buildingCap,
@@ -83,8 +83,10 @@ export const start = mutation({
       fail('HQ_ALREADY_BUILT');
     }
 
+    const format = formatOf(season.durationHours);
     const hqLevel = levelOf(buildings, 'hq');
-    const cap = buildingCap(hqLevel);
+    const cap = buildingCap(format, hqLevel);
+    const requiredLevel = unlockLevel(building, format);
     const refusal = placementRefusal(
       building,
       region,
@@ -94,7 +96,7 @@ export const start = mutation({
         cap,
         hqLevel,
       },
-      UNLOCKED_AT[building],
+      requiredLevel,
     );
     if (refusal === 'REGION_TAKEN') {
       fail(refusal, {
@@ -106,14 +108,13 @@ export const start = mutation({
     // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
     // a wall — and the tier is the one refusal a player can always act on.
     if (refusal === 'BUILDING_LOCKED') {
-      fail(refusal, { building, requiredLevel: UNLOCKED_AT[building], hqLevel });
+      fail(refusal, { building, requiredLevel, hqLevel });
     }
     if (refusal === 'DEPOSIT_REQUIRED') {
       fail(refusal, { building, expected: EXPLOITED_DEPOSITS[building], found: region.deposit });
     }
     if (refusal === 'NOT_COASTAL') fail(refusal, { regionId });
 
-    const format = formatOf(season.durationHours);
     const maximum = SEASON_FORMATS[format].maxHqLevel;
     const level = (buildingAt(buildings, building, regionId)?.level ?? 0) + 1;
     if (building === 'hq' && level > maximum) fail('MAX_LEVEL_REACHED', { maximum });

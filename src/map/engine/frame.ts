@@ -58,6 +58,33 @@ export class WorldFrame {
     return this.toWorld(x, edge.y, height);
   }
 
+  /**
+   * The inverse of `projectLonLat`, for the one gesture that starts on the board rather than on
+   * a datum: a right click names a place, and a place is a lon/lat. Curvature is not undone —
+   * it only ever moved the height, never `x` or `z`.
+   *
+   * The outline is monotonic in `y`, so a bisection finds the latitude; the longitude then reads
+   * off the width at *that* latitude, since the world is not equirectangular and the edges
+   * tighten toward the poles.
+   */
+  lonLatAt(projectedX: number, projectedY: number): LonLat {
+    let low = 0;
+    let high = this.outline.length - 1;
+    while (high - low > 1) {
+      const middle = (low + high) >> 1;
+      if (this.outline[middle]![3] >= projectedY) low = middle;
+      else high = middle;
+    }
+    const a = this.outline[low]!;
+    const b = this.outline[high]!;
+    const span = b[3] - a[3];
+    const fraction = span === 0 ? 0 : (projectedY - a[3]) / span;
+    const latitude = Math.min(90, Math.max(-90, a[0] + (b[0] - a[0]) * fraction));
+    const halfWidth = this.edgeAtLatitude(latitude).eastX - this.centerX;
+    const longitude = halfWidth === 0 ? 0 : ((projectedX - this.centerX) / halfWidth) * 180;
+    return [Math.min(180, Math.max(-180, longitude)), latitude];
+  }
+
   edgeAtLatitude(latitude: number): { westX: number; eastX: number; y: number } {
     const position = Math.min(179.999, Math.max(0, latitude + 90));
     const index = Math.floor(position);

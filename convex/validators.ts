@@ -77,7 +77,9 @@ export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening')
 
 /**
  * The five kinds of movement of the design, plus the one the resolution creates on its own, plus
- * the garrison's own — `recall` (question 21, 18/08). `agent` and `decoy` wait for the fog
+ * `recall`, which nobody orders any more (ADR 0019 §1) and which stays here on purpose: a column
+ * recalled before the change is still walking, and dropping the literal would make its document
+ * unreadable to the very mutation that has to land it. `agent` and `decoy` wait for the fog
  * surfaces; the union is the vocabulary, and narrowing it to what is coded would make every
  * later kind a schema migration.
  */
@@ -91,11 +93,36 @@ export const MOVEMENT_TYPE = v.union(
   v.literal('return'),
 );
 
-/** What an attack marches at: a region somebody else holds, or an outpost. A raid only ever
- *  takes the second. */
+/**
+ * Where a column stands when it is ordered out. It no longer says what the column may ask for
+ * (ADR 0019 §1) — only which ground the domain gates are read on, and which address the troops
+ * have to be standing at. A point joins the two the day `stationedAt` carries one.
+ */
+export const MOVEMENT_ORIGIN = v.union(
+  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
+  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+);
+
+/**
+ * A point on the globe, in degrees. Named fields rather than the `[lon, lat]` tuple the domain
+ * passes around: a two-number array is a shape a validator cannot keep in order, and the pair
+ * being the wrong way round is the one mistake nothing else would catch.
+ */
+export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
+
+/**
+ * What a march is aimed at: a region somebody holds, an outpost, or a plain point of the map.
+ * A raid only ever takes the second, and a foundation only the first — `refusalOf` says which,
+ * here as on the client.
+ *
+ * The point is the form that answers at every scale (ADR 0019 §1), and it is stored as it was
+ * aimed: nothing resolves it into the region it may fall in, so the document says exactly where
+ * the player pointed.
+ */
 export const ATTACK_TARGET = v.union(
   v.object({ kind: v.literal('region'), regionId: v.string() }),
   v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+  v.object({ kind: v.literal('point'), point: LON_LAT }),
 );
 
 /** The same, plus the one nobody orders: a column on its way back to what it hangs from. */
@@ -108,13 +135,6 @@ export const TROOP_STATE = v.union(
   v.literal('routed'),
   v.literal('destroyed'),
 );
-
-/**
- * A point on the globe, in degrees. Named fields rather than the `[lon, lat]` tuple the domain
- * passes around: a two-number array is a shape a validator cannot keep in order, and the pair
- * being the wrong way round is the one mistake nothing else would catch.
- */
-export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
 
 /**
  * One stretch of a route under a single medium. It travels with the movement because the map

@@ -30,6 +30,32 @@ export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
 
 /**
+ * **What a transport carries, and what a passenger weighs** (design sheet 09, § "Les transports
+ * sont des troupes"): a land troop crosses the sea aboard a hull and the sky aboard a wing, or
+ * it does not cross. Five numbers rather than a table per role — the lesson of D1 in
+ * `consommation-continue.md` — and they are **assumed, never simulated**, exactly like
+ * `INTERCEPTION_RADIUS_KM`.
+ *
+ * The one bearing they were chosen against: the troop ceiling is 24, so two cargos lift half an
+ * army. A landing is an operation one prepares, not a reflex — which is the whole point of
+ * making the crossing an investment (a fleet one builds, protects, and can lose) instead of a
+ * surcharge on a trip.
+ *
+ * A role absent from either table weighs nothing and lifts nothing: an escort is not a ferry,
+ * and a fleet on its own has no passenger to answer for.
+ */
+export const LIFT_CAPACITY: Readonly<Partial<Record<UnitRole, number>>> = {
+  cargo: 6,
+  airTransport: 2,
+};
+
+export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
+  infantry: 1,
+  armor: 2,
+  landTransport: 1,
+};
+
+/**
  * How many equipment tiers a role knows. Two for those whose gear gets replaced mid-season,
  * one for the others: this table decides what a workshop may produce, not the presence of a
  * sprite.

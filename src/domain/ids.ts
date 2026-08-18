@@ -39,10 +39,10 @@ export type UnitTier = 1 | 2;
  * are put on the road home by the resolution itself, outside the slots. It is a movement all
  * the same — it takes time, it can be seen, and it can be intercepted.
  *
- * `recall` is the opposite exception: the only order a garrison may give, and the only one that
- * spends a slot to walk *away* from the front rather than toward it (question 21, 18/08). An
- * outpost is an address, never a second barracks — it cannot attack, raid or found — so a
- * garrison's whole vocabulary is one word: come home.
+ * `recall` is **history**: it was the one order a garrison could give, back when where a column
+ * stood decided what it could ask for. ADR 0019 removed that origin and the word with it, but
+ * columns recalled before the change are still walking and their documents still say `recall` —
+ * so the vocabulary keeps it and `ORDERABLE_TYPES` no longer offers it.
  */
 export type MovementType = 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'decoy' | 'return';
 

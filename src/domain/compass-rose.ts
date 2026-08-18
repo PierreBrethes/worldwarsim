@@ -31,6 +31,21 @@ export type CompassTarget =
       readonly hostCountry: string;
       readonly name: string;
     }
+  /**
+   * The map itself, wherever it carries nothing clickable — the open sea, and every scale above
+   * the regions' fade-in threshold, where no region is drawn to be picked. `regionId` travels
+   * with it because a **foundation** still goes on a region: an outpost is placed on ground that
+   * produces, not on a coordinate. `name` is what the fan writes at its centre, which the click
+   * knows and the point does not.
+   */
+  | {
+      readonly kind: 'point';
+      readonly lon: number;
+      readonly lat: number;
+      readonly regionId: string | null;
+      readonly country: string | null;
+      readonly name: string;
+    }
   | {
       readonly kind: 'force';
       readonly id: string;
@@ -102,7 +117,7 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
 }
 
 /** The tooltip names the nation when the map country carries one, the country otherwise. */
-const countryName = (country: string): string => {
+export const countryName = (country: string): string => {
   const nation = NATION_BY_COUNTRY.get(country);
   return nation === undefined ? country : nationLabel(nation);
 };
@@ -187,22 +202,58 @@ export function compassOf(
 }
 
 /**
- * The aiming fan. A **country** carries none: the server marches at a region or at an outpost,
- * and a whole country is not a place one can walk to — beyond the regions' fade-in threshold
- * the player has to come closer before he can aim.
+ * The aiming fan. A **country** carries none — a whole country is not a place one walks to — and
+ * it no longer needs to: above the fade-in threshold the right click lands on a point, which is
+ * a place at every scale. The state "I am aiming and nothing answers" is what that removes.
  */
 function aim(target: CompassTarget, view: PlayerView, column: Column): Compass | null {
-  if (target.kind !== 'region' && target.kind !== 'outpost') return null;
-  const aimed: MovementAim =
-    target.kind === 'region'
-      ? { kind: 'region', regionId: target.id, country: target.country }
-      : { kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry };
+  if (target.kind === 'region') {
+    return fanOf(target.name, view, column, [
+      { kind: 'region', regionId: target.id, country: target.country },
+    ]);
+  }
+  if (target.kind === 'outpost') {
+    return fanOf(target.name, view, column, [
+      { kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry },
+    ]);
+  }
+  if (target.kind !== 'point') return null;
+  /**
+   * **Two aims from one click, and the region goes first when there is one.** Not because a
+   * centroid is the better destination — ADR 0019 says the opposite — but because a region is
+   * the only aim the arrival can resolve into defenders: the server holds no polygons, so a bare
+   * point arrives on ground the resolution reads as empty (`defenceOf`, `convex/movements.ts`).
+   * Walking at what stands somewhere therefore still means naming that somewhere.
+   *
+   * The point is what answers **everywhere else** — the open sea, and every scale above the
+   * regions' fade-in, where no region is drawn to be named. That is the silence it removes, and
+   * it removes all of it.
+   */
+  return fanOf(target.name, view, column, [
+    ...(target.regionId === null || target.country === null
+      ? []
+      : [{ kind: 'region' as const, regionId: target.regionId, country: target.country }]),
+    { kind: 'point', lon: target.lon, lat: target.lat },
+  ]);
+}
 
-  return {
-    kicker: fr.compass.aiming(column.roles.length),
-    name: target.name,
-    actions: legalMovementTypes(aimed, column).map((type) => march(type, aimed, view)),
-  };
+/**
+ * One branch per legal type, and never two for the same type: the first aim that legalises a type
+ * is the one it marches with, so a point and the region under it cannot both offer an attack.
+ */
+function fanOf(
+  name: string,
+  view: PlayerView,
+  column: Column,
+  aims: ReadonlyArray<MovementAim>,
+): Compass {
+  const taken = new Set<MovementType>();
+  const actions = aims.flatMap((aimed) =>
+    legalMovementTypes(aimed, column)
+      .filter((type) => !taken.has(type) && taken.add(type) !== undefined)
+      .map((type) => march(type, aimed, view)),
+  );
+  return { kicker: fr.compass.aiming(column.roles.length), name, actions };
 }
 
 function build(target: CompassTarget, view: PlayerView): Compass {
@@ -251,5 +302,14 @@ function build(target: CompassTarget, view: PlayerView): Compass {
         name: target.name,
         actions: target.country === null ? [] : [viewCountry(target.country)],
       };
+    /**
+     * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
+     * and a coordinate is neither. Over water there is nothing to offer and the fan stays shut,
+     * exactly as the open sea does today.
+     */
+    case 'point':
+      return target.country === null
+        ? { kicker: fr.compass.openWater, name: target.name, actions: [] }
+        : build({ kind: 'country', country: target.country }, view);
   }
 }

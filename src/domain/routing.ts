@@ -261,6 +261,38 @@ export function directRoute(
   };
 }
 
+/**
+ * **Which country a point stands in**, straight off the rings the world already carries. It is
+ * the one question a lon/lat cannot answer alone and that several rules need — the rest window
+ * of a destination first of all — and the server has no other polygons: `regions.json` never
+ * comes near it, and `region-index.json` holds one point per region, which places nothing.
+ *
+ * Even–odd ray crossing, on the projected plane rather than in degrees: the rings are stored
+ * projected, and converting the point once is cheaper and safer than unprojecting a continent.
+ * The open sea answers `null`, which is a real answer here and not a failure.
+ *
+ * It walks every ring of every country. That is one pass over the same geometry the grid is
+ * rasterised from, paid once at a departure and never in a loop — the bounding box that would
+ * cut it short is not worth its own bugs until a profile asks for it.
+ */
+export function countryAt(world: World, lonLat: LonLat): string | null {
+  const [x, y] = project(world.outline, world.sphere, lonLat);
+  for (const country of world.countries) {
+    let inside = false;
+    for (const ring of country.rings) {
+      for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {
+        const a = ring[i]!;
+        const b = ring[previous]!;
+        if (a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) {
+          inside = !inside;
+        }
+      }
+    }
+    if (inside) return country.name;
+  }
+  return null;
+}
+
 /* ------------------------------ projection ------------------------------ */
 
 function edgeAtLatitude(

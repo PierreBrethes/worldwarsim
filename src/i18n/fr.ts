@@ -280,13 +280,16 @@ export const fr = {
     UNKNOWN_TROOP: () => 'troupe inconnue',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
     INFANTRY_ONLY: () => 'seule l’infanterie fonde un avant-poste',
-    LAND_MOVEMENT_ONLY: () => 'seules les troupes terrestres marchent depuis une caserne',
+    NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
+    NO_AIRFIELD_AT_DEPARTURE: () =>
+      'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
+    NOT_ENOUGH_LIFT: (d) =>
+      `${num(d.needed)} places à embarquer pour ${num(d.offered)} à bord — il manque du transport`,
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     REGION_TARGET_ONLY: () => 'on fonde un avant-poste sur une région, pas sur un point tenu',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
-    BARRACKS_TARGET_ONLY: () => 'un rappel marche sur une caserne, et sur rien d’autre',
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
@@ -673,6 +676,10 @@ export const fr = {
 
   /** La visée en carte : ce qui remplace la modale d’envoi. */
   aim: {
+    /** A place has no name: the degrees are the name, to one decimal — the precision a click
+     *  carries, past which the figure says more than the gesture did. */
+    pointAt: (lon: number, lat: number) =>
+      `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     armed: 'visée armée',
     column: (count: number, station: string) =>
       `pile ${count} troupe${plural(count, '', 's')} — ${station}`,
@@ -969,6 +976,7 @@ export const fr = {
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
     neutralHeld: 'pays neutre · avant-poste tenu',
     neutralFree: 'pays neutre · sans avant-poste',
+    openWater: 'haute mer',
     myTerritory: 'mon territoire',
     enemyNation: 'nation adverse',
     outpostAt: (name: string) => `avant-poste · ${name}`,

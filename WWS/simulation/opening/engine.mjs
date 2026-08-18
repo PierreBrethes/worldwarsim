@@ -14,7 +14,7 @@
 import {
   RESOURCES, BASE_CAP, STORAGE_CAP_PER_LEVEL, STORED_BY, COMMANDED_CHAINS, CHAINS,
   EXPLOITED_DEPOSITS, MAX_QUEUED_BATCHES, PROJECTION_BY_DOMAIN, DOMAIN_BY_ROLE,
-  DEFAULT_TUNING, UNLOCKED_AT,
+  DEFAULT_TUNING, unlockLevel,
   buildCost, buildMinutes, buildingCap, troopCap, recruitmentCost, roleHqLevel,
   extractionPerHour, chainInputs, chainPerHourPerLevel, foundationOwed,
 } from './constants.mjs';
@@ -176,7 +176,7 @@ export function buildRefusal(s, order) {
   if (!existing && s.sites.length >= buildingCap(hq, s.tuning)) return 'BUILDING_CAP_REACHED';
   // The catalogue by tier, in the order `placementRefusal` reads it: after the ceiling, and
   // never against the headquarters itself — it gates the others, not its own raise.
-  if (order.key !== 'hq' && hq < UNLOCKED_AT[order.key]) return 'BUILDING_LOCKED';
+  if (order.key !== 'hq' && hq < unlockLevel(order.key, s.scenario.format)) return 'BUILDING_LOCKED';
   if (order.key === 'hq' && level > s.tuning.maxHqLevel) return 'MAX_LEVEL_REACHED';
   if (order.key !== 'hq' && level - 1 >= hq) return 'CAPPED_BY_HQ';
   // The foundation buys the price and the wait, never a place on the map: every refusal above

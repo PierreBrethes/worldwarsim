@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildableOn, upgradeHold, type Site } from './construction';
-import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
+import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey, type SeasonFormat } from './ids';
+import { unlockLevel } from '../../convex/constants';
 import type { Building, BuildSpec, PlayerView } from './player-view';
 
 /** Everything open at a headquarters of 1: the tier is under test on its own, below. */
@@ -64,6 +65,30 @@ describe('what a region can carry', () => {
     expect(buildableOn(site({ hqLevel: 3 }), gated).map((option) => option.key)).toContain(
       'airfield',
     );
+  });
+
+  /**
+   * **A format that never climbs cannot tier its catalogue.** A skirkish's run is one single
+   * headquarters level, so `unlockLevel` puts projection at the launch: the port and the
+   * aerodrome are there from the first minute. A campaign keeps them at 3, four levels of run
+   * away. What paces a skirmish is alloy and time, not the headquarters.
+   */
+  it('opens projection at the launch of a skirmish and holds it back in a campaign', () => {
+    const catalogOf = (format: SeasonFormat): Record<BuildingKey, BuildSpec> =>
+      Object.fromEntries(
+        BUILDINGS.map((key) => [
+          key,
+          { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key, format) },
+        ]),
+      ) as Record<BuildingKey, BuildSpec>;
+
+    const offered = (format: SeasonFormat, hqLevel: number) =>
+      buildableOn(site({ hqLevel, coastal: true }), catalogOf(format)).map((option) => option.key);
+
+    expect(offered('skirmish', 2)).toEqual(expect.arrayContaining(['port', 'airfield']));
+    expect(offered('campaign', 2)).not.toContain('port');
+    expect(offered('campaign', 2)).not.toContain('airfield');
+    expect(offered('campaign', 3)).toEqual(expect.arrayContaining(['port', 'airfield']));
   });
 
   it('offers nothing at all on a region already taken — one building per region', () => {

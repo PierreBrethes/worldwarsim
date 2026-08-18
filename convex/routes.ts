@@ -1,7 +1,8 @@
 import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, RouteMode } from '../src/domain/routing';
-import { buildGrid, computeRoute } from '../src/domain/routing';
+import { buildGrid, computeRoute, countryAt } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
+import { nearestRegion } from './regions';
 import worldAsset from '../public/world.json';
 
 /**
@@ -35,4 +36,29 @@ let grid: ReturnType<typeof buildGrid> | null = null;
 export function routeBetween(from: LonLat, to: LonLat, mode: RouteMode): ComputedRoute | null {
   grid ??= buildGrid(world);
   return computeRoute(grid, from, to, mode);
+}
+
+/**
+ * The country a point stands in, or `null` on the open sea. Same asset as the grid, same
+ * reason it is allowed here: this is the one file the world's geometry enters.
+ */
+export function countryAtPoint(point: LonLat): string | null {
+  return countryAt(world, point);
+}
+
+/**
+ * **The country hosting a point, as every rule keys it**: an `adm0_a3`, or the empty string on
+ * the open sea and nowhere else. Two assets, each answering what the other cannot — `world.json`
+ * knows where the land stops and carries no code, `region-index.json` carries the code of all
+ * 163 countries and places nothing.
+ *
+ * The empty string used to swallow both "this is the high sea" and "this is a country nobody
+ * plays", which made Arabia, Romania and Bolivia one and the same host. They are the ordinary
+ * case, not the edge: the decreasing yield per host, the finite trade capacity and the
+ * expulsion of fiche 03 all key on this string, and none of them can be written on a key that
+ * collapses a hundred and fifty-five countries into one.
+ */
+export function hostAtPoint(point: LonLat): string {
+  if (countryAtPoint(point) === null) return '';
+  return nearestRegion(point)?.country ?? '';
 }
