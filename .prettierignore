@@ -1,0 +1,9 @@
+dist
+coverage
+.tanstack
+node_modules
+src/routeTree.gen.ts
+convex/_generated
+WWS
+public
+package-lock.json
