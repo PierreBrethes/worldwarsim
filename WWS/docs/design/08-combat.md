@@ -104,7 +104,6 @@ Ils s'appliquent **avant** la table, pour rester lisibles.
 | **Bonus du défenseur** | défenseur — deuxième contre-pouvoir de l'ADR 0014 |
 | **Terrain de la région défendue** | défenseur — défendre en montagne doit compter |
 | **Tenaille** : deux mouvements convergents | attaquant |
-| **Munitions à sec** | pénalise celui qui n'en a plus — il ne cesse pas de combattre, il devient mauvais |
 | **Interception en route** | inverse l'initiative |
 
 **L'avantage d'initiative est volontairement mince** — de l'ordre de 1,4 contre 1 en plaine, et il
@@ -134,8 +133,12 @@ se repliant vers une **pharmacie** — amélioration d'avant-poste — ou chez e
 plus chère et plus rapide, et surtout plus proche : le choix est distance contre ressource. Le soin
 crée des mouvements de retour, et la carte vit dans les deux sens.
 
-**Les munitions se consomment au combat**, proportionnellement à l'effectif engagé. À sec, une
-troupe se bat à taux réduit.
+**Les munitions se facturent une seule fois, au recrutement.** Une troupe achète sa dotation en
+même temps que son effectif — de quoi tenir deux engagements avant réapprovisionnement — et ce
+compte n'est plus jamais rouvert pendant une passe de résolution : une troupe ne s'use pas au
+combat, elle épuise seulement ce qu'elle a payé en se formant. Les munitions restent une ressource
+comme les autres, produite par l'arsenal et plafonnée par le dépôt. Facturer les deux bouts, au
+recrutement et au combat, était l'ambiguïté du brief d'origine ; une seule facturation la tranche.
 
 **L'entretien en nourriture se paie sur l'effectif *nominal*, pas courant.** Une troupe entamée
 coûte autant qu'une troupe pleine — sinon perdre des hommes devient une économie.
