@@ -32,8 +32,13 @@ export type UnitTier = 1 | 2;
  * `return` is the only one no player ever orders: a routed column and a column that has fought
  * are put on the road home by the resolution itself, outside the slots. It is a movement all
  * the same — it takes time, it can be seen, and it can be intercepted.
+ *
+ * `recall` is the opposite exception: the only order a garrison may give, and the only one that
+ * spends a slot to walk *away* from the front rather than toward it (question 21, 18/08). An
+ * outpost is an address, never a second barracks — it cannot attack, raid or found — so a
+ * garrison's whole vocabulary is one word: come home.
  */
-export type MovementType = 'attack' | 'raid' | 'outpost' | 'agent' | 'decoy' | 'return';
+export type MovementType = 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'decoy' | 'return';
 
 /**
  * The two season formats. What each one is worth — duration, headquarters at launch, ceiling,

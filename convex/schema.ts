@@ -272,7 +272,6 @@ export default defineSchema({
         targetRole: UNIT_ROLE,
         targetTier: UNIT_TIER,
         losses: v.number(),
-        dry: v.boolean(),
       }),
     ),
     troops: v.array(

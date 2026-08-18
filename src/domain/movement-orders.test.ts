@@ -6,6 +6,8 @@ const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Col
   roles,
   myRegionIds: new Set(),
   myOutpostIds: new Set(),
+  myBarracksRegionIds: new Set(),
+  origin: 'building',
   ...held,
 });
 
@@ -33,6 +35,17 @@ describe('what a column may ask for', () => {
   it('offers nothing to an empty column', () => {
     expect(legalMovementTypes(region, column([]))).toEqual([]);
   });
+
+  it('offers a garrison only the recall, never the attack, the raid or the foundation', () => {
+    const home: MovementAim = { kind: 'region', regionId: 'FRA-1', country: 'France' };
+    const held = column(['infantry'], { origin: 'outpost', myBarracksRegionIds: new Set(['FRA-1']) });
+    expect(legalMovementTypes(home, held)).toEqual(['recall']);
+  });
+
+  it('offers a barracks column no recall at all — the outpost is not a second barracks', () => {
+    const held = column(['infantry'], { myBarracksRegionIds: new Set(['TUN-1']) });
+    expect(legalMovementTypes(region, held)).not.toContain('recall');
+  });
 });
 
 describe('refusals', () => {
@@ -58,5 +71,19 @@ describe('refusals', () => {
     expect(refusalOf('return', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('agent', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('decoy', region, column(['infantry']))).toBe('NOT_ORDERABLE');
+  });
+
+  it('refuses a recall from a barracks column — only a garrison may ask for one', () => {
+    expect(refusalOf('recall', region, column(['infantry']))).toBe('NOT_ORDERABLE');
+  });
+
+  it('refuses a recall at an outpost: it marches at a barracks, never at a point', () => {
+    const held = column(['infantry'], { origin: 'outpost' });
+    expect(refusalOf('recall', outpost, held)).toBe('REGION_TARGET_ONLY');
+  });
+
+  it('refuses a recall at a region carrying none of my barracks', () => {
+    const held = column(['infantry'], { origin: 'outpost' });
+    expect(refusalOf('recall', region, held)).toBe('BARRACKS_TARGET_ONLY');
   });
 });

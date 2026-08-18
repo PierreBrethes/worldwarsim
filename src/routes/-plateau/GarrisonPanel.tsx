@@ -45,6 +45,9 @@ export function GarrisonPanel({
   // The server marches from a barracks and from nothing else today — naval and air projection
   // wait for their own passes, and the panel must not promise what would be refused.
   const projection = building !== null && building.key === 'barracks';
+  /** A garrison composes a column too — its only order is the recall (question 21, 18/08), but
+   *  arming it is the same gesture as arming one at a barracks: check troops, then aim on the map. */
+  const canPrepare = projection || outpost !== null;
   const region = building
     ? (view.me.regions.find((candidate) => candidate.id === building.regionId)?.name ?? null)
     : null;
@@ -101,7 +104,7 @@ export function GarrisonPanel({
                 <button
                   key={troop.id}
                   type="button"
-                  disabled={!projection}
+                  disabled={!canPrepare}
                   onClick={() => toggle(troop.id)}
                   className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left enabled:cursor-pointer disabled:opacity-70 ${
                     on
@@ -133,7 +136,7 @@ export function GarrisonPanel({
           </div>
         )}
 
-        {projection ? (
+        {canPrepare ? (
           <div className="mt-[11px] flex items-center justify-between gap-3">
             <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
               {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}
@@ -141,7 +144,7 @@ export function GarrisonPanel({
             <button
               type="button"
               disabled={picked.size === 0}
-              onClick={() => onPrepare(building.id, [...picked])}
+              onClick={() => onPrepare((building ?? outpost)!.id, [...picked])}
               className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               {fr.garrison.prepare}

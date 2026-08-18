@@ -466,27 +466,6 @@ describe('an attack marches at somebody', () => {
     expect(theirsView.reports[0]!.mine.lost).toBe(22);
   });
 
-  it('spends one round per five points of strength engaged', async () => {
-    const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const troop = await form(t, token, 'infantry', barracks);
-    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
-    await form(t, guest, 'infantry', theirs);
-
-    const before = (await t.query(api.view.playerView, { token })).me.resources.ammunition.stock;
-    await t.mutation(api.movements.attack, {
-      token,
-      buildingId: barracks,
-      troopIds: [troop],
-      target: { kind: 'region', regionId: PRAHOVA },
-    });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-
-    const after = (await t.query(api.view.playerView, { token })).me.resources.ammunition.stock;
-    expect(before - after).toBe(10);
-  });
-
   it('refuses to march on one of my own regions', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
@@ -699,6 +678,88 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     await expect(
       t.mutation(api.movements.raid, { token, buildingId: barracks, troopIds: [troop], outpostId }),
     ).rejects.toThrow('FRIENDLY_TARGET');
+  });
+});
+
+describe('a garrison recalls itself', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('walks home and hangs itself on the barracks it aimed at', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const held = await garrison(t, token, outpostId);
+
+    const sent = await t.mutation(api.movements.recall, {
+      token,
+      outpostId,
+      troopIds: [held],
+      regionId: MARNE,
+    });
+    expect(sent.minutes).toBeGreaterThan(20);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const troop = await t.run(async (ctx) => ctx.db.get(held));
+    expect(troop!.stationedAt).toBe(barracks);
+    expect(await movementsOf(t, token)).toHaveLength(0);
+  });
+
+  it('spends a slot like any ordinary march, not like a return', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await raise(t, token, 'barracks', MARNE);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const held = await garrison(t, token, outpostId);
+
+    await t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: MARNE });
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.slots.used).toBe(1);
+  });
+
+  it('refuses a region carrying none of my barracks', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await raise(t, token, 'barracks', MARNE);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const held = await garrison(t, token, outpostId);
+
+    await expect(
+      t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: RUHR }),
+    ).rejects.toThrow('BARRACKS_TARGET_ONLY');
+  });
+
+  it('refuses a troop that is not this outpost\'s own garrison', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const stray = await form(t, token, 'infantry', barracks);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+
+    await expect(
+      t.mutation(api.movements.recall, { token, outpostId, troopIds: [stray], regionId: MARNE }),
+    ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
+  });
+
+  it('comes home even if the barracks was razed since — it does not die for it', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const held = await garrison(t, token, outpostId);
+
+    await t.mutation(api.movements.recall, { token, outpostId, troopIds: [held], regionId: MARNE });
+    await t.run(async (ctx) => ctx.db.delete(barracks));
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const troop = await t.run(async (ctx) => ctx.db.get(held));
+    expect(troop!.stationedAt).toBeNull();
   });
 });
 

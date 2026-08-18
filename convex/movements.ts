@@ -8,6 +8,7 @@ import { firstInterception, type MarchingForce } from '../src/domain/interceptio
 import { refusalOf, type Column, type MovementAim } from '../src/domain/movement-orders';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
+import { buildingAt, playerBuildings } from './buildings';
 import { resolveContact, troopsStationedAt } from './combat';
 import {
   INTERCEPTION_RADIUS_KM,
@@ -46,7 +47,7 @@ export const foundOutpost = mutation({
     return march(ctx, {
       playerId: player._id,
       type: 'outpost',
-      buildingId,
+      origin: { kind: 'building', buildingId },
       troopIds,
       aim: await aimOf(ctx, { kind: 'region', regionId }),
       specialization,
@@ -68,7 +69,7 @@ export const attack = mutation({
     return march(ctx, {
       playerId: player._id,
       type: 'attack',
-      buildingId,
+      origin: { kind: 'building', buildingId },
       troopIds,
       aim: await aimOf(ctx, target),
       specialization: 'relay',
@@ -95,9 +96,37 @@ export const raid = mutation({
     return march(ctx, {
       playerId: player._id,
       type: 'raid',
-      buildingId,
+      origin: { kind: 'building', buildingId },
       troopIds,
       aim: await aimOf(ctx, { kind: 'outpost', outpostId }),
+      specialization: 'relay',
+    });
+  },
+});
+
+/**
+ * **The garrison's only order** (question 21, 18/08): a slot, toward one of my barracks, and
+ * nothing else. The outpost stays an address rather than becoming a second projection building
+ * out of budget — `refusalOf` is what actually forbids it an attack or a raid, this mutation
+ * only supplies the one target shape a recall ever carries.
+ */
+export const recall = mutation({
+  args: {
+    token: v.string(),
+    outpostId: v.id('outposts'),
+    troopIds: v.array(v.id('troops')),
+    regionId: v.string(),
+  },
+  handler: async (ctx, { token, outpostId, troopIds, regionId }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(season);
+
+    return march(ctx, {
+      playerId: player._id,
+      type: 'recall',
+      origin: { kind: 'outpost', outpostId },
+      troopIds,
+      aim: await aimOf(ctx, { kind: 'region', regionId }),
       specialization: 'relay',
     });
   },
@@ -151,6 +180,45 @@ export const preview = query({
 });
 
 /**
+ * The same card as `preview`, for the one march that leaves a point instead of a building — an
+ * outpost has no `regionFacts` of its own to read a name and an origin off, so this is a second
+ * query rather than a branch stuffed into the first one's single `buildingId` argument.
+ */
+export const recallPreview = query({
+  args: {
+    token: v.string(),
+    outpostId: v.id('outposts'),
+    troopIds: v.array(v.id('troops')),
+    regionId: v.string(),
+  },
+  handler: async (ctx, { token, outpostId, troopIds, regionId }) => {
+    const { player } = await playerByToken(ctx, token);
+    const outpost = await ctx.db.get(outpostId);
+    if (!outpost || outpost.playerId !== player._id) return null;
+
+    const { aim, point, name } = await aimOf(ctx, { kind: 'region', regionId });
+    const route = routeBetween(pointOf(outpost.point), point, 'land');
+    if (route === null) return null;
+
+    const now = Date.now();
+    const minutes = routeMinutes(route.costUnits);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, hostOf(aim), arrivesAt),
+      troops: troopIds.length,
+      type: 'recall' as const,
+      destinationName: name,
+      /** A code, never a phrase (ADR 0016): the same `hostCountry` a stored movement falls
+       *  back to when it left no building behind (`view.ts`). */
+      originName: outpost.hostCountry,
+      route: routeFacts(route),
+    };
+  },
+});
+
+/**
  * The arrival. A foundation plants its point and the column becomes its garrison; an attack or
  * a raid engages what stands there and turns around; a return hangs its troops back on what
  * they came from.
@@ -176,7 +244,8 @@ export const arrive = internalMutation({
     if (movement.type === 'outpost') await foundAt(ctx, movement, now);
     else if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, now);
-    } else await attachHome(ctx, movement);
+    } else if (movement.type === 'recall') await recallAt(ctx, movement);
+    else await attachHome(ctx, movement);
 
     await ctx.db.delete(movementId);
   },
@@ -336,6 +405,7 @@ async function columnOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
   troops: ReadonlyArray<Doc<'troops'>>,
+  origin: 'building' | 'outpost',
 ): Promise<Column> {
   const buildings = await ctx.db
     .query('buildings')
@@ -345,22 +415,32 @@ async function columnOf(
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
+    myBarracksRegionIds: new Set(
+      buildings.filter((building) => building.key === 'barracks').map((building) => building.regionId),
+    ),
+    origin,
   };
 }
+
+/** Where a march leaves from: a projection building for the three ordinary kinds, an outpost
+ *  for the garrison's own (question 21, 18/08) — never both, never neither. */
+type MarchOrigin =
+  | { readonly kind: 'building'; readonly buildingId: Id<'buildings'> }
+  | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> };
 
 async function march(
   ctx: MutationCtx,
   {
     playerId,
     type,
-    buildingId,
+    origin,
     troopIds,
     aim,
     specialization,
   }: {
     playerId: Id<'players'>;
-    type: 'outpost' | 'attack' | 'raid';
-    buildingId: Id<'buildings'>;
+    type: 'outpost' | 'attack' | 'raid' | 'recall';
+    origin: MarchOrigin;
     troopIds: ReadonlyArray<Id<'troops'>>;
     aim: Aimed;
     specialization: Doc<'movements'>['specialization'];
@@ -373,7 +453,8 @@ async function march(
    * bring takes its place.
    *
    * **A return does not count against it**: it is not an order, and holding a player's only
-   * slot hostage while his beaten column walks back would punish him twice for one defeat.
+   * slot hostage while his beaten column walks back would punish him twice for one defeat. A
+   * recall is not a return — it is the one order a garrison gets — so it counts like any other.
    */
   const flying = (await movementsOf(ctx, playerId)).filter(
     (movement) => movement.type !== 'return',
@@ -382,33 +463,50 @@ async function march(
     fail('MOVEMENT_IN_FLIGHT', { maximum: MOVEMENTS_IN_FLIGHT });
   }
 
-  const barracks = await ctx.db.get(buildingId);
-  if (!barracks || barracks.playerId !== playerId) fail('UNKNOWN_BUILDING');
-  if (barracks.key !== 'barracks') {
-    fail('WRONG_PROJECTION_BUILDING', { expected: 'barracks', found: barracks.key });
+  /**
+   * The address the column has to be standing at to leave from it — a garrison already abroad
+   * cannot be ordered out of a barracks it is not in, and a column at a barracks cannot leave
+   * from a point it never walked to (ADR 0013).
+   */
+  let originPoint: LonLat;
+  let originName: string;
+  let fromBuildingId: Id<'buildings'> | null;
+  let stationId: Id<'buildings'> | Id<'outposts'>;
+
+  if (origin.kind === 'building') {
+    const barracks = await ctx.db.get(origin.buildingId);
+    if (!barracks || barracks.playerId !== playerId) fail('UNKNOWN_BUILDING');
+    if (barracks.key !== 'barracks') {
+      fail('WRONG_PROJECTION_BUILDING', { expected: 'barracks', found: barracks.key });
+    }
+    const region = regionFacts(barracks.regionId);
+    if (!region) fail('UNKNOWN_REGION', { regionId: barracks.regionId });
+    originPoint = region.point;
+    originName = region.name;
+    fromBuildingId = barracks._id;
+    stationId = barracks._id;
+  } else {
+    const outpost = await ctx.db.get(origin.outpostId);
+    if (!outpost || outpost.playerId !== playerId) fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
+    originPoint = pointOf(outpost.point);
+    originName = outpost.hostCountry;
+    fromBuildingId = null;
+    stationId = outpost._id;
   }
 
-  const origin = regionFacts(barracks.regionId);
-  if (!origin) fail('UNKNOWN_REGION', { regionId: barracks.regionId });
-
-  /**
-   * A movement departs from a projection building of its domain (ADR 0013), so the column has
-   * to be standing in the one it leaves from — a garrison already abroad cannot be ordered out
-   * of a barracks it is not in.
-   */
   const troops: Array<Doc<'troops'>> = [];
   for (const troopId of troopIds) {
     const troop = await ctx.db.get(troopId);
     if (!troop || troop.playerId !== playerId) fail('UNKNOWN_TROOP', { troopId });
-    if (troop.stationedAt !== buildingId) fail('TROOP_NOT_AT_ORIGIN', { troopId });
+    if (troop.stationedAt !== stationId) fail('TROOP_NOT_AT_ORIGIN', { troopId });
     troops.push(troop);
   }
 
-  const refusal = refusalOf(type, aim.aim, await columnOf(ctx, playerId, troops));
+  const refusal = refusalOf(type, aim.aim, await columnOf(ctx, playerId, troops, origin.kind));
   if (refusal !== null) fail(refusal, { type });
 
-  const route = routeBetween(origin.point, aim.point, 'land');
-  if (route === null) fail('NO_LAND_ROUTE', { from: origin.name, to: hostOf(aim.aim) });
+  const route = routeBetween(originPoint, aim.point, 'land');
+  if (route === null) fail('NO_LAND_ROUTE', { from: originName, to: hostOf(aim.aim) });
 
   const now = Date.now();
   const minutes = routeMinutes(route.costUnits);
@@ -416,9 +514,9 @@ async function march(
   const movementId = await ctx.db.insert('movements', {
     playerId,
     type,
-    fromBuildingId: buildingId,
+    fromBuildingId,
     target: aim.target,
-    from: asPoint(origin.point),
+    from: asPoint(originPoint),
     to: asPoint(aim.point),
     hostCountry: hostOf(aim.aim),
     points: route.points.map(asPoint),
@@ -608,6 +706,25 @@ async function attachHome(ctx: MutationCtx, movement: Doc<'movements'>): Promise
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
     if (troop) await ctx.db.patch(troopId, { stationedAt: station ? station._id : null });
+  }
+}
+
+/**
+ * Where a recalled garrison re-hangs itself. `fromBuildingId` carries no address here — the
+ * column left an outpost, not a building (question 21, 18/08) — so the barracks is looked up
+ * fresh, in the region the order aimed at. Razed or lost since departure, the troops still come
+ * home rather than die for it: the same rule `attachHome` reads for an ordinary return.
+ */
+async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
+  const buildings =
+    movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
+  const barracks =
+    movement.target.kind === 'region'
+      ? buildingAt(buildings, 'barracks', movement.target.regionId)
+      : undefined;
+  for (const troopId of movement.troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop) await ctx.db.patch(troopId, { stationedAt: barracks ? barracks._id : null });
   }
 }
 

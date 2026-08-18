@@ -31,12 +31,16 @@ import { DragHandle, Draggable } from './Draggable';
 export function TroopsWidget({
   view,
   hoveredMovement,
+  selectedStation,
   onHover,
   onOpenGarrison,
   onFollow,
 }: {
   view: PlayerView;
   hoveredMovement: string | null;
+  /** The address the garrison panel is open on, or that a column is armed out of — `null` reads
+   *  as home, `undefined` as nothing selected at all. A card reads as pressed while it matches. */
+  selectedStation: string | null | undefined;
   onHover: (id: string | null) => void;
   /** The widget's door into the garrison — the same one the building's mast opens. */
   onOpenGarrison: (stationId: string | null, preselect: ReadonlyArray<string>) => void;
@@ -100,6 +104,7 @@ export function TroopsWidget({
                     group={group}
                     nation={view.me.nation}
                     name={stationName(group)}
+                    selected={selectedStation !== undefined && group.stationId === selectedStation}
                     onOpen={() => onOpenGarrison(group.stationId, group.troopIds)}
                   />
                 ))}
@@ -189,16 +194,20 @@ function SectionHead({ title, power, lit }: { title: string; power: string; lit:
   );
 }
 
-/** A frame, a ground, a chevron: everything about this card says it is pressed. */
+/** A frame, a ground, a chevron: everything about this card says it is pressed. `selected`
+ *  reads the same accent as hover, but held rather than transient — the garrison panel or the
+ *  aim it opened is still on the board for this address. */
 function StandingCard({
   group,
   nation,
   name,
+  selected,
   onOpen,
 }: {
   group: StationGroup;
   nation: string;
   name: string;
+  selected: boolean;
   onOpen: () => void;
 }) {
   return (
@@ -206,7 +215,12 @@ function StandingCard({
       type="button"
       onClick={onOpen}
       title={fr.troops.open(name)}
-      className="flex cursor-pointer items-center gap-[10px] border border-[var(--ink-quiet)] bg-[rgba(228,216,189,.045)] px-[9px] py-[7px] text-left hover:border-[var(--notable)] hover:bg-[rgba(228,216,189,.1)]"
+      aria-pressed={selected}
+      className={`flex cursor-pointer items-center gap-[10px] border px-[9px] py-[7px] text-left hover:border-[var(--notable)] hover:bg-[rgba(228,216,189,.1)] ${
+        selected
+          ? 'border-[var(--notable)] bg-[rgba(228,216,189,.1)]'
+          : 'border-[var(--ink-quiet)] bg-[rgba(228,216,189,.045)]'
+      }`}
     >
       <UnitSprite nation={nation} role={group.role} height={26} width={36} />
       <span className="min-w-0 flex-1">
@@ -328,6 +342,9 @@ const MARKS: Readonly<Record<MovementType, string>> = {
   attack: 'M8.7 1.4 H11.3 V10.8 H8.7 Z M8.2 10.4 H12.8 L13.9 18.6 H9.5 Z',
   raid: 'M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z',
   outpost: 'M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z',
+  // The garrison's own mark: an arrow walking down into the same ground the barracks stands
+  // on — the mirror of `return`'s arrow up, since a recall is ordered rather than suffered.
+  recall: 'M10 17.6 L3 10.6 H6.6 V2.4 H13.4 V10.6 H17 Z',
   agent: 'M4.5 11.9 C4.5 8 6.9 5.2 10 5.2 C13.1 5.2 15.5 8 15.5 11.9 Z M1.3 11.3 C1.3 14.9 5.2 16.1 10 16.1 C14.8 16.1 18.7 14.9 18.7 11.3 Z',
   decoy: 'M10 1 C12.8 2.9 13.7 5.9 12.8 9.2 H7.2 C6.3 5.9 7.2 2.9 10 1 Z',
   return: 'M10 2.4 L3 9.4 H6.6 V17.6 H13.4 V9.4 H17 Z',

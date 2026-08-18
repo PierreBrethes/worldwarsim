@@ -51,8 +51,6 @@ export type CombatRules = {
   readonly damage: DamageTable;
   readonly defenderBonus: number;
   readonly routThreshold: number;
-  readonly dryAmmunitionFactor: number;
-  readonly strengthPerRound: number;
 };
 
 export type Combatant = {
@@ -74,8 +72,6 @@ export type Strike = {
   readonly by: string;
   readonly target: string;
   readonly losses: number;
-  /** Fired without rounds, at the dry factor of the chiffrage — one fights badly, not never. */
-  readonly dry: boolean;
 };
 
 export type CombatantOutcome = {
@@ -89,16 +85,8 @@ export type CombatantOutcome = {
 export type Engagement = {
   readonly strikes: ReadonlyArray<Strike>;
   readonly outcomes: ReadonlyArray<CombatantOutcome>;
-  readonly roundsSpent: Readonly<Record<CombatSide, number>>;
   readonly winner: CombatSide;
 };
-
-/**
- * How many rounds each side may draw for this engagement. The magazine is national — the
- * recruitment bills it (`ammunitionLoad`) and the stock is what a nation has left — so a column
- * cut off from a dry country fights dry, whatever it left with.
- */
-export type Rounds = Readonly<Record<CombatSide, number>>;
 
 const damageOf = (rules: CombatRules, from: Combatant, to: Combatant): number | undefined =>
   rules.damage[profileOf(from.role, from.tier)][profileOf(to.role, to.tier)];
@@ -118,7 +106,6 @@ type Fighter = {
   readonly side: CombatSide;
   strength: number;
   state: TroopState;
-  dry: boolean;
   /** Who hit it last, so the riposte can answer the one that struck it. */
   struckBy: string | null;
 };
@@ -127,29 +114,21 @@ export function resolveEngagement({
   attackers,
   defenders,
   rules,
-  rounds,
 }: {
   attackers: ReadonlyArray<Combatant>;
   defenders: ReadonlyArray<Combatant>;
   rules: CombatRules;
-  rounds: Rounds;
 }): Engagement {
   const line = (combatant: Combatant, side: CombatSide): Fighter => ({
     combatant,
     side,
     strength: combatant.strength,
     state: 'standing',
-    dry: false,
     struckBy: null,
   });
 
   const striking = [...attackers].sort(byStrikeOrder).map((one) => line(one, 'attacker'));
   const holding = [...defenders].sort(byStrikeOrder).map((one) => line(one, 'defender'));
-
-  const roundsSpent = {
-    attacker: issueRounds(striking, rounds.attacker, rules),
-    defender: issueRounds(holding, rounds.defender, rules),
-  };
 
   const strikes: Strike[] = [];
 
@@ -180,7 +159,7 @@ export function resolveEngagement({
     state: fighter.state,
   }));
 
-  return { strikes, outcomes, roundsSpent, winner: winnerOf(striking, holding) };
+  return { strikes, outcomes, winner: winnerOf(striking, holding) };
 }
 
 /**
@@ -196,30 +175,6 @@ function winnerOf(
     attackers.some((one) => one.state === 'standing')
     ? 'attacker'
     : 'defender';
-}
-
-/**
- * One round per five points of strength engaged, per pass (chiffrage §5). A troop the reserve
- * cannot cover in full fights dry rather than half-armed: a half magazine is a third state
- * nothing in the design ever describes.
- */
-function issueRounds(
-  fighters: ReadonlyArray<Fighter>,
-  available: number,
-  rules: CombatRules,
-): number {
-  let left = available;
-  let spent = 0;
-  for (const fighter of fighters) {
-    const need = Math.ceil(fighter.strength / rules.strengthPerRound);
-    if (need <= left) {
-      left -= need;
-      spent += need;
-    } else {
-      fighter.dry = true;
-    }
-  }
-  return spent;
 }
 
 /**
@@ -275,12 +230,10 @@ function hit(
   rules: CombatRules,
 ): Strike {
   const share = damageOf(rules, shooter.combatant, target.combatant) ?? 0;
-  const dry = shooter.dry;
   const raw =
     share *
     (shooter.strength / shooter.combatant.nominalStrength) *
     modifier *
-    (dry ? rules.dryAmmunitionFactor : 1) *
     target.combatant.nominalStrength;
   const losses = Math.min(target.strength, Math.round(raw));
 
@@ -296,5 +249,5 @@ function hit(
     target.state = 'routed';
   }
 
-  return { phase, by: shooter.combatant.id, target: target.combatant.id, losses, dry };
+  return { phase, by: shooter.combatant.id, target: target.combatant.id, losses };
 }

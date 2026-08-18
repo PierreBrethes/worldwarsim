@@ -124,6 +124,8 @@ describe('in aim', () => {
     roles: ['infantry' as const],
     myRegionIds: new Set(['FRA-5333', 'FRA-9999']),
     myOutpostIds: new Set(['AP-01']),
+    myBarracksRegionIds: new Set<string>(),
+    origin: 'building' as const,
   };
 
   it('shows the marches and nothing else — no crane, no "view"', () => {

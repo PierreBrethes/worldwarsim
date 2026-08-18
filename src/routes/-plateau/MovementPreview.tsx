@@ -30,6 +30,8 @@ export function MovementPreview({
   onClose,
 }: {
   token: string;
+  /** A building's id for the three ordinary marches, an outpost's for a recall (question 21,
+   *  18/08) — `type` already says which, so the cast at the call site is safe by construction. */
   buildingId: string;
   troopIds: ReadonlyArray<string>;
   aim: MovementAim;
@@ -45,6 +47,7 @@ export function MovementPreview({
   const foundOutpost = useMutation(api.movements.foundOutpost);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
+  const recall = useMutation(api.movements.recall);
 
   const send = () => {
     setError(null);
@@ -55,30 +58,32 @@ export function MovementPreview({
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
     const from = buildingId as Id<'buildings'>;
     const order =
-      type === 'outpost' && aim.kind === 'region'
-        ? foundOutpost({
-            token,
-            buildingId: from,
-            regionId: aim.regionId,
-            /**
-             * The relay, always: the compass rose asks for a *type of march*, not for what the
-             * point will be specialised in. Choosing between relay and listening station is the
-             * outpost's own decision and has no surface yet (fiche 03).
-             */
-            specialization: 'relay',
-            troopIds: ids,
-          })
-        : type === 'raid' && aim.kind === 'outpost'
-          ? raid({ token, buildingId: from, troopIds: ids, outpostId: aim.outpostId as Id<'outposts'> })
-          : attack({
+      type === 'recall' && aim.kind === 'region'
+        ? recall({ token, outpostId: buildingId as Id<'outposts'>, troopIds: ids, regionId: aim.regionId })
+        : type === 'outpost' && aim.kind === 'region'
+          ? foundOutpost({
               token,
               buildingId: from,
+              regionId: aim.regionId,
+              /**
+               * The relay, always: the compass rose asks for a *type of march*, not for what the
+               * point will be specialised in. Choosing between relay and listening station is the
+               * outpost's own decision and has no surface yet (fiche 03).
+               */
+              specialization: 'relay',
               troopIds: ids,
-              target:
-                aim.kind === 'region'
-                  ? { kind: 'region', regionId: aim.regionId }
-                  : { kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> },
-            });
+            })
+          : type === 'raid' && aim.kind === 'outpost'
+            ? raid({ token, buildingId: from, troopIds: ids, outpostId: aim.outpostId as Id<'outposts'> })
+            : attack({
+                token,
+                buildingId: from,
+                troopIds: ids,
+                target:
+                  aim.kind === 'region'
+                    ? { kind: 'region', regionId: aim.regionId }
+                    : { kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> },
+              });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);

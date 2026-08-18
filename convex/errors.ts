@@ -63,6 +63,7 @@ export type ErrorCode =
   | 'EMPTY_MOVEMENT'
   | 'REGION_TARGET_ONLY'
   | 'OUTPOST_TARGET_ONLY'
+  | 'BARRACKS_TARGET_ONLY'
   | 'NOT_ORDERABLE';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };

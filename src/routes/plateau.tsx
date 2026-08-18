@@ -481,9 +481,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     });
   }, [windows, view.journal, navigate]);
 
-  const preview = useQuery(
+  /**
+   * **Two queries, one card.** A garrison leaves an outpost, which has no `regionFacts` of its
+   * own — `recallPreview` reads it, `preview` reads a barracks, and only one of the two is ever
+   * live: `useQuery` cannot itself branch, so both are called and the idle one is skipped.
+   */
+  const fromOutpost = column !== null && column.rule.origin === 'outpost';
+  const buildingPreview = useQuery(
     api.movements.preview,
-    column === null || order === null
+    column === null || order === null || fromOutpost
       ? 'skip'
       : {
           token,
@@ -496,6 +502,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           type: order.type,
         },
   );
+  const recallPreview = useQuery(
+    api.movements.recallPreview,
+    column === null || order === null || !fromOutpost || order.aim.kind !== 'region'
+      ? 'skip'
+      : {
+          token,
+          outpostId: column.buildingId as Id<'outposts'>,
+          troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+          regionId: order.aim.regionId,
+        },
+  );
+  const preview = fromOutpost ? recallPreview : buildingPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -581,6 +599,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         <TroopsWidget
           view={view}
           hoveredMovement={hoveredMovement}
+          // What the widget's card should read as pressed: the garrison panel's own subject
+          // while it is open — home reads as `null`, so it must not fall through to the column
+          // below — then the column it armed for as long as an aim is still live, or `undefined`
+          // for neither: one selection, wherever the flow currently stands (decision 13a).
+          selectedStation={garrison !== null ? garrison.stationId : column?.buildingId}
           onHover={setHoveredCard}
           onOpenGarrison={(stationId, preselect) =>
             openGarrison(stationId, preselect, { x: 24, y: 92 })
@@ -666,23 +689,32 @@ function Loading() {
  * The column as the shared rule reads it, built from what the player is allowed to see. It is
  * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
  * two callers.
+ *
+ * `originId` is a building's or an outpost's id, whichever door the garrison panel was opened
+ * from — the two doors open the same panel (decision 13a), so which one it was is read off
+ * `view.me.outposts` rather than carried separately.
  */
 function armedColumn(
   view: PlayerView,
-  buildingId: string,
+  originId: string,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
   const roles = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
     return troop ? [troop.role] : [];
   });
+  const fromOutpost = view.me.outposts.some((outpost) => outpost.id === originId);
   return {
-    buildingId,
+    buildingId: originId,
     troopIds,
     rule: {
       roles,
       myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
+      myBarracksRegionIds: new Set(
+        view.me.buildings.filter((building) => building.key === 'barracks').map((building) => building.regionId),
+      ),
+      origin: fromOutpost ? 'outpost' : 'building',
     },
   };
 }
@@ -752,13 +784,15 @@ function markerOfStation(view: PlayerView, stationId: string | null): string | n
  */
 function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
   const building = view.me.buildings.find((candidate) => candidate.id === column.buildingId);
+  const outpost = view.me.outposts.find((candidate) => candidate.id === column.buildingId);
+  const station = building?.name ?? (outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome);
   return (
     <div className="hud absolute top-4 left-4 z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
       <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">
         {fr.aim.armed}
       </div>
       <div className="mt-1 font-[var(--font-mono)] text-[11px] leading-[1.7] text-[var(--paper-dim)]">
-        <div>{fr.aim.column(column.troopIds.length, building?.name ?? fr.troops.atHome)}</div>
+        <div>{fr.aim.column(column.troopIds.length, station)}</div>
         <div>{fr.aim.gesture}</div>
         <div>{fr.aim.disarm}</div>
       </div>

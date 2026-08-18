@@ -24,9 +24,6 @@ const UNIT_OF: Readonly<Record<CombatProfile, { role: UnitRole; tier: UnitTier }
   carrier: { role: 'carrier', tier: 1 },
 };
 
-/** Enough rounds that nothing fires dry: the chiffrage is quoted at full supply. */
-const SUPPLIED = { attacker: 10_000, defender: 10_000 };
-
 let formed = 0;
 function troop(profile: CombatProfile, strength?: number): Combatant {
   const { role, tier } = UNIT_OF[profile];
@@ -42,14 +39,13 @@ function troop(profile: CombatProfile, strength?: number): Combatant {
   };
 }
 
-const duel = (attacker: CombatProfile, defender: CombatProfile, rounds = SUPPLIED) => {
+const duel = (attacker: CombatProfile, defender: CombatProfile) => {
   const a = troop(attacker);
   const d = troop(defender);
   const engagement = resolveEngagement({
     attackers: [a],
     defenders: [d],
     rules: COMBAT_RULES,
-    rounds,
   });
   const outcome = (id: string) => engagement.outcomes.find((one) => one.id === id)!;
   return {
@@ -131,7 +127,6 @@ describe('one pass, and the excess is lost', () => {
       attackers,
       defenders: [lone],
       rules: COMBAT_RULES,
-      rounds: SUPPLIED,
     });
 
     // Six tank columns strike; the first two already take the fifty soldiers to nothing, and the
@@ -150,7 +145,6 @@ describe('one pass, and the excess is lost', () => {
       attackers: [rifles],
       defenders: [armour, lorries],
       rules: COMBAT_RULES,
-      rounds: SUPPLIED,
     });
 
     // .70 against the lorries, .15 against the tanks: nobody screens for anybody.
@@ -166,7 +160,6 @@ describe('one pass, and the excess is lost', () => {
       attackers: [lorries],
       defenders: [worn],
       rules: COMBAT_RULES,
-      rounds: SUPPLIED,
     });
 
     const outcome = engagement.outcomes.find((one) => one.id === worn.id)!;
@@ -185,34 +178,12 @@ describe('one pass, and the excess is lost', () => {
       attackers: [lorries, bombers],
       defenders: [holder],
       rules: COMBAT_RULES,
-      rounds: SUPPLIED,
     });
 
     // The bombers strike last, so they are what struck it — and a rifle company does not answer
     // a bomber. It fires back at the lorries it can reach instead.
     const riposte = engagement.strikes.find((strike) => strike.phase === 'riposte')!;
     expect(riposte.target).toBe(lorries.id);
-  });
-});
-
-describe('ammunition', () => {
-  it('spends one round per five points of strength engaged', () => {
-    const { engagement } = duel('infantry1', 'infantry1');
-    expect(engagement.roundsSpent.attacker).toBe(10);
-    // The defender ripostes with what it has left, but it was engaged at full strength.
-    expect(engagement.roundsSpent.defender).toBe(10);
-  });
-
-  it('has a dry troop fight badly rather than not at all', () => {
-    const supplied = duel('infantry1', 'infantry1');
-    const dry = duel('infantry1', 'infantry1', { attacker: 0, defender: 10_000 });
-
-    expect(dry.engagement.roundsSpent.attacker).toBe(0);
-    expect(dry.lostByDefender).toBeGreaterThan(0);
-    expect(dry.lostByDefender).toBeLessThan(supplied.lostByDefender);
-    expect(dry.lostByDefender).toBe(Math.round(supplied.lostByDefender * 0.6));
-    // And it takes a stiffer riposte for it: the defender is barely scratched.
-    expect(dry.lostByAttacker).toBeGreaterThan(supplied.lostByAttacker);
   });
 });
 

@@ -15,12 +15,20 @@ export type MovementAim =
  * The column as the rule reads it: what it carries, and what its owner already holds. Plain
  * data rather than callbacks, because the server builds it from documents and the client from
  * `PlayerView` — a shape both can fill without either one importing the other.
+ *
+ * `origin` is what closes the loop opened by the garrison (question 21, 18/08): a column that
+ * left a barracks may attack, raid or found, never recall; a garrison that left an outpost may
+ * only recall. The two vocabularies never overlap, so the outpost cannot grow into a second
+ * barracks by way of the fan simply forgetting to ask where the column stands.
  */
 export type Column = {
   readonly roles: ReadonlyArray<UnitRole>;
   /** The regions carrying one of my buildings: marching on one of them is marching on myself. */
   readonly myRegionIds: ReadonlySet<string>;
   readonly myOutpostIds: ReadonlySet<string>;
+  /** The regions carrying one of my barracks — a recall's only legal destination. */
+  readonly myBarracksRegionIds: ReadonlySet<string>;
+  readonly origin: 'building' | 'outpost';
 };
 
 export type OrderRefusal =
@@ -30,17 +38,18 @@ export type OrderRefusal =
   | 'LAND_MOVEMENT_ONLY'
   | 'REGION_TARGET_ONLY'
   | 'OUTPOST_TARGET_ONLY'
+  | 'BARRACKS_TARGET_ONLY'
   | 'NOT_ORDERABLE';
 
 /**
- * The three marches a player orders. **The return is not among them**: it is created by the
+ * The four marches a player orders. **The return is not among them**: it is created by the
  * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things
  * one can ask for — see the note in the brief's implementation.
  *
  * The agent and the decoy wait for the fog surfaces; they refuse as `NOT_ORDERABLE` rather than
  * being absent from the union, so the day they land there is a branch to fill, not one to find.
  */
-export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['attack', 'raid', 'outpost'];
+export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['attack', 'raid', 'outpost', 'recall'];
 
 export function refusalOf(
   type: MovementType,
@@ -55,16 +64,28 @@ export function refusalOf(
      * ground, so a region already carrying a building of mine has nothing to gain from one.
      */
     case 'outpost':
+      if (column.origin !== 'building') return 'NOT_ORDERABLE';
       if (aim.kind !== 'region') return 'REGION_TARGET_ONLY';
       if (mine(aim, column)) return 'FRIENDLY_TARGET';
       return column.roles.every((role) => role === 'infantry') ? null : 'INFANTRY_ONLY';
     case 'attack':
+      if (column.origin !== 'building') return 'NOT_ORDERABLE';
       return mine(aim, column) ? 'FRIENDLY_TARGET' : landOnly(column);
     /** A raid marches at an outpost and at nothing else: it comes to put a point out of
      *  service, and a region has no point to disable. */
     case 'raid':
+      if (column.origin !== 'building') return 'NOT_ORDERABLE';
       if (aim.kind !== 'outpost') return 'OUTPOST_TARGET_ONLY';
       return mine(aim, column) ? 'FRIENDLY_TARGET' : landOnly(column);
+    /**
+     * **A slot, toward a barracks, and nothing else** (question 21, 18/08). Only a garrison may
+     * ask for it, and only a region carrying one of my barracks answers: the outpost is not a
+     * projection building and never launches a column at anyone.
+     */
+    case 'recall':
+      if (column.origin !== 'outpost') return 'NOT_ORDERABLE';
+      if (aim.kind !== 'region') return 'REGION_TARGET_ONLY';
+      return column.myBarracksRegionIds.has(aim.regionId) ? null : 'BARRACKS_TARGET_ONLY';
     default:
       return 'NOT_ORDERABLE';
   }

@@ -76,14 +76,16 @@ export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 
 /**
- * The five kinds of movement of the design, plus the one the resolution creates on its own.
- * `agent` and `decoy` wait for the fog surfaces; the union is the vocabulary, and narrowing it
- * to what is coded would make every later kind a schema migration.
+ * The five kinds of movement of the design, plus the one the resolution creates on its own, plus
+ * the garrison's own — `recall` (question 21, 18/08). `agent` and `decoy` wait for the fog
+ * surfaces; the union is the vocabulary, and narrowing it to what is coded would make every
+ * later kind a schema migration.
  */
 export const MOVEMENT_TYPE = v.union(
   v.literal('attack'),
   v.literal('raid'),
   v.literal('outpost'),
+  v.literal('recall'),
   v.literal('agent'),
   v.literal('decoy'),
   v.literal('return'),

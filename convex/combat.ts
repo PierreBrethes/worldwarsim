@@ -3,14 +3,12 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import { resolveEngagement, type Combatant, type Engagement } from '../src/domain/combat';
 import { COMBAT_RULES } from './constants';
-import { economyOf, debit } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
 
 /**
  * **The pass of resolution, as the board records it.** The rules themselves are in
  * `src/domain/combat.ts` — pure, deterministic, testable without a database. This module is
- * only the wiring: who is standing where, what the reserve can arm, what the account says
- * afterwards.
+ * only the wiring: who is standing where, what the account says afterwards.
  *
  * Nothing here decides *whether* two forces meet. That is `movements.ts`, at an arrival or at
  * an interception.
@@ -69,14 +67,7 @@ export async function resolveContact(
     attackers: attacker.troops.map(combatantOf),
     defenders: defender.troops.map(combatantOf),
     rules: COMBAT_RULES,
-    rounds: {
-      attacker: await roundsAvailable(ctx, attacker.playerId, at),
-      defender: await roundsAvailable(ctx, defender.playerId, at),
-    },
   });
-
-  await spendRounds(ctx, attacker.playerId, engagement.roundsSpent.attacker, at);
-  await spendRounds(ctx, defender.playerId, engagement.roundsSpent.defender, at);
 
   /** Read **before** the outcomes land: "this pass is the one that crossed the bar" needs the
    *  state it crossed from, and one line later nothing on the board remembers it. */
@@ -126,7 +117,6 @@ export async function resolveContact(
         targetRole: target.role,
         targetTier: target.tier,
         losses: strike.losses,
-        dry: strike.dry,
       };
     }),
     troops: engagement.outcomes.map((outcome) => {
@@ -181,26 +171,3 @@ export async function troopsStationedAt(
 }
 
 export const pointOf = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
-
-/**
- * The reserve is national and the rounds come out of it: a column marching on a country that
- * has run dry fights dry, whatever it left the barracks carrying. Modelling a magazine per
- * troop would take a field nobody has asked for and a resupply rule that does not exist.
- */
-async function roundsAvailable(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  at: number,
-): Promise<number> {
-  const economy = await economyOf(ctx, playerId, at);
-  return Math.floor(economy.stocks.ammunition);
-}
-
-async function spendRounds(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  rounds: number,
-  at: number,
-): Promise<void> {
-  if (rounds > 0) await debit(ctx, playerId, { ammunition: rounds }, at);
-}

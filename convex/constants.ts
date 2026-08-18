@@ -341,12 +341,14 @@ export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: n
 };
 
 /**
- * The ammunition a troop leaves with, **derived** rather than tabulated: the chiffrage spends
- * one round per five points of strength and per engagement (§5), so a fresh troop carries two
- * engagements' worth. Nine hand-written numbers would be nine chances to contradict that rule.
+ * The ammunition a troop costs to recruit, **derived** rather than tabulated: the chiffrage
+ * prices one round per five points of strength and per engagement (§5), so a fresh troop bills
+ * two engagements' worth up front. Nine hand-written numbers would be nine chances to
+ * contradict that rule.
  *
- * This is the initial load only. Neither upkeep nor continuous consumption is coded — no rate
- * is figured anywhere, and `economyOf` has no path for a stock that drains.
+ * **This is the only facturation** (question 18): combat itself never debits ammunition — a
+ * troop that already paid to be formed does not pay again to fight. Billing both ends was the
+ * bug; one billing, at recruitment, is the fix.
  */
 export const INITIAL_AMMUNITION_ENGAGEMENTS = 2;
 export const STRENGTH_PER_ROUND = 5;
@@ -546,14 +548,11 @@ export const DAMAGE_TABLE: DamageTable = {
  */
 export const DEFENDER_BONUS = 1.15;
 export const ROUT_THRESHOLD = 0.25;
-export const DRY_AMMUNITION_FACTOR = 0.6;
 
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   defenderBonus: DEFENDER_BONUS,
   routThreshold: ROUT_THRESHOLD,
-  dryAmmunitionFactor: DRY_AMMUNITION_FACTOR,
-  strengthPerRound: STRENGTH_PER_ROUND,
 };
 
 /**
