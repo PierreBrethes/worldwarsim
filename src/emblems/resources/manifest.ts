@@ -1,4 +1,4 @@
-import { RESOURCES, type ResourceKey } from '@/domain/ids';
+import type { ResourceKey } from '@/domain/ids';
 import alloy from './alloy.webp';
 import ammunition from './ammunition.webp';
 import bandages from './bandages.webp';
@@ -46,6 +46,3 @@ export const resourcePlate = (key: ResourceKey): string | null => RESOURCE_PLATE
  * and the next plate off the generator with the same haze would have earned a second entry.
  * A plate that reads small is an export to re-run, never a number to add.
  */
-
-export const isResourceKey = (value: string): value is ResourceKey =>
-  (RESOURCES as ReadonlyArray<string>).includes(value);

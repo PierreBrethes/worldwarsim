@@ -22,10 +22,3 @@ export function distanceKm(a: LonLat, b: LonLat): number {
 export function crossesAntimeridian(a: LonLat, b: LonLat): boolean {
   return Math.abs(b[0] - a[0]) > 180;
 }
-
-export function travelMinutes(
-  km: number,
-  { minutesPer1000km, logisticsLevel }: { minutesPer1000km: number; logisticsLevel: number },
-): number {
-  return (km / 1000) * minutesPer1000km * (1 - 0.07 * (logisticsLevel - 1));
-}

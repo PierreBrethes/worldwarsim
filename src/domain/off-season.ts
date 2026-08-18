@@ -11,15 +11,8 @@ export function playableRegion(playerCount: number): PlayableRegion {
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function gameCode(random: () => number): string {
-  return Array.from({ length: 6 }, () => CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)]).join('');
-}
-
-export function accruedStock(
-  { stock, ratePerHour, updatedAt }: { stock: number; ratePerHour: number; updatedAt: number },
-  now: number,
-  cap?: number,
-): number {
-  const hours = Math.max(0, now - updatedAt) / 3_600_000;
-  const raw = stock + ratePerHour * hours;
-  return cap === undefined ? raw : Math.min(cap, raw);
+  return Array.from(
+    { length: 6 },
+    () => CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)],
+  ).join('');
 }

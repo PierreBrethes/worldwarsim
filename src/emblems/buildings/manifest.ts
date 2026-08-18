@@ -1,4 +1,4 @@
-import { BUILDINGS, type BuildingKey } from '@/domain/ids';
+import type { BuildingKey } from '@/domain/ids';
 import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
 import barracks from './barracks.webp';
@@ -49,6 +49,3 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];
-
-export const isBuildingKey = (value: string): value is BuildingKey =>
-  (BUILDINGS as ReadonlyArray<string>).includes(value);

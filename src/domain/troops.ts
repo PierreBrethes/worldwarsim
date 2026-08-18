@@ -53,20 +53,6 @@ export const TIERS_BY_ROLE: Readonly<Record<UnitRole, UnitTier>> = {
 export const tierLabel = (tier: UnitTier): string => `MK${tier}`;
 
 /**
- * The full matrix is 9×9 and a player must never see it whole (brief 4.6): two short lists
- * suffice. A **support** unit structurally has neither strengths nor weaknesses — it does not
- * fight, it gets destroyed or intercepted. The lists themselves are display text and live in
- * `fr.unitSheets`.
- */
-export type UnitSheet =
-  | {
-      readonly kind: 'combat';
-      readonly strongAgainst: ReadonlyArray<string>;
-      readonly weakAgainst: ReadonlyArray<string>;
-    }
-  | { readonly kind: 'support'; readonly contribution: string };
-
-/**
  * The canonical order of the roles. It orders the inventory, and since the combat pass it also
  * orders the strikes of an engagement — one table, so a column cannot fire in one order and be
  * listed in another.
