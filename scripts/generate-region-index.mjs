@@ -145,6 +145,4 @@ const output = { name, country, coastal, point };
 writeFileSync('public/region-index.json', JSON.stringify(output));
 
 const size = (JSON.stringify(output).length / 1024).toFixed(0);
-console.log(
-  `${Object.keys(country).length} regions, ${coastal.length} coastal, ${size} Ko`,
-);
+console.log(`${Object.keys(country).length} regions, ${coastal.length} coastal, ${size} Ko`);

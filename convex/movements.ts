@@ -416,7 +416,9 @@ async function columnOf(
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
     myBarracksRegionIds: new Set(
-      buildings.filter((building) => building.key === 'barracks').map((building) => building.regionId),
+      buildings
+        .filter((building) => building.key === 'barracks')
+        .map((building) => building.regionId),
     ),
     origin,
   };
@@ -487,7 +489,8 @@ async function march(
     stationId = barracks._id;
   } else {
     const outpost = await ctx.db.get(origin.outpostId);
-    if (!outpost || outpost.playerId !== playerId) fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
+    if (!outpost || outpost.playerId !== playerId)
+      fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
     originPoint = pointOf(outpost.point);
     originName = outpost.hostCountry;
     fromBuildingId = null;
@@ -809,8 +812,7 @@ async function defenceOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<
   if (target.kind !== 'region') return null;
 
   const buildings = (await ctx.db.query('buildings').collect()).filter(
-    (building) =>
-      building.regionId === target.regionId && building.playerId !== movement.playerId,
+    (building) => building.regionId === target.regionId && building.playerId !== movement.playerId,
   );
 
   const byPlayer = new Map<Id<'players'>, Array<Doc<'troops'>>>();
@@ -893,8 +895,6 @@ export async function restHold(
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', owner.seasonId))
       .collect()
-  ).find(
-    (player) => player._id !== owner._id && homeCountryOf(player.nation) === hostCountry,
-  );
+  ).find((player) => player._id !== owner._id && homeCountryOf(player.nation) === hostCountry);
   return host ? windowExit(at, host.restWindow) : null;
 }

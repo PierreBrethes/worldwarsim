@@ -150,7 +150,9 @@ export function cluster(
 ): ReadonlyArray<IndicatorGroup> {
   const kernels: Array<{ kernel: RawIndicator; members: string[] }> = [];
 
-  for (const indicator of [...indicators].sort((first, second) => second.priority - first.priority)) {
+  for (const indicator of [...indicators].sort(
+    (first, second) => second.priority - first.priority,
+  )) {
     const near = kernels.find(
       ({ kernel }) =>
         kernel.category === indicator.category &&

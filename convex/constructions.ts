@@ -76,7 +76,10 @@ export const start = mutation({
     }
 
     const buildings = await playerBuildings(ctx, player._id);
-    if (building === 'hq' && buildings.some((held) => held.key === 'hq' && held.regionId !== regionId)) {
+    if (
+      building === 'hq' &&
+      buildings.some((held) => held.key === 'hq' && held.regionId !== regionId)
+    ) {
       fail('HQ_ALREADY_BUILT');
     }
 
@@ -94,7 +97,10 @@ export const start = mutation({
       UNLOCKED_AT[building],
     );
     if (refusal === 'REGION_TAKEN') {
-      fail(refusal, { regionId, standing: buildings.find((held) => held.regionId === regionId)?.key });
+      fail(refusal, {
+        regionId,
+        standing: buildings.find((held) => held.regionId === regionId)?.key,
+      });
     }
     if (refusal === 'BUILDING_CAP_REACHED') fail(refusal, { cap, hqLevel });
     // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
@@ -125,7 +131,13 @@ export const start = mutation({
      *
      * It opens no construction of its own: there is nothing to wait for.
      */
-    if (level === 1 && foundationOwed(format, buildings.map((held) => held.key)).includes(building)) {
+    if (
+      level === 1 &&
+      foundationOwed(
+        format,
+        buildings.map((held) => held.key),
+      ).includes(building)
+    ) {
       await ctx.db.insert('buildings', { playerId: player._id, key: building, regionId, level: 1 });
       return { finishesAt: now, cost: {}, level };
     }

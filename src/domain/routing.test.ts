@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from './world';
-import {
-  COST_BY_MEDIUM,
-  TRANSFER_COST,
-  buildGrid,
-  computeRoute,
-} from './routing';
+import { COST_BY_MEDIUM, TRANSFER_COST, buildGrid, computeRoute } from './routing';
 
 /**
  * A toy world: 100×50 rectangular sphere (identity projection in x, linear latitudes in y),
@@ -17,13 +12,28 @@ function toyWorld(): World {
     outline.push([latitude, 0, 100, ((90 - latitude) / 180) * 50]);
   }
   const rectangle = (x1: number, y1: number, x2: number, y2: number) =>
-    [[x1, y1], [x2, y1], [x2, y2], [x1, y2]] as const;
+    [
+      [x1, y1],
+      [x2, y1],
+      [x2, y2],
+      [x1, y2],
+    ] as const;
   return {
     sphere: { minX: 0, maxX: 100, minY: 0, maxY: 50 },
     outline,
     countries: [
-      { name: 'Westland', representativePoint: [20, 25], lonLat: [-108, 0], rings: [rectangle(10, 20, 30, 30)] },
-      { name: 'Eastland', representativePoint: [60, 25], lonLat: [36, 0], rings: [rectangle(40, 20, 80, 30)] },
+      {
+        name: 'Westland',
+        representativePoint: [20, 25],
+        lonLat: [-108, 0],
+        rings: [rectangle(10, 20, 30, 30)],
+      },
+      {
+        name: 'Eastland',
+        representativePoint: [60, 25],
+        lonLat: [36, 0],
+        rings: [rectangle(40, 20, 80, 30)],
+      },
     ],
   };
 }
@@ -99,12 +109,22 @@ describe('on the real world', () => {
     const { readFileSync } = await import('node:fs');
     const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
       meta: { sphere: World['sphere']; outline: World['outline'] };
-      countries: Array<{ n: string; c: [number, number]; ll: [number, number]; p: [number, number][][] }>;
+      countries: Array<{
+        n: string;
+        c: [number, number];
+        ll: [number, number];
+        p: [number, number][][];
+      }>;
     };
     const world: World = {
       sphere: raw.meta.sphere,
       outline: raw.meta.outline,
-      countries: raw.countries.map((c) => ({ name: c.n, representativePoint: c.c, lonLat: c.ll, rings: c.p })),
+      countries: raw.countries.map((c) => ({
+        name: c.n,
+        representativePoint: c.c,
+        lonLat: c.ll,
+        rings: c.p,
+      })),
     };
     const worldGrid = buildGrid(world);
 

@@ -4,10 +4,14 @@ import { COST_BY_MEDIUM, TRANSFER_COST, directRoute, type ComputedRoute } from '
 
 const combined = (land1: number, sea: number, land2: number): ComputedRoute => ({
   mode: 'combined',
-  points: [[0, 0], [1, 0], [2, 0], [3, 0]],
+  points: [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+  ],
   distanceUnits: land1 + sea + land2,
-  costUnits:
-    (land1 + land2) * COST_BY_MEDIUM.land + sea * COST_BY_MEDIUM.sea + 2 * TRANSFER_COST,
+  costUnits: (land1 + land2) * COST_BY_MEDIUM.land + sea * COST_BY_MEDIUM.sea + 2 * TRANSFER_COST,
   legs: [
     { medium: 'land', distanceUnits: land1 },
     { medium: 'sea', distanceUnits: sea },
@@ -18,9 +22,7 @@ const combined = (land1: number, sea: number, land2: number): ComputedRoute => (
 describe('unrollRoute', () => {
   it('inserts a dock between two legs, never at the ends', () => {
     const segments = unrollRoute(combined(10, 20, 5));
-    expect(segments.map((segment) => segment.kind)).toEqual([
-      'leg', 'dock', 'leg', 'dock', 'leg',
-    ]);
+    expect(segments.map((segment) => segment.kind)).toEqual(['leg', 'dock', 'leg', 'dock', 'leg']);
   });
 
   it('the dock before the sea is an embarkation, the one after a landing', () => {

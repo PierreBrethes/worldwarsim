@@ -6,14 +6,7 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: [
-      'dist',
-      'coverage',
-      '.tanstack',
-      'src/routeTree.gen.ts',
-      'convex/_generated',
-      'WWS',
-    ],
+    ignores: ['dist', 'coverage', '.tanstack', 'src/routeTree.gen.ts', 'convex/_generated', 'WWS'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

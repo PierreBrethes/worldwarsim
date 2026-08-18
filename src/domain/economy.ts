@@ -26,11 +26,7 @@ export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean 
  * reverse.
  */
 export type PlacementRefusal =
-  | 'REGION_TAKEN'
-  | 'BUILDING_CAP_REACHED'
-  | 'BUILDING_LOCKED'
-  | 'DEPOSIT_REQUIRED'
-  | 'NOT_COASTAL';
+  'REGION_TAKEN' | 'BUILDING_CAP_REACHED' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';
 
 /**
  * What the player already holds, as placement reads it. `onRegion` is the building standing on
@@ -176,9 +172,7 @@ export function settleStocks(settlement: {
    * number of chains, never by the hours elapsed.** Three chains, four passes at worst; a
    * week's absence costs exactly what a minute's does.
    */
-  let allowance: ReadonlyArray<number> = settlement.conversions.map(
-    () => Number.POSITIVE_INFINITY,
-  );
+  let allowance: ReadonlyArray<number> = settlement.conversions.map(() => Number.POSITIVE_INFINITY);
   let settled = integrate(settlement, allowance);
   for (let pass = 0; pass <= settlement.conversions.length; pass += 1) {
     const drawn = drawnDownstream(settlement.conversions, settled.chains);

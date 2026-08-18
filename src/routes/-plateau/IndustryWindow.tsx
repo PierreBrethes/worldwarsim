@@ -181,7 +181,10 @@ const STATE_INK: Readonly<Record<ChainState, string>> = {
 function verdictOf(chain: ChainView): { badge: string; note: string } {
   if (chain.state === 'starved' && chain.missing !== null) {
     const resource = fr.resources[chain.missing];
-    return { badge: fr.industry.starvedOn(resource), note: fr.industry.chainNotes.starved(resource) };
+    return {
+      badge: fr.industry.starvedOn(resource),
+      note: fr.industry.chainNotes.starved(resource),
+    };
   }
   const note =
     chain.state === 'off'
@@ -222,8 +225,12 @@ function ChainRow({
         <div className="flex min-w-[150px] items-center gap-[10px]">
           <BuildingPlate building={chain.by} height={38} />
           <div>
-            <div className="text-[14px] font-semibold text-[var(--ink)]">{fr.buildings[chain.by]}</div>
-            <div className="text-[11px] text-[var(--ink-soft)]">{fr.industry.level(chain.level)}</div>
+            <div className="text-[14px] font-semibold text-[var(--ink)]">
+              {fr.buildings[chain.by]}
+            </div>
+            <div className="text-[11px] text-[var(--ink-soft)]">
+              {fr.industry.level(chain.level)}
+            </div>
           </div>
         </div>
 
@@ -326,15 +333,7 @@ function ChainSiteRow({
  *   - **running** — visible and droppable;
  *   - **delivered** — what came out, and the line falls quiet again.
  */
-function LotControl({
-  chain,
-  token,
-  now,
-}: {
-  chain: ChainView;
-  token: string;
-  now: number;
-}) {
+function LotControl({ chain, token, now }: { chain: ChainView; token: string; now: number }) {
   const place = useMutation(api.industry.order);
   const drop = useMutation(api.industry.cancelOrder);
   const [error, setError] = useState<string | null>(null);
@@ -503,9 +502,7 @@ function LotControl({
           )}
         </div>
       )}
-      {error !== null && (
-        <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">{error}</p>
-      )}
+      {error !== null && <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">{error}</p>}
     </div>
   );
 }
@@ -571,7 +568,9 @@ function SiteRow({
           <span className="text-[13.5px] font-semibold text-[var(--ink)]">
             {fr.buildings[site.key]}
           </span>
-          <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.industry.inRegion(region)}</span>
+          <span className="text-[11.5px] text-[var(--ink-soft)]">
+            {fr.industry.inRegion(region)}
+          </span>
         </div>
         <div className="text-[11.5px] text-[var(--ink-soft)]">
           {site.deposit !== null && !mute

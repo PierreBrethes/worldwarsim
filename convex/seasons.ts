@@ -283,11 +283,26 @@ export const destroy = mutation({
 
 async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
   const owned = [
-    ...(await ctx.db.query('constructions').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
-    ...(await ctx.db.query('recruitments').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
-    ...(await ctx.db.query('troops').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
-    ...(await ctx.db.query('buildings').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
-    ...(await ctx.db.query('resources').withIndex('byPlayer', (q) => q.eq('playerId', playerId)).collect()),
+    ...(await ctx.db
+      .query('constructions')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()),
+    ...(await ctx.db
+      .query('recruitments')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()),
+    ...(await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()),
+    ...(await ctx.db
+      .query('buildings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()),
+    ...(await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()),
   ];
   for (const doc of owned) await ctx.db.delete(doc._id);
 }

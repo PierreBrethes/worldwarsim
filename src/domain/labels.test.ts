@@ -24,9 +24,7 @@ const mineArc = (override: Partial<Extract<ArcView, { state: 'mine' }>>): ArcVie
   ...override,
 });
 
-const detectedArc = (
-  override: Partial<Extract<ArcView, { state: 'enemyDetected' }>>,
-): ArcView => ({
+const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected' }>>): ArcView => ({
   state: 'enemyDetected',
   id: 'mv-x',
   from: [0, 0],
@@ -64,7 +62,11 @@ describe('buildLabels', () => {
     expect(label?.type).toBe('intel');
     expect(label?.identified).toBe(false);
     expect(texts(label!.lines)).toEqual(['countdown:countdown', 'estimé']);
-    expect(label?.lines[0]).toEqual({ role: 'countdown', dueAt: LOADED_AT + 100 * 60_000, prefix: '~' });
+    expect(label?.lines[0]).toEqual({
+      role: 'countdown',
+      dueAt: LOADED_AT + 100 * 60_000,
+      prefix: '~',
+    });
   });
 
   it('gives type and composition once intelligence has pierced', () => {
@@ -118,8 +120,24 @@ describe('buildLabels', () => {
 
   it('puts no label on a frozen arc or sea control', () => {
     const arcs: ReadonlyArray<ArcView> = [
-      { state: 'lastKnown', id: 'a', from: [0, 0], to: [1, 1], route: directRoute([0, 0], [1, 1], 'sea', 10), headingDegrees: 10, seenMinutesAgo: 5, progress: 0.2 },
-      { state: 'seaControl', id: 'b', from: [0, 0], to: [1, 1], route: directRoute([0, 0], [1, 1], 'sea', 10), progress: 0.4 },
+      {
+        state: 'lastKnown',
+        id: 'a',
+        from: [0, 0],
+        to: [1, 1],
+        route: directRoute([0, 0], [1, 1], 'sea', 10),
+        headingDegrees: 10,
+        seenMinutesAgo: 5,
+        progress: 0.2,
+      },
+      {
+        state: 'seaControl',
+        id: 'b',
+        from: [0, 0],
+        to: [1, 1],
+        route: directRoute([0, 0], [1, 1], 'sea', 10),
+        progress: 0.4,
+      },
     ];
     expect(buildLabels(viewWith(arcs), [])).toHaveLength(0);
   });

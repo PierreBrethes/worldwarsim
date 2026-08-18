@@ -93,12 +93,23 @@ for (const region of feature(simplified, simplified.objects.regions).features) {
     .filter((ring) => ring && ring.length >= 4)
     .map((ring) => ring.map(([x, y]) => [rounded(x), rounded(y)]));
   if (rings.length === 0) continue;
-  regions.push({ id: identify(properties, fallbacks), country: properties.adm0_a3, n: name, p: rings });
+  regions.push({
+    id: identify(properties, fallbacks),
+    country: properties.adm0_a3,
+    n: name,
+    p: rings,
+  });
 }
 
-if (fallbacks.length > 0) console.warn(`${fallbacks.length} fallback ids:\n  ${fallbacks.join('\n  ')}`);
+if (fallbacks.length > 0)
+  console.warn(`${fallbacks.length} fallback ids:\n  ${fallbacks.join('\n  ')}`);
 
-const duplicates = [...regions.reduce((counts, region) => counts.set(region.id, (counts.get(region.id) ?? 0) + 1), new Map())]
+const duplicates = [
+  ...regions.reduce(
+    (counts, region) => counts.set(region.id, (counts.get(region.id) ?? 0) + 1),
+    new Map(),
+  ),
+]
   .filter(([, count]) => count > 1)
   .map(([id]) => id);
 if (duplicates.length > 0) throw new Error(`duplicate region ids: ${duplicates.join(', ')}`);

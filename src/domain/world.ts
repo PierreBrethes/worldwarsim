@@ -8,12 +8,7 @@ export type ProjectedCountry = {
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
 };
 
-export type OutlineSample = readonly [
-  latitude: number,
-  westX: number,
-  eastX: number,
-  y: number,
-];
+export type OutlineSample = readonly [latitude: number, westX: number, eastX: number, y: number];
 
 export type World = {
   readonly sphere: { minX: number; maxX: number; minY: number; maxY: number };
@@ -86,7 +81,14 @@ const WITNESSES: ReadonlyMap<string, RegionType> = new Map([
 export function regionType(name: string): RegionType {
   const witness = WITNESSES.get(name);
   if (witness !== undefined) return witness;
-  const types: ReadonlyArray<RegionType> = ['plain', 'forest', 'jungle', 'mountain', 'desert', 'tundra'];
+  const types: ReadonlyArray<RegionType> = [
+    'plain',
+    'forest',
+    'jungle',
+    'mountain',
+    'desert',
+    'tundra',
+  ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return types[hash % types.length]!;
@@ -97,7 +99,12 @@ type RawWorld = {
     sphere: { minX: number; maxX: number; minY: number; maxY: number };
     outline: OutlineSample[];
   };
-  countries: Array<{ n: string; c: [number, number]; ll: [number, number]; p: [number, number][][] }>;
+  countries: Array<{
+    n: string;
+    c: [number, number];
+    ll: [number, number];
+    p: [number, number][][];
+  }>;
 };
 
 export async function loadWorld(url = '/world.json'): Promise<World> {

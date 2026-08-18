@@ -63,13 +63,17 @@ export function NationBanner({ view }: { view: PlayerView }) {
         title={hasNews ? undefined : fr.banner.journalEmpty}
         className="flex h-full min-w-0 items-center gap-3 border-l border-[var(--ink-quiet)] px-4 whitespace-nowrap hover:bg-[var(--ink)]"
       >
-        <span className="shrink-0" style={{ color: critical ? 'var(--critical)' : 'var(--routine)' }}>
+        <span
+          className="shrink-0"
+          style={{ color: critical ? 'var(--critical)' : 'var(--routine)' }}
+        >
           <Pictogram pictogram="journal" weight={20} size={18} />
         </span>
         {/* The headline beats the counter: a newspaper titles, it does not enumerate.
             But a paper without a dispatch has no headline either — it stays silent. */}
         {hasNews && (
-          <span className="min-w-0 max-w-[260px] overflow-hidden text-[12.5px] text-ellipsis"
+          <span
+            className="min-w-0 max-w-[260px] overflow-hidden text-[12.5px] text-ellipsis"
             style={{ color: critical ? 'var(--critical)' : 'var(--paper)' }}
           >
             {critical ? critical.text : fr.banner.unread(view.journal.length)}

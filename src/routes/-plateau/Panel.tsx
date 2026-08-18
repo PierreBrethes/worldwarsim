@@ -46,7 +46,11 @@ export function Panel({
           is what lets a window, a widget and this panel move by exactly the same gesture. */}
       <DragHandle className="flex shrink-0 items-center gap-2 border-b border-[var(--ink)] px-3 py-2">
         <span className="eyebrow flex-1">{title}</span>
-        {marker && <span className="font-[var(--font-mono)] text-[9px] text-[var(--ink-soft)]">{marker}</span>}
+        {marker && (
+          <span className="font-[var(--font-mono)] text-[9px] text-[var(--ink-soft)]">
+            {marker}
+          </span>
+        )}
         <button
           type="button"
           aria-expanded={!collapsed}

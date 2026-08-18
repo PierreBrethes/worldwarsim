@@ -38,7 +38,10 @@ describe('what a column may ask for', () => {
 
   it('offers a garrison only the recall, never the attack, the raid or the foundation', () => {
     const home: MovementAim = { kind: 'region', regionId: 'FRA-1', country: 'France' };
-    const held = column(['infantry'], { origin: 'outpost', myBarracksRegionIds: new Set(['FRA-1']) });
+    const held = column(['infantry'], {
+      origin: 'outpost',
+      myBarracksRegionIds: new Set(['FRA-1']),
+    });
     expect(legalMovementTypes(home, held)).toEqual(['recall']);
   });
 

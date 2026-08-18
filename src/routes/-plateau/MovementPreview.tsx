@@ -59,7 +59,12 @@ export function MovementPreview({
     const from = buildingId as Id<'buildings'>;
     const order =
       type === 'recall' && aim.kind === 'region'
-        ? recall({ token, outpostId: buildingId as Id<'outposts'>, troopIds: ids, regionId: aim.regionId })
+        ? recall({
+            token,
+            outpostId: buildingId as Id<'outposts'>,
+            troopIds: ids,
+            regionId: aim.regionId,
+          })
         : type === 'outpost' && aim.kind === 'region'
           ? foundOutpost({
               token,
@@ -74,7 +79,12 @@ export function MovementPreview({
               troopIds: ids,
             })
           : type === 'raid' && aim.kind === 'outpost'
-            ? raid({ token, buildingId: from, troopIds: ids, outpostId: aim.outpostId as Id<'outposts'> })
+            ? raid({
+                token,
+                buildingId: from,
+                troopIds: ids,
+                outpostId: aim.outpostId as Id<'outposts'>,
+              })
             : attack({
                 token,
                 buildingId: from,

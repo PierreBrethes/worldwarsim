@@ -82,13 +82,8 @@ export function movementSprite(arc: ArcView, playerNation: string | null): strin
   return spriteUrl(playerNation, role, 1);
 }
 
-export function spriteUrl(
-  nation: string | null,
-  role: UnitRole,
-  tier: UnitTier,
-): string | null {
-  const sprites =
-    nation !== null && isNation(nation) ? SPRITES_BY_NATION[nation] : undefined;
+export function spriteUrl(nation: string | null, role: UnitRole, tier: UnitTier): string | null {
+  const sprites = nation !== null && isNation(nation) ? SPRITES_BY_NATION[nation] : undefined;
   const visual = sprites?.[role];
   if (visual === undefined || visual === null) return null;
   if (visual.kind === 'single') return visual.url;

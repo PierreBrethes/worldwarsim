@@ -1,3 +1,8 @@
+// Le moteur de carte est une classe impérative à qui on assigne `.onLabels` —
+// React Compiler lit ça comme une mutation interdite. Exclusion volontaire : le
+// moteur n'importe pas React (CLAUDE.md).
+'use no memo';
+
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { asHoursMinutes } from '@/domain/duration';
 import { URGENCY_MS, isCountdown, type MapLabel, type LabelPictogram } from '@/domain/labels';
@@ -216,11 +221,7 @@ export function MapLabels({
               register(roots.current, label.id, node);
             }}
             className={classesOf(label)}
-            style={
-              label.ink === null
-                ? undefined
-                : ({ '--label-ink': label.ink } as CSSProperties)
-            }
+            style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
             onPointerEnter={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
             }}
@@ -260,7 +261,11 @@ export function MapLabels({
               )}
               {label.pictogram !== null && (
                 <span className="label-pictogram">
-                  <Pictogram pictogram={PICTOGRAM_OF_LABEL[label.pictogram]} weight={40} size={36} />
+                  <Pictogram
+                    pictogram={PICTOGRAM_OF_LABEL[label.pictogram]}
+                    weight={40}
+                    size={36}
+                  />
                 </span>
               )}
               <span className="label-bar" />

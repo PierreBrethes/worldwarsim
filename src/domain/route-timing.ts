@@ -1,4 +1,10 @@
-import { COST_BY_MEDIUM, TRANSFER_COST, type ComputedRoute, type Medium, type RouteLeg } from './routing';
+import {
+  COST_BY_MEDIUM,
+  TRANSFER_COST,
+  type ComputedRoute,
+  type Medium,
+  type RouteLeg,
+} from './routing';
 
 /**
  * A route's time, and nothing else. `ComputedRoute` gives a geometry and a global cost; the

@@ -43,7 +43,9 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
             <div className="relative h-[6px] flex-1 bg-[rgba(42,33,24,.14)]">
               <div
                 className="h-[6px] bg-[var(--interaction)]"
-                style={{ width: `${((scale - MIN_HUD_SCALE) / (MAX_HUD_SCALE - MIN_HUD_SCALE)) * 100}%` }}
+                style={{
+                  width: `${((scale - MIN_HUD_SCALE) / (MAX_HUD_SCALE - MIN_HUD_SCALE)) * 100}%`,
+                }}
               />
             </div>
             <Step sign="+" onClick={() => set(scale + 10)} disabled={scale >= MAX_HUD_SCALE} />
@@ -66,7 +68,15 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
   );
 }
 
-function Step({ sign, onClick, disabled }: { sign: string; onClick: () => void; disabled: boolean }) {
+function Step({
+  sign,
+  onClick,
+  disabled,
+}: {
+  sign: string;
+  onClick: () => void;
+  disabled: boolean;
+}) {
   return (
     <button
       type="button"

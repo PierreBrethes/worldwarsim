@@ -4,7 +4,9 @@ import { currentMinutes, currentStock } from './player-view';
 
 describe('stack label', () => {
   it('spells out each role with its agreement', () => {
-    expect(stackLabel({ infantry: 6, armor: 2, escort: 1 })).toBe('6 infanterie · 2 blindés · 1 escorte');
+    expect(stackLabel({ infantry: 6, armor: 2, escort: 1 })).toBe(
+      '6 infanterie · 2 blindés · 1 escorte',
+    );
   });
 
   it('ignores zeroed roles and says — for an empty stack', () => {

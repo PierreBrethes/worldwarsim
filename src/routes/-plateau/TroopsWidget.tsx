@@ -3,7 +3,12 @@ import { fr, roleLabel } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import { currentMinutes, type ArcView, type PlayerView } from '@/domain/player-view';
-import { marchingTroopIds, representativeRole, stationGroups, type StationGroup } from '@/domain/troops';
+import {
+  marchingTroopIds,
+  representativeRole,
+  stationGroups,
+  type StationGroup,
+} from '@/domain/troops';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { keepTroopsCollapsed, readTroopsCollapsed } from '@/data/settings';
 import { useClock } from '@/shell/clock';
@@ -55,8 +60,8 @@ export function TroopsWidget({
 
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const standing = useMemo(() => stationGroups(view.me, marching), [view.me, marching]);
-  const flying = view.arcs.filter((arc): arc is Extract<ArcView, { state: 'mine' }> =>
-    arc.state === 'mine',
+  const flying = view.arcs.filter(
+    (arc): arc is Extract<ArcView, { state: 'mine' }> => arc.state === 'mine',
   );
   const stationName = useMemo(() => namer(view), [view]);
 
@@ -345,14 +350,22 @@ const MARKS: Readonly<Record<MovementType, string>> = {
   // The garrison's own mark: an arrow walking down into the same ground the barracks stands
   // on — the mirror of `return`'s arrow up, since a recall is ordered rather than suffered.
   recall: 'M10 17.6 L3 10.6 H6.6 V2.4 H13.4 V10.6 H17 Z',
-  agent: 'M4.5 11.9 C4.5 8 6.9 5.2 10 5.2 C13.1 5.2 15.5 8 15.5 11.9 Z M1.3 11.3 C1.3 14.9 5.2 16.1 10 16.1 C14.8 16.1 18.7 14.9 18.7 11.3 Z',
+  agent:
+    'M4.5 11.9 C4.5 8 6.9 5.2 10 5.2 C13.1 5.2 15.5 8 15.5 11.9 Z M1.3 11.3 C1.3 14.9 5.2 16.1 10 16.1 C14.8 16.1 18.7 14.9 18.7 11.3 Z',
   decoy: 'M10 1 C12.8 2.9 13.7 5.9 12.8 9.2 H7.2 C6.3 5.9 7.2 2.9 10 1 Z',
   return: 'M10 2.4 L3 9.4 H6.6 V17.6 H13.4 V9.4 H17 Z',
 };
 
 export function TypeMark({ type, size = 15 }: { type: MovementType; size?: number }) {
   return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill="currentColor" aria-hidden className="block">
+    <svg
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-hidden
+      className="block"
+    >
       {type === 'attack' ? (
         <>
           <path d={MARKS.attack} transform="rotate(-28 10 10)" />

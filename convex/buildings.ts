@@ -21,7 +21,10 @@ export async function playerBuildings(
  * the strongest one, never a sum of unrelated sites.
  */
 export const levelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: BuildingKey): number =>
-  buildings.reduce((best, building) => (building.key === key ? Math.max(best, building.level) : best), 0);
+  buildings.reduce(
+    (best, building) => (building.key === key ? Math.max(best, building.level) : best),
+    0,
+  );
 
 /**
  * What a family of buildings is worth altogether. **A ceiling adds up over sites** — storage
@@ -31,7 +34,10 @@ export const levelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: Buildin
  * The comment used to claim the opposite while `resources.ts` already summed. Summing is the
  * decision: it is what makes a second site an alternative to a taller one.
  */
-export const totalLevelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: BuildingKey): number =>
+export const totalLevelOf = (
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  key: BuildingKey,
+): number =>
   buildings.reduce((sum, building) => (building.key === key ? sum + building.level : sum), 0);
 
 export async function buildingLevel(

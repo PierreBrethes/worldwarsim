@@ -100,9 +100,9 @@ describe('nation reservation', () => {
   it('requires nation and doctrine to be ready', async () => {
     const t = boot();
     const { creator } = await seasonWithTwoPlayers(t);
-    await expect(t.mutation(api.players.declareReady, { token: creator, ready: true })).rejects.toThrow(
-      'NATION_AND_DOCTRINE_REQUIRED',
-    );
+    await expect(
+      t.mutation(api.players.declareReady, { token: creator, ready: true }),
+    ).rejects.toThrow('NATION_AND_DOCTRINE_REQUIRED');
   });
 });
 
@@ -111,7 +111,9 @@ describe('launching', () => {
     const t = boot();
     const { creator, guest } = await seasonWithTwoPlayers(t);
     await expect(t.mutation(api.seasons.launch, { token: guest })).rejects.toThrow('CREATOR_ONLY');
-    await expect(t.mutation(api.seasons.launch, { token: creator })).rejects.toThrow('PLAYERS_NOT_READY');
+    await expect(t.mutation(api.seasons.launch, { token: creator })).rejects.toThrow(
+      'PLAYERS_NOT_READY',
+    );
   });
 
   it('hands out the starting kit, plants the headquarters, and freezes the region', async () => {

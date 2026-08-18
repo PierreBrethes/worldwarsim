@@ -90,9 +90,7 @@ export function UpgradeControl({
           {held}
         </span>
       )}
-      {hold?.kind === 'materials' && (
-        <WhenAffordable hold={hold} view={view} now={now} />
-      )}
+      {hold?.kind === 'materials' && <WhenAffordable hold={hold} view={view} now={now} />}
       {error !== null && (
         <span className="max-w-[42ch] text-right text-[11px] leading-[1.35] text-[var(--critical)]">
           {error}

@@ -254,8 +254,7 @@ export const fr = {
       `plafond atteint : ${num(d.cap)} bâtiments — montez le quartier général pour l’élargir`,
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
-    ROLE_LOCKED: (d) =>
-      `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
+    ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
@@ -338,8 +337,15 @@ export const fr = {
       long: { name: '7 jours', note: 'cadence longue' },
     },
     regionLabel: 'région — fixée au lancement',
-    regionSlots: { europe: '2–3', 'europe-med': '4–6', world: '7–8' } satisfies Record<PlayableRegion, string>,
-    regionShort: { europe: 'Europe', 'europe-med': '+ Méditerranée', world: 'Monde' } satisfies Record<PlayableRegion, string>,
+    regionSlots: { europe: '2–3', 'europe-med': '4–6', world: '7–8' } satisfies Record<
+      PlayableRegion,
+      string
+    >,
+    regionShort: {
+      europe: 'Europe',
+      'europe-med': '+ Méditerranée',
+      world: 'Monde',
+    } satisfies Record<PlayableRegion, string>,
     foundSubmit: 'fonder — obtenir un code',
     joinTitle: 'Rejoindre par code',
     joinNote: 'Six caractères reçus d’un fondateur. La cadence est déjà fixée.',
@@ -475,7 +481,8 @@ export const fr = {
     saturated: (perHour: number) => `saturé — ${tenths(perHour)} / h perdus`,
     cappedAlert: (resource: string, perHour: number) =>
       `${resource} au plafond — ${tenths(perHour)} / h perdus`,
-    haltedAlert: (building: string, resource: string) => `${building} à l’arrêt — ${resource} à sec`,
+    haltedAlert: (building: string, resource: string) =>
+      `${building} à l’arrêt — ${resource} à sec`,
   },
 
   rail: {
@@ -496,8 +503,7 @@ export const fr = {
     toggleBuildingsTitle: (on: boolean) =>
       `bâtiments sur la carte — ${on ? 'affichés' : 'masqués'}`,
     // Same reading as the buildings bascule, same reason: it governs the board, not the edge.
-    toggleDepositsTitle: (on: boolean) =>
-      `gisements sur la carte — ${on ? 'affichés' : 'masqués'}`,
+    toggleDepositsTitle: (on: boolean) => `gisements sur la carte — ${on ? 'affichés' : 'masqués'}`,
   },
 
   indicatorCategories: {
@@ -525,7 +531,6 @@ export const fr = {
       intel: 'contacts',
     },
   },
-
 
   /**
    * **Une passe de résolution se raconte en hommes et en machines**, jamais en pourcentage
@@ -561,10 +566,10 @@ export const fr = {
       const toll = `j’en perds ${mine.lost}, il en perd ${theirs.lost}`;
       const after = [
         won ? 'terrain tenu' : 'terrain perdu',
-        mine.routed > 0
-          ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi`
+        mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
+        theirs.routed > 0
+          ? `${theirs.routed} déroute${plural(theirs.routed, '', 's')} en face`
           : null,
-        theirs.routed > 0 ? `${theirs.routed} déroute${plural(theirs.routed, '', 's')} en face` : null,
         outpostDisabled ? 'avant-poste désactivé' : null,
       ].filter((piece): piece is string => piece !== null);
       return `${opening} — ${forces}, ${toll} · ${after.join(' · ')}`;
@@ -645,8 +650,7 @@ export const fr = {
     foldedQuiet: 'rien en vol',
     foldedFlight: (count: number, next: string) =>
       `${count} mouvement${plural(count, '', 's')} en vol — prochaine arrivée dans ${next}`,
-    foldedStanding: (count: number) =>
-      `${count} stationnaire${plural(count, '', 's')}`,
+    foldedStanding: (count: number) => `${count} stationnaire${plural(count, '', 's')}`,
   },
 
   /**
@@ -873,8 +877,7 @@ export const fr = {
         : free === 1
           ? '1 emplacement libre'
           : `${free} emplacements libres`,
-    budgetNote:
-      'Le quartier général est le seul goulot : aucune quantité ne se compte en régions.',
+    budgetNote: 'Le quartier général est le seul goulot : aucune quantité ne se compte en régions.',
     /** The headquarters is counted in — the census and the budget above it would otherwise
      *  disagree to the eye, and it is the figure that loses (brief §2.2). */
     buildingsHeader: 'recensement des bâtiments — un chantier à la fois',
@@ -961,8 +964,7 @@ export const fr = {
   compass: {
     seeCountry: 'Voir le pays',
     seeCountryConsequence: (name: string) => `Sélectionne ${name} et ouvre son panneau de bord.`,
-    marchConsequence: (type: string) =>
-      `Trace l’arc réel et propose l’envoi : ${type}.`,
+    marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,
     aiming: (count: number) => `visée armée · ${count} troupe${plural(count, '', 's')}`,
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
     neutralHeld: 'pays neutre · avant-poste tenu',
@@ -990,9 +992,7 @@ export const fr = {
      */
     budget: (taken: number, cap: number) =>
       `${taken} sur ${cap} emplacements — ${
-        cap - taken <= 0
-          ? 'plus un libre'
-          : `${cap - taken} libre${plural(cap - taken, '', 's')}`
+        cap - taken <= 0 ? 'plus un libre' : `${cap - taken} libre${plural(cap - taken, '', 's')}`
       }`,
     depositReason: (deposit: string) => `gisement de ${deposit}`,
     coastalReason: 'région côtière',
@@ -1008,7 +1008,8 @@ export const fr = {
      * said where the placement happens. What the format takes back is the price and the wait;
      * the region stays the player's, and the sentence has to make that difference audible.
      */
-    foundationNotice: (owed: string) => `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
+    foundationNotice: (owed: string) =>
+      `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
     foundationCount: (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name),
     free: 'offert',
     immediate: 'immédiat',
@@ -1111,7 +1112,9 @@ export function roleLabel(role: UnitRole, count: number): string {
 }
 
 export function nationLabel(nation: string | null): string {
-  return nation !== null && nation in fr.nations ? fr.nations[nation as Nation] : fr.common.noNation;
+  return nation !== null && nation in fr.nations
+    ? fr.nations[nation as Nation]
+    : fr.common.noNation;
 }
 
 export function doctrineLabel(doctrine: string | null): string | null {
@@ -1135,6 +1138,8 @@ const buildingName = (value: unknown): string =>
 const depositNames = (value: unknown): string =>
   Array.isArray(value)
     ? value
-        .map((key) => (typeof key === 'string' && key in fr.deposits ? fr.deposits[key as DepositKey] : str(key)))
+        .map((key) =>
+          typeof key === 'string' && key in fr.deposits ? fr.deposits[key as DepositKey] : str(key),
+        )
         .join(' ou ')
     : str(value);

@@ -26,7 +26,9 @@ const HEIGHT = 208;
 /** In projected units² (1 unit ≈ 111 km): discards rocks too small to be clicked. */
 const MINIMUM_RING_AREA = 0.05;
 
-const world = JSON.parse(readFileSync(require.resolve(`world-atlas/countries-${detail}.json`), 'utf8'));
+const world = JSON.parse(
+  readFileSync(require.resolve(`world-atlas/countries-${detail}.json`), 'utf8'),
+);
 const projection = geoNaturalEarth1().fitExtent(
   [
     [0, 0],
@@ -124,4 +126,6 @@ const output = {
 
 writeFileSync('public/world.json', JSON.stringify(output));
 const points = countries.reduce((sum, candidate) => sum + candidate.p.flat().length, 0);
-console.log(`${countries.length} countries, ${points} points, ${(JSON.stringify(output).length / 1024).toFixed(0)} Ko (${detail})`);
+console.log(
+  `${countries.length} countries, ${points} points, ${(JSON.stringify(output).length / 1024).toFixed(0)} Ko (${detail})`,
+);

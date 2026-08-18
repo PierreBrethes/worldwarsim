@@ -33,5 +33,4 @@ describe('the board’s search state', () => {
     expect(windowOpen(toggled, 'production')).toBe(false);
     expect(toggled.building).toBeUndefined();
   });
-
 });

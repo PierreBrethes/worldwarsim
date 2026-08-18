@@ -19,8 +19,18 @@ export type CompassTarget =
    * `country` stays the map country the region belongs to, so the country's own actions keep
    * working underneath.
    */
-  | { readonly kind: 'region'; readonly id: string; readonly name: string; readonly country: string }
-  | { readonly kind: 'outpost'; readonly id: string; readonly hostCountry: string; readonly name: string }
+  | {
+      readonly kind: 'region';
+      readonly id: string;
+      readonly name: string;
+      readonly country: string;
+    }
+  | {
+      readonly kind: 'outpost';
+      readonly id: string;
+      readonly hostCountry: string;
+      readonly name: string;
+    }
   | {
       readonly kind: 'force';
       readonly id: string;
@@ -35,13 +45,7 @@ export type CompassTarget =
  * that when the day comes there is only wiring to write, never a drawing to find.
  */
 export type CompassPictogram =
-  | 'cabin'
-  | 'crane'
-  | 'anchor'
-  | 'helmet'
-  | 'propeller'
-  | 'rifles'
-  | 'pennant';
+  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays

@@ -53,7 +53,9 @@ export function Notifications() {
             <div className="text-[9px] tracking-[.22em] text-[var(--critical)] uppercase">
               {fr.notifications.kicker}
             </div>
-            <p className="mt-[3px] text-[12.5px] leading-[1.45] text-[var(--ink)]">{notification.message}</p>
+            <p className="mt-[3px] text-[12.5px] leading-[1.45] text-[var(--ink)]">
+              {notification.message}
+            </p>
           </div>
           <button
             type="button"

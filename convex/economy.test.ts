@@ -88,12 +88,7 @@ async function raise(
 /** Puts a stock where the test needs it. Reaching a ceiling by waiting is not an option: a
  *  single settlement window clamps the inputs at their own ceiling first, so a foundry left
  *  alone for a week converts less than the same foundry read every hour. */
-async function fill(
-  t: ReturnType<typeof boot>,
-  token: string,
-  key: ResourceKey,
-  stock: number,
-) {
+async function fill(t: ReturnType<typeof boot>, token: string, key: ResourceKey, stock: number) {
   await t.run(async (ctx) => {
     const player = await ctx.db
       .query('players')
@@ -247,7 +242,11 @@ describe('what the industry window reads', () => {
     const token = await launchedSeason(t);
 
     const view = await t.query(api.view.playerView, { token });
-    expect(view.me.chains.map((chain) => chain.by)).toEqual(['foundry', 'arsenal', 'quartermaster']);
+    expect(view.me.chains.map((chain) => chain.by)).toEqual([
+      'foundry',
+      'arsenal',
+      'quartermaster',
+    ]);
     for (const chain of view.me.chains) {
       expect(chain).toMatchObject({ state: 'off', perHour: 0, level: 0 });
     }
@@ -261,7 +260,13 @@ describe('what the industry window reads', () => {
 
     const view = await t.query(api.view.playerView, { token });
     expect(view.me.extraction).toEqual([
-      { key: 'farm', regionId: MARNE, level: 1, deposit: 'food', perHour: EXTRACTION_PER_HOUR.food },
+      {
+        key: 'farm',
+        regionId: MARNE,
+        level: 1,
+        deposit: 'food',
+        perHour: EXTRACTION_PER_HOUR.food,
+      },
       { key: 'mine', regionId: ARDENNES, level: 1, deposit: null, perHour: 0 },
     ]);
     // And the mute mine adds nothing to the national rate it is listed beside.
@@ -547,7 +552,16 @@ describe('the foundation the season owes', () => {
 
   /** The first free region a key may go up on, read exactly as the panel reads it. */
   const freeRegionFor = (
-    view: { me: { regions: ReadonlyArray<{ id: string; deposit: DepositKey | null; coastal: boolean; buildings: ReadonlyArray<unknown> }> } },
+    view: {
+      me: {
+        regions: ReadonlyArray<{
+          id: string;
+          deposit: DepositKey | null;
+          coastal: boolean;
+          buildings: ReadonlyArray<unknown>;
+        }>;
+      };
+    },
     key: BuildingKey,
   ): string | null =>
     view.me.regions.find(
@@ -575,7 +589,11 @@ describe('the foundation the season owes', () => {
       if (key === undefined) break;
       const regionId = freeRegionFor(view, key);
       if (regionId === null) throw new Error(`nowhere to place ${key}`);
-      const { cost } = await t.mutation(api.constructions.start, { token, building: key, regionId });
+      const { cost } = await t.mutation(api.constructions.start, {
+        token,
+        building: key,
+        regionId,
+      });
       bills.push(cost as Record<string, number>);
     }
     return bills;
@@ -621,10 +639,13 @@ describe('the foundation the season owes', () => {
       // player can make it. Anything else the server refuses would be a hole, and fails here.
       const paid = await t
         .mutation(api.constructions.start, { token, building: first, regionId })
-        .then(() => true, (refusal: { data?: { code?: string } }) => {
-          if (refusal.data?.code !== 'INSUFFICIENT_RESOURCE') throw refusal;
-          return false;
-        });
+        .then(
+          () => true,
+          (refusal: { data?: { code?: string } }) => {
+            if (refusal.data?.code !== 'INSUFFICIENT_RESOURCE') throw refusal;
+            return false;
+          },
+        );
       if (!paid) continue;
       // A paid first move opens a construction, and one construction at a time is the rule —
       // so the placements below wait for it exactly as a player would.
@@ -681,9 +702,10 @@ describe('the headquarters at launch', () => {
   /** A capital pointing nowhere would leave a player without headquarters, hence without
    *  slots and without a buildable anything — a symptom hours away from its cause. */
   it('fails loudly on a capital code that matches no region', () => {
-    const broken = Object.fromEntries(
-      NATIONS.map((nation) => [nation, 'FRA-9999']),
-    ) as Record<Nation, string>;
+    const broken = Object.fromEntries(NATIONS.map((nation) => [nation, 'FRA-9999'])) as Record<
+      Nation,
+      string
+    >;
     expect(() => capitalRegionOf('france', broken)).toThrow('UNKNOWN_CAPITAL_REGION');
   });
 });

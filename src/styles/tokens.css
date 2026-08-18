@@ -58,14 +58,14 @@
   /* rules */
   --rule-strong: 1px solid #2a2118;
   --rule-double: 2px solid #2a2118;
-  --rule-medium: 1px solid rgba(42, 33, 24, .32);
-  --rule-light: 1px solid rgba(42, 33, 24, .18);
+  --rule-medium: 1px solid rgba(42, 33, 24, 0.32);
+  --rule-light: 1px solid rgba(42, 33, 24, 0.18);
   --rule-dark: 1px solid #4a4436;
 
   /* typography */
-  --font-display: "Bodoni Moda", Georgia, serif;
-  --font-body: "Archivo Narrow", "Arial Narrow", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --font-body: 'Archivo Narrow', 'Arial Narrow', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
 
   --size-masthead: 54px;
   --size-lead: 38px;
@@ -77,14 +77,21 @@
   --size-eyebrow: 10px;
   --size-eyebrow-sm: 9px;
 
-  --track-eyebrow: .2em;
-  --track-display: .02em;
-  --track-masthead: .06em;
+  --track-eyebrow: 0.2em;
+  --track-display: 0.02em;
+  --track-masthead: 0.06em;
 
   /* spacing */
-  --sp-1: 4px;  --sp-2: 6px;  --sp-3: 8px;  --sp-4: 10px;
-  --sp-5: 12px; --sp-6: 14px; --sp-7: 18px; --sp-8: 22px;
-  --sp-9: 26px; --sp-10: 30px;
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 10px;
+  --sp-5: 12px;
+  --sp-6: 14px;
+  --sp-7: 18px;
+  --sp-8: 22px;
+  --sp-9: 26px;
+  --sp-10: 30px;
 
   /* HUD scale — all text and sizing derive from it (CSS zoom) */
   --hud-scale: 1.2;
@@ -103,7 +110,11 @@
 /* halftone screen — every paper surface */
 .paper {
   background-color: var(--paper);
-  background-image: repeating-linear-gradient(45deg, rgba(42, 33, 24, .055) 0 1px, transparent 1px 5px);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(42, 33, 24, 0.055) 0 1px,
+    transparent 1px 5px
+  );
   color: var(--ink);
   border: var(--rule-strong);
 }
@@ -122,7 +133,7 @@
   inset: 0;
   pointer-events: none;
   mix-blend-mode: overlay;
-  opacity: .2;
+  opacity: 0.2;
   background-size: 160px 160px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
 }

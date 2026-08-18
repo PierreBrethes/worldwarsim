@@ -20,11 +20,15 @@ export function JournalWindow({
   ...windowProps
 }: WindowProps & { view: PlayerView }) {
   const dispatches = view.journal;
-  const lead = dispatches.find((dispatch) => dispatch.severity === 'critical') ?? dispatches[0] ?? null;
+  const lead =
+    dispatches.find((dispatch) => dispatch.severity === 'critical') ?? dispatches[0] ?? null;
   const stalled = dispatches.find((dispatch) => dispatch.resolutionAt !== null);
   const embargo = dispatches.find((dispatch) => dispatch.remaining !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const day = Math.min(Math.ceil(view.season.durationHours / 24), Math.floor(view.season.elapsedHours / 24) + 1);
+  const day = Math.min(
+    Math.ceil(view.season.durationHours / 24),
+    Math.floor(view.season.elapsedHours / 24) + 1,
+  );
 
   return (
     <FloatingWindow name="journal" onClose={onClose} {...windowProps} alignment="top" width={1040}>
@@ -32,7 +36,11 @@ export function JournalWindow({
         <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.journal.editionOf(time)}</span>
           <span>
-            {fr.journal.seasonDay(view.season.number, day, Math.ceil(view.season.durationHours / 24))}
+            {fr.journal.seasonDay(
+              view.season.number,
+              day,
+              Math.ceil(view.season.durationHours / 24),
+            )}
           </span>
           <button
             type="button"
@@ -49,7 +57,10 @@ export function JournalWindow({
           </h2>
           <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
             <span>
-              {fr.journal.nationLine(nationLabel(view.me.nation), doctrineLabel(view.me.doctrine) ?? view.me.doctrine)}
+              {fr.journal.nationLine(
+                nationLabel(view.me.nation),
+                doctrineLabel(view.me.doctrine) ?? view.me.doctrine,
+              )}
             </span>
             <span className="text-[#9d8f78]">·</span>
             <span>{fr.journal.dispatches(dispatches.length)}</span>
@@ -71,7 +82,8 @@ export function JournalWindow({
                 </h3>
                 {lead.remaining && (
                   <p className="mt-[7px] font-[var(--font-display)] text-[16px] leading-[1.35] text-[var(--ink-quiet)] italic">
-                    {fr.journal.effectRunning}<span className="font-[var(--font-mono)] not-italic">{lead.remaining}</span>.
+                    {fr.journal.effectRunning}
+                    <span className="font-[var(--font-mono)] not-italic">{lead.remaining}</span>.
                   </p>
                 )}
                 {lead.replay && <ReplayButton full />}
@@ -83,7 +95,8 @@ export function JournalWindow({
                 </h4>
                 {stalled ? (
                   <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink)]">
-                    {stalled.text}{fr.journal.stalledResolution}
+                    {stalled.text}
+                    {fr.journal.stalledResolution}
                     <span className="font-[var(--font-mono)]">{stalled.resolutionAt}</span>.
                   </p>
                 ) : (
@@ -95,7 +108,9 @@ export function JournalWindow({
                   {embargo && (
                     <span className="flex justify-between">
                       <span className="text-[var(--ink-soft)]">{fr.journal.embargoLeft}</span>
-                      <span className="font-[var(--font-mono)] text-[var(--ink)]">{embargo.remaining}</span>
+                      <span className="font-[var(--font-mono)] text-[var(--ink)]">
+                        {embargo.remaining}
+                      </span>
                     </span>
                   )}
                   <span className="flex justify-between">
@@ -141,7 +156,10 @@ export function JournalWindow({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
-          <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase" title={fr.journal.historyTitle}>
+          <span
+            className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase"
+            title={fr.journal.historyTitle}
+          >
             {fr.journal.historyLabel}
           </span>
           <span className="font-[var(--font-display)] text-[12.5px] text-[var(--ink-quiet)] italic">
@@ -213,7 +231,9 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
       </div>
       {(entry.remaining || entry.resolutionAt) && (
         <div className="mt-[3px] text-[12px] leading-[1.4] text-[var(--ink-soft)]">
-          {entry.remaining ? fr.journal.remaining(entry.remaining) : fr.journal.resolutionAt(entry.resolutionAt ?? '')}
+          {entry.remaining
+            ? fr.journal.remaining(entry.remaining)
+            : fr.journal.resolutionAt(entry.resolutionAt ?? '')}
         </div>
       )}
       {entry.replay && <ReplayButton />}

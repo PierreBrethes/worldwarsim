@@ -22,9 +22,15 @@ export const DOCTRINES = ['domination', 'hegemony', 'influence'] as const;
 export type Doctrine = (typeof DOCTRINES)[number];
 
 export type UnitRole =
-  | 'infantry' | 'armor' | 'landTransport'
-  | 'fighter' | 'bomber' | 'airTransport'
-  | 'escort' | 'cargo' | 'carrier';
+  | 'infantry'
+  | 'armor'
+  | 'landTransport'
+  | 'fighter'
+  | 'bomber'
+  | 'airTransport'
+  | 'escort'
+  | 'cargo'
+  | 'carrier';
 
 export type UnitTier = 1 | 2;
 

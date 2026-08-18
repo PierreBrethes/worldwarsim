@@ -126,7 +126,9 @@ export function ConstructionPanel({
         {...(size ? { height: size.height } : {})}
       >
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
-          <span>{region.deposit === null ? fr.construction.noDeposit : fr.deposits[region.deposit]}</span>
+          <span>
+            {region.deposit === null ? fr.construction.noDeposit : fr.deposits[region.deposit]}
+          </span>
           {region.coastal && (
             <span className="text-[10px] tracking-[.12em] text-[var(--ink-quiet)] uppercase">
               {fr.construction.coastal}
@@ -257,7 +259,9 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
           {fr.buildings[option.key]}
         </span>
         {option.reason && (
-          <span className="block text-[11px] text-[var(--ink-soft)]">{reasonText(option.reason)}</span>
+          <span className="block text-[11px] text-[var(--ink-soft)]">
+            {reasonText(option.reason)}
+          </span>
         )}
       </span>
       <span className="shrink-0 text-right">

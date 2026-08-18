@@ -8,13 +8,7 @@ import {
 } from '@/domain/route-timing';
 import type { ArcView } from '@/domain/player-view';
 import { movementSprite } from '@/emblems/units/manifest';
-import {
-  buildThread,
-  pointOnLeg,
-  projectOnGround,
-  stretchTether,
-  type Thread,
-} from './thread';
+import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
 import type { WorldFrame } from './frame';
@@ -103,10 +97,16 @@ export class ArcLayer {
     this.clear();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
-      const thread = buildThread(arc.route, this.frame, ARC_COLORS[arc.state], THICKNESSES[arc.state], {
-        trace: TRACE_OPACITY,
-        progress: stale ? 0.45 : 1,
-      });
+      const thread = buildThread(
+        arc.route,
+        this.frame,
+        ARC_COLORS[arc.state],
+        THICKNESSES[arc.state],
+        {
+          trace: TRACE_OPACITY,
+          progress: stale ? 0.45 : 1,
+        },
+      );
       thread.setResolution(this.width, this.height);
       thread.setScale(this.unitsPerPixel);
       this.group.add(thread.object);
@@ -115,10 +115,7 @@ export class ArcLayer {
         this.targets.push(target);
       }
 
-      const pawn = new Pawn(
-        movementSprite(arc, this.playerNation),
-        ARC_COLORS[arc.state].progress,
-      );
+      const pawn = new Pawn(movementSprite(arc, this.playerNation), ARC_COLORS[arc.state].progress);
       pawn.visible = !stale;
       this.group.add(pawn.object);
 
@@ -188,7 +185,7 @@ export class ArcLayer {
       // it is the embarkation itself that shows, and the stop that reads.
       rendered.pawn.wear(
         position.kind === 'dock'
-          ? rendered.thread.legs[position.legIndex]?.medium ?? leg.medium
+          ? (rendered.thread.legs[position.legIndex]?.medium ?? leg.medium)
           : leg.medium,
       );
       rendered.pawn.place(this.pawnPoint, this.aheadPoint);
@@ -223,7 +220,11 @@ export class ArcLayer {
   private applyAccent(): void {
     for (const rendered of this.rendered) {
       rendered.thread.setAccent(
-        this.accented === null ? 1 : rendered.arc.id === this.accented ? ACCENT_DESIGNATED : ACCENT_OTHERS,
+        this.accented === null
+          ? 1
+          : rendered.arc.id === this.accented
+            ? ACCENT_DESIGNATED
+            : ACCENT_OTHERS,
       );
     }
   }

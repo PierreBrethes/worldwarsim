@@ -92,10 +92,7 @@ export function refusalOf(
 }
 
 /** What this column may ask for on this target — and nothing else ever reaches the fan. */
-export function legalMovementTypes(
-  aim: MovementAim,
-  column: Column,
-): ReadonlyArray<MovementType> {
+export function legalMovementTypes(aim: MovementAim, column: Column): ReadonlyArray<MovementType> {
   return ORDERABLE_TYPES.filter((type) => refusalOf(type, aim, column) === null);
 }
 

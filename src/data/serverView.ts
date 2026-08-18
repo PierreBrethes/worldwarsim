@@ -142,9 +142,18 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
 /** The route as the thread reads it. The mode is derived rather than stored: it is a reading of
  *  the legs, and a stored copy of a reading is one more thing that can disagree with them. */
 function routeOf(movement: NonNullable<ServerView['movements']>[number]): ComputedRoute {
-  const legs = movement.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits }));
+  const legs = movement.legs.map((leg) => ({
+    medium: leg.medium,
+    distanceUnits: leg.distanceUnits,
+  }));
   const mode: RouteMode =
-    legs.length > 1 ? 'combined' : legs[0]?.medium === 'sea' ? 'naval' : legs[0]?.medium === 'air' ? 'air' : 'land';
+    legs.length > 1
+      ? 'combined'
+      : legs[0]?.medium === 'sea'
+        ? 'naval'
+        : legs[0]?.medium === 'air'
+          ? 'air'
+          : 'land';
   return {
     mode,
     points: movement.points.map((point) => [point.lon, point.lat] as [number, number]),

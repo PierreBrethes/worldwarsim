@@ -24,7 +24,10 @@ export function SelectedCountryPanel({ country, view }: { country: string; view:
 
       {opponent ? (
         <>
-          <Row label={fr.selectedCountry.progression} value={`${Math.round(opponent.bar.progress * 100)} %`} />
+          <Row
+            label={fr.selectedCountry.progression}
+            value={`${Math.round(opponent.bar.progress * 100)} %`}
+          />
           <Row
             label={fr.selectedCountry.doctrine}
             value={

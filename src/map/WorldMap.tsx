@@ -1,3 +1,8 @@
+// Le moteur de carte est une classe impérative reçue en ref, à qui on assigne des
+// callbacks (`.onSelect`, `.onRegionHover`, …) — React Compiler lit ça comme une
+// mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
+'use no memo';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
@@ -231,7 +236,6 @@ export function WorldMap({
     engine.current?.showBuiltRegions(built);
   }, [built]);
 
-
   useEffect(() => {
     engine.current?.select(selectedCountry);
   }, [selectedCountry]);
@@ -298,9 +302,7 @@ const HINT_MS = 7000;
  */
 function GestureHint() {
   return (
-    <div
-      className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-[var(--font-body)] text-[12px] whitespace-nowrap text-[var(--paper)]"
-    >
+    <div className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-[var(--font-body)] text-[12px] whitespace-nowrap text-[var(--paper)]">
       {fr.mapUi.gestureHint.leftClick}
       <span className="text-[var(--paper-dim)]">{fr.mapUi.gestureHint.separator}</span>
       {fr.mapUi.gestureHint.pan}
@@ -336,10 +338,7 @@ function targetOfLabel(label: MapLabel, country: string | null): CompassTarget |
   return country === null ? null : { kind: 'country', country };
 }
 
-function lineText(
-  label: MapLabel,
-  role: 'nature' | 'headcount' | 'figures',
-): string | null {
+function lineText(label: MapLabel, role: 'nature' | 'headcount' | 'figures'): string | null {
   const line = label.lines.find((candidate) => candidate.role === role);
   return line === undefined || line.role === 'countdown' ? null : line.text;
 }

@@ -7,3 +7,4 @@ convex/_generated
 WWS
 public
 package-lock.json
+*.md

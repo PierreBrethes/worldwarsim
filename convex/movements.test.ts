@@ -183,8 +183,9 @@ describe('a land movement founds an outpost', () => {
     expect(outpost!.hostCountry).toBe('ROU');
     expect(outpost!.specialization).toBe('relay');
     expect(outpost!.level).toBe(1);
-    expect(distanceKm([outpost!.point.lon, outpost!.point.lat], regionFacts(PRAHOVA)!.point))
-      .toBeLessThan(1);
+    expect(
+      distanceKm([outpost!.point.lon, outpost!.point.lat], regionFacts(PRAHOVA)!.point),
+    ).toBeLessThan(1);
     expect(await movementsOf(t, token)).toHaveLength(0);
   });
 
@@ -735,7 +736,7 @@ describe('a garrison recalls itself', () => {
     ).rejects.toThrow('BARRACKS_TARGET_ONLY');
   });
 
-  it('refuses a troop that is not this outpost\'s own garrison', async () => {
+  it("refuses a troop that is not this outpost's own garrison", async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -808,7 +809,12 @@ describe('an interception inverts the initiative', () => {
     const barracks = await raise(t, token, 'barracks', MARNE);
     const troop = await form(t, token, 'infantry', barracks);
     const road = routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
-    const outpostId = await plant(t, guest, road.points[Math.floor(road.points.length / 2)]!, 'ROU');
+    const outpostId = await plant(
+      t,
+      guest,
+      road.points[Math.floor(road.points.length / 2)]!,
+      'ROU',
+    );
     await garrison(t, guest, outpostId);
 
     await t.mutation(api.movements.foundOutpost, {

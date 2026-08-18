@@ -84,7 +84,9 @@ export function GarrisonPanel({
       <Panel title={title} marker={fr.garrison.kicker} position="static" width={340}>
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
           <span>{projection ? fr.garrison.projection : (region ?? '')}</span>
-          <span className="ml-auto font-[var(--font-mono)]">{fr.garrison.troopCount(held.length)}</span>
+          <span className="ml-auto font-[var(--font-mono)]">
+            {fr.garrison.troopCount(held.length)}
+          </span>
           <button
             type="button"
             onClick={onClose}

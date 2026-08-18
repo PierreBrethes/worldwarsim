@@ -16,7 +16,9 @@ export function ErrorScreen({ error, reset }: { error: unknown; reset?: () => vo
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
       <div className="hud paper-grain w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
-        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">{fr.errorScreen.kicker}</p>
+        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.errorScreen.kicker}
+        </p>
         <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
           {fr.errorScreen.title}
         </h1>

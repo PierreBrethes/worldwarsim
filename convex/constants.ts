@@ -45,7 +45,14 @@ export const CHAINS: Readonly<
     Omit<Conversion, 'perHour' | 'by'> & { perHourPerLevel: number }
   >
 > = {
-  foundry: { output: 'alloy', inputs: [['ore', 2], ['coal', 1]], perHourPerLevel: 4 },
+  foundry: {
+    output: 'alloy',
+    inputs: [
+      ['ore', 2],
+      ['coal', 1],
+    ],
+    perHourPerLevel: 4,
+  },
   arsenal: { output: 'ammunition', inputs: [['alloy', 1]], perHourPerLevel: 3 },
   quartermaster: { output: 'bandages', inputs: [['textile', 1]], perHourPerLevel: 3 },
 };
@@ -478,7 +485,13 @@ export const DAMAGE_TABLE: DamageTable = {
   },
   armor1: { infantry1: 0.7, infantry2: 0.65, armor1: 0.5, armor2: 0.25, landTransport: 0.85 },
   armor2: { infantry1: 0.75, infantry2: 0.7, armor1: 0.75, armor2: 0.5, landTransport: 0.9 },
-  landTransport: { infantry1: 0.1, infantry2: 0.1, armor1: 0.05, armor2: 0.02, landTransport: 0.15 },
+  landTransport: {
+    infantry1: 0.1,
+    infantry2: 0.1,
+    armor1: 0.05,
+    armor2: 0.02,
+    landTransport: 0.15,
+  },
   fighter: {
     infantry1: 0.25,
     infantry2: 0.25,

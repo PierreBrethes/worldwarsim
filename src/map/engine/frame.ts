@@ -3,9 +3,9 @@ import type { LonLat } from '@/domain/geo';
 import type { OutlineSample, World } from '@/domain/world';
 
 export const COUNTRY_THICKNESS = 0.08;
-export const SEA_LEVEL = -0.10;
+export const SEA_LEVEL = -0.1;
 /** How far a country's slab drops below zero: its cliff plunges into the water instead of floating. */
-export const DRAFT = 0.10;
+export const DRAFT = 0.1;
 export const PLINTH_HEIGHT = 5;
 const CURVATURE_RADIUS = 900;
 

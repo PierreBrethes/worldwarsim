@@ -15,8 +15,7 @@ import {
  * map: a player who reads "coal deposit" under a mine has understood the region, not the menu.
  */
 export type BuildReason =
-  | { readonly kind: 'deposit'; readonly deposit: DepositKey }
-  | { readonly kind: 'coastal' };
+  { readonly kind: 'deposit'; readonly deposit: DepositKey } | { readonly kind: 'coastal' };
 
 /**
  * What holds a line back **for now**. The distinction with an impossibility is the whole rule
@@ -60,7 +59,10 @@ export type Site = {
  * Raising a building is deliberately absent. Upgrading belongs to the nation sheet — one verb
  * per surface — so the key already standing here never comes back in the list.
  */
-export function buildableOn(site: Site, catalog: Readonly<Record<BuildingKey, BuildSpec>>): ReadonlyArray<BuildOption> {
+export function buildableOn(
+  site: Site,
+  catalog: Readonly<Record<BuildingKey, BuildSpec>>,
+): ReadonlyArray<BuildOption> {
   const region = { deposit: site.deposit, coastal: site.coastal };
   return BUILDINGS.flatMap((key) => {
     if (key === site.standing) return [];
@@ -76,7 +78,12 @@ export function buildableOn(site: Site, catalog: Readonly<Record<BuildingKey, Bu
     const byNature = placementRefusal(
       key,
       region,
-      { onRegion: site.standing, standing: 0, cap: Number.POSITIVE_INFINITY, hqLevel: site.hqLevel },
+      {
+        onRegion: site.standing,
+        standing: 0,
+        cap: Number.POSITIVE_INFINITY,
+        hqLevel: site.hqLevel,
+      },
       spec.unlockedAtHqLevel,
     );
     if (byNature !== null) return [];
@@ -136,7 +143,9 @@ function reasonFor(key: BuildingKey, deposit: DepositKey | null): BuildReason | 
  * build there".
  */
 export function siteOf(view: PlayerView, regionId: string, now: number): Site | null {
-  const region: RegionView | undefined = view.me.regions.find((candidate) => candidate.id === regionId);
+  const region: RegionView | undefined = view.me.regions.find(
+    (candidate) => candidate.id === regionId,
+  );
   if (region === undefined) return null;
   const stocks = Object.fromEntries(
     Object.entries(view.me.resources).map(([key, resource]) => [
@@ -210,11 +219,7 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
 }
 
-export function upgradeHold(
-  building: Building,
-  view: PlayerView,
-  now: number,
-): UpgradeHold | null {
+export function upgradeHold(building: Building, view: PlayerView, now: number): UpgradeHold | null {
   if (view.me.construction !== null) return { kind: 'constructionRunning' };
   if (building.cappedByHq) return { kind: 'cappedByHq' };
 

@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { COUNTRY_BY_NATION, NATIONS, inkByClaimedCountry } from './nations';
 
 const worldCountries = new Set(
-  (JSON.parse(readFileSync('public/world.json', 'utf8')) as { countries: Array<{ n: string }> })
-    .countries.map((country) => country.n),
+  (
+    JSON.parse(readFileSync('public/world.json', 'utf8')) as { countries: Array<{ n: string }> }
+  ).countries.map((country) => country.n),
 );
 
 describe('nations sit on countries that exist', () => {

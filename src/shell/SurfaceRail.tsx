@@ -63,9 +63,21 @@ export function SurfaceRail({
   ];
 
   const upcoming: ReadonlyArray<{ title: string; label: string; icon: ReactNode }> = [
-    { title: fr.rail.replay.title, label: fr.rail.replay.label, icon: <Pictogram pictogram="replay" weight={20} size={19} /> },
-    { title: fr.rail.doctrine.title, label: fr.rail.doctrine.label, icon: <Pictogram pictogram="doctrine" weight={20} size={19} /> },
-    { title: fr.rail.intel.title, label: fr.rail.intel.label, icon: <Pictogram pictogram="intel" weight={20} size={19} /> },
+    {
+      title: fr.rail.replay.title,
+      label: fr.rail.replay.label,
+      icon: <Pictogram pictogram="replay" weight={20} size={19} />,
+    },
+    {
+      title: fr.rail.doctrine.title,
+      label: fr.rail.doctrine.label,
+      icon: <Pictogram pictogram="doctrine" weight={20} size={19} />,
+    },
+    {
+      title: fr.rail.intel.title,
+      label: fr.rail.intel.label,
+      icon: <Pictogram pictogram="intel" weight={20} size={19} />,
+    },
   ];
 
   return (

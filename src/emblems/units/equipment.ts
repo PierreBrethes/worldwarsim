@@ -43,8 +43,7 @@ export function equipmentLabel(
   role: UnitRole,
   tier: UnitTier,
 ): string | null {
-  const national =
-    nation !== null && isNation(nation) ? EQUIPMENT_BY_NATION[nation] : undefined;
+  const national = nation !== null && isNation(nation) ? EQUIPMENT_BY_NATION[nation] : undefined;
   const tiers = national?.[role];
   if (tiers === undefined) return null;
   return tiers[tier - 1] ?? tiers[0] ?? null;

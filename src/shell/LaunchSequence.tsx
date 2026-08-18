@@ -30,9 +30,7 @@ export function LaunchSequence({
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    const timers = CUES.map(({ phase: cue, at }) =>
-      setTimeout(() => setPhase(cue), at),
-    );
+    const timers = CUES.map(({ phase: cue, at }) => setTimeout(() => setPhase(cue), at));
     return () => timers.forEach(clearTimeout);
   }, []);
 

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  clipToCapacity,
-  emptyStocks,
-  settleStocks,
-  type Conversion,
-  type Stocks,
-} from './economy';
+import { clipToCapacity, emptyStocks, settleStocks, type Conversion, type Stocks } from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
 
 const stocksOf = (held: Partial<Record<ResourceKey, number>>): Stocks => ({
@@ -26,7 +20,11 @@ const foundry = (perHour: number): Conversion => ({
   perHour,
 });
 
-function settleOne(conversion: Conversion, held: Partial<Record<ResourceKey, number>>, hours: number) {
+function settleOne(
+  conversion: Conversion,
+  held: Partial<Record<ResourceKey, number>>,
+  hours: number,
+) {
   const settled = settleStocks({
     stocks: stocksOf(held),
     ratePerHour: emptyStocks(),
@@ -58,7 +56,11 @@ describe('a stock that opens above its ceiling', () => {
   });
 
   it('takes nothing more in while it stands there', () => {
-    const { stocks, report } = settleOne(foundry(4), { alloy: CEILING * 2, ore: 200, coal: 200 }, 10);
+    const { stocks, report } = settleOne(
+      foundry(4),
+      { alloy: CEILING * 2, ore: 200, coal: 200 },
+      10,
+    );
     expect(stocks.alloy).toBe(CEILING * 2);
     expect(report.made).toBe(0);
     expect(report.state).toBe('overflowing');

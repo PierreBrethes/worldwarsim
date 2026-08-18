@@ -8,7 +8,14 @@ const view = {
     nation: 'france',
     slots: { total: 4, used: 1 },
     outposts: [
-      { id: 'AP-01', hostCountry: 'Norway', lonLat: [0, 0], specialization: 'relay', garrison: 4, isMine: true },
+      {
+        id: 'AP-01',
+        hostCountry: 'Norway',
+        lonLat: [0, 0],
+        specialization: 'relay',
+        garrison: 4,
+        isMine: true,
+      },
     ],
     hqLevel: 1,
     buildingCap: 5,
@@ -18,7 +25,13 @@ const view = {
     // has no business building on, which is what the enemy-region test leans on.
     regions: [
       { id: 'FRA-5333', name: 'Paris', deposit: null, coastal: false, buildings: [] },
-      { id: 'FRA-9999', name: 'Nord', deposit: 'coal', coastal: true, buildings: [{ key: 'mine', level: 1 }] },
+      {
+        id: 'FRA-9999',
+        name: 'Nord',
+        deposit: 'coal',
+        coastal: true,
+        buildings: [{ key: 'mine', level: 1 }],
+      },
     ],
     construction: null,
     resources: Object.fromEntries(
@@ -71,14 +84,18 @@ describe('radial menu', () => {
   });
 
   it('names the nation rather than the map country', () => {
-    expect(compassOf({ kind: 'country', country: 'United Kingdom' }, view)?.name).toBe('Royaume-Uni');
+    expect(compassOf({ kind: 'country', country: 'United Kingdom' }, view)?.name).toBe(
+      'Royaume-Uni',
+    );
     expect(compassOf({ kind: 'country', country: 'Spain' }, view)?.name).toBe('Spain');
   });
 
   it('gives the target’s nature to the context line', () => {
     expect(compassOf({ kind: 'country', country: 'France' }, view)?.kicker).toBe('mon territoire');
     expect(compassOf({ kind: 'country', country: 'Italy' }, view)?.kicker).toBe('nation adverse');
-    expect(compassOf({ kind: 'country', country: 'Spain' }, view)?.kicker).toBe('pays neutre · sans avant-poste');
+    expect(compassOf({ kind: 'country', country: 'Spain' }, view)?.kicker).toBe(
+      'pays neutre · sans avant-poste',
+    );
   });
 
   it('no action carries a cost we cannot quantify', () => {
@@ -98,9 +115,9 @@ describe('radial menu', () => {
   });
 
   it('withdraws the crane on an enemy region, leaving the fan as it was', () => {
-    expect(
-      labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'Italy' }),
-    ).toEqual(['Voir le pays']);
+    expect(labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'Italy' })).toEqual([
+      'Voir le pays',
+    ]);
   });
 
   it('withdraws the crane where a building already stands — nothing can go up there', () => {
@@ -162,7 +179,11 @@ describe('in aim', () => {
       compassOf({ kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'France' }, view, column),
     ).toBeNull();
     expect(
-      compassOf({ kind: 'outpost', id: 'AP-01', hostCountry: 'Norway', name: 'relais' }, view, column),
+      compassOf(
+        { kind: 'outpost', id: 'AP-01', hostCountry: 'Norway', name: 'relais' },
+        view,
+        column,
+      ),
     ).toBeNull();
   });
 

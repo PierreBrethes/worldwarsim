@@ -108,29 +108,40 @@ export function NationWindow({
               <p className="mt-3 border border-[var(--ink)] px-3 py-2 text-[12.5px] text-[var(--ink)]">
                 {fr.nationSheet.constructionRunning}
                 <strong>{view.me.construction.name}</strong>{' '}
-                {fr.nationSheet.inRegion(view.me.construction.regionName)}{fr.nationSheet.remains}
+                {fr.nationSheet.inRegion(view.me.construction.regionName)}
+                {fr.nationSheet.remains}
                 <span className="font-[var(--font-mono)]">
-                  {asHoursMinutes(currentMinutes(view.me.construction.minutesLeft, view.loadedAt, now))}
+                  {asHoursMinutes(
+                    currentMinutes(view.me.construction.minutesLeft, view.loadedAt, now),
+                  )}
                 </span>
               </p>
             )}
           </section>
 
           <aside className="w-full @2xl:w-[280px] @2xl:shrink-0">
-            <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.powerHeader}</h2>
+            <h2 className="eyebrow border-b border-[var(--ink)] pb-[6px]">
+              {fr.nationSheet.powerHeader}
+            </h2>
             <p className="mt-2 text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
 
             <NationalGap regions={view.me.regions} />
 
-            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.armyHeader}</h2>
+            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
+              {fr.nationSheet.armyHeader}
+            </h2>
             <div className="mt-2 flex flex-col gap-[5px] text-[12.5px]">
               <span className="flex justify-between gap-3">
                 <span className="text-[var(--ink-soft)]">{fr.nationSheet.present}</span>
-                <span className="text-right text-[var(--ink)]">{stackLabel(view.me.armyPresent)}</span>
+                <span className="text-right text-[var(--ink)]">
+                  {stackLabel(view.me.armyPresent)}
+                </span>
               </span>
               <span className="flex justify-between gap-3">
                 <span className="text-[var(--ink-soft)]">{fr.nationSheet.inTransit}</span>
-                <span className="text-right text-[var(--ink)]">{stackLabel(view.me.armyInTransit)}</span>
+                <span className="text-right text-[var(--ink)]">
+                  {stackLabel(view.me.armyInTransit)}
+                </span>
               </span>
             </div>
 
@@ -139,7 +150,9 @@ export function NationWindow({
                 banner — and, without a warehouse, repeating the same 400 eight times. A datum
                 has one home; the banner is the exception, because it watches. */}
 
-            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">{fr.nationSheet.restHeader}</h2>
+            <h2 className="eyebrow mt-5 border-b border-[var(--ink)] pb-[6px]">
+              {fr.nationSheet.restHeader}
+            </h2>
             <p className="mt-2 text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.nationSheet.restNote}
             </p>

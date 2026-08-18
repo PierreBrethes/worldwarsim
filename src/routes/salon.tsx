@@ -88,277 +88,289 @@ function ConnectedLobby({ token }: { token: string }) {
     <>
       <div className="h-full">
         <Newspaper width={WIDTH} turning={turning}>
-        <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
-          <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
-            <Flag nation={lobby.me.nation} width={33} onPaper />
-            <span className="font-[var(--font-display)] text-[17px] font-extrabold tracking-[.02em] uppercase">
-              {nationLabel(lobby.me.nation)}
-            </span>
-            <span className="flex-1" />
-            <span className="eyebrow">{fr.lobby.header(pace)}</span>
-            <span className="eyebrow">{fr.lobby.regionLabel(regionName)}</span>
-            <button
-              type="button"
-              onClick={() => {
-                forgetToken();
-                turn(() => void navigate({ to: '/accueil' }));
-              }}
-              className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-            >
-              {fr.lobby.quit}
-            </button>
-          </div>
-
-          <ThickRule />
-
-          <div className="flex flex-wrap items-center gap-[26px] px-[30px] pt-[18px] pb-4">
-            <div className="min-w-0 flex-1">
-              <div className="eyebrow">{fr.lobby.codeLabel}</div>
-              <div className="font-[var(--font-display)] text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
-                {lobby.code}
-              </div>
-              <div className="text-[11.5px] text-[var(--ink-note)]">{fr.lobby.codeNote}</div>
-            </div>
-            <div className="flex w-[200px] shrink-0 flex-col gap-2">
+          <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+            <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
+              <Flag nation={lobby.me.nation} width={33} onPaper />
+              <span className="font-[var(--font-display)] text-[17px] font-extrabold tracking-[.02em] uppercase">
+                {nationLabel(lobby.me.nation)}
+              </span>
+              <span className="flex-1" />
+              <span className="eyebrow">{fr.lobby.header(pace)}</span>
+              <span className="eyebrow">{fr.lobby.regionLabel(regionName)}</span>
               <button
                 type="button"
-                onClick={copyCode}
-                className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                onClick={() => {
+                  forgetToken();
+                  turn(() => void navigate({ to: '/accueil' }));
+                }}
+                className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
               >
-                {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
+                {fr.lobby.quit}
               </button>
-              <div className="text-center font-[var(--font-mono)] text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
-                {fr.lobby.openCount(lobby.players.length)}
+            </div>
+
+            <ThickRule />
+
+            <div className="flex flex-wrap items-center gap-[26px] px-[30px] pt-[18px] pb-4">
+              <div className="min-w-0 flex-1">
+                <div className="eyebrow">{fr.lobby.codeLabel}</div>
+                <div className="font-[var(--font-display)] text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
+                  {lobby.code}
+                </div>
+                <div className="text-[11.5px] text-[var(--ink-note)]">{fr.lobby.codeNote}</div>
+              </div>
+              <div className="flex w-[200px] shrink-0 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={copyCode}
+                  className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                >
+                  {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
+                </button>
+                <div className="text-center font-[var(--font-mono)] text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
+                  {fr.lobby.openCount(lobby.players.length)}
+                </div>
               </div>
             </div>
-          </div>
 
-          <ThickRuleInverse />
+            <ThickRuleInverse />
 
-          <div className="mx-[30px] flex flex-col @2xl:flex-row @2xl:items-stretch">
-            <section className="min-w-0 flex-1 pt-4 pb-2 @2xl:pr-[26px]">
-              <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                <span className="eyebrow">{fr.lobby.nationsHeader}</span>
-                <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.lobby.nationsFree(freeNations)}</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-[9px] @md:grid-cols-3 @2xl:grid-cols-4">
-                {NATIONS.map((nation) => {
-                  const holder = holderOf(nation);
-                  const isMine = lobby.me.nation === nation;
-                  const taken = holder !== undefined && !isMine;
-                  return (
+            <div className="mx-[30px] flex flex-col @2xl:flex-row @2xl:items-stretch">
+              <section className="min-w-0 flex-1 pt-4 pb-2 @2xl:pr-[26px]">
+                <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
+                  <span className="eyebrow">{fr.lobby.nationsHeader}</span>
+                  <span className="text-[10.5px] text-[var(--ink-faint)]">
+                    {fr.lobby.nationsFree(freeNations)}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-[9px] @md:grid-cols-3 @2xl:grid-cols-4">
+                  {NATIONS.map((nation) => {
+                    const holder = holderOf(nation);
+                    const isMine = lobby.me.nation === nation;
+                    const taken = holder !== undefined && !isMine;
+                    return (
+                      <button
+                        key={nation}
+                        type="button"
+                        onClick={() =>
+                          act(() => reserve({ token, nation: isMine ? null : nation }))
+                        }
+                        disabled={taken}
+                        title={fr.nationPowers[nation]}
+                        className={`block border border-[var(--ink)] bg-[var(--paper)] text-left transition-transform duration-100 ${
+                          isMine
+                            ? 'shadow-[0_6px_14px_rgba(0,0,0,.3)] outline-2 outline-offset-1 outline-[var(--notable)] -translate-y-[2px] cursor-pointer'
+                            : taken
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'cursor-pointer hover:-translate-y-[1px]'
+                        }`}
+                      >
+                        <span className="relative block">
+                          <FlagBanner nation={nation} />
+                          <span
+                            aria-hidden
+                            className="absolute inset-0"
+                            style={{
+                              background:
+                                'linear-gradient(180deg, rgba(255,255,255,.08), rgba(23,18,8,.2))',
+                            }}
+                          />
+                        </span>
+                        <span className="block bg-[var(--ink)] px-2 pt-[6px] pb-[7px] text-[var(--paper)]">
+                          <span className="block truncate text-[12px] font-semibold tracking-[.02em]">
+                            {fr.nations[nation]}
+                          </span>
+                          <span
+                            className="mt-[2px] block truncate text-[9px] tracking-[.14em] uppercase"
+                            style={{ color: statusInk(isMine, holder !== undefined, nation) }}
+                          >
+                            {isMine
+                              ? fr.lobby.you
+                              : holder
+                                ? fr.lobby.takenBy(holder.nickname)
+                                : nation === 'usa'
+                                  ? fr.lobby.toBalance
+                                  : fr.lobby.free}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-[11px] leading-[1.55] text-[var(--ink-note)]">
+                  {fr.lobby.reservationNote}
+                </p>
+              </section>
+
+              <div
+                aria-hidden
+                className="hidden w-px @2xl:block"
+                style={{
+                  background:
+                    'repeating-linear-gradient(180deg, var(--ink) 0 4px, transparent 4px 9px)',
+                }}
+              />
+
+              <aside className="w-full pt-4 pb-2 @2xl:w-[290px] @2xl:shrink-0 @2xl:pl-[26px]">
+                <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
+                  <span className="eyebrow">{fr.lobby.playersHeader}</span>
+                  <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-faint)]">
+                    {lobby.players.length} / 8
+                  </span>
+                </div>
+                <ul className="mt-2 flex flex-col">
+                  {lobby.players.map((player) => (
+                    <li
+                      key={player.id}
+                      className="flex items-center gap-[9px] border-b border-[rgba(42,33,24,.16)] px-[2px] py-[6px]"
+                    >
+                      <Flag nation={player.nation} width={18} onPaper />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                        {player.nickname}
+                        {player.creator && (
+                          <span className="ml-[6px] text-[9px] tracking-[.14em] text-[var(--ink-faint)] uppercase">
+                            {fr.lobby.founder}
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-[var(--ink-note)]">
+                        {nationLabel(player.nation)}
+                      </span>
+                      <span
+                        className="shrink-0 text-[9px] tracking-[.14em] uppercase"
+                        style={{ color: player.ready ? 'var(--valid)' : 'var(--ink-faint)' }}
+                      >
+                        {player.ready ? fr.lobby.ready : fr.lobby.waiting}
+                      </span>
+                    </li>
+                  ))}
+                  {Array.from({ length: freeSeats }, (_, rank) => (
+                    <li
+                      key={`free-${rank}`}
+                      className="flex items-center gap-[9px] border-b border-dashed border-[rgba(42,33,24,.28)] px-[2px] py-[6px] text-[var(--ink-faint)]"
+                    >
+                      <span
+                        aria-hidden
+                        className="h-[9px] w-[9px] border border-[rgba(42,33,24,.3)]"
+                      />
+                      <span className="text-[11px] tracking-[.14em] uppercase">
+                        {fr.lobby.freeSeat}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
+                  {fr.lobby.doctrineHeader}
+                </div>
+                <div className="mt-[10px] flex gap-[6px]">
+                  {DOCTRINES.map((doctrine, rank) => (
                     <button
-                      key={nation}
+                      key={doctrine}
                       type="button"
-                      onClick={() => act(() => reserve({ token, nation: isMine ? null : nation }))}
-                      disabled={taken}
-                      title={fr.nationPowers[nation]}
-                      className={`block border border-[var(--ink)] bg-[var(--paper)] text-left transition-transform duration-100 ${
-                        isMine
-                          ? 'shadow-[0_6px_14px_rgba(0,0,0,.3)] outline-2 outline-offset-1 outline-[var(--notable)] -translate-y-[2px] cursor-pointer'
-                          : taken
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'cursor-pointer hover:-translate-y-[1px]'
+                      onClick={() => act(() => chooseDoctrine({ token, doctrine }))}
+                      className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
+                        lobby.me.doctrine === doctrine
+                          ? 'bg-[var(--ink)] text-[var(--paper)]'
+                          : 'hover:bg-[rgba(42,33,24,.08)]'
                       }`}
                     >
-                      <span className="relative block">
-                        <FlagBanner nation={nation} />
-                        <span
-                          aria-hidden
-                          className="absolute inset-0"
-                          style={{
-                            background:
-                              'linear-gradient(180deg, rgba(255,255,255,.08), rgba(23,18,8,.2))',
-                          }}
-                        />
+                      <span className="block font-[var(--font-mono)] text-[9px] opacity-60">
+                        {NUMERALS[rank]}
                       </span>
-                      <span className="block bg-[var(--ink)] px-2 pt-[6px] pb-[7px] text-[var(--paper)]">
-                        <span className="block truncate text-[12px] font-semibold tracking-[.02em]">
-                          {fr.nations[nation]}
-                        </span>
-                        <span
-                          className="mt-[2px] block truncate text-[9px] tracking-[.14em] uppercase"
-                          style={{ color: statusInk(isMine, holder !== undefined, nation) }}
-                        >
-                          {isMine
-                            ? fr.lobby.you
-                            : holder
-                              ? fr.lobby.takenBy(holder.nickname)
-                              : nation === 'usa'
-                                ? fr.lobby.toBalance
-                                : fr.lobby.free}
-                        </span>
+                      <span className="mt-[3px] block text-[11px] tracking-[.08em] uppercase">
+                        {fr.doctrines[doctrine]}
                       </span>
                     </button>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-[11px] leading-[1.55] text-[var(--ink-note)]">
-                {fr.lobby.reservationNote}
-              </p>
-            </section>
-
-            <div
-              aria-hidden
-              className="hidden w-px @2xl:block"
-              style={{
-                background: 'repeating-linear-gradient(180deg, var(--ink) 0 4px, transparent 4px 9px)',
-              }}
-            />
-
-            <aside className="w-full pt-4 pb-2 @2xl:w-[290px] @2xl:shrink-0 @2xl:pl-[26px]">
-              <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                <span className="eyebrow">{fr.lobby.playersHeader}</span>
-                <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-faint)]">
-                  {lobby.players.length} / 8
-                </span>
-              </div>
-              <ul className="mt-2 flex flex-col">
-                {lobby.players.map((player) => (
-                  <li
-                    key={player.id}
-                    className="flex items-center gap-[9px] border-b border-[rgba(42,33,24,.16)] px-[2px] py-[6px]"
-                  >
-                    <Flag nation={player.nation} width={18} onPaper />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                      {player.nickname}
-                      {player.creator && (
-                        <span className="ml-[6px] text-[9px] tracking-[.14em] text-[var(--ink-faint)] uppercase">
-                          {fr.lobby.founder}
-                        </span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-[var(--ink-note)]">
-                      {nationLabel(player.nation)}
-                    </span>
-                    <span
-                      className="shrink-0 text-[9px] tracking-[.14em] uppercase"
-                      style={{ color: player.ready ? 'var(--valid)' : 'var(--ink-faint)' }}
-                    >
-                      {player.ready ? fr.lobby.ready : fr.lobby.waiting}
-                    </span>
-                  </li>
-                ))}
-                {Array.from({ length: freeSeats }, (_, rank) => (
-                  <li
-                    key={`free-${rank}`}
-                    className="flex items-center gap-[9px] border-b border-dashed border-[rgba(42,33,24,.28)] px-[2px] py-[6px] text-[var(--ink-faint)]"
-                  >
-                    <span aria-hidden className="h-[9px] w-[9px] border border-[rgba(42,33,24,.3)]" />
-                    <span className="text-[11px] tracking-[.14em] uppercase">{fr.lobby.freeSeat}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
-                {fr.lobby.doctrineHeader}
-              </div>
-              <div className="mt-[10px] flex gap-[6px]">
-                {DOCTRINES.map((doctrine, rank) => (
-                  <button
-                    key={doctrine}
-                    type="button"
-                    onClick={() => act(() => chooseDoctrine({ token, doctrine }))}
-                    className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
-                      lobby.me.doctrine === doctrine
-                        ? 'bg-[var(--ink)] text-[var(--paper)]'
-                        : 'hover:bg-[rgba(42,33,24,.08)]'
-                    }`}
-                  >
-                    <span className="block font-[var(--font-mono)] text-[9px] opacity-60">
-                      {NUMERALS[rank]}
-                    </span>
-                    <span className="mt-[3px] block text-[11px] tracking-[.08em] uppercase">
-                      {fr.doctrines[doctrine]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
-                {fr.lobby.doctrineNote}
-              </p>
-
-              <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
-                {fr.lobby.restHeader}
-              </div>
-              <RestWindowForm token={token} declared={lobby.me.restWindow} onError={setError} />
-              <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
-                {fr.lobby.restNote}
-              </p>
-
-              <div className="mt-4 flex flex-col gap-1">
-                {checks.map((check) => (
-                  <div
-                    key={check.label}
-                    className="flex items-center gap-[9px] text-[11.5px]"
-                    style={{ color: check.done ? 'var(--ink)' : 'var(--ink-faint)' }}
-                  >
-                    <span className="w-[11px] font-[var(--font-mono)] text-[11px]">
-                      {check.done ? '×' : '·'}
-                    </span>
-                    <span>{check.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
-                className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                  lobby.me.ready
-                    ? 'bg-[var(--ink)] text-[var(--paper)]'
-                    : 'hover:bg-[rgba(42,33,24,.08)]'
-                }`}
-              >
-                {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
-              </button>
-
-              {lobby.me.creator ? (
-                <>
-                  <button
-                    type="button"
-                    disabled={!allReady}
-                    onClick={() => act(() => launch({ token }))}
-                    className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                      allReady
-                        ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-                        : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
-                    }`}
-                  >
-                    {fr.lobby.launch}
-                  </button>
-                  <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
-                    {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
-                  </p>
-                  <DestroyButton
-                    onDestroy={() =>
-                      act(async () => {
-                        await destroy({ token });
-                        forgetToken();
-                        turn(() => void navigate({ to: '/accueil' }));
-                      })
-                    }
-                  />
-                </>
-              ) : (
-                <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-faint)]">
-                  {fr.lobby.creatorOnly}
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
+                  {fr.lobby.doctrineNote}
                 </p>
-              )}
-            </aside>
-          </div>
 
-          {error && (
-            <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
-              {error}
-            </p>
-          )}
+                <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
+                  {fr.lobby.restHeader}
+                </div>
+                <RestWindowForm token={token} declared={lobby.me.restWindow} onError={setError} />
+                <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
+                  {fr.lobby.restNote}
+                </p>
 
-          <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
-            <span>{fr.lobby.footerLeft}</span>
-            <span className="font-[var(--font-mono)] tracking-[.12em]">{fr.lobby.footerCode(lobby.code)}</span>
+                <div className="mt-4 flex flex-col gap-1">
+                  {checks.map((check) => (
+                    <div
+                      key={check.label}
+                      className="flex items-center gap-[9px] text-[11.5px]"
+                      style={{ color: check.done ? 'var(--ink)' : 'var(--ink-faint)' }}
+                    >
+                      <span className="w-[11px] font-[var(--font-mono)] text-[11px]">
+                        {check.done ? '×' : '·'}
+                      </span>
+                      <span>{check.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
+                  className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
+                    lobby.me.ready
+                      ? 'bg-[var(--ink)] text-[var(--paper)]'
+                      : 'hover:bg-[rgba(42,33,24,.08)]'
+                  }`}
+                >
+                  {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
+                </button>
+
+                {lobby.me.creator ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!allReady}
+                      onClick={() => act(() => launch({ token }))}
+                      className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
+                        allReady
+                          ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
+                          : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+                      }`}
+                    >
+                      {fr.lobby.launch}
+                    </button>
+                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                      {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
+                    </p>
+                    <DestroyButton
+                      onDestroy={() =>
+                        act(async () => {
+                          await destroy({ token });
+                          forgetToken();
+                          turn(() => void navigate({ to: '/accueil' }));
+                        })
+                      }
+                    />
+                  </>
+                ) : (
+                  <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                    {fr.lobby.creatorOnly}
+                  </p>
+                )}
+              </aside>
+            </div>
+
+            {error && (
+              <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+                {error}
+              </p>
+            )}
+
+            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+              <span>{fr.lobby.footerLeft}</span>
+              <span className="font-[var(--font-mono)] tracking-[.12em]">
+                {fr.lobby.footerCode(lobby.code)}
+              </span>
+            </div>
           </div>
-        </div>
         </Newspaper>
       </div>
 

@@ -107,8 +107,12 @@ export class RegionLayer {
         const [ax, ay] = line[i]!;
         const [bx, by] = line[i + 1]!;
         points.push(
-          ax - this.frame.centerX, COUNTRY_THICKNESS + STROKE_LIFT, ay - this.frame.centerY,
-          bx - this.frame.centerX, COUNTRY_THICKNESS + STROKE_LIFT, by - this.frame.centerY,
+          ax - this.frame.centerX,
+          COUNTRY_THICKNESS + STROKE_LIFT,
+          ay - this.frame.centerY,
+          bx - this.frame.centerX,
+          COUNTRY_THICKNESS + STROKE_LIFT,
+          by - this.frame.centerY,
         );
       }
     }
@@ -214,7 +218,8 @@ export class RegionLayer {
     let kept: PreparedRegion | null = null;
     for (const candidate of this.prepared) {
       const [minX, minY, maxX, maxY] = candidate.box;
-      if (projectedX < minX || projectedX > maxX || projectedY < minY || projectedY > maxY) continue;
+      if (projectedX < minX || projectedX > maxX || projectedY < minY || projectedY > maxY)
+        continue;
       if (kept !== null && candidate.area >= kept.area) continue;
       if (contains(candidate.region, projectedX, projectedY)) kept = candidate;
     }
@@ -231,8 +236,7 @@ export class RegionLayer {
       1,
       Math.max(
         0,
-        (REGIONS_GONE_DISTANCE - cameraDistance) /
-        (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+        (REGIONS_GONE_DISTANCE - cameraDistance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
       ),
     );
     this.lineMaterial.opacity = this.share * FULL_OPACITY;

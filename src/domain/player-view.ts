@@ -248,7 +248,12 @@ export type RegionView = {
 export type OpponentBar =
   | { readonly state: 'anonymous'; readonly progress: number }
   | { readonly state: 'attributed'; readonly progress: number; readonly doctrine: Doctrine }
-  | { readonly state: 'exposed'; readonly progress: number; readonly doctrine: Doctrine; readonly frozenUntil: string };
+  | {
+      readonly state: 'exposed';
+      readonly progress: number;
+      readonly doctrine: Doctrine;
+      readonly frozenUntil: string;
+    };
 
 export type Opponent = {
   readonly nation: string;
@@ -332,15 +337,13 @@ export type PlayerView = {
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
-    readonly construction:
-      | {
-          readonly name: string;
-          readonly key: BuildingKey;
-          readonly regionId: string;
-          readonly regionName: string;
-          readonly minutesLeft: number;
-        }
-      | null;
+    readonly construction: {
+      readonly name: string;
+      readonly key: BuildingKey;
+      readonly regionId: string;
+      readonly regionName: string;
+      readonly minutesLeft: number;
+    } | null;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
     /** How many troops may stand at once, carried by the billets. `troops` holds the count. */

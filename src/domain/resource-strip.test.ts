@@ -65,7 +65,9 @@ describe('the banner reading order', () => {
 
   it('flags the run that carries a starved link, and only that one', () => {
     const chains = served().map((chain) =>
-      chain.by === 'foundry' ? { ...chain, state: 'starved' as const, missing: 'ore' as const } : chain,
+      chain.by === 'foundry'
+        ? { ...chain, state: 'starved' as const, missing: 'ore' as const }
+        : chain,
     );
     expect(resourceStrip(chains).map(isStarved)).toEqual([true, false, false]);
   });

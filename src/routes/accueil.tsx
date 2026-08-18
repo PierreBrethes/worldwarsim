@@ -149,7 +149,9 @@ function ConnectedHome() {
                 <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
                   <span>
                     {nationLabel(preview.nation)}
-                    {preview.doctrine ? ` · ${fr.banner.doctrine(doctrineLabel(preview.doctrine) ?? '')}` : ''}
+                    {preview.doctrine
+                      ? ` · ${fr.banner.doctrine(doctrineLabel(preview.doctrine) ?? '')}`
+                      : ''}
                   </span>
                   <span>
                     {preview.status === 'concluded' && preview.winnerNation
@@ -158,9 +160,12 @@ function ConnectedHome() {
                         ? fr.home.resumeLobby(preview.code)
                         : fr.home.resumeSeason}{' '}
                     ·{' '}
-                    {fr.playableRegions[preview.playableRegion as PlayableRegion] ?? preview.playableRegion}
+                    {fr.playableRegions[preview.playableRegion as PlayableRegion] ??
+                      preview.playableRegion}
                   </span>
-                  <span className="text-[var(--notable)]">{fr.common.players(preview.players)}</span>
+                  <span className="text-[var(--notable)]">
+                    {fr.common.players(preview.players)}
+                  </span>
                 </span>
               </span>
               <span className="relative text-right">
@@ -210,9 +215,7 @@ function ConnectedHome() {
                       : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.08)]'
                   }`}
                 >
-                  <span className="block text-[12px] tracking-[.16em] uppercase">
-                    {pace.name}
-                  </span>
+                  <span className="block text-[12px] tracking-[.16em] uppercase">{pace.name}</span>
                   <span className="mt-[3px] block text-[10.5px] opacity-70">{pace.note}</span>
                 </button>
               ))}
@@ -282,7 +285,9 @@ function ConnectedHome() {
 
       {resuming && preview && (
         <LaunchSequence
-          region={fr.playableRegions[preview.playableRegion as PlayableRegion] ?? preview.playableRegion}
+          region={
+            fr.playableRegions[preview.playableRegion as PlayableRegion] ?? preview.playableRegion
+          }
           pace={preview.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168}
           players={preview.players}
           onEnd={toBoard}

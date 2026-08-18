@@ -8,9 +8,7 @@ import { readToken } from './token';
  * nowhere else. Fetching it twice, once over HTTP for the first frame and once over the
  * subscription, cost a second round trip to serve a value that was replaced immediately.
  */
-export type GameEntry =
-  | { state: 'active'; world: World; token: string }
-  | { state: 'none' };
+export type GameEntry = { state: 'active'; world: World; token: string } | { state: 'none' };
 
 let worldInFlight: Promise<World> | null = null;
 

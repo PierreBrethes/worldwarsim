@@ -107,7 +107,11 @@ async function seasonOf(t: ReturnType<typeof boot>) {
  */
 async function overrun(t: ReturnType<typeof boot>, attacker: string, victim: string) {
   const barracks = await raise(t, attacker, MARNE);
-  const column = [await form(t, attacker, barracks), await form(t, attacker, barracks), await form(t, attacker, barracks)];
+  const column = [
+    await form(t, attacker, barracks),
+    await form(t, attacker, barracks),
+    await form(t, attacker, barracks),
+  ];
   const outpost = await plant(t, victim, regionFacts(PRAHOVA)!.point);
   await form(t, victim, outpost);
 

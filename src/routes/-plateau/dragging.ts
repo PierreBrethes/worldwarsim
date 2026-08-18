@@ -1,4 +1,9 @@
-import { useCallback, useState, type PointerEvent as PointerEventReact, type RefObject } from 'react';
+import {
+  useCallback,
+  useState,
+  type PointerEvent as PointerEventReact,
+  type RefObject,
+} from 'react';
 
 export type Grab = (event: PointerEventReact<HTMLElement>) => void;
 

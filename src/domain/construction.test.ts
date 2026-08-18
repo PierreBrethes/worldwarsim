@@ -175,7 +175,10 @@ describe('what holds a raise back', () => {
       me: {
         construction: null,
         resources: Object.fromEntries(
-          RESOURCES.map((key) => [key, { stock: key === 'coal' ? 50 : 1000, ratePerHour: 60, cap: 1000 }]),
+          RESOURCES.map((key) => [
+            key,
+            { stock: key === 'coal' ? 50 : 1000, ratePerHour: 60, cap: 1000 },
+          ]),
         ),
       },
       loadedAt: LOADED_AT,

@@ -194,7 +194,9 @@ function NoGame() {
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
       <div className="hud paper-grain w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
-        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">{fr.board.unavailableKicker}</p>
+        <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.board.unavailableKicker}
+        </p>
         <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
           {fr.board.noGameTitle}
         </h1>
@@ -398,8 +400,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     if (!toggles.buildings) return [...deposits, ...outposts];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
-    const finishesAt =
-      work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
+    const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: `building-${building.regionId}-${building.key}`,
@@ -712,7 +713,9 @@ function armedColumn(
       myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
       myBarracksRegionIds: new Set(
-        view.me.buildings.filter((building) => building.key === 'barracks').map((building) => building.regionId),
+        view.me.buildings
+          .filter((building) => building.key === 'barracks')
+          .map((building) => building.regionId),
       ),
       origin: fromOutpost ? 'outpost' : 'building',
     },
@@ -785,7 +788,8 @@ function markerOfStation(view: PlayerView, stationId: string | null): string | n
 function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
   const building = view.me.buildings.find((candidate) => candidate.id === column.buildingId);
   const outpost = view.me.outposts.find((candidate) => candidate.id === column.buildingId);
-  const station = building?.name ?? (outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome);
+  const station =
+    building?.name ?? (outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome);
   return (
     <div className="hud absolute top-4 left-4 z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
       <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">

@@ -69,7 +69,8 @@ export const playerView = query({
     const isGarrisoned = (troop: (typeof troops)[number]) =>
       troop.stationedAt !== null && garrisoned.has(troop.stationedAt);
     const stationOf = (troop: (typeof troops)[number]) =>
-      troop.stationedAt !== null && (standing.has(troop.stationedAt) || garrisoned.has(troop.stationedAt))
+      troop.stationedAt !== null &&
+      (standing.has(troop.stationedAt) || garrisoned.has(troop.stationedAt))
         ? troop.stationedAt
         : null;
 
@@ -118,7 +119,10 @@ export const playerView = query({
      */
     const standings = await standingsOf(ctx, season._id);
     const nationOf = new Map(
-      standings.map((standing) => [standing.player._id, standing.player.nation ?? standing.player.nickname]),
+      standings.map((standing) => [
+        standing.player._id,
+        standing.player.nation ?? standing.player.nickname,
+      ]),
     );
     const winnerId = season.winnerId ?? null;
     const winner =
@@ -194,7 +198,8 @@ export const playerView = query({
             state,
             missing,
             commanded: isCommanded(conversion.by),
-            order: lot === null ? null : { ordered: lot.ordered, produced: Math.floor(lot.produced) },
+            order:
+              lot === null ? null : { ordered: lot.ordered, produced: Math.floor(lot.produced) },
             maxOrder: maxOrderOf(economy, conversion.by),
           };
         }),
@@ -344,13 +349,12 @@ export const playerView = query({
            * the table is legible from the account rather than from a second count. Both nations
            * were in the same battle — neither learns anything from being named.
            */
-          reduced:
-            engagement.reducedDefender
-              ? {
-                  by: nationOf.get(engagement.attackerId) ?? '?',
-                  whom: nationOf.get(engagement.defenderId) ?? '?',
-                }
-              : null,
+          reduced: engagement.reducedDefender
+            ? {
+                by: nationOf.get(engagement.attackerId) ?? '?',
+                whom: nationOf.get(engagement.defenderId) ?? '?',
+              }
+            : null,
         };
       }),
       /**

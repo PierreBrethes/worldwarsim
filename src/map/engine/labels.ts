@@ -180,12 +180,7 @@ export class LabelLayer {
 
       projection.atEdge = !occluded && !projection.visible;
       if (projection.atEdge) {
-        const edge = clampToEdge(
-          behind ? width - x : x,
-          behind ? height - y : y,
-          width,
-          height,
-        );
+        const edge = clampToEdge(behind ? width - x : x, behind ? height - y : y, width, height);
         projection.edgeX = edge.x;
         projection.edgeY = edge.y;
         projection.heading = edge.heading;
@@ -200,7 +195,8 @@ export class LabelLayer {
     for (let step = 1; step < HORIZON_SAMPLES; step++) {
       const share = step / HORIZON_SAMPLES;
       this.point.copy(eye).lerp(position, share);
-      if (this.frame.drop(this.point.x, this.point.z) + COUNTRY_THICKNESS > this.point.y) return true;
+      if (this.frame.drop(this.point.x, this.point.z) + COUNTRY_THICKNESS > this.point.y)
+        return true;
     }
     return false;
   }

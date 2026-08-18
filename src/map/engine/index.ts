@@ -32,7 +32,6 @@ import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE } from './regions';
 import { WorldFrame } from './frame';
 
-
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
  * carries no opposing building, so the map has nothing to filter — the fog holds on the shape
@@ -141,22 +140,22 @@ export class MapEngine {
    */
   private hoverDirty = true;
 
-  onRegionHover: (region: RegionIdentity | null) => void = () => { };
-  onArcHover: (id: string | null) => void = () => { };
-  onSelect: (name: string | null) => void = () => { };
-  onRightClick: (click: MapRightClick) => void = () => { };
+  onRegionHover: (region: RegionIdentity | null) => void = () => {};
+  onArcHover: (id: string | null) => void = () => {};
+  onSelect: (name: string | null) => void = () => {};
+  onRightClick: (click: MapRightClick) => void = () => {};
   /**
    * The first orientation drag. It is the instant the player discovers that dragging the
    * mouse does not pan the map: it is there, and nowhere else, that we can tell them.
    */
-  onOrientationStarted: () => void = () => { };
+  onOrientationStarted: () => void = () => {};
   /** Called every frame: the interface writes transforms there, never a React render. */
-  onLabels: (projections: ReadonlyArray<LabelProjection>) => void = () => { };
+  onLabels: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   /**
    * The same projections, for the edge indicator layer. Two calls rather than a
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
-  onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => { };
+  onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   private hoveredRegion: string | null = null;
   private hoveredArc: string | null = null;
 

@@ -117,7 +117,12 @@ describe('a queue per projection building', () => {
     await setHqLevel(t, token, roleHqLevel('armor', 'skirmish'));
     const barracks = await raise(t, token, 'barracks', MARNE);
 
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
     await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 });
 
     const workshop = await t.query(api.troops.workshop, { token });
@@ -140,7 +145,9 @@ describe('a queue per projection building', () => {
     await t.mutation(api.troops.recruit, { token, buildingId: second, role: 'infantry', tier: 1 });
 
     const workshop = await t.query(api.troops.workshop, { token });
-    const heads = workshop.facilities.map((facility) => facility.queue.map((batch) => batch.started));
+    const heads = workshop.facilities.map((facility) =>
+      facility.queue.map((batch) => batch.started),
+    );
     expect(heads).toEqual([[true], [true]]);
   });
 
@@ -165,7 +172,12 @@ describe('a queue per projection building', () => {
     await credit(t, token, 4000);
     await setHqLevel(t, token, roleHqLevel('armor', 'skirmish'));
     const barracks = await raise(t, token, 'barracks', MARNE);
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
     await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 });
 
     const before = await t.query(api.troops.workshop, { token });
@@ -193,7 +205,12 @@ describe('a finished batch is a troop', () => {
       const token = await launchedSeason(t);
       await credit(t, token, 4000);
       const barracks = await raise(t, token, 'barracks', MARNE);
-      await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+      await t.mutation(api.troops.recruit, {
+        token,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
 
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -219,7 +236,12 @@ describe('a finished batch is a troop', () => {
       const token = await launchedSeason(t);
       await credit(t, token, 4000);
       const barracks = await raise(t, token, 'barracks', MARNE);
-      await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+      await t.mutation(api.troops.recruit, {
+        token,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await raze(t, barracks);
@@ -274,7 +296,12 @@ describe('the troop ceiling', () => {
     const barracks = await raise(t, token, 'barracks', MARNE);
 
     for (let index = 0; index < TROOP_CAP_BASE; index += 1) {
-      await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+      await t.mutation(api.troops.recruit, {
+        token,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+      });
     }
 
     const workshop = await t.query(api.troops.workshop, { token });
@@ -300,7 +327,12 @@ describe('the troop ceiling', () => {
       expect(raised.troopCap).toBe(troopCap(4));
 
       for (let index = 0; index < 10; index += 1) {
-        await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+        await t.mutation(api.troops.recruit, {
+          token,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+        });
       }
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -313,7 +345,12 @@ describe('the troop ceiling', () => {
       expect(view.me.troopCap).toBe(troopCap(2));
 
       for (let index = 0; index < 2; index += 1) {
-        await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+        await t.mutation(api.troops.recruit, {
+          token,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+        });
       }
       await expect(
         t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 }),
@@ -379,7 +416,12 @@ describe('tiers', () => {
     const barracks = await raise(t, token, 'barracks', MARNE);
 
     // Mark-1 infantry is the age of the barracks: recruitable the minute one stands.
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
 
     const refused: Record<string, unknown> = await t
       .mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 })
@@ -440,7 +482,12 @@ describe('a fresh nation', () => {
 
     expect(workshop.alloy.stock).toBe(KIT.alloy);
     expect(workshop.grid.every((entry) => entry.unit.alloy > 0)).toBe(true);
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
 
     const after = await t.query(api.troops.workshop, { token });
     expect(after.troopsQueued).toBe(1);

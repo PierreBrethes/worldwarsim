@@ -25,13 +25,38 @@ const PAWN_SILHOUETTE_SHARE = 0.018;
  * hull on the water, delta in the sky. They are drawn in the plate's frame — y downward,
  * height around 12 — then flipped and normalized.
  */
-const SILHOUETTES: Readonly<Record<Medium, ReadonlyArray<ReadonlyArray<readonly [number, number]>>>> = {
-  land: [[[-9, 2], [0, 6], [9, 2], [0, -2]]],
-  sea: [
-    [[-10, 0], [10, 0], [6, 5], [-6, 5]],
-    [[-1, 0], [-1, -12], [8, -8]],
+const SILHOUETTES: Readonly<
+  Record<Medium, ReadonlyArray<ReadonlyArray<readonly [number, number]>>>
+> = {
+  land: [
+    [
+      [-9, 2],
+      [0, 6],
+      [9, 2],
+      [0, -2],
+    ],
   ],
-  air: [[[-9, 0], [0, -5], [9, 0], [0, 3]]],
+  sea: [
+    [
+      [-10, 0],
+      [10, 0],
+      [6, 5],
+      [-6, 5],
+    ],
+    [
+      [-1, 0],
+      [-1, -12],
+      [8, -8],
+    ],
+  ],
+  air: [
+    [
+      [-9, 0],
+      [0, -5],
+      [9, 0],
+      [0, 3],
+    ],
+  ],
 };
 
 /**
@@ -164,7 +189,12 @@ export class Pawn {
       shape.closePath();
       const mesh = new Mesh(
         new ShapeGeometry(shape),
-        new MeshBasicMaterial({ color: this.color, side: DoubleSide, transparent: true, depthTest: false }),
+        new MeshBasicMaterial({
+          color: this.color,
+          side: DoubleSide,
+          transparent: true,
+          depthTest: false,
+        }),
       );
       // The pawn passes over its own thread: it is the head, not one more node.
       mesh.renderOrder = 13;
@@ -180,8 +210,7 @@ export class Pawn {
   private measureAspect(): void {
     if (this.aspectMeasured) return;
     const image = this.sprite?.material.map?.image as
-      | { width?: number; height?: number }
-      | undefined;
+      { width?: number; height?: number } | undefined;
     if (!image?.width || !image.height) return;
     this.aspect = image.width / image.height;
     this.aspectMeasured = true;

@@ -21,6 +21,10 @@ const application = <RouterProvider router={router} />;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {convexClient ? <ConvexProvider client={convexClient}>{application}</ConvexProvider> : application}
+    {convexClient ? (
+      <ConvexProvider client={convexClient}>{application}</ConvexProvider>
+    ) : (
+      application
+    )}
   </StrictMode>,
 );

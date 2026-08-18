@@ -56,8 +56,12 @@ function outlinesOf(country: ProjectedCountry, frame: WorldFrame): BufferGeometr
       const a = ring[i]!;
       const b = ring[(i + 1) % ring.length]!;
       points.push(
-        a[0] - frame.centerX, COUNTRY_THICKNESS + BORDER_LIFT, a[1] - frame.centerY,
-        b[0] - frame.centerX, COUNTRY_THICKNESS + BORDER_LIFT, b[1] - frame.centerY,
+        a[0] - frame.centerX,
+        COUNTRY_THICKNESS + BORDER_LIFT,
+        a[1] - frame.centerY,
+        b[0] - frame.centerX,
+        COUNTRY_THICKNESS + BORDER_LIFT,
+        b[1] - frame.centerY,
       );
     }
   }

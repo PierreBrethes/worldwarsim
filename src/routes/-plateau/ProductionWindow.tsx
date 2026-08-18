@@ -34,7 +34,13 @@ export function ProductionWindow({
   focused: string | null;
 }) {
   return (
-    <FloatingWindow name="production" onClose={onClose} {...windowProps} alignment="top" width={1100}>
+    <FloatingWindow
+      name="production"
+      onClose={onClose}
+      {...windowProps}
+      alignment="top"
+      width={1100}
+    >
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.production.header}</span>
@@ -187,7 +193,9 @@ function Workshop({
                       </>
                     )}
                     <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
-                    {site !== null && <SiteUpgrade regionId={site.regionId} view={view} token={token} now={now} />}
+                    {site !== null && (
+                      <SiteUpgrade regionId={site.regionId} view={view} token={token} now={now} />
+                    )}
                   </div>
                   {workshop.grid
                     .filter((entry) => DOMAIN_BY_ROLE[entry.role] === domain)
@@ -380,7 +388,9 @@ function RoleRow({
                   type="button"
                   disabled={locked}
                   title={
-                    locked ? fr.production.tier2Locked(requiredLevel) : fr.production.tierLabel(level)
+                    locked
+                      ? fr.production.tier2Locked(requiredLevel)
+                      : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
                   className={`cursor-pointer border px-[4px] py-[1px] font-[var(--font-mono)] text-[9px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
@@ -430,7 +440,8 @@ function RoleRow({
         {sheet.kind === 'combat' ? (
           <div className="text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
             <div>
-              {fr.production.strongAgainst} <span className="text-[var(--ink)]">{sheet.strongAgainst.join(', ')}</span>
+              {fr.production.strongAgainst}{' '}
+              <span className="text-[var(--ink)]">{sheet.strongAgainst.join(', ')}</span>
             </div>
             <div>
               {fr.production.weakAgainst}{' '}

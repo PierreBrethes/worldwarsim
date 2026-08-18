@@ -57,7 +57,8 @@ export function CompassRose({
   // re-place. Without this pass, a short bubble sits off-center from its medallion.
   useLayoutEffect(() => {
     const measured = bubble.current?.offsetHeight;
-    if (measured !== undefined && Math.abs(measured - bubbleHeight) > 0.5) setBubbleHeight(measured);
+    if (measured !== undefined && Math.abs(measured - bubbleHeight) > 0.5)
+      setBubbleHeight(measured);
   }, [hovered, bubbleHeight]);
 
   const action = compass.actions[hovered] ?? null;
@@ -192,7 +193,9 @@ function placeBubble(
   );
 
   return {
-    x: onRight ? CENTER + MOORING_RADIUS + BUBBLE_GAP : CENTER - MOORING_RADIUS - BUBBLE_GAP - BUBBLE_WIDTH,
+    x: onRight
+      ? CENTER + MOORING_RADIUS + BUBBLE_GAP
+      : CENTER - MOORING_RADIUS - BUBBLE_GAP - BUBBLE_WIDTH,
     y: top,
     tie: {
       left: onRight ? CENTER + MOORING_RADIUS - 2 : CENTER - MOORING_RADIUS - BUBBLE_GAP,

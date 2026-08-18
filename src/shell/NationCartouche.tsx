@@ -53,7 +53,9 @@ export function NationCartouche({
         >
           {nationLabel(nation)}
         </span>
-        <span className="eyebrow-dark leading-none">{fr.banner.doctrine(doctrineLabel(doctrine) ?? doctrine)}</span>
+        <span className="eyebrow-dark leading-none">
+          {fr.banner.doctrine(doctrineLabel(doctrine) ?? doctrine)}
+        </span>
       </div>
     </Link>
   );

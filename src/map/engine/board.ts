@@ -76,8 +76,24 @@ function buildPlinth(world: World, frame: WorldFrame): BufferGeometry {
     const x2 = bx - frame.centerX;
     const z2 = by - frame.centerY;
     positions.push(
-      x1, SEA_LEVEL, z1, x2, SEA_LEVEL, z2, x1, -PLINTH_HEIGHT, z1,
-      x2, SEA_LEVEL, z2, x2, -PLINTH_HEIGHT, z2, x1, -PLINTH_HEIGHT, z1,
+      x1,
+      SEA_LEVEL,
+      z1,
+      x2,
+      SEA_LEVEL,
+      z2,
+      x1,
+      -PLINTH_HEIGHT,
+      z1,
+      x2,
+      SEA_LEVEL,
+      z2,
+      x2,
+      -PLINTH_HEIGHT,
+      z2,
+      x1,
+      -PLINTH_HEIGHT,
+      z1,
     );
     for (const color of [top, top, bottom, top, bottom, bottom]) {
       colors.push(color.r, color.g, color.b);
@@ -104,8 +120,12 @@ function buildGraticule(world: World, frame: WorldFrame): BufferGeometry {
   for (let longitude = -180; longitude <= 180; longitude += 30) {
     for (let i = 0; i < world.outline.length - 1; i++) {
       points.push(
-        xFor(longitude, i), 0.3, world.outline[i]![3] - frame.centerY,
-        xFor(longitude, i + 1), 0.3, world.outline[i + 1]![3] - frame.centerY,
+        xFor(longitude, i),
+        0.3,
+        world.outline[i]![3] - frame.centerY,
+        xFor(longitude, i + 1),
+        0.3,
+        world.outline[i + 1]![3] - frame.centerY,
       );
     }
   }
@@ -122,7 +142,10 @@ function buildGraticule(world: World, frame: WorldFrame): BufferGeometry {
   return geometry;
 }
 
-function buildRim(world: World, frame: WorldFrame): { band: BufferGeometry; stroke: BufferGeometry } {
+function buildRim(
+  world: World,
+  frame: WorldFrame,
+): { band: BufferGeometry; stroke: BufferGeometry } {
   const INSET = 0.996;
   const vertices: number[] = [];
   const strokes: number[] = [];
@@ -133,11 +156,19 @@ function buildRim(world: World, frame: WorldFrame): { band: BufferGeometry; stro
     for (let i = 0; i < world.outline.length - 1; i++) {
       const a = world.outline[i]!;
       const b = world.outline[i + 1]!;
-      push(a[side], a[3], 1); push(b[side], b[3], 1); push(a[side], a[3], INSET);
-      push(b[side], b[3], 1); push(b[side], b[3], INSET); push(a[side], a[3], INSET);
+      push(a[side], a[3], 1);
+      push(b[side], b[3], 1);
+      push(a[side], a[3], INSET);
+      push(b[side], b[3], 1);
+      push(b[side], b[3], INSET);
+      push(a[side], a[3], INSET);
       strokes.push(
-        a[side] - frame.centerX, 0.55, a[3] - frame.centerY,
-        b[side] - frame.centerX, 0.55, b[3] - frame.centerY,
+        a[side] - frame.centerX,
+        0.55,
+        a[3] - frame.centerY,
+        b[side] - frame.centerX,
+        0.55,
+        b[3] - frame.centerY,
       );
     }
   }
@@ -162,7 +193,12 @@ export function buildBoard(
 
   const plinth = new Mesh(
     curvature.register(buildPlinth(world, frame)),
-    new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: DoubleSide }),
+    new MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.9,
+      metalness: 0,
+      side: DoubleSide,
+    }),
   );
 
   const graticule = new LineSegments(

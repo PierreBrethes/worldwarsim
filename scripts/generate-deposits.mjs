@@ -41,7 +41,9 @@ const SEED = 19400901;
  * table below from silently drifting away from the vocabulary the game actually offers.
  */
 const idsFrom = (name) => {
-  const declared = readFileSync('src/domain/ids.ts', 'utf8').match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`));
+  const declared = readFileSync('src/domain/ids.ts', 'utf8').match(
+    new RegExp(`const ${name} = \\[([^\\]]*)\\]`),
+  );
   return [...(declared?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map(([, id]) => id);
 };
 
@@ -64,7 +66,9 @@ if (
   NATIONS.length !== Object.keys(NATION_COUNTRIES).length ||
   NATIONS.some((nation) => !Object.hasOwn(NATION_COUNTRIES, nation))
 ) {
-  throw new Error(`NATION_COUNTRIES does not match NATIONS in src/domain/ids.ts: ${NATIONS.join(', ')}`);
+  throw new Error(
+    `NATION_COUNTRIES does not match NATIONS in src/domain/ids.ts: ${NATIONS.join(', ')}`,
+  );
 }
 
 const COAL = {
@@ -155,31 +159,101 @@ const CURATED = { coal: COAL, oil: OIL, ore: ORE };
  * region here would make food curated, which it must not be.
  */
 const FOOD_ZONES = [
-  { note: 'North American corn and wheat belt', countries: ['USA', 'CAN'], latitudes: [37, 53], longitudes: [-104, -80] },
+  {
+    note: 'North American corn and wheat belt',
+    countries: ['USA', 'CAN'],
+    latitudes: [37, 53],
+    longitudes: [-104, -80],
+  },
   { note: 'Pampas', countries: ['ARG', 'URY'], latitudes: [-38, -29], longitudes: [-64, -53] },
-  { note: 'southern Brazilian plateau', countries: ['BRA'], latitudes: [-33, -21], longitudes: [-57, -45] },
-  { note: 'Beauce, Picardy and Champagne', countries: ['FRA'], latitudes: [46, 50], longitudes: [0.5, 6] },
+  {
+    note: 'southern Brazilian plateau',
+    countries: ['BRA'],
+    latitudes: [-33, -21],
+    longitudes: [-57, -45],
+  },
+  {
+    note: 'Beauce, Picardy and Champagne',
+    countries: ['FRA'],
+    latitudes: [46, 50],
+    longitudes: [0.5, 6],
+  },
   { note: 'English lowlands', countries: ['GBR'], latitudes: [50.5, 55], longitudes: [-3, 2] },
-  { note: 'North European plain', countries: ['DEU', 'POL', 'NLD', 'BEL', 'DNK'], latitudes: [50, 55], longitudes: [3, 23] },
-  { note: 'Danubian plains', countries: ['HUN', 'ROU', 'BGR', 'SRB', 'HRV', 'AUT'], latitudes: [43, 48], longitudes: [16, 29] },
-  { note: 'Bavarian and Swabian plateau', countries: ['DEU', 'AUT', 'CHE'], latitudes: [47.5, 50], longitudes: [7, 14] },
+  {
+    note: 'North European plain',
+    countries: ['DEU', 'POL', 'NLD', 'BEL', 'DNK'],
+    latitudes: [50, 55],
+    longitudes: [3, 23],
+  },
+  {
+    note: 'Danubian plains',
+    countries: ['HUN', 'ROU', 'BGR', 'SRB', 'HRV', 'AUT'],
+    latitudes: [43, 48],
+    longitudes: [16, 29],
+  },
+  {
+    note: 'Bavarian and Swabian plateau',
+    countries: ['DEU', 'AUT', 'CHE'],
+    latitudes: [47.5, 50],
+    longitudes: [7, 14],
+  },
   { note: 'Po valley', countries: ['ITA'], latitudes: [44.2, 45.9], longitudes: [8, 12.6] },
-  { note: 'Tavoliere and the Apulian plain', countries: ['ITA'], latitudes: [40, 41.8], longitudes: [14.5, 18.5] },
+  {
+    note: 'Tavoliere and the Apulian plain',
+    countries: ['ITA'],
+    latitudes: [40, 41.8],
+    longitudes: [14.5, 18.5],
+  },
   { note: 'Sicilian wheat', countries: ['ITA'], latitudes: [36.5, 38.1], longitudes: [12, 15.5] },
-  { note: 'Castile and Andalusia', countries: ['ESP', 'PRT'], latitudes: [37, 42], longitudes: [-8, 0] },
-  { note: 'black earth belt', countries: ['UKR', 'RUS'], latitudes: [44, 56], longitudes: [28, 60] },
-  { note: 'west Siberian grain', countries: ['RUS', 'KAZ'], latitudes: [52, 57], longitudes: [60, 87] },
+  {
+    note: 'Castile and Andalusia',
+    countries: ['ESP', 'PRT'],
+    latitudes: [37, 42],
+    longitudes: [-8, 0],
+  },
+  {
+    note: 'black earth belt',
+    countries: ['UKR', 'RUS'],
+    latitudes: [44, 56],
+    longitudes: [28, 60],
+  },
+  {
+    note: 'west Siberian grain',
+    countries: ['RUS', 'KAZ'],
+    latitudes: [52, 57],
+    longitudes: [60, 87],
+  },
   { note: 'Anatolian plateau', countries: ['TUR'], latitudes: [37, 41], longitudes: [30, 40] },
   { note: 'Mesopotamia', countries: ['IRQ'], latitudes: [30, 36], longitudes: [42, 48] },
   { note: 'Nile valley', countries: ['EGY'], latitudes: [24, 32], longitudes: [29, 34] },
   { note: 'Ganges plain', countries: ['IND', 'PAK'], latitudes: [24, 32], longitudes: [70, 89] },
   { note: 'North China plain', countries: ['CHN'], latitudes: [32, 41], longitudes: [112, 122] },
-  { note: 'Sichuan basin and middle Yangzi', countries: ['CHN'], latitudes: [28, 33], longitudes: [103, 118] },
+  {
+    note: 'Sichuan basin and middle Yangzi',
+    countries: ['CHN'],
+    latitudes: [28, 33],
+    longitudes: [103, 118],
+  },
   { note: 'Manchurian plain', countries: ['CHN'], latitudes: [43, 48], longitudes: [123, 131] },
-  { note: 'Japanese rice plains', countries: ['JPN', 'KOR'], latitudes: [33, 44], longitudes: [126, 146] },
-  { note: 'Australian wheat belt', countries: ['AUS'], latitudes: [-38, -28], longitudes: [115, 152] },
+  {
+    note: 'Japanese rice plains',
+    countries: ['JPN', 'KOR'],
+    latitudes: [33, 44],
+    longitudes: [126, 146],
+  },
+  {
+    note: 'Australian wheat belt',
+    countries: ['AUS'],
+    latitudes: [-38, -28],
+    longitudes: [115, 152],
+  },
   { note: 'Canterbury plains', countries: ['NZL'], latitudes: [-46, -40], longitudes: [168, 175] },
-  { note: 'South African maize triangle', countries: ['ZAF'], latitudes: [-31, -25], longitudes: [24, 31] },
+  {
+    note: 'South African maize triangle',
+    countries: ['ZAF'],
+    latitudes: [-31, -25],
+    longitudes: [24, 31],
+  },
 ];
 
 const FOOD = { spacing: 2.5 };
@@ -195,16 +269,51 @@ const TEXTILE_ZONES = [
   { note: 'Central Asian cotton', countries: ['UZB'], latitudes: [37, 46], longitudes: [58, 74] },
   { note: 'Yangzi delta silk', countries: ['CHN'], latitudes: [27, 33], longitudes: [114, 123] },
   { note: 'Japanese silk', countries: ['JPN'], latitudes: [33.5, 39], longitudes: [131, 142] },
-  { note: 'Saxon and Bavarian mills', countries: ['DEU'], latitudes: [48, 51.5], longitudes: [8, 14] },
+  {
+    note: 'Saxon and Bavarian mills',
+    countries: ['DEU'],
+    latitudes: [48, 51.5],
+    longitudes: [8, 14],
+  },
   { note: 'Lyon silk', countries: ['FRA'], latitudes: [45, 46.5], longitudes: [3.5, 5.8] },
-  { note: 'northern French wool', countries: ['FRA'], latitudes: [49.5, 51], longitudes: [1.5, 4.5] },
-  { note: 'Lancashire and West Riding mills', countries: ['GBR'], latitudes: [53, 54.5], longitudes: [-3, -1] },
+  {
+    note: 'northern French wool',
+    countries: ['FRA'],
+    latitudes: [49.5, 51],
+    longitudes: [1.5, 4.5],
+  },
+  {
+    note: 'Lancashire and West Riding mills',
+    countries: ['GBR'],
+    latitudes: [53, 54.5],
+    longitudes: [-3, -1],
+  },
   { note: 'Ulster linen', countries: ['GBR'], latitudes: [54, 55.3], longitudes: [-8, -5.5] },
-  { note: 'Biella wool and Como silk', countries: ['ITA'], latitudes: [45.4, 46.2], longitudes: [7.6, 9.4] },
-  { note: 'Tuscan wool, Prato and Lucca', countries: ['ITA'], latitudes: [43.5, 44.3], longitudes: [10.3, 11.6] },
+  {
+    note: 'Biella wool and Como silk',
+    countries: ['ITA'],
+    latitudes: [45.4, 46.2],
+    longitudes: [7.6, 9.4],
+  },
+  {
+    note: 'Tuscan wool, Prato and Lucca',
+    countries: ['ITA'],
+    latitudes: [43.5, 44.3],
+    longitudes: [10.3, 11.6],
+  },
   { note: 'Spanish wool', countries: ['ESP'], latitudes: [39, 42], longitudes: [-7, -1] },
-  { note: 'Australasian and South African wool', countries: ['AUS', 'NZL', 'ZAF'], latitudes: [-46, -22], longitudes: [-180, 180] },
-  { note: 'Patagonian and Uruguayan wool', countries: ['ARG', 'URY'], latitudes: [-52, -30], longitudes: [-74, -53] },
+  {
+    note: 'Australasian and South African wool',
+    countries: ['AUS', 'NZL', 'ZAF'],
+    latitudes: [-46, -22],
+    longitudes: [-180, 180],
+  },
+  {
+    note: 'Patagonian and Uruguayan wool',
+    countries: ['ARG', 'URY'],
+    latitudes: [-52, -30],
+    longitudes: [-74, -53],
+  },
 ];
 
 const TEXTILE = { spacing: 2.5 };
@@ -320,11 +429,17 @@ const AREA_FLOOR = 0.1;
  */
 const CORRECTIONS = {
   add: {
-    'RUS-2355': ['textile', 'Ivanovo, the Russian cotton mills — the USSR would otherwise weave nothing at home'],
+    'RUS-2355': [
+      'textile',
+      'Ivanovo, the Russian cotton mills — the USSR would otherwise weave nothing at home',
+    ],
 
     // France — iron, not bread: the three basins that fed its steel.
     'ITA-5372': ['ore', 'Montevecchio and Ingurtosu, the lead and zinc of the Iglesiente'],
-    'FRA-5275': ['ore', 'Soumont and May-sur-Orne, the Normandy iron basin — second to Lorraine, and exported to the Ruhr'],
+    'FRA-5275': [
+      'ore',
+      'Soumont and May-sur-Orne, the Normandy iron basin — second to Lorraine, and exported to the Ruhr',
+    ],
     'FRA-5321': ['ore', 'Segré in Anjou, worked without interruption through the period'],
 
     // Japan — the third basin, after Chikuhō and Ishikari: coal is the one thing the archipelago
@@ -333,7 +448,10 @@ const CORRECTIONS = {
 
     // United Kingdom — coal is the profile, and the ore that goes with Cumbrian haematite.
     'GBR-2032': ['ore', 'Cleveland ironstone, which fed the Teesside furnaces'],
-    'GBR-5688': ['coal', 'the South Yorkshire coalfield around Barnsley — the third of the three, with Wales and the Midlands'],
+    'GBR-5688': [
+      'coal',
+      'the South Yorkshire coalfield around Barnsley — the third of the three, with Wales and the Midlands',
+    ],
 
     // Germany — lignite is the other half of its coal, and the feedstock of synthetic fuel.
     'DEU-1600': ['coal', 'the central German lignite of the Halle-Leipzig field, which fed Leuna'],
@@ -343,9 +461,15 @@ const CORRECTIONS = {
     'ITA-5442': ['ore', 'Cogne magnetite in the Aosta valley, smelted on the spot'],
 
     // USSR — the Urals and the Moscow basin, the depth that let it move its industry east.
-    'RUS-2379': ['ore', 'Magnitnaya mountain at Magnitogorsk, the largest iron works of the country'],
+    'RUS-2379': [
+      'ore',
+      'Magnitnaya mountain at Magnitogorsk, the largest iron works of the country',
+    ],
     'RUS-2603': ['ore', 'Norilsk nickel and copper, opened in 1935'],
-    'RUS-2368': ['coal', 'the Moscow basin lignite around Tula, which kept the capital working when the Donbass fell'],
+    'RUS-2368': [
+      'coal',
+      'the Moscow basin lignite around Tula, which kept the capital working when the Donbass fell',
+    ],
   },
   // Nothing to take away yet: the capped procedural pass has not put a deposit anywhere the
   // playable map would be better without. Removals belong here when it does.
@@ -438,7 +562,8 @@ const inZone = (region, zone) =>
   region.longitude <= zone.longitudes[1];
 
 const worthPlanting = (region) =>
-  region.area >= Math.max(AREA_FLOOR, AREA_SHARE_OF_MEDIAN * medianAreaByCountry.get(region.country));
+  region.area >=
+  Math.max(AREA_FLOOR, AREA_SHARE_OF_MEDIAN * medianAreaByCountry.get(region.country));
 
 const inAnyZone = (zones, { farmland }) =>
   regions.filter(
@@ -485,7 +610,8 @@ function scatter(key, candidates, { spacing }) {
       if (placed.length >= cap) break;
       if (deposits.has(region.id)) continue;
       const tooClose = placed.some(
-        (other) => Math.hypot(other.point[0] - region.point[0], other.point[1] - region.point[1]) < spacing,
+        (other) =>
+          Math.hypot(other.point[0] - region.point[0], other.point[1] - region.point[1]) < spacing,
       );
       if (tooClose) continue;
       placed.push(region);
@@ -508,7 +634,9 @@ const output = Object.fromEntries([...deposits].sort(([a], [b]) => (a < b ? -1 :
 writeFileSync('public/deposits.json', JSON.stringify(output));
 
 const total = Object.keys(output).length;
-const perKey = DEPOSITS.map((key) => `${key} ${[...deposits.values()].filter((v) => v === key).length}`).join(', ');
+const perKey = DEPOSITS.map(
+  (key) => `${key} ${[...deposits.values()].filter((v) => v === key).length}`,
+).join(', ');
 console.log(`${total} deposits on ${regions.length} regions — ${perKey}\n`);
 
 const home = Object.fromEntries(
@@ -517,7 +645,8 @@ const home = Object.fromEntries(
     DEPOSITS.map(
       (key) =>
         regions.filter(
-          (region) => region.country === NATION_COUNTRIES[nation] && deposits.get(region.id) === key,
+          (region) =>
+            region.country === NATION_COUNTRIES[nation] && deposits.get(region.id) === key,
         ).length,
     ),
   ]),
@@ -567,7 +696,12 @@ for (const nation of NATIONS) {
   if (over.length === 0) flat.push(`${nation} is over on nothing`);
   else if (short.length === 0 && !declaredNoGap(nation)) flat.push(`${nation} is short of nothing`);
 
-  const shortText = short.length > 0 ? `−${short.join(' ')}` : declaredNoGap(nation) ? '(no gap, declared)' : '−nothing';
+  const shortText =
+    short.length > 0
+      ? `−${short.join(' ')}`
+      : declaredNoGap(nation)
+        ? '(no gap, declared)'
+        : '−nothing';
   // The deliberate gap is an absence, and an absence never reads as "below the median" when
   // six nations out of eight sit at zero oil. It gets its own mark.
   const absent = missing.length > 0 ? `  ∅${missing.join(' ')}` : '';
@@ -600,7 +734,9 @@ const BAND = 2;
 const richest = homeTotals.reduce((a, b) => (a.homeTotal >= b.homeTotal ? a : b));
 const poorest = homeTotals.reduce((a, b) => (a.homeTotal <= b.homeTotal ? a : b));
 const lopsided = richest.homeTotal > BAND * poorest.homeTotal;
-console.log(`\nhome spread ${poorest.nation} ${poorest.homeTotal} → ${richest.nation} ${richest.homeTotal}, band ${BAND}×`);
+console.log(
+  `\nhome spread ${poorest.nation} ${poorest.homeTotal} → ${richest.nation} ${richest.homeTotal}, band ${BAND}×`,
+);
 
 /**
  * Printed because it is the measure the profiles exist for. With one ceiling for everyone this
@@ -622,7 +758,9 @@ if (unknown.length > 0) {
   console.error(`\nids matching no region:\n  ${unknown.join('\n  ')}`);
 }
 if (dominant.length > 0) {
-  console.error(`\nat the ceiling of every resource — the flatness the profiles exist to break: ${dominant.join(', ')}`);
+  console.error(
+    `\nat the ceiling of every resource — the flatness the profiles exist to break: ${dominant.join(', ')}`,
+  );
 }
 if (flat.length > 0) {
   console.error(`\nflat profile — a nation is a shape, not a size:\n  ${flat.join('\n  ')}`);
@@ -631,7 +769,9 @@ if (unmet.length > 0) {
   console.error(`\nan exception granted for a lack that is not there:\n  ${unmet.join('\n  ')}`);
 }
 if (starved.length > 0) {
-  console.error(`\nADR 0015 — one deliberate gap, never two unless declared:\n  ${starved.join('\n  ')}`);
+  console.error(
+    `\nADR 0015 — one deliberate gap, never two unless declared:\n  ${starved.join('\n  ')}`,
+  );
 }
 if (lopsided) {
   console.error(

@@ -1,3 +1,8 @@
+// Le moteur de carte est une classe impérative à qui on assigne `.onEdges` —
+// React Compiler lit ça comme une mutation interdite. Exclusion volontaire : le
+// moteur n'importe pas React (CLAUDE.md).
+'use no memo';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import type { MapLabel } from '@/domain/labels';
@@ -196,10 +201,7 @@ export function EdgeIndicators({
 
 const MARKS: ReadonlyArray<AlertMark> = ['threat', 'offensive', 'imminent'];
 
-function titleOf(
-  group: IndicatorGroup,
-  kept: ReadonlyMap<string, MapLabel>,
-): string {
+function titleOf(group: IndicatorGroup, kept: ReadonlyMap<string, MapLabel>): string {
   const nature = fr.edgeIndicators.natures[group.category];
   if (group.members.length > 1) return fr.edgeIndicators.groupTitle(group.members.length, nature);
   const first = group.members[0];

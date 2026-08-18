@@ -102,7 +102,10 @@ export type ThreadLeg = {
 };
 
 /** A continuous piece of thread: the world wraps, a stroke cannot cross the rim. */
-type ThreadStrand = { readonly vertices: ReadonlyArray<Vector3>; readonly lengths: ReadonlyArray<number> };
+type ThreadStrand = {
+  readonly vertices: ReadonlyArray<Vector3>;
+  readonly lengths: ReadonlyArray<number>;
+};
 
 export type Dock = {
   readonly position: Vector3;
@@ -209,7 +212,13 @@ export function buildThread(
       // The hovered itinerary: without it, a high arc reads as a stroke laid halfway
       // between two countries. It is a ground trace, not a cast shadow — the board has none.
       if (leg.medium === 'air') {
-        object.add(threadOf(strand.vertices.map((point) => onGround(point, frame)), shadowMaterial, RENDER_RANK.land));
+        object.add(
+          threadOf(
+            strand.vertices.map((point) => onGround(point, frame)),
+            shadowMaterial,
+            RENDER_RANK.land,
+          ),
+        );
       }
     }
   }
@@ -229,11 +238,15 @@ export function buildThread(
   for (const prop of props) object.add(prop);
 
   const tether = legs.some((leg) => leg.medium === 'air')
-    ? threadOf([new Vector3(), new Vector3()], makeMaterial({
-        color: colors.trace,
-        thickness: TETHER_THICKNESS,
-        opacity: Math.min(1, opacities.trace * 1.4),
-      }), RENDER_RANK.air)
+    ? threadOf(
+        [new Vector3(), new Vector3()],
+        makeMaterial({
+          color: colors.trace,
+          thickness: TETHER_THICKNESS,
+          opacity: Math.min(1, opacities.trace * 1.4),
+        }),
+        RENDER_RANK.air,
+      )
     : null;
   if (tether) object.add(tether);
 
@@ -309,9 +322,14 @@ export function pointOnLeg(leg: ThreadLeg, local: number, out: Vector3): void {
   for (const strand of leg.strands) {
     for (let i = 0; i < strand.lengths.length; i++) {
       const length = strand.lengths[i]!;
-      if (covered + length >= target || (strand === leg.strands[leg.strands.length - 1] && i === strand.lengths.length - 1)) {
+      if (
+        covered + length >= target ||
+        (strand === leg.strands[leg.strands.length - 1] && i === strand.lengths.length - 1)
+      ) {
         const share = length > 0 ? (target - covered) / length : 0;
-        out.copy(strand.vertices[i]!).lerp(strand.vertices[i + 1]!, Math.min(1, Math.max(0, share)));
+        out
+          .copy(strand.vertices[i]!)
+          .lerp(strand.vertices[i + 1]!, Math.min(1, Math.max(0, share)));
         return;
       }
       covered += length;
@@ -344,7 +362,9 @@ function cutIntoLegs(route: ComputedRoute, frame: WorldFrame): ReadonlyArray<Thr
   const points = route.points;
   if (points.length < 2) return [];
 
-  const lengths = points.slice(0, -1).map((point, i) => projectedDistance(point, points[i + 1]!, frame));
+  const lengths = points
+    .slice(0, -1)
+    .map((point, i) => projectedDistance(point, points[i + 1]!, frame));
   const total = lengths.reduce((sum, length) => sum + length, 0);
   const legTotal = route.legs.reduce((sum, leg) => sum + leg.distanceUnits, 0) || 1;
 
@@ -392,7 +412,11 @@ function airLeg(route: ComputedRoute, frame: WorldFrame): ThreadLeg {
   return { medium: 'air', strands: [strandOf(vertices)], length: lengthOf(vertices) };
 }
 
-function assembleLeg(medium: Medium, vertices: ReadonlyArray<LonLat>, frame: WorldFrame): ThreadLeg {
+function assembleLeg(
+  medium: Medium,
+  vertices: ReadonlyArray<LonLat>,
+  frame: WorldFrame,
+): ThreadLeg {
   const strands: ThreadStrand[] = [];
   let current: Vector3[] = [];
 
@@ -408,7 +432,11 @@ function assembleLeg(medium: Medium, vertices: ReadonlyArray<LonLat>, frame: Wor
   }
   if (current.length > 1) strands.push(strandOf(current));
 
-  return { medium, strands, length: strands.reduce((sum, strand) => sum + lengthOf(strand.vertices), 0) };
+  return {
+    medium,
+    strands,
+    length: strands.reduce((sum, strand) => sum + lengthOf(strand.vertices), 0),
+  };
 }
 
 function crossedEdges(
@@ -483,8 +511,16 @@ function cutStrokeOf(
   rank: number,
 ): CutStroke {
   const reversed = [...strand.vertices].reverse();
-  const covered: Side = { line: threadOf(strand.vertices, coveredMaterial, rank), vertices: strand.vertices, cutIndex: -1 };
-  const remaining: Side = { line: threadOf(reversed, remainingMaterial, rank), vertices: reversed, cutIndex: -1 };
+  const covered: Side = {
+    line: threadOf(strand.vertices, coveredMaterial, rank),
+    vertices: strand.vertices,
+    cutIndex: -1,
+  };
+  const remaining: Side = {
+    line: threadOf(reversed, remainingMaterial, rank),
+    vertices: reversed,
+    cutIndex: -1,
+  };
   // `instanceCount` is infinite until touched: a fresh thread is all still to cover, and
   // saying it here avoids depending on that default value.
   covered.line.geometry.instanceCount = 0;
@@ -537,7 +573,12 @@ function cutStroke(stroke: CutStroke, distance: number): void {
  */
 function trim(side: Side, visible: number, cutPoint: Vector3 | null): void {
   if (side.cutIndex >= 0) {
-    writeSegment(side.line, side.cutIndex, side.vertices[side.cutIndex]!, side.vertices[side.cutIndex + 1]!);
+    writeSegment(
+      side.line,
+      side.cutIndex,
+      side.vertices[side.cutIndex]!,
+      side.vertices[side.cutIndex + 1]!,
+    );
     side.cutIndex = -1;
   }
   side.line.geometry.instanceCount = visible;
@@ -553,11 +594,14 @@ function trim(side: Side, visible: number, cutPoint: Vector3 | null): void {
  * pawn crosses it, and the pitch would jump at the next vertex.
  */
 function writeSegment(line: Line2, index: number, from: Vector3, to: Vector3): void {
-  const positions = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute).data;
+  const positions = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute)
+    .data;
   positions.array.set([from.x, from.y, from.z, to.x, to.y, to.z], index * 6);
   positions.needsUpdate = true;
 
-  const distances = (line.geometry.getAttribute('instanceDistanceStart') as InterleavedBufferAttribute).data;
+  const distances = (
+    line.geometry.getAttribute('instanceDistanceStart') as InterleavedBufferAttribute
+  ).data;
   distances.array[index * 2 + 1] = distances.array[index * 2]! + from.distanceTo(to);
   distances.needsUpdate = true;
 }
@@ -621,7 +665,11 @@ function oriented(prop: Group, heading: number): Group {
   return prop;
 }
 
-function outline(vertices: ReadonlyArray<number>, material: LineMaterial, rank: number): LineSegments2 {
+function outline(
+  vertices: ReadonlyArray<number>,
+  material: LineMaterial,
+  rank: number,
+): LineSegments2 {
   const geometry = new LineSegmentsGeometry();
   geometry.setPositions(Array.from(vertices));
   const segments = new LineSegments2(geometry, material);
@@ -646,8 +694,12 @@ function circle(radius: number, sides = 20): number[] {
     const a = (i / sides) * Math.PI * 2;
     const b = ((i + 1) / sides) * Math.PI * 2;
     vertices.push(
-      Math.cos(a) * radius, 0, Math.sin(a) * radius,
-      Math.cos(b) * radius, 0, Math.sin(b) * radius,
+      Math.cos(a) * radius,
+      0,
+      Math.sin(a) * radius,
+      Math.cos(b) * radius,
+      0,
+      Math.sin(b) * radius,
     );
   }
   return vertices;
@@ -671,8 +723,18 @@ const arrivalCross = (material: LineMaterial): Group =>
   grouped(
     outline(
       [
-        -HALF_CROSS_PX, 0, -HALF_CROSS_PX, HALF_CROSS_PX, 0, HALF_CROSS_PX,
-        HALF_CROSS_PX, 0, -HALF_CROSS_PX, -HALF_CROSS_PX, 0, HALF_CROSS_PX,
+        -HALF_CROSS_PX,
+        0,
+        -HALF_CROSS_PX,
+        HALF_CROSS_PX,
+        0,
+        HALF_CROSS_PX,
+        HALF_CROSS_PX,
+        0,
+        -HALF_CROSS_PX,
+        -HALF_CROSS_PX,
+        0,
+        HALF_CROSS_PX,
       ],
       material,
       MARK_RANK,
@@ -692,12 +754,21 @@ function dockMark(embarking: boolean, material: LineMaterial): Group {
 
   const ring = circle(DOCK_RADIUS_PX);
   ring.push(
-    -COAST_HALF_DASH_PX, 0, -DOCK_RADIUS_PX * 1.6,
-    COAST_HALF_DASH_PX, 0, -DOCK_RADIUS_PX * 1.6,
+    -COAST_HALF_DASH_PX,
+    0,
+    -DOCK_RADIUS_PX * 1.6,
+    COAST_HALF_DASH_PX,
+    0,
+    -DOCK_RADIUS_PX * 1.6,
   );
 
   const c = DOCK_HALF_SQUARE_PX;
-  const square = polygon([[-c, -c], [c, -c], [c, c], [-c, c]]);
+  const square = polygon([
+    [-c, -c],
+    [c, -c],
+    [c, c],
+    [-c, c],
+  ]);
   // The solid square has no fill: at this size, two diagonals blacken it.
   if (embarking) square.push(-c, 0, -c, c, 0, c, c, 0, -c, -c, 0, c);
 

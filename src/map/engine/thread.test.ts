@@ -24,18 +24,36 @@ function toyWorld(): World {
     outline.push([latitude, 0, 100, ((90 - latitude) / 180) * 50]);
   }
   const rectangle = (x1: number, y1: number, x2: number, y2: number) =>
-    [[x1, y1], [x2, y1], [x2, y2], [x1, y2]] as const;
+    [
+      [x1, y1],
+      [x2, y1],
+      [x2, y2],
+      [x1, y2],
+    ] as const;
   return {
     sphere: { minX: 0, maxX: 100, minY: 0, maxY: 50 },
     outline,
     countries: [
-      { name: 'Westland', representativePoint: [20, 25], lonLat: [-108, 0], rings: [rectangle(10, 20, 30, 30)] },
-      { name: 'Eastland', representativePoint: [60, 25], lonLat: [36, 0], rings: [rectangle(40, 20, 80, 30)] },
+      {
+        name: 'Westland',
+        representativePoint: [20, 25],
+        lonLat: [-108, 0],
+        rings: [rectangle(10, 20, 30, 30)],
+      },
+      {
+        name: 'Eastland',
+        representativePoint: [60, 25],
+        lonLat: [36, 0],
+        rings: [rectangle(40, 20, 80, 30)],
+      },
     ],
   };
 }
 
-const toLonLat = (x: number, y: number): [number, number] => [(x / 50 - 1) * 180, 90 - (y / 50) * 180];
+const toLonLat = (x: number, y: number): [number, number] => [
+  (x / 50 - 1) * 180,
+  90 - (y / 50) * 180,
+];
 
 const world = toyWorld();
 const frame = new WorldFrame(world);
@@ -88,7 +106,9 @@ describe('the pawn follows time, not distance', () => {
 
   it('holds still at the dock: the pawn stops moving for the whole transfer', () => {
     const dock = unrolled.find((segment) => segment.kind === 'dock')!;
-    const dockStart = unrolled.slice(0, unrolled.indexOf(dock)).reduce((sum, s) => sum + s.share, 0);
+    const dockStart = unrolled
+      .slice(0, unrolled.indexOf(dock))
+      .reduce((sum, s) => sum + s.share, 0);
     const stopped = [0.02, 0.5, 0.98].map((share) => pawnAt(dockStart + dock.share * share));
     expect(stopped[0]!.distanceTo(stopped[1]!)).toBeCloseTo(0, 10);
     expect(stopped[1]!.distanceTo(stopped[2]!)).toBeCloseTo(0, 10);
@@ -112,7 +132,8 @@ describe('the pawn follows time, not distance', () => {
 
 /** A segment's vertices as the GPU will read them, not as they were written. */
 function segment(line: Line2, index: number): { from: Vector3; to: Vector3 } {
-  const buffer = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute).data.array;
+  const buffer = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute).data
+    .array;
   return {
     from: new Vector3(buffer[index * 6]!, buffer[index * 6 + 1]!, buffer[index * 6 + 2]!),
     to: new Vector3(buffer[index * 6 + 3]!, buffer[index * 6 + 4]!, buffer[index * 6 + 5]!),

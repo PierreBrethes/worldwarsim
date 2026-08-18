@@ -50,15 +50,78 @@ const SEA = 2;
  * Africa would become mandatory again, whereas in 1940 it is a blockade choice, not geometry.
  */
 export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<LonLat> }> = [
-  { name: 'Pas de Calais', passage: [[1.1, 50.6], [1.6, 51.0]] },
-  { name: 'Gibraltar', passage: [[-5.9, 35.9], [-5.2, 36.0]] },
-  { name: 'Øresund', passage: [[12.3, 56.1], [12.9, 55.5], [12.7, 55.0]] },
-  { name: 'Dardanelles and Bosphorus', passage: [[26.0, 40.0], [26.7, 40.3], [27.6, 40.5], [28.9, 40.8], [29.2, 41.2], [29.3, 41.4]] },
-  { name: 'Suez Canal', passage: [[32.3, 31.3], [32.35, 30.6], [32.55, 29.9]] },
-  { name: 'Panama Canal', passage: [[-79.9, 9.4], [-79.6, 8.9]] },
-  { name: 'Hormuz', passage: [[56.2, 26.6], [56.6, 26.3]] },
-  { name: 'Malacca', passage: [[100.0, 6.2], [101.3, 4.4], [102.5, 3.0], [103.6, 1.5], [104.2, 1.2]] },
-  { name: 'Bab-el-Mandeb', passage: [[43.3, 12.7], [43.5, 12.4]] },
+  {
+    name: 'Pas de Calais',
+    passage: [
+      [1.1, 50.6],
+      [1.6, 51.0],
+    ],
+  },
+  {
+    name: 'Gibraltar',
+    passage: [
+      [-5.9, 35.9],
+      [-5.2, 36.0],
+    ],
+  },
+  {
+    name: 'Øresund',
+    passage: [
+      [12.3, 56.1],
+      [12.9, 55.5],
+      [12.7, 55.0],
+    ],
+  },
+  {
+    name: 'Dardanelles and Bosphorus',
+    passage: [
+      [26.0, 40.0],
+      [26.7, 40.3],
+      [27.6, 40.5],
+      [28.9, 40.8],
+      [29.2, 41.2],
+      [29.3, 41.4],
+    ],
+  },
+  {
+    name: 'Suez Canal',
+    passage: [
+      [32.3, 31.3],
+      [32.35, 30.6],
+      [32.55, 29.9],
+    ],
+  },
+  {
+    name: 'Panama Canal',
+    passage: [
+      [-79.9, 9.4],
+      [-79.6, 8.9],
+    ],
+  },
+  {
+    name: 'Hormuz',
+    passage: [
+      [56.2, 26.6],
+      [56.6, 26.3],
+    ],
+  },
+  {
+    name: 'Malacca',
+    passage: [
+      [100.0, 6.2],
+      [101.3, 4.4],
+      [102.5, 3.0],
+      [103.6, 1.5],
+      [104.2, 1.2],
+    ],
+  },
+  {
+    name: 'Bab-el-Mandeb',
+    passage: [
+      [43.3, 12.7],
+      [43.5, 12.4],
+    ],
+  },
 ];
 
 export type RouteGrid = {
@@ -200,7 +263,10 @@ export function directRoute(
 
 /* ------------------------------ projection ------------------------------ */
 
-function edgeAtLatitude(outline: World['outline'], latitude: number): { westX: number; eastX: number; y: number } {
+function edgeAtLatitude(
+  outline: World['outline'],
+  latitude: number,
+): { westX: number; eastX: number; y: number } {
   const position = Math.min(outline.length - 1.001, Math.max(0, latitude + 90));
   const index = Math.floor(position);
   const fraction = position - index;
@@ -213,7 +279,11 @@ function edgeAtLatitude(outline: World['outline'], latitude: number): { westX: n
   };
 }
 
-function project(outline: World['outline'], sphere: World['sphere'], lonLat: LonLat): [number, number] {
+function project(
+  outline: World['outline'],
+  sphere: World['sphere'],
+  lonLat: LonLat,
+): [number, number] {
   const centerX = (sphere.minX + sphere.maxX) / 2;
   const edge = edgeAtLatitude(outline, lonLat[1]);
   return [centerX + (lonLat[0] / 180) * (edge.eastX - centerX), edge.y];

@@ -21,7 +21,15 @@ const me = {
     troop('T-5', 'fighter', null),
   ],
   outposts: [
-    { id: 'AP-01', hostCountry: 'Hungary', lonLat: [0, 0], specialization: 'relay', garrison: 1, disabledMinutesLeft: null, isMine: true },
+    {
+      id: 'AP-01',
+      hostCountry: 'Hungary',
+      lonLat: [0, 0],
+      specialization: 'relay',
+      garrison: 1,
+      disabledMinutesLeft: null,
+      isMine: true,
+    },
   ],
 } as unknown as PlayerView['me'];
 
@@ -77,7 +85,9 @@ describe('what stands still', () => {
   it('names the outpost as an address of its own', () => {
     const garrison = stationGroups(me, marching).find((group) => group.stationId === 'AP-01');
     expect(garrison?.kind).toBe('outpost');
-    expect(stationGroups(me, marching).find((group) => group.stationId === null)?.kind).toBe('home');
+    expect(stationGroups(me, marching).find((group) => group.stationId === null)?.kind).toBe(
+      'home',
+    );
   });
 
   it('adds the hit points of the group against the nominal it was formed at', () => {

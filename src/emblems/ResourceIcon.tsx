@@ -59,13 +59,7 @@ export function resourceColor(resource: ResourceKey, onPaper = false): string {
  * The silhouettes are drawn to fill their 24-unit box, so the size asked for is the size
  * obtained — no per-drawing correction factor, unlike the borrowed pictograms they replace.
  */
-export function ResourceIcon({
-  resource,
-  size = 12,
-}: {
-  resource: ResourceKey;
-  size?: number;
-}) {
+export function ResourceIcon({ resource, size = 12 }: { resource: ResourceKey; size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
       {SILHOUETTE[resource]}

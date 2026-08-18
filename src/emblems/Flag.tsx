@@ -52,7 +52,13 @@ export function nationImage(nation: string | null): string | null {
  */
 const WATERMARK_MASK = 'linear-gradient(to right, #000 0%, #000 52%, transparent 100%)';
 
-export function FlagWatermark({ nation, opacity = 0.6 }: { nation: string | null; opacity?: number }) {
+export function FlagWatermark({
+  nation,
+  opacity = 0.6,
+}: {
+  nation: string | null;
+  opacity?: number;
+}) {
   const image = nationImage(nation);
   if (image === null) return null;
   return (

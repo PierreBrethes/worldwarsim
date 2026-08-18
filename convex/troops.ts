@@ -120,7 +120,8 @@ export const recruit = mutation({
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
     const expected = projectionKeyOf(role);
-    if (building.key !== expected) fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
+    if (building.key !== expected)
+      fail('WRONG_PROJECTION_BUILDING', { expected, found: building.key });
     if (tier > TIERS_BY_ROLE[role]) fail('SINGLE_TIER_ROLE');
 
     const buildings = await playerBuildings(ctx, player._id);
@@ -286,7 +287,9 @@ function dateQueue(queue: ReadonlyArray<Doc<'recruitments'>>, hqLevel: number, n
   let cursor = now;
   return queue.map((batch) => {
     const duration =
-      batch.finishesAt === null ? recruitmentCost(batch.role, batch.tier, hqLevel).minutes * 60_000 : 0;
+      batch.finishesAt === null
+        ? recruitmentCost(batch.role, batch.tier, hqLevel).minutes * 60_000
+        : 0;
     const finishesAt = batch.finishesAt ?? cursor + duration;
     cursor = finishesAt;
     return {
