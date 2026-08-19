@@ -81,6 +81,21 @@ async function form(
   );
 }
 
+/** A column left standing on the map — the third form of an address (ADR 0019 §1). */
+async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
+  const playerId = await playerOf(t, token);
+  return t.run(async (ctx) =>
+    ctx.db.insert('troops', {
+      playerId,
+      role: 'infantry' as const,
+      tier: 1 as const,
+      nominalStrength: 50,
+      currentStrength: 50,
+      stationedAt: { lon: point[0], lat: point[1] },
+    }),
+  );
+}
+
 async function plant(t: ReturnType<typeof boot>, token: string, point: LonLat) {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
@@ -151,6 +166,46 @@ describe('the simplified Domination', () => {
     expect(board.winnerNation).toBe('france');
     expect(board.standings.find((seat) => seat.nation === 'france')!.reduced).toBe(1);
     expect(board.standings.find((seat) => seat.nation === 'ussr')!.isReduced).toBe(true);
+  });
+
+  /**
+   * **A pass won by a camp counts, and its owner ordered nothing during it** (ADR 0019 §3,
+   * ratified 18/08). `resolveContact` credits the attacker, and at a camp the attacker is the
+   * force that was already standing there — so a player advances his condition while asleep.
+   * That is the payment of the bet: posting the camp was the order, and it cost a slot and a
+   * troop out of twenty-four. This test is here so the next reader finds a decision rather than
+   * a surprise.
+   */
+  it('credits the camp that never ordered anything with the pass it won', async () => {
+    const t = boot();
+    const [walker, camper] = await launchedSeason(t, 2);
+    const point = regionFacts(PRAHOVA)!.point;
+    const camped = await post(t, camper!, point);
+
+    const barracks = await raise(t, walker!, MARNE);
+    const worn = await form(t, walker!, barracks);
+    await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
+
+    await t.mutation(api.movements.marchTo, {
+      token: walker!,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [worn],
+      point: { lon: point[0], lat: point[1] },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [engagement] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(engagement!.attackerId).toBe(await playerOf(t, camper!));
+    expect(engagement!.reducedDefender).toBe(true);
+    /** Nothing was ordered on that side: the camp is still the only movement-free force there. */
+    expect((await t.query(api.view.playerView, { token: camper! })).me.slots.used).toBe(0);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.playerId).toBe(
+      await playerOf(t, camper!),
+    );
+
+    const season = await seasonOf(t);
+    expect(season.status).toBe('concluded');
+    expect(season.winnerId).toBe(await playerOf(t, camper!));
   });
 
   it('lets a player who rebuilds over the bar leave his executioner’s count', async () => {

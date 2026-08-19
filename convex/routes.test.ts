@@ -38,3 +38,27 @@ describe('the country hosting a point', () => {
     expect(hostAtPoint(PRAHOVA)).not.toBe(hostAtPoint(RIYADH));
   });
 });
+
+/**
+ * **A host is read off the polygon, and the border is where it is tested.** Six points, three
+ * pairs straddling one: proximity to a region's pole of inaccessibility got three of the six
+ * wrong — Aix-la-Chapelle answered Liège, Saint-Louis answered Basel, Kehl answered the
+ * Bas-Rhin — and a rule keyed on a host cannot be written on an answer that flips a border.
+ *
+ * They stay as the method rather than as a curiosity: whatever replaces this reading is judged
+ * on a border, never on a capital.
+ */
+describe('a point on a border', () => {
+  const CASES: ReadonlyArray<readonly [string, string, LonLat]> = [
+    ['Aix-la-Chapelle', 'DEU', [6.083, 50.776]],
+    ['Saint-Louis', 'FRA', [7.56, 47.59]],
+    ['Bâle', 'CHE', [7.588, 47.559]],
+    ['Strasbourg', 'FRA', [7.75, 48.583]],
+    ['Kehl', 'DEU', [7.81, 48.573]],
+    ['Genève', 'CHE', [6.143, 46.204]],
+  ];
+
+  it.each(CASES)('places %s in %s', (_name, adm0, point) => {
+    expect(hostAtPoint(point)).toBe(adm0);
+  });
+});

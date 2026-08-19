@@ -62,14 +62,15 @@ export function regionFacts(regionId: string): RegionFacts | null {
 }
 
 /**
- * The region whose point stands closest to a lon/lat — hence, through `country`, **whose ground
- * this is**. `region-index.json` carries the `adm0_a3` of all 163 countries of the world, the
- * hundred and fifty-five nobody plays included, so it answers the one question `world.json`
- * cannot: that file names a country in English and carries no code at all.
+ * The region whose point stands closest to a lon/lat — **which region is nearest, and nothing
+ * more**. It answered "whose ground this is" until the borders were tested: a pole of
+ * inaccessibility says where a region is and never where it stops, so three frontier points out
+ * of six fell to the neighbouring country. `hostAtPoint` reads the polygon now, and this
+ * function is left with the one question it can actually answer.
  *
- * A pole of inaccessibility is not a border, so a point laid right on one may fall to the
- * neighbour. Nothing keyed on a host is decided at that precision — a rest window, a yield, a
- * relation are owed by a country, not by a metre of it.
+ * Its single caller founds an outpost: what it wants is the region a column is standing on, to
+ * see whether it already carries a building of the founder's. A neighbour answering instead
+ * costs nothing there — it is a courtesy refusal, not a rule keyed on a host.
  */
 export function nearestRegion(point: LonLat): RegionFacts | null {
   const closest = Object.entries(POINT_OF_REGION).reduce<{ id: string; km: number } | null>(
@@ -90,8 +91,8 @@ export const homeCountryOf = (nation: string | null): string | null =>
  * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges
  * the two — for the eight playable nations only.** It answers the empty string everywhere else,
  * which is why it must never be asked about a point: a point in Arabia is not a point in no
- * country. `hostAtPoint` in `routes.ts` is the function for that, and it reads the codes off
- * `region-index.json` rather than off a table of eight.
+ * country. `hostAtPoint` in `routes.ts` is the function for that, and it reads the code off the
+ * polygon the point falls in rather than off a table of eight.
  */
 export const adm0Of = (worldCountry: string | null): string => {
   const nation = worldCountry === null ? undefined : NATION_BY_COUNTRY.get(worldCountry);

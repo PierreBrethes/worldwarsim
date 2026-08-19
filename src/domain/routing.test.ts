@@ -176,10 +176,10 @@ describe('the country under a point', () => {
     };
   };
 
-  it('names the land, and answers nothing at sea', async () => {
+  it('codes the land, and answers nothing at sea', async () => {
     const world = await realWorld();
-    expect(countryAt(world, [25.2, 44.6])).toBe('Romania');
-    expect(countryAt(world, [2.35, 48.86])).toBe('France');
+    expect(countryAt(world, [25.2, 44.6])).toBe('ROU');
+    expect(countryAt(world, [2.35, 48.86])).toBe('FRA');
     expect(countryAt(world, [-30, 40])).toBeNull();
   });
 });

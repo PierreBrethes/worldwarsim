@@ -146,6 +146,23 @@ for (const region of raw.regions) {
 const pointless = Object.keys(country).filter((id) => !Number.isFinite(point[id]?.[0]));
 if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.join(', ')}`);
 
+/**
+ * **The Natural Earth → ISO bridge, checked from the other side.** `generate-world.mjs` keys its
+ * nine hand-written codes by English name: rename one upstream and the five that ISO codes
+ * nowhere fail loudly, but the four Natural Earth codes differently — `SDS`, `SAH`, `PSX`,
+ * `ALD` — fall back on the ISO code without a word, and the world then carries a code no region
+ * answers to. A host read off a polygon would name a country the index has never heard of.
+ *
+ * A defect of data is repaired once, here, and never discovered mid-season.
+ */
+const carried = new Set(Object.values(country));
+const unbridged = [...new Set(world.countries.map((entry) => entry.a))].filter(
+  (code) => !carried.has(code),
+);
+if (unbridged.length > 0) {
+  throw new Error(`codes of world.json no region carries: ${unbridged.join(', ')}`);
+}
+
 const output = { name, country, coastal, point };
 writeFileSync('public/region-index.json', JSON.stringify(output));
 

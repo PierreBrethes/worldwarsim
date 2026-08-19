@@ -2,7 +2,6 @@ import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, RouteMode } from '../src/domain/routing';
 import { buildGrid, computeRoute, countryAt } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
-import { nearestRegion } from './regions';
 import worldAsset from '../public/world.json';
 
 /**
@@ -25,6 +24,7 @@ const world = {
   outline: worldAsset.meta.outline,
   countries: worldAsset.countries.map((country) => ({
     name: country.n,
+    adm0: country.a,
     representativePoint: country.c,
     lonLat: country.ll,
     rings: country.p,
@@ -39,26 +39,21 @@ export function routeBetween(from: LonLat, to: LonLat, mode: RouteMode): Compute
 }
 
 /**
- * The country a point stands in, or `null` on the open sea. Same asset as the grid, same
- * reason it is allowed here: this is the one file the world's geometry enters.
- */
-export function countryAtPoint(point: LonLat): string | null {
-  return countryAt(world, point);
-}
-
-/**
  * **The country hosting a point, as every rule keys it**: an `adm0_a3`, or the empty string on
- * the open sea and nowhere else. Two assets, each answering what the other cannot — `world.json`
- * knows where the land stops and carries no code, `region-index.json` carries the code of all
- * 163 countries and places nothing.
+ * the open sea and nowhere else. One asset, one reading — `world.json` carries the rings and,
+ * since `nommer-les-pays`, the code that goes with them, so the containment and the name come
+ * out of the same polygon and cannot disagree.
  *
  * The empty string used to swallow both "this is the high sea" and "this is a country nobody
  * plays", which made Arabia, Romania and Bolivia one and the same host. They are the ordinary
  * case, not the edge: the decreasing yield per host, the finite trade capacity and the
  * expulsion of fiche 03 all key on this string, and none of them can be written on a key that
  * collapses a hundred and fifty-five countries into one.
+ *
+ * **It is the polygon that answers, never the closest region.** Reading a host off the nearest
+ * region point put Menton in Monaco and Aix-la-Chapelle in Belgium: a pole of inaccessibility
+ * says where a region *is*, and says nothing whatsoever about where it stops.
  */
 export function hostAtPoint(point: LonLat): string {
-  if (countryAtPoint(point) === null) return '';
-  return nearestRegion(point)?.country ?? '';
+  return countryAt(world, point) ?? '';
 }

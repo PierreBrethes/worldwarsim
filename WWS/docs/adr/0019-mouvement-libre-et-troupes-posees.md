@@ -58,6 +58,23 @@ et **l'initiative va au posé**. Il tient le terrain, l'arrivant est surpris —
 distingue une attaque, qui cherche le combat et en garde l'initiative (ADR 0014), d'une marche,
 qui le subit.
 
+**Trois précisions ratifiées le 18/08 au soir, la première amendée le 19/08.** Une force en
+déroute dont l'adresse est un point **reflue vers son ancrage le plus proche** — le sol national
+ou le rayon d'un de **ses** avant-postes, le même ensemble qui met l'entretien à ×1 et définit le
+« sol reconnu » de la visée. Par le même `return` que toute déroute : créé par la résolution,
+jamais ordonné, aucun slot (ADR 0018 §1, le terrain nettoyé) ; elle ne reste jamais posée à côté
+de son vainqueur, et elle ne se téléporte jamais — le temps de trajet est réel aussi pour les
+vaincus. L'avant-poste gagne ainsi son troisième rôle sans une règle de plus : il ouvre le
+terrain, il nourrit, il **rallie**. Une colonne partie d'un bâtiment continue, elle, de rentrer à
+son bâtiment. Conséquences assumées : un réseau d'avant-postes rend les défaites moins chères
+(les survivants se regroupent en avant), et désactiver l'avant-poste de ralliement fait refluer
+les déroutes suivantes beaucoup plus loin — deux paramètres que le simulateur refondu devra voir. La **passe
+gagnée par le posé compte pour sa victoire** : poser le campement était l'ordre — un slot, une
+troupe sur vingt-quatre, un entretien majoré — et un pari qui réussit se paie ; ce n'est pas un
+gain « en dormant », c'est le rendement du renseignement. Et **l'arrivée n'éteint l'interception
+que pour les défenseurs qu'elle résoudra elle-même** — l'ensemble se dérive de `defenceOf`, jamais
+d'un rayon aveugle, sans quoi une garnison voisine de la cible perdrait son filet entier.
+
 **Vingt-cinq kilomètres et pas deux cents.** `INTERCEPTION_RADIUS_KM` ferait de trois pions un
 barrage continental ; le rayon d'arrivée est une aiguille sur une carte mondiale. L'interception
 longue portée reste ce qu'elle est, un fait **entre mouvements** (ADR 0018 §3), et la passe de

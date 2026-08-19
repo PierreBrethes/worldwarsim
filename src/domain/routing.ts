@@ -262,10 +262,16 @@ export function directRoute(
 }
 
 /**
- * **Which country a point stands in**, straight off the rings the world already carries. It is
- * the one question a lon/lat cannot answer alone and that several rules need — the rest window
- * of a destination first of all — and the server has no other polygons: `regions.json` never
- * comes near it, and `region-index.json` holds one point per region, which places nothing.
+ * **Which country a point stands in**, straight off the rings the world already carries — as an
+ * `adm0_a3`, the code every rule keys on. It is the one question a lon/lat cannot answer alone
+ * and that several rules need — the rest window of a destination first of all — and the server
+ * has no other polygons: `regions.json` never comes near it, and `region-index.json` holds one
+ * point per region, which places nothing.
+ *
+ * **Containment, never proximity.** The nearest region's point used to stand in for this, and it
+ * answered the wrong country five times out of six along a border: Menton fell to Monaco,
+ * Aix-la-Chapelle to Belgium, Saint-Louis to Switzerland. A pole of inaccessibility is not a
+ * border, so nothing that keys on a host may be read off a distance to one.
  *
  * Even–odd ray crossing, on the projected plane rather than in degrees: the rings are stored
  * projected, and converting the point once is cheaper and safer than unprojecting a continent.
@@ -288,7 +294,7 @@ export function countryAt(world: World, lonLat: LonLat): string | null {
         }
       }
     }
-    if (inside) return country.name;
+    if (inside) return country.adm0;
   }
   return null;
 }
