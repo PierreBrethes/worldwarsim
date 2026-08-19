@@ -24,12 +24,14 @@ function toyWorld(): World {
     countries: [
       {
         name: 'Westland',
+        adm0: 'WST',
         representativePoint: [20, 25],
         lonLat: [-108, 0],
         rings: [rectangle(10, 20, 30, 30)],
       },
       {
         name: 'Eastland',
+        adm0: 'EST',
         representativePoint: [60, 25],
         lonLat: [36, 0],
         rings: [rectangle(40, 20, 80, 30)],
@@ -111,6 +113,7 @@ describe('on the real world', () => {
       meta: { sphere: World['sphere']; outline: World['outline'] };
       countries: Array<{
         n: string;
+        a: string;
         c: [number, number];
         ll: [number, number];
         p: [number, number][][];
@@ -121,6 +124,7 @@ describe('on the real world', () => {
       outline: raw.meta.outline,
       countries: raw.countries.map((c) => ({
         name: c.n,
+        adm0: c.a,
         representativePoint: c.c,
         lonLat: c.ll,
         rings: c.p,
@@ -153,6 +157,7 @@ describe('the country under a point', () => {
       meta: { sphere: World['sphere']; outline: World['outline'] };
       countries: Array<{
         n: string;
+        a: string;
         c: [number, number];
         ll: [number, number];
         p: [number, number][][];
@@ -163,6 +168,7 @@ describe('the country under a point', () => {
       outline: raw.meta.outline,
       countries: raw.countries.map((c) => ({
         name: c.n,
+        adm0: c.a,
         representativePoint: c.c,
         lonLat: c.ll,
         rings: c.p,

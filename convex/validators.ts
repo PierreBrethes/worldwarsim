@@ -84,6 +84,7 @@ export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening')
  * later kind a schema migration.
  */
 export const MOVEMENT_TYPE = v.union(
+  v.literal('march'),
   v.literal('attack'),
   v.literal('raid'),
   v.literal('outpost'),
@@ -94,21 +95,27 @@ export const MOVEMENT_TYPE = v.union(
 );
 
 /**
- * Where a column stands when it is ordered out. It no longer says what the column may ask for
- * (ADR 0019 §1) — only which ground the domain gates are read on, and which address the troops
- * have to be standing at. A point joins the two the day `stationedAt` carries one.
- */
-export const MOVEMENT_ORIGIN = v.union(
-  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
-  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
-);
-
-/**
  * A point on the globe, in degrees. Named fields rather than the `[lon, lat]` tuple the domain
  * passes around: a two-number array is a shape a validator cannot keep in order, and the pair
  * being the wrong way round is the one mistake nothing else would catch.
  */
 export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
+
+/**
+ * Where a column stands when it is ordered out. It no longer says what the column may ask for
+ * (ADR 0019 §1) — only which ground the domain gates are read on, and which address the troops
+ * have to be standing at. **A point is one of them**: a column left on the map is ordered from
+ * where it stands, and the ground under it carries no building, hence no gate, hence it walks.
+ *
+ * Nothing here proves the point is the player's: it is not an owned thing. What guards it is the
+ * address itself — the troops named have to be standing at exactly this coordinate, and they are
+ * his (`march`, `TROOP_NOT_AT_ORIGIN`).
+ */
+export const MOVEMENT_ORIGIN = v.union(
+  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
+  v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
+  v.object({ kind: v.literal('point'), point: LON_LAT }),
+);
 
 /**
  * What a march is aimed at: a region somebody holds, an outpost, or a plain point of the map.

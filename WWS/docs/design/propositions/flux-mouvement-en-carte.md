@@ -1,5 +1,14 @@
 # Flux de mouvement en carte — brief de maquette
 
+> ⚠️ **En retard sur l'ADR 0019 (18/08)** — ce brief reste la référence du *flux* (widget →
+> garnison → visée → rose → aperçu → envoi), mais quatre de ses règles sont annulées ou périmées :
+> la **décision 12a** (« aucune troupe posée librement sur la carte ») est annulée — la marche
+> pose une colonne où le joueur veut ; le **regroupement par bâtiment** du widget n'existe plus —
+> une troupe s'adresse par `TroopStation` (bâtiment / avant-poste / point / à domicile) ; le
+> **« retour »** de la rose n'existe plus (l'ordre de rappel est supprimé, la fondation est une
+> action sur place) ; la rose vise un **point ou un avant-poste**, jamais une région. La visée
+> gagne le marqueur « sol non reconnu » (fiche 04).
+
 **Statut : proposition validée dans ses grandes lignes (décisions 12a et 13a du 18/08), un point
 en attente (§ Renseignement).** Ce brief remplace la §4.5 périmée de la fiche 11. Il sert
 d'abord à Claude design pour la maquette, puis de source au prompt Code. Vocabulaire imposé :

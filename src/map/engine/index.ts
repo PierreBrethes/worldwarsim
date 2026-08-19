@@ -316,17 +316,17 @@ export class MapEngine {
     };
   }
 
-  select(name: string | null): void {
-    this.selection = name;
+  select(adm0: string | null): void {
+    this.selection = adm0;
   }
 
   /**
-   * The country under a screen point, aimed on demand. The rose also opens from an HTML
-   * label, which ate the canvas's `pointermove`: reading the last frame's hover would give
-   * the land before entering the label, not the one it designates.
+   * The country under a screen point, as an `adm0_a3`, aimed on demand. The rose also opens
+   * from an HTML label, which ate the canvas's `pointermove`: reading the last frame's hover
+   * would give the land before entering the label, not the one it designates.
    */
   countryAtPoint(clientX: number, clientY: number): string | null {
-    return (this.aimAt(clientX, clientY)?.object as CountryMesh | undefined)?.userData.name ?? null;
+    return (this.aimAt(clientX, clientY)?.object as CountryMesh | undefined)?.userData.adm0 ?? null;
   }
 
   /**
@@ -523,7 +523,7 @@ export class MapEngine {
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
     if (gesture.button !== 0 || gesture.panning || gesture.pastThreshold) return;
-    this.onSelect(this.hovered?.userData.name ?? null);
+    this.onSelect(this.hovered?.userData.adm0 ?? null);
   };
 
   private onKeyDown = (event: KeyboardEvent): void => {
@@ -659,7 +659,7 @@ export class MapEngine {
   private lightCountries(): void {
     for (const mesh of this.countries) {
       const isHovered = mesh === this.hovered;
-      const isSelected = mesh.userData.name === this.selection;
+      const isSelected = mesh.userData.adm0 === this.selection;
       const intensity = isSelected ? 0.26 : isHovered ? 0.12 : 0;
       mesh.material.emissive.setRGB(intensity, intensity * 0.85, intensity * 0.55);
     }

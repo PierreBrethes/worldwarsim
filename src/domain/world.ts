@@ -2,7 +2,10 @@ import type { LonLat } from './geo';
 import type { RegionType } from './ids';
 
 export type ProjectedCountry = {
+  /** English, as Natural Earth writes it: a key for the map, never a label for a screen. */
   readonly name: string;
+  /** The Natural Earth `adm0_a3` — what the server, the regions and every label key on. */
+  readonly adm0: string;
   readonly representativePoint: readonly [x: number, y: number];
   readonly lonLat: LonLat;
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
@@ -101,6 +104,7 @@ type RawWorld = {
   };
   countries: Array<{
     n: string;
+    a: string;
     c: [number, number];
     ll: [number, number];
     p: [number, number][][];
@@ -116,6 +120,7 @@ export async function loadWorld(url = '/world.json'): Promise<World> {
     outline: raw.meta.outline,
     countries: raw.countries.map((c) => ({
       name: c.n,
+      adm0: c.a,
       representativePoint: c.c,
       lonLat: c.ll,
       rings: c.p,

@@ -16,22 +16,17 @@ import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import type { Column, MovementAim } from '@/domain/movement-orders';
-import type { ArcView, MovementType, PlayerView } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN } from '@/domain/troops';
+import type { ArcView, MovementType, PlayerView, TroopStation } from '@/domain/player-view';
+import { PROJECTION_BY_DOMAIN, stationKeyOf, type MarchStation } from '@/domain/troops';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { errorCode } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
-import {
-  MovementPreview,
-  wireOrigin,
-  wireTarget,
-  type ColumnOrigin,
-} from './-plateau/MovementPreview';
+import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
 import { RegionTooltip } from './-plateau/RegionTooltip';
-import { TroopsWidget } from './-plateau/TroopsWidget';
+import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
 import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
 
@@ -39,7 +34,7 @@ type BuildingSite = { regionId: string; x: number; y: number };
 
 /** The garrison panel's subject and the point it is anchored to. */
 type OpenGarrison = {
-  readonly stationId: string | null;
+  readonly station: TroopStation;
   readonly preselect: ReadonlyArray<string>;
   readonly x: number;
   readonly y: number;
@@ -50,10 +45,9 @@ type OpenGarrison = {
  * function reads — built once here so the fan does not rebuild it on every hover.
  */
 type ArmedColumn = {
-  /** A building's id or an outpost's — the address the widget and the garrison panel select on.
-   *  `origin` is the same thing in the shape the server takes. */
-  readonly stationId: string;
-  readonly origin: ColumnOrigin;
+  /** The address the widget and the garrison panel select on — and the one the order leaves
+   *  from, since ADR 0019 §1 made them the same thing. */
+  readonly station: MarchStation;
   readonly troopIds: ReadonlyArray<string>;
   readonly rule: Column;
 };
@@ -279,11 +273,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * The camera goes to the mast either way, so the panel always names something one can see.
    */
   const openGarrison = useCallback(
-    (stationId: string | null, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
+    (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setColumn(null);
       setOrder(null);
-      setGarrison({ stationId, preselect, ...at });
-      const marker = markerOfStation(view, stationId);
+      setGarrison({ station, preselect, ...at });
+      const marker = markerOfStation(view, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
     },
     [view],
@@ -301,7 +295,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       if (standing === undefined) return;
       if (PROJECTION_KEYS.includes(standing.key)) {
         const rect = document.body.getBoundingClientRect();
-        openGarrison(buildingId, [], { x: clientX - rect.left, y: clientY - rect.top });
+        openGarrison({ kind: 'building', buildingId }, [], {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+        });
         return;
       }
       void navigate({
@@ -497,7 +494,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       ? 'skip'
       : {
           token,
-          origin: wireOrigin(column.origin),
+          origin: wireOrigin(column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
           target: wireTarget(order.aim),
           type: order.type,
@@ -556,22 +553,26 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )}
         {garrison && (
           <GarrisonPanel
-            key={`${garrison.stationId}-${garrison.x}-${garrison.y}`}
+            key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}`}
             view={view}
-            stationId={garrison.stationId}
+            token={token}
+            station={garrison.station}
             at={garrison}
             preselect={garrison.preselect}
             onClose={() => setGarrison(null)}
-            onPrepare={(buildingId, troopIds) => {
+            onPrepare={(station, troopIds) => {
+              /** `home` is the one address no column leaves from — the panel offers nothing
+               *  there, so this branch only guards the type. */
+              if (station.kind === 'home') return;
               setGarrison(null);
-              setColumn(armedColumn(view, buildingId, troopIds));
+              setColumn(armedColumn(view, station, troopIds));
             }}
           />
         )}
         {column && order && (
           <MovementPreview
             token={token}
-            origin={column.origin}
+            origin={column.station}
             troopIds={column.troopIds}
             aim={order.aim}
             type={order.type}
@@ -589,13 +590,12 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           view={view}
           hoveredMovement={hoveredMovement}
           // What the widget's card should read as pressed: the garrison panel's own subject
-          // while it is open — home reads as `null`, so it must not fall through to the column
-          // below — then the column it armed for as long as an aim is still live, or `undefined`
-          // for neither: one selection, wherever the flow currently stands (decision 13a).
-          selectedStation={garrison !== null ? garrison.stationId : column?.stationId}
+          // while it is open, then the column it armed for as long as an aim is still live, and
+          // nothing for neither — one selection, wherever the flow currently stands (13a).
+          selectedStation={stationKeyOf((garrison ?? column)?.station ?? { kind: 'home' })}
           onHover={setHoveredCard}
-          onOpenGarrison={(stationId, preselect) =>
-            openGarrison(stationId, preselect, { x: 24, y: 92 })
+          onOpenGarrison={(station, preselect) =>
+            openGarrison(station, preselect, { x: 24, y: 92 })
           }
           onFollow={(arcId) => setFocus({ ids: [arcId], nonce: Date.now() })}
         />
@@ -679,30 +679,31 @@ function Loading() {
  * the same shape `convex/movements.ts` fills from its documents — the seam between one rule and
  * two callers.
  *
- * `stationId` is a building's or an outpost's id, whichever door the garrison panel was opened
- * from — the two doors open the same panel (decision 13a), so which one it was is read off
- * `view.me.outposts` rather than carried separately.
+ * `station` is the address the garrison panel was opened on, whichever of its two doors — the
+ * ground under it is only consulted for the domain gates, and a point carries none.
  */
 function armedColumn(
   view: PlayerView,
-  stationId: string,
+  station: MarchStation,
   troopIds: ReadonlyArray<string>,
 ): ArmedColumn {
   const roles = troopIds.flatMap((troopId) => {
     const troop = view.me.troops.find((candidate) => candidate.id === troopId);
     return troop ? [troop.role] : [];
   });
-  const departure = view.me.buildings.find((building) => building.id === stationId);
+  const departure =
+    station.kind === 'building'
+      ? view.me.buildings.find((building) => building.id === station.buildingId)
+      : undefined;
   return {
-    stationId,
-    origin: { kind: departure === undefined ? 'outpost' : 'building', id: stationId },
+    station,
     troopIds,
     rule: {
       roles,
       myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
-      /** An outpost is a point and carries no region, so a garrison finds no gate under it and
-       *  walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
+      /** An outpost and a plain point carry no region, so a column standing on one finds no gate
+       *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
       departureBuildings: new Set(
         departure === undefined
           ? []
@@ -772,10 +773,12 @@ function previewArc(
 
 const PREVIEW_ARC = 'preview';
 
-/** Where a station stands on the board, as the label layer names it. An outpost has no mast of
- *  its own yet — the camera then holds still rather than flying somewhere approximate. */
-function markerOfStation(view: PlayerView, stationId: string | null): string | null {
-  const building = view.me.buildings.find((candidate) => candidate.id === stationId);
+/** Where a station stands on the board, as the label layer names it. Only a building has a mast
+ *  — an outpost and a point have none, and the camera then holds still rather than flying
+ *  somewhere approximate. */
+function markerOfStation(view: PlayerView, station: TroopStation): string | null {
+  if (station.kind !== 'building') return null;
+  const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
   return building === undefined ? null : `building-${building.regionId}-${building.key}`;
 }
 
@@ -784,10 +787,12 @@ function markerOfStation(view: PlayerView, stationId: string | null): string | n
  * that matter. It names the way out, because a mode one cannot leave is a trap.
  */
 function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
-  const building = view.me.buildings.find((candidate) => candidate.id === column.stationId);
-  const outpost = view.me.outposts.find((candidate) => candidate.id === column.stationId);
-  const station =
-    building?.name ?? (outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome);
+  const address = column.station;
+  const building =
+    address.kind === 'building'
+      ? view.me.buildings.find((candidate) => candidate.id === address.buildingId)
+      : undefined;
+  const station = building?.name ?? stationNamer(view)(address);
   return (
     <div className="hud absolute top-4 left-4 z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
       <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">

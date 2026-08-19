@@ -221,7 +221,7 @@ describe('a finished batch is a troop', () => {
         tier: 1,
         strength: NOMINAL_STRENGTH.infantry[1],
         nominalStrength: NOMINAL_STRENGTH.infantry[1],
-        stationedAt: barracks,
+        stationedAt: { kind: 'building', buildingId: barracks },
       });
       expect(view.me.armyPresent).toEqual({ infantry: 1 });
     } finally {
@@ -248,7 +248,9 @@ describe('a finished batch is a troop', () => {
 
       const view = await t.query(api.view.playerView, { token });
       expect(view.me.troops).toHaveLength(1);
-      expect(view.me.troops[0]!.stationedAt).toBeNull();
+      /** No address the game can place — `home`, and the schema says in writing what that
+       *  means: on national ground, hanging from nothing that stands (ADR 0019 §1). */
+      expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'home' });
     } finally {
       vi.useRealTimers();
     }

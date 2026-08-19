@@ -6,7 +6,9 @@
  * Pure constants and functions: the domain layer may import this module — it pulls no React,
  * no Convex, no DOM.
  */
+import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
+import { NATION_BY_ADM0 } from '../domain/nations';
 import type { UpgradeHold } from '../domain/construction';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -89,6 +91,7 @@ export const fr = {
   } satisfies Record<UnitRole, string>,
 
   movementTypes: {
+    march: 'marche',
     attack: 'attaque',
     raid: 'raid d’avant-poste',
     outpost: 'fondation d’avant-poste',
@@ -99,6 +102,7 @@ export const fr = {
   } satisfies Record<MovementType, string>,
 
   movementTypesPlural: {
+    march: 'marches',
     attack: 'attaques',
     raid: 'raids',
     outpost: 'avant-postes',
@@ -284,12 +288,14 @@ export const fr = {
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
     NOT_ENOUGH_LIFT: (d) =>
-      `${num(d.needed)} places à embarquer pour ${num(d.offered)} à bord — il manque du transport`,
+      `${num(d.needed)} place${plural(Number(d.needed), '', 's')} à embarquer pour ${num(
+        d.offered,
+      )} à bord — il manque du transport`,
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
-    REGION_TARGET_ONLY: () => 'on fonde un avant-poste sur une région, pas sur un point tenu',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
+    POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
@@ -641,7 +647,12 @@ export const fr = {
     movingPower: 'observables',
     none: 'aucune troupe en service',
     atHome: 'à domicile',
-    garrisonAt: (country: string) => `garnison — ${country}`,
+    /** The host arrives as an `adm0_a3`; the naming happens here so that no caller can print
+     *  a code by forgetting to ask for a name. */
+    garrisonAt: (adm0: string) => `garnison — ${countryLabel(adm0)}`,
+    /** A column left standing on the map (ADR 0019 §3), named the same way. */
+    postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
+    postedAtSea: 'en campagne — en mer',
     strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
     open: (station: string) => `voir ${station} et composer un mouvement`,
     remaining: (duration: string) => `${duration} restant`,
@@ -669,6 +680,11 @@ export const fr = {
     column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
     noColumn: 'pile : aucune troupe cochée',
     prepare: 'préparer un mouvement',
+    /** Founding is what a column does where it stands (ADR 0019 §1) — the terrain is under its
+     *  feet when the specialisation is chosen, which is why the choice lives here. */
+    found: 'fonder un avant-poste',
+    foundSpecialization: 'spécialisation',
+    foundHere: 'fonder ici',
     // A garrison abroad has no barracks to leave from: the server only marches from a
     // projection building (ADR 0013), and saying so beats a refusal after the click.
     notProjection: 'Une colonne part d’un bâtiment de projection — celle-ci tient son point.',
@@ -694,6 +710,15 @@ export const fr = {
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
+    /**
+     * **This label promises nothing** (ADR 0019 §6). It does not say an adversary is there, and
+     * above all it does not say recognised ground would be safe — a posted force is invisible
+     * everywhere, at home included. It says one thing, and the note underneath repeats it so it
+     * cannot be read the other way round: nothing of yours watches this ground.
+     */
+    unscouted: 'sol non reconnu',
+    unscoutedNote:
+      'rien à vous ne regarde ce sol. Un sol reconnu ne serait pas plus sûr : une troupe posée ne se voit pas.',
     submit: 'envoyer — irréversible',
     cancel: 'annuler',
   },
@@ -986,6 +1011,9 @@ export const fr = {
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     region: (country: string) => `région · ${country}`,
+    /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
+     *  says why — the same sentence the server would have answered after the click. */
+    refused: 'aucun ordre ici',
   },
 
   construction: {
@@ -1123,6 +1151,23 @@ export function nationLabel(nation: string | null): string {
   return nation !== null && nation in fr.nations
     ? fr.nations[nation as Nation]
     : fr.common.noNation;
+}
+
+/**
+ * **The only place a country becomes French.** Everything that names a land — the map, the
+ * rose, the journal, a garrison's address — keys it by its Natural Earth `adm0_a3`, which is
+ * the server's vocabulary and the regions'. The eight playable nations answer from
+ * `fr.nations`, which is hand-written and stays that way; the other 243 come from
+ * `public/country-names.json`, baked by `scripts/generate-region-index.mjs`.
+ *
+ * The fallback on the raw code never fires: the generation refuses to produce a table with a
+ * hole in it. It is kept because a label vanishing is worse than a label reading "SAU", and
+ * because a code arriving from somewhere the table does not cover is a bug to see, not to hide.
+ */
+export function countryLabel(adm0: string): string {
+  const nation = NATION_BY_ADM0.get(adm0);
+  if (nation !== undefined) return fr.nations[nation];
+  return (countryNames as Readonly<Record<string, string>>)[adm0] ?? adm0;
 }
 
 export function doctrineLabel(doctrine: string | null): string | null {

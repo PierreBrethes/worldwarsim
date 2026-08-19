@@ -36,12 +36,14 @@ function toyWorld(): World {
     countries: [
       {
         name: 'Westland',
+        adm0: 'WST',
         representativePoint: [20, 25],
         lonLat: [-108, 0],
         rings: [rectangle(10, 20, 30, 30)],
       },
       {
         name: 'Eastland',
+        adm0: 'EST',
         representativePoint: [60, 25],
         lonLat: [36, 0],
         rings: [rectangle(40, 20, 80, 30)],

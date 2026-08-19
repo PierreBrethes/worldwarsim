@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
+import type { TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   buildCost,
@@ -18,6 +19,7 @@ import {
 import { engagementsOf } from './combat';
 import { movementsOf, outpostsOf, restHold } from './movements';
 import { homeCountryOf, regionFacts, regionsOf } from './regions';
+import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { playerByToken, requireStarted } from './seasons';
 import { troopsOf } from './troops';
@@ -66,13 +68,24 @@ export const playerView = query({
      */
     const standing = new Set<string>(buildings.map((building) => building._id));
     const garrisoned = new Set<string>(outposts.map((outpost) => outpost._id));
-    const isGarrisoned = (troop: (typeof troops)[number]) =>
-      troop.stationedAt !== null && garrisoned.has(troop.stationedAt);
-    const stationOf = (troop: (typeof troops)[number]) =>
-      troop.stationedAt !== null &&
-      (standing.has(troop.stationedAt) || garrisoned.has(troop.stationedAt))
-        ? troop.stationedAt
-        : null;
+    /**
+     * The address, in the shape the screen reads (ADR 0019 §1). A point keeps its coordinates and
+     * gains the country hosting it: the client holds no geometry and could not name the place a
+     * column was left in otherwise.
+     */
+    const stationOf = (troop: (typeof troops)[number]): TroopStation => {
+      const address = troop.stationedAt;
+      if (address === null) return { kind: 'home' };
+      if (typeof address !== 'string') {
+        return {
+          kind: 'point',
+          lonLat: [address.lon, address.lat],
+          country: hostAtPoint([address.lon, address.lat]),
+        };
+      }
+      if (garrisoned.has(address)) return { kind: 'outpost', outpostId: address };
+      return standing.has(address) ? { kind: 'building', buildingId: address } : { kind: 'home' };
+    };
 
     // The board counts troops by role and forgets their tier: only the workshop distinguishes
     // equipment. The strengths travel per troop, just below.
@@ -81,7 +94,7 @@ export const playerView = query({
     // too would show the same column twice in the inventory — once at home, once in Arabia.
     const armyPresent: Record<string, number> = {};
     for (const troop of troops) {
-      if (isGarrisoned(troop)) continue;
+      if (stationOf(troop).kind === 'outpost') continue;
       armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
     }
 

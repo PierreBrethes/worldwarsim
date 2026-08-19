@@ -200,12 +200,11 @@ describe('the simplified Domination', () => {
     const troop = await form(t, victim!, barracks);
 
     await expect(
-      t.mutation(api.movements.foundOutpost, {
+      t.mutation(api.movements.attack, {
         token: victim!,
         origin: { kind: 'building', buildingId: barracks },
-        regionId: PRAHOVA,
-        specialization: 'relay',
         troopIds: [troop],
+        target: { kind: 'region', regionId: PRAHOVA },
       }),
     ).rejects.toThrow('SEASON_CONCLUDED');
 

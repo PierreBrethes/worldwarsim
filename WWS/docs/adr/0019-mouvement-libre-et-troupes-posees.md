@@ -46,13 +46,24 @@ paie : il reste la seule chose qui rende l'action lointaine structurellement co�
 l'un des trois leviers listés contre l'avantage d'isolement géographique (`QUESTIONS.md`, 🔴). Le
 mouvement terrestre, lui, ne demande plus rien.
 
-### 3. Une troupe peut rester sur la carte, et elle n'y engage rien
+### 3. Une troupe peut rester sur la carte, et elle y défend son sol
 
-Une troupe posée hors de tout bâtiment est **une cible, jamais un attaquant**. Elle ne déclenche
-aucune passe de résolution et n'intercepte rien ; il faut qu'un mouvement vienne la chercher. La
-passe de résolution (ADR 0018) n'est pas touchée, et son exception `except: aim.outpostId` —
-écrite pour empêcher une garnison d'intercepter la colonne qui marchait sur elle — devient
-inutile et disparaît.
+**Amendé le 18/08/2026.** La première rédaction disait « une cible, jamais un attaquant » et
+n'intercepte rien. C'était trop court : on aurait traversé une armée sans conséquence.
+
+Une troupe posée **n'ordonne jamais rien** — aucun ordre ne part d'elle sans que le joueur le
+donne — mais elle **défend le sol où elle se tient**. Un mouvement qui arrive à moins de
+`ARRIVAL_RADIUS_KM` (25 km), ou dont la route y passe, la croise : une passe de résolution a lieu
+et **l'initiative va au posé**. Il tient le terrain, l'arrivant est surpris — c'est ce qui
+distingue une attaque, qui cherche le combat et en garde l'initiative (ADR 0014), d'une marche,
+qui le subit.
+
+**Vingt-cinq kilomètres et pas deux cents.** `INTERCEPTION_RADIUS_KM` ferait de trois pions un
+barrage continental ; le rayon d'arrivée est une aiguille sur une carte mondiale. L'interception
+longue portée reste ce qu'elle est, un fait **entre mouvements** (ADR 0018 §3), et la passe de
+résolution n'est pas touchée. L'exception `except: aim.outpostId` — écrite pour empêcher une
+garnison d'intercepter la colonne qui marchait sur elle — disparaît quand même : c'est le contact
+d'arrivée qui répond désormais, une seule fois.
 
 ### 4. L'entretien dépend de l'ancrage, et l'avant-poste ravitaille
 
@@ -95,6 +106,30 @@ de `consommation-continue.md` a déjà écartée une fois.
 
 **Un avant-poste allié ne ravitaille pas.** Décision, pas placeholder ; elle se rouvre le jour où
 l'alliance est un objet du jeu.
+
+### 6. Une force posée ne se voit pas de loin
+
+`convex/view.ts` le dit déjà d'un avant-poste — *« an opponent's outpost is exactly the kind of
+thing the fog exists to hide »*. Une troupe posée suit la même règle : **aucune détection à
+distance**, ni par le rayon d'un territoire, ni par celui d'une autre force posée. Ce qui se voit
+de loin, c'est ce qui **bouge** — un convoi fait du bruit, un campement non. Trois choses seules
+révèlent une force posée : l'agent dormant, un mouvement qui la croise, et l'arrivée sur elle.
+
+Cela préserve le métier de l'agent dormant, que n'importe quel fantassin doublerait autrement, et
+avec lui les couples nation × doctrine adossés à Influence.
+
+Le contrepoids, qui ne perce aucun brouillard : **la visée dit ce que le joueur ne sait pas.** Un
+point hors de son sol et hors du rayon de ses avant-postes est signalé *sol non reconnu* — pas
+« il y a un adversaire », et surtout pas la promesse qu'un sol reconnu serait sûr, puisqu'une
+force posée est invisible partout, y compris chez soi. C'est de l'information sur son propre
+niveau d'information, et c'est ce qui transforme un piège en pari assumé.
+
+### 7. La marche
+
+Le type de mouvement qui réalise le §1 et le §3 : aller à un point et y rester. Un slot
+(ADR 0006), irréversible, mêmes portes de domaine que les autres, aucune cible refusée pour
+appartenance — on marche sur son sol comme sur celui d'un autre. À l'arrivée sans contact, la
+colonne se pose ; `stationedAt` reçoit le point.
 
 ## Justification
 

@@ -1,6 +1,6 @@
 import { asLocalTime } from './duration';
-import { fr } from '../i18n/fr';
-import { ADM0_BY_NATION, isNation } from './nations';
+import { countryLabel, fr } from '../i18n/fr';
+import { isNation } from './nations';
 import type { CombatReport, JournalDispatch, ReductionBoard } from './player-view';
 
 /**
@@ -81,21 +81,6 @@ function combatOnly(reports: ReadonlyArray<CombatReport>): ReadonlyArray<Journal
 
 const severityOf = (report: CombatReport): JournalDispatch['severity'] =>
   !report.won || report.mine.destroyed > 0 ? 'critical' : 'notable';
-
-/**
- * The host country travels as a Natural Earth `adm0_a3` — the key the regions are cut by. Only
- * the eight playable ones have a name in the game's vocabulary; anything else prints its code,
- * which is the honest thing to do until a code-to-name table is baked (the same gap the outpost
- * labels already live with).
- */
-const NATION_BY_ADM0 = new Map(
-  Object.entries(ADM0_BY_NATION).map(([nation, code]) => [code, nation]),
-);
-
-function countryLabel(adm0: string): string {
-  const nation = NATION_BY_ADM0.get(adm0);
-  return nation !== undefined && isNation(nation) ? fr.nations[nation] : adm0;
-}
 
 /** A player answers with his nation, or with his nickname when he never picked one — the server
  *  falls back to the nickname, and printing an internal key would be worse than either. */

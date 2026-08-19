@@ -25,6 +25,18 @@ décider en voyant où elle est.
   toutes les autres formes de mouvement sans être lu.
 - Les refus existants sont réutilisés (`INFANTRY_ONLY`, `FRIENDLY_TARGET`) plutôt que redéclarés.
 
+## Ce que tu retires en même temps, et pas avant
+
+`aim()` (`src/domain/compass-rose.ts`) garde une branche **région** derrière la branche point.
+Elle n'a plus qu'un seul usage : `fanOf` ne donne chaque type qu'au premier objectif qui le
+légalise, et la fondation refuse un point (`REGION_TARGET_ONLY`) — on fonde sur du sol qui
+produit, pas sur une coordonnée. La branche ne survit donc que pour porter la fondation.
+
+Ce prompt la remplace : **retire la branche région de `aim()` dans le même geste**, avec le
+commentaire qui l'expliquait. La rose ne vise plus qu'un point ou un avant-poste, et fonder ne
+passe plus par elle du tout. Si tu la retires sans avoir posé `foundOutpostHere`, la fondation
+disparaît de l'interface entre les deux — c'est pour ça qu'elle a attendu ce prompt-ci.
+
 ## Ce que ça rend gratuit, et qu'il faut noter
 
 Le joueur voit le terrain avant de choisir la spécialisation. C'est un gain de design que
@@ -39,6 +51,8 @@ départ en croyant simplifier.
 - La colonne fondatrice devient la garnison de l'avant-poste — l'invariant de `garnison-adresse.md`
   tient toujours après la mutation.
 - Plus aucune référence à un mouvement de type `outpost` dans le code de départ.
+- `aim()` ne connaît plus que le point et l'avant-poste ; un test le vérifie sur une cible qui
+  porte une région.
 - Aucun texte affiché hors de `src/i18n/fr.ts`. Aucun terme banni. `npm run build` et
   `npm run test` passent.
 

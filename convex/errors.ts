@@ -63,8 +63,8 @@ export type ErrorCode =
   | 'UNKNOWN_OUTPOST'
   | 'FRIENDLY_TARGET'
   | 'EMPTY_MOVEMENT'
-  | 'REGION_TARGET_ONLY'
   | 'OUTPOST_TARGET_ONLY'
+  | 'POINT_TARGET_ONLY'
   | 'NOT_ORDERABLE';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };

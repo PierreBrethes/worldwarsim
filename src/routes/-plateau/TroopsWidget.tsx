@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { fr, roleLabel } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
-import { currentMinutes, type ArcView, type PlayerView } from '@/domain/player-view';
+import {
+  currentMinutes,
+  type ArcView,
+  type PlayerView,
+  type TroopStation,
+} from '@/domain/player-view';
 import {
   marchingTroopIds,
   representativeRole,
@@ -43,12 +48,12 @@ export function TroopsWidget({
 }: {
   view: PlayerView;
   hoveredMovement: string | null;
-  /** The address the garrison panel is open on, or that a column is armed out of — `null` reads
-   *  as home, `undefined` as nothing selected at all. A card reads as pressed while it matches. */
-  selectedStation: string | null | undefined;
+  /** The address key the garrison panel is open on, or that a column is armed out of —
+   *  `null` when nothing is selected at all. A card reads as pressed while it matches. */
+  selectedStation: string | null;
   onHover: (id: string | null) => void;
   /** The widget's door into the garrison — the same one the building's mast opens. */
-  onOpenGarrison: (stationId: string | null, preselect: ReadonlyArray<string>) => void;
+  onOpenGarrison: (station: TroopStation, preselect: ReadonlyArray<string>) => void;
   onFollow: (arcId: string) => void;
 }) {
   const now = useClock();
@@ -63,7 +68,7 @@ export function TroopsWidget({
   const flying = view.arcs.filter(
     (arc): arc is Extract<ArcView, { state: 'mine' }> => arc.state === 'mine',
   );
-  const stationName = useMemo(() => namer(view), [view]);
+  const stationName = useMemo(() => stationNamer(view), [view]);
 
   return (
     <Draggable
@@ -108,9 +113,9 @@ export function TroopsWidget({
                     key={group.key}
                     group={group}
                     nation={view.me.nation}
-                    name={stationName(group)}
-                    selected={selectedStation !== undefined && group.stationId === selectedStation}
-                    onOpen={() => onOpenGarrison(group.stationId, group.troopIds)}
+                    name={stationName(group.station)}
+                    selected={group.stationKey === selectedStation}
+                    onOpen={() => onOpenGarrison(group.station, group.troopIds)}
                   />
                 ))}
               </div>
@@ -344,6 +349,8 @@ function MovingCard({
  * the same three at its own scale and neither of them gains from a shared file of six paths.
  */
 const MARKS: Readonly<Record<MovementType, string>> = {
+  /** The same hut the rose gives the march: the column goes somewhere and camps there. */
+  march: 'M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z',
   attack: 'M8.7 1.4 H11.3 V10.8 H8.7 Z M8.2 10.4 H12.8 L13.9 18.6 H9.5 Z',
   raid: 'M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z',
   outpost: 'M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z',
@@ -380,19 +387,25 @@ export function TypeMark({ type, size = 15 }: { type: MovementType; size?: numbe
 
 /**
  * What an address is called. A building answers with its name and its region — "Caserne ·
- * Bouches-du-Rhône" — an outpost with the country it stands in, and `null` is home. A station
- * the view no longer carries falls back to home rather than printing an id.
+ * Bouches-du-Rhône" — an outpost with the country it stands in, a point with the country it was
+ * left in, and `home` with nothing but that. A station the view no longer carries falls back to
+ * home rather than printing an id.
  */
-function namer(view: PlayerView): (group: StationGroup) => string {
+export function stationNamer(view: PlayerView): (station: TroopStation) => string {
   const buildings = new Map(view.me.buildings.map((building) => [building.id, building]));
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
   const outposts = new Map(view.me.outposts.map((outpost) => [outpost.id, outpost]));
 
-  return (group) => {
-    if (group.stationId === null) return fr.troops.atHome;
-    const outpost = outposts.get(group.stationId);
-    if (outpost) return fr.troops.garrisonAt(outpost.hostCountry);
-    const building = buildings.get(group.stationId);
+  return (station) => {
+    if (station.kind === 'home') return fr.troops.atHome;
+    if (station.kind === 'point') {
+      return station.country === '' ? fr.troops.postedAtSea : fr.troops.postedAt(station.country);
+    }
+    if (station.kind === 'outpost') {
+      const outpost = outposts.get(station.outpostId);
+      return outpost ? fr.troops.garrisonAt(outpost.hostCountry) : fr.troops.atHome;
+    }
+    const building = buildings.get(station.buildingId);
     if (!building) return fr.troops.atHome;
     const region = regions.get(building.regionId);
     return region === undefined ? building.name : `${building.name} · ${region}`;

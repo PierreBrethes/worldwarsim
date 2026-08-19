@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
+import { fr } from '@/i18n/fr';
 
 /**
  * The board's radial menu, opened by right click on the aimed point. It lives in the HTML
@@ -8,6 +9,11 @@ import type { CompassAction, CompassPictogram, Compass } from '@/domain/compass-
  *
  * The pictograms stay **mute**: label, cost and consequence only appear on hover, in the
  * tooltip. That is what lets the fan stay dense without becoming chatty.
+ *
+ * **A fan with no branch is not a fan that stays shut.** Aiming at a target where nothing is
+ * legal, the plate opens on its crosshair alone and the tooltip states the motive without
+ * waiting for a hover there is nothing to hover. Explaining an absence is not offering a dead
+ * choice (ADR 0015) — there is no medallion to click.
  *
  * Classes are set here and styled in `src/styles/compass-rose.css`.
  */
@@ -62,10 +68,13 @@ export function CompassRose({
   }, [hovered, bubbleHeight]);
 
   const action = compass.actions[hovered] ?? null;
+  const refusal = compass.actions.length === 0 ? compass.refusal : null;
+  // Due east, so a bubble with nothing to point at sits level with the crosshair it explains.
+  const bubbleAngle = action === null ? 90 : angleOf(hovered, compass.actions.length);
   const placement =
-    action === null
+    action === null && refusal === null
       ? null
-      : placeBubble(angleOf(hovered, compass.actions.length), x, y, width, height, bubbleHeight);
+      : placeBubble(bubbleAngle, x, y, width, height, bubbleHeight);
 
   return (
     <div className="compass-rose">
@@ -121,7 +130,7 @@ export function CompassRose({
             );
           })}
 
-          {action !== null && placement !== null && (
+          {placement !== null && (
             <>
               <div className="rose-tie" style={placement.tie} />
               <div
@@ -132,15 +141,30 @@ export function CompassRose({
                 <div className="rose-bubble-frame">
                   <div className="rose-bubble-header">
                     <span>{compass.kicker}</span>
-                    <span className="rose-bubble-rank">
-                      {hovered + 1} / {compass.actions.length}
-                    </span>
+                    {action !== null && (
+                      <span className="rose-bubble-rank">
+                        {hovered + 1} / {compass.actions.length}
+                      </span>
+                    )}
                   </div>
                   <div className="rose-bubble-name">{compass.name}</div>
                   <div className="rose-bubble-rule" />
-                  <div className="rose-bubble-label">{action.label}</div>
-                  {action.cost !== null && <div className="rose-bubble-cost">{action.cost}</div>}
-                  <div className="rose-bubble-consequence">{action.consequence}</div>
+                  {action === null ? (
+                    <>
+                      <div className="rose-bubble-label rose-bubble-label--refused">
+                        {fr.compass.refused}
+                      </div>
+                      <div className="rose-bubble-consequence">{refusal}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="rose-bubble-label">{action.label}</div>
+                      {action.cost !== null && (
+                        <div className="rose-bubble-cost">{action.cost}</div>
+                      )}
+                      <div className="rose-bubble-consequence">{action.consequence}</div>
+                    </>
+                  )}
                 </div>
               </div>
             </>

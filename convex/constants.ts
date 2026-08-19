@@ -616,6 +616,21 @@ export const COMBAT_RULES: CombatRules = {
 export const INTERCEPTION_RADIUS_KM = 200;
 
 /**
+ * **How close one has to stand to be found on arrival.** A march aimed at a point resolves
+ * against what holds ground within this radius — troops posted on the map, the garrison of an
+ * outpost, the troops hanging from a building whose region answers by its own point. It is what
+ * replaces the containment the server cannot compute: it holds no polygons, and asking which
+ * region encloses a coordinate has no answer here (ADR 0019 §1).
+ *
+ * Twenty-five kilometres is **an assumed starting point, never measured** — the same status as
+ * `INTERCEPTION_RADIUS_KM`, and deliberately not the same value. One does not arrive two hundred
+ * kilometres from one's target: an interception is a net cast across a road, an arrival is a
+ * place one walked to. Wider, aiming would stop being a gesture that says anything; narrower,
+ * the point one clicks would have to land on a defender to find him.
+ */
+export const ARRIVAL_RADIUS_KM = 25;
+
+/**
  * How long a raid keeps an outpost deactivated, and how long it may not be raided again after
  * that (design sheet 03). **Neither figure is in the design** — the sheet says "temporarily"
  * and "then an immunity window", and stops there. Both are placeholders shaped only so the pair

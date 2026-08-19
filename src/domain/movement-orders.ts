@@ -46,8 +46,8 @@ export type OrderRefusal =
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'NOT_ENOUGH_LIFT'
-  | 'REGION_TARGET_ONLY'
   | 'OUTPOST_TARGET_ONLY'
+  | 'POINT_TARGET_ONLY'
   | 'NOT_ORDERABLE';
 
 /**
@@ -55,14 +55,16 @@ export type OrderRefusal =
  * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things
  * one can ask for — see the note in the brief's implementation.
  *
- * The recall left with the origin that justified it (ADR 0019 §1). It survives in `MovementType`
- * because columns already recalled are still walking, and a document the schema can no longer
- * read is a worse tidiness than a word one no longer offers.
+ * **The foundation left too**, and for a better reason than tidiness: one does not walk *at* a
+ * place to found there, one founds where one already stands (`foundOutpostHere`). The recall
+ * left with the origin that justified it (ADR 0019 §1). Both survive in `MovementType` because
+ * columns already sent are still walking, and a document the schema can no longer read is a
+ * worse tidiness than a word one no longer offers.
  *
  * The agent and the decoy wait for the fog surfaces; they refuse as `NOT_ORDERABLE` rather than
  * being absent from the union, so the day they land there is a branch to fill, not one to find.
  */
-export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['attack', 'raid', 'outpost'];
+export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
 export function refusalOf(
   type: MovementType,
@@ -72,25 +74,13 @@ export function refusalOf(
   if (column.roles.length === 0) return 'EMPTY_MOVEMENT';
   switch (type) {
     /**
-     * **Only infantry plants a point** (ADR 0015) — a tank column does not found anything. And
-     * one plants it away from home: an outpost is what carries a build site beyond one's own
-     * ground, so a region already carrying a building of mine has nothing to gain from one.
-     *
-     * The rule is read on what **lands**, not on the whole pile: since a land troop only crosses
-     * aboard a transport, demanding a pile of nothing but infantry would put every overseas
-     * foundation out of reach — the ship that ferried the founders is not one of them. So the
-     * land payload must be infantry and there must be some, and the gate is consulted like
-     * everywhere else, for the port that ship leaves from and the places it offers.
+     * **The plain one, and the only one that refuses nothing for allegiance** (ADR 0019 §7): one
+     * walks on one's own ground exactly as on somebody else's, which is what separates it from
+     * an attack. Its target is a place and only a place — an outpost is a thing one comes to
+     * fight, and marching *at* one would be an attack under another word.
      */
-    case 'outpost': {
-      if (aim.kind !== 'region') return 'REGION_TARGET_ONLY';
-      if (mine(aim, column)) return 'FRIENDLY_TARGET';
-      const founders = column.roles.filter((role) => DOMAIN_BY_ROLE[role] === 'land');
-      if (founders.length === 0 || founders.some((role) => role !== 'infantry')) {
-        return 'INFANTRY_ONLY';
-      }
-      return closedGate(column);
-    }
+    case 'march':
+      return aim.kind === 'point' ? closedGate(column) : 'POINT_TARGET_ONLY';
     case 'attack':
       return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(column);
     /** A raid marches at an outpost and at nothing else: it comes to put a point out of
@@ -101,6 +91,30 @@ export function refusalOf(
     default:
       return 'NOT_ORDERABLE';
   }
+}
+
+/**
+ * **Founding is not a march any more, it is what a column does where it stands** (ADR 0019 §1).
+ * The two rules are the ones the `outpost` movement carried, moved rather than rewritten:
+ *
+ * — **only infantry plants a point**: a tank column founds nothing. It is read on the **whole**
+ *   pile now, and that is not a hardening: the pile is what stands on the ground, and the ship
+ *   that ferried the founders is at sea, not among them. There is no crossing left to excuse.
+ * — **one plants it away from home**: an outpost is what carries a build site beyond one's own
+ *   ground (ADR 0004), so ground already carrying a building of mine has nothing to gain.
+ *
+ * What this **gains**, and it was nobody's plan: the player sees the terrain before choosing the
+ * specialisation. He used to name it at departure, hours of marching from a place he had not
+ * seen. Do not move that choice back to a departure to "simplify" — the choice being late is the
+ * feature.
+ */
+export function foundingRefusal(
+  roles: ReadonlyArray<UnitRole>,
+  onMyGround: boolean,
+): OrderRefusal | null {
+  if (roles.length === 0) return 'EMPTY_MOVEMENT';
+  if (roles.some((role) => role !== 'infantry')) return 'INFANTRY_ONLY';
+  return onMyGround ? 'FRIENDLY_TARGET' : null;
 }
 
 /** What this column may ask for on this target — and nothing else ever reaches the fan. */

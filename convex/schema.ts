@@ -83,17 +83,30 @@ export default defineSchema({
    * points are `currentStrength`, read against the `nominalStrength` it was formed at — 50
    * soldiers, 12 tanks, 24 embarked aircraft.
    *
-   * `stationedAt` is an attachment, not a position — and **an outpost is an attachment too**:
-   * the column that founds one becomes its garrison rather than coming off the road hanging
-   * from nothing. A plain union of ids rather than a second field beside it: two fields would
-   * let a troop hang from a barracks *and* an outpost at once, and nothing in the schema could
-   * say that is wrong. No reader needs to tell the two apart at runtime — each one already
-   * holds the buildings or the outposts it is asking about.
+   * `stationedAt` is **an address**, and since ADR 0019 §1 the map is one of them: a building,
+   * the outpost a column founded, or a plain point where troops were left standing. One field
+   * rather than one per form: two fields would let a troop hang from a barracks *and* from a
+   * point at once, and nothing in the schema could say that is wrong. The invariant is
+   * unchanged — exactly one address, or in movement, never both and never neither.
    *
-   * **`null` means "at home"**, and it is the answer to a troop whose building is gone — it
-   * comes home, it does not die (rule 3 of the project). It is deliberately not re-hung on the
-   * headquarters: the headquarters projects nothing, and whether it can be destroyed at all is
-   * not settled (ADR 0015, sent back to `QUESTIONS.md`).
+   * **`byStation` still answers only the two id forms**, and that is deliberate. A point address
+   * cannot be looked up by equality: the question asked of it is never "who hangs from this
+   * coordinate" but "who stands within `ARRIVAL_RADIUS_KM` of it", which no equality index
+   * answers and which a pair of numbers would only answer along one axis. That question is
+   * served by a scan bounded by the game's own ceiling — 24 troops per player (ADR 0014), eight
+   * players, under two hundred rows — which is the same order of magnitude as the scan of
+   * `buildings` a region-aimed arrival already runs. An index whose range still needs a distance
+   * filter behind it would buy nothing and would have to be kept in step with a second table of
+   * positions.
+   *
+   * **`null` means "on national ground, hanging from nothing that stands"** — it is the answer
+   * to a troop whose building is gone: it comes home, it does not die (rule 3 of the project).
+   * It is deliberately not re-hung on the headquarters, which projects nothing and whose own
+   * destruction is unsettled (ADR 0015). It is kept rather than replaced by an explicit home
+   * point because no such point exists to write: a nation without a standing building has no
+   * coordinate the game agrees on, and inventing one — a capital, a centroid — would put troops
+   * somewhere the player never sent them. Everywhere a place **is** known, the point form is now
+   * written instead, so `null` is what is left when nothing at all is known.
    *
    * No `specialization` field: ADR 0014 only names variants for tier-1 infantry (medic or
    * paratrooper) and defers the eight other roles, so the type would have to be invented. It
@@ -105,11 +118,12 @@ export default defineSchema({
     tier: UNIT_TIER,
     nominalStrength: v.number(),
     currentStrength: v.number(),
-    stationedAt: v.union(v.id('buildings'), v.id('outposts'), v.null()),
+    stationedAt: v.union(v.id('buildings'), v.id('outposts'), LON_LAT, v.null()),
   })
     .index('byPlayer', ['playerId'])
     /** Who defends a place is read from the place, not from a player: an engagement asks "what
-     *  hangs from this outpost", and the answer must not be a scan of every troop in the game. */
+     *  hangs from this outpost", and the answer must not be a scan of every troop in the game.
+     *  A point is asked by distance instead — see the note above. */
     .index('byStation', ['stationedAt']),
 
   /**
@@ -161,11 +175,6 @@ export default defineSchema({
    * second attachment of its own: `stationedAt` says what it hangs from, and a column on the
    * road hangs from nothing.
    *
-   * `specialization` is only read by an `outpost` movement — it is the choice made at the
-   * foundation, and it is made **here**, at departure, because that is where the player is
-   * standing when he decides. The other kinds of movement carry it unread; that costs one
-   * field and saves a table per kind.
-   *
    * `target` says what the column is walking at, and it is a union rather than three nullable
    * fields: a movement marches at a region, at an outpost, or home — never at two of them, and
    * the schema is where that is said once.
@@ -194,7 +203,6 @@ export default defineSchema({
     distanceUnits: v.number(),
     costUnits: v.number(),
     troopIds: v.array(v.id('troops')),
-    specialization: SPECIALIZATION,
     departedAt: v.number(),
     arrivesAt: v.number(),
   }).index('byPlayer', ['playerId']),

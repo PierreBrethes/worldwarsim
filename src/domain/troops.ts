@@ -1,5 +1,5 @@
 import type { BuildingKey, Medium, UnitRole, UnitTier } from './ids';
-import type { ArcView, PlayerView, Stack, TroopView } from './player-view';
+import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from './player-view';
 
 export type { UnitTier };
 export type UnitDomain = Medium;
@@ -96,11 +96,27 @@ export const ROLE_ORDER: ReadonlyArray<UnitRole> = [
 ];
 
 /**
- * **A troop's address is the thing it hangs from** (decision 12a, ADR 0013 and 0014): a
- * building, the outpost its column founded, or nothing at all — which reads "at home" and is
- * what a troop whose building was razed comes back to.
+ * **A troop's address, as one string to group and select on.** The union says what the address
+ * *is*; this says whether two troops share it — which is all a card, a selection and a garrison
+ * panel ever ask. A point is written to one decimal, the precision a click carries: two troops
+ * left at the same place are one stack on the widget, not two cards a hundred metres apart.
  */
-export type StationKind = 'building' | 'outpost' | 'home';
+export const stationKeyOf = (station: TroopStation): string => {
+  switch (station.kind) {
+    case 'building':
+      return `building:${station.buildingId}`;
+    case 'outpost':
+      return `outpost:${station.outpostId}`;
+    case 'point':
+      return `point:${station.lonLat[0].toFixed(1)},${station.lonLat[1].toFixed(1)}`;
+    case 'home':
+      return 'home';
+  }
+};
+
+/** A column is ordered out of an address, and **`home` is not one**: a troop the game cannot
+ *  place is a troop it cannot route from (ADR 0019 §1). */
+export type MarchStation = Exclude<TroopStation, { readonly kind: 'home' }>;
 
 /**
  * One card of the widget's *stationnaires* section: the troops of one role standing at one
@@ -113,8 +129,9 @@ export type StationKind = 'building' | 'outpost' | 'home';
  */
 export type StationGroup = {
   readonly key: string;
-  readonly stationId: string | null;
-  readonly kind: StationKind;
+  readonly station: TroopStation;
+  /** The address alone, without the role — what a selection compares and a panel opens on. */
+  readonly stationKey: string;
   readonly role: UnitRole;
   readonly unitDomain: UnitDomain;
   readonly troopIds: ReadonlyArray<string>;
@@ -155,22 +172,19 @@ export function stationGroups(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
 ): ReadonlyArray<StationGroup> {
-  const garrisoned = new Set(me.outposts.map((outpost) => outpost.id));
   const byKey = new Map<string, StationGroup>();
   const rank: string[] = [];
 
   for (const troop of me.troops) {
     if (marching.has(troop.id)) continue;
-    const stationId = troop.stationedAt;
-    const kind: StationKind =
-      stationId === null ? 'home' : garrisoned.has(stationId) ? 'outpost' : 'building';
-    const key = `${stationId ?? 'home'}-${troop.role}`;
+    const stationKey = stationKeyOf(troop.stationedAt);
+    const key = `${stationKey}-${troop.role}`;
     const held = byKey.get(key);
     if (held === undefined) rank.push(key);
     byKey.set(key, {
       key,
-      stationId,
-      kind,
+      station: troop.stationedAt,
+      stationKey,
       role: troop.role,
       unitDomain: DOMAIN_BY_ROLE[troop.role],
       troopIds: [...(held?.troopIds ?? []), troop.id],
@@ -184,19 +198,19 @@ export function stationGroups(
     .map((key) => byKey.get(key)!)
     .sort(
       (a, b) =>
-        String(a.stationId).localeCompare(String(b.stationId)) ||
+        a.stationKey.localeCompare(b.stationKey) ||
         ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
     );
 }
 
-/** The troops hanging from one address — what the garrison panel composes a column from. */
+/** The troops standing at one address — what the garrison panel composes a column from. */
 export function troopsAt(
   me: PlayerView['me'],
-  stationId: string | null,
+  stationKey: string,
   marching: ReadonlySet<string>,
 ): ReadonlyArray<TroopView> {
   return me.troops
-    .filter((troop) => troop.stationedAt === stationId && !marching.has(troop.id))
+    .filter((troop) => stationKeyOf(troop.stationedAt) === stationKey && !marching.has(troop.id))
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
 }
 

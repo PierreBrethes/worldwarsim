@@ -25,7 +25,7 @@ multiplier la surface à équilibrer.
 | Air | **Bombardier** | — | frapper sans occuper |
 | Air | **Transport aérien** | — | vitesse maximale, capacité minimale |
 | Mer | **Escorte** | — | protéger et couler les convois |
-| Mer | **Cargo** | — | commerce avec les neutres et logistique lourde |
+| Mer | **Cargo** | — | porter les troupes terrestres au-delà des mers ; commerce avec les neutres |
 | Mer | **Porte-avions** | groupe aérien réduit → étendu | **déplacer le point de lancement aérien** |
 
 Neuf rôles, onze visuels — l'infanterie et le blindé ont deux paliers dessinés, et le porte-avions
@@ -52,6 +52,15 @@ troupes discrètes, il n'y a plus de pile dont la capacité pourrait être une p
 
 Un transport est donc une **troupe**, avec une capacité d'emport **typée** — tant d'infanteries,
 tant de véhicules, tant d'avions. C'est la seule forme de regroupement qui subsiste.
+
+**Codé depuis le 18/08** (ADR 0019 §2, prompt `traverser-demande-un-navire.md`) : une troupe
+terrestre ne traverse la mer qu'à bord d'un cargo parti d'un port, et n'emprunte le ciel qu'à
+bord d'un transport aérien parti d'un aérodrome. Cinq nombres, assumés et non mesurés :
+`LIFT_CAPACITY` (cargo 6, transport aérien 2) et `LIFT_COST` (infanterie 1, blindé 2, transport
+terrestre 1) ; le refus est `NOT_ENOUGH_LIFT`, avec les deux comptes. Le mouvement terrestre, lui,
+part de n'importe où sans rien demander — les bâtiments de projection ne conditionnent plus le
+départ, seulement le **changement de milieu**. Franchir la mer est un investissement : une flotte
+qu'on construit, qu'on protège, et qu'on peut perdre.
 
 Le régulateur central n'est pas perdu pour autant : « un mouvement = un slot »
 ([ADR 0006](../adr/0006-slots-de-mouvement.md)) tient toujours, il porte simplement sur le

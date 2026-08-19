@@ -1,13 +1,13 @@
-import { fr, nationLabel } from '@/i18n/fr';
-import { NATION_BY_COUNTRY } from '@/domain/nations';
+import { countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
 import { Row, Panel } from './Panel';
 
 export function SelectedCountryPanel({ country, view }: { country: string; view: PlayerView }) {
   const outpost = view.me.outposts.find((candidate) => candidate.hostCountry === country);
-  // The map speaks country names, opponents speak nation ids: the mapping is the seam —
-  // comparing the two raw strings never matches (that was a real bug).
-  const nation = NATION_BY_COUNTRY.get(country);
+  // The map designates a country by its `adm0_a3`, opponents by their nation id: the mapping
+  // is the seam — comparing the two raw strings never matches (that was a real bug).
+  const nation = NATION_BY_ADM0.get(country);
   const opponent =
     nation === undefined ? undefined : view.opponents.find((other) => other.nation === nation);
 
@@ -19,7 +19,7 @@ export function SelectedCountryPanel({ country, view }: { country: string; view:
       width={280}
     >
       <h2 className="font-[var(--font-display)] text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
-        {nation === undefined ? country : nationLabel(nation)}
+        {countryLabel(country)}
       </h2>
 
       {opponent ? (

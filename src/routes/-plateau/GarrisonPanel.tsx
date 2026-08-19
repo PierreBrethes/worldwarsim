@@ -1,7 +1,12 @@
+import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
+import { api } from '../../../convex/_generated/api';
+import type { Id } from '../../../convex/_generated/dataModel';
 import { fr, roleLabel } from '@/i18n/fr';
-import { marchingTroopIds, troopsAt } from '@/domain/troops';
-import type { PlayerView } from '@/domain/player-view';
+import { marchingTroopIds, stationKeyOf, troopsAt } from '@/domain/troops';
+import type { Specialization } from '@/domain/ids';
+import type { PlayerView, TroopStation } from '@/domain/player-view';
+import { handleError } from '@/data/errors';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Draggable } from './Draggable';
 import { Panel } from './Panel';
@@ -19,35 +24,48 @@ import { Panel } from './Panel';
  */
 export function GarrisonPanel({
   view,
-  stationId,
+  token,
+  station,
   at,
   preselect,
   onClose,
   onPrepare,
 }: {
   view: PlayerView;
-  /** `null` is home — troops whose building was razed, which nothing can march. */
-  stationId: string | null;
+  token: string;
+  /** `home` is the address of a troop whose building is gone: the game cannot place it, so
+   *  nothing can march it (ADR 0019 §1). */
+  station: TroopStation;
   at: { x: number; y: number };
   preselect: ReadonlyArray<string>;
   onClose: () => void;
-  onPrepare: (buildingId: string, troopIds: ReadonlyArray<string>) => void;
+  onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
+  const stationKey = stationKeyOf(station);
   const held = useMemo(
-    () => troopsAt(view.me, stationId, marching),
-    [view.me, stationId, marching],
+    () => troopsAt(view.me, stationKey, marching),
+    [view.me, stationKey, marching],
   );
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
+  const [specialization, setSpecialization] = useState<Specialization>('relay');
+  const [error, setError] = useState<string | null>(null);
+  const foundHere = useMutation(api.movements.foundOutpostHere);
 
-  const building = view.me.buildings.find((candidate) => candidate.id === stationId) ?? null;
-  const outpost = view.me.outposts.find((candidate) => candidate.id === stationId) ?? null;
+  const building =
+    station.kind === 'building'
+      ? (view.me.buildings.find((candidate) => candidate.id === station.buildingId) ?? null)
+      : null;
+  const outpost =
+    station.kind === 'outpost'
+      ? (view.me.outposts.find((candidate) => candidate.id === station.outpostId) ?? null)
+      : null;
   // The server marches from a barracks and from nothing else today — naval and air projection
   // wait for their own passes, and the panel must not promise what would be refused.
   const projection = building !== null && building.key === 'barracks';
-  /** A garrison composes a column too — its only order is the recall (question 21, 18/08), but
-   *  arming it is the same gesture as arming one at a barracks: check troops, then aim on the map. */
-  const canPrepare = projection || outpost !== null;
+  /** A garrison composes a column too, and so does a column left standing on the map: the ground
+   *  under it decides nothing any more (ADR 0019 §1), only where the domain gates are read. */
+  const canPrepare = projection || outpost !== null || station.kind === 'point';
   const region = building
     ? (view.me.regions.find((candidate) => candidate.id === building.regionId)?.name ?? null)
     : null;
@@ -56,7 +74,11 @@ export function GarrisonPanel({
     ? building.name
     : outpost
       ? fr.troops.garrisonAt(outpost.hostCountry)
-      : fr.garrison.home;
+      : station.kind === 'point'
+        ? station.country === ''
+          ? fr.troops.postedAtSea
+          : fr.troops.postedAt(station.country)
+        : fr.garrison.home;
 
   const toggle = (troopId: string) =>
     setPicked((previous) => {
@@ -138,6 +160,56 @@ export function GarrisonPanel({
           </div>
         )}
 
+        {/**
+         * **One founds where one stands** (ADR 0019 §1): a column left on the map plants its
+         * point without walking anywhere, and the specialisation is chosen here — with the
+         * terrain in view — rather than at a departure hours away from it. Moving that choice
+         * back to a departure would be a regression dressed as a simplification.
+         */}
+        {station.kind === 'point' && (
+          <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+                {fr.garrison.foundSpecialization}
+              </span>
+              {(['relay', 'listening'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={specialization === key}
+                  onClick={() => setSpecialization(key)}
+                  className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
+                    specialization === key
+                      ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)] text-[var(--ink)]'
+                      : 'border-[rgba(42,33,24,.32)] text-[var(--ink-soft)]'
+                  }`}
+                >
+                  {fr.specializations[key]}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={picked.size === 0}
+              onClick={() => {
+                setError(null);
+                foundHere({
+                  token,
+                  point: { lon: station.lonLat[0], lat: station.lonLat[1] },
+                  specialization,
+                  troopIds: [...picked].map((troopId) => troopId as Id<'troops'>),
+                }).then(onClose, (problem: unknown) => handleError(problem, setError));
+              }}
+              className="mt-[7px] w-full cursor-pointer border border-[var(--ink)] px-[10px] py-[6px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {fr.garrison.found}
+            </button>
+            {error !== null && (
+              <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>
+            )}
+          </div>
+        )}
+
         {canPrepare ? (
           <div className="mt-[11px] flex items-center justify-between gap-3">
             <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
@@ -146,7 +218,7 @@ export function GarrisonPanel({
             <button
               type="button"
               disabled={picked.size === 0}
-              onClick={() => onPrepare((building ?? outpost)!.id, [...picked])}
+              onClick={() => onPrepare(station, [...picked])}
               className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               {fr.garrison.prepare}

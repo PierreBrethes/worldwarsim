@@ -22,10 +22,15 @@
  * point of the region its barracks stands on. A centroid would fall in the sea off Norway; the
  * pole of inaccessibility stays inside the shape.
  *
+ * It also bakes `public/country-names.json`, the French name of every country the game can
+ * show — 251 codes against the eight nations that have a hand-written label. The names come
+ * from CLDR at bake time, so nothing translates at run time and no code ever reaches a screen.
+ *
  * Usage: node scripts/generate-region-index.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { geoNaturalEarth1 } from 'd3-geo';
+import isoCountries from 'i18n-iso-countries';
 import polylabel from 'polylabel';
 
 /**
@@ -146,3 +151,69 @@ writeFileSync('public/region-index.json', JSON.stringify(output));
 
 const size = (JSON.stringify(output).length / 1024).toFixed(0);
 console.log(`${Object.keys(country).length} regions, ${coastal.length} coastal, ${size} Ko`);
+
+/**
+ * Natural Earth does not key a country quite like ISO: these four are the same country under
+ * another code, and borrow ISO's name below. Aliasing them rather than naming them keeps the
+ * hand-written list to what nothing can derive.
+ */
+const ISO_ALPHA2 = { ALD: 'AX', PSX: 'PS', SAH: 'EH', SDS: 'SS' };
+
+/**
+ * The thirteen places ISO codes nowhere — disputed grounds, leases, atolls with no state. They
+ * are the only country labels in this repository written by hand, and they are a defect list,
+ * not a world list: everything ISO knows is derived.
+ */
+const OUTSIDE_ISO = {
+  ATC: 'Îles Ashmore-et-Cartier',
+  CLP: 'Île Clipperton',
+  CSI: 'Îles de la mer de Corail',
+  CYN: 'Chypre du Nord',
+  ESB: 'Dhekelia',
+  IOA: 'Territoires australiens de l’océan Indien',
+  KAB: 'Cosmodrome de Baïkonour',
+  KAS: 'Cachemire',
+  KOS: 'Kosovo',
+  PGA: 'Îles Spratleys',
+  SOL: 'Somaliland',
+  USG: 'Baie de Guantánamo',
+  WSB: 'Akrotiri',
+};
+
+/**
+ * CLDR rather than `i18n-iso-countries`, whose French table title-cases what French does not
+ * ("Arabie Saoudite") and spells the long form where the map wants the short one ("États-Unis
+ * d'Amérique"). The package is still the one that turns an alpha-3 into the alpha-2 CLDR reads.
+ */
+const french = new Intl.DisplayNames(['fr'], { type: 'region' });
+
+function frenchName(adm0) {
+  const named = OUTSIDE_ISO[adm0];
+  if (named !== undefined) return named;
+  const alpha2 = ISO_ALPHA2[adm0] ?? isoCountries.alpha3ToAlpha2(adm0);
+  if (alpha2 === undefined) return undefined;
+  const label = french.of(alpha2);
+  return label === alpha2 ? undefined : label;
+}
+
+/** Everything the screen can name: the countries the map draws, and those only regions reach. */
+const codes = [
+  ...new Set([...world.countries.map((entry) => entry.a), ...Object.values(country)]),
+].sort();
+
+const countryNames = {};
+const unnamed = [];
+for (const code of codes) {
+  const label = frenchName(code);
+  if (label === undefined) unnamed.push(code);
+  else countryNames[code] = label;
+}
+
+/**
+ * A country without a name is a data defect repaired once, never a degraded label discovered
+ * mid-season. The run stops here rather than letting a code through to a French screen.
+ */
+if (unnamed.length > 0) throw new Error(`countries without a French name: ${unnamed.join(', ')}`);
+
+writeFileSync('public/country-names.json', JSON.stringify(countryNames));
+console.log(`${codes.length} countries named`);

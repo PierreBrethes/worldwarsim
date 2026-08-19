@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { geoNaturalEarth1 } from 'd3-geo';
+import isoCountries from 'i18n-iso-countries';
 import { geoProject } from 'd3-geo-projection';
 import polylabel from 'polylabel';
 import { feature } from 'topojson-client';
@@ -74,6 +75,30 @@ function withoutClosingPoint(ring) {
 /** Unplayable, no neutral country nor outpost possible: its visual mass buys nothing. */
 const EXCLUDED_COUNTRIES = new Set(['Antarctica']);
 
+/**
+ * **The bridge between the map and the code.** Everything else in the game keys a country by
+ * its Natural Earth `adm0_a3` — the server, the regions, the outposts — while world-atlas only
+ * exposes the ISO numeric id, so the map was the one file naming a country in English and
+ * nothing else. The numeric id converts exactly for all but these nine: five carry no ISO code
+ * at all, four are coded differently by Natural Earth than by ISO. They are written out because
+ * nothing derives them, and a country resolving to neither throws below.
+ */
+const NATURAL_EARTH_CODE = {
+  Somaliland: 'SOL',
+  Kosovo: 'KOS',
+  'N. Cyprus': 'CYN',
+  'Indian Ocean Ter.': 'IOA',
+  'Siachen Glacier': 'KAS',
+  'S. Sudan': 'SDS',
+  'W. Sahara': 'SAH',
+  Palestine: 'PSX',
+  Åland: 'ALD',
+};
+
+const adm0Of = (name, id) =>
+  NATURAL_EARTH_CODE[name] ??
+  (id === undefined ? undefined : isoCountries.numericToAlpha3(String(id).padStart(3, '0')));
+
 const countries = [];
 for (const raw of feature(world, world.objects.countries).features) {
   if (EXCLUDED_COUNTRIES.has(raw.properties?.name)) continue;
@@ -83,11 +108,15 @@ for (const raw of feature(world, world.objects.countries).features) {
     .map((ring) => withoutClosingPoint(ring).map(([x, y]) => [rounded(x), rounded(y)]));
   if (rings.length === 0 || !raw.properties?.name) continue;
 
+  const code = adm0Of(raw.properties.name, raw.id);
+  if (!code) throw new Error(`country without an adm0_a3: ${raw.properties.name} (id ${raw.id})`);
+
   const largest = rings.reduce((a, b) => (areaOf(a) >= areaOf(b) ? a : b));
   const representative = polylabel([largest], 0.5);
   const lonLat = projection.invert(representative);
   countries.push({
     n: raw.properties.name,
+    a: code,
     c: [rounded(representative[0]), rounded(representative[1])],
     ll: [rounded(lonLat[0]), rounded(lonLat[1])],
     p: rings,

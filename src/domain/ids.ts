@@ -35,6 +35,10 @@ export type UnitRole =
 export type UnitTier = 1 | 2;
 
 /**
+ * `march` is the plain one, and it was missing until ADR 0019 §7: go to a point and stay there.
+ * Every other order comes back — it is the only one whose column has an address at the end of
+ * it.
+ *
  * `return` is the only one no player ever orders: a routed column and a column that has fought
  * are put on the road home by the resolution itself, outside the slots. It is a movement all
  * the same — it takes time, it can be seen, and it can be intercepted.
@@ -44,7 +48,8 @@ export type UnitTier = 1 | 2;
  * columns recalled before the change are still walking and their documents still say `recall` —
  * so the vocabulary keeps it and `ORDERABLE_TYPES` no longer offers it.
  */
-export type MovementType = 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'decoy' | 'return';
+export type MovementType =
+  'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'decoy' | 'return';
 
 /**
  * The two season formats. What each one is worth — duration, headquarters at launch, ceiling,

@@ -4,16 +4,12 @@
 'use no memo';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fr } from '@/i18n/fr';
+import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
+import type { LonLat } from '@/domain/geo';
 import type { MapLabel } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
-import {
-  countryName,
-  type CompassAction,
-  type CompassTarget,
-  type Compass,
-} from '@/domain/compass-rose';
+import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
 import type { ArcView } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { ControlsCard } from './ControlsCard';
@@ -160,22 +156,12 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        if (point === null) {
+        const aimed = pointTarget(country, region, point);
+        if (aimed === null) {
           setRose(null);
           return;
         }
-        openRose(
-          {
-            kind: 'point',
-            lon: point[0],
-            lat: point[1],
-            regionId: region?.id ?? null,
-            country,
-            name: region?.name ?? (country === null ? fr.compass.openWater : countryName(country)),
-          },
-          clientX,
-          clientY,
-        );
+        openRose(aimed, clientX, clientY);
         return;
       }
       if (country === null) {
@@ -217,12 +203,23 @@ export function WorldMap({
 
   const onLabelMenu = useCallback(
     (label: MapLabel, clientX: number, clientY: number) => {
-      const country = engine.current?.countryAtPoint(clientX, clientY) ?? null;
+      const map = engine.current;
+      const country = map?.countryAtPoint(clientX, clientY) ?? null;
       const target = targetOfLabel(label, country);
-      if (target === null) return;
-      openRose(target, clientX, clientY);
+      /**
+       * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
+       * own fan; every other pictogram — a column in flight, a construction — hands the aim back
+       * to the ground it covers. Without this, a right click landing on a mark would be the last
+       * place on the board where aiming answers nothing.
+       */
+      const aimed =
+        aiming && target?.kind !== 'outpost' && map !== null
+          ? pointTarget(country, map.regionAtPoint(clientX, clientY), map.pointAt(clientX, clientY))
+          : target;
+      if (aimed === null) return;
+      openRose(aimed, clientX, clientY);
     },
-    [openRose],
+    [openRose, aiming],
   );
 
   useEffect(() => {
@@ -342,6 +339,27 @@ function GestureHint() {
 
 const clamp = (value: number, margin: number, extent: number): number =>
   extent < margin * 2 ? extent / 2 : Math.min(Math.max(value, margin), extent - margin);
+
+/**
+ * The place under the pointer, in the shape the aim names it at every scale (ADR 0019 §1): a
+ * lon/lat, plus the region that happens to be drawn there because a foundation still needs one.
+ * The fan sorts out which type takes which.
+ */
+function pointTarget(
+  country: string | null,
+  region: RegionIdentity | null,
+  point: LonLat | null,
+): CompassTarget | null {
+  if (point === null) return null;
+  return {
+    kind: 'point',
+    lon: point[0],
+    lat: point[1],
+    regionId: region?.id ?? null,
+    country,
+    name: region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country)),
+  };
+}
 
 /**
  * A marker label designates the entity it carries; any other — construction, movement head —

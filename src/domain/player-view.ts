@@ -102,12 +102,27 @@ export type ArcView =
     };
 
 /**
+ * **Where a troop stands, and the map is one of the answers** (ADR 0019 §1): a building, the
+ * outpost a column founded, a plain point of the map, or nothing standing at all. A discriminated
+ * union rather than an id and a kind beside it — a point carries coordinates no id has, `home`
+ * carries nothing, and the compiler is what keeps a reader from asking one for the other.
+ *
+ * `country` is the host of the point as every rule keys it, an `adm0_a3`, empty on the open sea
+ * (`hostAtPoint`). It travels with the address because the screen names the place a column was
+ * left in — "en campagne · Arabie saoudite" — and the client holds no geometry to find it.
+ */
+export type TroopStation =
+  | { readonly kind: 'building'; readonly buildingId: string }
+  | { readonly kind: 'outpost'; readonly outpostId: string }
+  | { readonly kind: 'point'; readonly lonLat: LonLat; readonly country: string }
+  | { readonly kind: 'home' };
+
+/**
  * One troop, as its owner sees it (ADR 0014). Its hit points **are** its strength, read
  * against the nominal it was formed at: "32 / 50 soldats" is the whole health bar.
  *
- * `stationedAt` names what it hangs from — a building, or the outpost its column founded —
- * `null` meaning at home, including the troop whose building is gone. No enemy troop ever
- * travels in this list.
+ * `stationedAt` is its address, `home` meaning the troop whose building is gone. No enemy troop
+ * ever travels in this list.
  */
 export type TroopView = {
   readonly id: string;
@@ -115,7 +130,7 @@ export type TroopView = {
   readonly tier: UnitTier;
   readonly strength: number;
   readonly nominalStrength: number;
-  readonly stationedAt: string | null;
+  readonly stationedAt: TroopStation;
 };
 
 export type OutpostView = {

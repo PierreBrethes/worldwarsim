@@ -49,7 +49,12 @@ casserait la topologie cylindrique et rendrait les distances beaucoup plus dures
 ## Avant-postes
 
 Un avant-poste est un **point** : `{ lon, lat, propriétaire, niveau, spécialisation }`. Jamais un
-polygone. C'est ce qui donne une couche territoriale contestée sans jamais toucher au découpage
+polygone.
+
+**Il se fonde sur place** (ADR 0019, 18/08) : une colonne posée, entièrement composée
+d'infanterie, plante le point là où elle se tient et en devient la garnison. Fonder n'est plus un
+type de mouvement — le joueur voit le terrain avant de choisir la spécialisation, il ne nomme
+plus à des heures de marche un sol qu'il n'a pas vu. C'est ce qui donne une couche territoriale contestée sans jamais toucher au découpage
 administratif — la carte se colore, le front avance, et le coût en données reste nul.
 
 ### Spécialisation unique, choisie à la construction, irréversible
@@ -58,6 +63,12 @@ administratif — la carte se colore, le front avance, et le coût en données r
 |---|---|
 | **Relais logistique** | les mouvements passant dans son rayon accélèrent |
 | **Écoute** | révèle les arcs ennemis passant dans son rayon |
+
+**Et toute spécialisation ravitaille** (ADR 0019 §4) : une troupe posée dans le rayon d'un de
+ses avant-postes s'entretient au tarif domestique ; partout ailleurs, l'entretien est majoré
+(`UPKEEP_UNSUPPLIED_MULTIPLIER`). L'avant-poste ne projette pas la force — il la nourrit. C'est ce
+qui donne au raid son second sens : désactiver un avant-poste, c'est aussi affamer l'armée qui
+campe autour.
 
 Le relais logistique est le porteur des deux. C'est le seul qui interagit avec le cœur du jeu — le
 temps de déplacement — et il crée immédiatement l'arbitrage central : est-ce que j'investis dans une

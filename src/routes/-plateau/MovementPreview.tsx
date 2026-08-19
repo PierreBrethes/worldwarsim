@@ -6,6 +6,7 @@ import { fr } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import type { MovementAim } from '@/domain/movement-orders';
+import type { MarchStation } from '@/domain/troops';
 import { handleError } from '@/data/errors';
 import type { MovementPreviewed } from '@/data/serverView';
 
@@ -21,16 +22,20 @@ export const wireTarget = (aim: MovementAim) =>
       : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 /**
- * Where a column stands, in the plain strings `PlayerView` carries — the branded ids go back on
- * at the one place that needs them, the call itself. Since ADR 0019 the origin no longer says
- * what may be asked for; it says which address the order leaves from, and that is all.
+ * Where a column stands, in the shape the mutations take — the branded ids go back on at the one
+ * place that needs them, the call itself. It is the troop's own address (`MarchStation`) and not
+ * a second vocabulary: since ADR 0019 the origin no longer says what may be asked for, it says
+ * which address the order leaves from, and that is all.
  */
-export type ColumnOrigin = { readonly kind: 'building' | 'outpost'; readonly id: string };
-
-export const wireOrigin = (origin: ColumnOrigin) =>
-  origin.kind === 'outpost'
-    ? ({ kind: 'outpost', outpostId: origin.id as Id<'outposts'> } as const)
-    : ({ kind: 'building', buildingId: origin.id as Id<'buildings'> } as const);
+export const wireOrigin = (station: MarchStation) =>
+  station.kind === 'outpost'
+    ? ({ kind: 'outpost', outpostId: station.outpostId as Id<'outposts'> } as const)
+    : station.kind === 'building'
+      ? ({ kind: 'building', buildingId: station.buildingId as Id<'buildings'> } as const)
+      : ({
+          kind: 'point',
+          point: { lon: station.lonLat[0], lat: station.lonLat[1] },
+        } as const);
 
 /**
  * **The confirmation sits at the end of the arc, not in the middle of the screen**: the gesture
@@ -53,7 +58,7 @@ export function MovementPreview({
   onClose,
 }: {
   token: string;
-  origin: ColumnOrigin;
+  origin: MarchStation;
   troopIds: ReadonlyArray<string>;
   aim: MovementAim;
   type: MovementType;
@@ -65,7 +70,7 @@ export function MovementPreview({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const foundOutpost = useMutation(api.movements.foundOutpost);
+  const marchTo = useMutation(api.movements.marchTo);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
 
@@ -77,19 +82,15 @@ export function MovementPreview({
     // them: the call itself.
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
     const from = wireOrigin(origin);
+    /** Three orders and no fourth: founding is not one of them any more — it is what a column
+     *  does where it stands (`foundOutpostHere`), and the fan stopped offering it. */
     const order =
-      type === 'outpost' && aim.kind === 'region'
-        ? foundOutpost({
+      type === 'march' && aim.kind === 'point'
+        ? marchTo({
             token,
             origin: from,
-            regionId: aim.regionId,
-            /**
-             * The relay, always: the compass rose asks for a *type of march*, not for what the
-             * point will be specialised in. Choosing between relay and listening station is the
-             * outpost's own decision and has no surface yet (fiche 03).
-             */
-            specialization: 'relay',
             troopIds: ids,
+            point: { lon: aim.lon, lat: aim.lat },
           })
         : type === 'raid' && aim.kind === 'outpost'
           ? raid({
@@ -156,6 +157,19 @@ export function MovementPreview({
                   <span className="text-[10.5px] tracking-[.1em] text-[var(--critical)] uppercase">
                     {fr.aim.restBite(asLocalTime(preview.holdUntil))}
                   </span>
+                </div>
+              )}
+              {/* What the player does not know, said before he pays for it (ADR 0019 §6). It is
+                  a statement about his own eyes, never about the ground — the note underneath is
+                  there so it cannot be read as a guarantee the other way round. */}
+              {!preview.recognised && (
+                <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+                  <div className="text-[10.5px] tracking-[.1em] text-[var(--notable)] uppercase">
+                    {fr.aim.unscouted}
+                  </div>
+                  <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                    {fr.aim.unscoutedNote}
+                  </p>
                 </div>
               )}
             </>

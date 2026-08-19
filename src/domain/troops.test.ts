@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { marchingTroopIds, representativeRole, stationGroups, troopsAt } from './troops';
-import type { ArcView, PlayerView, TroopView } from './player-view';
+import type { ArcView, PlayerView, TroopStation, TroopView } from './player-view';
 import { directRoute } from './routing';
 
-const troop = (id: string, role: TroopView['role'], stationedAt: string | null): TroopView => ({
+const troop = (id: string, role: TroopView['role'], stationedAt: TroopStation): TroopView => ({
   id,
   role,
   tier: 1,
@@ -14,11 +14,14 @@ const troop = (id: string, role: TroopView['role'], stationedAt: string | null):
 
 const me = {
   troops: [
-    troop('T-1', 'infantry', 'BAT-01'),
-    troop('T-2', 'infantry', 'BAT-01'),
-    troop('T-3', 'armor', 'BAT-01'),
-    troop('T-4', 'infantry', 'AP-01'),
-    troop('T-5', 'fighter', null),
+    troop('T-1', 'infantry', { kind: 'building', buildingId: 'BAT-01' }),
+    troop('T-2', 'infantry', { kind: 'building', buildingId: 'BAT-01' }),
+    troop('T-3', 'armor', { kind: 'building', buildingId: 'BAT-01' }),
+    troop('T-4', 'infantry', { kind: 'outpost', outpostId: 'AP-01' }),
+    troop('T-5', 'fighter', { kind: 'home' }),
+    /** A column left standing on the map: an address like any other since ADR 0019 §1, and the
+     *  one the widget had no card for. */
+    troop('T-6', 'infantry', { kind: 'point', lonLat: [46.7, 24.6], country: 'SAU' }),
   ],
   outposts: [
     {
@@ -71,9 +74,10 @@ describe('what stands still', () => {
 
   it('groups by address then by role', () => {
     expect(stationGroups(me, marching).map((group) => group.key)).toEqual([
-      'AP-01-infantry',
-      'BAT-01-infantry',
+      'building:BAT-01-infantry',
       'home-fighter',
+      'outpost:AP-01-infantry',
+      'point:46.7,24.6-infantry',
     ]);
   });
 
@@ -82,16 +86,27 @@ describe('what stands still', () => {
     expect(stationGroups(me, new Set()).some((group) => group.role === 'armor')).toBe(true);
   });
 
-  it('names the outpost as an address of its own', () => {
-    const garrison = stationGroups(me, marching).find((group) => group.stationId === 'AP-01');
-    expect(garrison?.kind).toBe('outpost');
-    expect(stationGroups(me, marching).find((group) => group.stationId === null)?.kind).toBe(
-      'home',
+  it('names the outpost, the point and the home as addresses of their own', () => {
+    const kinds = new Map(
+      stationGroups(me, marching).map((group) => [group.stationKey, group.station.kind]),
     );
+    expect(kinds.get('outpost:AP-01')).toBe('outpost');
+    expect(kinds.get('home')).toBe('home');
+    expect(kinds.get('point:46.7,24.6')).toBe('point');
+  });
+
+  /** The criterion of the third prompt of ADR 0019: a troop left on the map is in the inventory,
+   *  on a card of its own, and countable like every other. */
+  it('serves a posted column with the country it was left in', () => {
+    const posted = stationGroups(me, marching).find((group) => group.station.kind === 'point');
+    expect(posted?.count).toBe(1);
+    expect(posted?.station).toEqual({ kind: 'point', lonLat: [46.7, 24.6], country: 'SAU' });
   });
 
   it('adds the hit points of the group against the nominal it was formed at', () => {
-    const barracks = stationGroups(me, marching).find((group) => group.key === 'BAT-01-infantry');
+    const barracks = stationGroups(me, marching).find(
+      (group) => group.key === 'building:BAT-01-infantry',
+    );
     expect(barracks?.count).toBe(2);
     expect(barracks?.strength).toBe(80);
     expect(barracks?.nominalStrength).toBe(100);
@@ -104,9 +119,15 @@ describe('what stands still', () => {
 
 describe('troopsAt', () => {
   it('answers one address, marching columns excluded', () => {
-    expect(troopsAt(me, 'BAT-01', marchingTroopIds(arcs)).map((held) => held.id)).toEqual([
+    expect(troopsAt(me, 'building:BAT-01', marchingTroopIds(arcs)).map((held) => held.id)).toEqual([
       'T-1',
       'T-2',
+    ]);
+  });
+
+  it('finds who stands at a point, which is an address like any other', () => {
+    expect(troopsAt(me, 'point:46.7,24.6', marchingTroopIds(arcs)).map((held) => held.id)).toEqual([
+      'T-6',
     ]);
   });
 });

@@ -19,6 +19,25 @@ Sans brouillard, le plus beau du jeu est offert gratuitement à tout le monde et
 ⚠️ **C'est un problème serveur avant d'être un problème de rendu.** Cf.
 [technique/brouillard-et-fanout.md](../technique/brouillard-et-fanout.md).
 
+## Les forces posées ne se voient pas de loin
+
+Depuis l'ADR 0019 (18/08), une troupe peut rester posée sur la carte. Elle suit la règle déjà
+écrite pour l'avant-poste adverse — *exactement le genre de chose que le brouillard existe pour
+cacher* : **aucune détection à distance**, ni par le rayon d'un territoire, ni par celui d'une
+autre force posée. Ce qui se voit de loin, c'est ce qui **bouge** — un convoi fait du bruit, un
+campement non. Trois choses seules révèlent une force posée : l'agent dormant, un mouvement qui la
+croise (contact à `ARRIVAL_RADIUS_KM`, initiative au posé), et l'arrivée sur elle.
+
+Le contrepoids, qui ne perce aucun brouillard : en visée, un point hors du sol du joueur et hors
+du rayon de ses avant-postes est marqué **« sol non reconnu »**. Le marqueur ne promet rien — il
+ne dit pas qu'un adversaire est là, et surtout pas qu'un sol reconnu serait sûr. Il dit une seule
+chose : *rien à moi ne regarde ce sol*.
+
+À venir (prompt `reperage-des-troupes-posees.md`) : une troupe posée devient la **quatrième
+source de détection** de ce qui bouge, après le territoire, la station d'écoute et l'avant-poste
+d'écoute — rayon court (`SCOUT_RADIUS_KM`, 60 km), un fil, un cap, un domaine, jamais le type ni
+la composition. Elle ne perce rien : l'identification reste l'affaire de l'agent et des bâtiments.
+
 ## Outils
 
 | Outil | Effet | Coût |

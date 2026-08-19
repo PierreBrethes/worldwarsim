@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
+  foundingRefusal,
   legalMovementTypes,
   refusalOf,
   routeModeOf,
@@ -20,16 +21,12 @@ const region: MovementAim = { kind: 'region', regionId: 'TUN-1', country: 'Tunis
 const outpost: MovementAim = { kind: 'outpost', outpostId: 'op1', hostCountry: 'Libya' };
 
 describe('what a column may ask for', () => {
-  it('offers the attack and the foundation on a foreign region', () => {
-    expect(legalMovementTypes(region, column(['infantry']))).toEqual(['attack', 'outpost']);
+  it('offers the attack on a foreign region — founding is no longer a march', () => {
+    expect(legalMovementTypes(region, column(['infantry']))).toEqual(['attack']);
   });
 
   it('offers the attack and the raid on a foreign outpost, never the foundation', () => {
     expect(legalMovementTypes(outpost, column(['infantry']))).toEqual(['attack', 'raid']);
-  });
-
-  it('drops the foundation as soon as the column is not infantry alone', () => {
-    expect(legalMovementTypes(region, column(['infantry', 'armor']))).toEqual(['attack']);
   });
 
   it('offers nothing on ground of mine — a fan that opens empty stays shut', () => {
@@ -47,7 +44,7 @@ describe('what a column may ask for', () => {
    */
   it('offers a land column the same marches wherever it stands', () => {
     const posted = column(['infantry'], { departureBuildings: new Set<BuildingKey>() });
-    expect(legalMovementTypes(region, posted)).toEqual(['attack', 'outpost']);
+    expect(legalMovementTypes(region, posted)).toEqual(['attack']);
     expect(legalMovementTypes(outpost, posted)).toEqual(['attack', 'raid']);
   });
 
@@ -66,12 +63,10 @@ describe('refusals', () => {
     expect(refusalOf('raid', region, column(['infantry']))).toBe('OUTPOST_TARGET_ONLY');
   });
 
-  it('refuses a foundation on an outpost', () => {
-    expect(refusalOf('outpost', outpost, column(['infantry']))).toBe('REGION_TARGET_ONLY');
-  });
-
-  /** Nobody orders a return: the resolution creates it, so the rule has to say so out loud. */
-  it('refuses the return, the agent, the decoy and the recall as unorderable', () => {
+  /** Nobody orders a return: the resolution creates it, so the rule has to say so out loud.
+   *  The foundation joins them — it is not a march at all any more. */
+  it('refuses the return, the agent, the decoy, the recall and the foundation', () => {
+    expect(refusalOf('outpost', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('return', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('agent', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('decoy', region, column(['infantry']))).toBe('NOT_ORDERABLE');
@@ -166,14 +161,25 @@ describe('the places aboard', () => {
     expect(refusalOf('attack', region, quay(many))).toBeNull();
     expect(refusalOf('attack', region, quay(['escort', 'escort', 'carrier']))).toBeNull();
   });
+});
 
-  /** The foundation crosses too, and the ship that ferried the founders is not one of them. */
-  it('lets a cargo ferry founders overseas, and still refuses an armour among them', () => {
-    expect(refusalOf('outpost', region, quay(['infantry', 'infantry', 'cargo']))).toBeNull();
-    expect(refusalOf('outpost', region, quay(['infantry', 'armor', 'cargo']))).toBe(
-      'INFANTRY_ONLY',
-    );
-    expect(refusalOf('outpost', region, quay(['cargo']))).toBe('INFANTRY_ONLY');
+/**
+ * **Founding is what a column does where it stands**, so the rule reads the pile and the ground
+ * under it, and nothing else — no aim, no gate, no route (ADR 0019 §1).
+ */
+describe('planting a point', () => {
+  it('takes a pile of nothing but infantry', () => {
+    expect(foundingRefusal(['infantry', 'infantry'], false)).toBeNull();
+    expect(foundingRefusal(['infantry', 'armor'], false)).toBe('INFANTRY_ONLY');
+    expect(foundingRefusal(['cargo'], false)).toBe('INFANTRY_ONLY');
+  });
+
+  it('refuses ground that already carries a building of mine', () => {
+    expect(foundingRefusal(['infantry'], true)).toBe('FRIENDLY_TARGET');
+  });
+
+  it('refuses a column with nothing in it', () => {
+    expect(foundingRefusal([], false)).toBe('EMPTY_MOVEMENT');
   });
 });
 
@@ -206,11 +212,27 @@ describe('a point as a destination', () => {
   const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
 
   it('takes a march, at any scale and with no region drawn', () => {
-    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['attack']);
+    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['march', 'attack']);
   });
 
-  it('takes no foundation: an outpost stands on ground that produces', () => {
-    expect(refusalOf('outpost', somewhere, column(['infantry']))).toBe('REGION_TARGET_ONLY');
+  /**
+   * **The march refuses no ground for allegiance** (ADR 0019 §7) — that is the whole of what
+   * separates it from an attack, and it is what makes "go and stand there" orderable on one's
+   * own soil. Its target is a place and only a place: an outpost is something one comes to
+   * fight, and marching *at* one would be an attack under another word.
+   */
+  it('takes the march on my own ground as on anybody else’s', () => {
+    const home = column(['infantry'], { myRegionIds: new Set(['ROU-310']) });
+    expect(refusalOf('march', somewhere, home)).toBeNull();
+  });
+
+  it('takes no march at an outpost — a march goes to a place', () => {
+    const aimed: MovementAim = { kind: 'outpost', outpostId: 'AP-01', hostCountry: 'ROU' };
+    expect(refusalOf('march', aimed, column(['infantry']))).toBe('POINT_TARGET_ONLY');
+  });
+
+  it('holds the march to the same domain doors as the rest', () => {
+    expect(refusalOf('march', somewhere, column(['cargo']))).toBe('NO_PORT_AT_DEPARTURE');
   });
 
   it('takes no raid: a coordinate has no point to disable', () => {

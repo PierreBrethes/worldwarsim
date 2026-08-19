@@ -188,6 +188,12 @@
   color: #16323f;
 }
 
+/* The one heading that says no. It wears the alert ink rather than the menu's blue: a refusal
+   read as a label is a refusal read too late. */
+.rose-bubble-label--refused {
+  color: #8c2f16;
+}
+
 .rose-bubble-cost {
   margin-top: 5px;
   font-family: var(--font-mono);

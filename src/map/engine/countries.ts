@@ -14,8 +14,13 @@ import type { Curvature } from './curvature';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, DRAFT, type WorldFrame } from './frame';
 
+/**
+ * Two keys because two vocabularies meet on the slab: `name` is what `world.json` inks by,
+ * `adm0` is what everything outside the map designates a country with — a selection, a target,
+ * a label. Picking answers with the second, colouring reads the first.
+ */
 export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
-  userData: { name: string };
+  userData: { name: string; adm0: string };
 };
 
 /**
@@ -90,7 +95,7 @@ export function buildCountries(
         polygonOffsetUnits: GROUND_RECESSION,
       }),
     ) as CountryMesh;
-    mesh.userData = { name: country.name };
+    mesh.userData = { name: country.name, adm0: country.adm0 };
     meshes.push(mesh);
     outlines.push(outlinesOf(country, frame));
   }
