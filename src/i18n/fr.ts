@@ -10,6 +10,7 @@ import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import type { UpgradeHold } from '../domain/construction';
+import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
@@ -287,10 +288,12 @@ export const fr = {
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
+    /** The stack's footer prints this **before** the aim, not after the refusal: it says how
+     *  many berths are short, because "il manque du transport" leaves the player counting. */
     NOT_ENOUGH_LIFT: (d) =>
       `${num(d.needed)} place${plural(Number(d.needed), '', 's')} à embarquer pour ${num(
         d.offered,
-      )} à bord — il manque du transport`,
+      )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
@@ -671,6 +674,25 @@ export const fr = {
      * que D3 refusait pour l'attrition.
      */
     unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
+    /**
+     * **Le renseignement, troisième section** — ce qu'une troupe posée a vu passer (ADR 0019 §5,
+     * fiche 04). Elle ne perce rien : ni type, ni composition, ni nation. Le fil, le cap, un
+     * horaire estimé, et c'est tout.
+     */
+    intel: 'renseignement',
+    intelPower: 'non identifié',
+    intelNone: 'rien de repéré',
+    /**
+     * **La règle temporelle, en une ligne.** Le relevé se calcule au départ du mouvement adverse
+     * et jamais après : une troupe posée ensuite ne verra pas ce qui vole déjà. Sans cette
+     * phrase, ce sera lu comme une panne le premier jour — c'est un pari sur ce qui passera, pas
+     * une réaction à ce qui passe.
+     */
+    intelRule: 'une sentinelle ne voit que ce qui part après elle',
+    intelBearing: (cardinal: string) => `cap ${cardinal}`,
+    intelAtMe: 'cap sur vous',
+    intelEstimate: (duration: string) => `~ ${duration}`,
+    intelLost: (duration: string) => `perdu de vue il y a ${duration}`,
   },
 
   /**
@@ -684,6 +706,26 @@ export const fr = {
     troopCount: (count: number) => `${count} troupe${plural(count, '', 's')}`,
     empty: 'Aucune troupe ne stationne ici.',
     column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
+    /**
+     * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
+     * Le joueur voyait « 2 troupes · 1 slot » et composait à l'aveugle : ni ce que ses transports
+     * offrent, ni ce que sa pile demande. Un transport sans capacité n'affiche rien — le jour où
+     * l'allure en donne une au camion, le compteur suit sans une ligne de plus.
+     */
+    seats: (needed: number, offered: number) => `places : ${needed}/${offered}`,
+    /**
+     * **L'allure se lit en composant, pas à l'arrivée de l'aperçu.** Le compteur de places dit
+     * l'embarquement — traverser un milieu qui n'est pas le sien — et il ne dit rien du sol :
+     * les places d'un camion sont une autre question, celle de qui roule et qui marche.
+     *
+     * Phrases entières plutôt que `colonne ${'${fr.aim.paces[…]}'}` : le mot de la visée qualifie un
+     * trajet et s'accorde au masculin, celui-ci qualifie une colonne. Composer les deux écrivait
+     * « colonne motorisé ».
+     */
+    paces: { motorized: 'colonne motorisée', foot: 'colonne à pied' } satisfies Record<
+      LandPace,
+      string
+    >,
     noColumn: 'pile : aucune troupe cochée',
     prepare: 'préparer un mouvement',
     /** Founding is what a column does where it stands (ADR 0019 §1) — the terrain is under its
@@ -716,6 +758,23 @@ export const fr = {
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
     arrival: (time: string) => `arrivée ${time}`,
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
+    /**
+     * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
+     * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
+     * `medium` ; à l'écran on dit par où l'on passe.
+     */
+    mediums: {
+      land: 'par terre',
+      sea: 'par mer',
+      air: 'par air',
+      combined: 'terre et mer',
+    } satisfies Record<RouteMedium, string>,
+    /**
+     * **L'allure, à côté du milieu.** Une colonne dont l'infanterie tient dans ses transports
+     * roule (note « le transport terrestre et l'allure ») : c'est le seul effet du transport
+     * terrestre, et la seule façon de le voir avant de payer.
+     */
+    paces: { motorized: 'motorisé', foot: 'à pied' } satisfies Record<LandPace, string>,
     /**
      * **This label promises nothing** (ADR 0019 §6). It does not say an adversary is there, and
      * above all it does not say recognised ground would be safe — a posted force is invisible
@@ -1168,6 +1227,14 @@ export function stackLabel(stack: Partial<Record<UnitRole, number>>): string {
 
 export function roleLabel(role: UnitRole, count: number): string {
   return count > 1 ? fr.roles[role].many : fr.roles[role].one;
+}
+
+/** The eight points of the compass, which is all a bearing is read at on a card: a heading in
+ *  degrees is a number nobody pictures, and the fog grants no more precision than a direction. */
+const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
+
+export function cardinalLabel(degrees: number): string {
+  return CARDINALS[Math.round((((degrees % 360) + 360) % 360) / 45) % 8]!;
 }
 
 export function nationLabel(nation: string | null): string {

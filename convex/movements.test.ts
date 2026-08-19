@@ -9,16 +9,19 @@ import {
   OUTPOST_DISABLED_HOURS,
   OUTPOST_REACH_KM,
   REST_WINDOW_MINUTES,
+  SCOUT_RADIUS_KM,
   unlockLevel,
 } from './constants';
 import { ConvexError } from 'convex/values';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import {
+  landCostOf,
   legalMovementTypes,
   refusalOf,
   type Column,
   type MovementAim,
 } from '../src/domain/movement-orders';
+import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { regionFacts } from './regions';
 import { pointOf } from './movements';
 import { routeBetween } from './routes';
@@ -665,6 +668,125 @@ describe('the preview says what the march will be', () => {
     });
     expect(preview!.holdUntil).not.toBeNull();
     expect(preview!.holdUntil!).toBeGreaterThan(preview!.arrivesAt);
+  });
+});
+
+/**
+ * **The pace is one reading of one pile, and three surfaces answer with it.** The fan, the
+ * preview and the mutation all go through `landCostOf` — a second table of what rolls is how a
+ * card would promise a duration the march does not take, which is exactly the display lie the
+ * previous three prompts were spent on.
+ */
+describe('a column whose infantry rides goes faster', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const origin = (barracks: Id<'buildings'>) =>
+    ({ kind: 'building', buildingId: barracks }) as const;
+  const target = { kind: 'region', regionId: RUHR } as const;
+
+  /** A query, so it spends no slot: two piles can be priced in one season, which is what the
+   *  comparison needs — only one movement flies at a time (ADR 0006). */
+  const priced = async (
+    t: ReturnType<typeof boot>,
+    token: string,
+    barracks: Id<'buildings'>,
+    troopIds: ReadonlyArray<Id<'troops'>>,
+  ) => {
+    const answer = await t.query(api.movements.preview, {
+      token,
+      origin: origin(barracks),
+      troopIds: [...troopIds],
+      target,
+      type: 'attack',
+    });
+    return answer!;
+  };
+
+  it('takes 1,15/1,6 of the walk on the very same road', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const walkers = [await form(t, token, 'infantry', barracks)];
+    const riders = [
+      await form(t, token, 'infantry', barracks),
+      await form(t, token, 'infantry', barracks),
+      await form(t, token, 'landTransport', barracks),
+    ];
+
+    const from = regionFacts(MARNE)!.point;
+    const to = regionFacts(RUHR)!.point;
+    const onFoot = routeBetween(from, to, 'land', COST_BY_MEDIUM.land)!;
+    const rolling = routeBetween(from, to, 'land', COST_BY_MEDIUM.landMotorized)!;
+    // The same road, priced twice: scaling every land edge by the same factor cannot move the
+    // shortest path. The polyline itself is compared by its length rather than vertex by
+    // vertex — equal-cost cells are tie-broken in whatever order the heap emptied.
+    expect(rolling.distanceUnits).toBeCloseTo(onFoot.distanceUnits, 9);
+    expect(rolling.costUnits).toBeCloseTo(
+      (onFoot.costUnits * COST_BY_MEDIUM.landMotorized) / COST_BY_MEDIUM.land,
+      6,
+    );
+
+    const walked = await priced(t, token, barracks, walkers);
+    const rode = await priced(t, token, barracks, riders);
+    expect(walked.route.landCost).toBe(COST_BY_MEDIUM.land);
+    expect(rode.route.landCost).toBe(COST_BY_MEDIUM.landMotorized);
+    expect(rode.route.costUnits).toBeCloseTo(
+      (walked.route.costUnits * COST_BY_MEDIUM.landMotorized) / COST_BY_MEDIUM.land,
+      6,
+    );
+    expect(rode.minutes).toBeLessThan(walked.minutes);
+  });
+
+  it('walks again on one infantry too many', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const crowded = await priced(t, token, barracks, [
+      await form(t, token, 'infantry', barracks),
+      await form(t, token, 'infantry', barracks),
+      await form(t, token, 'infantry', barracks),
+      await form(t, token, 'landTransport', barracks),
+    ]);
+    const alone = await priced(t, token, barracks, [await form(t, token, 'infantry', barracks)]);
+    expect(crowded.route.landCost).toBe(COST_BY_MEDIUM.land);
+    expect(crowded.minutes).toBe(alone.minutes);
+  });
+
+  it('says the same duration in the fan, the preview and the march it sends', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const roles: ReadonlyArray<UnitRole> = ['infantry', 'infantry', 'landTransport'];
+    const column: Array<Id<'troops'>> = [];
+    for (const role of roles) column.push(await form(t, token, role, barracks));
+
+    // The fan reads the same composition through the same module: legal here means the
+    // mutation takes it, and the duration below is the one the card was showing.
+    expect(
+      legalMovementTypes(
+        { kind: 'region', regionId: RUHR, country: 'Germany' },
+        {
+          roles,
+          myRegionIds: new Set(),
+          myOutpostIds: new Set(),
+          departureBuildings: new Set<BuildingKey>(['barracks']),
+        },
+      ),
+    ).toContain('attack');
+
+    const preview = await priced(t, token, barracks, column);
+    const sent = await t.mutation(api.movements.attack, {
+      token,
+      origin: origin(barracks),
+      troopIds: column,
+      target,
+    });
+    expect(sent.minutes).toBeCloseTo(preview.minutes, 6);
+    expect(landCostOf(roles)).toBe(preview.route.landCost);
   });
 });
 
@@ -1840,5 +1962,255 @@ describe('a rout refluxes to the nearest anchor', () => {
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toEqual(back!.to);
+  });
+});
+
+/**
+ * **Nobody teleports** (ADR 0019 §3, amended 19/08). The travel time is the central lever the
+ * simulation measured, and it owns no exception: the same `return` carries the beaten and the
+ * winners. Two roads used to be missing — a column that broke contact after leaving an outpost,
+ * and any winner that had left a plain point — and both ended the same way, with the troops
+ * standing at their point of departure the instant the pass was resolved.
+ */
+describe('a column that comes out of a pass walks back, winner or beaten', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+  /** Deliberately off the Prahova centroid, and far enough from it to be another place. */
+  const AIMED: LonLat = [25.2, 44.6];
+
+  it('walks the garrison that left an outpost back to its anchor, never straight into it', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const held = await plant(t, guest, regionFacts(PRAHOVA)!.point, 'ROU');
+    const worn = await garrison(t, guest, held);
+    // Thirty soldiers walking at fifty: the ambush takes it under the quarter it breaks at.
+    await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
+
+    // Halfway down the road it is about to take, so it walks straight into the radius.
+    const road = routeBetween(regionFacts(PRAHOVA)!.point, regionFacts(RUHR)!.point, 'land')!;
+    const ambush = road.points[Math.floor(road.points.length / 2)]!;
+    await garrison(t, token, await plant(t, token, ambush, 'DEU'));
+
+    const sent = await t.mutation(api.movements.attack, {
+      token: guest,
+      origin: { kind: 'outpost', outpostId: held },
+      troopIds: [worn],
+      target: { kind: 'region', regionId: RUHR },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [account] = await engagementsIn(t);
+    expect(account!.cause).toBe('interception');
+    expect(account!.troops.find((one) => one.troopId === worn)!.state).toBe('routed');
+
+    /** The road home is a real one: it used to have none — an outpost address answered to
+     *  neither of the two functions — so the garrison reappeared on its point at once. */
+    const [back] = await movementsOf(t, guest);
+    expect(back).toBeDefined();
+    expect(back!.type).toBe('return');
+    expect(back!.target).toEqual({ kind: 'outpost', outpostId: held });
+    expect(back!.troopIds).toEqual([worn]);
+    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
+    /** It leaves from where it broke, not from the point it had already left. */
+    expect(back!.from).not.toEqual(asPoint(regionFacts(PRAHOVA)!.point));
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(worn)))!.stationedAt).toBe(held);
+  });
+
+  it('walks the winners of an attack back to the camp they left', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const camp = regionFacts(PRAHOVA)!.point;
+    const column = [await post(t, token, camp), await post(t, token, camp)];
+    const standing = await post(t, guest, AIMED);
+    // Twenty soldiers: the first strike of the pass clears the ground, so the attack wins it.
+    await t.run(async (ctx) => ctx.db.patch(standing, { currentStrength: 20 }));
+
+    const sent = await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'point', point: asPoint(camp) },
+      troopIds: column,
+      target: { kind: 'point', point: asPoint(AIMED) },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [account] = await engagementsIn(t);
+    expect(account!.winner).toBe('attacker');
+    expect(await t.run(async (ctx) => ctx.db.get(standing))).toBeNull();
+
+    /** **The winners march.** They used to be skipped by the road home — a point answered to
+     *  nobody — and so stood on their camp again the instant the pass was resolved, while the
+     *  beaten walked. The trip is real for both. */
+    const [back] = await movementsOf(t, token);
+    expect(back).toBeDefined();
+    expect(back!.type).toBe('return');
+    expect(back!.target).toEqual({ kind: 'point', point: asPoint(camp) });
+    expect(back!.to).toEqual(asPoint(camp));
+    expect([...back!.troopIds].sort()).toEqual([...column].sort());
+    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    for (const troop of column) {
+      expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(camp));
+    }
+  });
+
+  it('walks the winners of an attack back into the outpost they garrison', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const outpostId = await plant(t, token, regionFacts(PRAHOVA)!.point, 'ROU');
+    const column = [await garrison(t, token, outpostId), await garrison(t, token, outpostId)];
+    const standing = await post(t, guest, AIMED);
+    await t.run(async (ctx) => ctx.db.patch(standing, { currentStrength: 20 }));
+
+    const sent = await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'outpost', outpostId },
+      troopIds: column,
+      target: { kind: 'point', point: asPoint(AIMED) },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    expect((await engagementsIn(t))[0]!.winner).toBe('attacker');
+
+    const [back] = await movementsOf(t, token);
+    expect(back).toBeDefined();
+    expect(back!.type).toBe('return');
+    expect(back!.target).toEqual({ kind: 'outpost', outpostId });
+    expect(back!.to).toEqual(asPoint(regionFacts(PRAHOVA)!.point));
+    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    for (const troop of column) {
+      expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toBe(outpostId);
+    }
+  });
+});
+
+/**
+ * **A posted troop is the fourth source of detection** (ADR 0019 §5, design sheet 04): it reveals
+ * what passes within `SCOUT_RADIUS_KM` to its owner, and it pierces nothing — a thread, a
+ * bearing, an estimated schedule, a medium, never the type nor the composition.
+ *
+ * The rows are written at the departure of the movement and never recomputed, which is both the
+ * answer to the fan-out (`WWS/docs/technique/brouillard-et-fanout.md`) and a design decision: one
+ * posts a sentry for what will pass, not for what is passing.
+ */
+describe('a posted troop sees what passes within its radius', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+  /** The road the column will actually walk, and how close a point stands to it: the tests turn
+   *  on the radius, so the geography is measured rather than assumed. */
+  const road = () => routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
+  const nearestOn = (points: ReadonlyArray<LonLat>, point: LonLat) =>
+    points.reduce((closest, step) => Math.min(closest, distanceKm(step, point)), Infinity);
+
+  async function marchAcross(t: ReturnType<typeof boot>, token: string) {
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+    return t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+  }
+
+  it('serves the thread of what walks past, and neither its type nor its composition', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const halfway = road().points[Math.floor(road().points.length / 2)]!;
+    // Forty kilometres off the road: inside the sentry's radius, well outside the twenty-five
+    // that would make it a crossing instead of a sighting.
+    const camp = eastOf(halfway, 40);
+    expect(nearestOn(road().points, camp)).toBeLessThan(SCOUT_RADIUS_KM);
+    await post(t, guest, camp);
+
+    const sent = await marchAcross(t, token);
+    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
+
+    const watched = await t.query(api.view.playerView, { token: guest });
+    expect(watched.detected).toHaveLength(1);
+    const [seen] = watched.detected;
+    expect(seen!.points.length).toBeGreaterThan(1);
+    expect(seen!.arrivesAt).toBe(sent.arrivesAt);
+    /** The fog checked by what is missing: an unidentified movement has nothing to leak because
+     *  nothing was fetched (design sheet 04, convention §8). */
+    expect(seen).not.toHaveProperty('type');
+    expect(seen).not.toHaveProperty('roles');
+    expect(seen).not.toHaveProperty('troopIds');
+    expect(seen).not.toHaveProperty('playerId');
+
+    /** And no engagement came of it: forty kilometres is a sighting, not a meeting. */
+    expect(await engagementsIn(t)).toHaveLength(0);
+  });
+
+  it('sees nothing of the same column from beyond the radius', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const halfway = road().points[Math.floor(road().points.length / 2)]!;
+    const camp = eastOf(halfway, 150);
+    expect(nearestOn(road().points, camp)).toBeGreaterThan(SCOUT_RADIUS_KM);
+    await post(t, guest, camp);
+
+    const sent = await marchAcross(t, token);
+    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
+
+    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
+  });
+
+  /**
+   * **The rule the screen has to say out loud.** The survey is computed at the departure of the
+   * movement, once, against what already stands — the same instant as the interception
+   * (ADR 0018 §3). One posts a sentry in anticipation of what will pass; a sentry posted after
+   * the fact catches nothing, and that is the design rather than a hole in it.
+   */
+  it('never sees a movement that left before it was posted', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const sent = await marchAcross(t, token);
+
+    const halfway = road().points[Math.floor(road().points.length / 2)]!;
+    await post(t, guest, eastOf(halfway, 40));
+    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
+
+    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
+  });
+
+  /** **A troop in flight watches nothing**: it stands nowhere, which is the same reading that
+   *  keeps a column from defending the ground it left. */
+  it('watches nothing while it is itself marching', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const halfway = road().points[Math.floor(road().points.length / 2)]!;
+    const camp = eastOf(halfway, 40);
+    const walker = await post(t, guest, camp);
+
+    await t.mutation(api.movements.marchTo, {
+      token: guest,
+      origin: { kind: 'point', point: asPoint(camp) },
+      troopIds: [walker],
+      point: asPoint(regionFacts(RIYADH)!.point),
+    });
+
+    const sent = await marchAcross(t, token);
+    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
+
+    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
   });
 });

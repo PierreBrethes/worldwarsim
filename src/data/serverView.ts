@@ -7,8 +7,10 @@ import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
 import { combatDispatches } from '@/domain/journal';
 import { formatWindow } from '@/domain/rest-window';
+import { bearingDegrees, type LonLat } from '@/domain/geo';
 import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
+import { COST_BY_MEDIUM } from '@/domain/routing';
 import type { UnitRole } from '@/domain/ids';
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
@@ -93,7 +95,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
     },
     buildCatalog: server.buildCatalog,
-    arcs: (server.movements ?? []).map(asArc),
+    arcs: [...(server.movements ?? []).map(asArc), ...(server.detected ?? []).map(asDetectedArc)],
     journal: combatDispatches(server.reports ?? [], server.season.reduction ?? null),
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
@@ -143,9 +145,58 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
   };
 }
 
+/**
+ * A sighting becomes an arc **in one of the two enemy states and no other**: the union is what
+ * guarantees the fog on this side (ADR 0005, convention §8). Nothing built here carries a type, a
+ * composition or a nation, because the server sent none — `identification` is nailed to
+ * `pierced: false` since no system pierces anything yet (design sheet 04).
+ *
+ * **The window decides the state.** Inside it, the thread is watched and the pawn walks it; past
+ * its close the arc freezes into the last known position ADR 0005 demands — the information paid
+ * for does not evaporate, it ages. `progress` is read at the instant the sighting closed rather
+ * than now, which is exactly what "last known" means.
+ */
+function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcView {
+  const now = Date.now();
+  const span = seen.arrivesAt - seen.departedAt;
+  const watched = Math.min(now, seen.seenTo);
+  const from: LonLat = [seen.from.lon, seen.from.lat];
+  const to: LonLat = [seen.to.lon, seen.to.lat];
+  const shared = {
+    id: seen.id,
+    from,
+    to,
+    route: routeOf(seen),
+    headingDegrees: bearingDegrees(from, to),
+    progress: span <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.departedAt) / span)),
+  };
+
+  if (now > seen.seenTo) {
+    return { ...shared, state: 'lastKnown', seenMinutesAgo: (now - seen.seenTo) / 60_000 };
+  }
+  return {
+    ...shared,
+    state: 'enemyDetected',
+    /** A sentry sees a column go past, not a flag: nothing about the owner is served, and the
+     *  card says nothing rather than guessing. */
+    suspectedNation: null,
+    headingAtMe: seen.headingAtMe,
+    identification: { pierced: false },
+    estimatedMinutesLeft: Math.max(0, (seen.arrivesAt - now) / 60_000),
+  };
+}
+
 /** The route as the thread reads it. The mode is derived rather than stored: it is a reading of
  *  the legs, and a stored copy of a reading is one more thing that can disagree with them. */
-function routeOf(movement: NonNullable<ServerView['movements']>[number]): ComputedRoute {
+function routeOf(movement: {
+  points: ReadonlyArray<{ lon: number; lat: number }>;
+  legs: ReadonlyArray<{ medium: 'land' | 'sea' | 'air'; distanceUnits: number }>;
+  distanceUnits: number;
+  costUnits: number;
+  /** A deployment one version behind sends none: it only ever routed columns on foot, and the
+   *  foot price is what its legs were weighted with. */
+  landCost?: number | undefined;
+}): ComputedRoute {
   const legs = movement.legs.map((leg) => ({
     medium: leg.medium,
     distanceUnits: leg.distanceUnits,
@@ -163,6 +214,7 @@ function routeOf(movement: NonNullable<ServerView['movements']>[number]): Comput
     points: movement.points.map((point) => [point.lon, point.lat] as [number, number]),
     distanceUnits: movement.distanceUnits,
     costUnits: movement.costUnits,
+    landCost: movement.landCost ?? COST_BY_MEDIUM.land,
     legs,
   };
 }

@@ -115,3 +115,54 @@ function between(from: LonLat, to: LonLat, ratio: number): LonLat {
   const lon = from[0] + shortestLongitudeGap(from[0], to[0]) * ratio;
   return [((lon + 540) % 360) - 180, from[1] + (to[1] - from[1]) * ratio];
 }
+
+/** One observer, one movement, and the stretch of time it was inside his radius. */
+export type Sighting = {
+  readonly id: string;
+  readonly from: number;
+  readonly to: number;
+};
+
+/**
+ * **What a standing watcher sees pass** (ADR 0019 §5, design sheet 04). The same walk down the
+ * same sampled path as the contact above, against the same segment/circle test — a second
+ * geometry for the same question is a second answer waiting to disagree with the first.
+ *
+ * It answers **windows** rather than a first contact, because a sighting is not an event: the
+ * fan-out note asks for `(observer, movement, tStart, tEnd)` rows precisely so that each player
+ * reads a table of his own and no reading depends on the movements table
+ * (`WWS/docs/technique/brouillard-et-fanout.md`).
+ *
+ * **One window per watcher**, from the first instant inside the radius to the last. A route that
+ * leaves the circle and comes back is served as one thread rather than two rows: the gap teaches
+ * an observer nothing he does not already hold — he has the whole thread — and two rows for one
+ * pair would be two states to reconcile on screen.
+ */
+export function sightingsAlong({
+  mine,
+  watchers,
+  radiusKm,
+  samples = INTERCEPTION_SAMPLES,
+}: {
+  mine: MarchingForce;
+  watchers: ReadonlyArray<StandingForce>;
+  radiusKm: number;
+  samples?: number;
+}): ReadonlyArray<Sighting> {
+  const span = mine.arrivesAt - mine.departedAt;
+  if (span <= 0 || watchers.length === 0) return [];
+  const step = span / samples;
+
+  const windows = new Map<string, { from: number; to: number }>();
+  for (let index = 0; index <= samples; index += 1) {
+    const at = mine.departedAt + index * step;
+    const here = positionAt(mine, at);
+    for (const watcher of watchers) {
+      if (distanceKm(here, watcher.point) > radiusKm) continue;
+      const window = windows.get(watcher.id);
+      if (window === undefined) windows.set(watcher.id, { from: at, to: at });
+      else window.to = at;
+    }
+  }
+  return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+}

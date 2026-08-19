@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { distanceKm, type LonLat } from './geo';
-import { firstInterception, positionAt, type MarchingForce } from './interception';
+import { firstInterception, positionAt, sightingsAlong, type MarchingForce } from './interception';
 
 const HOUR = 3_600_000;
 
@@ -107,5 +107,57 @@ describe('the first contact on the road', () => {
     });
 
     expect(contact!.withId).toBe('outpost:early');
+  });
+});
+
+/**
+ * **What a standing watcher sees pass** (ADR 0019 §5). A window rather than an event: the fog's
+ * ledger stores when the thread entered the radius and when it left it
+ * (`WWS/docs/technique/brouillard-et-fanout.md`).
+ */
+describe('what a posted watcher sees pass', () => {
+  const march = column('mine', 0, 10);
+
+  it('opens a window while the column is inside the radius and closes it after', () => {
+    // One degree of longitude on the equator is some 111 km: only the fifth hour passes within
+    // 150 km of a watcher standing on the fifth degree.
+    const [seen] = sightingsAlong({
+      mine: march,
+      watchers: [{ id: 'camp', point: [5, 0] }],
+      radiusKm: 150,
+    });
+
+    expect(seen).toBeDefined();
+    expect(seen!.id).toBe('camp');
+    expect(seen!.from).toBeGreaterThan(3 * HOUR);
+    expect(seen!.to).toBeLessThan(7 * HOUR);
+    expect(seen!.from).toBeLessThan(seen!.to);
+  });
+
+  it('answers nothing for a watcher the column never comes near', () => {
+    expect(
+      sightingsAlong({
+        mine: march,
+        watchers: [{ id: 'far', point: [5, 20] }],
+        radiusKm: 150,
+      }),
+    ).toEqual([]);
+  });
+
+  it('gives every watcher a window of its own, and only one each', () => {
+    const seen = sightingsAlong({
+      mine: march,
+      watchers: [
+        { id: 'first', point: [2, 0] },
+        { id: 'second', point: [8, 0] },
+        { id: 'nobody', point: [2, 30] },
+      ],
+      radiusKm: 150,
+    });
+
+    expect(seen.map((sighting) => sighting.id).sort()).toEqual(['first', 'second']);
+    expect(seen.find((sighting) => sighting.id === 'first')!.to).toBeLessThan(
+      seen.find((sighting) => sighting.id === 'second')!.from,
+    );
   });
 });

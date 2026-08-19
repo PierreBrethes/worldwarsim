@@ -22,6 +22,7 @@ import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
 import type * as seasons from "../seasons.js";
 import type * as troops from "../troops.js";
+import type * as upkeep from "../upkeep.js";
 import type * as validators from "../validators.js";
 import type * as victory from "../victory.js";
 import type * as view from "../view.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   routes: typeof routes;
   seasons: typeof seasons;
   troops: typeof troops;
+  upkeep: typeof upkeep;
   validators: typeof validators;
   victory: typeof victory;
   view: typeof view;

@@ -1,6 +1,13 @@
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
-import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, PROJECTION_BY_DOMAIN } from './troops';
+import { COST_BY_MEDIUM } from './routing';
+import {
+  DOMAIN_BY_ROLE,
+  LAND_SEATS_PER_TRANSPORT,
+  LIFT_CAPACITY,
+  LIFT_COST,
+  PROJECTION_BY_DOMAIN,
+} from './troops';
 
 /**
  * What a movement is aimed at, as both sides of the wire name it. The compass rose in the map
@@ -198,6 +205,35 @@ const overloaded = (column: Column): OrderRefusal | null => {
  * the water costs against the road is settled by `COST_BY_MEDIUM` and `TRANSFER_COST`, which is
  * why a short hop still prefers the road with nobody forbidding the sea.
  */
+/**
+ * **A land column whose infantry fits in its trucks rolls, and that is the whole effect of the
+ * land transport** (note « le transport terrestre et l'allure », validated 19/08). The armour and
+ * the trucks are motorized by nature — a tank column with no truck rolls — so **only the infantry
+ * asks for a seat**, and "projecting infantry further" is exactly what that says.
+ *
+ * The pace is the **whole column's**, set on its slowest element, the same way the route is the
+ * whole pile's: one infantry too many puts everybody at a walk. No individual pace, no column cut
+ * in two — and no stored relation either, since there is nothing to decide.
+ *
+ * A column with no infantry is motorized on 0 ≤ 0, which is the tank column above and not an
+ * accident of the arithmetic.
+ */
+export function motorized(roles: ReadonlyArray<UnitRole>): boolean {
+  const seats = roles.filter((role) => role === 'landTransport').length * LAND_SEATS_PER_TRANSPORT;
+  const walkers = roles
+    .filter((role) => role === 'infantry')
+    .reduce((sum) => sum + (LIFT_COST.infantry ?? 0), 0);
+  return walkers <= seats;
+}
+
+/**
+ * What a unit of ground costs this pile — the second reading of the composition, next to the
+ * first. It sits here rather than in `routing.ts` for the reason `routeModeOf` does: the grid
+ * knows how to weigh an edge, it does not know what a column is made of.
+ */
+export const landCostOf = (roles: ReadonlyArray<UnitRole>): number =>
+  motorized(roles) ? COST_BY_MEDIUM.landMotorized : COST_BY_MEDIUM.land;
+
 export function routeModeOf(roles: ReadonlyArray<UnitRole>): RouteMode {
   const domains = new Set(roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (domains.has('air')) return 'air';

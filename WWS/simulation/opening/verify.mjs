@@ -16,14 +16,29 @@
 import { readFileSync } from 'node:fs';
 import * as mirror from './constants.mjs';
 
-const SOURCE = new URL('../../../convex/constants.ts', import.meta.url);
-let text;
-try {
-  text = readFileSync(SOURCE, 'utf8');
-} catch {
-  console.error(`Impossible de lire ${SOURCE.pathname}. Ce script doit vivre dans WWS/simulation/opening/.`);
-  process.exit(1);
-}
+/**
+ * **Trois sources, parce que les nombres du jeu ne vivent pas tous au même endroit.**
+ * `convex/constants.ts` porte l'économie ; le coût par milieu et les places d'un transport
+ * vivent dans le domaine pur, qui est ce que le serveur appelle. Un miroir qui ne lirait que
+ * le premier laisserait dériver l'allure — le levier central — sans rien dire.
+ */
+const SOURCES = {
+  constants: new URL('../../../convex/constants.ts', import.meta.url),
+  routing: new URL('../../../src/domain/routing.ts', import.meta.url),
+  troops: new URL('../../../src/domain/troops.ts', import.meta.url),
+};
+
+const read = (where) => {
+  try {
+    return readFileSync(SOURCES[where], 'utf8');
+  } catch {
+    console.error(`Impossible de lire ${SOURCES[where].pathname}. Ce script doit vivre dans WWS/simulation/opening/.`);
+    process.exit(1);
+  }
+};
+
+const text = read('constants');
+const sources = { constants: text, routing: read('routing'), troops: read('troops') };
 
 const problems = [];
 const unverified = [];
@@ -35,14 +50,15 @@ const report = (label, expected, actual) => {
 };
 
 /** A scalar `export const NAME = 42;` */
-function scalar(name, mirrored) {
-  const found = text.match(new RegExp(`export const ${name}\\s*=\\s*([\\d.]+)\\s*;`));
-  if (!found) return unverified.push(`${name} (introuvable dans constants.ts)`);
+function scalar(name, mirrored, where = 'constants') {
+  const found = sources[where].match(new RegExp(`export const ${name}\\s*=\\s*([\\d.]+)\\s*;`));
+  if (!found) return unverified.push(`${name} (introuvable dans ${where})`);
   report(name, found[1], mirrored);
 }
 
 /** The balanced body of `export const NAME = { … }` — brace counting, no parser. */
-function bodyOf(name) {
+function bodyOf(name, where = 'constants') {
+  const text = sources[where];
   const start = text.indexOf(`export const ${name}`);
   if (start < 0) return null;
   // The value, never the type annotation: `Readonly<Record<K, { … }>> = { … }` opens a brace
@@ -63,8 +79,8 @@ function bodyOf(name) {
 }
 
 /** Every `key: 42` of a flat table. */
-function flatTable(name, mirrored) {
-  const body = bodyOf(name);
+function flatTable(name, mirrored, where = 'constants') {
+  const body = bodyOf(name, where);
   if (body === null) return unverified.push(`${name} (bloc introuvable)`);
   const seen = new Set();
   for (const [, key, value] of body.matchAll(/(\w+)\s*:\s*(-?[\d.]+)/g)) {
@@ -149,6 +165,16 @@ scalar('MINUTES_PER_1000_KM_ON_LAND', mirror.MINUTES_PER_1000_KM_ON_LAND);
 scalar('MOVEMENTS_IN_FLIGHT', mirror.MOVEMENTS_IN_FLIGHT);
 scalar('REDUCTION_FACTOR', mirror.REDUCTION_FACTOR);
 
+/**
+ * **L'allure de colonne**, hors de `convex/constants.ts` : le coût par milieu pèse les arêtes de
+ * Dijkstra dans le domaine, et les places d'un transport terrestre y répondent. Le moteur du
+ * simulateur ne modélise aucun trajet — ces valeurs ne sont lues par aucun scénario — mais un
+ * nombre non miroité est un nombre dont personne ne surveille la dérive, et celui-ci commande
+ * le levier mesuré (14 min / 1 000 km).
+ */
+scalar('LAND_SEATS_PER_TRANSPORT', mirror.LAND_SEATS_PER_TRANSPORT, 'troops');
+flatTable('COST_BY_MEDIUM', mirror.COST_BY_MEDIUM, 'routing');
+
 flatTable('EXTRACTION_PER_HOUR', mirror.EXTRACTION_PER_HOUR);
 flatTable('UNLOCKED_AT', mirror.UNLOCKED_AT);
 flatTable('STARTING_STOCK', mirror.STARTING_STOCK);
@@ -165,7 +191,7 @@ unverified.push('CHAINS (débits et intrants des trois chaînes)');
 unverified.push('NOMINAL_STRENGTH (effectifs par rôle et par palier)');
 unverified.push('STORED_BY (ce que chaque bâtiment de stockage porte)');
 
-console.log(`\n${checked} valeurs comparées entre convex/constants.ts et le miroir.`);
+console.log(`\n${checked} valeurs comparées entre le jeu (convex/constants.ts, src/domain/routing.ts, src/domain/troops.ts) et le miroir.`);
 if (unverified.length > 0) {
   console.log(`\n${unverified.length} non vérifiées — à lire à la main :`);
   for (const line of unverified) console.log(`  · ${line}`);

@@ -22,3 +22,19 @@ export function distanceKm(a: LonLat, b: LonLat): number {
 export function crossesAntimeridian(a: LonLat, b: LonLat): boolean {
   return Math.abs(b[0] - a[0]) > 180;
 }
+
+/**
+ * The heading from one point to another, in degrees clockwise from north. It is what a detected
+ * arc shows of an adversary — the fog grants the thread and the bearing, never the type nor the
+ * composition (design sheet 04) — and the shorter way round, so a leg across the antimeridian
+ * does not report a heading due west for a column walking east.
+ */
+export function bearingDegrees(from: LonLat, to: LonLat): number {
+  const deltaLon = toRadians(shortestLongitudeGap(from[0], to[0]));
+  const fromLat = toRadians(from[1]);
+  const toLat = toRadians(to[1]);
+  const y = Math.sin(deltaLon) * Math.cos(toLat);
+  const x =
+    Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}

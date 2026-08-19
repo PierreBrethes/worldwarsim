@@ -3,7 +3,17 @@ import { useMemo, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { fr, roleLabel } from '@/i18n/fr';
-import { marchingTroopIds, stationKeyOf, troopsAt } from '@/domain/troops';
+import {
+  boards,
+  marchingTroopIds,
+  stackRows,
+  stationKeyOf,
+  troopsAt,
+  DOMAIN_BY_ROLE,
+  LIFT_CAPACITY,
+  LIFT_COST,
+} from '@/domain/troops';
+import { liftOf, motorized } from '@/domain/movement-orders';
 import type { Specialization } from '@/domain/ids';
 import type { PlayerView, TroopStation } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
@@ -48,6 +58,34 @@ export function GarrisonPanel({
     [view.me, stationKey, marching],
   );
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
+  /**
+   * **Ce que le geste a dit, et rien de plus.** Purement client, jamais envoyé, jamais stocké :
+   * il déplace une troupe d'un transport à l'autre dans l'image, il ne change pas la pile — la
+   * coche produit exactement le même état (note « à bord », arbitrage du 19/08).
+   */
+  const [placements, setPlacements] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [dragged, setDragged] = useState<string | null>(null);
+  /** Le survol d'un transport pendant le geste : `taken` faux, c'est le refus qui se voit. */
+  const [over, setOver] = useState<{ carrier: string; taken: boolean } | null>(null);
+  const rows = useMemo(() => stackRows(held, picked, placements), [held, picked, placements]);
+  /**
+   * **Le refus se lit avant la visée, jamais après.** `liftOf` est la fonction que le serveur
+   * appelle pour refuser (`NOT_ENOUGH_LIFT`) : une seconde table de ce qui tient à bord serait
+   * exactement la divergence que l'ADR 0015 interdit à la rose. Pas de transport coché, pas de
+   * compteur — `offered` vaut alors zéro et il n'y a rien à dire.
+   */
+  const roles = useMemo(
+    () => held.filter((troop) => picked.has(troop.id)).map((troop) => troop.role),
+    [held, picked],
+  );
+  const lift = useMemo(() => liftOf(roles), [roles]);
+  /**
+   * **L'allure se dit en composant.** Le compteur de places répond de l'embarquement ; celle-ci
+   * répond du sol, et c'est la seule chose que le transport terrestre fait (note « le transport
+   * terrestre et l'allure »). Sans troupe terrestre, il n'y a pas de sol à parcourir et rien à
+   * dire.
+   */
+  const onLand = useMemo(() => roles.some((role) => DOMAIN_BY_ROLE[role] === 'land'), [roles]);
   const [specialization, setSpecialization] = useState<Specialization>('relay');
   const [error, setError] = useState<string | null>(null);
   const foundHere = useMutation(api.movements.foundOutpostHere);
@@ -80,13 +118,27 @@ export function GarrisonPanel({
           : fr.troops.postedAt(station.country)
         : fr.garrison.home;
 
-  const toggle = (troopId: string) =>
+  const toggle = (troopId: string) => {
     setPicked((previous) => {
       const next = new Set(previous);
       if (next.has(troopId)) next.delete(troopId);
       else next.add(troopId);
       return next;
     });
+    // Un rang qu'on décoche oublie où le geste l'avait posé : le recocher repart de l'affectation
+    // gloutonne, comme s'il n'avait jamais été glissé.
+    setPlacements((previous) => {
+      const next = new Map(previous);
+      next.delete(troopId);
+      return next;
+    });
+  };
+
+  /** L'autre porte du même état : le geste coche la troupe et dit sous quel transport la lire. */
+  const drop = (passengerId: string, carrierId: string) => {
+    setPicked((previous) => new Set([...previous, passengerId]));
+    setPlacements((previous) => new Map([...previous, [passengerId, carrierId]]));
+  };
 
   const fromRight = at.x > window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
@@ -122,15 +174,59 @@ export function GarrisonPanel({
           <p className="mt-3 text-[12.5px] text-[var(--ink-soft)]">{fr.garrison.empty}</p>
         ) : (
           <div className="mt-[10px] flex max-h-[46vh] flex-col gap-[6px] overflow-auto">
-            {held.map((troop) => {
+            {rows.map(({ troop, carrier }) => {
               const on = picked.has(troop.id);
+              const rides = (LIFT_COST[troop.role] ?? 0) > 0;
+              const lifts = (LIFT_CAPACITY[troop.role] ?? 0) > 0;
+              const aimed = over?.carrier === troop.id;
               return (
-                <button
+                /* Un rang, pas un `<button>` : Chromium ne démarre pas de glisser natif depuis
+                   un bouton, et le geste est l'autre porte de la même coche. Le rôle et le
+                   `tabIndex` gardent ce qu'un bouton donnait — la même paire que la carte des
+                   mouvements du widget. */
+                <div
                   key={troop.id}
-                  type="button"
-                  disabled={!canPrepare}
-                  onClick={() => toggle(troop.id)}
-                  className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left enabled:cursor-pointer disabled:opacity-70 ${
+                  role="checkbox"
+                  aria-checked={on}
+                  aria-disabled={!canPrepare}
+                  tabIndex={canPrepare ? 0 : -1}
+                  onClick={() => canPrepare && toggle(troop.id)}
+                  onKeyDown={(key) =>
+                    canPrepare && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
+                  }
+                  draggable={canPrepare && rides}
+                  onDragStart={() => setDragged(troop.id)}
+                  onDragEnd={() => {
+                    setDragged(null);
+                    setOver(null);
+                  }}
+                  /* Le refus se voit **et** se sent : sans `preventDefault`, le curseur du
+                     navigateur porte déjà l'interdit et le lâcher ne part jamais. */
+                  onDragOver={(gesture) => {
+                    if (!lifts || dragged === null || dragged === troop.id) return;
+                    const taken = boards(held, picked, placements, dragged, troop.id);
+                    if (taken) gesture.preventDefault();
+                    setOver({ carrier: troop.id, taken });
+                  }}
+                  onDragLeave={() =>
+                    setOver((previous) => (previous?.carrier === troop.id ? null : previous))
+                  }
+                  onDrop={(gesture) => {
+                    gesture.preventDefault();
+                    if (dragged !== null) drop(dragged, troop.id);
+                    setOver(null);
+                  }}
+                  style={{
+                    marginLeft: carrier === null ? undefined : 18,
+                    borderColor: aimed
+                      ? over?.taken
+                        ? 'var(--notable)'
+                        : 'var(--critical)'
+                      : undefined,
+                  }}
+                  className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
+                    canPrepare ? 'cursor-pointer' : 'opacity-70'
+                  } ${
                     on
                       ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)]'
                       : 'border-[rgba(42,33,24,.32)]'
@@ -154,7 +250,7 @@ export function GarrisonPanel({
                       {fr.troops.strength(troop.strength, troop.nominalStrength)}
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -206,6 +302,30 @@ export function GarrisonPanel({
             </button>
             {error !== null && (
               <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>
+            )}
+          </div>
+        )}
+
+        {onLand && (
+          <div className="mt-[9px] font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+            {fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']}
+          </div>
+        )}
+
+        {lift.offered > 0 && (
+          <div className="mt-[9px] border-t border-[rgba(42,33,24,.32)] pt-[7px]">
+            <span
+              className="font-[var(--font-mono)] text-[11.5px]"
+              style={{
+                color: lift.needed > lift.offered ? 'var(--critical)' : 'var(--ink-soft)',
+              }}
+            >
+              {fr.garrison.seats(lift.needed, lift.offered)}
+            </span>
+            {lift.needed > lift.offered && (
+              <p className="mt-[3px] text-[11px] leading-[1.4] text-[var(--critical)]">
+                {fr.errors.NOT_ENOUGH_LIFT(lift)}
+              </p>
             )}
           </div>
         )}

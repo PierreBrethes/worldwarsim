@@ -24,7 +24,32 @@ export type ComputedRoute = {
   /** In equivalent units: distance weighted by medium + transfers. This is the time. */
   readonly costUnits: number;
   readonly legs: ReadonlyArray<RouteLeg>;
+  /**
+   * **What a land unit cost this column**, `COST_BY_MEDIUM.land` or `.landMotorized`. It travels
+   * with the route because the route was *weighted* with it: the pawn, the segmented scale and
+   * the preview all reprice the legs to place themselves, and a reader that assumed the foot
+   * price would put the pawn on the wrong leg of a crossing.
+   */
+  readonly landCost: number;
 };
+
+/**
+ * **What the trip is made of, read off the legs and never off the mode.** `RouteMode` says what
+ * the pile was *allowed* to use — a column with a cargo routes `combined` even when the road
+ * gets there dry — so a card that printed the mode would tell the player he sails to the next
+ * region. The legs are what the Dijkstra actually walked, and they are already computed.
+ *
+ * Land and sea together is the crossing ADR 0012 wrote; air is a whole route or none, so it
+ * never mixes.
+ */
+export type RouteMedium = Medium | 'combined';
+
+export function routeMedium(legs: ReadonlyArray<RouteLeg>): RouteMedium {
+  const media = new Set(legs.map((leg) => leg.medium));
+  if (media.has('air')) return 'air';
+  if (media.has('land') && media.has('sea')) return 'combined';
+  return media.has('sea') ? 'sea' : 'land';
+}
 
 /**
  * One projected unit in kilometres, read at the equator. The projection tightens toward the
@@ -33,10 +58,31 @@ export type ComputedRoute = {
  */
 export const KM_PER_UNIT = 111;
 
-export const COST_BY_MEDIUM: Readonly<Record<'land' | 'sea', number>> = {
+/**
+ * **The price of a unit of ground, and of a unit of water.** Arbitrary, never simulated — ADR
+ * 0012 says so of the first two, and `landMotorized` joins them on the same footing.
+ *
+ * `landMotorized` is what a column pays when its infantry rides rather than walks (note « le
+ * transport terrestre et l'allure », validated 19/08): **1.15 against 1.6 on foot**, which is
+ * faster than a march and still slower than the sea at 1.0 — the maritime motorway stays the
+ * motorway, and that ordering is the whole of why the number was picked there.
+ *
+ * `MINUTES_PER_ROUTE_UNIT` prices a cost unit off `land` and off nothing else: the one measured
+ * number of movement is 14 minutes per 1 000 km **on foot** (simulation report), so a motorized
+ * column comes out at 1.15/1.6 of it rather than at a second measurement nobody took.
+ */
+export const COST_BY_MEDIUM: Readonly<Record<'land' | 'sea' | 'landMotorized', number>> = {
   land: 1.6,
+  landMotorized: 1.15,
   sea: 1.0,
 };
+
+/** How a land column moves, as the screen says it. Read off the route rather than off the
+ *  pile: the server weighted the route, and it is the one that knows what it charged. */
+export type LandPace = 'foot' | 'motorized';
+
+export const landPaceOf = (route: { readonly landCost: number }): LandPace =>
+  route.landCost < COST_BY_MEDIUM.land ? 'motorized' : 'foot';
 /** Embarking or landing costs the equivalent of 8 sea units — the column/convoy trade-off. */
 export const TRANSFER_COST = 8;
 
@@ -174,6 +220,17 @@ export function computeRoute(
   from: LonLat,
   to: LonLat,
   mode: RouteMode,
+  /**
+   * **The pace, as a weight and not as a mode.** The mode says which media Dijkstra may walk;
+   * this says what a unit of ground costs the column that walks them. They are two readings of
+   * one pile and they stay apart: folding the pace into `RouteMode` would double the union at
+   * every new pace (land/combined × foot/motorized) and force every `switch` on the mode to
+   * learn which of its arms are land-ish.
+   *
+   * It weights the **edges**, so it changes the route and not only its duration — a motorized
+   * column can prefer a trek the same column on foot would have shipped around.
+   */
+  landCost: number = COST_BY_MEDIUM.land,
 ): ComputedRoute | null {
   if (mode === 'air') return airRoute(grid, from, to);
 
@@ -182,7 +239,7 @@ export function computeRoute(
   const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
   if (start === null || goal === null) return null;
 
-  const path = dijkstra(grid, start, goal, allowed);
+  const path = dijkstra(grid, start, goal, allowed, landCost);
   if (path === null) return null;
 
   const points: LonLat[] = [];
@@ -197,7 +254,7 @@ export function computeRoute(
     const length = distanceBetweenCells(grid, previous, cell);
     const medium: Medium = grid.cells[cell] === SEA ? 'sea' : 'land';
     distance += length;
-    cost += length * COST_BY_MEDIUM[medium === 'sea' ? 'sea' : 'land'];
+    cost += length * (medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
     const last = legs[legs.length - 1];
     if (last?.medium === medium) {
       legs[legs.length - 1] = { medium, distanceUnits: last.distanceUnits + length };
@@ -207,7 +264,14 @@ export function computeRoute(
     }
   }
 
-  return { mode, points: simplify(points), distanceUnits: distance, costUnits: cost, legs };
+  return {
+    mode,
+    points: simplify(points),
+    distanceUnits: distance,
+    costUnits: cost,
+    legs,
+    landCost,
+  };
 }
 
 /**
@@ -236,6 +300,7 @@ function airRoute(grid: RouteGrid, from: LonLat, to: LonLat): ComputedRoute {
     distanceUnits: distance,
     costUnits: distance,
     legs: [{ medium: 'air', distanceUnits: distance }],
+    landCost: COST_BY_MEDIUM.land,
   };
 }
 
@@ -258,6 +323,7 @@ export function directRoute(
     distanceUnits,
     costUnits: cost,
     legs: [{ medium, distanceUnits }],
+    landCost: COST_BY_MEDIUM.land,
   };
 }
 
@@ -530,6 +596,7 @@ function dijkstra(
   start: number,
   goal: number,
   allowed: ReadonlyArray<number>,
+  landCost: number,
 ): number[] | null {
   const costs = new Float64Array(grid.cells.length).fill(Number.POSITIVE_INFINITY);
   const previous = new Int32Array(grid.cells.length).fill(-1);
@@ -549,7 +616,7 @@ function dijkstra(
       const type = grid.cells[neighbor]!;
       if (!allowed.includes(type)) continue;
       const length = distanceBetweenCells(grid, cell, neighbor);
-      const multiplier = type === SEA ? COST_BY_MEDIUM.sea : COST_BY_MEDIUM.land;
+      const multiplier = type === SEA ? COST_BY_MEDIUM.sea : landCost;
       const transfer = grid.cells[cell] !== type ? TRANSFER_COST : 0;
       const candidate = cost + length * multiplier + transfer;
       if (candidate < costs[neighbor]!) {

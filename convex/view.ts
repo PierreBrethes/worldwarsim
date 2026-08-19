@@ -1,5 +1,8 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
+import type { Doc } from './_generated/dataModel';
+import type { LonLat } from '../src/domain/geo';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
 import type { TroopStation } from '../src/domain/player-view';
@@ -19,6 +22,7 @@ import {
 import { engagementsOf } from './combat';
 import { movementsOf, outpostsOf, restHold } from './movements';
 import { homeCountryOf, regionFacts, regionsOf } from './regions';
+import { isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { playerByToken, requireStarted } from './seasons';
@@ -420,6 +424,7 @@ export const playerView = query({
             legs: movement.legs,
             distanceUnits: movement.distanceUnits,
             costUnits: movement.costUnits,
+            landCost: movement.landCost,
             originCountry: origin?.country ?? movement.hostCountry,
             originName: origin?.name ?? movement.hostCountry,
             destinationCountry: movement.hostCountry,
@@ -439,6 +444,24 @@ export const playerView = query({
           };
         }),
       ),
+      /**
+       * **The other half of the fog, and the only one there is** (ADR 0005, ADR 0019 §5): what a
+       * posted troop of the player's saw pass within `SCOUT_RADIUS_KM`. Every row is his own —
+       * the `sightings` ledger is indexed by observer, so this reading never touches the
+       * movements of the board at large and the fan-out of the naive query does not exist
+       * (`WWS/docs/technique/brouillard-et-fanout.md`).
+       *
+       * **Nothing here can leak a type or a composition, because nothing here carries one.** The
+       * thread, the endpoints, the media and the two dates: that is exactly what design sheet 04
+       * grants a detected movement that has not been identified, and it is the condition the
+       * decoy exists on. The nation is not served either — a sentry sees a column go by, not a
+       * flag; identification stays the business of the agent and the buildings that carry it.
+       *
+       * A window that has not opened yet is not served at all. Past its close, the row stays and
+       * turns into the last known position ADR 0005 asks for — the client reads the two dates
+       * and decides which of the two states it is in.
+       */
+      detected: await detectedArcs(ctx, player, outposts, now),
       journal: [],
       loadedAt: now,
       opponents: others.map((other) => ({
@@ -450,3 +473,61 @@ export const playerView = query({
     };
   },
 });
+
+/**
+ * **What the player's sentries saw pass** (ADR 0005, ADR 0019 §5, design sheet 04). Rows are read
+ * off his own index — the fog is a ledger per observer, never a filtered scan of the movements
+ * table (`WWS/docs/technique/brouillard-et-fanout.md`).
+ *
+ * What travels is the thread, its two endpoints, the media and the two dates. **Neither the type
+ * nor the composition nor the nation is here**, and none of them is fetched: that is what design
+ * sheet 04 grants an unidentified movement, and it is the condition the decoy exists on. A sentry
+ * watches a column go past; it does not read its flag.
+ *
+ * `headingAtMe` is the third ink of design sheet 04, decided on the destination alone: the
+ * arrival lands on ground the player recognises — his own soil, or the reach of one of his
+ * outposts. It is the same reading the aim already gives him (`recognises`, `isAnchored`), so
+ * the critical ink and the "recognised ground" marker never disagree.
+ */
+async function detectedArcs(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  outposts: ReadonlyArray<Doc<'outposts'>>,
+  now: number,
+) {
+  const anchors = outposts.map((outpost) => ({
+    point: [outpost.point.lon, outpost.point.lat] as LonLat,
+  }));
+  const home = homeCountryOf(player.nation);
+
+  const sightings = await ctx.db
+    .query('sightings')
+    .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+    .collect();
+
+  const seen = [];
+  for (const sighting of sightings) {
+    /** A window that has not opened is not information yet. Past its close the row stays: the
+     *  arc becomes the last known position ADR 0005 asks for, and the client decides which of
+     *  the two states the two dates put it in. */
+    if (sighting.from > now) continue;
+    const movement = await ctx.db.get(sighting.movementId);
+    if (movement === null) continue;
+    seen.push({
+      id: movement._id,
+      from: movement.from,
+      to: movement.to,
+      points: movement.points,
+      legs: movement.legs,
+      distanceUnits: movement.distanceUnits,
+      costUnits: movement.costUnits,
+      landCost: movement.landCost,
+      departedAt: movement.departedAt,
+      arrivesAt: movement.arrivesAt,
+      headingAtMe: isAnchored([movement.to.lon, movement.to.lat], home, anchors),
+      seenFrom: sighting.from,
+      seenTo: sighting.to,
+    });
+  }
+  return seen;
+}

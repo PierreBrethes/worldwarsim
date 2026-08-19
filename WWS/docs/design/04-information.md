@@ -33,10 +33,18 @@ du rayon de ses avant-postes est marqué **« sol non reconnu »**. Le marqueur 
 ne dit pas qu'un adversaire est là, et surtout pas qu'un sol reconnu serait sûr. Il dit une seule
 chose : *rien à moi ne regarde ce sol*.
 
-À venir (prompt `reperage-des-troupes-posees.md`) : une troupe posée devient la **quatrième
-source de détection** de ce qui bouge, après le territoire, la station d'écoute et l'avant-poste
-d'écoute — rayon court (`SCOUT_RADIUS_KM`, 60 km), un fil, un cap, un domaine, jamais le type ni
-la composition. Elle ne perce rien : l'identification reste l'affaire de l'agent et des bâtiments.
+**Elle voit en revanche ce qui bouge.** Une troupe posée est la **quatrième source de détection**,
+après le territoire, la station d'écoute et l'avant-poste d'écoute — et la seule qui existe dans le
+code à ce jour. Rayon court (`SCOUT_RADIUS_KM`, 60 km), un fil, un cap, un horaire estimé, un
+domaine, **jamais le type ni la composition**, jamais la nation. Elle ne perce rien :
+l'identification reste l'affaire de l'agent et des bâtiments.
+
+Le relevé se calcule **au départ du mouvement adverse, une seule fois** — même instant et même
+géométrie que l'interception (ADR 0018 §3), et c'est ce qui fait tenir le fan-out : chaque joueur
+lit une table à lui (`sightings`, `(observateur, mouvement, tDébut, tFin)`), jamais un filtre sur
+la table des mouvements. Conséquence assumée, dite à l'écran : **une troupe posée après le départ
+d'un mouvement ne le verra jamais.** On se poste en prévision de ce qui passera, pas pour rattraper
+ce qui passe — le renseignement est un pari, pas une réaction.
 
 ## Outils
 

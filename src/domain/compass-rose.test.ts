@@ -225,7 +225,7 @@ describe('in aim', () => {
       { ...unferried, departureBuildings: new Set<BuildingKey>(['port']) },
     );
     expect(compass?.actions).toEqual([]);
-    expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il manque du transport');
+    expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il en manque 1');
   });
 
   it('opens the same fan for that column once a port stands there', () => {

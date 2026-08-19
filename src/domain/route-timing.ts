@@ -35,12 +35,19 @@ export type TemporalPosition =
   | { readonly kind: 'leg'; readonly legIndex: number; readonly local: number }
   | { readonly kind: 'dock'; readonly legIndex: number };
 
-/** Air is not weighted: its distance *is* its cost, exactly as `airRoute` computes it. */
-export const legCost = (leg: RouteLeg): number =>
-  leg.medium === 'air' ? leg.distanceUnits : leg.distanceUnits * COST_BY_MEDIUM[leg.medium];
+/**
+ * Air is not weighted: its distance *is* its cost, exactly as `airRoute` computes it. The ground
+ * is priced at what the column actually paid — a motorized route weighted at 1.15 repriced at 1.6
+ * here would put the pawn on the wrong leg of a crossing, which is the display lie the whole
+ * `landCost` field exists to prevent.
+ */
+export const legCost = (leg: RouteLeg, landCost = COST_BY_MEDIUM.land): number =>
+  leg.medium === 'air'
+    ? leg.distanceUnits
+    : leg.distanceUnits * (leg.medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
 
 export const unrolledCost = (route: ComputedRoute): number =>
-  route.legs.reduce((sum, leg) => sum + legCost(leg), 0) +
+  route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0) +
   Math.max(0, route.legs.length - 1) * TRANSFER_COST;
 
 /**
@@ -65,7 +72,7 @@ export function unrollRoute(route: ComputedRoute): ReadonlyArray<UnrolledSegment
       kind: 'leg',
       medium: leg.medium,
       legIndex: index,
-      share: legCost(leg) / total,
+      share: legCost(leg, route.landCost) / total,
     });
   });
   return segments;

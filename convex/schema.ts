@@ -202,6 +202,11 @@ export default defineSchema({
     legs: v.array(ROUTE_LEG),
     distanceUnits: v.number(),
     costUnits: v.number(),
+    /** What a unit of ground cost this column — the pace its composition bought (note « le
+     *  transport terrestre et l'allure »). Written with the route because the route was
+     *  *weighted* with it: the map reprices the legs to place the pawn, and it must reprice them
+     *  at what was paid. Optional, so the columns already walking when it landed still read. */
+    landCost: v.optional(v.number()),
     troopIds: v.array(v.id('troops')),
     departedAt: v.number(),
     arrivesAt: v.number(),
@@ -303,4 +308,33 @@ export default defineSchema({
     regionId: v.string(),
     finishesAt: v.number(),
   }).index('byPlayer', ['playerId']),
+
+  /**
+   * **What one player saw pass, and when** — the fog's own ledger (ADR 0005, ADR 0019 §5).
+   *
+   * It exists so that no reading of the fog depends on the movements table. The naive query,
+   * "every movement in flight, keep the ones crossing a detector of mine", depends on **all** of
+   * it: one departure by anybody invalidates it for everybody, which is a quadratic fan-out on
+   * the most frequent action of the game and a leak the day the filter moves client-side
+   * (`WWS/docs/technique/brouillard-et-fanout.md`). A row here belongs to one observer, and he
+   * reads his own index.
+   *
+   * The rows are written **at the departure of the movement, once**, against the watchers already
+   * standing — the same instant and the same geometry as the interception (ADR 0018 §3). A troop
+   * posted afterwards therefore never sees that movement: intelligence is a wager on what will
+   * pass, not a reaction to what is passing, and the screen says so.
+   *
+   * `from` and `to` bound the stretch the thread spent inside the radius. Past `to` the arc is
+   * not deleted but goes stale — the last known position ADR 0005 asks for — and it is the
+   * movement's own end that takes the row with it.
+   */
+  sightings: defineTable({
+    /** The observer, never the owner of what was seen. */
+    playerId: v.id('players'),
+    movementId: v.id('movements'),
+    from: v.number(),
+    to: v.number(),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('byMovement', ['movementId']),
 });

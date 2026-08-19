@@ -56,6 +56,22 @@ export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
 };
 
 /**
+ * **What a land transport seats, and it is the only thing a land transport does** (note « le
+ * transport terrestre et l'allure », validated 19/08). Two places, assumed and not measured,
+ * with the bearing they were chosen against: at 2, motorizing eight infantry costs four trucks —
+ * a real investment — where at 4 motorization would be nearly free and the foot pace would leave
+ * the game.
+ *
+ * **It is not an entry of `LIFT_CAPACITY`, and that is a decision.** That table means *crossing a
+ * medium that is not yours*: it gates `NOT_ENOUGH_LIFT`, it prints the « places » counter, and it
+ * draws who is aboard whom. A truck listed there would ferry infantry over the Channel, would be
+ * offered an armour to seat, and would be both a carrier and a passenger inside one crossing.
+ * Land seats answer a different question — who rolls and who walks — and it is read by
+ * `motorized` alone.
+ */
+export const LAND_SEATS_PER_TRANSPORT = 2;
+
+/**
  * How many equipment tiers a role knows. Two for those whose gear gets replaced mid-season,
  * one for the others: this table decides what a workshop may produce, not the presence of a
  * sprite.
@@ -219,6 +235,117 @@ export function troopsAt(
   return me.troops
     .filter((troop) => stationKeyOf(troop.stationedAt) === stationKey && !marching.has(troop.id))
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+}
+
+/**
+ * **Being aboard is a computed state, and the gesture is only a way of writing it.** There is no
+ * decision behind dropping an infantry into a hull — the berths are interchangeable, the troops
+ * of one role are too, and the pace is the whole column's — so the drop settles *where* a troop
+ * is drawn, never *what* the pile is. The tick box and the drop are two doors on one state
+ * (note « le transport terrestre et l'allure », § « À bord »).
+ *
+ * `placements` is what the player's gesture said, and nothing else: a passenger it names rides
+ * that transport if it still fits, and everything it does not name is seated greedily in list
+ * order. It is **client-only and never stored** — the day being aboard has a per-troop effect,
+ * an "aboard" edge in the schema becomes the right answer, and it is an ADR.
+ *
+ * A row carries **its carrier** rather than a flag, because that is also the answer to "would
+ * this drop be taken?": a refusal is read off the same assignment the picture is drawn from, so
+ * the two doors cannot drift apart.
+ */
+export type StackRow<T> = { readonly troop: T; readonly carrier: T | null };
+
+export function stackRows<T extends { readonly id: string; readonly role: UnitRole }>(
+  troops: ReadonlyArray<T>,
+  picked: ReadonlySet<string>,
+  placements: ReadonlyMap<string, string> = new Map(),
+): ReadonlyArray<StackRow<T>> {
+  const carriers = troops.filter(
+    (troop) => picked.has(troop.id) && (LIFT_CAPACITY[troop.role] ?? 0) > 0,
+  );
+  const free = carriers.map((carrier) => LIFT_CAPACITY[carrier.role] ?? 0);
+  const boarded = new Map<string, T[]>();
+
+  const seat = (troop: T, berth: number): boolean => {
+    const carrier = carriers[berth];
+    const cost = LIFT_COST[troop.role] ?? 0;
+    if (carrier === undefined || (free[berth] ?? 0) < cost) return false;
+    free[berth] = (free[berth] ?? 0) - cost;
+    boarded.set(carrier.id, [...(boarded.get(carrier.id) ?? []), troop]);
+    return true;
+  };
+
+  const riders = troops.filter((troop) => picked.has(troop.id) && (LIFT_COST[troop.role] ?? 0) > 0);
+  const placed = new Set<string>();
+  // The gesture is served first: a berth taken greedily is a berth the player never asked for.
+  for (const rider of riders) {
+    const named = placements.get(rider.id);
+    if (named === undefined) continue;
+    if (
+      seat(
+        rider,
+        carriers.findIndex((carrier) => carrier.id === named),
+      )
+    )
+      placed.add(rider.id);
+  }
+  for (const rider of riders) {
+    if (placed.has(rider.id)) continue;
+    seat(
+      rider,
+      free.findIndex((seats) => seats >= (LIFT_COST[rider.role] ?? 0)),
+    );
+  }
+
+  const passengers = new Set([...boarded.values()].flat().map((troop) => troop.id));
+  return troops.flatMap((troop) =>
+    passengers.has(troop.id)
+      ? []
+      : [
+          { troop, carrier: null },
+          ...(boarded.get(troop.id) ?? []).map((rider) => ({ troop: rider, carrier: troop })),
+        ],
+  );
+}
+
+/**
+ * **Whether that drop would be taken** — asked of the picture itself rather than of a second
+ * rule about capacity. A transport whose berths are taken refuses the gesture, and it refuses it
+ * on exactly the count the « places » counter prints, because both read the same assignment.
+ *
+ * The dragged troop is taken out of the pile before the berths are counted: dropping a passenger
+ * back onto the transport it already rides is not an overload. **Nobody is ever bumped** — a
+ * drop that would need to unseat somebody else is the full transport the player must see, not a
+ * silent reshuffle behind his gesture.
+ */
+export function seatsFree<T extends { readonly id: string; readonly role: UnitRole }>(
+  troops: ReadonlyArray<T>,
+  picked: ReadonlySet<string>,
+  placements: ReadonlyMap<string, string>,
+  passengerId: string,
+  carrierId: string,
+): number {
+  const carrier = troops.find((troop) => troop.id === carrierId);
+  if (carrier === undefined) return 0;
+  const without = new Set([...picked].filter((id) => id !== passengerId));
+  const taken = stackRows(troops, without, placements)
+    .filter((row) => row.carrier?.id === carrierId)
+    .reduce((sum, row) => sum + (LIFT_COST[row.troop.role] ?? 0), 0);
+  return (LIFT_CAPACITY[carrier.role] ?? 0) - taken;
+}
+
+/** The drop, in the one word the panel needs: the pile it answers about is the one the tick box
+ *  would have made, which is the whole equality between the two doors. */
+export function boards<T extends { readonly id: string; readonly role: UnitRole }>(
+  troops: ReadonlyArray<T>,
+  picked: ReadonlySet<string>,
+  placements: ReadonlyMap<string, string>,
+  passengerId: string,
+  carrierId: string,
+): boolean {
+  const passenger = troops.find((troop) => troop.id === passengerId);
+  const cost = passenger === undefined ? 0 : (LIFT_COST[passenger.role] ?? 0);
+  return cost > 0 && seatsFree(troops, picked, placements, passengerId, carrierId) >= cost;
 }
 
 /** Every troop a movement of mine carries: they have an address, but they are not standing at

@@ -33,9 +33,14 @@ const world = {
 
 let grid: ReturnType<typeof buildGrid> | null = null;
 
-export function routeBetween(from: LonLat, to: LonLat, mode: RouteMode): ComputedRoute | null {
+export function routeBetween(
+  from: LonLat,
+  to: LonLat,
+  mode: RouteMode,
+  landCost?: number,
+): ComputedRoute | null {
   grid ??= buildGrid(world);
-  return computeRoute(grid, from, to, mode);
+  return computeRoute(grid, from, to, mode, landCost);
 }
 
 /**

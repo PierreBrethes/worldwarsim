@@ -6,6 +6,7 @@ import { fr } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import type { MovementAim } from '@/domain/movement-orders';
+import { landPaceOf, routeMedium } from '@/domain/routing';
 import type { MarchStation } from '@/domain/troops';
 import { handleError } from '@/data/errors';
 import type { MovementPreviewed } from '@/data/serverView';
@@ -145,7 +146,13 @@ export function MovementPreview({
           ) : (
             <>
               <div className="font-[var(--font-mono)] text-[11.5px] leading-[1.7]">
-                <div>{fr.aim.duration(asHoursMinutes(preview.minutes), preview.troops)}</div>
+                {/* The medium is read off the **legs**, never off the route's mode: a pile with
+                    a hull routes `combined` even when the road gets there dry, and the card
+                    would then promise a crossing to the next region. */}
+                <div>
+                  {fr.aim.duration(asHoursMinutes(preview.minutes), preview.troops)} ·{' '}
+                  {legOf(preview.route)}
+                </div>
                 <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
               </div>
               {preview.holdUntil !== null && (
@@ -200,6 +207,16 @@ export function MovementPreview({
       </div>
     </div>
   );
+}
+
+/**
+ * The medium, and the pace when the trip touches the ground at all. A crossing that never sets a
+ * boot down has no pace to name, and saying "à pied" of a flight would be a word too many.
+ */
+function legOf(route: NonNullable<MovementPreviewed>['route']): string {
+  const medium = routeMedium(route.legs);
+  if (medium === 'air' || medium === 'sea') return fr.aim.mediums[medium];
+  return `${fr.aim.mediums[medium]}, ${fr.aim.paces[landPaceOf(route)]}`;
 }
 
 /**

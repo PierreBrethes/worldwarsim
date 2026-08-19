@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { World } from './world';
-import { COST_BY_MEDIUM, TRANSFER_COST, buildGrid, computeRoute, countryAt } from './routing';
+import {
+  COST_BY_MEDIUM,
+  TRANSFER_COST,
+  buildGrid,
+  computeRoute,
+  countryAt,
+  routeMedium,
+} from './routing';
 
 /**
  * A toy world: 100×50 rectangular sphere (identity projection in x, linear latitudes in y),
@@ -181,5 +188,31 @@ describe('the country under a point', () => {
     expect(countryAt(world, [25.2, 44.6])).toBe('ROU');
     expect(countryAt(world, [2.35, 48.86])).toBe('FRA');
     expect(countryAt(world, [-30, 40])).toBeNull();
+  });
+});
+
+/**
+ * The medium is read off the legs and never off the mode: a pile carrying a hull routes
+ * `combined` even when the road gets there dry, and the card must say what the trip is, not
+ * what the pile was allowed to use.
+ */
+describe('routeMedium', () => {
+  it('names the one medium a single-leg route walks', () => {
+    expect(routeMedium([{ medium: 'land', distanceUnits: 12 }])).toBe('land');
+    expect(routeMedium([{ medium: 'sea', distanceUnits: 12 }])).toBe('sea');
+  });
+
+  it('names the crossing when the road and the water are both in it', () => {
+    expect(
+      routeMedium([
+        { medium: 'land', distanceUnits: 3 },
+        { medium: 'sea', distanceUnits: 9 },
+        { medium: 'land', distanceUnits: 2 },
+      ]),
+    ).toBe('combined');
+  });
+
+  it('flies as soon as a leg is airborne', () => {
+    expect(routeMedium([{ medium: 'air', distanceUnits: 40 }])).toBe('air');
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
-import { fr, roleLabel } from '@/i18n/fr';
+import { cardinalLabel, fr, roleLabel } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import {
@@ -33,11 +33,12 @@ import { DragHandle, Draggable } from './Draggable';
  *   not a disabled button, not a greyed-out menu — nothing to press. A movement is irreversible
  *   once sent, and that is the thesis of the game rather than a limitation of this widget.
  *
- * The intelligence block the mockup draws is deliberately **not implemented**: no detection
- * system exists — the listening station has no radius and no enemy arc is surveyed anywhere — so
- * it would be an interface wired onto nothing. Its place is here, between the two sections and
- * the fold, and the open question is number 14 of the 18/08 session (see
- * `WWS/docs/design/propositions/flux-mouvement-en-carte.md`, § Renseignement).
+ * The third section is **renseignement**, and it holds the one detection the game has: what a
+ * posted troop saw pass within `SCOUT_RADIUS_KM` (ADR 0019 §5). It reads like the second — rules
+ * only, no handler — because a sighting is even less orderable than a column of one's own. It
+ * carries neither type nor composition, since the server sends none (design sheet 04), and it
+ * states the rule that would otherwise be read as a fault: **the survey is computed at the
+ * departure of the movement, so a troop posted afterwards never sees it.**
  */
 export function TroopsWidget({
   view,
@@ -68,6 +69,12 @@ export function TroopsWidget({
   const standing = useMemo(() => stationGroups(view.me, marching), [view.me, marching]);
   const flying = view.arcs.filter(
     (arc): arc is Extract<ArcView, { state: 'mine' }> => arc.state === 'mine',
+  );
+  /** Detected and stale are one list on the card: the player watched the same thread, and
+   *  splitting them would ask him to hold two sections for one piece of intelligence. */
+  const surveyed = view.arcs.filter(
+    (arc): arc is Extract<ArcView, { state: 'enemyDetected' | 'lastKnown' }> =>
+      arc.state === 'enemyDetected' || arc.state === 'lastKnown',
   );
   const stationName = useMemo(() => stationNamer(view), [view]);
 
@@ -139,6 +146,19 @@ export function TroopsWidget({
               {flying.length === 0 && (
                 <p className="text-[11.5px] text-[var(--paper-dim)]">{fr.troops.foldedQuiet}</p>
               )}
+            </div>
+
+            <SectionHead title={fr.troops.intel} power={fr.troops.intelPower} lit={false} />
+            <div className="flex flex-col px-[11px] pb-3">
+              {surveyed.map((arc) => (
+                <SurveyedCard key={arc.id} arc={arc} loadedAt={view.loadedAt} now={now} />
+              ))}
+              {surveyed.length === 0 && (
+                <p className="text-[11.5px] text-[var(--paper-dim)]">{fr.troops.intelNone}</p>
+              )}
+              <p className="mt-[7px] text-[10.5px] text-[var(--paper-dim-2)] italic">
+                {fr.troops.intelRule}
+              </p>
             </div>
           </>
         )}
@@ -388,6 +408,64 @@ export function TypeMark({ type, size = 15 }: { type: MovementType; size?: numbe
         <path d={MARKS[type]} />
       )}
     </svg>
+  );
+}
+
+/**
+ * **A sighting, and nothing a sighting does not hold.** No handler, no sprite, no name of a
+ * place: what the server sent is a thread, a bearing, a medium and two dates, and this card is
+ * the shape of exactly that (design sheet 04). The absence of a type mark is the fog checked by
+ * what is missing rather than by a hidden field.
+ *
+ * `lastKnown` freezes: the countdown gives way to how long ago the thread was lost, because a
+ * memory does not tick (ADR 0005).
+ */
+function SurveyedCard({
+  arc,
+  loadedAt,
+  now,
+}: {
+  arc: Extract<ArcView, { state: 'enemyDetected' | 'lastKnown' }>;
+  loadedAt: number;
+  now: number;
+}) {
+  const stale = arc.state === 'lastKnown';
+  const critical = arc.state === 'enemyDetected' && arc.headingAtMe;
+  /** A memory does not tick: the stale card counts up from the moment the thread was lost, the
+   *  watched one counts down to an arrival it can only estimate. */
+  const schedule =
+    arc.state === 'lastKnown'
+      ? fr.troops.intelLost(asHoursMinutes(arc.seenMinutesAgo + (now - loadedAt) / 60_000))
+      : arc.estimatedMinutesLeft === null
+        ? fr.labels.estimated
+        : fr.troops.intelEstimate(
+            asHoursMinutes(currentMinutes(arc.estimatedMinutesLeft, loadedAt, now)),
+          );
+
+  return (
+    <div
+      className="border-b border-[var(--ink-quiet)] py-[7px] first:border-t"
+      style={{ opacity: stale ? 0.7 : 1 }}
+    >
+      <div className="flex items-baseline gap-[8px]">
+        <span
+          className="h-[5px] w-[5px] shrink-0 self-center"
+          style={{ background: critical ? 'var(--critical)' : 'var(--paper-dim-2)' }}
+        />
+        <span
+          className="truncate text-[12.5px] font-semibold"
+          style={{ color: critical ? 'var(--critical)' : 'var(--paper)' }}
+        >
+          {critical
+            ? fr.troops.intelAtMe
+            : fr.troops.intelBearing(cardinalLabel(arc.headingDegrees))}
+        </span>
+        <span className="flex-1" />
+        <span className="shrink-0 font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
+          {schedule}
+        </span>
+      </div>
+    </div>
   );
 }
 

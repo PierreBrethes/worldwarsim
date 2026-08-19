@@ -555,7 +555,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )}
         {garrison && (
           <GarrisonPanel
-            key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}`}
+            /* The pre-check is part of the panel's identity, not only its address: a second
+               card of the same garrison — the cargo after the infantry — opens the same
+               station and must arrive with *its* troops ticked, not the previous card's. */
+            key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}-${garrison.preselect.join()}`}
             view={view}
             token={token}
             station={garrison.station}
@@ -746,6 +749,7 @@ function previewArc(
       points,
       distanceUnits: preview.route.distanceUnits,
       costUnits: preview.route.costUnits,
+      landCost: preview.route.landCost,
       legs: preview.route.legs,
     },
     originCountry: '',
@@ -783,10 +787,15 @@ function previewArc(
 
 const PREVIEW_ARC = 'preview';
 
-/** Where a station stands on the board, as the label layer names it. Only a building has a mast
- *  — an outpost and a point have none, and the camera then holds still rather than flying
- *  somewhere approximate. */
+/** Where a station stands on the board, as the label layer names it. A building answers with
+ *  its mast and an outpost with its own marker; a **point** has none — the camera then holds
+ *  still rather than flying somewhere approximate. */
 function markerOfStation(view: PlayerView, station: TroopStation): string | null {
+  if (station.kind === 'outpost') {
+    return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
+      ? `outpost-${station.outpostId}`
+      : null;
+  }
   if (station.kind !== 'building') return null;
   const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
   return building === undefined ? null : `building-${building.regionId}-${building.key}`;

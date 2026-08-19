@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   foundingRefusal,
+  landCostOf,
   legalMovementTypes,
+  motorized,
   refusalOf,
   routeModeOf,
   type Column,
   type MovementAim,
 } from './movement-orders';
+import { COST_BY_MEDIUM } from './routing';
 
 const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Column => ({
   roles,
@@ -247,5 +250,48 @@ describe('a point as a destination', () => {
 
   it('still answers to the door of its domain', () => {
     expect(refusalOf('attack', somewhere, column(['cargo']))).toBe('NO_PORT_AT_DEPARTURE');
+  });
+});
+
+/**
+ * The pace, and the one effect the land transport has. It is read on the whole column, like the
+ * route: one infantry too many puts everybody at a walk, and there is no half-motorized column.
+ */
+describe('the pace of a land column', () => {
+  it('rolls when the infantry fits in the trucks', () => {
+    expect(motorized(['infantry', 'infantry', 'landTransport'])).toBe(true);
+    expect(landCostOf(['infantry', 'infantry', 'landTransport'])).toBe(
+      COST_BY_MEDIUM.landMotorized,
+    );
+  });
+
+  it('walks on one infantry too many, and the whole column walks', () => {
+    expect(motorized(['infantry', 'infantry', 'infantry', 'landTransport'])).toBe(false);
+    expect(landCostOf(['infantry', 'infantry', 'infantry', 'landTransport'])).toBe(
+      COST_BY_MEDIUM.land,
+    );
+  });
+
+  it('rolls with no truck at all when nothing in it walks', () => {
+    // The armour is motorized by nature, and so is the truck: only the foot soldier asks for
+    // a seat. A tank column drives.
+    expect(motorized(['armor', 'armor'])).toBe(true);
+    expect(motorized(['landTransport'])).toBe(true);
+  });
+
+  it('walks on a single infantry with nothing to ride', () => {
+    expect(motorized(['infantry'])).toBe(false);
+  });
+
+  it('counts the trucks, not the transports of the other media', () => {
+    // A hull lifts across the water; it does not drive anybody down a road.
+    expect(motorized(['infantry', 'infantry', 'cargo'])).toBe(false);
+    expect(motorized(['infantry', 'infantry', 'airTransport'])).toBe(false);
+  });
+
+  it('leaves the crossing ledger alone — a truck is no ferry', () => {
+    // The land seats live outside `LIFT_CAPACITY` precisely so that this stays refused: a
+    // column of two infantry and a truck has nothing to cross the water aboard.
+    expect(routeModeOf(['infantry', 'infantry', 'landTransport'])).toBe('land');
   });
 });

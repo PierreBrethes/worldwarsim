@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { temporalPosition, unrollRoute, unrolledCost } from './route-timing';
 import { COST_BY_MEDIUM, TRANSFER_COST, directRoute, type ComputedRoute } from './routing';
 
-const combined = (land1: number, sea: number, land2: number): ComputedRoute => ({
+const combined = (
+  land1: number,
+  sea: number,
+  land2: number,
+  landCost = COST_BY_MEDIUM.land,
+): ComputedRoute => ({
   mode: 'combined',
+  landCost,
   points: [
     [0, 0],
     [1, 0],
@@ -11,7 +17,7 @@ const combined = (land1: number, sea: number, land2: number): ComputedRoute => (
     [3, 0],
   ],
   distanceUnits: land1 + sea + land2,
-  costUnits: (land1 + land2) * COST_BY_MEDIUM.land + sea * COST_BY_MEDIUM.sea + 2 * TRANSFER_COST,
+  costUnits: (land1 + land2) * landCost + sea * COST_BY_MEDIUM.sea + 2 * TRANSFER_COST,
   legs: [
     { medium: 'land', distanceUnits: land1 },
     { medium: 'sea', distanceUnits: sea },
@@ -81,5 +87,27 @@ describe('temporalPosition', () => {
       legIndex: 0,
       local: 0.25,
     });
+  });
+});
+
+/**
+ * The pawn walks the trip that was **paid for**. A motorized crossing spends proportionally less
+ * of its time on the road, and the shares have to say so — repricing the ground at the foot rate
+ * here would park the pawn on the wrong leg while the arc drew the right one.
+ */
+describe('the motorized share', () => {
+  it('gives the road a smaller share than the same route on foot', () => {
+    const share = (route: ComputedRoute) =>
+      unrollRoute(route)
+        .filter((segment) => segment.kind === 'leg' && segment.medium === 'land')
+        .reduce((sum, segment) => sum + segment.share, 0);
+    expect(share(combined(10, 20, 5, COST_BY_MEDIUM.landMotorized))).toBeLessThan(
+      share(combined(10, 20, 5)),
+    );
+  });
+
+  it('still adds up to the route it was handed', () => {
+    const route = combined(10, 20, 5, COST_BY_MEDIUM.landMotorized);
+    expect(unrolledCost(route)).toBeCloseTo(route.costUnits, 10);
   });
 });

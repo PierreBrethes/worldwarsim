@@ -140,6 +140,15 @@ export const OUTPOST_REACH_KM = 400;
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
 export const MOVEMENTS_IN_FLIGHT = 1;
 
+/**
+ * The pace, mirrored on the same terms and from `src/domain/`, where the two of them live: the
+ * cost per medium weights the Dijkstra edges and the land seats decide which of the two a column
+ * pays. **Unverifiable as before** — the engine routes nothing, so no scenario reads them — but
+ * `verify.mjs` watches them drift, and they command the one measured number above.
+ */
+export const COST_BY_MEDIUM = { land: 1.6, landMotorized: 1.15, sea: 1.0 };
+export const LAND_SEATS_PER_TRANSPORT = 2;
+
 export const tier2HqLevel = (format) =>
   SEASON_FORMATS[format].hqLevelAtLaunch + TIER_2_LEVELS_ABOVE_LAUNCH;
 

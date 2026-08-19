@@ -43,8 +43,17 @@ puis la **visée** : clic droit sur la cible, rose des vents contextuelle, aper�
 confirmation « envoyer — irréversible » au bout de l'arc. Les types proposés par la rose et ceux
 que le serveur accepte sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien
 n'est grisé, jamais (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
-réelle et l'heure d'arrivée, seul le serveur date un mouvement. Le bloc « Renseignement » de la
-maquette n'est **pas** implémenté : aucun système de détection n'existe (question 14 du 18/08).
+réelle et l'heure d'arrivée, seul le serveur date un mouvement.
+
+**Une seule détection existe, et c'est une troupe posée** (ADR 0019 §5) : elle révèle à son
+propriétaire les mouvements adverses qui passent dans `SCOUT_RADIUS_KM` (60 km) — un fil, un cap,
+un horaire estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé
+se calcule **au départ du mouvement, une seule fois**, et se dénormalise dans la table
+`sightings` (`observateur, mouvement, tDébut, tFin`) : chaque joueur lit son propre index, jamais
+un filtre sur la table des mouvements (`WWS/docs/technique/brouillard-et-fanout.md`). Conséquence
+assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le bloc
+« Renseignement » du widget de troupes sert ce relevé et rien d'autre ; la station d'écoute,
+l'agent dormant, la sonde et le leurre n'existent toujours pas.
 
 **La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.

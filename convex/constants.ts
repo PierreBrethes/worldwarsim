@@ -631,6 +631,24 @@ export const INTERCEPTION_RADIUS_KM = 200;
 export const ARRIVAL_RADIUS_KM = 25;
 
 /**
+ * **How far a posted troop sees what moves** (ADR 0019 §5). It is the fourth source of detection
+ * of design sheet 04, after the territory, the listening station and the listening outpost — and
+ * it pierces nothing: a thread, a heading, an estimated schedule, a medium, never the type nor
+ * the composition.
+ *
+ * **Sixty kilometres** is the realism of an infantry company, and it is frankly shorter than
+ * `INTERCEPTION_RADIUS_KM` (200) and `OUTPOST_REACH_KM` (400) on purpose. A sentry that saw as
+ * far as one intercepts would make the listening station and the sleeping agent decorative, and
+ * six nation × doctrine pairs hung on Influence would fall with them.
+ *
+ * **It is meant to become a role statistic** — a reconnaissance aircraft does not see what a
+ * rifleman sees. It stays a single constant for as long as nothing reads a second value: laying
+ * a table of nine numbers before a second consumer exists is the mistake D1 of
+ * `consommation-continue.md` has already turned down once.
+ */
+export const SCOUT_RADIUS_KM = 60;
+
+/**
  * **What one troop eats an hour, whatever it is** (`consommation-continue.md` D1). One constant
  * and no table of nine: `nominalStrength` is not the same unit from one role to the next — 50
  * soldiers, 12 tanks, 24 embarked aircraft — so feeding a carrier "in proportion to 24" would
