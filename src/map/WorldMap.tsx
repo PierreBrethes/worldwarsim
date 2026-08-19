@@ -12,7 +12,6 @@ import type { IndicatorToggles } from '@/domain/indicators';
 import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
 import type { ArcView } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
-import { ControlsCard } from './ControlsCard';
 import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
@@ -38,6 +37,7 @@ type Props = {
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
+  onCountryHover?: (adm0: string | null) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
@@ -69,6 +69,7 @@ export function WorldMap({
   accentedMovement,
   onSelect,
   onOpenBuilding,
+  onCountryHover,
   onRegionHover,
   onArcHover,
   onLabelHover,
@@ -116,6 +117,10 @@ export function WorldMap({
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onCountryHover = onCountryHover ?? (() => {});
+  }, [onCountryHover]);
 
   useEffect(() => {
     if (engine.current) engine.current.onRegionHover = onRegionHover ?? (() => {});
@@ -292,7 +297,6 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint />}
-      <ControlsCard />
       {rose && (
         <CompassRose
           compass={rose.compass}

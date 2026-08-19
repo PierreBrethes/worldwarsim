@@ -148,7 +148,12 @@ export const CONTACT_FORCE = v.union(
   v.object({ kind: v.literal('posted'), playerId: v.id('players'), point: LON_LAT }),
 );
 
-/** The same, plus the one nobody orders: a column on its way back to what it hangs from. */
+/**
+ * The same, plus the one nobody orders: a column on its way back to what it hangs from. A rout
+ * refluxing to one of its own outposts (ADR 0019 §3) aims at an **outpost** like anything else —
+ * it is the same coordinate, read back by the arrival to know it becomes the garrison there —
+ * and `home` is left for the one anchor that is not a document, the national soil.
+ */
 export const MOVEMENT_TARGET = v.union(ATTACK_TARGET, v.object({ kind: v.literal('home') }));
 
 export const COMBAT_SIDE = v.union(v.literal('attacker'), v.literal('defender'));

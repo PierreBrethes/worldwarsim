@@ -139,6 +139,12 @@ export type StationGroup = {
   /** Hit points against the nominal they were formed at (ADR 0014) — the whole health bar. */
   readonly strength: number;
   readonly nominalStrength: number;
+  /**
+   * Whether the whole group is fed at the plain rate (ADR 0019 §4). One group is one address,
+   * so its troops all answer the same — the `&&` is what says that out loud rather than
+   * trusting the grouping to stay that way.
+   */
+  readonly supplied: boolean;
 };
 
 /**
@@ -191,6 +197,7 @@ export function stationGroups(
       count: (held?.count ?? 0) + 1,
       strength: (held?.strength ?? 0) + troop.strength,
       nominalStrength: (held?.nominalStrength ?? 0) + troop.nominalStrength,
+      supplied: (held?.supplied ?? true) && troop.supplied,
     });
   }
 

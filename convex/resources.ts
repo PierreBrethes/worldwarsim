@@ -1,3 +1,4 @@
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from '../src/domain/ids';
@@ -23,6 +24,7 @@ import {
 } from './constants';
 import { fail } from './errors';
 import { regionFacts } from './regions';
+import { upkeepOf, type Upkeep } from './upkeep';
 
 export type { ResourceKey, Costs };
 
@@ -141,6 +143,16 @@ export type Economy = {
   readonly chains: ReadonlyArray<ChainReport>;
   /** The standing lots, advanced to `now` like the stocks — never as stored. */
   readonly orders: ReadonlyArray<SettledOrder>;
+  /** What the army eats, already netted out of `ratePerHour.food` above. It travels whole
+   *  because the screen owes the player the two halves of a rate he reads as one number. */
+  readonly upkeep: Upkeep;
+  /**
+   * **The army has nothing left to eat.** Nothing dies of it (`consommation-continue.md` D3) —
+   * the reserve floors at zero and the recruitment queues stop. Read off the settlement itself
+   * rather than off "the stock is zero", which is also what a nation that eats exactly what it
+   * grows reads, hour for hour, in perfect health.
+   */
+  readonly starving: boolean;
 };
 
 /**
@@ -176,7 +188,21 @@ export async function economyOf(
     updatedAt = Math.min(updatedAt, row.updatedAt);
   }
 
+  /**
+   * **The upkeep is a negative term of the rate, and nothing else in the settlement changes
+   * shape.** `settleStocks` integrates a net rate: subtracting the army here rather than
+   * draining afterwards is what keeps a single arbitration — a second pass that took food out
+   * after the conversions would be a second place a stock moves in time, and the whole reason
+   * `settleStocks` is alone is that two of them disagree.
+   *
+   * **Before the conversions, therefore, and not after.** The army eats first: a nation that
+   * cannot feed its troops is a nation whose foundry has to wait, not one whose surplus alone
+   * is at risk. Food feeds no chain today, so the ordering costs nothing yet — it is written
+   * down because the day one eats food the behaviour differs and the player will feel it.
+   */
+  const upkeep = await upkeepOf(ctx, playerId, now);
   const ratePerHour = extractionRates(buildings);
+  ratePerHour.food -= upkeep.foodPerHour;
   const cap = storageCaps(buildings);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({
@@ -212,7 +238,18 @@ export async function economyOf(
     hours: OUTLOOK_HOURS,
   });
 
-  return { rows, stocks: settled.stocks, ratePerHour, cap, chains: outlook.chains, orders };
+  return {
+    rows,
+    stocks: settled.stocks,
+    ratePerHour,
+    cap,
+    chains: outlook.chains,
+    orders,
+    upkeep,
+    /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
+     *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
+    starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
+  };
 }
 
 export async function ordersOf(
@@ -279,6 +316,22 @@ async function writeStocks(
     if (order.produced !== order.row.produced) {
       await ctx.db.patch(order.row._id, { produced: order.produced });
     }
+  }
+
+  /**
+   * **A famine ends on an event, never on a clock.** A recruitment queue stopped by hunger
+   * (`troops.ts`) has nothing to wake it: the food comes back because a farm went up, a lot was
+   * refunded or an army shrank, and every one of those is a mutation that banks a stock here.
+   * So this is the one door, exactly as it is the one door to the stocks themselves.
+   *
+   * It fires on the state **before** the write rather than after: a farm finishing raises the
+   * rate without adding a grain, so "is there food now" would miss the very event that ends the
+   * famine. The woken mutation re-reads the economy and decides — a wake-up that finds the
+   * player still hungry costs one no-op and stops there.
+   */
+  const owner = economy.rows[0]?.playerId;
+  if (economy.starving && owner !== undefined) {
+    await ctx.scheduler.runAfter(0, internal.troops.resumeQueues, { playerId: owner });
   }
 }
 

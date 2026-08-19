@@ -311,3 +311,46 @@ describe('a long window and a short one', () => {
     expect(bare.stocks.ore).toBeLessThan(warehoused.stocks.ore);
   });
 });
+
+/**
+ * **The instant a reserve ran dry, not merely that it is empty** — what a net rate turning
+ * negative owes everything downstream (`consommation-continue.md`). A recruitment queue that
+ * reads "it is at zero" advances by eight hours of an army that had nothing to eat for six of
+ * them; one that reads "it ran out after two" advances by two.
+ */
+describe('a reserve emptied by a negative rate', () => {
+  const dryAfter = (stock: number, rate: number, hours: number) =>
+    settleStocks({
+      stocks: stocksOf({ food: stock }),
+      ratePerHour: { ...emptyStocks(), food: rate },
+      cap: ceilings(),
+      conversions: [],
+      hours,
+    });
+
+  /** The acceptance case, in figures: forty in hand, twenty an hour eaten, read eight hours
+   *  later. It ran out after two, and six of those eight hours were a famine. */
+  it('says after how long it ran out, not that it is at zero', () => {
+    const settled = dryAfter(40, -20, 8);
+    expect(settled.stocks.food).toBe(0);
+    expect(settled.driedAfterHours.food).toBe(2);
+  });
+
+  it('answers nothing for a reserve that lasted the window out', () => {
+    const settled = dryAfter(400, -20, 8);
+    expect(settled.stocks.food).toBe(240);
+    expect(settled.driedAfterHours.food).toBeNull();
+  });
+
+  /** A famine that began before the window is read off the stock, not off this: the reserve
+   *  did not run out *during* these hours, it opened empty. */
+  it('answers nothing for a reserve that opened empty', () => {
+    const settled = dryAfter(0, -20, 8);
+    expect(settled.stocks.food).toBe(0);
+    expect(settled.driedAfterHours.food).toBe(0);
+  });
+
+  it('leaves every reserve nobody drains alone', () => {
+    expect(dryAfter(40, -20, 8).driedAfterHours.alloy).toBeNull();
+  });
+});

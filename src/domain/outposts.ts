@@ -14,15 +14,27 @@ import { distanceKm, type LonLat } from './geo';
  */
 export type OutpostPoint = { readonly point: LonLat };
 
+/**
+ * The nearest outpost and how far it is — `null` when the list is empty. It is generic over what
+ * is hung on the point so that a caller needing the outpost itself (a rout looking for the
+ * anchor it refluxes to, ADR 0019 §3) reads the same distance as one needing only the number.
+ */
+export function nearestOutpost<T extends OutpostPoint>(
+  target: LonLat,
+  outposts: ReadonlyArray<T>,
+): { readonly nearest: T; readonly km: number } | null {
+  return outposts.reduce<{ nearest: T; km: number } | null>((best, outpost) => {
+    const km = distanceKm(outpost.point, target);
+    return best === null || km < best.km ? { nearest: outpost, km } : best;
+  }, null);
+}
+
 /** How far the nearest outpost is, in kilometres — `null` when the player has none. */
 export function nearestOutpostKm(
   target: LonLat,
   outposts: ReadonlyArray<OutpostPoint>,
 ): number | null {
-  return outposts.reduce<number | null>((best, outpost) => {
-    const km = distanceKm(outpost.point, target);
-    return best === null || km < best ? km : best;
-  }, null);
+  return nearestOutpost(target, outposts)?.km ?? null;
 }
 
 export function withinReach(

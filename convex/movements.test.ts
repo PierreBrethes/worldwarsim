@@ -1683,3 +1683,162 @@ describe('a routed column walks itself home', () => {
     expect(home!.currentStrength).toBeLessThan(30);
   });
 });
+
+/**
+ * **A rout refluxes to the nearest anchor** (ADR 0019 §3, amended 19/08). A force whose address
+ * is a point has lost the only ground it hung from; where it goes is the nearest of the anchors
+ * its owner already has — the capital, which stands for the national soil, or one of his own
+ * outposts. The point that opens the terrain and feeds the army also **rallies** it.
+ *
+ * The case with no outpost at all is the one that did not change, and it is tested where it was
+ * written: *walks the beaten camp home and stands the column on the ground it took* above — the
+ * capital for a route, a `null` address at the end of it.
+ */
+describe('a rout refluxes to the nearest anchor', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+  /** Arabia: neutral ground, and some three thousand kilometres from Moskva — so an outpost a
+   *  few hundred kilometres away is unambiguously the nearer anchor. */
+  const ARABIA: LonLat = [46.72, 24.63];
+
+  /** Two French columns posted next to the camp, enough to break it under the riposte. */
+  async function march(t: ReturnType<typeof boot>, token: string, at: LonLat, onto: LonLat) {
+    const troopIds = [await post(t, token, at), await post(t, token, at)];
+    const sent = await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'point', point: asPoint(at) },
+      troopIds,
+      point: asPoint(onto),
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    return troopIds;
+  }
+
+  it('walks the beaten camp to its own outpost and leaves it there as the garrison', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
+    const camped = await post(t, guest, ARABIA);
+    // Worn down before the pass: the camp opens it and still breaks under the riposte.
+    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+
+    await march(t, token, eastOf(ARABIA, -200), ARABIA);
+
+    const [back] = await movementsOf(t, guest);
+    expect(back).toBeDefined();
+    expect(back!.type).toBe('return');
+    expect(back!.target).toEqual({ kind: 'outpost', outpostId: rally });
+    expect(back!.troopIds).toEqual([camped]);
+    /** Nobody ordered this march: it holds no slot, and it walks — the arrival is in the future. */
+    expect((await t.query(api.view.playerView, { token: guest })).me.slots.used).toBe(0);
+    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toBe(rally);
+  });
+
+  /** **A deactivated outpost rallies all the same** — it hosts its garrison while out of service
+   *  (ADR 0004), so what the deactivation suspends is its effects, never its address. */
+  it('rallies to an outpost that a raid has put out of service', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
+    await t.run(async (ctx) =>
+      ctx.db.patch(rally, { disabledUntil: Date.now() + OUTPOST_DISABLED_HOURS * 3_600_000 }),
+    );
+    const camped = await post(t, guest, ARABIA);
+    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+
+    await march(t, token, eastOf(ARABIA, -200), ARABIA);
+
+    const [back] = await movementsOf(t, guest);
+    expect(back!.target).toEqual({ kind: 'outpost', outpostId: rally });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toBe(rally);
+  });
+
+  /**
+   * **The column that marched out of a camp walks back too.** It used to be skipped by the road
+   * home — it hung from a point, and no building answered for it — so it reappeared at its point
+   * of departure the instant the pass was resolved. Travel time is real for the beaten.
+   */
+  it('walks the column that left a camp, and never teleports it to where it started', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const camp = eastOf(ARABIA, 600);
+    const walker = await post(t, guest, camp);
+    await t.run(async (ctx) => ctx.db.patch(walker, { currentStrength: 30 }));
+    // Two French columns holding the ground it walks onto: they open the pass and it breaks.
+    await post(t, token, ARABIA);
+    await post(t, token, ARABIA);
+
+    const sent = await t.mutation(api.movements.marchTo, {
+      token: guest,
+      origin: { kind: 'point', point: asPoint(camp) },
+      troopIds: [walker],
+      point: asPoint(ARABIA),
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [back] = await movementsOf(t, guest);
+    expect(back).toBeDefined();
+    expect(back!.type).toBe('return');
+    expect(back!.troopIds).toEqual([walker]);
+    /** It leaves from the ground it broke on, not from the camp it had already left. */
+    expect(back!.from).toEqual(asPoint(ARABIA));
+    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const home = await t.run(async (ctx) => ctx.db.get(walker));
+    /** No outpost of its own: the capital, and national soil hanging from nothing that stands. */
+    expect(home!.stationedAt).toBeNull();
+    expect(home!.stationedAt).not.toEqual(asPoint(camp));
+  });
+
+  /**
+   * **A return never engages.** It can land on ground that turned against it while it walked;
+   * survivors do not open a second pass for one defeat (ADR 0014). The column comes down where
+   * it arrives, at its own risk — and what walks past it afterwards will find it standing.
+   */
+  it('lands without a fight on a rally point somebody else is now camped on', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
+    const camped = await post(t, guest, ARABIA);
+    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+
+    await march(t, token, eastOf(ARABIA, -200), ARABIA);
+    expect(await engagementsIn(t)).toHaveLength(1);
+
+    // The winner walks up to the rally point while the beaten column is still on the road.
+    await post(t, token, eastOf(ARABIA, 300));
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toBe(rally);
+    expect(await engagementsIn(t)).toHaveLength(1);
+  });
+
+  /** **The anchor is read once, at the rout.** One razed while the return flies does not move
+   *  the destination: the column walks to the ground it was sent to and stands on it. */
+  it('stands on the ground it reached when the rally point is gone', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
+    const camped = await post(t, guest, ARABIA);
+    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+
+    await march(t, token, eastOf(ARABIA, -200), ARABIA);
+    const [back] = await movementsOf(t, guest);
+    await t.run(async (ctx) => ctx.db.delete(rally));
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toEqual(back!.to);
+  });
+});

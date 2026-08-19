@@ -631,6 +631,40 @@ export const INTERCEPTION_RADIUS_KM = 200;
 export const ARRIVAL_RADIUS_KM = 25;
 
 /**
+ * **What one troop eats an hour, whatever it is** (`consommation-continue.md` D1). One constant
+ * and no table of nine: `nominalStrength` is not the same unit from one role to the next — 50
+ * soldiers, 12 tanks, 24 embarked aircraft — so feeding a carrier "in proportion to 24" would
+ * make it half the price of an infantry while it carries three thousand men.
+ *
+ * A flat rate also keeps the intention of `chiffrage-combat.md` §5 for free: a troop at ten per
+ * cent of its strength eats exactly what a full one does, so losing men is never an economy.
+ *
+ * **Assumed side effect**: a cheap troop costs proportionally more to hold than an expensive
+ * one. That is a third channel against the swarm, after the troop ceiling and the ammunition
+ * load, and it pushes the right way.
+ *
+ * One an hour against a farm's twelve: an army at the ceiling of twenty-four is two farms at
+ * level one, which is the scale the number was picked to read at. Never measured.
+ */
+export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
+
+/**
+ * What the same troop eats when it stands **outside every anchor of its own** — off its
+ * national soil and out of the reach of any of its own outposts (ADR 0019 §4).
+ *
+ * Without it, "at its own risk and peril" names no risk at all: a flat rate plus "nothing dies
+ * when dry" (D3) would make twenty free sentinels the cheapest way to empty the fog (ADR 0005)
+ * of its contents.
+ *
+ * **Two is an assumed starting point, never a measured value** — the same status as
+ * `INTERCEPTION_RADIUS_KM` (ADR 0018 §5), chosen so the rule exists and can be measured rather
+ * than to balance anything. The known risk is that at ×2 the surcharge drowns in an economy
+ * where alloy is the bottleneck and food is abundant; if the measurement says so, the value
+ * rises and the rule does not change.
+ */
+export const UPKEEP_UNSUPPLIED_MULTIPLIER = 2;
+
+/**
  * How long a raid keeps an outpost deactivated, and how long it may not be raided again after
  * that (design sheet 03). **Neither figure is in the design** — the sheet says "temporarily"
  * and "then an immunity window", and stops there. Both are placeholders shaped only so the pair

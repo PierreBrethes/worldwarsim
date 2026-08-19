@@ -665,6 +665,12 @@ export const fr = {
     foldedFlight: (count: number, next: string) =>
       `${count} mouvement${plural(count, '', 's')} en vol — prochaine arrivée dans ${next}`,
     foldedStanding: (count: number) => `${count} stationnaire${plural(count, '', 's')}`,
+    /**
+     * **La punition doit se voir là où le joueur regarde la troupe** (ADR 0019 §4). Un surcoût
+     * qu'on ne lit que sur un écran de comptabilité est une punition invisible, exactement ce
+     * que D3 refusait pour l'attrition.
+     */
+    unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
   },
 
   /**
@@ -860,6 +866,22 @@ export const fr = {
         `${building} se tait et rend l’${resource} au reste de la nation.`,
     },
 
+    /**
+     * **L'entretien se lit à côté de ce qu'il mange.** Le débit de nourriture du bandeau est
+     * déjà net : cette section n'ajoute aucun chiffre, elle décompose celui-là.
+     */
+    upkeepHeader: 'entretien des troupes',
+    upkeepEmpty: 'Aucune troupe en service : rien à nourrir.',
+    upkeepTroops: (count: number) => `${count} troupe${plural(count, '', 's')} en service`,
+    upkeepDrain: (perHour: number) => `− ${tenths(perHour)} nourriture / h`,
+    upkeepUnsupplied: (count: number, factor: number) =>
+      `dont ${count} hors ravitaillement — entretien ×${factor}`,
+    upkeepAllSupplied: 'toutes ravitaillées — sol national ou rayon d’un avant-poste',
+    upkeepBalance: (net: number) =>
+      `solde ${net >= 0 ? '+' : '−'} ${tenths(Math.abs(net))} nourriture / h`,
+    upkeepStarving:
+      'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que la nourriture revient.',
+
     othersHeader: 'autres bâtiments',
     othersEmpty: 'Ni entrepôt, ni dépôt, ni station d’écoute.',
     listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
@@ -961,6 +983,7 @@ export const fr = {
     enemyTitle: 'Nation adverse',
     neutralTitle: 'Pays neutre',
     marker: 'sélection',
+    hoverMarker: 'survol',
     progression: 'progression',
     doctrine: 'doctrine',
     unknown: 'inconnue',

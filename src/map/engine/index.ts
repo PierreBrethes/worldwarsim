@@ -145,6 +145,13 @@ export class MapEngine {
    */
   private hoverDirty = true;
 
+  /**
+   * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
+   * field of `onRegionHover`, because the two do not switch on at the same distance: the
+   * region layer only exists close in, the country is there at every zoom, and the board's
+   * card has to keep answering when there is no region to name yet.
+   */
+  onCountryHover: (adm0: string | null) => void = () => {};
   onRegionHover: (region: RegionIdentity | null) => void = () => {};
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
@@ -161,6 +168,7 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
+  private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
   private hoveredArc: string | null = null;
 
@@ -638,6 +646,11 @@ export class MapEngine {
     }
 
     this.hovered = touched ?? null;
+    const adm0 = this.hovered?.userData.adm0 ?? null;
+    if (adm0 !== this.hoveredCountry) {
+      this.hoveredCountry = adm0;
+      this.onCountryHover(adm0);
+    }
   }
 
   /** Region hover only exists once the layer has faded in on screen, never at sea. */

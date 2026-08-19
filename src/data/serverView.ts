@@ -79,7 +79,11 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
       troopCap: server.me.troopCap,
-      troops: server.me.troops,
+      /** A deployment one version behind knows no upkeep: a troop without the field is one
+       *  nobody charges extra for, and a nation without the line is one holding nothing. */
+      troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
+      upkeep: server.me.upkeep ?? { troops: 0, unsupplied: 0, foodPerHour: 0 },
+      starving: server.me.starving ?? false,
       // A deployment one version behind knows nothing of a raid, and an outpost without the
       // field is an outpost that is standing — the adapter is where that gap is absorbed.
       outposts: server.me.outposts.map((outpost) => ({

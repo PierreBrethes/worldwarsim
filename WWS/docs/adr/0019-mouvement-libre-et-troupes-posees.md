@@ -103,7 +103,10 @@ tient. **Un avant-poste allié ne ravitaille pas** — le ravitaillement deviend
 diplomatique avant que la diplomatie existe.
 
 **L'avant-poste devient un point de ravitaillement avancé.** Il ne projette pas la force, il la
-nourrit.
+nourrit. **Désactivé, il ne ravitaille plus** (appliqué le 19/08) : c'est ce qui fait du raid le
+moyen d'affamer l'armée qui campe dans le rayon — un point qui nourrirait hors service laisserait
+au raid son seul sens économique. Il **rallie** en revanche même désactivé : ce qu'une
+désactivation suspend, ce sont ses effets, jamais son adresse.
 
 ### 5. Les trois valeurs, et ce qu'elles valent
 

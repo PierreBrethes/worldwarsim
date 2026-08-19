@@ -1,7 +1,7 @@
 import { useMutation } from 'convex/react';
 import { useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { REST_WINDOW_MINUTES } from '../../../convex/constants';
+import { REST_WINDOW_MINUTES, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { aBuilding, fr } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { Gauge, SATURATION_MARK } from '@/shell/Gauge';
@@ -72,6 +72,9 @@ export function IndustryWindow({
               />
             ))}
 
+            <Header>{fr.industry.upkeepHeader}</Header>
+            <UpkeepRow view={view} />
+
             <Header>{fr.industry.depositsHeader}</Header>
             {view.me.extraction.length === 0 ? (
               <Empty>{fr.industry.depositsEmpty}</Empty>
@@ -127,6 +130,43 @@ export function IndustryWindow({
         </div>
       </div>
     </FloatingWindow>
+  );
+}
+
+/**
+ * **What the army eats, beside what the nation makes.** The food rate served on the strip is
+ * already net of it (`economyOf`), so this row adds no figure of its own: it says how many
+ * troops, how much they take, and how many of them stand where nobody feeds them — the three
+ * halves of a number the player otherwise reads as one and cannot explain.
+ */
+function UpkeepRow({ view }: { view: PlayerView }) {
+  const { troops, unsupplied, foodPerHour } = view.me.upkeep;
+  if (troops === 0) return <Empty>{fr.industry.upkeepEmpty}</Empty>;
+
+  return (
+    <div className="flex flex-col gap-[3px] border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[12.5px] text-[var(--ink)]">{fr.industry.upkeepTroops(troops)}</span>
+        <span className="font-[var(--font-mono)] text-[12px] text-[var(--critical)]">
+          {fr.industry.upkeepDrain(foodPerHour)}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[11px] text-[var(--ink-quiet)] italic">
+          {unsupplied === 0
+            ? fr.industry.upkeepAllSupplied
+            : fr.industry.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
+        </span>
+        <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
+          {fr.industry.upkeepBalance(view.me.resources.food.ratePerHour)}
+        </span>
+      </div>
+      {view.me.starving ? (
+        <p className="pt-1 text-[11px] leading-[1.45] text-[var(--critical)] italic">
+          {fr.industry.upkeepStarving}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

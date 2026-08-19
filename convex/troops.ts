@@ -162,7 +162,12 @@ export const recruit = mutation({
       rank,
       finishesAt: null,
     });
-    if (queue.length === 0) await startHead(ctx, buildingId, now);
+    /**
+     * Unconditional, because `startHead` is idempotent on a queue already running: what it also
+     * picks up is a head a famine left undated (D3). A player who orders again after feeding his
+     * nation should not have to wait for a second event to restart the line.
+     */
+    await startHead(ctx, buildingId, now);
     return { cost, rank, recruitmentId };
   },
 });
@@ -214,6 +219,27 @@ export const deliver = internalMutation({
   },
 });
 
+/**
+ * **The queues, restarted where hunger left them.** Called from the one place a stock is banked
+ * (`resources.ts`), on the events that can end a famine and on no clock at all: a farm going up,
+ * a lot refunded, an army that shrank. It re-reads the economy rather than trusting the caller,
+ * so a wake-up that finds the player still hungry does nothing and says nothing.
+ *
+ * One pass over the buildings that hold an undated head — `startHead` is idempotent, so a queue
+ * already running is left exactly as it is.
+ */
+export const resumeQueues = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const now = Date.now();
+    if ((await economyOf(ctx, playerId, now)).starving) return;
+    const waiting = await recruitmentsOf(ctx, playerId);
+    for (const buildingId of new Set(waiting.map((batch) => batch.buildingId))) {
+      await startHead(ctx, buildingId, now);
+    }
+  },
+});
+
 export async function troopsOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
@@ -239,6 +265,18 @@ async function startHead(
   const queue = await queueOf(ctx, buildingId);
   const head = queue[0];
   if (!head || head.finishesAt !== null) return;
+
+  /**
+   * **A hungry nation forms nothing** (`consommation-continue.md` D3). The queue *stops*, it is
+   * never cancelled: the batch keeps its rank and its matter, it simply is not dated, and
+   * `resumeQueues` dates it the moment the food comes back. Nothing dies of a famine — rule 3
+   * of the project — so this is the whole of what hunger does, and it is meant to be felt at
+   * once rather than discovered later.
+   *
+   * A batch **already** dated runs to its end: its time was bought before the reserve ran out,
+   * and taking it back would be an attrition on the queue by another name.
+   */
+  if ((await economyOf(ctx, head.playerId, now)).starving) return;
 
   const hqLevel = await hqLevelOf(ctx, head.playerId);
   const { minutes } = recruitmentCost(head.role, head.tier, hqLevel);

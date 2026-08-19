@@ -6,6 +6,11 @@ import { isTyping } from './typing';
  * The map's six gestures, read-only. This is not a settings screen: nothing is editable,
  * nothing is stored — a player who opens it seeks an answer, not a controller. It opens on
  * `?` and via a discreet badge at the board's edge.
+ *
+ * **It anchors nothing.** The board stacks it in the bottom-right column with what answers the
+ * pointer (`GroundPanel`), and a column is the only arrangement in which neither can cover the
+ * other whatever its height — the overlap this replaces came from two absolute anchors, each
+ * guessing at the other's size.
  */
 export function ControlsCard() {
   const [open, setOpen] = useState(false);
@@ -25,18 +30,9 @@ export function ControlsCard() {
   }, []);
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label={fr.mapUi.controlsLabel}
-        onClick={() => setOpen((previous) => !previous)}
-        className="hud absolute right-4 bottom-4 z-10 h-[22px] w-[22px] cursor-pointer border border-[var(--ink-quiet)] bg-[var(--desk)] font-[var(--font-body)] text-[12px] leading-none text-[var(--paper-dim)] opacity-55 hover:opacity-100"
-      >
-        ?
-      </button>
-
+    <div className="flex flex-col items-end gap-2">
       {open && (
-        <div className="hud absolute right-4 bottom-[34px] z-10 w-[300px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-4 pt-3 pb-[14px] font-[var(--font-body)]">
+        <div className="hud w-[300px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-4 pt-3 pb-[14px] font-[var(--font-body)]">
           <div className="flex items-baseline justify-between border-b border-[var(--ink-quiet)] pb-2">
             <span className="text-[9px] tracking-[.2em] text-[var(--paper-dim)] uppercase">
               {fr.mapUi.controlsHeader}
@@ -60,6 +56,15 @@ export function ControlsCard() {
           </dl>
         </div>
       )}
-    </>
+
+      <button
+        type="button"
+        aria-label={fr.mapUi.controlsLabel}
+        onClick={() => setOpen((previous) => !previous)}
+        className="hud h-[22px] w-[22px] cursor-pointer border border-[var(--ink-quiet)] bg-[var(--desk)] font-[var(--font-body)] text-[12px] leading-none text-[var(--paper-dim)] opacity-55 hover:opacity-100"
+      >
+        ?
+      </button>
+    </div>
   );
 }

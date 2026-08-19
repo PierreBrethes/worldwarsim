@@ -137,9 +137,19 @@ sans supériorité aérienne et sans avantage de terrain doit être un mauvais c
   (amélioration d'avant-poste). Le rythme est de 4 points par heure chez soi, 6 en pharmacie.
   La pharmacie est plus chère et plus rapide, et surtout plus proche : le choix est distance
   contre ressource, et il crée les mouvements de retour que l'ADR 0014 réclame.
-- **Entretien** : nourriture par heure et par troupe, proportionnelle à l'effectif *nominal*, pas
-  au courant — une troupe entamée coûte autant qu'une troupe pleine. Sinon perdre des hommes
-  devient une économie.
+- **Entretien** : un **forfait par troupe et par heure, identique pour tous les rôles**
+  (`FOOD_UPKEEP_PER_TROOP_PER_HOUR`). La proportionnalité à l'effectif nominal est abandonnée
+  (décision D1 du 16/08, `consommation-continue.md`) : `nominalStrength` n'est pas dans la même
+  unité selon le rôle — 50 soldats, 12 chars, 24 appareils embarqués — donc nourrir un
+  porte-avions « proportionnellement à 24 » le rendrait deux fois moins cher qu'une infanterie
+  à 50 alors qu'il porte trois mille hommes. L'intention d'origine survit gratuitement : un
+  forfait ne lit aucun effectif, donc une troupe entamée coûte autant qu'une troupe pleine et
+  perdre des hommes n'est jamais une économie.
+
+  Le forfait est **multiplié par l'ancrage** (ADR 0019 §4) : ×1 sur son sol national ou dans le
+  rayon d'un de ses propres avant-postes debout, `UPKEEP_UNSUPPLIED_MULTIPLIER` partout
+  ailleurs. À sec, rien ne meurt : le stock plancher à zéro et les files de recrutement
+  s'arrêtent (D3).
 
 ## 6. Les nations ne touchent qu'une ligne ou une colonne
 

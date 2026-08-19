@@ -131,6 +131,14 @@ export type TroopView = {
   readonly strength: number;
   readonly nominalStrength: number;
   readonly stationedAt: TroopStation;
+  /**
+   * **Whether it is fed at the plain rate** (ADR 0019 §4): on national soil, or inside the reach
+   * of one of its owner's standing outposts. `false` is a troop eating
+   * `UPKEEP_UNSUPPLIED_MULTIPLIER` times the flat rate, and it travels per troop because that is
+   * where the player looks — a surcharge only visible on an accounting screen is the invisible
+   * punishment D3 refused for attrition.
+   */
+  readonly supplied: boolean;
 };
 
 export type OutpostView = {
@@ -175,6 +183,18 @@ export type CombatTally = {
   readonly lost: number;
   readonly routed: number;
   readonly destroyed: number;
+};
+
+/**
+ * What the army costs to hold, beside what it is made of. The food rate served in `resources` is
+ * already **net** of it — a player producing 40 and eating 45 reads −5, never 40 — so this is the
+ * breakdown of a number he already sees, never a second one to reconcile.
+ */
+export type UpkeepView = {
+  readonly troops: number;
+  /** How many of them stand outside every anchor of their own, at the raised rate. */
+  readonly unsupplied: number;
+  readonly foodPerHour: number;
 };
 
 export type Resource = {
@@ -365,6 +385,14 @@ export type PlayerView = {
     readonly troopCap: number;
     readonly troops: ReadonlyArray<TroopView>;
     readonly outposts: ReadonlyArray<OutpostView>;
+    readonly upkeep: UpkeepView;
+    /**
+     * **The army has nothing left to eat.** Nothing dies of it and nothing is lost: the reserve
+     * floors at zero and the recruitment queues stop until the food comes back
+     * (`consommation-continue.md` D3). The combat prompt will read it for its own malus; nothing
+     * reads it for that yet.
+     */
+    readonly starving: boolean;
   };
   /** Level-one price list, served by the server: balance numbers have one home, `constants.ts`. */
   readonly buildCatalog: Readonly<Record<BuildingKey, BuildSpec>>;
@@ -377,7 +405,10 @@ export type PlayerView = {
 
 export function currentStock(resource: Resource, loadedAt: number, now: number): number {
   const raw = resource.stock + (resource.ratePerHour * Math.max(0, now - loadedAt)) / 3_600_000;
-  return Math.floor(Math.min(resource.cap, raw));
+  /** A net rate goes negative the day an army eats more than its farms grow, and the client
+   *  extrapolates it between two readings like any other: the floor is the same one the
+   *  settlement applies, so the strip never counts down past empty. */
+  return Math.max(0, Math.floor(Math.min(resource.cap, raw)));
 }
 
 export function currentMinutes(minutesLeft: number, loadedAt: number, now: number): number {

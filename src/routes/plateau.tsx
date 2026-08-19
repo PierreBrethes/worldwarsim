@@ -4,6 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
+import { ControlsCard } from '@/map/ControlsCard';
 import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -25,10 +26,9 @@ import { errorCode } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
-import { RegionTooltip } from './-plateau/RegionTooltip';
+import { GroundPanel } from './-plateau/GroundPanel';
 import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
-import { SelectedCountryPanel } from './-plateau/SelectedCountryPanel';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
@@ -231,6 +231,7 @@ function LiveBoard({ world, token }: { world: World; token: string }) {
 function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
   const { country, windows = [], building: focused } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
@@ -530,6 +531,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           accentedMovement={hoveredMovement}
           onSelect={select}
           onOpenBuilding={openBuilding}
+          onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
           onArcHover={setHoveredArc}
           onLabelHover={setHoveredLabel}
@@ -601,13 +603,21 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         />
         {/* The top right is the reserves' now — permanently. What answers a *gesture* (the
             pointer on a region, a selected country) reads at the other end of the same column,
-            clear of the timeline's band: two things one glances at, one place to look. */}
+            clear of the timeline's band: two things one glances at, one place to look.
+
+            **One column, bottom-anchored, and the map's own help card is in it.** It used to
+            anchor itself and so did this stack; each guessed at the other's height and the open
+            card covered the panel. Stacked, the badge stays on the floor and everything above
+            it is pushed up by whatever is there — no arrangement of the two can overlap. */}
         <ReservesPanel view={view} />
-        <div className="absolute right-4 bottom-[84px] z-10 flex flex-col items-end gap-3">
-          {country && <SelectedCountryPanel country={country} view={view} />}
-          {hoveredRegion && (
-            <RegionTooltip id={hoveredRegion.id} name={hoveredRegion.name} view={view} />
-          )}
+        <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
+          <GroundPanel
+            selected={country ?? null}
+            hoveredCountry={hoveredCountry}
+            hoveredRegion={hoveredRegion}
+            view={view}
+          />
+          <ControlsCard />
         </div>
       </div>
       <Suspense fallback={null}>

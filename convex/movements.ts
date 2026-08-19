@@ -14,7 +14,7 @@ import {
   type MovementAim,
 } from '../src/domain/movement-orders';
 import { isNation } from '../src/domain/nations';
-import { withinReach } from '../src/domain/outposts';
+import { nearestOutpost } from '../src/domain/outposts';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { buildingAt, playerBuildings } from './buildings';
@@ -25,12 +25,12 @@ import {
   MOVEMENTS_IN_FLIGHT,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_IMMUNITY_HOURS,
-  OUTPOST_REACH_KM,
   routeMinutes,
 } from './constants';
 import { fail } from './errors';
 import { capitalRegionOf, homeCountryOf, nearestRegion, regionFacts } from './regions';
 import { hostAtPoint, routeBetween } from './routes';
+import { isAnchored } from './upkeep';
 import { playerByToken, requirePlayable } from './seasons';
 import {
   ATTACK_TARGET,
@@ -259,6 +259,14 @@ export const preview = query({
  * **The rest window of design sheet 07 forbids arrivals, never departures**, and it forbids
  * them *at a player*: a column reaching the home country of somebody at rest waits at the
  * border until the window closes. Neutral ground has nobody to wake, so nothing waits.
+ *
+ * **A return never engages**, and that is a decision, not an omission. It can land on ground
+ * that has turned against it while it walked — the outpost it rallied to razed, an enemy camp
+ * pitched inside the arrival radius — and it still only hangs its troops back up. Survivors do
+ * not open a pass of resolution: the rout was the end of that engagement, and a beaten column
+ * that arrives fighting would be resolved twice for one defeat (ADR 0014, one pass per
+ * engagement). It stands where it arrives, at its own risk — what walks past it afterwards will
+ * find it, since a posted troop defends the ground it stands on like any other.
  */
 export const arrive = internalMutation({
   args: { movementId: v.id('movements') },
@@ -348,11 +356,11 @@ export const intercept = internalMutation({
         else await ctx.db.patch(carrier._id, { troopIds: kept });
       }
     }
+    /** The two roads home, and they never cross: `sendHome` walks whoever hangs from a building
+     *  back to it, `refluxHome` takes whoever hangs from a point — the camp that reached out and
+     *  broke, the column that marched out of one — to its nearest anchor (ADR 0019 §3). */
     await sendHome(ctx, routed, pointOf(point), now);
-    /** A camp that intercepted and broke is the one force with no attachment left to stand on
-     *  (ADR 0019 §3); everything else routed here hangs from something and `sendHome` has just
-     *  put it back on it. */
-    await sendCampsHome(ctx, routedOn(routed, interceptor.troops), now);
+    await refluxHome(ctx, routed, pointOf(point), now);
   },
 });
 
@@ -867,8 +875,9 @@ async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: numbe
   /**
    * Whoever is still on his feet walks back, routed or not: the column came to fight, not to
    * stay. On the other side, a routed **garrison** is already at its attachment and a routed
-   * building defender stands in its own region — only a camp has lost the very ground it hung
-   * from, and it is the one that goes home (ADR 0019 §3).
+   * building defender stands in its own region — only what hung from a point has lost the very
+   * ground it stood on, and it refluxes to its nearest anchor (ADR 0019 §3), whichever side of
+   * the pass it was on.
    */
   const survivors = marching.filter((troop) =>
     engagement.outcomes.some(
@@ -876,7 +885,7 @@ async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: numbe
     ),
   );
   await sendHome(ctx, survivors, pointOf(movement.to), now);
-  await sendCampsHome(ctx, routedOn(routed, defence.troops), now);
+  await refluxHome(ctx, routed, pointOf(movement.to), now);
 }
 
 /**
@@ -928,7 +937,7 @@ async function standAt(ctx: MutationCtx, movement: Doc<'movements'>, now: number
   );
   /** **The winner stands, the loser leaves** — including when the loser is the camp that held
    *  the ground and lost it (ADR 0019 §3). */
-  await sendCampsHome(ctx, routedOn(routed, defence.troops), now);
+  await refluxHome(ctx, routed, pointOf(movement.to), now);
 }
 
 /**
@@ -959,19 +968,34 @@ async function deactivate(
  * they walked to is the one place the game can honestly say they are.
  */
 async function attachHome(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const station =
-    movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
-  /**
-   * A return that left **no building behind** is the routed camp of ADR 0019 §3: it hung from a
-   * point, so there is nothing to re-hang it on, and it comes back to national soil hanging from
-   * nothing that stands — which is what a `null` address means, written once in the schema and
-   * not reinvented here.
-   */
-  const home = movement.fromBuildingId === null ? null : (station?._id ?? movement.to);
+  const home = await homeOf(ctx, movement);
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
     if (troop) await ctx.db.patch(troopId, { stationedAt: home });
   }
+}
+
+async function homeOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<TroopAddress> {
+  if (movement.fromBuildingId !== null) {
+    const station = await ctx.db.get(movement.fromBuildingId);
+    return station?._id ?? movement.to;
+  }
+  /**
+   * A rout that refluxed to one of its own outposts (ADR 0019 §3) **becomes its garrison**: the
+   * address is the outpost, exactly as a founding column's is. Razed while the return walked —
+   * the anchor is read once, at the rout, and never again — the column stands on the ground it
+   * reached rather than on nothing.
+   */
+  if (movement.target.kind === 'outpost') {
+    const outpost = await ctx.db.get(movement.target.outpostId);
+    return outpost?._id ?? movement.to;
+  }
+  /**
+   * A return that left **no building behind** and rallied to no point of its own came back to
+   * national soil hanging from nothing that stands — which is what a `null` address means,
+   * written once in the schema and not reinvented here.
+   */
+  return null;
 }
 
 /**
@@ -998,6 +1022,10 @@ async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Promise<v
  * what is left of one. Each troop walks to what it hangs from — the attachment it left with,
  * which a movement never took from it. A troop hanging from an **outpost** needs no march at
  * all: it is standing on its attachment already.
+ *
+ * A troop hanging from a **point** hangs from nothing anybody holds; it is not sent home here
+ * but by `refluxHome`, and only when it was routed. The two are called side by side and read
+ * disjoint forms of the address, so nothing is ever put on two roads at once.
  */
 async function sendHome(
   ctx: MutationCtx,
@@ -1057,51 +1085,85 @@ async function sendHome(
 }
 
 /**
- * **A camp that loses its ground goes home** (ADR 0019 §3, ratified 18/08). A garrison stands on
- * its own attachment and a column hangs from a barracks, so both are already home when they
- * break contact; a posted troop's address **is** the ground of the pass. Left standing there it
- * would sit ten kilometres from the force that beat it for the rest of the season, and the two
- * would never meet again — the exact opposite of the ground cleared (ADR 0018 §1).
+ * **Where a rout refluxes** (ADR 0019 §3, amended 19/08): to the nearest of the anchors the
+ * player already holds — his capital, or one of his own outposts. It is the same set that puts
+ * the upkeep at ×1 and that the aim calls recognised ground; three readers, one notion of home
+ * ground, and no frontier invented here. The capital is the single home coordinate the game
+ * writes (ADR 0015), so it stands for the national soil.
+ *
+ * **A deactivated outpost rallies all the same.** It already hosts its own garrison while out of
+ * service — a raid deactivates, it never takes (ADR 0004) — so refusing the rally would invent a
+ * third state for it. What deactivation suspends is its effects, never its address.
+ *
+ * **An ally's outpost is not an anchor**: same decision as the supply, same reason — no
+ * diplomatic currency before the diplomacy.
+ */
+async function nearestAnchor(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  from: LonLat,
+): Promise<{ point: LonLat; hostCountry: string; outpostId: Id<'outposts'> | null } | null> {
+  const owner = await ctx.db.get(playerId);
+  const capital =
+    owner && isNation(owner.nation) ? regionFacts(capitalRegionOf(owner.nation)) : null;
+  const home =
+    capital === null
+      ? null
+      : { point: capital.point, hostCountry: capital.country, outpostId: null };
+
+  const outposts = (await outpostsOf(ctx, playerId)).map((outpost) => ({
+    point: pointOf(outpost.point),
+    outpost,
+  }));
+  const found = nearestOutpost(from, outposts);
+  if (found === null) return home;
+  if (home !== null && distanceKm(home.point, from) <= found.km) return home;
+  return {
+    point: found.nearest.point,
+    hostCountry: found.nearest.outpost.hostCountry,
+    outpostId: found.nearest.outpost._id,
+  };
+}
+
+/**
+ * **A force that loses the ground it hung from refluxes to its nearest anchor** (ADR 0019 §3).
+ * A garrison stands on its own attachment and a column hangs from a barracks, so both are
+ * already home when they break contact; a troop whose address is a **point** has nothing left —
+ * the camp it stood on, or the camp it marched out of, is ground nobody holds. Left standing it
+ * would sit ten kilometres from the force that beat it for the rest of the season, the exact
+ * opposite of the ground cleared (ADR 0018 §1).
  *
  * It walks by the same `return` every rout gets: created by the resolution, never ordered, no
- * slot, no domain gate — nobody asked for it, so it pays for nothing.
+ * slot, no domain gate — nobody asked for it, so it pays for nothing. And it **walks**: the
+ * column that left a camp used to be ignored here and reappear at its point of departure, which
+ * was a teleport. Travel time is real for the beaten too.
  *
- * **Where it lands is `null`**, national soil hanging from nothing that stands: the schema
- * writes that meaning once and this does not write a second one. The walk is *aimed* at the
- * capital region because a route needs two points and a nation's capital is the one home
- * coordinate the game already agrees on (ADR 0015); the address at the end is still the `null`,
- * and `attachHome` is what puts it there.
+ * The anchor is read **once, here**, at the rout. One founded or razed while the return flies
+ * does not move its destination — the same rule as the interception, for the same reason.
  */
-async function sendCampsHome(
+async function refluxHome(
   ctx: MutationCtx,
   troops: ReadonlyArray<Doc<'troops'>>,
+  from: LonLat,
   now: number,
 ): Promise<void> {
-  const camps = new Map<
-    string,
-    { playerId: Id<'players'>; from: LonLat; group: Doc<'troops'>[] }
-  >();
+  const byPlayer = new Map<Id<'players'>, Array<Doc<'troops'>>>();
   for (const troop of troops) {
     const address = troop.stationedAt;
     if (address === null || typeof address === 'string') continue;
-    const key = `${troop.playerId}@${address.lon},${address.lat}`;
-    const camp = camps.get(key) ?? { playerId: troop.playerId, from: pointOf(address), group: [] };
-    camp.group.push(troop);
-    camps.set(key, camp);
+    byPlayer.set(troop.playerId, [...(byPlayer.get(troop.playerId) ?? []), troop]);
   }
 
-  for (const { playerId, from, group } of camps.values()) {
-    const owner = await ctx.db.get(playerId);
-    const capital =
-      owner && isNation(owner.nation) ? regionFacts(capitalRegionOf(owner.nation)) : null;
+  for (const [playerId, group] of byPlayer) {
+    const anchor = await nearestAnchor(ctx, playerId, from);
     const route =
-      capital === null
+      anchor === null
         ? null
-        : routeBetween(from, capital.point, routeModeOf(group.map((troop) => troop.role)));
+        : routeBetween(from, anchor.point, routeModeOf(group.map((troop) => troop.role)));
 
     /** No road back — a landing whose transports sank, a player without a nation. It comes home
      *  all the same rather than dying for it (rule 3 of the project); it just does not walk. */
-    if (capital === null || route === null) {
+    if (anchor === null || route === null) {
       for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: null });
       continue;
     }
@@ -1111,10 +1173,15 @@ async function sendCampsHome(
       playerId,
       type: 'return',
       fromBuildingId: null,
-      target: { kind: 'home' },
+      /** The anchor travels as the aim it is: `attachHome` reads it back to know whether the
+       *  column becomes a garrison or comes back to national soil hanging from nothing. */
+      target:
+        anchor.outpostId === null
+          ? { kind: 'home' }
+          : { kind: 'outpost', outpostId: anchor.outpostId },
       from: asPoint(from),
-      to: asPoint(capital.point),
-      hostCountry: capital.country,
+      to: asPoint(anchor.point),
+      hostCountry: anchor.hostCountry,
       points: route.points.map(asPoint),
       legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
       distanceUnits: route.distanceUnits,
@@ -1126,13 +1193,6 @@ async function sendCampsHome(
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   }
 }
-
-/** The routed troops of one side of a pass — `resolveContact` reports both sides at once, and
- *  only the one that was standing on the ground has a camp to leave. */
-const routedOn = (
-  routed: ReadonlyArray<Doc<'troops'>>,
-  side: ReadonlyArray<Doc<'troops'>>,
-): Array<Doc<'troops'>> => routed.filter((troop) => side.some((one) => one._id === troop._id));
 
 type Defence = {
   readonly playerId: Id<'players'>;
@@ -1344,13 +1404,14 @@ async function troopsCarriedBy(
  * the server may answer it at all — there is no fog to leak.
  */
 async function recognises(ctx: QueryCtx, player: Doc<'players'>, point: LonLat): Promise<boolean> {
-  const home = homeCountryOf(player.nation);
-  if (home !== null && home === hostAtPoint(point)) return true;
   const outposts = await outpostsOf(ctx, player._id);
-  return withinReach(
+  /** **Every** point of his, deactivated ones included: a raid burns the depot, it does not
+   *  blind the relay. That is the one thing this reading does not share with the upkeep's, which
+   *  is fed by standing points only (`upkeep.ts`). */
+  return isAnchored(
     point,
+    homeCountryOf(player.nation),
     outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
-    OUTPOST_REACH_KM,
   );
 }
 

@@ -59,6 +59,9 @@ export const playerView = query({
     const troops = await troopsOf(ctx, player._id);
     const outposts = await outpostsOf(ctx, player._id);
     const movements = await movementsOf(ctx, player._id);
+    /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
+     *  "who is far from home": one arbitration, one answer. */
+    const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
 
     /**
      * A troop attached to a building that no longer stands **comes home** — it is not lost,
@@ -289,6 +292,17 @@ export const playerView = query({
           : null,
         armyPresent,
         /**
+         * What the army costs to hold, and how much of it is standing where nobody feeds it
+         * (ADR 0019 §4). The food rate in `resources` is already net of `foodPerHour`; this is
+         * the breakdown of that one number, never a second figure to reconcile with it.
+         */
+        upkeep: {
+          troops: economy.upkeep.troops,
+          unsupplied: economy.upkeep.unsupplied,
+          foodPerHour: economy.upkeep.foodPerHour,
+        },
+        starving: economy.starving,
+        /**
          * How many troops may stand at once, carried by the billets (ADR 0014). Served beside
          * the troops themselves so the board can say "18 / 24" without a second count of its
          * own — the list below is complete, so its length is the count.
@@ -301,6 +315,9 @@ export const playerView = query({
           strength: troop.currentStrength,
           nominalStrength: troop.nominalStrength,
           stationedAt: stationOf(troop),
+          /** Read off the same pass that priced it: the badge on the card and the food rate in
+           *  the strip cannot disagree, because only one of them was ever computed. */
+          supplied: !unsupplied.has(troop._id),
         })),
         /**
          * **Mine only.** An opponent's outpost is exactly the kind of thing the fog exists to

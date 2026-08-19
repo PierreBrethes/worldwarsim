@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { asHoursMinutes, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
@@ -240,6 +241,11 @@ function StandingCard({
         <span className="block truncate font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
           {name} · {fr.troops.strength(group.strength, group.nominalStrength)}
         </span>
+        {group.supplied ? null : (
+          <span className="block truncate font-[var(--font-mono)] text-[10px] text-[var(--critical)]">
+            {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+          </span>
+        )}
       </span>
       <span className="shrink-0 text-[13px] text-[var(--notable)]">›</span>
     </button>

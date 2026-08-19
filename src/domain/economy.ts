@@ -134,6 +134,24 @@ export const emptyStocks = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
 
 /**
+ * What a settlement answers. `driedAfterHours` is what the drain of `consommation-continue.md`
+ * owes everything downstream: a **net** rate that has gone negative empties a reserve part-way
+ * through the window, and "it is at zero now" is not the same fact as "it has been at zero for
+ * six of these eight hours". A recruitment queue that reads the first advances by eight hours
+ * of an army that had nothing to eat for six of them.
+ *
+ * Hours into the window, never an instant: the settlement is handed a duration and knows no
+ * date. `null` is a reserve that never ran out over these hours; `0` is one that was already
+ * empty when they opened, which is a famine older than this reading and true from the first
+ * minute of it.
+ */
+export type Settled = {
+  readonly stocks: Record<ResourceKey, number>;
+  readonly chains: ReadonlyArray<ChainReport>;
+  readonly driedAfterHours: Readonly<Record<ResourceKey, number | null>>;
+};
+
+/**
  * The whole economy of a player, moved forward by `hours`. Accrual and transformation live in
  * the same pass on purpose: a foundry consumes ore that was itself accruing, and settling them
  * in two places would let a read order decide how much alloy exists.
@@ -160,7 +178,7 @@ export function settleStocks(settlement: {
   cap: Stocks;
   conversions: ReadonlyArray<Conversion>;
   hours: number;
-}): { stocks: Record<ResourceKey, number>; chains: ReadonlyArray<ChainReport> } {
+}): Settled {
   /**
    * The space left in a bac is not what a chain may pour into it: whatever a downstream chain
    * takes back out over the same window is room too — an arsenal emptying the alloy as it is
@@ -246,7 +264,7 @@ function integrate(
   },
   /** Extra output allowed past the bac's own space, because a later chain will take it. */
   allowance: ReadonlyArray<number>,
-): { stocks: Record<ResourceKey, number>; chains: ReadonlyArray<ChainReport> } {
+): Settled {
   const elapsed = Math.max(0, hours);
 
   /**
@@ -277,8 +295,25 @@ function integrate(
   const store = (key: ResourceKey) => {
     settled[key] = Math.max(0, Math.min(held(key), passed[key]));
   };
+  /**
+   * **When the reserve ran out, not merely that it is empty.** A net rate below zero crosses
+   * zero at `stock / -rate`, in closed form and inside the same window as everything else — no
+   * loop here counts hours, and a week's absence costs what a minute's does.
+   *
+   * It is read off the accrual alone, before any conversion: no chain eats a resource anything
+   * drains today, and the day one does, the honest answer is that the famine started *earlier*
+   * than this, never later. Erring towards the early instant is erring towards the player being
+   * told he was starving, which is the failure the whole rule exists to make visible.
+   */
+  const driedAfterHours = Object.fromEntries(RESOURCES.map((key) => [key, null])) as Record<
+    ResourceKey,
+    number | null
+  >;
   for (const key of RESOURCES) {
     passed[key] = stocks[key] + ratePerHour[key] * elapsed;
+    if (ratePerHour[key] < 0 && stocks[key] + ratePerHour[key] * elapsed < 0) {
+      driedAfterHours[key] = Math.max(0, stocks[key] / -ratePerHour[key]);
+    }
     store(key);
   }
 
@@ -318,7 +353,7 @@ function integrate(
     };
   });
 
-  return { stocks: settled, chains };
+  return { stocks: settled, chains, driedAfterHours };
 }
 
 /**

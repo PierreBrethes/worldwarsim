@@ -10,6 +10,7 @@ const troop = (id: string, role: TroopView['role'], stationedAt: TroopStation): 
   strength: 40,
   nominalStrength: 50,
   stationedAt,
+  supplied: true,
 });
 
 const me = {

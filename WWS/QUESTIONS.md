@@ -92,6 +92,18 @@ Si elle continue, l'occupation ne pèse pas assez. Si elle s'arrête, elle devie
 contredit la promesse anti-élimination. Une piste : elle continue mais les effectifs produits sont
 plafonnés à un usage défensif.
 
+**La file de recrutement contourne le plafond de stockage.** La matière d'un lot en file est
+débitée à la commande et rendue entière à l'annulation : la file est un entrepôt illimité que
+seul le plafond de troupes borne. Sans objet tant que rien ne se pille — l'écrêtage à la perte de
+stockage (ADR 0017) aura le même angle mort si la file n'est pas comptée. À trancher avec le
+pillage. → constat de `consommation-continue.md`, confirmé le 19/08.
+
+**La reprise de la file après une famine est paresseuse.** À sec, la tête n'est plus datée ; elle
+repart au premier événement qui écrit un stock, pas à l'instant analytique où la nourriture
+redevient positive — `driedAfterHours` (le moment exact, calculé par `settleStocks`) existe et
+permettrait de la planifier si l'écart se sent en partie. Approximation assumée le 19/08 ; la
+tenir à la lettre demanderait de dater les lots comme l'industrie.
+
 ## 🟡 À trancher plus tard
 
 **L'unité spéciale par nation.** Idée retenue mais non tranchée. Elle devrait casser une règle
