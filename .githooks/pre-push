@@ -1,0 +1,7 @@
+#!/bin/sh
+# Miroir local de .github/workflows/ci.yml : ce qui casse ici casse là-bas.
+# Contournement ponctuel : git push --no-verify
+set -e
+
+echo "pre-push : vérifications (npm run verifier)"
+npm run verifier

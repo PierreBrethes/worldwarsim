@@ -4,15 +4,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run types && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "types": "tsc --noEmit",
+    "routes": "node scripts/generer-routes.mjs",
+    "types": "npm run routes && tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",
-    "dev:complet": "concurrently -n front,convex -c blue,yellow \"vite\" \"convex dev\""
+    "dev:complet": "concurrently -n front,convex -c blue,yellow \"vite\" \"convex dev\"",
+    "verifier": "npm run types && npm run lint && npm run format:check && npm run test && vite build && node WWS/simulation/opening/verify.mjs"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.58.15",

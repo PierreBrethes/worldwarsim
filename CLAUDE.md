@@ -9,6 +9,8 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # types + build
 npm run test     # vitest
+npm run verifier # miroir local de la CI (types, lint, format, tests, build, simulation)
+git config core.hooksPath .githooks   # une fois par clone : active le pre-push
 ```
 
 ## Ce qui existe
