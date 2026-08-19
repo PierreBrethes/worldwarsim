@@ -18,20 +18,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Types
-        run: npm run types
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format
-        run: npm run format:check
-
-      - name: Tests
-        run: npm run test
-
-      - name: Build
-        run: npm run build
-
-      - name: Miroir de simulation
-        run: node WWS/simulation/opening/verify.mjs
+      # Une seule liste de vérifications, partagée avec le hook pre-push (.githooks/pre-push) :
+      # types, lint, format, tests, build, miroir de simulation. Elles ne peuvent pas diverger.
+      - name: Vérifications
+        run: npm run verifier
