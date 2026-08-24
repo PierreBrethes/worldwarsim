@@ -3,24 +3,23 @@
 #   docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d
 #
 # Principe : en prod, AUCUN service ne publie de port sur l'hôte (Docker contourne ufw — un
-# port publié est un port mondial). Traefik route par le réseau Docker ; la seule exception
-# est le dashboard, lié à 127.0.0.1 et joignable uniquement en tunnel SSH.
+# port publié est un port mondial). La seule exception est le dashboard, lié à 127.0.0.1 et
+# joignable uniquement en tunnel SSH.
+#
+# Le Traefik du VPS (relevé le 23/08) tourne en `network_mode: host` : il n'appartient à
+# aucun réseau Docker, il n'y a donc PAS de réseau partagé à déclarer. Depuis l'hôte, il
+# atteint directement les IP des conteneurs sur le réseau par défaut du compose
+# (`worldwarsim_default`) — le label `traefik.docker.network` le lui désigne. Entrypoint
+# `websecure` et certresolver `letsencrypt` : confirmés sur ce Traefik.
 #
 # `!reset` exige Docker Compose >= 2.24 (`docker compose version` pour vérifier).
-#
-# TROIS NOMS À VÉRIFIER contre le Traefik du VPS avant le premier lancement — voir le README §
-# « Vérifier Traefik » : le réseau (`traefik` ci-dessous), l'entrypoint (`websecure`) et le
-# certresolver (`letsencrypt`).
 
 services:
   backend:
     ports: !reset []
-    networks:
-      - default
-      - traefik
     labels:
       - traefik.enable=true
-      - traefik.docker.network=traefik
+      - traefik.docker.network=worldwarsim_default
 
       # L'API Convex (3210) — CONVEX_CLOUD_ORIGIN. Traefik passe les upgrades WebSocket
       # sans rien demander : c'est le point que le README exigeait du proxy.
@@ -46,19 +45,10 @@ services:
 
   front:
     ports: !reset []
-    networks:
-      - default
-      - traefik
     labels:
       - traefik.enable=true
-      - traefik.docker.network=traefik
+      - traefik.docker.network=worldwarsim_default
       - traefik.http.routers.wws-front.rule=Host(`wws.pierrebrethes.cloud`)
       - traefik.http.routers.wws-front.entrypoints=websecure
       - traefik.http.routers.wws-front.tls.certresolver=letsencrypt
       - traefik.http.services.wws-front.loadbalancer.server.port=80
-
-networks:
-  # Le réseau que Traefik surveille déjà sur le VPS — externe : ce fichier ne le crée pas.
-  # `docker network ls` puis `docker inspect <conteneur-traefik>` pour retrouver son nom.
-  traefik:
-    external: true
