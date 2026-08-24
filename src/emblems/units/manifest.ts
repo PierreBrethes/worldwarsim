@@ -23,6 +23,17 @@ import usaCargo from './usa/cargo.webp';
 import usaCarrier from './usa/carrier.webp';
 import usaAirTransport from './usa/airTransport.webp';
 import usaLandTransport from './usa/landTransport.webp';
+import ukArmor1 from './uk/armor-1.webp';
+import ukArmor2 from './uk/armor-2.webp';
+import ukBomber from './uk/bomber.webp';
+import ukFighter from './uk/fighter.webp';
+import ukEscort from './uk/escort.webp';
+import ukInfantry1 from './uk/infantry-1.webp';
+import ukInfantry2 from './uk/infantry-2.webp';
+import ukCargo from './uk/cargo.webp';
+import ukCarrier from './uk/carrier.webp';
+import ukAirTransport from './uk/airTransport.webp';
+import ukLandTransport from './uk/landTransport.webp';
 
 /**
  * A tiered role exposes both of its levels, the others structurally only have one. The union
@@ -51,7 +62,20 @@ const FRANCE: NationSprites = {
   carrier: { kind: 'single', url: carrier },
 };
 
-/** The first complete plate of the project: all nine roles, `cargo` included. */
+/** Complete, `cargo` included — the plate that was drawn first and wired last. */
+const UK: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [ukInfantry1, ukInfantry2] },
+  armor: { kind: 'tiered', tiers: [ukArmor1, ukArmor2] },
+  landTransport: { kind: 'single', url: ukLandTransport },
+  fighter: { kind: 'single', url: ukFighter },
+  bomber: { kind: 'single', url: ukBomber },
+  airTransport: { kind: 'single', url: ukAirTransport },
+  escort: { kind: 'single', url: ukEscort },
+  cargo: { kind: 'single', url: ukCargo },
+  carrier: { kind: 'single', url: ukCarrier },
+};
+
+/** The first complete plate wired to the front: all nine roles, `cargo` included. */
 const USA: NationSprites = {
   infantry: { kind: 'tiered', tiers: [usaInfantry1, usaInfantry2] },
   armor: { kind: 'tiered', tiers: [usaArmor1, usaArmor2] },
@@ -66,6 +90,7 @@ const USA: NationSprites = {
 
 export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>> = {
   france: FRANCE,
+  uk: UK,
   usa: USA,
 };
 

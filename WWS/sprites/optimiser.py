@@ -10,11 +10,21 @@ Les sources restent dans WWS/ ; `src/` ne reçoit que l'optimisé. Le renommage 
 `UnitRole` se lit dans un `noms.json` posé à côté des sources, une table par nation : c'est là
 que vivent les noms de matériel (« armor-2-matilda-2 »), qui n'ont rien à faire dans le front.
 
-**Deux régimes, selon `--recadrer`.**
+**Trois régimes.**
 
-*Sans* — les unités. Réduction à 512 px de large au plus, jamais d'agrandissement, cadrage
-inchangé : `UnitSprite` pose chaque sujet dans une boîte commune en `object-contain`, donc la
-marge de génération ne se voit pas.
+*Rien* — cadrage inchangé, réduction à 512 px de large au plus, jamais d'agrandissement. Le
+régime d'une planche déjà détourée serré, ce que sont les sources françaises.
+
+*`--serrer`* — les unités générées en 1024², sujet au milieu. Recadrage sur la boîte alpha,
+puis la même réduction. **La marge de génération se voit**, contrairement à ce que ce fichier
+a longtemps affirmé : `UnitSprite` pose chaque sujet en `object-contain` dans une boîte
+commune, donc un sujet qui n'occupe que 59 % de son cadre s'affiche 59 % plus petit que son
+voisin serré. Mesuré à l'installation du Royaume-Uni : 59 % pour le Bedford contre 99,6 % pour
+le camion français, côte à côte dans le même widget.
+
+Pas de normalisation par la hauteur ici, contrairement aux bâtiments : c'est la boîte de
+`UnitSprite` qui joue ce rôle, et le rapport d'un sujet — fantassin debout, navire couché —
+doit lui rester lisible.
 
 *Avec* — les bâtiments. Le sujet est **recadré sur sa boîte englobante alpha**, puis normalisé
 **par la hauteur** à `HAUTEUR_REFERENCE`. Les deux passes vont ensemble et répondent au même
@@ -65,7 +75,7 @@ QUALITE = 80
 SEUIL_ALPHA = 8
 
 
-def optimiser(source: Path, destination: Path, recadrer: bool) -> None:
+def optimiser(source: Path, destination: Path, recadrer: bool, serrer: bool) -> None:
     noms = charger(source / "noms.json")
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -77,7 +87,7 @@ def optimiser(source: Path, destination: Path, recadrer: bool) -> None:
             continue
         cle = noms.get(fichier.stem, fichier.stem)
         image = Image.open(fichier).convert("RGBA")
-        image = normalisee(image, cle) if recadrer else reduite(image)
+        image = normalisee(image, cle) if recadrer else reduite(serree(image, cle) if serrer else image)
         cible = destination / f"{cle}.webp"
         image.save(cible, "WEBP", quality=QUALITE, method=6)
         print(
@@ -91,6 +101,14 @@ def reduite(image: Image.Image) -> Image.Image:
         return image
     hauteur = round(image.height * LARGEUR_MAX / image.width)
     return image.resize((LARGEUR_MAX, hauteur), Image.LANCZOS)
+
+
+def serree(image: Image.Image, cle: str) -> Image.Image:
+    """Le sujet, sans son air — la même boîte alpha que `normalisee`, sans l'échelle commune."""
+    cadre = boite_du_sujet(image)
+    if cadre is None:
+        raise SystemExit(f"planche vide : « {cle} »")
+    return image.crop(cadre)
 
 
 def normalisee(image: Image.Image, cle: str) -> Image.Image:
@@ -139,9 +157,14 @@ if __name__ == "__main__":
     analyseur.add_argument("--source", type=Path, required=True)
     analyseur.add_argument("--destination", type=Path, required=True)
     analyseur.add_argument(
+        "--serrer",
+        action="store_true",
+        help="recadre chaque sujet sur sa boîte alpha, sans échelle commune — les unités",
+    )
+    analyseur.add_argument(
         "--recadrer",
         action="store_true",
         help="recadre sur la boîte englobante alpha et normalise par la hauteur — les bâtiments",
     )
     arguments = analyseur.parse_args()
-    optimiser(arguments.source, arguments.destination, arguments.recadrer)
+    optimiser(arguments.source, arguments.destination, arguments.recadrer, arguments.serrer)

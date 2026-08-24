@@ -18,9 +18,9 @@ export type BuildReason =
   { readonly kind: 'deposit'; readonly deposit: DepositKey } | { readonly kind: 'coastal' };
 
 /**
- * What holds a line back **for now**. The distinction with an impossibility is the whole rule
- * of the panel: what can never happen here is not drawn at all, what is merely blocked stays
- * and says why — "come back in twenty minutes" is information, a wall of grey is not.
+ * What holds a line back **for now** — as opposed to what this ground can never carry, which
+ * is `BlockedReason` below. The two are drawn apart and must stay apart: a hold is a deadline
+ * or a remedy ("come back in twenty minutes"), a block is a fact about the region.
  */
 export type BuildHold = 'constructionRunning' | 'buildingCap' | 'materials';
 
@@ -77,8 +77,9 @@ export function buildableOn(
     const spec = catalog[key];
     /**
      * The tier is **not** lifted with the circumstances: a key the headquarters does not open
-     * yet is not offered at all (ADR 0015 wants the panel contextual, never a wall of grey).
-     * What holds a line back today it says; what the season has not reached it does not draw.
+     * yet is not *offered*. It is not lost either — `blockedOn` picks it up for the shelf, and
+     * says which tier it waits on. What holds a line back today the offer says; what the ground
+     * or the season refuses outright belongs under it.
      */
     const byNature = placementRefusal(
       key,
@@ -124,6 +125,76 @@ export function buildableOn(
       } satisfies BuildOption,
     ];
   });
+}
+
+/**
+ * Why this ground can never carry a building — the *catalogue* half of the panel, under the
+ * offer. It says which single requirement the region fails, and it is only ever asked about a
+ * key `buildableOn` has already left out: the decision of what is offered stays in one place,
+ * and this names the cause rather than re-taking the decision.
+ *
+ * That ordering is what makes the fall-through sound. A key excluded with the region free and
+ * the tier open has nothing left to fail but its own nature — its deposit, or a coast.
+ */
+export type BlockedReason =
+  | { readonly kind: 'constructionHere' }
+  | { readonly kind: 'standing' }
+  | { readonly kind: 'regionTaken'; readonly by: BuildingKey }
+  | { readonly kind: 'unique' }
+  | { readonly kind: 'locked'; readonly hqLevel: number }
+  | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> }
+  | { readonly kind: 'coastal' }
+  | { readonly kind: 'here' };
+
+/** A catalogue line: the bill and the wait are served too, because they are what a player
+ *  plans against — the reason says *not here*, the price says *what it will take*. */
+export type BlockedOption = {
+  readonly key: BuildingKey;
+  readonly cost: Cost;
+  readonly minutes: number;
+  readonly reason: BlockedReason;
+};
+
+/**
+ * **The rest of the catalogue**, in the order of `BUILDINGS` — every key the offer left out,
+ * each carrying the requirement it fails. Together with `buildableOn` it partitions the
+ * fifteen exactly once, by construction: the complement of a list, never a second reading of
+ * the placement rule.
+ *
+ * ADR 0015 wanted the panel contextual and grey-free, and this walks that back on purpose: a
+ * player cannot learn a catalogue he has never seen, and "no crane here" taught him nothing
+ * about where the crane *would* work. The grey is a **reference shelf, kept below the offer**
+ * and never mixed into it — the top of the panel is still only what the click can order.
+ */
+export function blockedOn(
+  site: Site,
+  catalog: Readonly<Record<BuildingKey, BuildSpec>>,
+): ReadonlyArray<BlockedOption> {
+  const offered = new Set(buildableOn(site, catalog).map((option) => option.key));
+  return BUILDINGS.filter((key) => !offered.has(key)).map((key) => ({
+    key,
+    cost: catalog[key].cost,
+    minutes: catalog[key].minutes,
+    reason: blockedBecause(site, key, catalog[key]),
+  }));
+}
+
+function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedReason {
+  if (site.constructionHere) return { kind: 'constructionHere' };
+  if (key === site.standing) return { kind: 'standing' };
+  if (site.standing !== null) return { kind: 'regionTaken', by: site.standing };
+  if (key === 'hq') return { kind: 'unique' };
+
+  // A season plants the headquarters, so level 0 refuses every other key at tier 1 — the
+  // sentence is the same one the tiers say, and saying "il en faut un" instead would name a
+  // second rule where there is one.
+  const needed = Math.max(1, spec.unlockedAtHqLevel);
+  if (site.hqLevel < needed) return { kind: 'locked', hqLevel: needed };
+
+  const deposits = EXPLOITED_DEPOSITS[key];
+  if (deposits !== undefined) return { kind: 'deposit', deposits };
+  if (key === 'port') return { kind: 'coastal' };
+  return { kind: 'here' };
 }
 
 /**

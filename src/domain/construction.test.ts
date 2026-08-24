@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildableOn, upgradeHold, type Site } from './construction';
+import { blockedOn, buildableOn, upgradeHold, type Site } from './construction';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey, type SeasonFormat } from './ids';
 import { unlockLevel } from '../../convex/constants';
 import type { Building, BuildSpec, PlayerView } from './player-view';
@@ -28,6 +28,66 @@ const site = (overrides: Partial<Site> = {}): Site => ({
 
 const keysOn = (overrides: Partial<Site> = {}): ReadonlyArray<BuildingKey> =>
   buildableOn(site(overrides), CATALOG).map((option) => option.key);
+
+describe('the rest of the catalogue', () => {
+  const blockedKeys = (overrides: Partial<Site> = {}): ReadonlyArray<BuildingKey> =>
+    blockedOn(site(overrides), CATALOG).map((option) => option.key);
+
+  const reasonFor = (key: BuildingKey, overrides: Partial<Site> = {}) =>
+    blockedOn(site(overrides), CATALOG).find((option) => option.key === key)?.reason;
+
+  it('partitions the fifteen with the offer, whatever the ground', () => {
+    for (const overrides of [
+      {},
+      { deposit: 'coal' as const },
+      { coastal: true },
+      { hqLevel: 0 },
+      { standing: 'farm' as const },
+      { constructionHere: true },
+      { standingCount: 5, cap: 5 },
+    ]) {
+      const offered = keysOn(overrides);
+      const blocked = blockedKeys(overrides);
+      expect([...offered, ...blocked].sort()).toEqual([...BUILDINGS].sort());
+    }
+  });
+
+  // A ceiling and an empty warehouse are holds, not facts about the ground: they must not
+  // move a single line onto the shelf, or the panel would teach the region wrong.
+  it('leaves a held line in the offer rather than on the shelf', () => {
+    expect(blockedKeys({ standingCount: 5, cap: 5 })).toEqual(blockedKeys());
+    expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
+  });
+
+  it('names the deposit a mine wants, not a bare refusal', () => {
+    expect(reasonFor('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'ore'] });
+    expect(reasonFor('port')).toEqual({ kind: 'coastal' });
+  });
+
+  it('names the tier the headquarters has not reached', () => {
+    const gated = { ...CATALOG, airfield: { ...CATALOG.airfield, unlockedAtHqLevel: 3 } };
+    const [airfield] = blockedOn(site({ hqLevel: 2 }), gated).filter((o) => o.key === 'airfield');
+    expect(airfield?.reason).toEqual({ kind: 'locked', hqLevel: 3 });
+  });
+
+  it('says a second headquarters is one too many', () => {
+    expect(reasonFor('hq', { hqLevel: 2 })).toEqual({ kind: 'unique' });
+  });
+
+  it('says what the region already carries', () => {
+    expect(reasonFor('farm', { standing: 'farm', deposit: 'food' })).toEqual({ kind: 'standing' });
+    expect(reasonFor('barracks', { standing: 'farm' })).toEqual({
+      kind: 'regionTaken',
+      by: 'farm',
+    });
+  });
+
+  it('serves the bill of what it cannot place — that is what a plan is made of', () => {
+    const [port] = blockedOn(site(), CATALOG).filter((option) => option.key === 'port');
+    expect(port?.cost).toEqual({ alloy: 20 });
+    expect(port?.minutes).toBe(30);
+  });
+});
 
 describe('what a region can carry', () => {
   it('offers a mine only where the deposit is a mine’s', () => {

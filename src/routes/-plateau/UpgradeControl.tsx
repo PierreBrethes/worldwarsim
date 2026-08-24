@@ -155,10 +155,11 @@ function WhenAffordable({
 /**
  * The bill in the critical ink when it cannot be paid: the figures are the explanation.
  *
- * The **illustrated plates**, as the industry window prices everything else (`Quantity`): a
- * raise is read where there is room for them, and two objects on paper are told apart faster
- * than two silhouettes at twelve pixels. The vector stays where space is short — the banner,
- * and the fifteen lines of the placement panel.
+ * The **illustrated plates**, as the industry window prices everything else (`Quantity`) and
+ * as the placement panel now bills a construction: the two verbs of building are read the same
+ * way, and two objects on paper are told apart faster than two silhouettes at twelve pixels.
+ * The vector stays where space is genuinely short — the banner, the production expenses, the
+ * folded alerts of the reserves.
  *
  * A plate carries its own ink and takes no tint, so only the figure turns critical. That is
  * the half that has to: the resource is *what* is missing, the number is *how much*.

@@ -48,18 +48,27 @@ describe('unit sprite manifest', () => {
   });
 
   /**
-   * The United States are the first nation drawn down to the last role — France has no cargo.
-   * A `null` slipping into that plate would go unseen on screen: `UnitSprite` falls back to
-   * its dotted frame, which is exactly what a half-drawn nation is supposed to look like.
+   * The two complete plates — France is still the one without a cargo. A `null` slipping into
+   * either would go unseen on screen: `UnitSprite` falls back to its dotted frame, which is
+   * exactly what a half-drawn nation is supposed to look like.
    */
-  it('leaves no role undrawn for the United States', () => {
-    const sprites = SPRITES_BY_NATION.usa;
-    if (sprites === undefined) throw new Error('the United States must be in the manifest');
+  it.each(['uk', 'usa'] as const)('leaves no role undrawn for %s', (nation) => {
+    const sprites = SPRITES_BY_NATION[nation];
+    if (sprites === undefined) throw new Error(`${nation} must be in the manifest`);
     for (const role of ROLES) {
       expect(sprites[role], role).not.toBeNull();
     }
-    expect(spriteUrl('usa', 'infantry', 1)).not.toBe(spriteUrl('usa', 'infantry', 2));
-    expect(spriteUrl('usa', 'cargo', 1)).not.toBeNull();
+    expect(spriteUrl(nation, 'infantry', 1)).not.toBe(spriteUrl(nation, 'infantry', 2));
+    expect(spriteUrl(nation, 'cargo', 1)).not.toBeNull();
+  });
+
+  /** Two nations must never share a file: one plate imported twice is the failure this
+   *  catches, and on screen it reads as a nation that forgot to change uniform. */
+  it('gives each drawn nation its own images', () => {
+    const urls = (['france', 'uk', 'usa'] as const).flatMap((nation) =>
+      ROLES.map((role) => spriteUrl(nation, role, 1)).filter((url) => url !== null),
+    );
+    expect(new Set(urls).size).toBe(urls.length);
   });
 
   it('serves one image per tier, and nothing where the visual is missing', () => {

@@ -17,7 +17,7 @@ import { asHoursMinutes } from '@/domain/duration';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';
-import { FloatingWindow, type WindowProps } from './Window';
+import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
 
 const DOMAINS: ReadonlyArray<UnitDomain> = ['land', 'air', 'sea'];
 
@@ -39,7 +39,7 @@ export function ProductionWindow({
       onClose={onClose}
       {...windowProps}
       alignment="top"
-      width={1100}
+      width={1180}
     >
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
@@ -69,6 +69,7 @@ function Workshop({
   focused: string | null;
 }) {
   const now = useClock();
+  const sized = useWindowSized();
   const nation = view.me.nation;
   const workshop = useQuery(api.troops.workshop, { token });
   const recruit = useMutation(api.troops.recruit);
@@ -124,17 +125,26 @@ function Workshop({
 
       <div className="flex min-h-0 flex-1 flex-col @4xl:flex-row @4xl:items-stretch">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center gap-3 border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
-            <span className="eyebrow">
-              {fr.production.troopCapLine(
-                workshop.troopsInService,
-                workshop.troopsQueued,
-                workshop.troopCap,
-              )}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-[18px] gap-y-2 border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+            <span className="flex items-baseline gap-[9px]">
+              <span className="font-(family-name:--font-mono) text-[19px] text-[var(--ink)]">
+                {workshop.troopsInService}
+              </span>
+              <span className="eyebrow">{fr.production.inService}</span>
+              <span className="ml-[8px] font-(family-name:--font-mono) text-[19px] text-[var(--ink)]">
+                {workshop.troopsQueued}
+              </span>
+              <span className="eyebrow">{fr.production.inQueue}</span>
             </span>
+            <CapPips
+              inService={workshop.troopsInService}
+              queued={workshop.troopsQueued}
+              cap={workshop.troopCap}
+            />
+            <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
             {/* "chaîne ×1.00 — quartier général niveau 1" lived here and on the nation sheet;
                 it belongs to the headquarters, which is where it is now read alone. */}
-            <span className="ml-auto max-w-[46ch] text-right text-[11.5px] leading-[1.4] text-[var(--ink-soft)] italic">
+            <span className="max-w-[40ch] text-right text-[11.5px] leading-[1.4] text-[var(--ink-soft)] italic">
               {fr.production.troopCapNote}
             </span>
           </div>
@@ -154,7 +164,15 @@ function Workshop({
               />
             ))}
 
-          <div className="max-h-[520px] min-h-[260px] flex-1 overflow-auto">
+          {/* Capped only while the window sizes itself to its content: once it has a height,
+              the catalogue is what fills it. */}
+          <div
+            className={
+              sized
+                ? 'min-h-0 flex-1 overflow-auto'
+                : 'max-h-[520px] min-h-[260px] flex-1 overflow-auto'
+            }
+          >
             {DOMAINS.map((domain) => {
               const site = siteOf(domain);
               return (
@@ -197,36 +215,42 @@ function Workshop({
                       <SiteUpgrade regionId={site.regionId} view={view} token={token} now={now} />
                     )}
                   </div>
-                  {workshop.grid
-                    .filter((entry) => DOMAIN_BY_ROLE[entry.role] === domain)
-                    .map((entry) => (
-                      <RoleRow
-                        key={entry.role}
-                        entry={entry}
-                        nation={nation}
-                        tier={tiers[entry.role] ?? 1}
-                        onTier={(picked) =>
-                          setTiers((previous) => ({ ...previous, [entry.role]: picked }))
-                        }
-                        owned={workshop.roster.filter((row) => row.role === entry.role)}
-                        tier2Unlocked={workshop.tier2Unlocked}
-                        requiredLevel={workshop.requiredHqLevel}
-                        hqLevel={workshop.hqLevel}
-                        site={site}
-                        onEnqueue={() => site && enqueue(entry.role, site.id)}
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3">
+                    {workshop.grid
+                      .filter((entry) => DOMAIN_BY_ROLE[entry.role] === domain)
+                      .map((entry) => (
+                        <RoleCard
+                          key={entry.role}
+                          entry={entry}
+                          nation={nation}
+                          tier={tiers[entry.role] ?? 1}
+                          onTier={(picked) =>
+                            setTiers((previous) => ({ ...previous, [entry.role]: picked }))
+                          }
+                          owned={workshop.roster.filter((row) => row.role === entry.role)}
+                          tier2Unlocked={workshop.tier2Unlocked}
+                          requiredLevel={workshop.requiredHqLevel}
+                          hqLevel={workshop.hqLevel}
+                          site={site}
+                          onEnqueue={() => site && enqueue(entry.role, site.id)}
+                        />
+                      ))}
+                  </div>
                 </DomainSection>
               );
             })}
           </div>
         </div>
 
-        <aside className="flex w-full min-w-0 flex-col border-t border-[rgba(42,33,24,.35)] @4xl:w-[330px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
+        <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-[rgba(42,33,24,.35)] @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
           <div className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[10px]">
             <span className="eyebrow">{fr.production.queueHeader}</span>
           </div>
-          <div className="max-h-[460px] flex-1 overflow-auto">
+          <div
+            className={
+              sized ? 'min-h-0 flex-1 overflow-auto' : 'max-h-[460px] flex-1 overflow-auto'
+            }
+          >
             {workshop.troopsQueued === 0 ? (
               <p className="px-4 py-5 text-[12.5px] text-[var(--ink-soft)]">
                 {fr.production.queueEmpty}
@@ -341,7 +365,45 @@ function SiteUpgrade({
 
 type GridEntry = WorkshopView['grid'][number];
 
-function RoleRow({
+/**
+ * **The ceiling, drawn.** The same three numbers as the figures beside it — standing, queued,
+ * free — but as one strip of cells, so "combien me reste-t-il" is answered by counting empties
+ * rather than by subtracting. The queued cells are half-inked on purpose: a troop in the chain
+ * already holds its place, which is the whole point the note next to it spells out.
+ */
+function CapPips({ inService, queued, cap }: { inService: number; queued: number; cap: number }) {
+  return (
+    <span className="flex items-center gap-[3px]">
+      {Array.from({ length: cap }, (_, index) => (
+        <span
+          key={index}
+          className="h-[20px] w-[10px] border border-[var(--ink)]"
+          style={{
+            background:
+              index < inService
+                ? 'var(--ink)'
+                : index < inService + queued
+                  ? 'rgba(42,33,24,.35)'
+                  : 'transparent',
+          }}
+        />
+      ))}
+      <span className="eyebrow ml-[8px]">{fr.production.capOf(cap)}</span>
+    </span>
+  );
+}
+
+/**
+ * **One role, one card, the vignette in the lead.** The stacked rows priced a troop in a line
+ * of figures and showed the sprite as a thumbnail; here the subject is what the eye lands on
+ * and the numbers are read under it. The eleven plates finally have the room they were drawn
+ * at — which is also why the plates were re-cropped: a subject floating in its frame reads as
+ * a small subject at this size, not as a spacious one.
+ *
+ * The card keeps the row's rule that a refusal is *said*, never merely greyed: a locked role
+ * carries its sentence in the body, and the dead button below repeats nothing.
+ */
+function RoleCard({
   entry,
   nation,
   tier,
@@ -373,13 +435,11 @@ function RoleRow({
   const total = owned.reduce((sum, row) => sum + row.count, 0);
 
   return (
-    <div className="flex items-start gap-4 border-b border-[rgba(42,33,24,.16)] px-4 py-[10px]">
-      <div className="relative shrink-0">
-        <div className="flex h-[72px] w-[104px] items-end justify-center border border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.05)] px-1">
-          <UnitSprite nation={nation} role={role} tier={tier} height={66} width={96} />
-        </div>
+    <div className="flex flex-col border-r border-b border-[rgba(42,33,24,.16)]">
+      <div className="relative flex h-[150px] items-center justify-center border-b border-[rgba(42,33,24,.16)] bg-[rgba(42,33,24,.05)]">
+        <UnitSprite nation={nation} role={role} tier={tier} height={132} width={230} />
         {tiers === 2 && (
-          <div className="absolute top-[3px] left-[3px] flex gap-[2px]">
+          <div className="absolute top-[8px] left-[8px] flex gap-[2px]">
             {([1, 2] as const).map((level) => {
               const locked = level === 2 && !tier2Unlocked;
               return (
@@ -393,10 +453,10 @@ function RoleRow({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`cursor-pointer border px-[4px] py-[1px] font-(family-name:--font-mono) text-[9px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`cursor-pointer border border-[var(--ink)] px-[5px] py-[3px] font-(family-name:--font-mono) text-[9.5px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
                     tier === level
-                      ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
-                      : 'border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]'
+                      ? 'bg-[var(--ink)] text-[var(--paper)]'
+                      : 'bg-[var(--paper)] text-[var(--ink)]'
                   }`}
                 >
                   {tierLabel(level)}
@@ -405,71 +465,95 @@ function RoleRow({
             })}
           </div>
         )}
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-(family-name:--font-display) text-[15px] font-bold text-[var(--ink)]">
-            {roleLabel(role, 1)}
+        <span className="absolute top-[8px] right-[8px] flex items-baseline gap-[5px]">
+          <span className="text-[9.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {fr.production.inService}
           </span>
-          {equipment && <span className="text-[12px] text-[var(--ink-soft)]">— {equipment}</span>}
-          {roleLocked && (
-            <span className="text-[11.5px] text-[var(--critical)]">
-              {fr.production.roleLocked(entry.unlockedAtHqLevel)}
-            </span>
-          )}
-          <span className="ml-auto font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
+          <span className="font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
             {total}
           </span>
-        </div>
+        </span>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] text-[var(--ink-soft)]">
-          <Expense resource="alloy" value={cost.alloy} />
-          <Expense resource="ammunition" value={cost.ammunition} />
-          <span className="font-(family-name:--font-mono) text-[11.5px]">
-            {asHoursMinutes(cost.minutes)}
-          </span>
-          <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
-            {cost.strength} {fr.strengthUnits[role]}
-          </span>
-          <span className="text-[10px] tracking-[.14em] text-[var(--ink-quiet)] uppercase">
-            {fr.production.perTroop}
-          </span>
+      <div className="px-4 pt-[10px] pb-[8px]">
+        <div className="font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold text-[var(--ink)]">
+          {roleLabel(role, 1)}
         </div>
+        {equipment && (
+          <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">{equipment}</div>
+        )}
+        {roleLocked && (
+          <div className="mt-[3px] text-[11.5px] text-[var(--critical)]">
+            {fr.production.roleLocked(entry.unlockedAtHqLevel)}
+          </div>
+        )}
+      </div>
 
+      {/* The bill and the wait, side by side and ruled apart — the two questions a recruitment
+          answers, and the only figures on the card that decide anything. */}
+      <div className="mx-4 flex items-stretch border-y border-[rgba(42,33,24,.16)]">
+        <div className="flex-1 py-[7px]">
+          <div className="text-[9px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
+            {fr.production.costLabel}
+          </div>
+          <div className="mt-[3px] flex gap-[11px]">
+            <Expense resource="alloy" value={cost.alloy} />
+            <Expense resource="ammunition" value={cost.ammunition} />
+          </div>
+        </div>
+        <div className="w-px self-stretch bg-[rgba(42,33,24,.16)]" />
+        <div className="flex-1 py-[7px] pl-3">
+          <div className="text-[9px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
+            {fr.production.trainingLabel}
+          </div>
+          <div className="mt-[3px] flex items-baseline gap-[9px]">
+            <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
+              {asHoursMinutes(cost.minutes)}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
+              {cost.strength}
+            </span>
+            <span className="text-[10.5px] text-[var(--ink-soft)]">{fr.strengthUnits[role]}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 px-4 pt-[9px]">
         {sheet.kind === 'combat' ? (
-          <div className="text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
+          <div className="text-[12.5px] leading-[1.5]">
             <div>
-              {fr.production.strongAgainst}{' '}
+              <span className="text-[var(--ink-soft)]">{fr.production.strongAgainst} </span>
               <span className="text-[var(--ink)]">{sheet.strongAgainst.join(', ')}</span>
             </div>
             <div>
-              {fr.production.weakAgainst}{' '}
+              <span className="text-[var(--ink-soft)]">{fr.production.weakAgainst} </span>
               <span className="text-[var(--ink)]">{sheet.weakAgainst.join(', ')}</span>
             </div>
           </div>
         ) : (
-          <p className="text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
+          <p className="text-[12.5px] leading-[1.5] text-[var(--ink-soft)] italic">
             {sheet.contribution} {fr.production.supportNote}
           </p>
         )}
       </div>
 
-      <button
-        type="button"
-        disabled={site === null || roleLocked}
-        onClick={onEnqueue}
-        title={
-          roleLocked
-            ? fr.production.roleLocked(entry.unlockedAtHqLevel)
-            : site === null
-              ? fr.production.noSite(fr.buildings[entry.producedBy])
-              : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
-        }
-        className="shrink-0 cursor-pointer self-center border border-[var(--ink)] px-[11px] py-[6px] text-[10px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        {fr.production.enqueue}
-      </button>
+      <div className="px-4 pt-3 pb-[14px]">
+        <button
+          type="button"
+          disabled={site === null || roleLocked}
+          onClick={onEnqueue}
+          title={
+            roleLocked
+              ? fr.production.roleLocked(entry.unlockedAtHqLevel)
+              : site === null
+                ? fr.production.noSite(fr.buildings[entry.producedBy])
+                : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
+          }
+          className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-[rgba(42,33,24,.35)] disabled:text-[rgba(42,33,24,.35)] disabled:hover:bg-transparent"
+        >
+          {fr.production.enqueue}
+        </button>
+      </div>
     </div>
   );
 }
@@ -527,9 +611,11 @@ function Expense({ resource, value }: { resource: ResourceKey; value: number }) 
   return (
     <span className="flex items-center gap-[4px]" title={fr.resources[resource]}>
       <span className="flex" style={{ color: resourceColor(resource, true) }}>
-        <ResourceIcon resource={resource} size={11} />
+        <ResourceIcon resource={resource} size={12} />
       </span>
-      <span className="font-(family-name:--font-mono) text-[11.5px]">{value}</span>
+      <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
+        {value}
+      </span>
     </span>
   );
 }

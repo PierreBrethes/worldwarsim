@@ -811,8 +811,17 @@ export const fr = {
     atWaking: 'au réveil',
     wakingNote:
       'Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle. Une troupe déjà commencée ne s’annule plus ; les suivantes sont remboursées intégralement.',
-    troopCapLine: (inService: number, queued: number, cap: number) =>
-      `${inService} en service · ${queued} en file — plafond ${cap}`,
+    /**
+     * The ceiling as three readings of one number, not one sentence: the figures are set apart
+     * so the strip of pips beside them can be read as the same count drawn — filled for what
+     * stands, half for what is queued, empty for what is left.
+     */
+    inService: 'en service',
+    inQueue: 'en file',
+    capOf: (cap: number) => `plafond ${cap}`,
+    /** The two halves of a card's ledger. Kept as eyebrows, never as sentences. */
+    costLabel: 'coût',
+    trainingLabel: 'formation',
     troopCapNote:
       'Les hommes ne sont pas une ressource : une troupe coûte des matières, et l’armée est bornée en nombre de troupes par les baraquements. La file compte dans le plafond.',
     perTroop: '/ troupe',
@@ -1138,6 +1147,25 @@ export const fr = {
     foundationCount: (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name),
     free: 'offert',
     immediate: 'immédiat',
+    /**
+     * The rest of the catalogue, below the offer. The header has to say *region*, not
+     * *impossible*: a port is not impossible, it is elsewhere — and a player who reads the
+     * shelf as a list of failures stops reading it.
+     */
+    elsewhereHeader: 'pas sur cette région',
+    /** After the name, never instead of it: what the nation already stands, all regions
+     *  together. Hidden at zero — a column of « ×0 » is noise, not a count. */
+    built: (count: number) => `×${count}`,
+    blocked: {
+      constructionHere: 'chantier déjà en cours ici',
+      standing: 'déjà debout ici',
+      regionTaken: (name: string) => `la région porte déjà ${name}`,
+      unique: 'un seul quartier général',
+      locked: (level: number) => `quartier général niveau ${level}`,
+      deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')}`,
+      coastal: 'région côtière',
+      here: 'pas ici',
+    },
   },
 
   labels: {

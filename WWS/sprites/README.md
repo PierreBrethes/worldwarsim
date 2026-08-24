@@ -7,9 +7,7 @@ unités ; la section 7 dit ce que les bâtiments font différemment, et pourquoi
 ## Unités
 
 Une planche de **onze visuels** par nation, huit nations. **La France, le Royaume-Uni et les
-États-Unis sont faits** — seules la France et les États-Unis sont branchés au front, la planche
-britannique s'arrête pour l'instant à `units_uk_clean/` ; les cinq autres nations suivent ce
-document. L'enjeu n'est pas la beauté d'un sprite isolé :
+États-Unis sont faits et branchés au front** ; les cinq autres nations suivent ce document. L'enjeu n'est pas la beauté d'un sprite isolé :
 c'est que les quatre-vingt-huit tiennent ensemble sur une même planche, au même angle et sous
 la même lumière. Un seul sujet généré de trois-quarts arrière se voit immédiatement et ne se
 rattrape pas au filtre.
@@ -143,9 +141,9 @@ Le suffixe `-1` / `-2` ne s'écrit que pour les **rôles à palier**, listés pa
 dans `src/domain/troops.ts` : infanterie, blindé et **porte-avions**. Les six autres n'ont
 qu'un visuel et pas de suffixe.
 
-**La France est incomplète, les États-Unis non.** La France n'a pas de `cargo` ; le Royaume-Uni
-est le premier du projet à en avoir un, et **les États-Unis sont la première planche complète
-branchée au front** — les neuf rôles répondent. Le palier 2 du porte-avions n'existe nulle part
+**La France est la seule incomplète.** Elle n'a pas de `cargo` ; le Royaume-Uni est le premier
+du projet à en avoir un, et les États-Unis furent la première planche complète branchée au front.
+Les deux répondent aujourd'hui pour les neuf rôles. Le palier 2 du porte-avions n'existe nulle part
 et n'a pas à exister : la fiche de chiffrage ne lui donne aucune force nominale, donc le rôle n'a
 qu'un palier (ADR 0014). `manifest.test.ts` garde la trace des deux constats.
 
@@ -164,13 +162,21 @@ Une source déjà nommée par sa clé n'a pas besoin d'entrée.
 
 ```bash
 python WWS/sprites/optimiser.py --source WWS/sprites/units_uk_clean \
-                                --destination src/emblems/units/uk
+                                --destination src/emblems/units/uk --serrer
 ```
 
 Redimensionne à **512 px de large au plus** (jamais d'agrandissement) et encode en **WebP
-qualité 80**. Ordre de grandeur mesuré sur la France : 3,4 Mo de PNG → **240 Ko**, une
-vingtaine de Ko par sprite. Une planche complète doit rester sous ce budget ; au-delà, c'est
-que le détourage a laissé du fond.
+qualité 80**. Compter **25 à 30 Ko par sprite**, soit 300 Ko pour une planche de onze ; au-delà,
+c'est que le détourage a laissé du fond.
+
+**`--serrer` recadre chaque sujet sur sa boîte alpha, et n'est pas optionnel** pour une planche
+générée en 1024² avec le sujet au milieu. La marge de génération n'est pas neutre : `UnitSprite`
+pose chaque sujet en `object-contain` dans une boîte commune, donc elle sort en taille perdue à
+l'écran. Les sources françaises arrivaient déjà détourées serré — 99,6 % du cadre — d'où la
+croyance, tenue jusqu'au 24/08, qu'un cadrage large ne se voyait pas. Les planches britannique
+et américaine ont montré le contraire : de 59 % (le Bedford) à 87 % du cadre, soit un camion
+britannique affiché deux tiers de son voisin français dans le même widget. Un plateau serré
+pèse un tiers de plus qu'un plateau lâche à qualité égale — c'est du sujet, pas du fond.
 
 Le script demande **Pillow**, `nettoyer-ombres.py` demande en plus **NumPy** et **SciPy** —
 aucun n'est une dépendance du dépôt : ce sont des outils de préparation d'assets, exécutés à
@@ -201,7 +207,8 @@ fantassin au repos.
 1. Générer les onze visuels au gabarit, détourer, poser dans `WWS/sprites/units_<nation>_clean/`.
 2. Passer `nettoyer-ombres.py`, puis **contrôler sur fond clair**.
 3. Écrire le `noms.json` de rapprochement.
-4. Lancer `optimiser.py` vers `src/emblems/units/<nation>/`.
+4. Lancer `optimiser.py --serrer` vers `src/emblems/units/<nation>/`, puis **vérifier le
+   remplissage** : la boîte alpha doit toucher le cadre, sinon le sujet s'affichera petit.
 5. Ajouter l'entrée dans `SPRITES_BY_NATION` (`src/emblems/units/manifest.ts`) et la table de
    matériel dans `equipment.ts`.
 

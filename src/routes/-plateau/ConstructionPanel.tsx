@@ -7,12 +7,19 @@ import { handleError } from '@/data/errors';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { Draggable } from './Draggable';
 import { followDrag, scaleOf, type Grab } from './dragging';
-import { buildableOn, siteOf, type BuildOption, type BuildReason } from '@/domain/construction';
+import {
+  blockedOn,
+  buildableOn,
+  siteOf,
+  type BlockedOption,
+  type BlockedReason,
+  type BuildOption,
+  type BuildReason,
+} from '@/domain/construction';
 import { asHoursMinutes } from '@/domain/duration';
 import { RESOURCES, type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Cost, type PlayerView } from '@/domain/player-view';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
-import { BuildingPlate } from '@/emblems/Plate';
+import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 
 const MIN_WIDTH = 260;
@@ -100,6 +107,11 @@ export function ConstructionPanel({
    */
   const options = buildableOn(site, view.buildCatalog);
 
+  /** The other half of the fifteen, as a shelf under the offer — see `blockedOn`. */
+  const blocked = blockedOn(site, view.buildCatalog);
+
+  const built = countByKey(view.me.buildings);
+
   const order = (option: BuildOption) => {
     setError(null);
     start({ token, building: option.key, regionId }).then(onClose, (problem: unknown) =>
@@ -159,8 +171,24 @@ export function ConstructionPanel({
         </h3>
         <div className={size ? 'min-h-0 flex-1 overflow-auto' : 'max-h-[46vh] overflow-auto'}>
           {options.map((option) => (
-            <OptionRow key={option.key} option={option} onOrder={() => order(option)} />
+            <OptionRow
+              key={option.key}
+              option={option}
+              built={built[option.key] ?? 0}
+              onOrder={() => order(option)}
+            />
           ))}
+
+          {blocked.length > 0 && (
+            <>
+              <h3 className="eyebrow mt-3 border-b border-[rgba(42,33,24,.3)] pb-[4px] text-[var(--ink-soft)]">
+                {fr.construction.elsewhereHeader}
+              </h3>
+              {blocked.map((option) => (
+                <BlockedRow key={option.key} option={option} built={built[option.key] ?? 0} />
+              ))}
+            </>
+          )}
         </div>
 
         {error && (
@@ -244,7 +272,42 @@ function HeldNotice({
   );
 }
 
-function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => void }) {
+/** How many of each key the nation already stands, all regions together. */
+const countByKey = (
+  buildings: ReadonlyArray<{ readonly key: BuildingKey }>,
+): Partial<Record<BuildingKey, number>> =>
+  buildings.reduce<Partial<Record<BuildingKey, number>>>(
+    (tally, building) => ({ ...tally, [building.key]: (tally[building.key] ?? 0) + 1 }),
+    {},
+  );
+
+/**
+ * The name, and what the player has already put up under it. The count rides **after** the
+ * name rather than in a column of its own: it is read as part of the label — "arsenal, j'en
+ * ai deux" — and a column would turn fifteen zeroes into a table nobody asked for.
+ */
+function BuildingName({ building, built }: { building: BuildingKey; built: number }) {
+  return (
+    <span className="block text-[13px] font-semibold text-[var(--ink)]">
+      {fr.buildings[building]}
+      {built > 0 && (
+        <span className="ml-[5px] font-(family-name:--font-mono) text-[11px] font-normal text-[var(--ink-soft)]">
+          {fr.construction.built(built)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function OptionRow({
+  option,
+  built,
+  onOrder,
+}: {
+  option: BuildOption;
+  built: number;
+  onOrder: () => void;
+}) {
   const held = option.hold !== null;
   return (
     <button
@@ -255,9 +318,7 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
     >
       <BuildingPlate building={option.key} height={30} />
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-semibold text-[var(--ink)]">
-          {fr.buildings[option.key]}
-        </span>
+        <BuildingName building={option.key} built={built} />
         {option.reason && (
           <span className="block text-[11px] text-[var(--ink-soft)]">
             {reasonText(option.reason)}
@@ -280,23 +341,78 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
   );
 }
 
+/**
+ * A catalogue line. **Not a button, not a disabled button** — nothing here is waiting on a
+ * click, and a disabled control invites the click that teaches nothing. The whole row is
+ * dimmed at once, plate included, so the eye sorts the two lists before it reads either.
+ */
+function BlockedRow({ option, built }: { option: BlockedOption; built: number }) {
+  return (
+    <div className="flex w-full items-center gap-2 border-b border-[rgba(42,33,24,.16)] py-[7px] opacity-45 last:border-0">
+      <BuildingPlate building={option.key} height={30} />
+      <span className="min-w-0 flex-1">
+        <BuildingName building={option.key} built={built} />
+        <span className="block text-[11px] text-[var(--ink-soft)]">
+          {blockedText(option.reason)}
+        </span>
+      </span>
+      <span className="shrink-0 text-right">
+        <CostLine cost={option.cost} lacking={false} />
+        <span className="block font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+          {asHoursMinutes(option.minutes)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+const blockedText = (reason: BlockedReason): string => {
+  const said = fr.construction.blocked;
+  switch (reason.kind) {
+    case 'constructionHere':
+      return said.constructionHere;
+    case 'standing':
+      return said.standing;
+    case 'regionTaken':
+      return said.regionTaken(fr.buildings[reason.by]);
+    case 'unique':
+      return said.unique;
+    case 'locked':
+      return said.locked(reason.hqLevel);
+    case 'deposit':
+      return said.deposit(reason.deposits.map((key) => fr.deposits[key]));
+    case 'coastal':
+      return said.coastal;
+    case 'here':
+      return said.here;
+  }
+};
+
 const reasonText = (reason: BuildReason): string =>
   reason.kind === 'coastal'
     ? fr.construction.coastalReason
     : fr.construction.depositReason(fr.deposits[reason.deposit]);
 
-/** The bill in the critical ink when it cannot be paid: the figures are the explanation. */
+/**
+ * The bill in the critical ink when it cannot be paid: the figures are the explanation.
+ *
+ * The **illustrated plates**, at the height a raise is priced at (`UpgradeControl`): the two
+ * verbs bill the same way, and a player who reads a drum on the nation sheet must not have to
+ * relearn a silhouette to read the same drum on the map. The rows already carry a building
+ * plate at thirty, so the twenty here is the smaller object of a line that was never tight.
+ *
+ * A plate carries its own ink and takes no tint, so only the figure turns critical — the half
+ * that has to: the resource is *what* is missing, the number is *how much*.
+ */
 function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
-      className="flex items-center justify-end gap-[8px] font-(family-name:--font-mono) text-[12px]"
+      className="flex items-center justify-end gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
       style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
     >
       {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
-        <span key={key} className="flex items-center gap-[3px]">
-          <span className="flex" style={{ color: lacking ? undefined : resourceColor(key, true) }}>
-            <ResourceIcon resource={key} size={12} />
-          </span>
+        <span key={key} className="flex items-center gap-[4px]">
+          <ResourcePlate resource={key} height={20} />
           {cost[key]}
         </span>
       ))}

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { fr } from '@/i18n/fr';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { HandleContext } from './Draggable';
@@ -7,6 +15,20 @@ import { followDrag, scaleOf, useDragOffset, type Grab, type Offset } from './dr
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 200;
 const BASE_PLANE = 40;
+
+/**
+ * **Whether the window has a height of its own**, i.e. the player has dragged its corner. An
+ * inner scroller has to cap itself while the window is still content-sized — nothing else
+ * bounds it — and has to *stop* capping the moment the window carries a height: a pixel cap
+ * inside a resized window is a box that refuses to grow with the one around it, which is
+ * exactly what the corner was dragged to do.
+ *
+ * A context rather than a prop threaded down: the scroller that needs the answer is three
+ * components below the frame, and none of the ones in between has any business carrying it.
+ */
+const SizedContext = createContext(false);
+
+export const useWindowSized = (): boolean => useContext(SizedContext);
 
 /**
  * What the board entrusts to each window: several are open at once, and only the route
@@ -110,7 +132,9 @@ export function FloatingWindow({
           ...(size ? { height: size.height } : {}),
         }}
       >
-        <HandleContext.Provider value={grab}>{children}</HandleContext.Provider>
+        <HandleContext.Provider value={grab}>
+          <SizedContext.Provider value={size !== undefined}>{children}</SizedContext.Provider>
+        </HandleContext.Provider>
         <div
           aria-hidden
           onPointerDown={resize}

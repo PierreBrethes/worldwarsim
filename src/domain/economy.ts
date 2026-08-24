@@ -21,9 +21,9 @@ export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean 
 /**
  * Why a region refuses a building — `null` when it takes it. The rule lives here, in the pure
  * domain, because both sides need it and neither may own it: the server refuses the placement
- * with it, and the construction screen offers only what it accepts (ADR 0015 wants the screen
- * contextual, never greyed out). Two copies would grey a button the server still takes, or the
- * reverse.
+ * with it, and the construction screen offers only what it accepts — the catalogue shelf under
+ * the offer shows the rest, but nothing there is clickable. Two copies of this rule would grey a
+ * button the server still takes, or the reverse.
  */
 export type PlacementRefusal =
   'REGION_TAKEN' | 'BUILDING_CAP_REACHED' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';

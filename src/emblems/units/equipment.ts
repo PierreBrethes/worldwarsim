@@ -21,6 +21,18 @@ const FRANCE: NationEquipment = {
   carrier: ['2 appareils'],
 };
 
+const UK: NationEquipment = {
+  infantry: ['Lee-Enfield', 'fusil antichar Boys'],
+  armor: ['Vickers Mk VI', 'Matilda II'],
+  landTransport: ['Bedford QL'],
+  fighter: ['Spitfire'],
+  bomber: ['Wellington'],
+  airTransport: ['Bristol Bombay'],
+  escort: ['corvette Flower'],
+  cargo: ['cargo marchand'],
+  carrier: ['HMS Illustrious'],
+};
+
 const USA: NationEquipment = {
   infantry: ['M1 Garand', 'bazooka M1'],
   armor: ['M5 Stuart', 'M4 Sherman'],
@@ -35,6 +47,7 @@ const USA: NationEquipment = {
 
 const EQUIPMENT_BY_NATION: Readonly<Partial<Record<Nation, NationEquipment>>> = {
   france: FRANCE,
+  uk: UK,
   usa: USA,
 };
 
