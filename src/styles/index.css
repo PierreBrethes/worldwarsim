@@ -81,6 +81,34 @@ body {
   filter: drop-shadow(0 0 1px var(--paper));
 }
 
+/* Something is coming in. A light runs the length of the fill, left to right, the way the
+   resource does — the gauge already says how full, never that it is still filling, and a
+   stalled chain and a running one drew the same bar. Clipped by the fill itself, so the
+   sweep stops where the stock stops. */
+.gauge-inflow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  animation: gauge-inflow 2.4s linear infinite;
+}
+
+@keyframes gauge-inflow {
+  from {
+    left: -14px;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge-inflow {
+    display: none;
+  }
+}
+
 /* Moving from one newspaper screen to another is a page being turned:
    the axis is the left fold, never a crossfade. */
 @keyframes page-turn-out {

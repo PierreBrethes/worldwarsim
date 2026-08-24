@@ -50,6 +50,9 @@
   /* semantic */
   --critical: #9d4638;
   --valid: #2b6b46;
+  /* The same verdict lit for the desk's dark glass. The bottle green above is read on paper;
+     at four pixels over black it goes out, exactly as --notable-paper would. */
+  --valid-lit: #4f9c68;
   --notable: #b07434;
   --notable-paper: #8a5a24;
   --routine: #6e6a5e;

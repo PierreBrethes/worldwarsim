@@ -724,7 +724,7 @@ function ReserveRow({
         )}
       </div>
       <div className="mt-[6px]">
-        <Gauge filled={filled} height={10} />
+        <Gauge filled={filled} height={10} inflow={reserve.ratePerHour} />
       </div>
     </div>
   );

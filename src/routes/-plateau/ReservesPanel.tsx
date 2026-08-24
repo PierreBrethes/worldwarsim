@@ -203,7 +203,12 @@ function Reserve({
           </span>
         </span>
         <span className="mt-[3px] flex">
-          <Gauge filled={reserve.cap === 0 ? 0 : value / reserve.cap} height={4} onDark />
+          <Gauge
+            filled={reserve.cap === 0 ? 0 : value / reserve.cap}
+            height={4}
+            onDark
+            inflow={reserve.ratePerHour}
+          />
         </span>
         {/* Saturation is production being lost every hour — the one place the panel spends a
             line on a rate, because that rate is a loss. */}
