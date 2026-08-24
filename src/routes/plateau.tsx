@@ -200,7 +200,7 @@ function NoGame() {
         <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.board.unavailableKicker}
         </p>
-        <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
+        <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-(family-name:--font-display) text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
           {fr.board.noGameTitle}
         </h1>
         <p className="mt-4 text-[13px] leading-[1.55] text-[var(--ink)]">{fr.board.noGameBody}</p>
@@ -817,7 +817,7 @@ function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) 
       <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">
         {fr.aim.armed}
       </div>
-      <div className="mt-1 font-[var(--font-mono)] text-[11px] leading-[1.7] text-[var(--paper-dim)]">
+      <div className="mt-1 font-(family-name:--font-mono) text-[11px] leading-[1.7] text-[var(--paper-dim)]">
         <div>{fr.aim.column(column.troopIds.length, station)}</div>
         <div>{fr.aim.gesture}</div>
         <div>{fr.aim.disarm}</div>

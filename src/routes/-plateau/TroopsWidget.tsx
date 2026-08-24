@@ -81,11 +81,11 @@ export function TroopsWidget({
   return (
     <Draggable
       remember="troops"
-      className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-[var(--font-body)]"
+      className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-(family-name:--font-body)"
     >
       <DragHandle className="flex items-baseline gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[11px] py-[7px]">
         <span className="eyebrow-dark flex-1 tracking-[.22em]">{fr.troops.header}</span>
-        <span className="font-[var(--font-mono)] text-[10px] text-[var(--paper-dim-2)]">
+        <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim-2)]">
           {collapsed
             ? fr.troops.collapsed
             : `${fr.troops.cap(view.me.troops.length, view.me.troopCap)} · ${fr.troops.slots(
@@ -220,7 +220,9 @@ function SectionHead({ title, power, lit }: { title: string; power: string; lit:
       >
         {title}
       </span>
-      <span className="font-[var(--font-mono)] text-[10px] text-[var(--paper-dim-2)]">{power}</span>
+      <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim-2)]">
+        {power}
+      </span>
     </div>
   );
 }
@@ -258,11 +260,11 @@ function StandingCard({
         <span className="block truncate text-[13px] font-semibold text-[var(--paper)]">
           {roleLabel(group.role, group.count)} · {group.count}
         </span>
-        <span className="block truncate font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
+        <span className="block truncate font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim)]">
           {name} · {fr.troops.strength(group.strength, group.nominalStrength)}
         </span>
         {group.supplied ? null : (
-          <span className="block truncate font-[var(--font-mono)] text-[10px] text-[var(--critical)]">
+          <span className="block truncate font-(family-name:--font-mono) text-[10px] text-[var(--critical)]">
             {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
           </span>
         )}
@@ -342,7 +344,7 @@ function MovingCard({
           </span>
         )}
       </div>
-      <div className="mt-[4px] flex justify-between font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
+      <div className="mt-[4px] flex justify-between font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim)]">
         <span>{fr.troops.remaining(asHoursMinutes(remaining))}</span>
         <span>{fr.troops.arrivalAt(asLocalTime(loadedAt + arc.minutesLeft * 60_000))}</span>
       </div>
@@ -461,7 +463,7 @@ function SurveyedCard({
             : fr.troops.intelBearing(cardinalLabel(arc.headingDegrees))}
         </span>
         <span className="flex-1" />
-        <span className="shrink-0 font-[var(--font-mono)] text-[10.5px] text-[var(--paper-dim)]">
+        <span className="shrink-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim)]">
           {schedule}
         </span>
       </div>

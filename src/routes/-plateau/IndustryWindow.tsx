@@ -155,7 +155,7 @@ function UpkeepRow({ view }: { view: PlayerView }) {
     <div className="flex flex-col gap-[3px] border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12.5px] text-[var(--ink)]">{fr.industry.upkeepTroops(troops)}</span>
-        <span className="font-[var(--font-mono)] text-[12px] text-[var(--critical)]">
+        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
           {fr.industry.upkeepDrain(foodPerHour)}
         </span>
       </div>
@@ -165,7 +165,7 @@ function UpkeepRow({ view }: { view: PlayerView }) {
             ? fr.industry.upkeepAllSupplied
             : fr.industry.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </span>
-        <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
           {fr.industry.upkeepBalance(view.me.resources.food.ratePerHour)}
         </span>
       </div>
@@ -311,7 +311,7 @@ function ChainRow({
               label={fr.industry.chainRecipe(input.quantity, fr.resources[input.resource])}
             />
           ))}
-          <span className="font-[var(--font-mono)] text-[13px] text-[var(--ink-soft)]">
+          <span className="font-(family-name:--font-mono) text-[13px] text-[var(--ink-soft)]">
             {fr.industry.chainArrow}
           </span>
           <Quantity resource={chain.output} label={fr.resources[chain.output]} />
@@ -321,7 +321,7 @@ function ChainRow({
             printed beside "à sec" is the interface telling the player he is producing when he
             is not, and it is the figure he acts on. */}
         <div className="ml-auto flex flex-col items-end leading-none">
-          <span className="font-[var(--font-mono)] text-[15px] font-semibold text-[var(--ink)]">
+          <span className="font-(family-name:--font-mono) text-[15px] font-semibold text-[var(--ink)]">
             {fr.industry.perHour(chain.perHour)}
           </span>
           {chain.nominalPerHour !== chain.perHour && (
@@ -449,13 +449,13 @@ function LotControl({ chain, token, now }: { chain: ChainView; token: string; no
             <span className="text-[var(--ink)]">
               {fr.industry.lot.progress(order.produced, order.ordered, outputLabel)}
             </span>
-            <span className="font-[var(--font-mono)] text-[var(--ink-soft)]">
+            <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
               {rate > 0
                 ? fr.industry.lot.remaining(asHoursMinutes((owed / rate) * 60))
                 : fr.industry.lot.remainingUnknown}
             </span>
             {rate > 0 && (
-              <span className="font-[var(--font-mono)] text-[var(--ink-soft)]">
+              <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
                 {fr.industry.lot.endsAt(asDayAndTime(now + (owed / rate) * 3_600_000))}
               </span>
             )}
@@ -484,7 +484,7 @@ function LotControl({ chain, token, now }: { chain: ChainView; token: string; no
             className="w-full cursor-pointer accent-[var(--ink)]"
           />
           <div className="mt-[6px] flex flex-wrap items-baseline gap-x-3">
-            <span className="font-[var(--font-display)] text-[28px] leading-none font-extrabold text-[var(--ink)]">
+            <span className="font-(family-name:--font-display) text-[28px] leading-none font-extrabold text-[var(--ink)]">
               {wanted}
             </span>
             <span className="text-[12.5px] text-[var(--ink-soft)]">{outputLabel}</span>
@@ -589,7 +589,7 @@ function Reading({
   return (
     <div className="min-w-[110px] flex-1 border-l border-[rgba(42,33,24,.3)] py-[9px] pl-3 first:border-l-0 first:pl-0">
       <div className="eyebrow">{label}</div>
-      <div className="mt-[3px] font-[var(--font-mono)] text-[14px]" style={{ color: ink }}>
+      <div className="mt-[3px] font-(family-name:--font-mono) text-[14px]" style={{ color: ink }}>
         {children}
       </div>
     </div>
@@ -648,7 +648,7 @@ function SiteRow({
         </div>
       </div>
       <span
-        className="shrink-0 font-[var(--font-mono)] text-[13px]"
+        className="shrink-0 font-(family-name:--font-mono) text-[13px]"
         style={{ color: mute ? 'var(--critical)' : 'var(--ink)' }}
       >
         {fr.industry.perHour(site.perHour)}
@@ -756,7 +756,7 @@ function OtherRow({
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-[13.5px] font-semibold text-[var(--ink)]">{building.name}</span>
         <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.industry.inRegion(region)}</span>
-        <span className="ml-auto font-[var(--font-mono)] text-[12px] text-[var(--ink-soft)]">
+        <span className="ml-auto font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
           {fr.industry.level(building.level)}
         </span>
       </div>

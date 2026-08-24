@@ -52,7 +52,7 @@ export function JournalWindow({
         </DragHandle>
 
         <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px] text-center">
-          <h2 className="font-[var(--font-display)] text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
+          <h2 className="font-(family-name:--font-display) text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
             {fr.journal.masthead}
           </h2>
           <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
@@ -77,13 +77,16 @@ export function JournalWindow({
                     {fr.journal.severities[lead.severity]} — {lead.t}
                   </span>
                 </div>
-                <h3 className="mt-2 font-[var(--font-display)] text-[clamp(22px,3.7cqi,38px)] leading-[1.02] font-extrabold text-[var(--ink)]">
+                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(22px,3.7cqi,38px)] leading-[1.02] font-extrabold text-[var(--ink)]">
                   {lead.text}
                 </h3>
                 {lead.remaining && (
-                  <p className="mt-[7px] font-[var(--font-display)] text-[16px] leading-[1.35] text-[var(--ink-quiet)] italic">
+                  <p className="mt-[7px] font-(family-name:--font-display) text-[16px] leading-[1.35] text-[var(--ink-quiet)] italic">
                     {fr.journal.effectRunning}
-                    <span className="font-[var(--font-mono)] not-italic">{lead.remaining}</span>.
+                    <span className="font-(family-name:--font-mono) not-italic">
+                      {lead.remaining}
+                    </span>
+                    .
                   </p>
                 )}
                 {lead.replay && <ReplayButton full />}
@@ -97,7 +100,7 @@ export function JournalWindow({
                   <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink)]">
                     {stalled.text}
                     {fr.journal.stalledResolution}
-                    <span className="font-[var(--font-mono)]">{stalled.resolutionAt}</span>.
+                    <span className="font-(family-name:--font-mono)">{stalled.resolutionAt}</span>.
                   </p>
                 ) : (
                   <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink-soft)]">
@@ -108,7 +111,7 @@ export function JournalWindow({
                   {embargo && (
                     <span className="flex justify-between">
                       <span className="text-[var(--ink-soft)]">{fr.journal.embargoLeft}</span>
-                      <span className="font-[var(--font-mono)] text-[var(--ink)]">
+                      <span className="font-(family-name:--font-mono) text-[var(--ink)]">
                         {embargo.remaining}
                       </span>
                     </span>
@@ -162,7 +165,7 @@ export function JournalWindow({
           >
             {fr.journal.historyLabel}
           </span>
-          <span className="font-[var(--font-display)] text-[12.5px] text-[var(--ink-quiet)] italic">
+          <span className="font-(family-name:--font-display) text-[12.5px] text-[var(--ink-quiet)] italic">
             {fr.journal.keepNote}
           </span>
           <button
@@ -192,7 +195,7 @@ function ReductionTable({ board }: { board: ReductionBoard }) {
         <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
           {fr.victory.kicker}
         </span>
-        <span className="font-[var(--font-display)] text-[12.5px] text-[var(--ink-quiet)] italic">
+        <span className="font-(family-name:--font-display) text-[12.5px] text-[var(--ink-quiet)] italic">
           {fr.victory.scaffold}
         </span>
       </div>
@@ -209,7 +212,7 @@ function ReductionTable({ board }: { board: ReductionBoard }) {
             <span className={standing.isMine ? 'font-bold text-[var(--ink)]' : 'text-[var(--ink)]'}>
               {standing.nation === null ? standing.nickname : nationLabel(standing.nation)}
             </span>
-            <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+            <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
               {fr.victory.tally(standing.reduced, board.target)}
             </span>
             <span className="text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
@@ -225,8 +228,10 @@ function ReductionTable({ board }: { board: ReductionBoard }) {
 function Dispatch({ entry }: { entry: JournalDispatch }) {
   return (
     <div className="border-b border-[rgba(42,33,24,.16)] py-[10px] last:border-b-0">
-      <div className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">{entry.t}</div>
-      <div className="mt-[3px] font-[var(--font-display)] text-[16px] leading-[1.15] font-semibold text-[var(--ink)]">
+      <div className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+        {entry.t}
+      </div>
+      <div className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.15] font-semibold text-[var(--ink)]">
         {entry.text}
       </div>
       {(entry.remaining || entry.resolutionAt) && (

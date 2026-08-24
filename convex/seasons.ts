@@ -90,8 +90,8 @@ export const create = mutation({
  * The mitigations available are all worse than that exposure. Convex mutations do not see
  * the client IP, so a counter has to key on something else: per season it becomes a griefing
  * lever (a stranger locks your friends out of their own lobby), and per nickname it keys on
- * a value the attacker picks. `preview` needs none either — it takes a token, a 122-bit
- * UUID that is not guessed.
+ * a value the attacker picks. `previews` needs none either — it takes tokens, 122-bit
+ * UUIDs that are not guessed.
  *
  * What would change this: public lobbies, or codes shared beyond a group of friends.
  */
@@ -125,42 +125,60 @@ export const join = mutation({
 });
 
 /**
- * What the home screen may know from a locally kept token: enough to write "resume" without
- * lying. A stale token yields `null` rather than an error — otherwise a finished season
- * would condemn the entry screen.
+ * **Every game this browser still holds a seat in.** The home screen keeps a list of tokens
+ * (`src/data/token.ts`), and a player accumulates seasons — one lobby open, one running, one
+ * already won.
+ *
+ * A token nobody answers for is **silently dropped** rather than reported: the season it named
+ * was destroyed, and an entry screen that turned a scrapped game into an error would condemn
+ * itself over a row the player cannot fix. The client sees a shorter list, which is the truth.
  */
-export const preview = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) return null;
-    const season = await ctx.db.get(player.seasonId);
-    if (!season) return null;
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
-    const winnerId = season.winnerId ?? null;
-    const winner = winnerId === null ? null : await ctx.db.get(winnerId);
-    return {
-      code: season.code,
-      status: season.status,
-      durationHours: season.durationHours,
-      launchedAt: season.launchedAt,
-      playableRegion: season.playableRegion ?? playableRegion(present.length),
-      players: present.length,
-      nickname: player.nickname,
-      nation: player.nation,
-      doctrine: player.doctrine,
-      /** Enough for the home screen to say who took the season without opening the board — the
-       *  only end screen the test victory gets, with the journal's headline. */
-      winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
-    };
+export const previews = query({
+  args: { tokens: v.array(v.string()) },
+  handler: async (ctx, { tokens }) => {
+    const seats = [];
+    for (const token of tokens) {
+      const seat = await previewOf(ctx, token);
+      if (seat !== null) seats.push(seat);
+    }
+    return seats;
   },
 });
+
+async function previewOf(ctx: QueryCtx, token: string) {
+  const player = await ctx.db
+    .query('players')
+    .withIndex('byToken', (q) => q.eq('token', token))
+    .unique();
+  if (!player) return null;
+  const season = await ctx.db.get(player.seasonId);
+  if (!season) return null;
+  const present = await ctx.db
+    .query('players')
+    .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+    .collect();
+  const winnerId = season.winnerId ?? null;
+  const winner = winnerId === null ? null : await ctx.db.get(winnerId);
+  return {
+    // The token travels back so a row can name itself to the mutation it arms — it is the
+    // client's own, it grants nothing it did not already hold.
+    token,
+    code: season.code,
+    status: season.status,
+    durationHours: season.durationHours,
+    launchedAt: season.launchedAt,
+    createdAt: season._creationTime,
+    playableRegion: season.playableRegion ?? playableRegion(present.length),
+    players: present.length,
+    nickname: player.nickname,
+    creator: player.creator,
+    nation: player.nation,
+    doctrine: player.doctrine,
+    /** Enough for the home screen to say who took the season without opening the board — the
+     *  only end screen the test victory gets, with the journal's headline. */
+    winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
+  };
+}
 
 export const lobby = query({
   args: { token: v.string() },
@@ -281,27 +299,48 @@ export const destroy = mutation({
   },
 });
 
+/**
+ * **Everything hanging from one player**, which is every table the schema indexes `byPlayer`
+ * plus the engagements he opened. The list is not a memo of what the game held when this was
+ * written — a table left out survives its season as an orphan nobody can reach — so
+ * `off-season.test.ts` walks the schema itself and fails on the next table that forgets to
+ * appear here.
+ *
+ * Engagements are taken by attacker only, and that is enough: both sides of an engagement sit
+ * in the same season, `destroy` erases all of them, and every account has exactly one
+ * attacker — going by defender as well would delete the same row twice.
+ */
 async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+  const byPlayer = async (
+    table:
+      | 'constructions'
+      | 'recruitments'
+      | 'troops'
+      | 'buildings'
+      | 'resources'
+      | 'orders'
+      | 'movements'
+      | 'outposts'
+      | 'sightings',
+  ) =>
+    ctx.db
+      .query(table)
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+
   const owned = [
+    ...(await byPlayer('constructions')),
+    ...(await byPlayer('recruitments')),
+    ...(await byPlayer('troops')),
+    ...(await byPlayer('buildings')),
+    ...(await byPlayer('resources')),
+    ...(await byPlayer('orders')),
+    ...(await byPlayer('movements')),
+    ...(await byPlayer('outposts')),
+    ...(await byPlayer('sightings')),
     ...(await ctx.db
-      .query('constructions')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()),
-    ...(await ctx.db
-      .query('recruitments')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()),
-    ...(await ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()),
-    ...(await ctx.db
-      .query('buildings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()),
-    ...(await ctx.db
-      .query('resources')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .query('engagements')
+      .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))
       .collect()),
   ];
   for (const doc of owned) await ctx.db.delete(doc._id);

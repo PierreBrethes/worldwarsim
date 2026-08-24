@@ -1,6 +1,6 @@
 import { Navigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { forgetToken } from '@/data/token';
+import { forgetToken, readToken } from '@/data/token';
 
 /**
  * A token the server no longer recognizes — a season deleted, a stale local entry. It is not
@@ -13,7 +13,8 @@ import { forgetToken } from '@/data/token';
  */
 export function StaleToken({ to }: { to: '/accueil' | '/salon' }) {
   useEffect(() => {
-    forgetToken();
+    const stale = readToken();
+    if (stale !== null) forgetToken(stale);
   }, []);
   return <Navigate to={to} />;
 }

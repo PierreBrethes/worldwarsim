@@ -36,7 +36,9 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
         <div className="min-h-0 flex-1 overflow-auto px-4 py-[14px]">
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.scaleLabel}</span>
-            <span className="font-[var(--font-mono)] text-[15px] text-[var(--ink)]">{scale} %</span>
+            <span className="font-(family-name:--font-mono) text-[15px] text-[var(--ink)]">
+              {scale} %
+            </span>
           </div>
           <div className="mt-3 flex items-center gap-[10px]">
             <Step sign="–" onClick={() => set(scale - 10)} disabled={scale <= MIN_HUD_SCALE} />

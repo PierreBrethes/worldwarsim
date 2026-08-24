@@ -146,7 +146,7 @@ export function ConstructionPanel({
         {/* A deliberate echo of the nation sheet's bar: a datum reappears elsewhere when it is
             the subject of the decision taken there, and choosing where to build is that
             decision. The count is the list — `buildings.length` — never a third served number. */}
-        <p className="mt-2 shrink-0 font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+        <p className="mt-2 shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.construction.budget(view.me.buildings.length, view.me.buildingCap)}
         </p>
 
@@ -266,13 +266,13 @@ function OptionRow({ option, onOrder }: { option: BuildOption; onOrder: () => vo
       </span>
       <span className="shrink-0 text-right">
         {option.free ? (
-          <span className="block font-[var(--font-mono)] text-[12px] tracking-[.08em] text-[var(--ink)] uppercase">
+          <span className="block font-(family-name:--font-mono) text-[12px] tracking-[.08em] text-[var(--ink)] uppercase">
             {fr.construction.free}
           </span>
         ) : (
           <CostLine cost={option.cost} lacking={option.hold === 'materials'} />
         )}
-        <span className="block font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
+        <span className="block font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
           {option.free ? fr.construction.immediate : asHoursMinutes(option.minutes)}
         </span>
       </span>
@@ -289,7 +289,7 @@ const reasonText = (reason: BuildReason): string =>
 function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
-      className="flex items-center justify-end gap-[8px] font-[var(--font-mono)] text-[12px]"
+      className="flex items-center justify-end gap-[8px] font-(family-name:--font-mono) text-[12px]"
       style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
     >
       {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (

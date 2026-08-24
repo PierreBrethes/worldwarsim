@@ -54,7 +54,7 @@ export function GroundPanel({
       position="static"
       width={280}
     >
-      <h2 className="font-[var(--font-display)] text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
+      <h2 className="font-(family-name:--font-display) text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
         {countryLabel(country)}
       </h2>
 

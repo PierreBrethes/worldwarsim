@@ -40,7 +40,7 @@ export function ReservesPanel({ view }: { view: PlayerView }) {
   return (
     <Draggable
       remember="reserves"
-      className="hud absolute top-4 right-4 z-10 w-[200px] border border-[var(--ink-quiet)] font-[var(--font-body)]"
+      className="hud absolute top-4 right-4 z-10 w-[200px] border border-[var(--ink-quiet)] font-(family-name:--font-body)"
     >
       <DragHandle className="flex items-center gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[9px] py-[7px]">
         <span className="eyebrow-dark flex-1 tracking-[.2em]">{fr.reserves.header}</span>
@@ -88,7 +88,7 @@ function Marker({
   if (collapsed) {
     return (
       <span
-        className="font-[var(--font-mono)] text-[9px]"
+        className="font-(family-name:--font-mono) text-[9px]"
         style={{ color: alerts > 0 ? 'var(--critical)' : 'var(--paper-dim-2)' }}
       >
         {alerts > 0 ? fr.reserves.alerts(alerts) : fr.reserves.collapsed}
@@ -101,7 +101,7 @@ function Marker({
   const shared = caps.every((cap) => cap === first) ? first : 0;
   if (shared === 0) return null;
   return (
-    <span className="font-[var(--font-mono)] text-[9px] text-[var(--paper-dim-2)]">
+    <span className="font-(family-name:--font-mono) text-[9px] text-[var(--paper-dim-2)]">
       {fr.reserves.cap(shared)}
     </span>
   );
@@ -182,7 +182,7 @@ function Reserve({
               the line below already says the same figure, as a loss, which is the true one. */}
           {!(saturated && reserve.ratePerHour > 0) && (
             <span
-              className="ml-auto font-[var(--font-mono)] text-[8.5px] whitespace-nowrap"
+              className="ml-auto font-(family-name:--font-mono) text-[8.5px] whitespace-nowrap"
               style={{
                 color:
                   reserve.ratePerHour < 0

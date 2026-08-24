@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import { useCallback, useState, type FormEvent, type ReactNode } from 'react';
+import type { FunctionReturnType } from 'convex/server';
+import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
@@ -11,11 +12,12 @@ import {
   usePageTurn,
   type Turning,
 } from '@/shell/Newspaper';
+import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
-import { keepToken, useToken } from '@/data/token';
+import { forgetToken, keepToken, useTokens } from '@/data/token';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
 
@@ -40,7 +42,7 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
       <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
         <div className="flex items-baseline justify-between gap-5 px-[30px] pt-[13px] pb-[9px]">
           <span className="eyebrow">{fr.home.edition}</span>
-          <span className="font-[var(--font-mono)] text-[10.5px] tracking-[.14em] text-[var(--ink-faint)]">
+          <span className="font-(family-name:--font-mono) text-[10.5px] tracking-[.14em] text-[var(--ink-faint)]">
             {romanDate(new Date())}
           </span>
           <span className="eyebrow">{fr.home.audience}</span>
@@ -49,7 +51,7 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
         <ThickRule />
 
         <div className="px-[30px] pt-[24px] pb-[18px] text-center">
-          <h1 className="font-[var(--font-display)] text-[clamp(34px,7.4cqi,56px)] leading-[.92] font-extrabold tracking-[-.005em]">
+          <h1 className="font-(family-name:--font-display) text-[clamp(34px,7.4cqi,56px)] leading-[.92] font-extrabold tracking-[-.005em]">
             {fr.home.masthead}
           </h1>
           <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
@@ -66,7 +68,7 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
           className="pointer-events-none absolute right-[26px] bottom-[46px] rotate-[-9deg] border-2 border-[rgba(157,70,56,.55)] px-3 pt-[6px] pb-[5px] text-center text-[rgba(157,70,56,.62)]"
         >
           <div className="text-[10px] tracking-[.26em] uppercase">{fr.home.stampTitle}</div>
-          <div className="mt-px font-[var(--font-mono)] text-[9px] tracking-[.14em]">
+          <div className="mt-px font-(family-name:--font-mono) text-[9px] tracking-[.14em]">
             {fr.home.stampSub}
           </div>
         </div>
@@ -80,13 +82,21 @@ function ConnectedHome() {
   const { turning, turn } = usePageTurn();
   const create = useMutation(api.seasons.create);
   const join = useMutation(api.seasons.join);
+  const destroy = useMutation(api.seasons.destroy);
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
   const [duration, setDuration] = useState<48 | 168>(48);
   const [error, setError] = useState<string | null>(null);
-  const [resuming, setResuming] = useState(false);
-  const knownToken = useToken();
-  const preview = useQuery(api.seasons.preview, knownToken ? { token: knownToken } : 'skip');
+  const [resuming, setResuming] = useState<Seat | null>(null);
+  const tokens = useTokens();
+  const asked = useMemo(() => [...tokens], [tokens]);
+  const seats = useQuery(api.seasons.previews, { tokens: asked });
+
+  // Newest first: the game one just founded is the one one comes back for.
+  const mine = useMemo(
+    () => [...(seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
+    [seats],
+  );
 
   const toLobby = () => turn(() => void navigate({ to: '/salon' }));
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
@@ -94,12 +104,14 @@ function ConnectedHome() {
   /**
    * A launched season has no lobby left to show: resuming means walking back onto the
    * board. The sequence then serves as an airlock — it covers the map's loading.
+   *
+   * A concluded season walks back onto the board like a running one: the wipe is manual, and
+   * reading the game back is exactly what the season is kept for.
    */
-  const resume = () => {
-    // A concluded season walks back onto the board like a running one: the wipe is manual, and
-    // reading the game back is exactly what the season is kept for.
-    if (preview?.status === 'launched' || preview?.status === 'concluded') setResuming(true);
-    else toLobby();
+  const resume = (seat: Seat) => {
+    keepToken(seat.token);
+    if (seat.status === 'lobby') toLobby();
+    else setResuming(seat);
   };
 
   const submitCreate = async (event: FormEvent) => {
@@ -129,58 +141,27 @@ function ConnectedHome() {
   return (
     <>
       <HomeSheet turning={turning}>
-        {preview && (
+        {mine.length > 0 && (
           <div className="mx-[30px] mt-[20px]">
-            <button
-              type="button"
-              onClick={resume}
-              className={`relative flex w-full cursor-pointer items-center gap-4 overflow-hidden bg-[var(--ink)] py-[13px] pr-5 text-left ${
-                preview.nation ? 'pl-[106px]' : 'pl-5'
-              }`}
-            >
-              <FlagWatermark nation={preview.nation} opacity={0.34} />
-              <span
-                className="relative flex-1"
-                style={{ textShadow: '0 1px 3px rgba(23,18,8,.9)' }}
-              >
-                <span className="block text-[12px] tracking-[.22em] text-[var(--paper)] uppercase">
-                  {fr.home.resume}
-                </span>
-                <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
-                  <span>
-                    {nationLabel(preview.nation)}
-                    {preview.doctrine
-                      ? ` · ${fr.banner.doctrine(doctrineLabel(preview.doctrine) ?? '')}`
-                      : ''}
-                  </span>
-                  <span>
-                    {preview.status === 'concluded' && preview.winnerNation
-                      ? fr.victory.homeConcluded(nationLabel(preview.winnerNation))
-                      : preview.status === 'lobby'
-                        ? fr.home.resumeLobby(preview.code)
-                        : fr.home.resumeSeason}{' '}
-                    ·{' '}
-                    {fr.playableRegions[preview.playableRegion as PlayableRegion] ??
-                      preview.playableRegion}
-                  </span>
-                  <span className="text-[var(--notable)]">
-                    {fr.common.players(preview.players)}
-                  </span>
-                </span>
-              </span>
-              <span className="relative text-right">
-                <span className="eyebrow-dark block">
-                  {preview.status === 'lobby' ? fr.home.statusLabel : fr.home.endsIn}
-                </span>
-                <span className="block font-[var(--font-mono)] text-[16px] text-[var(--paper)]">
-                  {preview.status === 'lobby'
-                    ? fr.home.open
-                    : preview.status === 'concluded'
-                      ? fr.home.finished
-                      : remaining(preview.launchedAt, preview.durationHours)}
-                </span>
-              </span>
-            </button>
+            <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
+              <span className="eyebrow">{fr.home.gamesHeader}</span>
+              <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.home.gamesNote}</span>
+            </div>
+            <ul className="mt-3 flex flex-col gap-3">
+              {mine.map((seat) => (
+                <GameRow
+                  key={seat.token}
+                  seat={seat}
+                  onResume={() => resume(seat)}
+                  onDestroy={() =>
+                    void destroy({ token: seat.token })
+                      .then(() => forgetToken(seat.token))
+                      .catch((problem: unknown) => handleError(problem, setError))
+                  }
+                  onLeave={() => forgetToken(seat.token)}
+                />
+              ))}
+            </ul>
           </div>
         )}
 
@@ -231,7 +212,7 @@ function ConnectedHome() {
                   <span className="block text-[10.5px] tracking-[.12em] uppercase">
                     {fr.home.regionShort[region]}
                   </span>
-                  <span className="mt-[2px] block font-[var(--font-mono)] text-[10px]">
+                  <span className="mt-[2px] block font-(family-name:--font-mono) text-[10px]">
                     {fr.home.regionSlots[region]}
                   </span>
                 </span>
@@ -261,7 +242,7 @@ function ConnectedHome() {
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
               maxLength={6}
-              className="mt-[6px] w-full border border-[var(--ink)] bg-transparent p-[14px] text-center font-[var(--font-mono)] text-[22px] tracking-[.42em] text-[var(--ink)] uppercase outline-none"
+              className="mt-[6px] w-full border border-[var(--ink)] bg-transparent p-[14px] text-center font-(family-name:--font-mono) text-[22px] tracking-[.42em] text-[var(--ink)] uppercase outline-none"
               placeholder={fr.home.codePlaceholder}
             />
             <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">{fr.home.joinHint}</p>
@@ -279,17 +260,17 @@ function ConnectedHome() {
 
         <div className="mx-[30px] mt-[26px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
           <span>{fr.home.footerLeft}</span>
-          <span className="font-[var(--font-mono)] tracking-[.12em]">{fr.home.footerRight}</span>
+          <span className="font-(family-name:--font-mono) tracking-[.12em]">
+            {fr.home.footerRight}
+          </span>
         </div>
       </HomeSheet>
 
-      {resuming && preview && (
+      {resuming && (
         <LaunchSequence
-          region={
-            fr.playableRegions[preview.playableRegion as PlayableRegion] ?? preview.playableRegion
-          }
-          pace={preview.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168}
-          players={preview.players}
+          region={regionNameOf(resuming.playableRegion)}
+          pace={resuming.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168}
+          players={resuming.players}
           onEnd={toBoard}
         />
       )}
@@ -297,11 +278,107 @@ function ConnectedHome() {
   );
 }
 
+type Seat = FunctionReturnType<typeof api.seasons.previews>[number];
+
+/**
+ * One seat, one row. The founder scraps the season for everybody; anybody else only drops his
+ * own token — the two clicks are the same, what they cost is not, and only the note can say so.
+ */
+function GameRow({
+  seat,
+  onResume,
+  onDestroy,
+  onLeave,
+}: {
+  seat: Seat;
+  onResume: () => void;
+  onDestroy: () => void;
+  onLeave: () => void;
+}) {
+  return (
+    <li className="flex items-start gap-3">
+      <button
+        type="button"
+        onClick={onResume}
+        title={fr.home.resume}
+        className={`relative flex min-w-0 flex-1 cursor-pointer items-center gap-4 overflow-hidden bg-[var(--ink)] py-[13px] pr-5 text-left ${
+          seat.nation ? 'pl-[106px]' : 'pl-5'
+        }`}
+      >
+        <FlagWatermark nation={seat.nation} opacity={0.34} />
+        <span
+          className="relative min-w-0 flex-1"
+          style={{ textShadow: '0 1px 3px rgba(23,18,8,.9)' }}
+        >
+          <span className="block text-[12px] tracking-[.22em] text-[var(--paper)] uppercase">
+            {nationLabel(seat.nation)}
+            {seat.doctrine ? ` · ${fr.banner.doctrine(doctrineLabel(seat.doctrine) ?? '')}` : ''}
+          </span>
+          <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
+            <span>
+              {standingOf(seat)} · {regionNameOf(seat.playableRegion)}
+            </span>
+            <span className="text-[var(--notable)]">{fr.common.players(seat.players)}</span>
+            {seat.creator && (
+              <span className="text-[10px] tracking-[.14em] text-[var(--paper-dim)] uppercase">
+                {fr.lobby.founder}
+              </span>
+            )}
+          </span>
+        </span>
+        <span className="relative shrink-0 text-right">
+          <span className="eyebrow-dark block">
+            {seat.status === 'launched' ? fr.home.endsIn : fr.home.statusLabel}
+          </span>
+          <span className="block font-(family-name:--font-mono) text-[16px] text-[var(--paper)]">
+            {seat.status === 'lobby'
+              ? fr.home.open
+              : seat.status === 'concluded'
+                ? fr.home.finished
+                : remaining(seat.launchedAt, seat.durationHours)}
+          </span>
+        </span>
+      </button>
+
+      <div className="w-[164px] shrink-0">
+        {seat.creator ? (
+          <DestroyButton
+            label={fr.lobby.destroy}
+            confirm={fr.lobby.destroyConfirm}
+            note={fr.lobby.destroyNote}
+            onDestroy={onDestroy}
+          />
+        ) : (
+          <DestroyButton
+            label={fr.home.leave}
+            confirm={fr.home.leaveConfirm}
+            note={fr.home.leaveNote}
+            onDestroy={onLeave}
+          />
+        )}
+      </div>
+    </li>
+  );
+}
+
+function standingOf(seat: Seat): string {
+  if (seat.status === 'lobby') return fr.home.resumeLobby(seat.code);
+  if (seat.status === 'concluded' && seat.winnerNation) {
+    return fr.victory.homeConcluded(nationLabel(seat.winnerNation));
+  }
+  return `${fr.home.resumeSeason} · ${seat.code}`;
+}
+
+const regionNameOf = (region: string): string =>
+  fr.playableRegions[region as PlayableRegion] ?? region;
+
 function Title({ numeral, title }: { numeral: string; title: string }) {
   return (
     <div className="flex items-baseline gap-[10px]">
-      <span className="font-[var(--font-mono)] text-[11px] text-[var(--notable)]">{numeral}</span>
-      <h2 className="font-[var(--font-display)] text-[21px] font-bold">{title}</h2>
+      <span className="font-(family-name:--font-mono) text-[11px] text-[var(--notable)]">
+        {numeral}
+      </span>
+      <h2 className="font-(family-name:--font-display) text-[21px] font-bold">{title}</h2>
     </div>
   );
 }
@@ -334,11 +411,11 @@ function NoBackend() {
   return (
     <p className="px-[30px] pt-6 pb-4 text-[13.5px] leading-[1.55]">
       {fr.home.noBackend.before}
-      <span className="font-[var(--font-mono)]">{fr.home.noBackend.env}</span>
+      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.env}</span>
       {fr.home.noBackend.middle}
-      <span className="font-[var(--font-mono)]">{fr.home.noBackend.command}</span>
+      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.command}</span>
       {fr.home.noBackend.after}
-      <span className="font-[var(--font-mono)]">{fr.home.noBackend.readme}</span>
+      <span className="font-(family-name:--font-mono)">{fr.home.noBackend.readme}</span>
       {fr.home.noBackend.end}
     </p>
   );

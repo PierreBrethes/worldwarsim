@@ -134,7 +134,7 @@ export function SurfaceRail({
             Math.floor(minutesLeft / 60),
             String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
           )}
-          className="text-center font-[var(--font-mono)] text-[9px] text-[#6b6252]"
+          className="text-center font-(family-name:--font-mono) text-[9px] text-[#6b6252]"
         >
           {fr.rail.seasonShort(season.number)}
         </div>

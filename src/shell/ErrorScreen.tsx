@@ -19,7 +19,7 @@ export function ErrorScreen({ error, reset }: { error: unknown; reset?: () => vo
         <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.errorScreen.kicker}
         </p>
-        <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-[var(--font-display)] text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
+        <h1 className="mt-3 border-t-2 border-b border-[var(--ink)] py-3 font-(family-name:--font-display) text-[26px] leading-none font-extrabold tracking-[.03em] text-[var(--ink)] uppercase">
           {fr.errorScreen.title}
         </h1>
         <p className="mt-4 text-[13px] leading-[1.55] text-[var(--ink)]">{message}</p>

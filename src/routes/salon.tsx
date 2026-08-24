@@ -10,6 +10,7 @@ import { FlagBanner, Flag } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { errorCode, handleError } from '@/data/errors';
 import { forgetToken, useToken } from '@/data/token';
+import { DestroyButton } from '@/shell/DestroyButton';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { LaunchSequence } from '@/shell/LaunchSequence';
@@ -91,7 +92,7 @@ function ConnectedLobby({ token }: { token: string }) {
           <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
             <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
               <Flag nation={lobby.me.nation} width={33} onPaper />
-              <span className="font-[var(--font-display)] text-[17px] font-extrabold tracking-[.02em] uppercase">
+              <span className="font-(family-name:--font-display) text-[17px] font-extrabold tracking-[.02em] uppercase">
                 {nationLabel(lobby.me.nation)}
               </span>
               <span className="flex-1" />
@@ -100,7 +101,7 @@ function ConnectedLobby({ token }: { token: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  forgetToken();
+                  forgetToken(token);
                   turn(() => void navigate({ to: '/accueil' }));
                 }}
                 className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
@@ -114,7 +115,7 @@ function ConnectedLobby({ token }: { token: string }) {
             <div className="flex flex-wrap items-center gap-[26px] px-[30px] pt-[18px] pb-4">
               <div className="min-w-0 flex-1">
                 <div className="eyebrow">{fr.lobby.codeLabel}</div>
-                <div className="font-[var(--font-display)] text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
+                <div className="font-(family-name:--font-display) text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
                   {lobby.code}
                 </div>
                 <div className="text-[11.5px] text-[var(--ink-note)]">{fr.lobby.codeNote}</div>
@@ -127,7 +128,7 @@ function ConnectedLobby({ token }: { token: string }) {
                 >
                   {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
                 </button>
-                <div className="text-center font-[var(--font-mono)] text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
+                <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
                   {fr.lobby.openCount(lobby.players.length)}
                 </div>
               </div>
@@ -214,7 +215,7 @@ function ConnectedLobby({ token }: { token: string }) {
               <aside className="w-full pt-4 pb-2 @2xl:w-[290px] @2xl:shrink-0 @2xl:pl-[26px]">
                 <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
                   <span className="eyebrow">{fr.lobby.playersHeader}</span>
-                  <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-faint)]">
+                  <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]">
                     {lobby.players.length} / 8
                   </span>
                 </div>
@@ -275,7 +276,7 @@ function ConnectedLobby({ token }: { token: string }) {
                           : 'hover:bg-[rgba(42,33,24,.08)]'
                       }`}
                     >
-                      <span className="block font-[var(--font-mono)] text-[9px] opacity-60">
+                      <span className="block font-(family-name:--font-mono) text-[9px] opacity-60">
                         {NUMERALS[rank]}
                       </span>
                       <span className="mt-[3px] block text-[11px] tracking-[.08em] uppercase">
@@ -303,7 +304,7 @@ function ConnectedLobby({ token }: { token: string }) {
                       className="flex items-center gap-[9px] text-[11.5px]"
                       style={{ color: check.done ? 'var(--ink)' : 'var(--ink-faint)' }}
                     >
-                      <span className="w-[11px] font-[var(--font-mono)] text-[11px]">
+                      <span className="w-[11px] font-(family-name:--font-mono) text-[11px]">
                         {check.done ? '×' : '·'}
                       </span>
                       <span>{check.label}</span>
@@ -341,10 +342,13 @@ function ConnectedLobby({ token }: { token: string }) {
                       {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
                     </p>
                     <DestroyButton
+                      label={fr.lobby.destroy}
+                      confirm={fr.lobby.destroyConfirm}
+                      note={fr.lobby.destroyNote}
                       onDestroy={() =>
                         act(async () => {
                           await destroy({ token });
-                          forgetToken();
+                          forgetToken(token);
                           turn(() => void navigate({ to: '/accueil' }));
                         })
                       }
@@ -366,7 +370,7 @@ function ConnectedLobby({ token }: { token: string }) {
 
             <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
               <span>{fr.lobby.footerLeft}</span>
-              <span className="font-[var(--font-mono)] tracking-[.12em]">
+              <span className="font-(family-name:--font-mono) tracking-[.12em]">
                 {fr.lobby.footerCode(lobby.code)}
               </span>
             </div>
@@ -383,47 +387,6 @@ function ConnectedLobby({ token }: { token: string }) {
         />
       )}
     </>
-  );
-}
-
-/**
- * Two clicks, and the second one is not the same button: destroying a season takes everyone's
- * game away, and a misclick next to "launch" would be the worst possible one. The cancel sits
- * where the first click was, so the reflex click lands on it.
- */
-function DestroyButton({ onDestroy }: { onDestroy: () => void }) {
-  const [armed, setArmed] = useState(false);
-
-  if (!armed) {
-    return (
-      <button
-        type="button"
-        onClick={() => setArmed(true)}
-        className="mt-[10px] w-full cursor-pointer border border-[rgba(42,33,24,.3)] p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-faint)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
-      >
-        {fr.lobby.destroy}
-      </button>
-    );
-  }
-
-  return (
-    <div className="mt-[10px] flex flex-col gap-[6px]">
-      <button
-        type="button"
-        onClick={() => setArmed(false)}
-        className="w-full cursor-pointer border border-[var(--ink)] p-[9px] text-[10px] tracking-[.2em] uppercase hover:bg-[rgba(42,33,24,.08)]"
-      >
-        {fr.lobby.destroyCancel}
-      </button>
-      <button
-        type="button"
-        onClick={onDestroy}
-        className="w-full cursor-pointer border border-[var(--critical)] bg-[var(--critical)] p-[9px] text-[10px] tracking-[.2em] text-[var(--paper)] uppercase"
-      >
-        {fr.lobby.destroyConfirm}
-      </button>
-      <p className="text-center text-[10.5px] text-[var(--critical)]">{fr.lobby.destroyNote}</p>
-    </div>
   );
 }
 
@@ -456,9 +419,9 @@ function RestWindowForm({
           setStart(event.target.value);
           setSaved(false);
         }}
-        className="border border-[var(--ink)] bg-transparent px-2 py-[5px] font-[var(--font-mono)] text-[13px] text-[var(--ink)] outline-none"
+        className="border border-[var(--ink)] bg-transparent px-2 py-[5px] font-(family-name:--font-mono) text-[13px] text-[var(--ink)] outline-none"
       />
-      <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+      <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {fr.lobby.restUntil(asHtmlTime(endOf(asMinutes(start))))}
       </span>
       <button

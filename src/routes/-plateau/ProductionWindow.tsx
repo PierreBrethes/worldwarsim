@@ -393,7 +393,7 @@ function RoleRow({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`cursor-pointer border px-[4px] py-[1px] font-[var(--font-mono)] text-[9px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`cursor-pointer border px-[4px] py-[1px] font-(family-name:--font-mono) text-[9px] leading-none disabled:cursor-not-allowed disabled:opacity-35 ${
                     tier === level
                       ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
                       : 'border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]'
@@ -409,7 +409,7 @@ function RoleRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-[var(--font-display)] text-[15px] font-bold text-[var(--ink)]">
+          <span className="font-(family-name:--font-display) text-[15px] font-bold text-[var(--ink)]">
             {roleLabel(role, 1)}
           </span>
           {equipment && <span className="text-[12px] text-[var(--ink-soft)]">— {equipment}</span>}
@@ -418,7 +418,7 @@ function RoleRow({
               {fr.production.roleLocked(entry.unlockedAtHqLevel)}
             </span>
           )}
-          <span className="ml-auto font-[var(--font-mono)] text-[14px] text-[var(--ink)]">
+          <span className="ml-auto font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
             {total}
           </span>
         </div>
@@ -426,10 +426,10 @@ function RoleRow({
         <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] text-[var(--ink-soft)]">
           <Expense resource="alloy" value={cost.alloy} />
           <Expense resource="ammunition" value={cost.ammunition} />
-          <span className="font-[var(--font-mono)] text-[11.5px]">
+          <span className="font-(family-name:--font-mono) text-[11.5px]">
             {asHoursMinutes(cost.minutes)}
           </span>
-          <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink)]">
+          <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
             {cost.strength} {fr.strengthUnits[role]}
           </span>
           <span className="text-[10px] tracking-[.14em] text-[var(--ink-quiet)] uppercase">
@@ -499,7 +499,7 @@ function QueueRow({
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12.5px] text-[var(--ink)]">
           {roleLabel(batch.role, 1)}{' '}
-          <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
+          <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {tierLabel(batch.tier === 2 ? 2 : 1)} — {batch.strength} {fr.strengthUnits[batch.role]}
           </span>
         </div>
@@ -507,7 +507,7 @@ function QueueRow({
           {batch.started ? fr.production.inChain : fr.production.pending}
         </div>
       </div>
-      <span className="shrink-0 font-[var(--font-mono)] text-[12.5px] text-[var(--ink)]">
+      <span className="shrink-0 font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
         {asHoursMinutes(currentMinutes(batch.minutesLeft, loadedAt, now))}
       </span>
       <button
@@ -529,7 +529,7 @@ function Expense({ resource, value }: { resource: ResourceKey; value: number }) 
       <span className="flex" style={{ color: resourceColor(resource, true) }}>
         <ResourceIcon resource={resource} size={11} />
       </span>
-      <span className="font-[var(--font-mono)] text-[11.5px]">{value}</span>
+      <span className="font-(family-name:--font-mono) text-[11.5px]">{value}</span>
     </span>
   );
 }

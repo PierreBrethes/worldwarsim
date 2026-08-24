@@ -158,7 +158,7 @@ export function GarrisonPanel({
       <Panel title={title} marker={fr.garrison.kicker} position="static" width={340}>
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
           <span>{projection ? fr.garrison.projection : (region ?? '')}</span>
-          <span className="ml-auto font-[var(--font-mono)]">
+          <span className="ml-auto font-(family-name:--font-mono)">
             {fr.garrison.troopCount(held.length)}
           </span>
           <button
@@ -246,7 +246,7 @@ export function GarrisonPanel({
                     <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
                       {roleLabel(troop.role, 1)}
                     </span>
-                    <span className="block font-[var(--font-mono)] text-[10.5px] text-[var(--ink-soft)]">
+                    <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
                       {fr.troops.strength(troop.strength, troop.nominalStrength)}
                     </span>
                   </span>
@@ -307,7 +307,7 @@ export function GarrisonPanel({
         )}
 
         {onLand && (
-          <div className="mt-[9px] font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+          <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
             {fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']}
           </div>
         )}
@@ -315,7 +315,7 @@ export function GarrisonPanel({
         {lift.offered > 0 && (
           <div className="mt-[9px] border-t border-[rgba(42,33,24,.32)] pt-[7px]">
             <span
-              className="font-[var(--font-mono)] text-[11.5px]"
+              className="font-(family-name:--font-mono) text-[11.5px]"
               style={{
                 color: lift.needed > lift.offered ? 'var(--critical)' : 'var(--ink-soft)',
               }}
@@ -332,7 +332,7 @@ export function GarrisonPanel({
 
         {canPrepare ? (
           <div className="mt-[11px] flex items-center justify-between gap-3">
-            <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-soft)]">
+            <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
               {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}
             </span>
             <button

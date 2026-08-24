@@ -1,7 +1,17 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
-import { SEASON_FORMATS, buildCost, startingStock } from './constants';
+import type { Id, TableNames } from './_generated/dataModel';
+import { distanceKm, type LonLat } from '../src/domain/geo';
+import {
+  SCOUT_RADIUS_KM,
+  SEASON_FORMATS,
+  buildCost,
+  nominalStrength,
+  startingStock,
+} from './constants';
+import { regionFacts } from './regions';
+import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -302,14 +312,170 @@ describe('scrapping a season', () => {
     // Both tokens answer nothing any more — which is what sends every player home.
     await expect(t.query(api.seasons.lobby, { token: creator })).rejects.toThrow('UNKNOWN_TOKEN');
     await expect(t.query(api.seasons.lobby, { token: guest })).rejects.toThrow('UNKNOWN_TOKEN');
-    expect(await t.query(api.seasons.preview, { token: guest })).toBeNull();
+    // And the home screen simply lists one game fewer: a scrapped season is not an error.
+    expect(await t.query(api.seasons.previews, { tokens: [creator, guest] })).toEqual([]);
+  });
 
-    const left = await t.run(async (ctx) => ({
-      seasons: (await ctx.db.query('seasons').collect()).length,
-      players: (await ctx.db.query('players').collect()).length,
-      buildings: (await ctx.db.query('buildings').collect()).length,
-      resources: (await ctx.db.query('resources').collect()).length,
-    }));
-    expect(left).toEqual({ seasons: 0, players: 0, buildings: 0, resources: 0 });
+  /**
+   * **The purge is checked against the schema, never against a list written here.** A table that
+   * `erasePlayer` forgets leaves rows nobody can reach — no token names them and no season owns
+   * them — and the only reader that notices is one that walks `schema.tables` itself. The season
+   * below is the widest one the game can produce today: a march, an outpost, an engagement, a
+   * sighting, a queue and a lot.
+   *
+   * The assertion is that the store is **empty**, not merely free of this season's rows: the run
+   * holds one season and nothing else, so the two say the same thing — and emptiness is the one
+   * form that still means something for a table added tomorrow.
+   */
+  describe('a season that used the whole schema', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 7, 17, 12, 0, 0));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    /** Romanian oil, far enough east of the Marne for the road to be worth watching. */
+    const PRAHOVA = 'ROU-310';
+    /** Ar Riyad: neutral, and nowhere near the road — an outpost planted for its own sake. */
+    const RIYADH = 'SAU-1097';
+
+    const pointOf = (regionId: string): LonLat => regionFacts(regionId)!.point;
+    const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+    async function playerOf(t: ReturnType<typeof boot>, token: string) {
+      return t.run(async (ctx) => {
+        const player = await ctx.db
+          .query('players')
+          .withIndex('byToken', (q) => q.eq('token', token))
+          .unique();
+        if (!player) throw new Error('player not found');
+        return player._id;
+      });
+    }
+
+    async function raise(t: ReturnType<typeof boot>, token: string, regionId: string) {
+      const playerId = await playerOf(t, token);
+      return t.run(async (ctx) =>
+        ctx.db.insert('buildings', { playerId, key: 'barracks', regionId, level: 1 }),
+      );
+    }
+
+    async function form(
+      t: ReturnType<typeof boot>,
+      token: string,
+      stationedAt: Id<'buildings'> | { lon: number; lat: number } | null,
+    ) {
+      const playerId = await playerOf(t, token);
+      const strength = nominalStrength('infantry', 1);
+      return t.run(async (ctx) =>
+        ctx.db.insert('troops', {
+          playerId,
+          role: 'infantry',
+          tier: 1,
+          nominalStrength: strength,
+          currentStrength: strength,
+          stationedAt,
+        }),
+      );
+    }
+
+    it('leaves not one row behind, in any table of the schema', async () => {
+      const t = boot();
+      const { creator, guest } = await readyToLaunch(t);
+      await t.mutation(api.seasons.launch, { token: creator });
+
+      // A sentry of the guest's, forty kilometres off the road the column will walk: close
+      // enough to file a sighting, far enough not to meet anybody.
+      const road = routeBetween(pointOf(MOSELLE), pointOf(PRAHOVA), 'land')!;
+      const halfway = road.points[Math.floor(road.points.length / 2)]!;
+      const camp: LonLat = [
+        halfway[0] + 40 / (111.32 * Math.cos((halfway[1] * Math.PI) / 180)),
+        halfway[1],
+      ];
+      expect(
+        road.points.reduce((closest, step) => Math.min(closest, distanceKm(step, camp)), Infinity),
+      ).toBeLessThan(SCOUT_RADIUS_KM);
+      await form(t, guest, asPoint(camp));
+
+      // Somebody to meet at the far end, so an account gets filed.
+      const theirs = await raise(t, guest, PRAHOVA);
+      await form(t, guest, theirs);
+
+      const barracks = await raise(t, creator, MOSELLE);
+      await t.mutation(api.movements.attack, {
+        token: creator,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [await form(t, creator, barracks)],
+        target: { kind: 'region', regionId: PRAHOVA },
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
+
+      // An outpost, planted where a column of its own stands.
+      const desert = pointOf(RIYADH);
+      await t.mutation(api.movements.foundOutpostHere, {
+        token: creator,
+        point: asPoint(desert),
+        specialization: 'relay',
+        troopIds: [await form(t, creator, asPoint(desert))],
+      });
+
+      // And a second column still on the road when the season is scrapped, watched by the
+      // same sentry: a live movement, and the sightings that go with it.
+      await t.mutation(api.movements.attack, {
+        token: creator,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [await form(t, creator, barracks)],
+        target: { kind: 'region', regionId: PRAHOVA },
+      });
+
+      // A queue, a lot and a construction, put down without paying for them: what is under
+      // test is the purge, not the economy that would have fed them.
+      const playerId = await playerOf(t, creator);
+      await t.run(async (ctx) => {
+        await ctx.db.insert('recruitments', {
+          playerId,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+          rank: 0,
+          finishesAt: Date.now() + 3_600_000,
+        });
+        await ctx.db.insert('orders', {
+          playerId,
+          chain: 'arsenal',
+          ordered: 200,
+          produced: 0,
+          placedAt: Date.now(),
+        });
+        await ctx.db.insert('constructions', {
+          playerId,
+          building: 'billets',
+          regionId: MOSELLE,
+          finishesAt: Date.now() + 3_600_000,
+        });
+      });
+
+      const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
+      const before = await countRows(t, tables);
+      // Every table carries something, or the emptiness below proves nothing about it.
+      expect(Object.entries(before).filter(([, rows]) => rows === 0)).toEqual([]);
+
+      await t.mutation(api.seasons.destroy, { token: creator });
+
+      const after = await countRows(t, tables);
+      expect(after).toEqual(Object.fromEntries(tables.map((table) => [table, 0])));
+    });
+
+    async function countRows(
+      t: ReturnType<typeof boot>,
+      tables: ReadonlyArray<TableNames>,
+    ): Promise<Record<string, number>> {
+      const counted: Record<string, number> = {};
+      for (const table of tables) {
+        counted[table] = await t.run(async (ctx) => (await ctx.db.query(table).collect()).length);
+      }
+      return counted;
+    }
   });
 });

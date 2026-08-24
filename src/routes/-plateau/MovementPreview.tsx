@@ -130,22 +130,22 @@ export function MovementPreview({
         <div className="border border-[rgba(42,33,24,.4)] px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
           <div className="flex items-baseline justify-between text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             <span>{fr.aim.previewKicker}</span>
-            <span className="font-[var(--font-mono)] tracking-[.06em]">{fr.aim.slot}</span>
+            <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
           </div>
-          <h3 className="mt-[3px] font-[var(--font-display)] text-[18px] leading-[1.15] font-extrabold">
+          <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), fr.movementTypes[type])}
           </h3>
           <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
 
           {preview === undefined ? (
-            <p className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+            <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
               {fr.aim.computing}
             </p>
           ) : preview === null ? (
             <p className="text-[12.5px] leading-[1.45] text-[var(--critical)]">{fr.aim.noRoute}</p>
           ) : (
             <>
-              <div className="font-[var(--font-mono)] text-[11.5px] leading-[1.7]">
+              <div className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
                 {/* The medium is read off the **legs**, never off the route's mode: a pile with
                     a hull routes `combined` even when the road gets there dry, and the card
                     would then promise a crossing to the next region. */}

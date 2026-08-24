@@ -63,7 +63,7 @@ export function NationWindow({
           <span className="self-center">
             <Flag nation={view.me.nation} width={36} onPaper />
           </span>
-          <h1 className="font-[var(--font-display)] text-[clamp(22px,4cqi,34px)] leading-none font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
+          <h1 className="font-(family-name:--font-display) text-[clamp(22px,4cqi,34px)] leading-none font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
             {nationLabel(view.me.nation)}
           </h1>
           <span className="text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
@@ -110,7 +110,7 @@ export function NationWindow({
                 <strong>{view.me.construction.name}</strong>{' '}
                 {fr.nationSheet.inRegion(view.me.construction.regionName)}
                 {fr.nationSheet.remains}
-                <span className="font-[var(--font-mono)]">
+                <span className="font-(family-name:--font-mono)">
                   {asHoursMinutes(
                     currentMinutes(view.me.construction.minutesLeft, view.loadedAt, now),
                   )}
@@ -156,7 +156,7 @@ export function NationWindow({
             <p className="mt-2 text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.nationSheet.restNote}
             </p>
-            <p className="mt-2 font-[var(--font-mono)] text-[14px] text-[var(--ink)]">
+            <p className="mt-2 font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
               {view.me.restWindow}
             </p>
             <p className="mt-1 text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
@@ -206,7 +206,7 @@ function HeadquartersBlock({
             {/* No region here: a nation has one capital and does not choose it (ADR 0015), so
                 the line said the same thing every season — and the census below already names
                 the ground of every building, that one included. */}
-            <span className="font-[var(--font-mono)] text-[12px] text-[var(--ink)]">
+            <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
               {fr.nationSheet.hqLevelLine(level, SEASON_FORMATS[view.season.format].maxHqLevel)}
             </span>
             <span className="ml-auto">
@@ -290,7 +290,7 @@ function BuildingBudget({ taken, cap }: { taken: number; cap: number }) {
     <section className="mt-4">
       <h2 className="eyebrow flex items-baseline gap-3 border-b border-[var(--ink)] pb-[6px]">
         {fr.nationSheet.budgetHeader}
-        <span className="ml-auto font-[var(--font-mono)] text-[12px] normal-case tracking-normal text-[var(--ink)]">
+        <span className="ml-auto font-(family-name:--font-mono) text-[12px] normal-case tracking-normal text-[var(--ink)]">
           {fr.nationSheet.budgetTaken(taken, cap)}
         </span>
       </h2>
@@ -328,7 +328,7 @@ function BuildingRow({ building, regionName }: { building: Building; regionName:
       <span className="w-[94px] shrink-0 truncate text-[11.5px] text-[var(--ink-soft)]">
         {fr.nationSheet.inRegion(regionName)}
       </span>
-      <span className="w-[52px] shrink-0 font-[var(--font-mono)] text-[11.5px] text-[var(--ink)]">
+      <span className="w-[52px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
         {fr.nationSheet.level(building.level)}
       </span>
       <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--ink-soft)]">

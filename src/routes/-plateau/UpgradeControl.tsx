@@ -71,10 +71,10 @@ export function UpgradeControl({
     <div className="flex shrink-0 flex-col items-end gap-[3px]">
       <div className="flex items-center gap-[10px]">
         <CostLine cost={building.nextLevelCost} lacking={hold?.kind === 'materials'} />
-        <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--ink-soft)]">
+        <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {asHoursMinutes(building.nextLevelMinutes)}
         </span>
-        <span className="font-[var(--font-mono)] text-[11px] text-[var(--ink-quiet)]">
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
           {fr.upgrade.toLevel(next)}
         </span>
         <button
@@ -166,7 +166,7 @@ function WhenAffordable({
 function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
   return (
     <span
-      className="flex items-center justify-end gap-[10px] font-[var(--font-mono)] text-[12.5px]"
+      className="flex items-center justify-end gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
       style={{ color: lacking ? 'var(--critical)' : 'var(--ink)' }}
     >
       {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (

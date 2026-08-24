@@ -52,7 +52,7 @@ export function NationBanner({ view }: { view: PlayerView }) {
         <span className="text-[9px] leading-none tracking-[.14em] text-[var(--paper-dim)] uppercase">
           {fr.banner.slots}
         </span>
-        <span className="font-[var(--font-mono)] text-[14px] font-medium text-[var(--paper)]">
+        <span className="font-(family-name:--font-mono) text-[14px] font-medium text-[var(--paper)]">
           {fr.banner.slotsCount(me.slots.used, me.slots.total)}
         </span>
       </div>
@@ -106,7 +106,7 @@ function SiteStrip({ view }: { view: PlayerView }) {
         <BuildingPlate building={site.key} height={PLATE_HEIGHT} />
       </span>
       <span className="text-[12.5px] font-semibold text-[var(--paper)]">{site.name}</span>
-      <span className="font-[var(--font-mono)] text-[11.5px] text-[var(--paper-dim)]">
+      <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
         {asHoursMinutes(currentMinutes(site.minutesLeft, view.loadedAt, now))}
       </span>
     </div>

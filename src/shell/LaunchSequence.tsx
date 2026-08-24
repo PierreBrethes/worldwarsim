@@ -57,10 +57,10 @@ export function LaunchSequence({
           }}
         >
           <div className="border border-[var(--critical)] bg-[rgba(157,70,56,.06)] px-[30px] pt-4 pb-[14px] text-center text-[var(--critical)]">
-            <div className="font-[var(--font-display)] text-[38px] font-extrabold tracking-[.06em]">
+            <div className="font-(family-name:--font-display) text-[38px] font-extrabold tracking-[.06em]">
               {fr.launchSequence.order}
             </div>
-            <div className="mt-[6px] font-[var(--font-mono)] text-[11px] tracking-[.3em] uppercase">
+            <div className="mt-[6px] font-(family-name:--font-mono) text-[11px] tracking-[.3em] uppercase">
               {fr.launchSequence.sealed}
             </div>
           </div>
@@ -78,17 +78,17 @@ export function LaunchSequence({
         className="absolute inset-0 flex flex-col items-center justify-center gap-[10px] transition-opacity duration-500"
         style={{ opacity: phase === 3 ? 1 : 0 }}
       >
-        <div className="font-[var(--font-mono)] text-[11px] tracking-[.34em] text-[var(--notable)] uppercase">
+        <div className="font-(family-name:--font-mono) text-[11px] tracking-[.34em] text-[var(--notable)] uppercase">
           {fr.launchSequence.seed}
         </div>
         <div
           className="h-px bg-[var(--ink-quiet)]"
           style={{ transition: 'width .9s cubic-bezier(.2,.7,.2,1)', width: phase >= 3 ? 460 : 0 }}
         />
-        <div className="font-[var(--font-display)] text-[52px] font-extrabold tracking-[.06em] text-[var(--paper)]">
+        <div className="font-(family-name:--font-display) text-[52px] font-extrabold tracking-[.06em] text-[var(--paper)]">
           {fr.launchSequence.season}
         </div>
-        <div className="font-[var(--font-mono)] text-[11px] tracking-[.28em] text-[var(--paper-dim)] uppercase">
+        <div className="font-(family-name:--font-mono) text-[11px] tracking-[.28em] text-[var(--paper-dim)] uppercase">
           {fr.launchSequence.summary(region, pace, players)}
         </div>
       </div>

@@ -47,7 +47,7 @@ export function NationCartouche({
         }}
       >
         <span
-          className={`font-[var(--font-display)] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase ${
+          className={`font-(family-name:--font-display) leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase ${
             inline ? 'text-[15px]' : 'text-[19px]'
           }`}
         >

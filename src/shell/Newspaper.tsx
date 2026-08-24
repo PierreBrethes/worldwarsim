@@ -54,8 +54,11 @@ export function Newspaper({
   return (
     <div className="relative h-full overflow-hidden bg-[var(--desk)]">
       <MapTable />
-      <div className="relative flex h-full items-start justify-center overflow-auto px-[clamp(16px,4vw,72px)] py-[26px]">
-        <div className="hud relative" style={{ width, maxWidth: '100%' }}>
+      {/* `m-auto` on the sheet rather than `items-center` on the scroller: auto margins centre
+          what fits and give up the moment it does not, where centred alignment would keep
+          eating the top of a page taller than the window and put it out of reach. */}
+      <div className="relative flex h-full justify-center overflow-auto px-[clamp(16px,4vw,72px)] py-[26px]">
+        <div className="hud relative m-auto" style={{ width, maxWidth: '100%' }}>
           <div
             aria-hidden
             className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-[rgba(23,18,8,.6)] bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"

@@ -29,7 +29,7 @@ export function RouteScale({ arc }: { arc: ArcView }) {
       <div className="flex items-baseline justify-between pb-[7px]">
         <span className="eyebrow-dark">{fr.mapUi.routeScale}</span>
         {durationMinutes !== null && (
-          <span className="font-[var(--font-mono)] text-[10px] text-[var(--paper-dim)]">
+          <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim)]">
             {asHoursMinutes(durationMinutes)}
           </span>
         )}
@@ -42,7 +42,7 @@ export function RouteScale({ arc }: { arc: ArcView }) {
           return (
             <div
               key={rank}
-              className="overflow-hidden pt-[5px] font-[var(--font-mono)] text-[9px] tracking-[.14em] whitespace-nowrap uppercase"
+              className="overflow-hidden pt-[5px] font-(family-name:--font-mono) text-[9px] tracking-[.14em] whitespace-nowrap uppercase"
               style={{
                 flex: `${Math.max(0.02, segment.share)} 1 0`,
                 borderTop: `2px solid ${ink}`,

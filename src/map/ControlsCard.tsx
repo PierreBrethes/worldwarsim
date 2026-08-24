@@ -32,7 +32,7 @@ export function ControlsCard() {
   return (
     <div className="flex flex-col items-end gap-2">
       {open && (
-        <div className="hud w-[300px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-4 pt-3 pb-[14px] font-[var(--font-body)]">
+        <div className="hud w-[300px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-4 pt-3 pb-[14px] font-(family-name:--font-body)">
           <div className="flex items-baseline justify-between border-b border-[var(--ink-quiet)] pb-2">
             <span className="text-[9px] tracking-[.2em] text-[var(--paper-dim)] uppercase">
               {fr.mapUi.controlsHeader}
@@ -61,7 +61,7 @@ export function ControlsCard() {
         type="button"
         aria-label={fr.mapUi.controlsLabel}
         onClick={() => setOpen((previous) => !previous)}
-        className="hud h-[22px] w-[22px] cursor-pointer border border-[var(--ink-quiet)] bg-[var(--desk)] font-[var(--font-body)] text-[12px] leading-none text-[var(--paper-dim)] opacity-55 hover:opacity-100"
+        className="hud h-[22px] w-[22px] cursor-pointer border border-[var(--ink-quiet)] bg-[var(--desk)] font-(family-name:--font-body) text-[12px] leading-none text-[var(--paper-dim)] opacity-55 hover:opacity-100"
       >
         ?
       </button>
