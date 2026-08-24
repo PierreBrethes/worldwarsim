@@ -9,8 +9,14 @@ import { useClock } from '@/shell/clock';
 import { RESOURCES, type BuildingKey, type ResourceKey } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDayAndTime, asHoursMinutes } from '@/domain/duration';
-import type { ChainState, ChainView, ExtractionSiteView, PlayerView } from '@/domain/player-view';
-import { currentStock } from '@/domain/player-view';
+import type {
+  ChainState,
+  ChainView,
+  ExtractionSiteView,
+  PlayerView,
+  Resource,
+} from '@/domain/player-view';
+import { currentMinutes, currentStock } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
@@ -58,6 +64,8 @@ export function IndustryWindow({
           {fr.industry.lead}
         </p>
 
+        <RunningNotice view={view} now={now} />
+
         <div className="flex min-h-0 flex-1 flex-col overflow-auto @3xl:flex-row @3xl:items-stretch @3xl:overflow-hidden">
           <div className="flex min-w-0 flex-1 flex-col @3xl:min-h-0 @3xl:overflow-auto">
             <Header>{fr.industry.chainsHeader}</Header>
@@ -99,8 +107,8 @@ export function IndustryWindow({
               <ReserveRow
                 key={key}
                 resource={key}
+                reserve={view.me.resources[key]}
                 stock={currentStock(view.me.resources[key], view.loadedAt, now)}
-                cap={view.me.resources[key].cap}
               />
             ))}
             <p className="px-4 pt-3 pb-1 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
@@ -184,6 +192,27 @@ const regionName = (view: PlayerView, regionId: string): string =>
  *  which is what a raise needs, where a chain or a deposit only names a family. */
 const standingOn = (view: PlayerView, regionId: string) =>
   view.me.buildings.find((building) => building.regionId === regionId) ?? null;
+
+/**
+ * The single-construction sentence, **once for the whole window** — and above every section
+ * whose buttons it turns inert, not beside one of them. Written under each upgrade control it
+ * was the same twelve words four times over, and the banner already carries it: a datum has one
+ * house (`brief-degraissage-surfaces.md`). The lines keep it as a hover title, which is where a
+ * per-line answer belongs.
+ */
+function RunningNotice({ view, now }: { view: PlayerView; now: number }) {
+  const running = view.me.construction;
+  if (running === null) return null;
+
+  return (
+    <p className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[8px] text-[11.5px] leading-[1.45] text-[var(--ink)]">
+      {fr.construction.heldByConstruction(
+        running.name,
+        asHoursMinutes(currentMinutes(running.minutesLeft, view.loadedAt, now)),
+      )}
+    </p>
+  );
+}
 
 function Header({ children, note }: { children: string; note?: string }) {
   return (
@@ -351,7 +380,7 @@ function ChainSiteRow({
       <span className="min-w-0 flex-1 text-[12px] text-[var(--ink-soft)]">
         {fr.industry.inRegion(regionName(view, site.regionId))} · {fr.industry.level(site.level)}
       </span>
-      <UpgradeControl building={site} view={view} token={token} now={now} />
+      <UpgradeControl building={site} view={view} token={token} now={now} runningSaidElsewhere />
     </div>
   );
 }
@@ -625,7 +654,13 @@ function SiteRow({
         {fr.industry.perHour(site.perHour)}
       </span>
       {standing !== null && (
-        <UpgradeControl building={standing} view={view} token={token} now={now} />
+        <UpgradeControl
+          building={standing}
+          view={view}
+          token={token}
+          now={now}
+          runningSaidElsewhere
+        />
       )}
     </div>
   );
@@ -642,17 +677,32 @@ function SiteRow({
  */
 function ReserveRow({
   resource,
+  reserve,
   stock,
-  cap,
 }: {
   resource: ResourceKey;
+  reserve: Resource;
   stock: number;
-  cap: number;
 }) {
+  const cap = reserve.cap;
   const filled = cap === 0 ? 0 : stock / cap;
   const left = Math.max(0, cap - stock);
-  const note =
-    filled >= 1 ? fr.industry.atCap : filled >= SATURATION_MARK ? fr.industry.headroom(left) : null;
+
+  /**
+   * **A ceiling only costs something when something is arriving.** The reserves panel already
+   * reads it that way, and this row did not: a skirmish opens above the alloy ceiling by design
+   * (`startingAlloy` says where a player enters the curve), so "saturé — production perdue" was
+   * printed in the critical ink over a foundry nobody had built. A full gauge with no inflow is
+   * a normal state — full to the eye, silent in words.
+   */
+  const warns = reserve.ratePerHour > 0;
+  const note = !warns
+    ? null
+    : filled >= 1
+      ? fr.industry.atCap
+      : filled >= SATURATION_MARK
+        ? fr.industry.headroom(left)
+        : null;
 
   return (
     <div
@@ -717,7 +767,13 @@ function OtherRow({
             ? fr.industry.listeningUnfigured
             : fr.buildingEffects[building.key]}
         </p>
-        <UpgradeControl building={building} view={view} token={token} now={now} />
+        <UpgradeControl
+          building={building}
+          view={view}
+          token={token}
+          now={now}
+          runningSaidElsewhere
+        />
       </div>
     </div>
   );

@@ -21,6 +21,7 @@ const site = (overrides: Partial<Site> = {}): Site => ({
   hqLevel: 1,
   stocks: RICH,
   constructionRunning: false,
+  constructionHere: false,
   foundation: [],
   ...overrides,
 });
@@ -130,6 +131,51 @@ describe('what merely holds a line back', () => {
 
   it('leaves a payable line clickable', () => {
     expect(buildableOn(site(), CATALOG).every((option) => option.hold === null)).toBe(true);
+  });
+});
+
+/**
+ * **The lock belongs to the construction, not to the placement.** A key the format still owes
+ * costs nothing, stands at once and opens no site, so a running one has nothing to hold — the
+ * playtest of 19/08 lost two extractors and an arsenal behind a paid mill, and the server has
+ * been aligned on the same reading (`convex/constructions.ts`).
+ */
+describe('a placement the foundation owes, while a construction runs', () => {
+  const OWED: ReadonlyArray<BuildingKey> = ['foundry', 'warehouse'];
+
+  it('leaves the offered lines alive and holds the paid ones', () => {
+    const options = buildableOn(site({ constructionRunning: true, foundation: OWED }), CATALOG);
+    const free = options.filter((option) => option.free);
+    expect(free.map((option) => option.key)).toEqual(expect.arrayContaining([...OWED]));
+    expect(free.every((option) => option.hold === null)).toBe(true);
+    expect(
+      options
+        .filter((option) => !option.free)
+        .every((option) => option.hold === 'constructionRunning'),
+    ).toBe(true);
+  });
+
+  /** The ceiling is the one refusal the foundation does not buy off: it pays the price and the
+   *  wait, never a place on the map. */
+  it('still holds an offered line at the building ceiling', () => {
+    const options = buildableOn(
+      site({ constructionRunning: true, foundation: OWED, standingCount: 5, cap: 5 }),
+      CATALOG,
+    );
+    expect(options.filter((option) => option.free).every((o) => o.hold === 'buildingCap')).toBe(
+      true,
+    );
+  });
+
+  /** The hole the global lock used to hide: the ground under a running site is reserved by
+   *  nobody, and a free placement there would leave two buildings on one region. */
+  it('offers nothing at all on the region the construction is rising on', () => {
+    expect(
+      buildableOn(
+        site({ constructionRunning: true, constructionHere: true, foundation: OWED }),
+        CATALOG,
+      ),
+    ).toEqual([]);
   });
 });
 

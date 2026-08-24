@@ -35,11 +35,18 @@ export function UpgradeControl({
   view,
   token,
   now,
+  runningSaidElsewhere = false,
 }: {
   building: Building;
   view: PlayerView;
   token: string;
   now: number;
+  /**
+   * The single-construction sentence is written by the window itself, once. Under fifteen
+   * buildings the same twelve words are noise — the button stays inert either way, and the
+   * hover title still answers the one line the player is pointing at.
+   */
+  runningSaidElsewhere?: boolean;
 }) {
   const start = useMutation(api.constructions.start);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +92,7 @@ export function UpgradeControl({
           {fr.upgrade.action}
         </button>
       </div>
-      {held !== null && (
+      {held !== null && !(runningSaidElsewhere && hold?.kind === 'constructionRunning') && (
         <span className="max-w-[42ch] text-right text-[11px] leading-[1.35] text-[var(--ink-soft)]">
           {held}
         </span>

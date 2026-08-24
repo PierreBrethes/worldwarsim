@@ -629,6 +629,61 @@ describe('the foundation the season owes', () => {
   });
 
   /**
+   * **The lock belongs to the construction, not to the placement.** Playtest of 19/08: a paid
+   * mill launched before the offered mines, and "one construction at a time" then froze three
+   * placements that cost nothing, wait for nothing and open no site of their own. The rule
+   * still holds where it means something — the bill below.
+   */
+  it('places what the season owes while a paid construction runs', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const paid = await t.mutation(api.constructions.start, {
+      token,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
+    expect(paid.finishesAt).toBeGreaterThan(Date.now());
+    const spent = (await t.query(api.view.playerView, { token })).me.resources.alloy.stock;
+
+    const placed = await t.mutation(api.constructions.start, {
+      token,
+      building: 'foundry',
+      regionId: JURA,
+    });
+    expect(placed.cost).toEqual({});
+    expect(placed.finishesAt).toBe(Date.now());
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.buildings.map((building) => building.key)).toContain('foundry');
+    expect(view.me.resources.alloy.stock).toBe(spent);
+    // The paid site is untouched: what moved is what the offered placement is allowed to skip.
+    expect(view.me.construction?.key).toBe('barracks');
+  });
+
+  /**
+   * The hole the global lock used to hide. Nothing reserves the ground under a running site —
+   * `placementRefusal` reads the buildings standing, never the constructions — so an offered
+   * placement aimed there would leave two buildings on one region once the `finish` lands.
+   */
+  it('refuses an offered placement on the region a construction is rising on', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES });
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'foundry', regionId: ARDENNES }),
+    ).rejects.toThrow('REGION_TAKEN');
+  });
+
+  it('still refuses a paid placement while a construction runs', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES });
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA }),
+    ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
+  });
+
+  /**
    * **No fatal first move.** Whatever a player builds first — and he may build anything the
    * ground takes — the foundation is still his to place afterwards. The ceiling is the only
    * refusal that can stand in the way, and it is the one the headquarters answers: hence the

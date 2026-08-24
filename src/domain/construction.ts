@@ -45,6 +45,9 @@ export type Site = {
   readonly hqLevel: number;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
   readonly constructionRunning: boolean;
+  /** A construction rising on **this very region**: nothing stands yet, but the ground is
+   *  taken — the `finish` will fill it, and a second placement would leave two on one region. */
+  readonly constructionHere: boolean;
   /** What the season still owes (`me.foundation`), served — never re-derived here. */
   readonly foundation: ReadonlyArray<BuildingKey>;
 };
@@ -63,6 +66,8 @@ export function buildableOn(
   site: Site,
   catalog: Readonly<Record<BuildingKey, BuildSpec>>,
 ): ReadonlyArray<BuildOption> {
+  if (site.constructionHere) return [];
+
   const region = { deposit: site.deposit, coastal: site.coastal };
   return BUILDINGS.flatMap((key) => {
     if (key === site.standing) return [];
@@ -102,8 +107,8 @@ export function buildableOn(
 
     /**
      * A key the foundation still owes is placed for nothing and stands at once — so it carries
-     * no bill and no delay, and matter can never hold it back. The ceiling still can: the
-     * foundation buys the price and the wait, never a place on the map.
+     * no bill and no delay, and neither matter nor a running site can hold it back. The
+     * ceiling still can: the foundation buys the price and the wait, never a place on the map.
      */
     const free = site.foundation.includes(key);
     const cost = free ? {} : spec.cost;
@@ -115,16 +120,22 @@ export function buildableOn(
         minutes: free ? 0 : spec.minutes,
         reason: reasonFor(key, site.deposit),
         free,
-        hold: site.constructionRunning
-          ? 'constructionRunning'
-          : asThingsStand === 'BUILDING_CAP_REACHED'
-            ? 'buildingCap'
-            : free || affordable(cost, site.stocks)
-              ? null
-              : 'materials',
+        hold: holdOn(site, free, cost, asThingsStand === 'BUILDING_CAP_REACHED'),
       } satisfies BuildOption,
     ];
   });
+}
+
+/**
+ * What stands between a line and the click, most immediate first. **A free placement is never
+ * held by a construction**: it opens none and waits for nothing, so the single-site rule has
+ * nothing to say about it — the server refuses it the same way (`constructions.start`), and a
+ * playtest lost three offered buildings behind one paid mill because both said otherwise.
+ */
+function holdOn(site: Site, free: boolean, cost: Cost, cappedByCeiling: boolean): BuildHold | null {
+  if (!free && site.constructionRunning) return 'constructionRunning';
+  if (cappedByCeiling) return 'buildingCap';
+  return free || affordable(cost, site.stocks) ? null : 'materials';
 }
 
 const affordable = (cost: Cost, stocks: Readonly<Record<ResourceKey, number>>): boolean =>
@@ -163,6 +174,7 @@ export function siteOf(view: PlayerView, regionId: string, now: number): Site | 
     hqLevel: view.me.hqLevel,
     stocks,
     constructionRunning: view.me.construction !== null,
+    constructionHere: view.me.construction?.regionId === regionId,
     foundation: view.me.foundation,
   };
 }

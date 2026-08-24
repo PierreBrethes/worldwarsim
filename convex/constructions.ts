@@ -33,21 +33,25 @@ export const start = mutation({
     requirePlayable(season);
 
     /**
-     * **One construction at a time per player, never one per region** (ADR 0015). `.unique()`
-     * is the whole rule, and it is a decision, not a shortcut: a site per region would make
-     * expansion speed a gift of Natural Earth's admin-1 cutting — 9 regions for Bolivia, 51
-     * for the United States, 101 for France, 232 for the United Kingdom. An order of magnitude
-     * of national advantage, handed out by a data file.
+     * **One construction at a time per player, never one per region** (ADR 0015). It is a
+     * decision, not a shortcut: a site per region would make expansion speed a gift of Natural
+     * Earth's admin-1 cutting — 9 regions for Bolivia, 51 for the United States, 101 for
+     * France, 232 for the United Kingdom. An order of magnitude of national advantage, handed
+     * out by a data file.
      *
      * The day this ceiling bites too hard, the regulator is a **global ceiling carried by the
      * headquarters**, like the movement slots: same building, same mechanic, one idea to
      * remember. Never a counter per region.
+     *
+     * The row is read here and refused far below, just before the bill: **the lock belongs to
+     * the construction, not to the placement.** A key the foundation still owes opens no
+     * construction and waits for nothing, so a running site has nothing to say about it —
+     * refusing it here cost a playtest three free placements behind a paid mill.
      */
     const running = await ctx.db
       .query('constructions')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .unique();
-    if (running) fail('CONSTRUCTION_IN_PROGRESS');
 
     const region = regionFacts(regionId);
     if (!region) fail('UNKNOWN_REGION', { regionId });
@@ -83,6 +87,19 @@ export const start = mutation({
       fail('HQ_ALREADY_BUILT');
     }
 
+    const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
+
+    /**
+     * **A region a construction is rising on counts as taken.** The global lock used to hide
+     * this hole: nothing reserves the ground under a running site, so a placement that skips
+     * the lock — a free one — would put a second building on the region the `finish` is about
+     * to fill. A raise is not concerned: the building it raises is already standing there, and
+     * `placementRefusal` reads it below.
+     */
+    if (onRegion === null && running !== null && running.regionId === regionId) {
+      fail('REGION_TAKEN', { regionId, standing: running.building });
+    }
+
     const format = formatOf(season.durationHours);
     const hqLevel = levelOf(buildings, 'hq');
     const cap = buildingCap(format, hqLevel);
@@ -90,20 +107,10 @@ export const start = mutation({
     const refusal = placementRefusal(
       building,
       region,
-      {
-        onRegion: buildings.find((held) => held.regionId === regionId)?.key ?? null,
-        standing: buildings.length,
-        cap,
-        hqLevel,
-      },
+      { onRegion, standing: buildings.length, cap, hqLevel },
       requiredLevel,
     );
-    if (refusal === 'REGION_TAKEN') {
-      fail(refusal, {
-        regionId,
-        standing: buildings.find((held) => held.regionId === regionId)?.key,
-      });
-    }
+    if (refusal === 'REGION_TAKEN') fail(refusal, { regionId, standing: onRegion });
     if (refusal === 'BUILDING_CAP_REACHED') fail(refusal, { cap, hqLevel });
     // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
     // a wall — and the tier is the one refusal a player can always act on.
@@ -127,10 +134,11 @@ export const start = mutation({
      * the opening that is a decision; the price and the wait on what is not one are what the
      * format takes back. So as long as a key of the foundation is still owed, its first
      * placement costs nothing and stands at once — every other rule above having already had
-     * its say, without exception: deposit, one building per region, home country, the ceiling
-     * the headquarters carries, and the single construction at a time.
+     * its say, without exception: deposit, one building per region, home country, and the
+     * ceiling the headquarters carries.
      *
-     * It opens no construction of its own: there is nothing to wait for.
+     * It opens no construction of its own: there is nothing to wait for — which is exactly why
+     * the single-construction lock is refused below it and not above.
      */
     if (
       level === 1 &&
@@ -142,6 +150,8 @@ export const start = mutation({
       await ctx.db.insert('buildings', { playerId: player._id, key: building, regionId, level: 1 });
       return { finishesAt: now, cost: {}, level };
     }
+
+    if (running) fail('CONSTRUCTION_IN_PROGRESS');
 
     const cost = buildCost(building, level);
     await debit(ctx, player._id, cost, now);
