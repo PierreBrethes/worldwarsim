@@ -177,6 +177,17 @@ export type CombatReport = {
   readonly reduced: { readonly by: string; readonly whom: string } | null;
 };
 
+/**
+ * A nation that entered a season already running (`convex/seasons.ts`, `enterWar`). Public to
+ * everybody, and deliberately: the journal is the only place that says a belligerent has come
+ * in, and his flag is on the map from that hour anyway.
+ */
+export type WarEntry = {
+  readonly nickname: string;
+  readonly nation: string;
+  readonly at: number;
+};
+
 export type CombatTally = {
   readonly troops: number;
   /** In men and machines, never in percent (ADR 0014). */

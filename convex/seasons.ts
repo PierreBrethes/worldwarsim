@@ -3,7 +3,7 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { gameCode, playableRegion } from '../src/domain/off-season';
-import { RESOURCES } from '../src/domain/ids';
+import { NATIONS, RESOURCES, type SeasonFormat } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
 import { capitalRegionOf } from './regions';
@@ -46,6 +46,61 @@ export function requireStarted(season: Doc<'seasons'>): void {
   if (season.status === 'lobby') fail('SEASON_NOT_LAUNCHED');
 }
 
+/**
+ * **When this seat entered the war**, `null` while it is still out of it. The one reader of the
+ * raw field, because the raw field has three states and only two meanings: a row written before
+ * the latecomer landed carries **no** field, and its player entered the war with everybody else
+ * at launch. An explicit `null` is the other thing entirely — a seat taken on a running season
+ * whose owner is still picking his nation.
+ */
+export function warEntryOf(player: Doc<'players'>, season: Doc<'seasons'>): number | null {
+  if (player.enteredWarAt !== undefined) return player.enteredWarAt;
+  return season.status === 'lobby' ? null : season.launchedAt;
+}
+
+export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean =>
+  warEntryOf(player, season) !== null;
+
+/**
+ * **The kit, and one building** — handed out once, by the only two roads that lead to a board:
+ * the launch, for everybody standing in the lobby, and the entry into war, for whoever arrives
+ * afterwards. One writing of the endowment, so a change to it cannot reach one road and miss
+ * the other.
+ *
+ * The headquarters goes on the region of the 1940 capital (ADR 0015), at the level its format
+ * plants it. Everything else is put up or does not exist — but the HQ caps every other building,
+ * so leaving it at zero made the first construction of a season forcibly the HQ, without a rule
+ * saying so.
+ *
+ * The foundation of the format is **not** raised here: nothing is placed for the player. A
+ * belligerent whose foundation is still owed is a normal state, and the free placements wait
+ * for him to choose his regions (`constructions.start`).
+ */
+async function endow(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  format: SeasonFormat,
+  at: number,
+): Promise<void> {
+  if (!isNation(player.nation)) fail('UNKNOWN_NATION', { nickname: player.nickname });
+  const kit = startingStock(format);
+  for (const key of RESOURCES) {
+    await ctx.db.insert('resources', {
+      playerId: player._id,
+      key,
+      stock: kit[key],
+      updatedAt: at,
+    });
+  }
+  await ctx.db.insert('buildings', {
+    playerId: player._id,
+    key: 'hq',
+    regionId: capitalRegionOf(player.nation),
+    level: SEASON_FORMATS[format].hqLevelAtLaunch,
+  });
+  await ctx.db.patch(player._id, { enteredWarAt: at });
+}
+
 export const create = mutation({
   args: {
     nickname: v.string(),
@@ -75,6 +130,7 @@ export const create = mutation({
       doctrine: null,
       ready: false,
       restWindow: DEFAULT_REST_WINDOW,
+      enteredWarAt: null,
     });
     return { code, token };
   },
@@ -103,11 +159,32 @@ export const join = mutation({
       .withIndex('byCode', (q) => q.eq('code', code.trim().toUpperCase()))
       .unique();
     if (!season) fail('UNKNOWN_GAME_CODE');
-    if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
+    /**
+     * **One joins a running season at any hour**, with no window and no switch to open — only a
+     * concluded season closes its door. It is a choice made for the phase of testing between
+     * friends, and it is to be revisited before the game opens any wider: a nation walking in on
+     * the last hour of a seven-day campaign takes the field against armies it could never have
+     * built, and nothing here compensates for that (the latecomer gets the launch kit as it is).
+     */
+    if (season.status === 'concluded') fail('SEASON_CONCLUDED');
     const present = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
       .collect();
+    /**
+     * A running season hands out no seat it cannot arm: every belligerent already holds a
+     * nation, so a board with none left would open a lobby whose only screen is a wall of taken
+     * flags. The refusal is said here rather than discovered there — **before** the seat count,
+     * because at eight nations for eight seats the two fire together and "no nation left" is the
+     * one that names the real obstacle to a latecomer.
+     *
+     * The theatre is the one frozen at launch — a latecomer does not redraw it. It does not
+     * narrow the eight nations *yet*: the day a theatre carries its own roster, this is where it
+     * is read.
+     */
+    if (season.status === 'launched' && freeNations(present).length === 0) {
+      fail('NO_FREE_NATION');
+    }
     if (present.length >= MAX_PLAYERS) fail('LOBBY_FULL', { maximum: MAX_PLAYERS });
     const token = crypto.randomUUID();
     await ctx.db.insert('players', {
@@ -119,6 +196,7 @@ export const join = mutation({
       doctrine: null,
       ready: false,
       restWindow: DEFAULT_REST_WINDOW,
+      enteredWarAt: null,
     });
     return { token };
   },
@@ -174,6 +252,9 @@ async function previewOf(ctx: QueryCtx, token: string) {
     creator: player.creator,
     nation: player.nation,
     doctrine: player.doctrine,
+    /** A seat on a running season whose owner has not entered the war goes back to the lobby,
+     *  not to the board: he holds no nation, and the board could not draw him. */
+    atWar: isAtWar(player, season),
     /** Enough for the home screen to say who took the season without opening the board — the
      *  only end screen the test victory gets, with the journal's headline. */
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
@@ -193,7 +274,9 @@ export const lobby = query({
       status: season.status,
       durationHours: season.durationHours,
       compensation: season.compensation,
-      playableRegion: playableRegion(present.length),
+      /** Frozen at launch, and only widening while the lobby is still open: a latecomer joins a
+       *  theatre, he does not redraw it. */
+      playableRegion: season.playableRegion ?? playableRegion(present.length),
       me: {
         nickname: player.nickname,
         creator: player.creator,
@@ -201,6 +284,9 @@ export const lobby = query({
         doctrine: player.doctrine,
         ready: player.ready,
         restWindow: player.restWindow,
+        /** What tells the lobby which of its two faces to wear: the one before the launch, or
+         *  the entry into war of somebody who arrived after it (`enterWar`). */
+        atWar: isAtWar(player, season),
       },
       // The id travels so the lobby list has a stable React key: nicknames are not unique
       // (nothing forbids two "Pierre"), and keying on them collapses two rows into one.
@@ -211,6 +297,9 @@ export const lobby = query({
         creator: entry.creator,
         nation: entry.nation,
         ready: entry.ready,
+        /** On a running season "prêt" means nothing any more: what a row says is whether that
+         *  seat is a nation in the field or somebody still at the door. */
+        atWar: isAtWar(entry, season),
       })),
     };
   },
@@ -240,35 +329,40 @@ export const launch = mutation({
       launchedAt: now,
       playableRegion: playableRegion(present.length),
     });
-    /**
-     * The starting kit, and **one building**: the headquarters, on the region of the 1940
-     * capital (ADR 0015), at the level its format plants it. Everything else is put up or does
-     * not exist — but the HQ caps every other building, so leaving it at zero made the first
-     * construction of a season forcibly the HQ, without a rule saying so.
-     *
-     * The foundation of the format is **not** raised here: nothing is placed for the player.
-     * A launched season whose foundation is still owed is a normal state, and the free
-     * placements wait for him to choose his regions (`constructions.start`).
-     */
     const format = formatOf(season.durationHours);
-    const kit = startingStock(format);
-    for (const entry of present) {
-      if (!isNation(entry.nation)) fail('UNKNOWN_NATION', { nickname: entry.nickname });
-      for (const key of RESOURCES) {
-        await ctx.db.insert('resources', {
-          playerId: entry._id,
-          key,
-          stock: kit[key],
-          updatedAt: now,
-        });
-      }
-      await ctx.db.insert('buildings', {
-        playerId: entry._id,
-        key: 'hq',
-        regionId: capitalRegionOf(entry.nation),
-        level: SEASON_FORMATS[format].hqLevelAtLaunch,
-      });
-    }
+    for (const entry of present) await endow(ctx, entry, format, now);
+  },
+});
+
+/**
+ * **The entry into war of a latecomer** — the launch he missed, for him alone. He is endowed
+ * exactly as the others were (`endow`): same kit, same headquarters, same foundation still owed,
+ * and no compensation for the hours he was not there. The measure of that handicap will come
+ * from a real case, not from a number invented here.
+ *
+ * No "ready" and no relaunch: the launch happened, the season is running, and nobody waits for
+ * him. What he has to have is what a seat needs to become a nation — a free flag and a doctrine.
+ */
+export const enterWar = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(season);
+    /** Twice-clicked is not an error: the second call finds a belligerent and hands out
+     *  nothing. Answering with a refusal would be telling him his own entry failed. */
+    if (isAtWar(player, season)) return;
+    if (player.nation === null || player.doctrine === null) fail('NATION_AND_DOCTRINE_REQUIRED');
+
+    const present = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect();
+    const holder = present.find(
+      (entry) => entry.nation === player.nation && entry._id !== player._id,
+    );
+    if (holder) fail('NATION_TAKEN', { nation: player.nation, nickname: holder.nickname });
+
+    await endow(ctx, player, formatOf(season.durationHours), Date.now());
   },
 });
 
@@ -345,6 +439,15 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
   ];
   for (const doc of owned) await ctx.db.delete(doc._id);
 }
+
+/**
+ * The nations nobody holds. Read off the seats present rather than off a stored roster: a
+ * reservation is released with a click as long as the holder has not entered the war.
+ */
+export const freeNations = (
+  present: ReadonlyArray<Doc<'players'>>,
+): ReadonlyArray<(typeof NATIONS)[number]> =>
+  NATIONS.filter((nation) => !present.some((entry) => entry.nation === nation));
 
 async function freeCode(ctx: MutationCtx): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {

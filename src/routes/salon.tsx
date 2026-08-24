@@ -44,6 +44,7 @@ function ConnectedLobby({ token }: { token: string }) {
   const chooseDoctrine = useMutation(api.players.chooseDoctrine);
   const declareReady = useMutation(api.players.declareReady);
   const launch = useMutation(api.seasons.launch);
+  const enterWar = useMutation(api.seasons.enterWar);
   const destroy = useMutation(api.seasons.destroy);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -65,17 +66,24 @@ function ConnectedLobby({ token }: { token: string }) {
   const holderOf = (nation: string) => lobby.players.find((player) => player.nation === nation);
   const allReady = lobby.players.length >= 2 && lobby.players.every((player) => player.ready);
   const pace = lobby.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
-  const launching = lobby.status === 'launched';
+  /**
+   * **The two faces of this screen.** A season already running and a player who has not entered
+   * it is a latecomer: he picks a flag and a doctrine on a board that is being fought over, then
+   * enters — no "ready", nobody to wait for, no relaunch (`seasons.enterWar`). Once he is a
+   * belligerent the same launched status means the opposite: walk onto the board.
+   */
+  const entering = lobby.status === 'launched' && !lobby.me.atWar;
+  const launching = lobby.status === 'launched' && lobby.me.atWar;
   const regionName =
     fr.playableRegions[lobby.playableRegion as PlayableRegion] ?? lobby.playableRegion;
 
   const checks = [
     { label: fr.lobby.checkNation, done: lobby.me.nation !== null },
     { label: fr.lobby.checkDoctrine, done: lobby.me.doctrine !== null },
-    { label: fr.lobby.checkAllReady, done: allReady },
+    ...(entering ? [] : [{ label: fr.lobby.checkAllReady, done: allReady }]),
   ];
   const missing = checks.filter((check) => !check.done).length;
-  const freeSeats = Math.min(2, 8 - lobby.players.length);
+  const freeSeats = entering ? 0 : Math.min(2, 8 - lobby.players.length);
   const freeNations = NATIONS.filter((nation) => holderOf(nation) === undefined).length;
 
   const copyCode = () => {
@@ -96,7 +104,9 @@ function ConnectedLobby({ token }: { token: string }) {
                 {nationLabel(lobby.me.nation)}
               </span>
               <span className="flex-1" />
-              <span className="eyebrow">{fr.lobby.header(pace)}</span>
+              <span className="eyebrow">
+                {entering ? fr.lobby.enterWarHeader : fr.lobby.header(pace)}
+              </span>
               <span className="eyebrow">{fr.lobby.regionLabel(regionName)}</span>
               <button
                 type="button"
@@ -139,7 +149,9 @@ function ConnectedLobby({ token }: { token: string }) {
             <div className="mx-[30px] flex flex-col @2xl:flex-row @2xl:items-stretch">
               <section className="min-w-0 flex-1 pt-4 pb-2 @2xl:pr-[26px]">
                 <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                  <span className="eyebrow">{fr.lobby.nationsHeader}</span>
+                  <span className="eyebrow">
+                    {entering ? fr.lobby.enterWarNationsHeader : fr.lobby.nationsHeader}
+                  </span>
                   <span className="text-[10.5px] text-[var(--ink-faint)]">
                     {fr.lobby.nationsFree(freeNations)}
                   </span>
@@ -199,7 +211,7 @@ function ConnectedLobby({ token }: { token: string }) {
                   })}
                 </div>
                 <p className="mt-3 text-[11px] leading-[1.55] text-[var(--ink-note)]">
-                  {fr.lobby.reservationNote}
+                  {entering ? fr.lobby.enterWarNote : fr.lobby.reservationNote}
                 </p>
               </section>
 
@@ -214,7 +226,9 @@ function ConnectedLobby({ token }: { token: string }) {
 
               <aside className="w-full pt-4 pb-2 @2xl:w-[290px] @2xl:shrink-0 @2xl:pl-[26px]">
                 <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
-                  <span className="eyebrow">{fr.lobby.playersHeader}</span>
+                  <span className="eyebrow">
+                    {entering ? fr.lobby.belligerents : fr.lobby.playersHeader}
+                  </span>
                   <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]">
                     {lobby.players.length} / 8
                   </span>
@@ -239,9 +253,19 @@ function ConnectedLobby({ token }: { token: string }) {
                       </span>
                       <span
                         className="shrink-0 text-[9px] tracking-[.14em] uppercase"
-                        style={{ color: player.ready ? 'var(--valid)' : 'var(--ink-faint)' }}
+                        style={{
+                          color: (entering ? player.atWar : player.ready)
+                            ? 'var(--valid)'
+                            : 'var(--ink-faint)',
+                        }}
                       >
-                        {player.ready ? fr.lobby.ready : fr.lobby.waiting}
+                        {entering
+                          ? player.atWar
+                            ? fr.lobby.atWar
+                            : fr.lobby.waiting
+                          : player.ready
+                            ? fr.lobby.ready
+                            : fr.lobby.waiting}
                       </span>
                     </li>
                   ))}
@@ -312,19 +336,46 @@ function ConnectedLobby({ token }: { token: string }) {
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
-                  className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                    lobby.me.ready
-                      ? 'bg-[var(--ink)] text-[var(--paper)]'
-                      : 'hover:bg-[rgba(42,33,24,.08)]'
-                  }`}
-                >
-                  {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
-                </button>
+                {/**
+                 * **Entering the war replaces "ready" and "launch" at once**: nobody is waiting
+                 * for the latecomer and there is nothing left to launch. One button, in the same
+                 * place as the founder's, owning the same irreversibility.
+                 */}
+                {entering ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={missing > 0}
+                      onClick={() => act(() => enterWar({ token }))}
+                      className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
+                        missing === 0
+                          ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
+                          : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+                      }`}
+                    >
+                      {fr.lobby.enterWar}
+                    </button>
+                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                      {missing === 0
+                        ? fr.lobby.enterWarSeedNote
+                        : fr.lobby.enterWarMissing(missing)}
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
+                    className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
+                      lobby.me.ready
+                        ? 'bg-[var(--ink)] text-[var(--paper)]'
+                        : 'hover:bg-[rgba(42,33,24,.08)]'
+                    }`}
+                  >
+                    {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
+                  </button>
+                )}
 
-                {lobby.me.creator ? (
+                {entering ? null : lobby.me.creator ? (
                   <>
                     <button
                       type="button"
@@ -369,7 +420,7 @@ function ConnectedLobby({ token }: { token: string }) {
             )}
 
             <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
-              <span>{fr.lobby.footerLeft}</span>
+              <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>
               <span className="font-(family-name:--font-mono) tracking-[.12em]">
                 {fr.lobby.footerCode(lobby.code)}
               </span>

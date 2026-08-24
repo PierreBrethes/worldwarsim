@@ -55,6 +55,21 @@ export default defineSchema({
     doctrine: v.union(DOCTRINE, v.null()),
     ready: v.boolean(),
     restWindow: REST_WINDOW,
+    /**
+     * **When this player entered the war** — the hour his kit was handed out, which is the hour
+     * he became a belligerent. `null` is a seat that has not entered yet: a lobby, or a
+     * latecomer who joined a running season and is still choosing his nation (`seasons.join`).
+     *
+     * It is an event, not a second truth: nothing recomputes it, and the endowment is written
+     * in the same transaction that stamps it (`seasons.ts`, `endow`).
+     *
+     * `v.optional` for the same reason as the season's `winnerId`: rows written before this
+     * landed carry no field at all. **Absent and `null` do not mean the same thing here** —
+     * absent is a legacy row, resolved against the season's own launch by `warEntryOf`, and
+     * `null` is a seat explicitly still out of the war. Every reader goes through that one
+     * function.
+     */
+    enteredWarAt: v.optional(v.union(v.number(), v.null())),
   })
     .index('byToken', ['token'])
     .index('bySeason', ['seasonId']),

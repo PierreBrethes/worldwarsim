@@ -228,6 +228,8 @@ export const fr = {
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
+    NO_FREE_NATION: () => 'plus aucune nation libre dans ce théâtre — la saison est complète',
+    NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,
     NATION_AND_DOCTRINE_REQUIRED: () => 'être prêt exige une nation et une doctrine',
@@ -430,7 +432,23 @@ export const fr = {
     destroyConfirm: 'confirmer — tout est effacé',
     destroyCancel: 'annuler',
     destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
+    /**
+     * **Le salon a deux visages** : celui d'avant le lancement, et celui d'un retardataire qui
+     * rejoint une saison déjà en cours. Rien à y déclarer prêt, personne à attendre — la guerre
+     * a commencé sans lui et ne le rattrapera pas : il reçoit le kit de lancement tel quel.
+     */
+    enterWarHeader: 'entrée en guerre — la saison court déjà',
+    enterWarNote:
+      'La saison a été lancée sans vous. Vous entrez avec la dotation de départ, sans compensation pour les heures écoulées : les autres ont bâti pendant ce temps-là.',
+    enterWar: 'entrer en guerre — irréversible',
+    enterWarMissing: (count: number) =>
+      `il manque ${count} condition${plural(count, '', 's')} — nation et doctrine`,
+    enterWarSeedNote: 'votre nation apparaît au journal de tous les belligérants',
+    enterWarNationsHeader: 'nations encore libres',
+    belligerents: 'belligérants',
+    atWar: 'en guerre',
     footerLeft: 'la partie commence quand le fondateur lance — pas avant',
+    footerEnterWar: 'la saison court — votre entrée est immédiate',
     footerCode: (code: string) => `salon ${code}`,
     pace48: '48 heures',
     pace168: '7 jours',
@@ -615,6 +633,10 @@ export const fr = {
 
   journal: {
     editionOf: (time: string) => `édition de ${time}`,
+    /** La manchette d'une entrée en guerre — le seul canal qui l'annonce (aucun autre écran ne
+     *  dit qu'un belligérant de plus est entré). */
+    warEntry: (nickname: string, nation: string) =>
+      `${nation.toUpperCase()} ENTRE EN GUERRE — ${nickname} rejoint le conflit`,
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     masthead: 'LE JOURNAL DES OPÉRATIONS',

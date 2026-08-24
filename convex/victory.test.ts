@@ -169,6 +169,29 @@ describe('the simplified Domination', () => {
   });
 
   /**
+   * **The threshold is read at the evaluation, never at the launch** — which is what makes a
+   * season joinable while it runs (`seasons.enterWar`). Three nations ask for one scalp; the
+   * hour a fourth enters the war, they ask for two. Sitting in the lobby of a running season
+   * moves nothing: a seat is not a belligerent.
+   */
+  it('recounts the threshold when a nation enters the war after the launch', async () => {
+    const t = boot();
+    const [creator] = await launchedSeason(t, 3);
+    const targetNow = async () =>
+      (await t.query(api.view.playerView, { token: creator! })).season.reduction.target;
+    expect(await targetNow()).toBe(1);
+
+    const { code } = await seasonOf(t);
+    const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    expect(await targetNow()).toBe(1);
+
+    await t.mutation(api.players.reserveNation, { token: late, nation: 'japan' });
+    await t.mutation(api.players.chooseDoctrine, { token: late, doctrine: 'domination' });
+    await t.mutation(api.seasons.enterWar, { token: late });
+    expect(await targetNow()).toBe(2);
+  });
+
+  /**
    * **A pass won by a camp counts, and its owner ordered nothing during it** (ADR 0019 §3,
    * ratified 18/08). `resolveContact` credits the attacker, and at a camp the attacker is the
    * force that was already standing there — so a player advances his condition while asleep.

@@ -102,15 +102,17 @@ function ConnectedHome() {
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
 
   /**
-   * A launched season has no lobby left to show: resuming means walking back onto the
-   * board. The sequence then serves as an airlock — it covers the map's loading.
+   * A launched season has no lobby left to show **to a belligerent**: resuming means walking
+   * back onto the board. The sequence then serves as an airlock — it covers the map's loading.
    *
    * A concluded season walks back onto the board like a running one: the wipe is manual, and
    * reading the game back is exactly what the season is kept for.
    */
   const resume = (seat: Seat) => {
     keepToken(seat.token);
-    if (seat.status === 'lobby') toLobby();
+    /** A seat on a running season whose owner has not entered the war goes back to the lobby
+     *  too: he holds no nation yet, and it is there that he enters (`seasons.enterWar`). */
+    if (seat.status === 'lobby' || !seat.atWar) toLobby();
     else setResuming(seat);
   };
 

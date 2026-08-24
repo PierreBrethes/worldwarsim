@@ -5,7 +5,7 @@ import { fr } from '@/i18n/fr';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
-import { combatDispatches } from '@/domain/journal';
+import { journalDispatches } from '@/domain/journal';
 import { formatWindow } from '@/domain/rest-window';
 import { bearingDegrees, type LonLat } from '@/domain/geo';
 import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
@@ -96,7 +96,12 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     },
     buildCatalog: server.buildCatalog,
     arcs: [...(server.movements ?? []).map(asArc), ...(server.detected ?? []).map(asDetectedArc)],
-    journal: combatDispatches(server.reports ?? [], server.season.reduction ?? null),
+    journal: journalDispatches(
+      server.reports ?? [],
+      server.season.reduction ?? null,
+      // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
+      server.warEntries ?? [],
+    ),
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,

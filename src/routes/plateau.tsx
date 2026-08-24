@@ -178,13 +178,14 @@ export const Route = createFileRoute('/plateau')({
 });
 
 /**
- * The three outcomes of a failed board subscription. Two are ordinary and get a route of
- * their own: a season still in the lobby sends the player back to the lobby, a token the
- * server does not know gets dropped. Everything else is a genuine failure and says so.
+ * The outcomes of a failed board subscription. Three are ordinary and get a route of their own:
+ * a season still in the lobby and a seat whose owner has not entered the war both send the
+ * player back to the lobby, and a token the server does not know gets dropped. Everything else
+ * is a genuine failure and says so.
  */
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
-  if (code === 'SEASON_NOT_LAUNCHED') return <Navigate to="/salon" />;
+  if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') return <Navigate to="/salon" />;
   if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') return <StaleToken to="/accueil" />;
   return <ErrorScreen error={error} reset={reset} />;
 }

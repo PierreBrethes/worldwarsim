@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
+import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
@@ -25,7 +26,7 @@ import { homeCountryOf, regionFacts, regionsOf } from './regions';
 import { isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
-import { playerByToken, requireStarted } from './seasons';
+import { isAtWar, playerByToken, requireStarted, warEntryOf } from './seasons';
 import { troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 
@@ -34,6 +35,9 @@ export const playerView = query({
   handler: async (ctx, { token }) => {
     const { player, season } = await playerByToken(ctx, token);
     requireStarted(season);
+    /** A seat taken on a running season is not a nation yet: its owner holds no flag, and the
+     *  board has nothing to draw. He is sent back to the lobby, to enter the war (`enterWar`). */
+    if (!isAtWar(player, season)) fail('NOT_AT_WAR');
     const now = Date.now();
 
     const economy = await economyOf(ctx, player._id, now);
@@ -119,12 +123,13 @@ export const playerView = query({
       ]),
     ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
 
-    const others = (
-      await ctx.db
-        .query('players')
-        .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-        .collect()
-    ).filter((entry) => entry._id !== player._id);
+    const seats = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect();
+    /** The belligerents, never the seats: somebody who joined a running season and is still
+     *  choosing his flag is nobody's opponent yet, and would show up as a nation-less one. */
+    const others = seats.filter((entry) => entry._id !== player._id && isAtWar(entry, season));
 
     /**
      * **The board of the test victory, public and named** (`convex/victory.ts`). It is the one
@@ -462,6 +467,21 @@ export const playerView = query({
        * and decides which of the two states it is in.
        */
       detected: await detectedArcs(ctx, player, outposts, now),
+      /**
+       * **Who came in after the launch, and when.** Everybody reads the same list: a new
+       * belligerent is not a secret — his flag is on the map from his first hour, and the
+       * journal is the only channel that says a nation has entered the war (nothing else on the
+       * board announces it).
+       *
+       * The launch itself is not in here. Those nations did not *enter* the war, they opened
+       * it, and a headline naming all of them at the same minute is a mobilisation order, not
+       * news.
+       */
+      warEntries: seats.flatMap((seat) => {
+        const at = warEntryOf(seat, season);
+        if (at === null || season.launchedAt === null || at <= season.launchedAt) return [];
+        return [{ nickname: seat.nickname, nation: seat.nation ?? seat.nickname, at }];
+      }),
       journal: [],
       loadedAt: now,
       opponents: others.map((other) => ({

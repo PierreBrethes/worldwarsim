@@ -4,6 +4,7 @@ import { api } from './_generated/api';
 import type { Id, TableNames } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
+  NATIONS,
   SCOUT_RADIUS_KM,
   SEASON_FORMATS,
   buildCost,
@@ -60,15 +61,10 @@ describe('creating and joining', () => {
     expect(lobby.players).toHaveLength(1);
   });
 
-  it('rejects an unknown code and a launched season', async () => {
+  it('rejects an unknown code', async () => {
     const t = boot();
     await expect(t.mutation(api.seasons.join, { code: 'ZZZZZZ', nickname: 'X' })).rejects.toThrow(
       'UNKNOWN_GAME_CODE',
-    );
-    const { code, creator } = await readyToLaunch(t);
-    await t.mutation(api.seasons.launch, { token: creator });
-    await expect(t.mutation(api.seasons.join, { code, nickname: 'Tard' })).rejects.toThrow(
-      'SEASON_ALREADY_LAUNCHED',
     );
   });
 
@@ -81,6 +77,141 @@ describe('creating and joining', () => {
     expect((await t.query(api.seasons.lobby, { token: creator })).playableRegion).toBe(
       'europe-med',
     );
+  });
+});
+
+/**
+ * **L'entrée en guerre** — one joins a running season at any hour, and the season answers by
+ * handing out the launch kit and nothing more (decision of 24/08). What these cases pin down is
+ * the part a reader would not guess: the endowment is the very one the launch hands out, the
+ * theatre does not move, and the threshold of the test victory recounts on the entry rather than
+ * on the join.
+ */
+describe('joining a running season', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Nation and doctrine picked on a season already running — everything the door asks for. */
+  async function enlist(t: ReturnType<typeof boot>, code: string, nation: string) {
+    const { token } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    await t.mutation(api.players.reserveNation, { token, nation });
+    await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'influence' });
+    return token;
+  }
+
+  it('is accepted on a launched season and refused on a concluded one', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+
+    await t.run(async (ctx) => {
+      const season = (await ctx.db.query('seasons').collect())[0]!;
+      await ctx.db.patch(season._id, { status: 'concluded', concludedAt: Date.now() });
+    });
+    await expect(t.mutation(api.seasons.join, { code, nickname: 'Trop tard' })).rejects.toThrow(
+      'SEASON_CONCLUDED',
+    );
+  });
+
+  /** The kit as it is, the headquarters at the level of the format, the foundation still owed:
+   *  the very endowment of the launch, because it is the very same function. */
+  it('endows the latecomer exactly as the launch endowed the others', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    const opening = await t.query(api.view.playerView, { token: creator });
+
+    const late = await enlist(t, code, 'germany');
+    await expect(t.query(api.view.playerView, { token: late })).rejects.toThrow('NOT_AT_WAR');
+    vi.advanceTimersByTime(90 * 60_000);
+    await t.mutation(api.seasons.enterWar, { token: late });
+
+    const view = await t.query(api.view.playerView, { token: late });
+    expect(view.me.nation).toBe('germany');
+    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.food.stock).toBe(KIT.food);
+    expect(view.me.buildings).toEqual([
+      expect.objectContaining({ key: 'hq', level: SEASON_FORMATS.skirmish.hqLevelAtLaunch }),
+    ]);
+    expect(view.me.foundation).toEqual(SEASON_FORMATS.skirmish.foundation);
+    expect(view.me.foundation).toEqual(opening.me.foundation);
+    // The theatre was frozen at launch: a latecomer joins it, he does not redraw it.
+    expect(view.season.playableRegion).toBe(opening.season.playableRegion);
+  });
+
+  /** The choices seal at his own entry, not at a launch he was not there for. */
+  it('seals nation, doctrine and rest window at the entry into war', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    const late = await enlist(t, code, 'germany');
+    await t.mutation(api.players.setRestWindow, { token: late, startMinutes: 120 });
+    await t.mutation(api.seasons.enterWar, { token: late });
+
+    await expect(
+      t.mutation(api.players.reserveNation, { token: late, nation: 'italy' }),
+    ).rejects.toThrow('SEASON_ALREADY_LAUNCHED');
+    await expect(
+      t.mutation(api.players.setRestWindow, { token: late, startMinutes: 300 }),
+    ).rejects.toThrow('REST_WINDOW_FROZEN');
+    // Entering twice endows nobody twice: the second call finds a belligerent and returns.
+    await t.mutation(api.seasons.enterWar, { token: late });
+    expect((await t.query(api.view.playerView, { token: late })).me.buildings).toHaveLength(1);
+  });
+
+  it('refuses a seat on a running season with no free nation left', async () => {
+    const t = boot();
+    const { code, creator, guest } = await seasonWithTwoPlayers(t);
+    const seated = [creator, guest];
+    for (let seat = 2; seat < NATIONS.length; seat += 1) {
+      const joined = await t.mutation(api.seasons.join, { code, nickname: `Joueur ${seat}` });
+      seated.push(joined.token);
+    }
+    for (const [seat, token] of seated.entries()) {
+      await t.mutation(api.players.reserveNation, { token, nation: NATIONS[seat]! });
+      await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'domination' });
+      await t.mutation(api.players.declareReady, { token, ready: true });
+    }
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    await expect(t.mutation(api.seasons.join, { code, nickname: 'Tard' })).rejects.toThrow(
+      'NO_FREE_NATION',
+    );
+  });
+
+  /** The only channel that says a belligerent has come in: everybody's journal, the newcomer's
+   *  included. The client turns the row into a headline (`src/domain/journal.ts`). */
+  it('announces the entry in the view of every belligerent', async () => {
+    const t = boot();
+    const { code, creator, guest } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    const late = await enlist(t, code, 'germany');
+    vi.advanceTimersByTime(90 * 60_000);
+    await t.mutation(api.seasons.enterWar, { token: late });
+
+    for (const token of [creator, guest, late]) {
+      const entries = (await t.query(api.view.playerView, { token })).warEntries;
+      expect(entries).toEqual([expect.objectContaining({ nickname: 'Tard', nation: 'germany' })]);
+    }
+    // The launch cohort opened the war, it did not enter it: no headline for the founders.
+    expect(
+      (await t.query(api.view.playerView, { token: creator })).warEntries.map((e) => e.nation),
+    ).not.toContain('france');
+  });
+
+  /** Nobody's opponent until he is in the field: a seat still choosing its flag is neither an
+   *  opponent on the board nor a nation the victory has to reduce. */
+  it('keeps a seat that has not entered out of the board of the others', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    await enlist(t, code, 'germany');
+
+    const view = await t.query(api.view.playerView, { token: creator });
+    expect(view.opponents).toHaveLength(1);
+    expect(view.season.players).toBe(2);
+    expect(view.season.reduction.standings).toHaveLength(2);
   });
 });
 

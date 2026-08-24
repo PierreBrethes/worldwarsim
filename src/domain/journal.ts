@@ -1,7 +1,7 @@
 import { asLocalTime } from './duration';
 import { countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
-import type { CombatReport, JournalDispatch, ReductionBoard } from './player-view';
+import type { CombatReport, JournalDispatch, ReductionBoard, WarEntry } from './player-view';
 
 /**
  * **The journal is written here, from the account the server keeps** — never from a second
@@ -9,9 +9,10 @@ import type { CombatReport, JournalDispatch, ReductionBoard } from './player-vie
  * at the last moment, which is also the only way "j'en perds 16, il en perd 22" ends up phrased
  * once instead of in every panel that shows a battle.
  */
-export function combatDispatches(
+export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
   reduction: ReductionBoard | null,
+  entries: ReadonlyArray<WarEntry>,
 ): ReadonlyArray<JournalDispatch> {
   const concluded: ReadonlyArray<JournalDispatch> =
     reduction === null || reduction.concludedAt === null || reduction.winnerNation === null
@@ -53,7 +54,23 @@ export function combatDispatches(
           ],
     );
 
-  return [...concluded, ...reductions, ...combatOnly(reports)];
+  /**
+   * **One more nation walks into the war** — a headline, and critical like everything else that
+   * changes the table: this is the only announcement a player ever gets of it, and it carries
+   * the hour because a late entry is read by the hour it happened.
+   */
+  const arrivals: ReadonlyArray<JournalDispatch> = [...entries]
+    .sort((a, b) => b.at - a.at)
+    .map((entry) => ({
+      t: asLocalTime(entry.at),
+      severity: 'critical' as const,
+      text: fr.journal.warEntry(entry.nickname, nationName(entry.nation)),
+      replay: null,
+      remaining: null,
+      resolutionAt: null,
+    }));
+
+  return [...concluded, ...reductions, ...arrivals, ...combatOnly(reports)];
 }
 
 function combatOnly(reports: ReadonlyArray<CombatReport>): ReadonlyArray<JournalDispatch> {

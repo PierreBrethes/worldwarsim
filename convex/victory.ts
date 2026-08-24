@@ -2,6 +2,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
+import { isAtWar } from './seasons';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
@@ -78,10 +79,19 @@ export async function standingsOf(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
 ): Promise<ReadonlyArray<Standing>> {
-  const players = await ctx.db
+  const season = await ctx.db.get(seasonId);
+  const seats = await ctx.db
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
+  /**
+   * **The belligerents, and `n` is their number** — counted at the instant, like everything else
+   * here. A seat taken on a running season by somebody still choosing his flag is not a nation
+   * to reduce: he holds no troop, so the bar would count him as already down, and he would raise
+   * the threshold of every player in the field without ever having been in it. He joins the
+   * count the hour he enters the war (`seasons.enterWar`), and the target moves then.
+   */
+  const players = season === null ? seats : seats.filter((seat) => isAtWar(seat, season));
 
   const fallen = new Set<string>();
   for (const player of players) {
