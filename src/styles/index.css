@@ -52,6 +52,18 @@ body {
   zoom: var(--hud-scale);
 }
 
+/* Un maillon en chantier : la hachure du plan d'architecte. Elle n'est ni le plein du bâti ni
+   le pointillé du manquant — trois états, trois peaux, et la légende en tête de la filière les
+   nomme (fenêtre Économie). */
+.chart-underway {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(42, 33, 24, 0.2) 0 3px,
+    transparent 3px 7px
+  );
+}
+
 .eyebrow {
   font-size: 9px;
   letter-spacing: 0.18em;

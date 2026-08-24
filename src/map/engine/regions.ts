@@ -33,11 +33,17 @@ const VISIBLE_SHARE = 0.01;
 /** Stacking flush with the slab: fill under the strokes, strokes under the hover and the borders. */
 const STROKE_LIFT = 0.003;
 const BUILT_LIFT = 0.001;
+/** Just above the built fill: a designated region is an answer to a gesture, and it has to
+ *  read over the ink of what already stands there. */
+const DESIGNATED_LIFT = 0.002;
 const HOVER_LIFT = 0.0035;
 const PROP_LIFT = 0.001;
 
 /** Thin enough that the contour reads as a pen stroke and not as a second border. */
 const HOVER_OPACITY = 0.85;
+
+/** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
+const DESIGNATED_OPACITY = 0.62;
 
 type PreparedRegion = {
   readonly region: DisplayedRegion;
@@ -54,14 +60,18 @@ type PreparedRegion = {
 export class RegionLayer {
   readonly lines: LineSegments;
   readonly built: Mesh;
+  /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
+  readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
   readonly props = new Group();
   private readonly lineMaterial: LineBasicMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
+  private readonly designatedMaterial: MeshStandardMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
   private builtIds: ReadonlySet<string> = new Set();
+  private designatedIds: ReadonlySet<string> = new Set();
   private birth = 0;
   private share = 0;
 
@@ -89,6 +99,21 @@ export class RegionLayer {
     });
     this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
     this.built.visible = false;
+
+    /**
+     * The rail's amber — the ink of "you are here" (`FOCUS_MARK`) — and never the critical
+     * ink: a region that accepts a placement is an invitation, not an alarm.
+     */
+    this.designatedMaterial = new MeshStandardMaterial({
+      color: PALETTE.designated,
+      roughness: 0.97,
+      metalness: 0,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    this.designated = new Mesh(new BufferGeometry(), this.designatedMaterial);
+    this.designated.visible = false;
 
     this.hoverMaterial = new LineBasicMaterial({
       color: PALETTE.paper,
@@ -155,24 +180,39 @@ export class RegionLayer {
     this.rebuild();
   }
 
+  /**
+   * The regions a designated key accepts. It is **only ever a set of ids**: the rule that
+   * produced them lives in the domain (`placementOf`), and the map draws what it is handed —
+   * a second reading here would highlight ground the server refuses.
+   */
+  showDesignated(regionIds: ReadonlySet<string>): void {
+    this.designatedIds = regionIds;
+    this.rebuild();
+  }
+
   /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
   rebuild(): void {
-    this.built.geometry.dispose();
+    this.fill(this.built, this.builtIds, BUILT_LIFT);
+    this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
+  }
+
+  private fill(mesh: Mesh, ids: ReadonlySet<string>, lift: number): void {
+    mesh.geometry.dispose();
     const parts = this.prepared
-      .filter(({ region }) => this.builtIds.has(region.id))
-      .map(({ region }) => this.fillOf(region));
+      .filter(({ region }) => ids.has(region.id))
+      .map(({ region }) => this.fillOf(region, lift));
     if (parts.length === 0) {
-      this.built.geometry = new BufferGeometry();
-      this.built.visible = false;
+      mesh.geometry = new BufferGeometry();
+      mesh.visible = false;
       return;
     }
     if (parts.length === 1) {
-      this.built.geometry = parts[0]!;
+      mesh.geometry = parts[0]!;
     } else {
-      this.built.geometry = mergeGeometries(parts, false)!;
+      mesh.geometry = mergeGeometries(parts, false)!;
       parts.forEach((part) => part.dispose());
     }
-    this.built.visible = this.share > VISIBLE_SHARE;
+    mesh.visible = this.share > VISIBLE_SHARE;
   }
 
   /**
@@ -243,6 +283,8 @@ export class RegionLayer {
     this.lines.visible = this.share > 0.01;
     this.builtMaterial.opacity = this.share;
     this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
+    this.designatedMaterial.opacity = this.share * DESIGNATED_OPACITY;
+    this.designated.visible = this.share > VISIBLE_SHARE && this.designatedIds.size > 0;
     this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
@@ -252,15 +294,18 @@ export class RegionLayer {
   dispose(): void {
     this.lines.geometry.dispose();
     this.built.geometry.dispose();
+    this.designated.geometry.dispose();
     this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
     this.builtMaterial.dispose();
+    this.designatedMaterial.dispose();
     this.hoverMaterial.dispose();
     // The props share the terrain module's geometries and materials: `disposeTerrain` frees
     // them once, and detaching here keeps the engine's final sweep from meeting them again.
     this.props.clear();
     this.lines.removeFromParent();
     this.built.removeFromParent();
+    this.designated.removeFromParent();
     this.hoverOutline.removeFromParent();
     this.props.removeFromParent();
     disposeTerrain();
@@ -308,7 +353,7 @@ export class RegionLayer {
   }
 
   /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
-  private fillOf(region: DisplayedRegion): BufferGeometry {
+  private fillOf(region: DisplayedRegion, lift: number): BufferGeometry {
     const geometries = region.rings.map((ring) => {
       const shape = new Shape();
       ring.forEach(([x, y], index) => {
@@ -327,7 +372,7 @@ export class RegionLayer {
     for (let i = 0; i < positions.count; i++) {
       positions.setY(
         i,
-        COUNTRY_THICKNESS + BUILT_LIFT + this.frame.drop(positions.getX(i), positions.getZ(i)),
+        COUNTRY_THICKNESS + lift + this.frame.drop(positions.getX(i), positions.getZ(i)),
       );
     }
     positions.needsUpdate = true;

@@ -9,6 +9,8 @@ export const PALETTE = {
   plinthTop: '#c7b48e',
   plinthBottom: '#5f5039',
   worldRim: '#6b4a24',
+  /** `--notable`, the rail's amber: the board's one ink for "you are here", never an alarm. */
+  designated: '#b07434',
   rimStroke: '#3a2a18',
 } as const;
 

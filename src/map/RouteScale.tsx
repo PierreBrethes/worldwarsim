@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { fr } from '@/i18n/fr';
 import { unrollRoute } from '@/domain/route-timing';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import type { Medium } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 
@@ -30,7 +30,7 @@ export function RouteScale({ arc }: { arc: ArcView }) {
         <span className="eyebrow-dark">{fr.mapUi.routeScale}</span>
         {durationMinutes !== null && (
           <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim)]">
-            {asHoursMinutes(durationMinutes)}
+            {asDuration(durationMinutes)}
           </span>
         )}
       </div>
@@ -53,7 +53,7 @@ export function RouteScale({ arc }: { arc: ArcView }) {
                 ? ''
                 : durationMinutes === null
                   ? label
-                  : `${label} · ${asHoursMinutes(segment.share * durationMinutes)}`}
+                  : `${label} · ${asDuration(segment.share * durationMinutes)}`}
             </div>
           );
         })}

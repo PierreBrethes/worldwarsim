@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { cardinalLabel, fr, roleLabel } from '@/i18n/fr';
-import { asHoursMinutes, asLocalTime } from '@/domain/duration';
+import { asDuration, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import {
   currentMinutes,
@@ -197,7 +197,7 @@ function Folded({
             ? fr.troops.foldedQuiet
             : fr.troops.foldedFlight(
                 flying.length,
-                asHoursMinutes(currentMinutes(next, loadedAt, now)),
+                asDuration(currentMinutes(next, loadedAt, now)),
               )}
         </span>
       </span>
@@ -345,7 +345,7 @@ function MovingCard({
         )}
       </div>
       <div className="mt-[4px] flex justify-between font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim)]">
-        <span>{fr.troops.remaining(asHoursMinutes(remaining))}</span>
+        <span>{fr.troops.remaining(asDuration(remaining))}</span>
         <span>{fr.troops.arrivalAt(asLocalTime(loadedAt + arc.minutesLeft * 60_000))}</span>
       </div>
       {arc.borderWait && (
@@ -437,11 +437,11 @@ function SurveyedCard({
    *  watched one counts down to an arrival it can only estimate. */
   const schedule =
     arc.state === 'lastKnown'
-      ? fr.troops.intelLost(asHoursMinutes(arc.seenMinutesAgo + (now - loadedAt) / 60_000))
+      ? fr.troops.intelLost(asDuration(arc.seenMinutesAgo + (now - loadedAt) / 60_000))
       : arc.estimatedMinutesLeft === null
         ? fr.labels.estimated
         : fr.troops.intelEstimate(
-            asHoursMinutes(currentMinutes(arc.estimatedMinutesLeft, loadedAt, now)),
+            asDuration(currentMinutes(arc.estimatedMinutesLeft, loadedAt, now)),
           );
 
   return (

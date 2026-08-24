@@ -4,7 +4,7 @@
 'use no memo';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import { URGENCY_MS, isCountdown, type MapLabel, type LabelPictogram } from '@/domain/labels';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
@@ -129,7 +129,7 @@ export function MapLabels({
       const node = countdowns.current.get(label.id);
       if (countdown === undefined || node === undefined) continue;
       const left = Math.max(0, countdown.dueAt - now);
-      node.textContent = `${countdown.prefix}${asHoursMinutes(left / 60_000)}`;
+      node.textContent = `${countdown.prefix}${asDuration(left / 60_000)}`;
       roots.current.get(label.id)?.classList.toggle('label--urgent', left < URGENCY_MS);
     }
   }, [labels]);

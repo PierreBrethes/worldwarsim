@@ -132,6 +132,7 @@ export class MapEngine {
   private spaceHeld = false;
   private building = false;
   private aiming = false;
+  private designating = false;
   private screenWidth = 1;
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -155,6 +156,13 @@ export class MapEngine {
   onRegionHover: (region: RegionIdentity | null) => void = () => {};
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
+  /**
+   * A clean left click while the board is **designating** — a mobilisation key is armed and
+   * the next click names the ground it goes down on. It replaces the selection rather than
+   * doubling it: a click that both places a foundry and re-frames the country would answer
+   * two questions where the player asked one.
+   */
+  onRegionClick: (regionId: string | null) => void = () => {};
   onRightClick: (click: MapRightClick) => void = () => {};
   /**
    * The first orientation drag. It is the instant the player discovers that dragging the
@@ -239,6 +247,7 @@ export class MapEngine {
 
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.built);
+    this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
     this.scene.add(this.regions.props);
 
@@ -396,6 +405,11 @@ export class MapEngine {
     this.regions.showBuilt(new Set(built.regionIds), built.ink);
   }
 
+  /** The ground an armed key accepts, as the domain computed it — see `RegionLayer.showDesignated`. */
+  showDesignatedRegions(regionIds: ReadonlyArray<string>): void {
+    this.regions.showDesignated(new Set(regionIds));
+  }
+
   setCurvature(intensity: number): void {
     this.frame.curvature = intensity;
     this.curvature.applyAll();
@@ -531,6 +545,10 @@ export class MapEngine {
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
     if (gesture.button !== 0 || gesture.panning || gesture.pastThreshold) return;
+    if (this.designating) {
+      this.onRegionClick(this.regionAtPoint(event.clientX, event.clientY)?.id ?? null);
+      return;
+    }
     this.onSelect(this.hovered?.userData.adm0 ?? null);
   };
 
@@ -573,7 +591,7 @@ export class MapEngine {
     const { style } = this.renderer.domElement;
     if (this.gesture?.panning === true) style.cursor = 'grabbing';
     else if (this.spaceHeld) style.cursor = 'grab';
-    else if (this.building) style.cursor = TROWEL_CURSOR;
+    else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else style.cursor = '';
   }
@@ -589,6 +607,17 @@ export class MapEngine {
   setAiming(aiming: boolean): void {
     if (aiming === this.aiming) return;
     this.aiming = aiming;
+    this.refreshCursor();
+  }
+
+  /**
+   * A mobilisation key is armed: the left click names a region instead of selecting a country.
+   * It wears the same trowel as the construction panel, because it is the same verb — putting
+   * a building down — and a second cursor for one gesture is one vocabulary too many.
+   */
+  setDesignating(designating: boolean): void {
+    if (designating === this.designating) return;
+    this.designating = designating;
     this.refreshCursor();
   }
 

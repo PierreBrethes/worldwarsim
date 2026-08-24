@@ -50,12 +50,22 @@ type Props = {
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
   /**
+   * The regions an armed mobilisation key accepts, and the click that names one. The map holds
+   * no rule of its own here: the list arrives computed (`placementOf`), and the click hands
+   * back a region id — what happens to it is the board's business.
+   */
+  designatedRegions?: ReadonlyArray<string>;
+  onDesignateRegion?: (regionId: string | null) => void;
+  /**
    * What the camera is asked to fly to, by label id. The nonce is what makes a second request
    * on the same target land: asking twice for the same building is an ordinary gesture, and an
    * identity-compared prop would swallow the second one.
    */
   focus?: { readonly ids: ReadonlyArray<string>; readonly nonce: number } | null;
 };
+
+/** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
+const NO_REGIONS: ReadonlyArray<string> = [];
 
 export function WorldMap({
   world,
@@ -77,6 +87,8 @@ export function WorldMap({
   onCompassAction,
   building = false,
   aiming = false,
+  designatedRegions = NO_REGIONS,
+  onDesignateRegion,
   focus = null,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
@@ -242,6 +254,22 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setAiming(aiming);
   }, [readyEngine, aiming]);
+
+  // A key with no ground to go down on designates nothing: the trowel only comes out when a
+  // click can actually land, so the mode is the list and not a separate flag to keep in step.
+  const designating = onDesignateRegion !== undefined && designatedRegions.length > 0;
+
+  useEffect(() => {
+    readyEngine?.setDesignating(designating);
+  }, [readyEngine, designating]);
+
+  useEffect(() => {
+    readyEngine?.showDesignatedRegions(designatedRegions);
+  }, [readyEngine, designatedRegions]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onRegionClick = onDesignateRegion ?? (() => {});
+  }, [onDesignateRegion]);
 
   useEffect(() => {
     if (focus === null) return;

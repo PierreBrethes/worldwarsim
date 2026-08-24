@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockedOn, buildableOn, upgradeHold, type Site } from './construction';
+import { blockedOn, buildableOn, placementOf, upgradeHold, type Site } from './construction';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey, type SeasonFormat } from './ids';
 import { unlockLevel } from '../../convex/constants';
 import type { Building, BuildSpec, PlayerView } from './player-view';
@@ -316,5 +316,143 @@ describe('what holds a raise back', () => {
     } as unknown as PlayerView;
     expect(upgradeHold(building(), view, LOADED_AT)?.kind).toBe('materials');
     expect(upgradeHold(building(), view, LOADED_AT + 10 * 60_000)).toBeNull();
+  });
+});
+
+/**
+ * Where a key goes down over the whole of a player's ground — the rule the mobilisation order
+ * highlights with and the supply chart writes its conditions from. It must never offer ground
+ * `constructions.start` would refuse, nor refuse for a reason the panel would not repeat.
+ */
+describe('placement over the whole estate', () => {
+  const catalog = (overrides: Partial<Record<BuildingKey, number>> = {}) =>
+    Object.fromEntries(
+      BUILDINGS.map((key) => [
+        key,
+        { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: overrides[key] ?? 1 },
+      ]),
+    ) as Record<BuildingKey, BuildSpec>;
+
+  const estate = (overrides: {
+    regions?: PlayerView['me']['regions'];
+    buildings?: ReadonlyArray<{ key: BuildingKey; regionId: string }>;
+    hqLevel?: number;
+    cap?: number;
+    foundation?: ReadonlyArray<BuildingKey>;
+    construction?: PlayerView['me']['construction'];
+    unlocked?: Partial<Record<BuildingKey, number>>;
+  }): PlayerView =>
+    ({
+      me: {
+        hqLevel: overrides.hqLevel ?? 1,
+        buildingCap: overrides.cap ?? 5,
+        foundation: overrides.foundation ?? [],
+        construction: overrides.construction ?? null,
+        buildings: overrides.buildings ?? [],
+        regions: overrides.regions ?? [],
+      },
+      buildCatalog: catalog(overrides.unlocked),
+    }) as unknown as PlayerView;
+
+  const region = (
+    id: string,
+    extra: Partial<PlayerView['me']['regions'][number]> = {},
+  ): PlayerView['me']['regions'][number] => ({
+    id,
+    name: id,
+    deposit: null,
+    coastal: false,
+    buildings: [],
+    ...extra,
+  });
+
+  it('keeps only the regions whose deposit the exploitation works', () => {
+    const view = estate({
+      regions: [region('a', { deposit: 'coal' }), region('b'), region('c', { deposit: 'ore' })],
+    });
+    expect(placementOf(view, 'mine').regionIds).toEqual(['a', 'c']);
+    expect(placementOf(view, 'farm').regionIds).toEqual([]);
+  });
+
+  it('names the deposit when no ground holds it, and never the ceiling first', () => {
+    const view = estate({ regions: [region('a')], cap: 0 });
+    expect(placementOf(view, 'oilWell').condition).toEqual({ kind: 'deposit', deposits: ['oil'] });
+  });
+
+  /** The tier is the one refusal a player can always act on — it must outrank the ground. */
+  it('names the headquarters level a locked key waits on', () => {
+    const view = estate({
+      regions: [region('a', { coastal: true })],
+      unlocked: { port: 3 },
+    });
+    expect(placementOf(view, 'port').condition).toEqual({ kind: 'locked', hqLevel: 3 });
+  });
+
+  it('separates a ceiling from a ground that is simply taken', () => {
+    const carriable = [region('a'), region('b')];
+    expect(placementOf(estate({ regions: carriable, cap: 0 }), 'billets').condition).toEqual({
+      kind: 'cap',
+    });
+    expect(
+      placementOf(
+        estate({
+          regions: [region('a', { buildings: [{ key: 'farm', level: 1 }] })],
+          buildings: [{ key: 'farm', regionId: 'a' }],
+        }),
+        'billets',
+      ).condition,
+    ).toEqual({ kind: 'regionsTaken' });
+  });
+
+  /** A region under the crane is taken though nothing stands on it — the server refuses it
+   *  (`constructions.start`), so the order must not light it up. */
+  it('leaves out the region a construction is rising on', () => {
+    const view = estate({
+      regions: [region('a'), region('b')],
+      construction: {
+        name: 'Ferme',
+        key: 'farm',
+        regionId: 'a',
+        regionName: 'a',
+        minutesLeft: 10,
+      },
+    });
+    expect(placementOf(view, 'billets').regionIds).toEqual(['b']);
+  });
+
+  it('marks a key the foundation still owes as free', () => {
+    const view = estate({ regions: [region('a')], foundation: ['warehouse'] });
+    expect(placementOf(view, 'warehouse')).toMatchObject({ free: true, condition: null });
+    expect(placementOf(view, 'depot').free).toBe(false);
+  });
+
+  /** The estate reading and the per-region reading are the same rule: whatever `placementOf`
+   *  hands the map, the panel opened on that very region has to offer. */
+  it('agrees with the region panel, region by region', () => {
+    const view = estate({
+      regions: [region('a', { deposit: 'coal' }), region('b', { coastal: true }), region('c')],
+      foundation: ['mine'],
+    });
+    for (const key of BUILDINGS) {
+      const offered = new Set(
+        view.me.regions
+          .filter((candidate) =>
+            buildableOn(
+              site({
+                deposit: candidate.deposit,
+                coastal: candidate.coastal,
+                standing: candidate.buildings[0]?.key ?? null,
+                standingCount: view.me.buildings.length,
+                cap: view.me.buildingCap,
+                hqLevel: view.me.hqLevel,
+                foundation: view.me.foundation,
+              }),
+              view.buildCatalog,
+            ).some((option) => option.key === key && option.hold === null),
+          )
+          .map((candidate) => candidate.id),
+      );
+      expect(new Set(placementOf(view, key).regionIds)).toEqual(offered);
+    }
   });
 });

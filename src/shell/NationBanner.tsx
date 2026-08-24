@@ -2,7 +2,7 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/plateau';
 import { NationCartouche } from './NationCartouche';
@@ -107,7 +107,7 @@ function SiteStrip({ view }: { view: PlayerView }) {
       </span>
       <span className="text-[12.5px] font-semibold text-[var(--paper)]">{site.name}</span>
       <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
-        {asHoursMinutes(currentMinutes(site.minutesLeft, view.loadedAt, now))}
+        {asDuration(currentMinutes(site.minutesLeft, view.loadedAt, now))}
       </span>
     </div>
   );

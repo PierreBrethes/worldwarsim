@@ -5,7 +5,7 @@ import { aBuilding, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { PRODUCER_OF } from '@/domain/economy';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import { DEPOSITS, RESOURCES } from '@/domain/ids';
 import {
   currentMinutes,
@@ -63,7 +63,7 @@ export function UpgradeControl({
             ? null
             : fr.construction.heldByConstruction(
                 running.name,
-                asHoursMinutes(currentMinutes(running.minutesLeft, view.loadedAt, now)),
+                asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)),
               ),
         );
 
@@ -72,7 +72,7 @@ export function UpgradeControl({
       <div className="flex items-center gap-[10px]">
         <CostLine cost={building.nextLevelCost} lacking={hold?.kind === 'materials'} />
         <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-          {asHoursMinutes(building.nextLevelMinutes)}
+          {asDuration(building.nextLevelMinutes)}
         </span>
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
           {fr.upgrade.toLevel(next)}
@@ -135,7 +135,7 @@ function WhenAffordable({
       style={{ color: when.kind === 'never' ? 'var(--critical)' : 'var(--ink-soft)' }}
     >
       {when.kind === 'inMinutes' ? (
-        fr.upgrade.availableIn(asHoursMinutes(when.minutes))
+        fr.upgrade.availableIn(asDuration(when.minutes))
       ) : (
         <>
           <span className="font-semibold">

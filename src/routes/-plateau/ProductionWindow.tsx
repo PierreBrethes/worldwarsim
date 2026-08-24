@@ -13,7 +13,7 @@ import type { UnitDomain, UnitTier } from '@/domain/troops';
 import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, tierLabel } from '@/domain/troops';
 import type { PlayerView, UnitRole } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';
@@ -326,8 +326,8 @@ function BilletsRow({
     >
       <BuildingPlate building={billets.key} height={26} />
       <span className="min-w-0 flex-1 text-[12px] text-[var(--ink-soft)]">
-        {billets.name} · {fr.nationSheet.inRegion(regionNameOf(view, billets.regionId))} ·{' '}
-        {fr.nationSheet.level(billets.level)}
+        {billets.name} · {fr.economy.inRegion(regionNameOf(view, billets.regionId))} ·{' '}
+        {fr.economy.level(billets.level)}
       </span>
       <UpgradeControl building={billets} view={view} token={token} now={now} />
     </div>
@@ -508,7 +508,7 @@ function RoleCard({
           </div>
           <div className="mt-[3px] flex items-baseline gap-[9px]">
             <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
-              {asHoursMinutes(cost.minutes)}
+              {asDuration(cost.minutes)}
             </span>
             <span className="font-(family-name:--font-mono) text-[13.5px] text-[var(--ink)]">
               {cost.strength}
@@ -592,7 +592,7 @@ function QueueRow({
         </div>
       </div>
       <span className="shrink-0 font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
-        {asHoursMinutes(currentMinutes(batch.minutesLeft, loadedAt, now))}
+        {asDuration(currentMinutes(batch.minutesLeft, loadedAt, now))}
       </span>
       <button
         type="button"

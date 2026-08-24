@@ -246,11 +246,11 @@ function verdictOf(chain: ChainView, view: PlayerView): string {
     const source = PRODUCER_OF[chain.missing];
     const standing = view.me.buildings.some((building) => building.key === source);
     return standing
-      ? fr.industry.starvedOn(resource)
+      ? fr.economy.starvedOn(resource)
       : fr.reserves.starvedNoSource(noBuilding(source), resource);
   }
   if (chain.state === 'running') return fr.reserves.flow(fr.buildings[chain.by], chain.perHour);
-  return fr.industry.chainStates[chain.state];
+  return fr.economy.chainStates[chain.state];
 }
 
 type Alert = { readonly key: string; readonly plate: ResourceKey; readonly text: string };

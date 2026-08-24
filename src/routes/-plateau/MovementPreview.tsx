@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
-import { asHoursMinutes, asLocalTime } from '@/domain/duration';
+import { asDuration, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import type { MovementAim } from '@/domain/movement-orders';
 import { landPaceOf, routeMedium } from '@/domain/routing';
@@ -150,7 +150,7 @@ export function MovementPreview({
                     a hull routes `combined` even when the road gets there dry, and the card
                     would then promise a crossing to the next region. */}
                 <div>
-                  {fr.aim.duration(asHoursMinutes(preview.minutes), preview.troops)} ·{' '}
+                  {fr.aim.duration(asDuration(preview.minutes), preview.troops)} ·{' '}
                   {legOf(preview.route)}
                 </div>
                 <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>

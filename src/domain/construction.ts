@@ -1,5 +1,5 @@
 import { BUILDINGS, RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from './ids';
-import { EXPLOITED_DEPOSITS, placementRefusal } from './economy';
+import { EXPLOITED_DEPOSITS, placementRefusal, type PlacementRefusal } from './economy';
 import {
   currentStock,
   type Building,
@@ -315,4 +315,111 @@ export function upgradeHold(building: Building, view: PlayerView, now: number): 
     if (available < needed) return { kind: 'materials', resource, needed, available };
   }
   return null;
+}
+
+/**
+ * Why **no region at all** takes a key — `null` when at least one does. Where `BlockedReason`
+ * above answers "not here", this answers "nowhere yet", which is the only question the
+ * mobilisation order and the supply chart ever ask: they name a building, never a ground.
+ */
+export type PlacementCondition =
+  | { readonly kind: 'locked'; readonly hqLevel: number }
+  | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> }
+  | { readonly kind: 'coastal' }
+  | { readonly kind: 'cap' }
+  | { readonly kind: 'regionsTaken' };
+
+export type Placement = {
+  readonly key: BuildingKey;
+  /** The player's own regions that accept it right now, in the order the view serves them. */
+  readonly regionIds: ReadonlyArray<string>;
+  /** `null` as soon as `regionIds` holds one. */
+  readonly condition: PlacementCondition | null;
+  /** Owed by the season's foundation: placed for nothing and standing at once. */
+  readonly free: boolean;
+};
+
+/**
+ * **Where a key may go down, over the whole of the player's ground.** `buildableOn` answers
+ * "what can stand here"; this answers the opposite question — "where does this go" — which is
+ * the one the mobilisation order asks when a clé is clicked, and the one the supply chart asks
+ * of a missing link.
+ *
+ * Same rule, same two readings as `buildableOn` and for the same reason: once with the
+ * circumstances lifted, which says what the ground can *ever* carry, and once as things stand.
+ * A key nothing can ever take names its nature — a deposit, a coast, a headquarters level; a
+ * key every region merely happens to refuse today names the circumstance. Neither sentence is
+ * written here twice over: `placementRefusal` is the server's own refusal.
+ */
+export function placementOf(view: PlayerView, key: BuildingKey): Placement {
+  const unlockedAtHqLevel = view.buildCatalog[key].unlockedAtHqLevel;
+  const free = view.me.foundation.includes(key);
+  const hqLevel = view.me.hqLevel;
+  // Nothing rises above the headquarters, and a level-1 building needs one standing — the same
+  // pair of guards `buildableOn` opens on, because it is the same catalogue.
+  const impossible = key === 'hq' ? hqLevel > 0 : hqLevel === 0;
+
+  const regionIds: string[] = [];
+  const natures = new Set<PlacementRefusal>();
+  let carriable = false;
+
+  for (const region of impossible ? [] : view.me.regions) {
+    const byNature = placementRefusal(
+      key,
+      region,
+      { onRegion: null, standing: 0, cap: Number.POSITIVE_INFINITY, hqLevel },
+      unlockedAtHqLevel,
+    );
+    if (byNature !== null) {
+      natures.add(byNature);
+      continue;
+    }
+    carriable = true;
+
+    // A region a construction is rising on is taken, though nothing stands on it yet — the
+    // `finish` will fill it, and the server refuses a second placement there (`start`).
+    if (view.me.construction?.regionId === region.id) continue;
+    const asThingsStand = placementRefusal(
+      key,
+      region,
+      {
+        onRegion: region.buildings[0]?.key ?? null,
+        standing: view.me.buildings.length,
+        cap: view.me.buildingCap,
+        hqLevel,
+      },
+      unlockedAtHqLevel,
+    );
+    if (asThingsStand === null) regionIds.push(region.id);
+  }
+
+  if (regionIds.length > 0) return { key, regionIds, condition: null, free };
+  return { key, regionIds, condition: conditionOf(view, key, carriable, natures), free };
+}
+
+/**
+ * The single sentence that would open a key. Nature before circumstance: a player told his
+ * ceiling is full will raise his headquarters, and find the well still refused for want of a
+ * deposit — the ground is the fact, the ceiling is only today.
+ */
+function conditionOf(
+  view: PlayerView,
+  key: BuildingKey,
+  carriable: boolean,
+  natures: ReadonlySet<PlacementRefusal>,
+): PlacementCondition {
+  if (!carriable) {
+    if (natures.has('BUILDING_LOCKED')) {
+      return { kind: 'locked', hqLevel: Math.max(1, view.buildCatalog[key].unlockedAtHqLevel) };
+    }
+    const deposits = EXPLOITED_DEPOSITS[key];
+    if (deposits !== undefined) return { kind: 'deposit', deposits };
+    if (key === 'port') return { kind: 'coastal' };
+    // Nothing left for a key the headquarters opens and the ground never refuses: a level-0
+    // headquarters, or the second headquarters that never exists.
+    return { kind: 'locked', hqLevel: Math.max(1, view.buildCatalog[key].unlockedAtHqLevel) };
+  }
+  return view.me.buildings.length >= view.me.buildingCap
+    ? { kind: 'cap' }
+    : { kind: 'regionsTaken' };
 }

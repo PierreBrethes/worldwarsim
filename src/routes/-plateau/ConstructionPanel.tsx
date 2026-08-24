@@ -16,7 +16,7 @@ import {
   type BuildOption,
   type BuildReason,
 } from '@/domain/construction';
-import { asHoursMinutes } from '@/domain/duration';
+import { asDuration } from '@/domain/duration';
 import { RESOURCES, type BuildingKey } from '@/domain/ids';
 import { currentMinutes, type Cost, type PlayerView } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
@@ -256,7 +256,7 @@ function HeldNotice({
       ? null
       : fr.construction.heldByConstruction(
           construction.name,
-          asHoursMinutes(currentMinutes(construction.minutesLeft, view.loadedAt, now)),
+          asDuration(currentMinutes(construction.minutesLeft, view.loadedAt, now)),
         )
     : options.some((option) => option.hold === 'buildingCap')
       ? fr.construction.heldByCap(view.me.buildingCap)
@@ -334,7 +334,7 @@ function OptionRow({
           <CostLine cost={option.cost} lacking={option.hold === 'materials'} />
         )}
         <span className="block font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-          {option.free ? fr.construction.immediate : asHoursMinutes(option.minutes)}
+          {option.free ? fr.construction.immediate : asDuration(option.minutes)}
         </span>
       </span>
     </button>
@@ -359,7 +359,7 @@ function BlockedRow({ option, built }: { option: BlockedOption; built: number })
       <span className="shrink-0 text-right">
         <CostLine cost={option.cost} lacking={false} />
         <span className="block font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-          {asHoursMinutes(option.minutes)}
+          {asDuration(option.minutes)}
         </span>
       </span>
     </div>

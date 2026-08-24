@@ -506,8 +506,8 @@ export const fr = {
 
   rail: {
     production: { title: 'Production — recrutement d’unités', label: 'prod.' },
-    industry: { title: 'Industrie — chaînes, gisements et réserves', label: 'indus.' },
-    nation: { title: 'Ma nation', label: 'nation' },
+    economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
+    nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     replay: { title: 'Rejeu de bataille — à venir', label: 'rejeu' },
     doctrine: { title: 'Doctrine — à venir', label: 'doctrine' },
     intel: { title: 'Espionnage — à venir', label: 'espion.' },
@@ -856,13 +856,65 @@ export const fr = {
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
   },
 
-  industry: {
-    header: 'industrie',
-    lead: 'Les stocks disent où vous en êtes ; cette fenêtre dit ce qui coule et ce qui est bloqué.',
+  economy: {
+    header: 'économie',
+    lead: 'Tout ce qui se pose et tout ce qui coule. Aucun stock chiffré ici : les réserves sont au panneau haut-droit — cette fenêtre dit quelle entrée manque, jamais combien il en reste.',
+    subtitle: (nation: string, season: number) => `${nation} — saison ${season}`,
 
-    chainsHeader: 'chaînes de conversion',
-    chainArrow: '→',
-    chainRecipe: (quantity: number, resource: string) => `${quantity} ${resource}`,
+    /**
+     * **Le chantier, en tête et une seule fois.** La phrase se répétait sur chaque ligne
+     * d'élévation : répétée quatre fois, l'information la plus importante de la fenêtre était
+     * devenue du bruit de fond (`ordre-de-mobilisation-et-fenetre-economie.md` §2).
+     */
+    constructionHeader: 'chantier en cours',
+    constructionNone: 'Aucun chantier. Un seul à la fois — la file de construction n’existe pas.',
+    constructionRemaining: (time: string) => `${time} restant`,
+
+    /**
+     * **La filière, dessinée.** Un maillon bâti porte son débit réel, un maillon en chantier son
+     * temps restant, un maillon manquant sa condition en clair. « Rien de caché ne se débloque,
+     * rien d'affiché sans sa condition » — la règle qui remplace le grisé (ADR 0015, révision du
+     * 24/08/2026).
+     */
+    chartHeader: 'la filière',
+    legendBuilt: 'bâti',
+    legendUnderway: 'en chantier',
+    legendMissing: 'manquant',
+    roleDeposit: 'gisement',
+    roleDepositNone: 'gisement — aucun',
+    roleUpstream: 'entrée',
+    roleExtraction: 'extracteur',
+    roleConversion: 'conversion',
+    roleConversionMissing: 'conversion — manquante',
+    roleConversionUnderway: 'conversion — en chantier',
+    roleOutput: 'sortie',
+    depositHeld: (count: number) => `${count} tenu${plural(count, '', 's')}`,
+    depositNoneHeld: (deposit: string) =>
+      `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
+    fromChain: (building: string) => `de ${lowerFirst(building)}`,
+    noRate: '— / h',
+
+    /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
+     *  placement que le serveur refuse avec (`placementOf`). */
+    condition: {
+      foundation: 'pose de fondation offerte',
+      locked: (level: number) => `demande un quartier général niveau ${level}`,
+      deposit: (deposits: ReadonlyArray<string>) =>
+        `demande une région à gisement de ${deposits.join(' ou ')}`,
+      coastal: 'demande une région côtière tenue — aucune pour l’instant',
+      cap: 'plafond d’emplacements atteint — élevez le quartier général',
+      regionsTaken: 'toutes vos régions portent déjà un bâtiment',
+      free: (count: number) =>
+        `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
+    },
+
+    sitesHeader: 'les sites de la filière',
+    /** La projection, en bas : la section de ce qui arme. Deux sections, pas trois onglets. */
+    projectionHeader: 'la projection — ce qui arme',
+    worksHeader: 'commandement et ouvrages',
+    built: 'bâti',
+    builtIn: (region: string) => `bâti · ${region}`,
+
     chainStates: {
       off: 'éteinte',
       idle: 'en attente d’ordre',
@@ -871,35 +923,6 @@ export const fr = {
       overflowing: 'débordée',
     } satisfies Record<ChainState, string>,
     starvedOn: (resource: string) => `à sec — ${resource}`,
-    chainNotes: {
-      off: (building: string) => `${building} : rien de bâti, rien ne se convertit.`,
-      idle: 'En attente d’ordre, pas en panne : rien n’est consommé.',
-      running: 'Débit nominal — rien à faire.',
-      starved: (resource: string) =>
-        `L’entrée manque : la chaîne ne produit rien. Exploitez ou stockez du ${resource}.`,
-      overflowing: 'Sortie au plafond : ce qui se convertirait se perdrait. Stockez ou dépensez.',
-    },
-    // The real rate leads, the nominal follows — never the other way round (brief §2.1).
-    nominalRate: (rate: number) => `nominal ${tenths(rate)} / h`,
-    depositsHeader: 'gisements exploités',
-    depositsEmpty:
-      'Aucune exploitation debout. Une ferme, une filature, une mine ou un puits se pose sur une région à gisement.',
-    noDeposit: 'aucun gisement exploitable — ne produit rien',
-    depositLine: (deposit: string, level: number) => `${deposit} — niv. ${level}`,
-
-    /**
-     * The gauge carries the ratio to the ceiling **without writing the ceiling** — that is
-     * what removes the eighteen repetitions of "/ 400 plafond" (brief §3). The figure lives in
-     * the banner, where one wants the value; the gauge lives here, where one wants the margin.
-     */
-    reservesHeader: 'réserves',
-    reservesNote: 'jauge pleine = production perdue',
-    reservesMark:
-      'Le repère à 85 % est le seuil où le chiffre revient : « reste N avant plafond » ne s’écrit qu’au-delà.',
-    headroom: (left: number) => `reste ${left} avant plafond`,
-    atCap: 'saturé — production perdue',
-    gaugeTitle: (resource: string, stock: number, cap: number) =>
-      `${resource} — ${stock} sur ${cap}`,
 
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
@@ -945,8 +968,6 @@ export const fr = {
      * **L'entretien se lit à côté de ce qu'il mange.** Le débit de nourriture du bandeau est
      * déjà net : cette section n'ajoute aucun chiffre, elle décompose celui-là.
      */
-    upkeepHeader: 'entretien des troupes',
-    upkeepEmpty: 'Aucune troupe en service : rien à nourrir.',
     upkeepTroops: (count: number) => `${count} troupe${plural(count, '', 's')} en service`,
     upkeepDrain: (perHour: number) => `− ${tenths(perHour)} nourriture / h`,
     upkeepUnsupplied: (count: number, factor: number) =>
@@ -957,8 +978,6 @@ export const fr = {
     upkeepStarving:
       'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que la nourriture revient.',
 
-    othersHeader: 'autres bâtiments',
-    othersEmpty: 'Ni entrepôt, ni dépôt, ni station d’écoute.',
     listeningUnfigured: 'rayon de révélation non chiffré — l’espionnage n’est pas écrit',
     listeningTemporary:
       'La station d’écoute est ici en attendant la fenêtre Espionnage : un jalon inerte serait pire.',
@@ -967,7 +986,55 @@ export const fr = {
     // The real rate is a settled quantity, not a table entry: it arrives with a tail of
     // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
     perHour: (rate: number) => `${tenths(rate)} / h`,
+
+    /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite. */
+    budgetTaken: (taken: number, cap: number) => `${taken} sur ${cap}`,
+    budgetFree: (free: number) =>
+      free <= 0
+        ? 'plus un emplacement libre'
+        : free === 1
+          ? '1 emplacement libre'
+          : `${free} emplacements libres`,
+    hqCarriesHeader: 'ce qu’il porte',
+    hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
+    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
+    hqSlots: (total: number) => `${total} slots de mouvement`,
+    hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
+    hqTier2: 'palier 2 ouvert en production',
+    hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
+    cappedByHq: 'plafonné par le QG',
+    nothingBuilt:
+      'Rien de bâti. On pose une bâtisse sur la carte : clic droit sur une région à soi, au zoom rapproché.',
     inRegion: (region: string) => `en ${region}`,
+  },
+
+  /**
+   * **L'ordre de mobilisation** — la dette du format, rendue visible. Le jeu répond toujours à
+   * « et maintenant ? » sans tutoriel : la carte se retire d'elle-même quand la fondation est
+   * soldée, et ne revient jamais.
+   */
+  mobilization: {
+    header: 'ordre de mobilisation',
+    foundation: 'Fondation',
+    owed: (count: number) =>
+      `${count} pose${plural(count, '', 's')} offerte${plural(count, '', 's')} restante${plural(count, '', 's')}`,
+    pick: 'Choisissez une clé, puis sa région.',
+    eligible: (count: number) =>
+      `${count} région${plural(count, '', 's')} éligible${plural(count, '', 's')}`,
+    noneEligible: 'aucune région éligible',
+    chooseRegion: (condition: string) => `Choisissez la région — ${condition}`,
+    highlighted: (regions: ReadonlyArray<string>) =>
+      `${andList(regions)} surlignée${plural(regions.length, '', 's')} sur le plateau.`,
+    zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
+    cancel: 'annuler la sélection de clé',
+    count: (count: number) => `×${count}`,
+    /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
+     *  coup : rien d'affiché sans sa condition. */
+    wants: {
+      deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')} requis`,
+      coastal: 'région côtière requise',
+      any: 'toute région tenue',
+    },
   },
 
   /**
@@ -986,38 +1053,18 @@ export const fr = {
     carrier: 'appareils embarqués',
   } satisfies Record<UnitRole, string>,
 
+  /**
+   * **Ce que Nation est devenue : une fiche de lecture.** Le recensement, le budget
+   * d'emplacements et le quartier général sont partis dans Économie — le playtest a montré
+   * trois fenêtres ouvertes en cascade pour suivre une seule pose, et le recensement sert une
+   * décision qui se prend là-bas (`ordre-de-mobilisation-et-fenetre-economie.md` §2). Elle ne
+   * gère plus rien ; elle se lit, et elle ne porte aucun bouton.
+   */
   nationSheet: {
     kicker: 'fiche de nation',
-    season: (season: number) => `saison ${season}`,
-    doctrineLine: (doctrine: string) => `doctrine ${doctrine}`,
-    hqHeader: 'quartier général',
-    hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
-    hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
-    hqCarriesHeader: 'ce qu’il porte',
-    hqSlots: (total: number) => `${total} slots de mouvement`,
-    hqChainSpeed: (speed: string) => `chaînes de production ×${speed}`,
-    hqTier2: 'palier 2 ouvert en production',
-    hqTier2Locked: (level: number) => `palier 2 en production au niveau ${level}`,
-    budgetHeader: 'budget d’emplacements',
-    budgetTaken: (taken: number, cap: number) => `${taken} sur ${cap}`,
-    budgetFree: (free: number) =>
-      free <= 0
-        ? 'plus un emplacement libre'
-        : free === 1
-          ? '1 emplacement libre'
-          : `${free} emplacements libres`,
-    budgetNote: 'Le quartier général est le seul goulot : aucune quantité ne se compte en régions.',
-    /** The headquarters is counted in — the census and the budget above it would otherwise
-     *  disagree to the eye, and it is the figure that loses (brief §2.2). */
-    buildingsHeader: 'recensement des bâtiments — un chantier à la fois',
-    buildingsNote: 'On élève un bâtiment là où on l’emploie : Industrie ou Production.',
-    nothingBuilt:
-      'Rien de bâti. On pose une bâtisse sur la carte : clic droit sur une région à soi, au zoom rapproché.',
-    inRegion: (region: string) => `en ${region}`,
-    level: (level: number) => `niv. ${level}`,
-    cappedByHq: 'plafonné par le QG',
-    constructionRunning: 'Chantier en cours : ',
-    remains: ' — reste ',
+    doctrineHeader: 'doctrine choisie',
+    readOnly:
+      'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans Économie.',
     powerHeader: 'pouvoir national',
     /**
      * The counterpart of the power, and it belongs beside it: the ADR 0015 gap is a design

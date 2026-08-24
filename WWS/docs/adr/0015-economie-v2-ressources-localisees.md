@@ -1,6 +1,7 @@
 # ADR 0015 — Économie v2 : ressources localisées et filières courtes
 
-**Statut :** acceptée — **critère de distribution renforcé le 15/08/2026** (voir plus bas)
+**Statut :** acceptée — **critère de distribution renforcé le 15/08/2026**, **règle du grisé
+révisée le 24/08/2026** (voir plus bas)
 
 > ⚠️ **Révision (15/08/2026) : « un manque volontaire, jamais deux » ne suffit pas — il est
 > **complété**, pas remplacé.** Le critère mesure une **présence**, jamais une quantité ni une
@@ -46,7 +47,7 @@ aérodrome, port ; station d'écoute ; casernements ; entrepôt (se pille) et d�
 **Tout bâtiment se pose sur une région.** L'ADR 0013 avait laissé l'économie au niveau
 de la nation ; cette portée est révisée : l'économie descend aussi. Un bâtiment
 d'exploitation exige le gisement correspondant dans sa région ; l'écran de construction
-est contextuel — rien de grisé, jamais.
+est contextuel — rien de grisé, jamais. *(→ révisé le 24/08/2026, voir plus bas.)*
 
 **La production est localisée.** Le bâtiment qui ouvre un domaine fabrique ses unités :
 la file de recrutement devient **une file séquentielle par bâtiment de projection** —
@@ -280,3 +281,38 @@ refondu de chiffrer ce que l'exception coûte.
   projection, les casernements et le QG.
 - La file de production nationale unique (ADR 0011, portée révisée).
 - Le stock d'effectifs et son taux horaire.
+
+## Révision du 24/08 — la règle du grisé
+
+> ⚠️ **Révision (24/08/2026) : « l'écran de construction est contextuel — rien de grisé,
+> jamais » est remplacé.** La règle qui vaut désormais :
+>
+> > **Rien de caché ne se débloque, rien d'affiché sans sa condition.**
+>
+> Le reste de l'ADR est inchangé — le contextuel du panneau de région, lui, demeure.
+
+Le premier playtest à deux nations l'a mise en défaut par les deux bouts
+([la proposition](../design/propositions/ordre-de-mobilisation-et-fenetre-economie.md) §3) :
+
+- l'**impossible structurel** — pas de gisement ici, pas de côte — continue de ne pas
+  apparaître sur le panneau de région. C'est lui qui empêche le catalogue de quinze lignes,
+  et c'est la moitié de la règle d'origine qui tenait ;
+- l'**actionnable**, lui, doit apparaître **avec sa condition en clair**. « Demande un
+  quartier général niveau 3 » est déjà l'esprit du refus `BUILDING_LOCKED` — le seul refus
+  sur lequel un joueur peut toujours agir — et le cacher lui apprend qu'il n'existe pas.
+  Un joueur ne peut pas apprendre un catalogue qu'il n'a jamais vu ;
+- dans la fenêtre **Économie**, la filière se lit donc en trois états de maillon : **bâti**
+  avec son débit réel, **en chantier** avec son temps restant, **manquant** en pointillé avec
+  la phrase qui l'ouvrirait. C'est une carte du jeu, pas un menu grisé.
+
+**La condition n'est jamais un texte écrit deux fois.** Elle sort de `placementOf`
+(`src/domain/construction.ts`), qui lit la règle de placement partagée — `placementRefusal`,
+celle avec laquelle le serveur refuse — sur le sol du joueur, avec les deux mêmes lectures que
+`buildableOn` : circonstances levées pour dire ce que le sol peut *jamais* porter, puis en
+l'état pour dire ce qui bloque aujourd'hui. Une phrase recopiée dériverait, et l'écran
+promettrait ce que la mutation refuse.
+
+**L'ordre de mobilisation en est le corollaire visible** : tant que `me.foundation` doit des
+clés, une carte du plateau les nomme, une clé cliquée surligne les régions qui l'acceptent —
+la même fonction, donc la même règle — et la carte se retire d'elle-même quand la fondation est
+soldée. Rien n'est débloqué en secret : ce que l'ordre offre, `constructions.start` le prend.

@@ -1,5 +1,5 @@
 import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -16,19 +16,21 @@ import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
+import { placementOf } from '@/domain/construction';
 import type { Column, MovementAim } from '@/domain/movement-orders';
 import type { ArcView, MovementType, PlayerView, TroopStation } from '@/domain/player-view';
 import { PROJECTION_BY_DOMAIN, stationKeyOf, type MarchStation } from '@/domain/troops';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
-import { errorCode } from '@/data/errors';
+import { errorCode, handleError } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
+import { MobilizationCard } from './-plateau/MobilizationCard';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
@@ -70,8 +72,8 @@ const JournalWindow = lazy(() =>
 const ProductionWindow = lazy(() =>
   import('./-plateau/ProductionWindow').then((module) => ({ default: module.ProductionWindow })),
 );
-const IndustryWindow = lazy(() =>
-  import('./-plateau/IndustryWindow').then((module) => ({ default: module.IndustryWindow })),
+const EconomyWindow = lazy(() =>
+  import('./-plateau/EconomyWindow').then((module) => ({ default: module.EconomyWindow })),
 );
 const NationWindow = lazy(() =>
   import('./-plateau/NationWindow').then((module) => ({ default: module.NationWindow })),
@@ -80,7 +82,7 @@ const SettingsWindow = lazy(() =>
   import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
 );
 
-const WINDOWS = ['journal', 'production', 'industry', 'nation', 'settings'] as const;
+const WINDOWS = ['journal', 'production', 'economy', 'nation', 'settings'] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
 
@@ -109,26 +111,27 @@ export type BoardSearch = {
  * the compilation, never produce a dead click.
  */
 const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
-  hq: 'nation',
-  farm: 'industry',
-  mill: 'industry',
-  mine: 'industry',
-  oilWell: 'industry',
-  foundry: 'industry',
-  arsenal: 'industry',
-  quartermaster: 'industry',
-  warehouse: 'industry',
-  depot: 'industry',
-  listening: 'industry',
+  hq: 'economy',
+  farm: 'economy',
+  mill: 'economy',
+  mine: 'economy',
+  oilWell: 'economy',
+  foundry: 'economy',
+  arsenal: 'economy',
+  quartermaster: 'economy',
+  warehouse: 'economy',
+  depot: 'economy',
+  listening: 'economy',
   barracks: 'production',
   airfield: 'production',
   port: 'production',
   billets: 'production',
 };
 
-/** The three surfaces a focus can live in. Closing one of them lets it go — there is a single
- *  `building` in the URL, so a focus that outlived its window would resurface unasked. */
-const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['industry', 'production', 'nation'];
+/** The two surfaces a focus can live in. Closing one of them lets it go — there is a single
+ *  `building` in the URL, so a focus that outlived its window would resurface unasked. The
+ *  nation sheet left the list with its census: it names no building any more. */
+const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['economy', 'production'];
 
 export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
   const others = (search.windows ?? []).filter((open) => open !== name);
@@ -252,6 +255,14 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [column, setColumn] = useState<ArmedColumn | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const [focus, setFocus] = useState<{ ids: ReadonlyArray<string>; nonce: number } | null>(null);
+  /**
+   * **The mobilisation order, armed.** The season still owes free placements, the player has
+   * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
+   * other two map gestures — a construction site and an aim — because it is one of them: a
+   * click on the map that means something because of what is armed.
+   */
+  const [mobilized, setMobilized] = useState<BuildingKey | null>(null);
+  const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredCard ?? hoveredLabel ?? hoveredArc;
 
@@ -348,6 +359,51 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     document.addEventListener('keydown', disarm);
     return () => document.removeEventListener('keydown', disarm);
   }, [column]);
+
+  /**
+   * **The keys the season still owes, and the ground each one accepts.** The eligibility is
+   * `placementOf` — the placement refusal the server itself raises, read over the player's own
+   * regions. Nothing is re-decided here, which is the whole point: the order can only ever
+   * highlight ground `constructions.start` would take.
+   */
+  const foundation = useMemo(
+    () => [...new Set(view.me.foundation)].map((key) => placementOf(view, key)),
+    [view],
+  );
+
+  const designated = useMemo(
+    () => foundation.find((placement) => placement.key === mobilized)?.regionIds ?? [],
+    [foundation, mobilized],
+  );
+
+  // The order disarms itself when its key is paid off: `me.foundation` is what draws the card,
+  // so a key that has left it has no line left to be armed on.
+  const armed = mobilized !== null && view.me.foundation.includes(mobilized) ? mobilized : null;
+
+  const place = useMutation(api.constructions.start);
+
+  /**
+   * **The foundation goes down where it is clicked, through the one mutation that places.**
+   * There is no second door: `constructions.start` reads the free placement off `foundationOwed`
+   * and stands the building at once — the order only chooses the region, which is the single
+   * gesture of the opening that is a decision.
+   */
+  const placeFoundation = useCallback(
+    (regionId: string | null) => {
+      if (armed === null || regionId === null) return;
+      if (!designated.includes(regionId)) return;
+      setMobilizeError(null);
+      /**
+       * **The key stays armed.** A skirmish owes two mines, and disarming after the first would
+       * make the second placement a fresh hunt through the card. It disarms on its own when the
+       * debt is paid: `armed` is read off `me.foundation`, which the placement empties.
+       */
+      place({ token, building: armed, regionId }).catch((problem: unknown) =>
+        handleError(problem, setMobilizeError),
+      );
+    },
+    [armed, designated, place, token],
+  );
 
   const inkByCountry = useMemo(
     () => inkByClaimedCountry([view.me, ...view.opponents]),
@@ -539,6 +595,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onCompassAction={actOnCompass}
           building={buildingSite !== null}
           aiming={column !== null}
+          designatedRegions={designated}
+          onDesignateRegion={placeFoundation}
           focus={focus}
         />
         {buildingSite && (
@@ -590,7 +648,21 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             }}
           />
         )}
-        {column && !order && <AimBanner view={view} column={column} />}
+        {/* Top left, one column: the mobilisation order stands as long as the season owes
+            placements, and the aim banner joins it above rather than covering it. */}
+        <div className="pointer-events-none absolute top-4 left-4 z-10 flex flex-col items-start gap-3 [&>*]:pointer-events-auto">
+          {column && !order && <AimBanner view={view} column={column} />}
+          <MobilizationCard
+            view={view}
+            placements={foundation}
+            armed={armed}
+            error={mobilizeError}
+            onArm={(key) => {
+              setMobilizeError(null);
+              setMobilized(key);
+            }}
+          />
+        </div>
         <TroopsWidget
           view={view}
           hoveredMovement={hoveredMovement}
@@ -644,9 +716,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                   {...windowProps}
                 />
               );
-            case 'industry':
+            case 'economy':
               return (
-                <IndustryWindow
+                <EconomyWindow
                   key={name}
                   view={view}
                   token={token}
@@ -655,15 +727,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 />
               );
             case 'nation':
-              return (
-                <NationWindow
-                  key={name}
-                  view={view}
-                  token={token}
-                  focused={focused ?? null}
-                  {...windowProps}
-                />
-              );
+              return <NationWindow key={name} view={view} {...windowProps} />;
             case 'settings':
               return <SettingsWindow key={name} {...windowProps} />;
           }
@@ -813,7 +877,7 @@ function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) 
       : undefined;
   const station = building?.name ?? stationNamer(view)(address);
   return (
-    <div className="hud absolute top-4 left-4 z-10 border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
+    <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
       <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">
         {fr.aim.armed}
       </div>

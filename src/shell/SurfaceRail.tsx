@@ -47,11 +47,11 @@ export function SurfaceRail({
       active: windowOpen(search, 'production'),
     },
     {
-      title: fr.rail.industry.title,
-      label: fr.rail.industry.label,
+      title: fr.rail.economy.title,
+      label: fr.rail.economy.label,
       icon: <IndustryGlyph size={19} />,
-      target: toggled('industry'),
-      active: windowOpen(search, 'industry'),
+      target: toggled('economy'),
+      active: windowOpen(search, 'economy'),
     },
     {
       title: fr.rail.nation.title,
