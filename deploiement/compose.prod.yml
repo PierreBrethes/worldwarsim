@@ -1,0 +1,64 @@
+# Override de production — VPS derrière Traefik.
+#
+#   docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d
+#
+# Principe : en prod, AUCUN service ne publie de port sur l'hôte (Docker contourne ufw — un
+# port publié est un port mondial). Traefik route par le réseau Docker ; la seule exception
+# est le dashboard, lié à 127.0.0.1 et joignable uniquement en tunnel SSH.
+#
+# `!reset` exige Docker Compose >= 2.24 (`docker compose version` pour vérifier).
+#
+# TROIS NOMS À VÉRIFIER contre le Traefik du VPS avant le premier lancement — voir le README §
+# « Vérifier Traefik » : le réseau (`traefik` ci-dessous), l'entrypoint (`websecure`) et le
+# certresolver (`letsencrypt`).
+
+services:
+  backend:
+    ports: !reset []
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+
+      # L'API Convex (3210) — CONVEX_CLOUD_ORIGIN. Traefik passe les upgrades WebSocket
+      # sans rien demander : c'est le point que le README exigeait du proxy.
+      - traefik.http.routers.wws-convex.rule=Host(`convex.pierrebrethes.cloud`)
+      - traefik.http.routers.wws-convex.entrypoints=websecure
+      - traefik.http.routers.wws-convex.tls.certresolver=letsencrypt
+      - traefik.http.routers.wws-convex.service=wws-convex
+      - traefik.http.services.wws-convex.loadbalancer.server.port=3210
+
+      # Les actions HTTP Convex (3211) — CONVEX_SITE_ORIGIN. Le README d'avant ne routait
+      # que 3210 : sans ce routeur, tout ce qui passe par le site origin est mort en prod.
+      - traefik.http.routers.wws-actions.rule=Host(`convex-actions.pierrebrethes.cloud`)
+      - traefik.http.routers.wws-actions.entrypoints=websecure
+      - traefik.http.routers.wws-actions.tls.certresolver=letsencrypt
+      - traefik.http.routers.wws-actions.service=wws-actions
+      - traefik.http.services.wws-actions.loadbalancer.server.port=3211
+
+  # Le dashboard est une console d'admin : il ne passe PAS par Traefik et n'a pas de
+  # sous-domaine. 127.0.0.1 seulement — on l'ouvre par tunnel : voir le README.
+  dashboard:
+    ports: !override
+      - '127.0.0.1:6791:6791'
+
+  front:
+    ports: !reset []
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.wws-front.rule=Host(`wws.pierrebrethes.cloud`)
+      - traefik.http.routers.wws-front.entrypoints=websecure
+      - traefik.http.routers.wws-front.tls.certresolver=letsencrypt
+      - traefik.http.services.wws-front.loadbalancer.server.port=80
+
+networks:
+  # Le réseau que Traefik surveille déjà sur le VPS — externe : ce fichier ne le crée pas.
+  # `docker network ls` puis `docker inspect <conteneur-traefik>` pour retrouver son nom.
+  traefik:
+    external: true

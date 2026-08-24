@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Un déploiement à la fois, jamais annulé en vol : un convex deploy interrompu à moitié
+# vaudrait pire qu'un déploiement en retard.
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
 jobs:
   verifications:
     runs-on: ubuntu-latest
@@ -22,3 +28,42 @@ jobs:
       # types, lint, format, tests, build, miroir de simulation. Elles ne peuvent pas diverger.
       - name: Vérifications
         run: npm run verifier
+
+  # Le déploiement est en aval des vérifications — même workflow, même liste, aucune
+  # divergence possible. Il ne tourne que sur main (seule branche déclenchée ci-dessus).
+  #
+  # L'ordre des deux pas est un choix : les fonctions d'abord, le front ensuite. Pendant la
+  # reconstruction, l'ancien front parle aux nouvelles fonctions — la fenêtre est courte et
+  # c'est le sens le moins cassant. NB : `convex deploy` valide le schéma contre les données
+  # existantes ; une migration incompatible avec une saison en cours fait échouer le job,
+  # c'est voulu — on wipe ou on migre, mais on ne casse pas une saison en silence.
+  deployer:
+    needs: verifications
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Déployer les fonctions Convex
+        run: npx convex deploy
+        env:
+          CONVEX_SELF_HOSTED_URL: ${{ secrets.CONVEX_SELF_HOSTED_URL }}
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+
+      - name: Reconstruire le front sur le VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOTE }}
+          username: ${{ secrets.VPS_UTILISATEUR }}
+          key: ${{ secrets.VPS_CLE_SSH }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_CHEMIN }}
+            git pull --ff-only
+            docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d --build front
