@@ -15,6 +15,7 @@ import type * as constructions from "../constructions.js";
 import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as industry from "../industry.js";
+import type * as journal from "../journal.js";
 import type * as movements from "../movements.js";
 import type * as players from "../players.js";
 import type * as regions from "../regions.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   dev: typeof dev;
   errors: typeof errors;
   industry: typeof industry;
+  journal: typeof journal;
   movements: typeof movements;
   players: typeof players;
   regions: typeof regions;

@@ -337,20 +337,93 @@ export type QueuedWork = {
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
 
-/** A line the journal owes the player and no engagement accounts for. One kind so far: an
- *  entry of the construction queue the world took the right to before its turn came. */
-export type Notice = {
-  readonly at: number;
-  readonly kind: 'constructionCancelled';
-  readonly building: BuildingKey;
-  readonly regionName: string;
-};
+/**
+ * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
+ * the job that did the thing (`convex/validators.ts`, `NOTICE`), never derived on reading: the
+ * journal answers *what changed while I was away*, and anything recomputed from the board would
+ * answer *what is true now* — a different question, and not the one an asynchronous game lives
+ * on.
+ *
+ * A discriminated union rather than optional fields, all the way from the schema: a sighting has
+ * structurally no building and a delivery no heading, so the fog cannot leak through a field
+ * somebody forgot to leave empty (convention §8).
+ */
+export type Notice =
+  | {
+      readonly kind: 'constructionCancelled';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+    }
+  | {
+      readonly kind: 'constructionFinished';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly level: number;
+    }
+  | {
+      readonly kind: 'recruitmentDelivered';
+      readonly at: number;
+      readonly role: UnitRole;
+      /** `null` when the site was razed while the batch formed: the company comes home. */
+      readonly site: { readonly building: BuildingKey; readonly regionName: string } | null;
+    }
+  | {
+      readonly kind: 'columnArrived';
+      readonly at: number;
+      readonly movementType: 'march' | 'recall' | 'return';
+      readonly hostCountry: string;
+      readonly troops: number;
+    }
+  | {
+      readonly kind: 'movementStalled';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly resolvesAt: number;
+    }
+  | {
+      readonly kind: 'outpostFounded';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly specialization: Specialization;
+    }
+  | {
+      readonly kind: 'outpostDisabled';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly specialization: Specialization;
+    }
+  /** A thread, a place, a heading — and nothing a sentry could not honestly report (fiche 04). */
+  | {
+      readonly kind: 'movementSighted';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly headingDegrees: number;
+    }
+  | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
+  /** The adversary's face of a spent decoy: what he was watching carried nobody (fiche 04). */
+  | { readonly kind: 'decoyExposed'; readonly at: number; readonly hostCountry: string }
+  /** Its owner's: the feint has been read, and it cost a slot and the forfait all the same. */
+  | { readonly kind: 'decoyBlown'; readonly at: number; readonly hostCountry: string }
+  | { readonly kind: 'decoyArrived'; readonly at: number; readonly hostCountry: string }
+  | {
+      readonly kind: 'columnFoundNothing';
+      readonly at: number;
+      readonly movementType: 'attack' | 'raid';
+      readonly hostCountry: string;
+      readonly troops: number;
+    };
 
 export type JournalDispatch = {
+  /** The hour it happened, kept beside its French form: the banner counts against
+   *  `journalReadAt` and the merge orders by it, and neither can read a formatted string. */
+  readonly at: number;
   readonly t: string;
   readonly severity: DispatchSeverity;
   readonly text: string;
-  readonly replay: string | null;
+  /** Read is not a per-dispatch flag anywhere: it is `at > journalReadAt`, decided once here. */
+  readonly unread: boolean;
   readonly remaining: string | null;
   readonly resolutionAt: string | null;
 };

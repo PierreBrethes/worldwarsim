@@ -62,23 +62,12 @@ export function SurfaceRail({
     },
   ];
 
-  const upcoming: ReadonlyArray<{ title: string; label: string; icon: ReactNode }> = [
-    {
-      title: fr.rail.replay.title,
-      label: fr.rail.replay.label,
-      icon: <Pictogram pictogram="replay" weight={20} size={19} />,
-    },
-    {
-      title: fr.rail.doctrine.title,
-      label: fr.rail.doctrine.label,
-      icon: <Pictogram pictogram="doctrine" weight={20} size={19} />,
-    },
-    {
-      title: fr.rail.intel.title,
-      label: fr.rail.intel.label,
-      icon: <Pictogram pictogram="intel" weight={20} size={19} />,
-    },
-  ];
+  /**
+   * **Le rail ne montre que ce qui marche.** Trois entrées grisées y annonçaient le rejeu, la
+   * doctrine et l'espionnage : un invité qui les voit compte trois écrans qui n'existent pas, et
+   * un « bientôt » est une promesse qu'on ne tient pas à la minute où il la lit. Elles
+   * reviendront avec leur fonction, pas avant.
+   */
 
   return (
     <nav className="hud flex w-[52px] shrink-0 flex-col justify-between bg-[var(--desk)] py-2">
@@ -99,17 +88,6 @@ export function SurfaceRail({
                 {surface.icon}
                 <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
               </Link>
-            </li>
-          ))}
-          {upcoming.map((surface) => (
-            <li key={surface.label}>
-              <span
-                title={surface.title}
-                className="flex h-[46px] flex-col items-center justify-center gap-[3px] text-[var(--paper-dim)] opacity-40"
-              >
-                {surface.icon}
-                <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
-              </span>
             </li>
           ))}
         </ul>

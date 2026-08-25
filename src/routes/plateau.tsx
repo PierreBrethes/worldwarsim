@@ -541,14 +541,21 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    */
   const [briefing, setBriefing] = useState(() => !briefingSeen());
 
-  // The morning edition: with unread critical news, the journal is already on the desk on
-  // arrival. Once per arrival, and never over a deep link asking for another surface.
+  /**
+   * The morning edition: with **unread** critical news, the journal is already on the desk on
+   * arrival. Once per arrival, and never over a deep link asking for another surface.
+   *
+   * Unread is the whole condition. It used to open on any critical dispatch ever filed, so the
+   * same battle greeted a player on every visit until the season ended — a paper that reprints
+   * yesterday's headline is not an edition.
+   */
   const editionServed = useRef(false);
   useEffect(() => {
     if (editionServed.current) return;
     editionServed.current = true;
     if (windows.length) return;
-    if (!view.journal.some((dispatch) => dispatch.severity === 'critical')) return;
+    if (!view.journal.some((dispatch) => dispatch.unread && dispatch.severity === 'critical'))
+      return;
     void navigate({
       search: (previous) => withWindow(previous, 'journal'),
       replace: true,
@@ -715,7 +722,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           };
           switch (name) {
             case 'journal':
-              return <JournalWindow key={name} view={view} {...windowProps} />;
+              return <JournalWindow key={name} view={view} token={token} {...windowProps} />;
             case 'production':
               return (
                 <ProductionWindow

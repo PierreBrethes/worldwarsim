@@ -3,9 +3,10 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { distanceKm, type LonLat } from '../src/domain/geo';
+import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
 import { firstInterception, sightingsAlong, type MarchingForce } from '../src/domain/interception';
 import {
+  DECOY_PACE,
   foundingRefusal,
   liftOf,
   movementSlots,
@@ -17,12 +18,15 @@ import {
 } from '../src/domain/movement-orders';
 import { isNation } from '../src/domain/nations';
 import { nearestOutpost } from '../src/domain/outposts';
+import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 import { windowExit } from '../src/domain/rest-window';
+import type { BuildingKey } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
 import { buildingAt, buildingLevel, playerBuildings } from './buildings';
 import { resolveContact, troopsStationedAt } from './combat';
 import {
   ARRIVAL_RADIUS_KM,
+  DECOY_COST,
   INTERCEPTION_RADIUS_KM,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_IMMUNITY_HOURS,
@@ -32,6 +36,7 @@ import {
   formatOf,
 } from './constants';
 import { fail } from './errors';
+import { debit } from './resources';
 import { capitalRegionOf, homeCountryOf, nearestRegion, regionFacts } from './regions';
 import { hostAtPoint, routeBetween } from './routes';
 import { isAnchored } from './upkeep';
@@ -55,8 +60,9 @@ import {
  * outpost it garrisons. What that ground carries decides only the domain gates: a port to
  * embark, an airfield to take off, nothing at all to walk.
  *
- * Naval and air movement are not here, nor the agent, nor the decoy: they need routing in three
- * media and the fog, in that order.
+ * **The decoy joined them** (ADR 0006): a movement with an empty manifest, indiscernible from
+ * the road for everybody but its owner. Naval and air movement are still not here, nor the
+ * agent: they need routing in three media and the fog, in that order.
  */
 /**
  * **One founds where one stands.** It was a kind of march until ADR 0019 let a column stay on
@@ -120,6 +126,13 @@ export const foundOutpostHere = mutation({
       immuneUntil: null,
     });
     for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
+    await ctx.db.insert('notices', {
+      playerId: player._id,
+      at: Date.now(),
+      kind: 'outpostFounded',
+      hostCountry: hostAtPoint(pointOf(point)),
+      specialization,
+    });
     return { outpostId };
   },
 });
@@ -207,6 +220,129 @@ export const raid = mutation({
 });
 
 /**
+ * **A movement with nobody in it** (ADR 0006, design sheet 04). It occupies a slot, it walks the
+ * same road at the infantry's pace, it is filed against the same sightings and caught by the same
+ * interception — and when something finally reaches it, there is no column to fight. That is the
+ * whole of it: the fog only hides what it has something to hide, and the decoy is the something.
+ *
+ * **It is billed a flat rate rather than by what it carries**, which is the decision ADR 0006 was
+ * written for: cargo prices nothing else here, so an empty manifest would be free, and a free
+ * feint drowns the espionage in noise and the server in fan-out. `DECOY_COST` plus the slot means
+ * feinting is paid in attacks one will not launch.
+ *
+ * **It leaves from ground the player actually holds** — a garrison or a projection building, the
+ * same doors as a march. A feint starting anywhere would draw a column on ground its owner does
+ * not hold, which is piercing the fog backwards rather than thickening it.
+ *
+ * It takes no `troopIds` and there is no argument to pass them in: a decoy that could name a
+ * manifest is a march spelled another way.
+ */
+export const decoy = mutation({
+  args: { token: v.string(), origin: MOVEMENT_ORIGIN, point: LON_LAT },
+  handler: async (ctx, { token, origin, point }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(season);
+
+    await claimSlot(ctx, player._id, season);
+
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) {
+      if (origin.kind === 'outpost') fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
+      fail('UNKNOWN_BUILDING');
+    }
+    if (!(await decoyGate(ctx, player._id, departure))) fail('NO_DECOY_ORIGIN', {});
+
+    const aim = await aimOf(ctx, { kind: 'point', point });
+    /** The same function the rose filters its fan with, asked of an empty pile: a decoy goes
+     *  where a march goes and nowhere else (ADR 0015, one rule and two callers). */
+    const refusal = refusalOf('decoy', aim.aim, emptyColumn());
+    if (refusal !== null) fail(refusal, { type: 'decoy' });
+
+    const route = routeBetween(
+      departure.point,
+      aim.point,
+      routeModeOf(DECOY_PACE),
+      landCostOf(DECOY_PACE),
+    );
+    if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
+
+    const now = Date.now();
+    await debit(ctx, player._id, DECOY_COST, now);
+
+    const minutes = routeMinutes(route.costUnits);
+    const arrivesAt = now + minutes * 60_000;
+    const movementId = await ctx.db.insert('movements', {
+      playerId: player._id,
+      type: 'decoy',
+      fromBuildingId: departure.fromBuildingId,
+      target: aim.target,
+      from: asPoint(departure.point),
+      to: asPoint(aim.point),
+      hostCountry: aim.host,
+      points: route.points.map(asPoint),
+      legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
+      distanceUnits: route.distanceUnits,
+      costUnits: route.costUnits,
+      landCost: route.landCost,
+      troopIds: [],
+      departedAt: now,
+      arrivesAt,
+    });
+    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
+    /** **Indiscernible means the same two calls, in the same order** — a decoy filed by a
+     *  different path would be a decoy one could tell apart by the rows it leaves. */
+    const filed = (await ctx.db.get(movementId))!;
+    await scheduleInterception(ctx, filed);
+    await fileSightings(ctx, filed);
+    return { movementId, minutes, arrivesAt };
+  },
+});
+
+/** The empty pile a decoy is, in the shape the shared rule reads. It holds nothing a decoy could
+ *  need: no role opens a door, and no ground of the player's is consulted for a point. */
+const emptyColumn = (): Column => ({
+  roles: [],
+  myRegionIds: new Set(),
+  myOutpostIds: new Set(),
+  departureBuildings: new Set(),
+});
+
+/**
+ * **Where a decoy may set out from**: a projection building, or an address the player's own
+ * troops are standing at. A march proves its origin by the manifest it names — the troops have
+ * to be hanging from that very address — and a decoy names nobody, so the proof has to be made
+ * here or not at all.
+ *
+ * A troop in flight does not hold a place open: it kept its address while it walks (`troopIds`
+ * is a manifest, not a second attachment), and a garrison that has marched off is an empty
+ * point like any other.
+ */
+async function decoyGate(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  departure: Departure,
+): Promise<boolean> {
+  const station = departure.stationId;
+  if (station === null) return false;
+  if (typeof station === 'string') {
+    const buildingId = ctx.db.normalizeId('buildings', station);
+    const building = buildingId === null ? null : await ctx.db.get(buildingId);
+    if (building !== null && PROJECTION_KEYS.has(building.key)) return true;
+  }
+  const marching = new Set<Id<'troops'>>(
+    (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
+  );
+  return (
+    await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()
+  ).some((troop) => sameStation(troop.stationedAt, station) && !marching.has(troop._id));
+}
+
+const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
+
+/**
  * **What the player sees before he pays.** The route drawn under the aim is the one the march
  * will store — same grid, same weights, same pace (ADR 0012) — so the preview cannot promise a
  * Paris–Alger as short as a Paris–Berlin. It also answers the rest window: an arrival that bites
@@ -231,17 +367,17 @@ export const preview = query({
     if (departure === null) return null;
 
     /** The medium is read off the pile, exactly as the march will read it: a preview drawn on a
-     *  road for a column that sails would promise a route nobody takes. */
+     *  road for a column that sails would promise a route nobody takes.
+     *
+     *  **A decoy reads its own pace and not the armed pile's** (`DECOY_PACE`): the player still
+     *  has a column selected when he picks the feint, and drawing the trip that column would
+     *  have made would promise an hour the decoy never keeps. */
     const troops = await troopsAmong(ctx, player._id, troopIds);
     const column = await columnOf(ctx, player._id, troops, departure);
+    const pace = type === 'decoy' ? DECOY_PACE : column.roles;
 
     const { point, name, host } = await aimOf(ctx, target);
-    const route = routeBetween(
-      departure.point,
-      point,
-      routeModeOf(column.roles),
-      landCostOf(column.roles),
-    );
+    const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 
     const now = Date.now();
@@ -254,7 +390,8 @@ export const preview = query({
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       /** What the player knows about the ground he is pointing at — see `recognises`. */
       recognised: await recognises(ctx, player, point),
-      troops: troopIds.length,
+      /** A decoy carries nobody, whatever is armed behind the card. */
+      troops: type === 'decoy' ? 0 : troopIds.length,
       type,
       destinationName: name,
       originName: departure.name,
@@ -292,14 +429,44 @@ export const arrive = internalMutation({
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId });
+      /** **What one discovers on waking** (fiche 11 §4.1): the column is at the border and the
+       *  hour it goes through is the only fact worth a headline. Filed at the hold, once — the
+       *  reschedule lands past the window, so it cannot file a second. */
+      await ctx.db.insert('notices', {
+        playerId: movement.playerId,
+        at: now,
+        kind: 'movementStalled',
+        hostCountry: movement.hostCountry,
+        resolvesAt: held,
+      });
       return;
     }
 
     if (movement.type === 'attack' || movement.type === 'raid') {
-      await engageAt(ctx, movement, now);
+      await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') await standAt(ctx, movement, now);
+    else if (movement.type === 'decoy') await fadeAt(ctx, movement, now);
     else if (movement.type === 'recall') await recallAt(ctx, movement);
     else await attachHome(ctx, movement);
+
+    /**
+     * **The three arrivals nothing else accounts for.** An attack and a raid leave an engagement
+     * — the journal's battle dispatches are built from that account, and a notice beside it would
+     * word the same event twice; when they meet nobody there is no account, and `engageAt` files
+     * its own. A decoy files its own too, both faces of it. A march, a recall and a return leave
+     * nothing at all, which is exactly why a player who came back after eight quiet hours read
+     * "rien à signaler".
+     */
+    if (movement.type === 'march' || movement.type === 'recall' || movement.type === 'return') {
+      await ctx.db.insert('notices', {
+        playerId: movement.playerId,
+        at: now,
+        kind: 'columnArrived',
+        movementType: movement.type,
+        hostCountry: movement.hostCountry,
+        troops: movement.troopIds.length,
+      });
+    }
 
     await forgetMovement(ctx, movementId);
   },
@@ -331,10 +498,23 @@ export const intercept = internalMutation({
     if (interceptor === null || interceptor.troops.length === 0) return;
     if (interceptor.playerId === movement.playerId) return;
 
+    const now = Date.now();
+    /**
+     * **A decoy caught on the road is not a battle, it is a discovery.** There is nobody to
+     * strike, so no engagement is opened and no round is paid for — a magazine emptied against
+     * an empty road would make the feint a weapon against the ammunition rather than against
+     * the espionage (design sheet 04). Both boards learn what happened, and the thread stops
+     * there.
+     */
+    if (movement.type === 'decoy') {
+      await exposeDecoy(ctx, movement, interceptor.playerId, now);
+      await forgetMovement(ctx, movement._id);
+      return;
+    }
+
     const marching = await troopsCarriedBy(ctx, movement);
     if (marching.length === 0) return;
 
-    const now = Date.now();
     const { engagement, routed } = await resolveContact(ctx, {
       seasonId: owner.seasonId,
       attacker: { playerId: interceptor.playerId, troops: interceptor.troops },
@@ -611,6 +791,32 @@ const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
     ? {}
     : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
 
+/**
+ * **The movement slots of ADR 0006, carried by the headquarters** since the economy v2 dissolved
+ * the logistics centre (ADR 0015). The count comes from `movementSlots`, the very function
+ * `view.ts` fills the banner from: a placeholder constant used to cap this door at one while the
+ * banner promised `1 + hqLevel`, and a player at headquarters 2 saw two slots for the one he had.
+ *
+ * **A return does not count against it**: it is not an order, and holding a player's only slot
+ * hostage while his beaten column walks back would punish him twice for one defeat. A recall is
+ * not a return — it is the one order a garrison gets — so it counts like any other, and so does
+ * a decoy: a feint that cost no slot would be the reflex ADR 0006 exists to forbid.
+ */
+async function claimSlot(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  season: Doc<'seasons'>,
+): Promise<void> {
+  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
+  const maximum = movementSlots(hqLevel);
+  const flying = (await movementsOf(ctx, playerId)).filter(
+    (movement) => movement.type !== 'return',
+  );
+  if (flying.length >= maximum) {
+    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(season, hqLevel) });
+  }
+}
+
 async function march(
   ctx: MutationCtx,
   {
@@ -631,25 +837,7 @@ async function march(
     aim: Aimed;
   },
 ) {
-  /**
-   * **The movement slots of ADR 0006, carried by the headquarters** since the economy v2
-   * dissolved the logistics centre (ADR 0015). The count comes from `movementSlots`, the very
-   * function `view.ts` fills the banner from: a placeholder constant used to cap this door at
-   * one while the banner promised `1 + hqLevel`, and a player at headquarters 2 saw two slots
-   * for the one he had.
-   *
-   * **A return does not count against it**: it is not an order, and holding a player's only
-   * slot hostage while his beaten column walks back would punish him twice for one defeat. A
-   * recall is not a return — it is the one order a garrison gets — so it counts like any other.
-   */
-  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
-  const maximum = movementSlots(hqLevel);
-  const flying = (await movementsOf(ctx, playerId)).filter(
-    (movement) => movement.type !== 'return',
-  );
-  if (flying.length >= maximum) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(season, hqLevel) });
-  }
+  await claimSlot(ctx, playerId, season);
 
   /**
    * **Where the column stands, and nothing more.** It no longer decides what may be asked for
@@ -885,12 +1073,29 @@ async function fileSightings(ctx: MutationCtx, movement: Doc<'movements'>): Prom
     );
   }
 
+  /**
+   * **The heading is the whole movement's**, and it leaks nothing the observer does not already
+   * hold: the detected arc hands him the thread's own endpoints (`detectedArcs`), so the bearing
+   * is a reading of what he can already see. What the sentence never gets is what the row never
+   * carries — no type, no composition, no nation (fiche 04).
+   */
+  const heading = bearingDegrees(pointOf(movement.from), pointOf(movement.to));
+
   for (const [playerId, window] of byObserver) {
     await ctx.db.insert('sightings', {
       playerId,
       movementId: movement._id,
       from: window.from,
       to: window.to,
+    });
+    /** Filed **here**, at the departure, and not on reading: the sighting is an event of the
+     *  observer's board, and a journal that recomputed it would date it from the visit. */
+    await ctx.db.insert('notices', {
+      playerId,
+      at: window.from,
+      kind: 'movementSighted',
+      hostCountry: hostAtPoint(camps.find((camp) => camp.force.playerId === playerId)!.point),
+      headingDegrees: heading,
     });
   }
 }
@@ -953,7 +1158,14 @@ async function postedForces(
  * step), so an attack that arrives on empty ground turns around — no engagement, no account, and
  * nothing to show for the walk. It is the honest reading of "the fog made me march for nothing".
  */
-async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: number): Promise<void> {
+async function engageAt(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  /** The order, narrowed by the caller: the stored `type` is the whole vocabulary, and only two
+   *  of its words ever walk in here — the dispatch below has to name one of those two. */
+  type: 'attack' | 'raid',
+  now: number,
+): Promise<void> {
   const owner = await ctx.db.get(movement.playerId);
   const marching = await troopsCarriedBy(ctx, movement);
   if (!owner || marching.length === 0) return;
@@ -965,7 +1177,21 @@ async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: numbe
     /** **An outpost nobody garrisons falls to whoever walks up to it.** There is no engagement
      *  to file — a raid without an adversary is not a battle — but the point still goes out of
      *  service, which is the only thing the raid came for. */
-    if (movement.type === 'raid' && outpost !== null) await deactivate(ctx, outpost, now, null);
+    if (type === 'raid' && outpost !== null) await deactivate(ctx, outpost, now, null);
+    /**
+     * **The one arrival that used to leave no trace anywhere.** No pass, therefore no account,
+     * therefore nothing in the journal: a player came back to "rien à signaler" after the
+     * longest march of his season. The dispatch is the honest reading of the fog — one marched
+     * on what one believed was there.
+     */
+    await ctx.db.insert('notices', {
+      playerId: movement.playerId,
+      at: now,
+      kind: 'columnFoundNothing',
+      movementType: type,
+      hostCountry: movement.hostCountry,
+      troops: marching.length,
+    });
     await walkHome(ctx, { winners: marching, beaten: [] }, pointOf(movement.to), now);
     return;
   }
@@ -982,7 +1208,7 @@ async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: numbe
     at: now,
   });
 
-  if (movement.type === 'raid' && outpost !== null && engagement.winner === 'attacker') {
+  if (type === 'raid' && outpost !== null && engagement.winner === 'attacker') {
     await deactivate(ctx, outpost, now, engagementId);
   }
 
@@ -999,6 +1225,60 @@ async function engageAt(ctx: MutationCtx, movement: Doc<'movements'>, now: numbe
     ),
   );
   await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now);
+}
+
+/**
+ * **The end of a decoy: nothing arrives.** Whatever is standing at the point finds an empty
+ * road, so there is no pass to open and nobody to debit — the feint is a weapon against the
+ * espionage, never against the magazine.
+ *
+ * `defenceOf` is asked exactly as an attack would ask it, and for the same reason: what a
+ * movement meets on arrival is one question with one answer, and a decoy read by a second rule
+ * would be a decoy one could tell apart by where it dies.
+ */
+async function fadeAt(ctx: MutationCtx, movement: Doc<'movements'>, now: number): Promise<void> {
+  const defence = await defenceOf(ctx, movement);
+  if (defence !== null) {
+    await exposeDecoy(ctx, movement, defence.playerId, now);
+    return;
+  }
+  /** Nobody met it, so nobody but its owner ever knew it existed — which is the good ending
+   *  for a feint, and the one that leaves the adversary still guessing. */
+  await ctx.db.insert('notices', {
+    playerId: movement.playerId,
+    at: now,
+    kind: 'decoyArrived',
+    hostCountry: movement.hostCountry,
+  });
+}
+
+/**
+ * **Éventé.** The two faces of one minute, filed on the two boards it happened to: the force
+ * that made contact learns the thread carried nobody, its owner learns his feint has been read.
+ * Neither dispatch names the other player — a decoy exposed says nothing the contact itself did
+ * not already say (design sheet 04).
+ *
+ * It does not erase the thread: the arrival erases its own, and the interception erases the one
+ * it cut short. One function, two callers, and neither deletes a row the other already took.
+ */
+async function exposeDecoy(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  caughtBy: Id<'players'>,
+  now: number,
+): Promise<void> {
+  await ctx.db.insert('notices', {
+    playerId: caughtBy,
+    at: now,
+    kind: 'decoyExposed',
+    hostCountry: movement.hostCountry,
+  });
+  await ctx.db.insert('notices', {
+    playerId: movement.playerId,
+    at: now,
+    kind: 'decoyBlown',
+    hostCountry: movement.hostCountry,
+  });
 }
 
 /**
@@ -1067,6 +1347,15 @@ async function deactivate(
     immuneUntil: disabledUntil + OUTPOST_IMMUNITY_HOURS * 3_600_000,
   });
   if (engagementId !== null) await ctx.db.patch(engagementId, { disabledUntil });
+  /** **For the owner, and him alone.** A raid that met no garrison files no engagement at all,
+   *  so without this the point stops paying and nothing anywhere says why. */
+  await ctx.db.insert('notices', {
+    playerId: outpost.playerId,
+    at: now,
+    kind: 'outpostDisabled',
+    hostCountry: outpost.hostCountry,
+    specialization: outpost.specialization,
+  });
 }
 
 /**

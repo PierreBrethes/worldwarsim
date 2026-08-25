@@ -214,6 +214,15 @@ export const deliver = internalMutation({
       currentStrength: strength,
       stationedAt: station ? batch.buildingId : null,
     });
+    /** The site travels with the delivery, `null` when it was razed while the batch formed —
+     *  the company comes home rather than dying for it, and the dispatch has to say which. */
+    await ctx.db.insert('notices', {
+      playerId: batch.playerId,
+      at: Date.now(),
+      kind: 'recruitmentDelivered',
+      role: batch.role,
+      site: station === null ? null : { building: station.key, regionId: station.regionId },
+    });
     await ctx.db.delete(recruitmentId);
     await startHead(ctx, batch.buildingId, Date.now());
   },

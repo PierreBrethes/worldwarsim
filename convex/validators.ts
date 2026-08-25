@@ -75,15 +75,132 @@ export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 
-/** What a journal notice is about. One member for now, and a union all the same: the next kind
- *  has to be added here, where the schema and the client's translation table both read it. */
-export const NOTICE_KIND = v.union(v.literal('constructionCancelled'));
+/**
+ * **What the journal owes a player, one shape per kind** — a union of whole documents rather
+ * than one document with nine optional fields (convention §8). A sighting structurally carries
+ * no building and a finished site no heading, so no job can file a row half-filled and no
+ * reader can print a field its kind never had.
+ *
+ * Every kind is written by the job that *does* the thing, never derived on reading: the journal
+ * answers "what changed while I was away", and a client that recomputed it would answer "what
+ * is true now" — two different questions, and only the first one is the game's.
+ *
+ * Ids and numbers only, like everything else that crosses the wire (ADR 0016): the French is
+ * put on these by `src/domain/journal.ts`.
+ */
+const NOTICE_HEAD = { playerId: v.id('players'), at: v.number() };
+
+/** Where a delivered batch came out of, `null` when the site was razed while it was forming —
+ *  the troop comes home rather than dying for it (`troops.deliver`), and the dispatch says so. */
+const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.string() }), v.null());
+
+export const NOTICE = v.union(
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('constructionCancelled'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('constructionFinished'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    level: v.number(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('recruitmentDelivered'),
+    role: UNIT_ROLE,
+    site: NOTICE_SITE,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('columnArrived'),
+    movementType: v.union(v.literal('march'), v.literal('recall'), v.literal('return')),
+    hostCountry: v.string(),
+    troops: v.number(),
+  }),
+  /** The hour the border lets it through — what a player discovers on waking, and the one
+   *  thing the journal's own "au réveil" column is for (fiche 11 §4.1). */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('movementStalled'),
+    hostCountry: v.string(),
+    resolvesAt: v.number(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostFounded'),
+    hostCountry: v.string(),
+    specialization: SPECIALIZATION,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostDisabled'),
+    hostCountry: v.string(),
+    specialization: SPECIALIZATION,
+  }),
+  /**
+   * **A thread, a place and a heading — nothing else exists to file** (fiche 04). No type, no
+   * composition, no nation: the row carries what a sentry can honestly report, so the dispatch
+   * could not leak what the fog hides even if its sentence tried.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('movementSighted'),
+    hostCountry: v.string(),
+    headingDegrees: v.number(),
+  }),
+  /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
+   *  else on the board says it, and it is the difference between a defeat and a supply fault. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('firedDry'),
+    hostCountry: v.string(),
+  }),
+  /**
+   * **The two faces of a decoy's last minute, and they are filed on opposite boards.** The one
+   * who caught it learns that what he was watching carried nobody; its owner learns his feint
+   * has been spent. Neither row names the other player — a decoy exposed says nothing a contact
+   * did not already say (design sheet 04).
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('decoyExposed'),
+    hostCountry: v.string(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('decoyBlown'),
+    hostCountry: v.string(),
+  }),
+  /** A decoy that met nobody: it fades where it arrived, and its owner alone ever knows it
+   *  existed. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('decoyArrived'),
+    hostCountry: v.string(),
+  }),
+  /**
+   * **The one event of the game that used to leave no trace at all.** An attack or a raid that
+   * walks onto empty ground files no engagement — there was no pass — so without this row the
+   * player reads "rien à signaler" after the longest march of his season.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('columnFoundNothing'),
+    movementType: v.union(v.literal('attack'), v.literal('raid')),
+    hostCountry: v.string(),
+    troops: v.number(),
+  }),
+);
 
 /**
  * The five kinds of movement of the design, plus the one the resolution creates on its own, plus
  * `recall`, which nobody orders any more (ADR 0019 §1) and which stays here on purpose: a column
  * recalled before the change is still walking, and dropping the literal would make its document
- * unreadable to the very mutation that has to land it. `agent` and `decoy` wait for the fog
+ * unreadable to the very mutation that has to land it. `agent` alone still waits for the fog
  * surfaces; the union is the vocabulary, and narrowing it to what is coded would make every
  * later kind a schema migration.
  */

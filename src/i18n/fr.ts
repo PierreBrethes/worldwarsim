@@ -308,6 +308,10 @@ export const fr = {
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
+    /** Le leurre ne part pas de nulle part : sinon il percerait le brouillard à rebours, en
+     *  dessinant une colonne là où le joueur ne tient rien. */
+    NO_DECOY_ORIGIN: () =>
+      'un leurre part d’une garnison ou d’un bâtiment de projection, jamais d’un sol vide',
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
@@ -534,9 +538,6 @@ export const fr = {
     production: { title: 'Production — recrutement d’unités', label: 'prod.' },
     economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
-    replay: { title: 'Rejeu de bataille — à venir', label: 'rejeu' },
-    doctrine: { title: 'Doctrine — à venir', label: 'doctrine' },
-    intel: { title: 'Espionnage — à venir', label: 'espion.' },
     settings: 'Réglages',
     seasonEnd: (season: number, hours: number, minutes: string) =>
       `saison ${season} — fin dans ${hours} h ${minutes}`,
@@ -663,13 +664,74 @@ export const fr = {
     slotsEngaged: 'slots engagés',
     remaining: (time: string) => `restant ${time}`,
     resolutionAt: (time: string) => `résolution à ${time}`,
-    replay: 'rejeu',
-    seeReplay: 'voir le rejeu',
-    replayTitle: 'rejeu — surface 4.7 à venir',
     historyLabel: 'historique de la saison',
-    historyTitle: 'surface 4.7 — à venir',
-    keepNote: 'les dépêches lues restent consultables, rejeu compris',
+    keepNote: 'les dépêches lues restent consultables',
     backToBoard: 'retour au plateau',
+    unread: (count: number) => `${count} non lue${plural(count, '', 's')}`,
+    allRead: 'tout est lu',
+    /**
+     * **Une phrase entière par sorte, à la manière presse.** Le relevé ne nomme jamais la nation
+     * ni le type : la notice ne les porte pas (`convex/validators.ts`), et la phrase ne pourrait
+     * pas les dire même si elle essayait — c'est la condition d'existence du leurre (fiche 04).
+     */
+    notices: {
+      constructionFinished: (building: string, region: string, level: number) =>
+        level <= 1
+          ? `${building} en ${region} entre en service.`
+          : `${building} en ${region} passe au niveau ${level}.`,
+      delivered: (building: string, region: string, role: string) =>
+        `${building} en ${region} a livré une compagnie — ${role}.`,
+      deliveredHome: (role: string) =>
+        `Une compagnie — ${role} — a rejoint le pays : son site n’était plus debout.`,
+      columnArrived: (
+        movementType: 'march' | 'recall' | 'return',
+        troops: number,
+        country: string,
+      ) => {
+        const column = `${troops} troupe${plural(troops, '', 's')}`;
+        if (movementType === 'return')
+          return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
+        if (movementType === 'recall')
+          return `Une garnison de ${column} est rentrée au pays — ${country}.`;
+        return `Une colonne de ${column} a pris position — ${country}.`;
+      },
+      movementStalled: (country: string) =>
+        `Une colonne attend à la frontière — ${country} : la plage de repos y interdit toute arrivée.`,
+      outpostFounded: (specialization: string, country: string) =>
+        `Un ${specialization} a été fondé — ${country}.`,
+      outpostDisabled: (specialization: string, country: string) =>
+        `Notre ${specialization} a été désactivé par un raid — ${country}.`,
+      /**
+       * **Nos guetteurs, jamais celui qu'on a vu.** Le pays nommé est celui d'où l'on a regardé :
+       * la notice ne porte pas la nation de la colonne, et la phrase ne doit pas laisser croire
+       * qu'elle la donne (fiche 04).
+       */
+      movementSighted: (country: string, cardinal: string) =>
+        `Nos guetteurs ont relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
+      firedDry: (country: string) =>
+        `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
+      /**
+       * **Ce que le brouillard rend au joueur quand il se referme.** Celui qui a éventé le leurre
+       * n'apprend rien de plus qu'avant — pas la nation, pas ce qu'elle prépare — seulement que ce
+       * fil-là ne portait personne. Le propriétaire, lui, sait que sa feinte est lue.
+       */
+      decoyExposed: (country: string) =>
+        `La colonne relevée — ${country} — n’était qu’un leurre : elle ne portait personne.`,
+      decoyBlown: (country: string) => `Notre leurre a été éventé — ${country}.`,
+      decoyArrived: (country: string) =>
+        `Notre leurre est arrivé — ${country} — sans rencontre : personne ne l’a vu se dissiper.`,
+      /**
+       * **Le seul événement du jeu qui ne laissait aucune trace.** Pas d'engagement, donc pas de
+       * compte rendu : sans cette ligne, la plus longue marche d'une saison se lit « rien à
+       * signaler ».
+       */
+      columnFoundNothing: (movementType: 'attack' | 'raid', troops: number, country: string) => {
+        const column = `${troops} troupe${plural(troops, '', 's')}`;
+        return movementType === 'raid'
+          ? `Notre raid est arrivé — ${country} — et n’a trouvé personne à l’avant-poste.`
+          : `Notre colonne de ${column} est arrivée — ${country} — et n’a trouvé personne.`;
+      },
+    },
   },
 
   /**
@@ -705,6 +767,11 @@ export const fr = {
     restMark: (time: string) => `arrive en repos — libre à ${time}`,
     // The decoy is visible to its owner alone (fiche 04) — the adversary sees an ordinary arc.
     decoyMark: 'leurre — visible de vous seul',
+    /** **Les leurres ne se mélangent pas aux colonnes** : ils n'en sont pas, et une ligne au
+     *  milieu des piles se lirait comme des troupes en route. */
+    decoys: 'leurres',
+    decoysPower: 'sans troupe',
+    decoyRoute: (destination: string) => `leurre → ${destination}`,
     observe: (route: string) => `suivre ${route}`,
     foldedQuiet: 'rien en vol',
     foldedFlight: (count: number, next: string) =>
@@ -799,6 +866,9 @@ export const fr = {
     noRoute: 'Aucune route terrestre vers cette destination.',
     duration: (duration: string, count: number) =>
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
+    /** Le leurre ne porte personne : « 0 troupe » se lirait comme une pile vide envoyée par
+     *  erreur, alors que c'est exactement ce qu'on achète. */
+    durationAlone: (duration: string) => `durée ${duration}`,
     arrival: (time: string) => `arrivée ${time}`,
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
     /**
@@ -827,6 +897,15 @@ export const fr = {
     unscouted: 'sol non reconnu',
     unscoutedNote:
       'rien à vous ne regarde ce sol. Un sol reconnu ne serait pas plus sûr : une troupe posée ne se voit pas.',
+    /**
+     * **Le forfait, dit avant le clic** (ADR 0006). Il ne dépend pas de la cargaison — il n'y en
+     * a pas — et c'est exactement ce qui fait du leurre une décision : feinter se paie en
+     * attaques qu'on ne lancera pas.
+     */
+    decoyCost: (alloy: number) => `forfait ${alloy} alliage · 1 slot`,
+    decoyNote: 'Indiscernable d’une vraie colonne. Éventé au premier contact.',
+    /** La pile armée reste où elle est : le leurre ne l'emporte pas, il n'emporte personne. */
+    decoyKeepsColumn: 'Aucune troupe ne part — votre pile reste en place.',
     submit: 'envoyer — irréversible',
     cancel: 'annuler',
   },
@@ -1253,6 +1332,10 @@ export const fr = {
     seeCountry: 'Voir le pays',
     seeCountryConsequence: (name: string) => `Sélectionne ${name} et ouvre son panneau de bord.`,
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,
+    /** Le leurre ne dit pas ce qu'il coûte ici — la carte d'aperçu le chiffre. Il dit ce qu'il
+     *  est : une colonne qui n'existe pas, et qui ne trompe qu'une fois. */
+    decoyConsequence:
+      'Trace l’arc d’une colonne qui n’existe pas : indiscernable, éventée au premier contact.',
     aiming: (count: number) => `visée armée · ${count} troupe${plural(count, '', 's')}`,
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
     neutralHeld: 'pays neutre · avant-poste tenu',

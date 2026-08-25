@@ -152,6 +152,16 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
+    /** The one channel that says a site is standing: nothing else on the board announces it,
+     *  and a player who was away sees only the finished building, never the moment. */
+    await ctx.db.insert('notices', {
+      playerId: construction.playerId,
+      at: Date.now(),
+      kind: 'constructionFinished',
+      building: construction.building,
+      regionId: construction.regionId,
+      level: construction.level,
+    });
     await startHead(ctx, construction.playerId, Date.now());
   },
 });

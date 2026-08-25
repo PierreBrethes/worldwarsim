@@ -509,21 +509,23 @@ export const playerView = query({
         return [{ nickname: seat.nickname, nation: seat.nation ?? seat.nickname, at }];
       }),
       /**
-       * **What happened to the player without him asking**, raw. Today: a queued construction
-       * the world took the right to before its turn came. Ids and numbers only — the sentence
-       * is put on it by `journalDispatches`, like every other dispatch (ADR 0016).
+       * **What happened to the player without him asking**, raw — a site finished, a company
+       * delivered, a column landed, a point founded or put out of service, a thread a sentry
+       * saw, a pass fought dry. Each row was written by the job that did the thing (`NOTICE`).
+       *
+       * Ids and numbers only, like every other dispatch (ADR 0016). The one thing resolved here
+       * is the **region name**: the client holds no region table, and an id in a headline would
+       * be worse than no headline.
        */
       notices: (
         await ctx.db
           .query('notices')
           .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
           .collect()
-      ).map((notice) => ({
-        at: notice.at,
-        kind: notice.kind,
-        building: notice.building,
-        regionName: regionFacts(notice.regionId)?.name ?? notice.regionId,
-      })),
+      ).map(named),
+      /** The hour he last closed the window, `null` while he never has: the client decides what
+       *  is unread from it, and nothing on the server counts dispatches. */
+      journalReadAt: player.journalReadAt ?? null,
       journal: [],
       loadedAt: now,
       opponents: others.map((other) => ({
@@ -535,6 +537,31 @@ export const playerView = query({
     };
   },
 });
+
+/**
+ * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
+ * region table, so an id would reach the headline raw. Everything else travels untouched — the
+ * shape is the union the schema stores, member for member, so a kind added there breaks the
+ * compilation here rather than reaching the journal as a row nobody words.
+ */
+function named(notice: Doc<'notices'>) {
+  const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
+  switch (notice.kind) {
+    case 'constructionCancelled':
+    case 'constructionFinished':
+      return { ...notice, regionName: nameOf(notice.regionId) };
+    case 'recruitmentDelivered':
+      return {
+        ...notice,
+        site:
+          notice.site === null
+            ? null
+            : { building: notice.site.building, regionName: nameOf(notice.site.regionId) },
+      };
+    default:
+      return notice;
+  }
+}
 
 /**
  * **What the player's sentries saw pass** (ADR 0005, ADR 0019 §5, design sheet 04). Rows are read

@@ -84,10 +84,23 @@ export async function resolveContact(
   });
 
   for (const side of ['attacker', 'defender'] as const) {
-    const { spent } = engagement.magazine[side];
-    if (spent === 0) continue;
+    const { spent, dry } = engagement.magazine[side];
     const who = side === 'attacker' ? attacker.playerId : defender.playerId;
-    await debit(ctx, who, { ammunition: spent }, at);
+    if (spent > 0) await debit(ctx, who, { ammunition: spent }, at);
+    /**
+     * **A side that could not pay struck at `DRY_AMMUNITION_FACTOR`**, and nothing else on the
+     * board says it: the account of the pass shows losses, never the reason for them, so a
+     * supply fault reads as a defeat. Dryness belongs to the side and not to a troop (design
+     * sheet 09), so it is one line for the whole pass.
+     */
+    if (dry) {
+      await ctx.db.insert('notices', {
+        playerId: who,
+        at,
+        kind: 'firedDry',
+        hostCountry,
+      });
+    }
   }
 
   /** Read **before** the outcomes land: "this pass is the one that crossed the bar" needs the

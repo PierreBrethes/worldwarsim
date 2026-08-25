@@ -114,6 +114,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
       server.warEntries ?? [],
       (server.notices ?? []) as ReadonlyArray<Notice>,
+      // Absent means nothing has ever been read — which is the state of a first visit anyway.
+      server.journalReadAt ?? null,
     ),
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,

@@ -1,3 +1,6 @@
+import { useMutation } from 'convex/react';
+import { useCallback } from 'react';
+import { api } from '../../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
 import type {
   JournalDispatch,
@@ -16,12 +19,32 @@ const COLUMNS: ReadonlyArray<{ severity: DispatchSeverity; ink: string }> = [
 
 export function JournalWindow({
   view,
+  token,
   onClose,
   ...windowProps
-}: WindowProps & { view: PlayerView }) {
+}: WindowProps & { view: PlayerView; token: string }) {
+  const markRead = useMutation(api.journal.markRead);
   const dispatches = view.journal;
+  const unread = dispatches.filter((dispatch) => dispatch.unread);
+
+  /**
+   * **Lu à la fermeture, jamais à l'ouverture** : ce qu'on a eu le temps de voir est lu, et une
+   * fenêtre ouverte par erreur ne vide pas le bandeau. Le refus n'a rien à dire au joueur —
+   * la pire suite est un compteur qui reste allumé, jamais une action perdue.
+   */
+  const close = useCallback(() => {
+    void markRead({ token }).catch(() => undefined);
+    onClose();
+  }, [markRead, token, onClose]);
+
+  /** La manchette est **la première non lue**, pas la première critique : le journal s'ouvre sur
+   *  ce qui a changé depuis la dernière visite, ce qui est toute sa raison d'être. */
   const lead =
-    dispatches.find((dispatch) => dispatch.severity === 'critical') ?? dispatches[0] ?? null;
+    unread.find((dispatch) => dispatch.severity === 'critical') ??
+    unread[0] ??
+    dispatches.find((dispatch) => dispatch.severity === 'critical') ??
+    dispatches[0] ??
+    null;
   const stalled = dispatches.find((dispatch) => dispatch.resolutionAt !== null);
   const embargo = dispatches.find((dispatch) => dispatch.remaining !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -31,7 +54,7 @@ export function JournalWindow({
   );
 
   return (
-    <FloatingWindow name="journal" onClose={onClose} {...windowProps} alignment="top" width={1040}>
+    <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="top" width={1040}>
       <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[30px] pt-[26px] pb-5">
         <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.journal.editionOf(time)}</span>
@@ -44,7 +67,7 @@ export function JournalWindow({
           </span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={close}
             className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
           >
             {fr.common.close}
@@ -64,6 +87,10 @@ export function JournalWindow({
             </span>
             <span className="text-[#9d8f78]">·</span>
             <span>{fr.journal.dispatches(dispatches.length)}</span>
+            <span className="text-[#9d8f78]">·</span>
+            <span style={{ color: unread.length > 0 ? 'var(--critical)' : undefined }}>
+              {unread.length > 0 ? fr.journal.unread(unread.length) : fr.journal.allRead}
+            </span>
           </div>
         </div>
 
@@ -89,7 +116,6 @@ export function JournalWindow({
                     .
                   </p>
                 )}
-                {lead.replay && <ReplayButton full />}
               </div>
 
               <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-5">
@@ -159,10 +185,7 @@ export function JournalWindow({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
-          <span
-            className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase"
-            title={fr.journal.historyTitle}
-          >
+          <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             {fr.journal.historyLabel}
           </span>
           <span className="font-(family-name:--font-display) text-[12.5px] text-[var(--ink-quiet)] italic">
@@ -170,7 +193,7 @@ export function JournalWindow({
           </span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={close}
             className="cursor-pointer bg-[var(--ink)] px-4 py-[9px] text-[10px] tracking-[.2em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)]"
           >
             {fr.journal.backToBoard}
@@ -225,9 +248,14 @@ function ReductionTable({ board }: { board: ReductionBoard }) {
   );
 }
 
+/** **Une dépêche lue s'efface, elle ne disparaît pas** : l'historique de la saison est ce qu'on
+ *  relit, et une pile qui se vide en se lisant ne raconte plus rien (fiche 11 §4.1). */
 function Dispatch({ entry }: { entry: JournalDispatch }) {
   return (
-    <div className="border-b border-[rgba(42,33,24,.16)] py-[10px] last:border-b-0">
+    <div
+      className="border-b border-[rgba(42,33,24,.16)] py-[10px] last:border-b-0"
+      style={{ opacity: entry.unread ? 1 : 0.5 }}
+    >
       <div className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
         {entry.t}
       </div>
@@ -241,24 +269,6 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
             : fr.journal.resolutionAt(entry.resolutionAt ?? '')}
         </div>
       )}
-      {entry.replay && <ReplayButton />}
     </div>
-  );
-}
-
-function ReplayButton({ full = false }: { full?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title={fr.journal.replayTitle}
-      className={
-        full
-          ? 'mt-3 cursor-not-allowed bg-[var(--ink)] px-[13px] py-[9px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase opacity-70'
-          : 'mt-[6px] cursor-not-allowed border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase opacity-70'
-      }
-    >
-      {full ? fr.journal.seeReplay : fr.journal.replay}
-    </button>
   );
 }

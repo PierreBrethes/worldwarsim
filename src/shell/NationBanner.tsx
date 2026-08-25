@@ -29,8 +29,11 @@ const PLATE_HEIGHT = 20;
 export function NationBanner({ view }: { view: PlayerView }) {
   const { me } = view;
   const search = useSearch({ strict: false }) as BoardSearch;
-  const critical = view.journal.find((dispatch) => dispatch.severity === 'critical') ?? null;
-  const hasNews = critical !== null || view.journal.length > 0;
+  /** **Le bandeau ne compte que le non-lu.** Il comptait toutes les dépêches, pour toujours :
+   *  un compteur qui ne redescend jamais cesse d'être lu au bout d'une journée. */
+  const unread = view.journal.filter((dispatch) => dispatch.unread);
+  const critical = unread.find((dispatch) => dispatch.severity === 'critical') ?? null;
+  const hasNews = unread.length > 0;
 
   return (
     <header
@@ -76,7 +79,7 @@ export function NationBanner({ view }: { view: PlayerView }) {
             className="min-w-0 max-w-[260px] overflow-hidden text-[12.5px] text-ellipsis"
             style={{ color: critical ? 'var(--critical)' : 'var(--paper)' }}
           >
-            {critical ? critical.text : fr.banner.unread(view.journal.length)}
+            {critical ? critical.text : fr.banner.unread(unread.length)}
           </span>
         )}
       </Link>

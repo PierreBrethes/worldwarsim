@@ -1063,9 +1063,16 @@ describe('the construction queue', () => {
     expect(after.me.buildings.some((building) => building.regionId === JURA)).toBe(false);
     expect(await alloyOf(t, token)).toBe(opening - (buildCost('billets', 1).alloy ?? 0));
 
-    expect(after.notices).toEqual([
-      expect.objectContaining({ kind: 'constructionCancelled', building: 'depot' }),
-    ]);
+    // The head that did rise files its own line: the journal owes a player the site he built
+    // as much as the one the world took back.
+    expect(
+      after.notices.map((notice) => [notice.kind, 'building' in notice ? notice.building : null]),
+    ).toEqual(
+      expect.arrayContaining([
+        ['constructionFinished', 'billets'],
+        ['constructionCancelled', 'depot'],
+      ]),
+    );
   });
 
   /** The head has started and has consumed the queue's time; the follower has not, and its

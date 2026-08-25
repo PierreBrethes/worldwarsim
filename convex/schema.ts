@@ -8,7 +8,7 @@ import {
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
-  NOTICE_KIND,
+  NOTICE,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_DURATION_HOURS,
@@ -71,6 +71,17 @@ export default defineSchema({
      * function.
      */
     enteredWarAt: v.optional(v.union(v.number(), v.null())),
+    /**
+     * **The hour he last closed the journal**, absent while he never has. Read, never written,
+     * by anything that counts: the banner's unread tally and the window's own greying both come
+     * out of comparing a dispatch's hour to this one, so there is no per-dispatch read flag to
+     * keep in step with a list that is rebuilt on every load.
+     *
+     * It is stamped at the **close** of the window, not at its opening: what one had time to
+     * see is what one read, and a player who opens the journal and is called away has not read
+     * the three dispatches under the fold.
+     */
+    journalReadAt: v.optional(v.number()),
   })
     .index('byToken', ['token'])
     .index('bySeason', ['seasonId']),
@@ -348,13 +359,7 @@ export default defineSchema({
    * A notice is a line of the journal and nothing else. It carries ids and numbers, never a
    * sentence (ADR 0016): the French is put on it on the client, like every other dispatch.
    */
-  notices: defineTable({
-    playerId: v.id('players'),
-    at: v.number(),
-    kind: NOTICE_KIND,
-    building: BUILDING_KEY,
-    regionId: v.string(),
-  }).index('byPlayer', ['playerId']),
+  notices: defineTable(NOTICE).index('byPlayer', ['playerId']),
 
   /**
    * **What one player saw pass, and when** — the fog's own ledger (ADR 0005, ADR 0019 §5).
