@@ -10,7 +10,11 @@ import {
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
-export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
+export function SettingsWindow({
+  onClose,
+  onShowBriefing,
+  ...windowProps
+}: WindowProps & { onShowBriefing: () => void }) {
   const [scale, setScale] = useState(readHudScale);
 
   const set = (value: number) => {
@@ -62,6 +66,26 @@ export function SettingsWindow({ onClose, ...windowProps }: WindowProps) {
               className="shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
             >
               {fr.settingsWindow.reset}
+            </button>
+          </div>
+
+          {/* La feuille d'entrée en campagne ne se rouvre d'office jamais : c'est ici, et
+              nulle part ailleurs, qu'un joueur la retrouve. */}
+          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="min-w-[180px] flex-1">
+              <div className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.briefingLabel}
+              </div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.briefingNote}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onShowBriefing}
+              className="shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            >
+              {fr.settingsWindow.briefingReopen}
             </button>
           </div>
         </div>

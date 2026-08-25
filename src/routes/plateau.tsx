@@ -21,6 +21,7 @@ import type { Column, MovementAim } from '@/domain/movement-orders';
 import type { ArcView, MovementType, PlayerView, TroopStation } from '@/domain/player-view';
 import { PROJECTION_BY_DOMAIN, stationKeyOf, type MarchStation } from '@/domain/troops';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
+import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { errorCode, handleError } from '@/data/errors';
@@ -31,6 +32,7 @@ import { GroundPanel } from './-plateau/GroundPanel';
 import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
 import { MobilizationCard } from './-plateau/MobilizationCard';
+import { BriefingSheet } from './-plateau/BriefingSheet';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
@@ -532,6 +534,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [navigate],
   );
 
+  /**
+   * The command sheet, served on a player's very first board and by the settings line after
+   * that. The flag is read once at mount: marking it seen inside the season must not make the
+   * sheet vanish under a re-render, only stop the *next* arrival from serving it.
+   */
+  const [briefing, setBriefing] = useState(() => !briefingSeen());
+
   // The morning edition: with unread critical news, the journal is already on the desk on
   // arrival. Once per arrival, and never over a deep link asking for another surface.
   const editionServed = useRef(false);
@@ -730,10 +739,24 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             case 'nation':
               return <NationWindow key={name} view={view} {...windowProps} />;
             case 'settings':
-              return <SettingsWindow key={name} {...windowProps} />;
+              return (
+                <SettingsWindow
+                  key={name}
+                  onShowBriefing={() => setBriefing(true)}
+                  {...windowProps}
+                />
+              );
           }
         })}
       </Suspense>
+      {briefing && (
+        <BriefingSheet
+          onDismiss={() => {
+            markBriefingSeen();
+            setBriefing(false);
+          }}
+        />
+      )}
       {/* the curtain extends the launch's black until the map's first frame */}
       <div
         aria-hidden

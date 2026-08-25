@@ -1151,6 +1151,54 @@ export const fr = {
     scaleNote: (min: number, max: number) =>
       `De ${min} à ${max} %, appliqué immédiatement. Réglage propre à ce navigateur.`,
     reset: 'défaut',
+    briefingLabel: 'Aide-mémoire du commandement',
+    briefingNote: 'La feuille d’entrée en campagne — les commandes, le terrain, vos bureaux.',
+    briefingReopen: 'relire',
+  },
+
+  /**
+   * **Une feuille, jamais un pas-à-pas.** L'ordre de mobilisation dit quoi faire ; personne ne
+   * disait comment tenir la carte. Ce mode d'emploi ne pointe rien du doigt, ne fléche rien et
+   * n'attend aucune étape : la doctrine « sans tutoriel » tient. Chaque phrase décrit ce que le
+   * code fait vraiment — ce qui n'existe pas n'y figure pas.
+   */
+  briefing: {
+    kicker: 'entrée en campagne',
+    header: 'aide-mémoire du commandement',
+    subtitle: 'Notice à l’usage de l’officier nouvellement affecté',
+    columns: [
+      {
+        title: 'La carte et la souris',
+        lines: [
+          'Clic gauche glissé : orienter et incliner la vue. Clic gauche net : sélectionner le pays visé.',
+          'Molette : zoomer. Molette enfoncée — ou espace maintenu avec le clic gauche : déplacer la carte.',
+          'Clic droit sur un point : la rose des vents. Elle propose ce que ce point accepte, et rien d’autre.',
+          'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
+          'Le « ? » en bas à droite rouvre les commandes à tout moment.',
+        ],
+      },
+      {
+        title: 'Lire le terrain',
+        lines: [
+          'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
+          'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
+          'Une troupe posée observe : elle relève les mouvements qui passent à moins de 60 km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.',
+          'Un avant-poste ouvre 400 km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.',
+        ],
+      },
+      {
+        title: 'Vos bureaux',
+        lines: [
+          'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
+          'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
+          'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
+          'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
+        ],
+      },
+    ],
+    foot: 'Cette feuille se relit depuis les Réglages.',
+    dismiss: 'compris',
+    dismissTitle: 'fermer l’aide-mémoire',
   },
 
   window: {
