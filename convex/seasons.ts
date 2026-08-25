@@ -13,6 +13,7 @@ import {
   MIN_PLAYERS_TO_LAUNCH,
   SEASON_FORMATS,
   formatOf,
+  nominalStrength,
   startingStock,
 } from './constants';
 
@@ -62,19 +63,19 @@ export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean
   warEntryOf(player, season) !== null;
 
 /**
- * **The kit, and one building** — handed out once, by the only two roads that lead to a board:
- * the launch, for everybody standing in the lobby, and the entry into war, for whoever arrives
- * afterwards. One writing of the endowment, so a change to it cannot reach one road and miss
- * the other.
+ * **The kit, one building and one company** — handed out once, by the only two roads that lead
+ * to a board: the launch, for everybody standing in the lobby, and the entry into war, for
+ * whoever arrives afterwards. One writing of the endowment, so a change to it cannot reach one
+ * road and miss the other.
  *
  * The headquarters goes on the region of the 1940 capital (ADR 0015), at the level its format
  * plants it. Everything else is put up or does not exist — but the HQ caps every other building,
  * so leaving it at zero made the first construction of a season forcibly the HQ, without a rule
  * saying so.
  *
- * The foundation of the format is **not** raised here: nothing is placed for the player. A
- * belligerent whose foundation is still owed is a normal state, and the free placements wait
- * for him to choose his regions (`constructions.start`).
+ * The foundation is **not** raised here: nothing is placed for the player. A belligerent whose
+ * foundation is still owed is a normal state, and the free placements wait for him to choose
+ * his regions (`constructions.start`).
  */
 async function endow(
   ctx: MutationCtx,
@@ -92,12 +93,34 @@ async function endow(
       updatedAt: at,
     });
   }
-  await ctx.db.insert('buildings', {
+  const hq = await ctx.db.insert('buildings', {
     playerId: player._id,
     key: 'hq',
     regionId: capitalRegionOf(player.nation),
     level: SEASON_FORMATS[format].hqLevelAtLaunch,
   });
+
+  /**
+   * **One infantry, garrisoned at the headquarters** (decision of 25/08). A nation that opens
+   * with nothing standing has no answer at all to a column walking in on its first evening, and
+   * a barracks is three decisions away.
+   *
+   * The consequence is accepted rather than dodged: this company counts in the **nominal** the
+   * reduction rule measures against (`src/domain/victory.ts`), so a player who holds nothing but
+   * his given infantry and loses it falls under half his nominal and becomes reduced — hence
+   * scalpable by whoever took it. That is the price of opening with a defence, and it is the
+   * shape the test victory is meant to be replaced from, never patched around.
+   */
+  const strength = nominalStrength('infantry', 1);
+  await ctx.db.insert('troops', {
+    playerId: player._id,
+    role: 'infantry',
+    tier: 1,
+    nominalStrength: strength,
+    currentStrength: strength,
+    stationedAt: hq,
+  });
+
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
@@ -415,7 +438,8 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'orders'
       | 'movements'
       | 'outposts'
-      | 'sightings',
+      | 'sightings'
+      | 'notices',
   ) =>
     ctx.db
       .query(table)
@@ -432,6 +456,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('movements')),
     ...(await byPlayer('outposts')),
     ...(await byPlayer('sightings')),
+    ...(await byPlayer('notices')),
     ...(await ctx.db
       .query('engagements')
       .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))

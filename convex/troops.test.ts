@@ -45,7 +45,27 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'domination' });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   await t.mutation(api.seasons.launch, { token });
+  await disbandTheGift(t, token);
   return token;
+}
+
+/**
+ * **The company the launch hands out, taken back** (`seasons.endow`, 25/08). Every count in
+ * this file is about an army a test formed on purpose, so the endowment is cleared at the door
+ * rather than added to twenty expectations. What it *is* is graved in `off-season.test.ts`,
+ * where the endowment itself is under test.
+ */
+async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArray<string>) {
+  for (const token of tokens) {
+    const playerId = await playerOf(t, token);
+    await t.run(async (ctx) => {
+      const held = await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect();
+      for (const troop of held) await ctx.db.delete(troop._id);
+    });
+  }
 }
 
 async function playerOf(t: ReturnType<typeof boot>, token: string) {

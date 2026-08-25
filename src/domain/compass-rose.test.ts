@@ -34,6 +34,7 @@ const view = {
       },
     ],
     construction: null,
+    constructionQueue: [],
     resources: Object.fromEntries(
       RESOURCES.map((key) => [key, { stock: 1000, ratePerHour: 0, cap: 1000 }]),
     ),

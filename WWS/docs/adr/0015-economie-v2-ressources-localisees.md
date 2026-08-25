@@ -256,6 +256,17 @@ par le découpage administratif de Natural Earth, qui n'a rien à faire dans une
 cohérent est un **plafond global indexé sur le QG**, comme les slots de mouvement — la même
 mécanique, le même bâtiment, une seule idée à retenir. Jamais un compteur par région.
 
+
+> ⚠️ **Révision (25/08/2026) : la file de chantier prépayée.** « Un chantier à la fois » reste
+> vrai **en exécution** — une seule tête avance, la cadence tient. Ce qui change : une file
+> d'attente s'y ajoute, **payée intégralement à la mise en file**. L'objection historique visait
+> une file qui *promettait* un empilement que le serveur refuse ; une entrée prépayée est déjà
+> acceptée. Contrôles aux deux portes : à la mise en file contre l'état courant *plus* la file
+> (une entrée par région, la file compte dans le plafond du QG) ; au démarrage de la tête,
+> re-vérification — droit disparu → remboursement intégral et ligne de journal. Le modèle est
+> celui de la file de recrutement, à dessein : un seul patron de file dans le jeu.
+> Implémentée le 25/08 (`convex/constructions.ts`).
+
 ## Un principe qui sort de là : l'isolement se paie en rareté
 
 Le Japon est à demi coupé du monde et sa géologie est misérable : les deux se compensent, et

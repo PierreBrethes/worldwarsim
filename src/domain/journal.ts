@@ -1,7 +1,13 @@
 import { asLocalTime } from './duration';
 import { countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
-import type { CombatReport, JournalDispatch, ReductionBoard, WarEntry } from './player-view';
+import type {
+  CombatReport,
+  JournalDispatch,
+  Notice,
+  ReductionBoard,
+  WarEntry,
+} from './player-view';
 
 /**
  * **The journal is written here, from the account the server keeps** — never from a second
@@ -13,6 +19,7 @@ export function journalDispatches(
   reports: ReadonlyArray<CombatReport>,
   reduction: ReductionBoard | null,
   entries: ReadonlyArray<WarEntry>,
+  notices: ReadonlyArray<Notice> = [],
 ): ReadonlyArray<JournalDispatch> {
   const concluded: ReadonlyArray<JournalDispatch> =
     reduction === null || reduction.concludedAt === null || reduction.winnerNation === null
@@ -70,7 +77,24 @@ export function journalDispatches(
       resolutionAt: null,
     }));
 
-  return [...concluded, ...reductions, ...arrivals, ...combatOnly(reports)];
+  /**
+   * **A chantier the world took back.** An entry of the construction queue is accepted against
+   * the state at the enqueue; if the right has gone by the time its turn comes — a region lost,
+   * a ceiling that came down — the server cancels it, refunds it whole and files this. Notable
+   * rather than critical: nothing was lost but the turn, and the matter is back in the reserve.
+   */
+  const cancelled: ReadonlyArray<JournalDispatch> = [...notices]
+    .sort((a, b) => b.at - a.at)
+    .map((notice) => ({
+      t: asLocalTime(notice.at),
+      severity: 'notable' as const,
+      text: fr.journal.constructionCancelled(fr.buildings[notice.building], notice.regionName),
+      replay: null,
+      remaining: null,
+      resolutionAt: null,
+    }));
+
+  return [...concluded, ...reductions, ...arrivals, ...cancelled, ...combatOnly(reports)];
 }
 
 function combatOnly(reports: ReadonlyArray<CombatReport>): ReadonlyArray<JournalDispatch> {

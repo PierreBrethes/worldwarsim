@@ -25,11 +25,32 @@ Node nu, aucune dépendance, déterministe : deux exécutions à graine égale s
 Les huit ressources, l'extraction par gisement, les trois chaînes (dont l'arsenal **commandé**,
 qui ne tourne que sur lot), les plafonds de stock, le plafond de bâtiments porté par le QG,
 `cappedByHq`, un seul chantier à la fois, le recrutement avec sa file par site de projection, le
-plafond de troupes qui compte la file, et les munitions embarquées.
+plafond de troupes qui compte la file, les munitions embarquées, et **une infanterie au QG dès
+la première minute** (la dotation du 25/08).
+
+Le **socle** n'est plus une liste de format : depuis le 25/08 il se lit sur les gisements du
+pays, et l'instrument mesure sur un sol de référence nommé — `REFERENCE_GROUND` dans
+`scenarios.mjs`, la **France** : fer, charbon, blé, tissu, pas de pétrole. C'est la forme
+commune de la carte (six nations sur huit n'ont pas de pétrole). Un sol qui doit un cinquième
+extracteur — États-Unis, URSS — ouvre une pose de plus et un emplacement de moins.
 
 Tout cela est **copié** de `convex/constants.ts`, `convex/constructions.ts`, `convex/troops.ts`,
 `convex/resources.ts` et `src/domain/economy.ts` (état du 17/08/2026). Quand ces fichiers
 bougent, `constants.mjs` bouge avec eux, sinon l'instrument ment.
+
+> ⚠️ **Retards connus (25/08/2026)**, décision 3b : la mise à jour du moteur est reportée, pas
+> oubliée. Deux règles du jeu que `engine.mjs` ne dit plus :
+>
+> - **la file de chantier prépayée** — le jeu autorise une file illimitée payée à la mise en
+>   file ; le moteur refuse toujours `CONSTRUCTION_IN_PROGRESS`. La métrique « actions par
+>   connexion » est donc un **plancher** : un joueur qui pourrait enfiler trois chantiers d'une
+>   visite n'en pose qu'un ;
+> - **la pose due hors plafond** — une clé du socle n'est plus refusée par le plafond de
+>   bâtiments (`buildRefusal` rend encore `BUILDING_CAP_REACHED` avant `owesFirstPlacement`).
+>   Sans effet sur le sol de référence, qui doit quatre extracteurs ; un sol à cinq — États-Unis,
+>   URSS — serait mesuré une pose trop court en `campaign`.
+>
+> À rattraper avant de relire les chiffres comme un équilibrage.
 
 ## Ce qu'il ne modélise pas
 
@@ -70,7 +91,10 @@ découpée dans les heures de connexion, jamais simulée comme un état.
 
 - Un seul joueur, pas d'adversaire : rien ici ne dit qui gagne.
 - Les gisements sont supposés disponibles (une région libre porte toujours le bon gisement).
-  Tant que `public/deposits.json` n'est pas lu, c'est une hypothèse favorable.
+  Tant que `public/deposits.json` n'est pas lu, c'est une hypothèse favorable — et c'est aussi
+  pourquoi le sol de référence est écrit à la main plutôt que déduit d'une nation.
+- L'entretien de l'armée n'est pas modélisé : l'infanterie de départ prend une place sous
+  `troopCap`, elle ne mange rien ici.
 - Le plan de jeu est écrit à la main. C'est une *intention*, pas un ordre : la politique saute
   ce qui est refusé. Deux plans sont fournis (`economy`, `army`) précisément pour qu'on voie
   combien le résultat en dépend.

@@ -194,17 +194,12 @@ export type SeasonFormatSpec = {
   /**
    * The building ceiling this format's headquarters carries, as a base and a step. What these
    * two describe is not the ceiling but **the free placements left once the foundation and the
-   * headquarters are standing** — four at a skirmish's launch and seven at its end, one at a
-   * campaign's launch and nine at its end. A format that opens on a fat foundation has to
-   * carry a wider ladder for the same room to choose.
+   * headquarters are standing**. Since 25/08 the foundation is national, so that number varies
+   * by nation too — the widest one owed is five extractors, and the ladder has to leave room to
+   * choose above it whatever the ground.
    */
   readonly buildingCapBase: number;
   readonly buildingCapPerHqLevel: number;
-  /**
-   * The buildings the season starts *owing* the player. Ordered, with repetitions: two mines
-   * are two placements, and which deposit each one works is the player's to choose.
-   */
-  readonly foundation: ReadonlyArray<BuildingKey>;
   /**
    * **Measured, not chosen** (`node WWS/simulation/opening/run.mjs --sweep`, assiduous player).
    * Over 48 hours: 800 gives 24 actions, 1000 gives 30, 1300 gives 34 and 1800 gives 34 too —
@@ -232,6 +227,27 @@ export type SeasonFormatSpec = {
    * values would be eight more numbers to balance for an effect geography gives away free.
    */
   readonly startingOil: number;
+  /**
+   * **What the given company is allowed to become.** Arbitrary and assumed, never simulated —
+   * like every number in this file — but *derived* rather than picked, so moving one of the
+   * three tables it reads moves it too:
+   *
+   * - a company of infantry bills `ammunitionLoad('infantry', 1)` = **20** at the recruitment,
+   *   and that is the only facturation there is (a troop never pays again to fight);
+   * - a nation with no billets carries `TROOP_CAP_BASE` = **8** troops, and the launch already
+   *   hands one over — so **seven** are left to form before a billets is worth its slot;
+   * - seven companies is therefore what a first day can absorb: 7 × 20 = **140**.
+   *
+   * The campaign takes four rather than seven. It enters the curve at half the alloy, its
+   * headquarters opens at 1, and its first day buys the ground — the arsenal has six more days
+   * to arrive, which the skirmish does not.
+   *
+   * The measured reason it exists at all (`run.mjs`, 25/08): with the arsenal out of the
+   * foundation, a skirmish used to die militarily at H+15 — two recruitments, the reserve at
+   * zero, and nothing until an arsenal that never got built. A given infantry with no
+   * ammunition behind it is a company that can never be replaced.
+   */
+  readonly startingAmmunition: number;
 };
 
 /**
@@ -250,9 +266,9 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
     maxHqLevel: 3,
     buildingCapBase: 5,
     buildingCapPerHqLevel: 3,
-    foundation: ['mine', 'mine', 'foundry', 'warehouse', 'farm', 'arsenal'],
     startingAlloy: 1000,
     startingOil: 60,
+    startingAmmunition: 140,
   },
   campaign: {
     durationHours: 168,
@@ -260,9 +276,9 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
     maxHqLevel: 5,
     buildingCapBase: 3,
     buildingCapPerHqLevel: 2,
-    foundation: ['mine', 'mine', 'foundry'],
     startingAlloy: 500,
     startingOil: 40,
+    startingAmmunition: 80,
   },
 };
 
@@ -275,21 +291,42 @@ export function formatOf(durationHours: number): SeasonFormat {
 }
 
 /**
- * What the foundation still owes, in placement order. A key held on several regions consumes
- * one debt each time, so the two mines of the table are two free placements and the third is
- * paid for like anything else.
+ * **The foundation is read off the ground, never off a list** (decision of 25/08). A season owes
+ * a player one extractor per dry resource his own country holds — a `mine` for the iron and
+ * another for the coal, a `farm` where there is bread, a `mill` where there is cloth — and a
+ * well **only** where there is oil. Six nations out of eight hold none, and a debt they could
+ * never place would be an opening that opens on nothing.
+ *
+ * What left the foundation with it: `foundry`, `warehouse` and `arsenal`. They are not what a
+ * ground carries, they are what a player decides to do with it — and a season that hands them
+ * over has already made the first three decisions of its own opening.
+ *
+ * The order is fixed rather than natural, because a season has to name its debts in the same
+ * order twice running: the mobilisation order draws them in it, and `me.foundation[0]` is what
+ * the card points at first.
  */
-export function foundationOwed(
-  format: SeasonFormat,
-  standing: ReadonlyArray<BuildingKey>,
-): ReadonlyArray<BuildingKey> {
-  const owed = [...SEASON_FORMATS[format].foundation];
-  for (const key of standing) {
-    const rank = owed.indexOf(key);
-    if (rank >= 0) owed.splice(rank, 1);
-  }
-  return owed;
-}
+const FOUNDATION_ORDER: ReadonlyArray<DepositKey> = ['ore', 'coal', 'food', 'textile', 'oil'];
+
+/** Which extractor works which ground. The inverse of `EXPLOITED_DEPOSITS`, and the one place
+ *  the *mine on two deposits* becomes two separate debts rather than one. */
+export const FOUNDATION_EXTRACTORS: Readonly<Record<DepositKey, BuildingKey>> = {
+  ore: 'mine',
+  coal: 'mine',
+  food: 'farm',
+  textile: 'mill',
+  oil: 'oilWell',
+};
+
+/**
+ * What a ground owes in full, before anything of it stands. It takes the deposits rather than
+ * the nation on purpose: **this file is read by the client** — the screens price and cap
+ * against it — and reaching for the map here would drag `region-index.json`, 312 kB of it, into
+ * the bundle. The join with a nation is `foundationOwed`, in `regions.ts`, where the map lives.
+ */
+export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<BuildingKey> =>
+  FOUNDATION_ORDER.filter((deposit) => deposits.has(deposit)).map(
+    (deposit) => FOUNDATION_EXTRACTORS[deposit],
+  );
 
 export const LEVEL_COST_FACTOR = 1.8;
 
@@ -312,17 +349,19 @@ export function buildMinutes(key: BuildingKey, level: number): number {
  * The headquarters is *not* in the list — it stands from the launch (ADR 0015), at the level
  * its format says.
  *
- * **The alloy and the oil are missing here on purpose**: they are the two figures a format
- * sets — the alloy decides where a player enters the curve, the oil how far the first journey
- * can go. Everything else is shared, and a second copy of it under a format key would be the
- * doubling the table exists to avoid.
+ * **The alloy, the oil and the ammunition are missing here on purpose**: they are the three
+ * figures a format sets — the alloy decides where a player enters the curve, the oil how far
+ * the first journey can go, the ammunition how much of an army the first day carries.
+ * Everything else is shared, and a second copy of it under a format key would be the doubling
+ * the table exists to avoid. Never a figure per nation: the asymmetry comes from the map.
  */
-export const STARTING_STOCK: Readonly<Record<Exclude<ResourceKey, 'alloy' | 'oil'>, number>> = {
+export const STARTING_STOCK: Readonly<
+  Record<Exclude<ResourceKey, 'alloy' | 'oil' | 'ammunition'>, number>
+> = {
   food: 120,
   textile: 40,
   coal: 20,
   ore: 20,
-  ammunition: 40,
   bandages: 0,
 };
 
@@ -330,6 +369,7 @@ export const startingStock = (format: SeasonFormat): Readonly<Record<ResourceKey
   ...STARTING_STOCK,
   alloy: SEASON_FORMATS[format].startingAlloy,
   oil: SEASON_FORMATS[format].startingOil,
+  ammunition: SEASON_FORMATS[format].startingAmmunition,
 });
 
 /**

@@ -8,7 +8,7 @@ import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow } from '@/domain/rest-window';
 import { bearingDegrees, type LonLat } from '@/domain/geo';
-import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
+import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
 import type { UnitRole } from '@/domain/ids';
@@ -53,6 +53,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
       buildingCap: server.me.buildingCap,
+      // A deployment ahead of the client answers without the field: no relief served, no
+      // sentence — the ceiling then says what it always said, and nothing breaks.
+      capRelief: server.me.capRelief ?? null,
       tier2HqLevel:
         server.me.tier2HqLevel ??
         tier2HqLevel(server.season.format ?? formatOf(server.season.durationHours)),
@@ -69,6 +72,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       // `undefined` takes down the whole board.
       construction: server.me.construction
         ? {
+            id: server.me.construction.id,
             name:
               fr.buildings[server.me.construction.name as BuildingKey] ??
               server.me.construction.name,
@@ -78,6 +82,14 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             minutesLeft: server.me.construction.minutesLeft,
           }
         : null,
+      constructionQueue: (server.me.constructionQueue ?? []).map((entry) => ({
+        id: entry.id,
+        name: fr.buildings[entry.key as BuildingKey] ?? entry.name,
+        key: entry.key as BuildingKey,
+        regionId: entry.regionId,
+        regionName: entry.regionName,
+        level: entry.level,
+      })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},
       troopCap: server.me.troopCap,
@@ -101,6 +113,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       server.season.reduction ?? null,
       // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
       server.warEntries ?? [],
+      (server.notices ?? []) as ReadonlyArray<Notice>,
     ),
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,

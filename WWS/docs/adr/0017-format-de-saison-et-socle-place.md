@@ -2,6 +2,18 @@
 
 **Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
 
+> ⚠️ **Révision (25/08/2026) : le socle se lit sur les gisements du pays, plus sur le format.**
+> La ligne « socle » de la table ci-dessous décrit l'ancien modèle. Depuis le 25/08, la
+> fondation due d'un joueur est **calculée depuis les gisements de son territoire national** —
+> un extracteur par ressource sèche présente (mine pour le fer, mine pour le charbon, ferme,
+> filature) et un puits *seulement si* le pays a du pétrole (États-Unis, URSS). Fonderie,
+> entrepôt et arsenal sortent du socle : ils se paient. `SEASON_FORMATS[].foundation` a disparu
+> au profit de `FOUNDATION_EXTRACTORS` + `foundationOwed(nation, standing)`
+> (`convex/constants.ts`, `convex/regions.ts`). Le mécanisme « une clé debout consomme une
+> dette » et la pose gratuite et immédiate restent tels quels. Mesuré le même jour : l'arsenal
+> n'étant plus offert, les munitions s'épuisent tôt en skirmish — constat ouvert, voir la
+> simulation d'ouverture.
+
 > ⚠️ **Révision (18/08/2026) : le plafond de bâtisses appartient désormais au format.**
 > `BUILDING_CAP_BASE` et `BUILDING_CAP_PER_HQ_LEVEL` n'existent plus ; `buildingCap(format,
 > hqLevel)` lit `SeasonFormatSpec`. En `skirmish` : 5 + 3 par palier, soit onze au lancement et

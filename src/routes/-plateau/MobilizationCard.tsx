@@ -6,11 +6,11 @@ import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
 
 /**
- * **The debt of the format, made visible.** A skirmish opens on six free placements and the
- * player learns it nowhere: a playtest measured a *paid* mill started before the *offered*
- * mines, and the single-construction lock then held three placements that cost nothing and
- * waited for nothing. No rule was missing — `foundationOwed` existed, the view already carried
- * `me.foundation`. Nothing was visible.
+ * **The debt of the nation, made visible.** A season opens owing its player one extractor per
+ * resource his own ground holds, and he learns it nowhere: a playtest measured a *paid* mill
+ * started before the *offered* mines, and the single-construction lock then held three
+ * placements that cost nothing and waited for nothing. No rule was missing — `foundationOwed`
+ * existed, the view already carried `me.foundation`. Nothing was visible.
  *
  * The gesture: **click a key, the board highlights the ground it accepts, click the region.**
  * The card carries no rule of its own — `placementOf` is the server's own placement refusal,

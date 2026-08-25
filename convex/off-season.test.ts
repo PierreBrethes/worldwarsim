@@ -8,6 +8,7 @@ import {
   SCOUT_RADIUS_KM,
   SEASON_FORMATS,
   buildCost,
+  ammunitionLoad,
   nominalStrength,
   startingStock,
 } from './constants';
@@ -134,7 +135,8 @@ describe('joining a running season', () => {
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', level: SEASON_FORMATS.skirmish.hqLevelAtLaunch }),
     ]);
-    expect(view.me.foundation).toEqual(SEASON_FORMATS.skirmish.foundation);
+    // Germany holds coal, ore, bread and cloth, and no oil: four extractors, no well.
+    expect(view.me.foundation).toEqual(['mine', 'mine', 'farm', 'mill']);
     expect(view.me.foundation).toEqual(opening.me.foundation);
     // The theatre was frozen at launch: a latecomer joins it, he does not redraw it.
     expect(view.season.playableRegion).toBe(opening.season.playableRegion);
@@ -270,7 +272,7 @@ describe('launching', () => {
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', regionId: PARIS, level: hqLevel }),
     ]);
-    expect(view.me.foundation).toEqual(SEASON_FORMATS.skirmish.foundation);
+    expect(view.me.foundation).toEqual(['mine', 'mine', 'farm', 'mill']);
     expect(view.me.slots).toEqual({ total: 1 + hqLevel, used: 0 });
     // The home regions that carry a deposit, and only those.
     expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
@@ -278,23 +280,97 @@ describe('launching', () => {
     expect(view.opponents).toHaveLength(1);
     expect(view.opponents[0]).not.toHaveProperty('doctrine');
   });
+
+  /**
+   * **One infantry, garrisoned at the headquarters** (decision of 25/08). A nation that opens
+   * with nothing standing has no answer at all to a column walking in on its first evening.
+   *
+   * The consequence is accepted and graved here rather than left to be discovered: the company
+   * counts in the **nominal** the reduction rule measures against (`domain/victory.ts`), so a
+   * player who holds nothing else and loses it falls under half his nominal — reduced, hence
+   * scalpable by whoever took it.
+   */
+  it('gives one infantry, stationed at the headquarters', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    const view = await t.query(api.view.playerView, { token: creator });
+    const hq = view.me.buildings.find((building) => building.key === 'hq')!;
+    expect(view.me.troops).toEqual([
+      expect.objectContaining({
+        role: 'infantry',
+        tier: 1,
+        strength: nominalStrength('infantry', 1),
+      }),
+    ]);
+    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+  });
+
+  /**
+   * **Le kit de munitions** (décision du 25/08). Without the arsenal in the foundation, a
+   * skirmish used to die militarily at H+15 — two recruitments and the reserve at zero. The
+   * figure is a format's, never a nation's, like the alloy and the oil beside it.
+   */
+  it('hands out the ammunition its format sets, not a shared figure', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    const view = await t.query(api.view.playerView, { token: creator });
+    expect(view.me.resources.ammunition.stock).toBe(SEASON_FORMATS.skirmish.startingAmmunition);
+    // Enough to replace the given company several times over: the endowment is a defence only
+    // if the reserve behind it can rebuild it.
+    expect(view.me.resources.ammunition.stock).toBeGreaterThan(ammunitionLoad('infantry', 1));
+    // And the two formats do not read the same number.
+    expect(SEASON_FORMATS.campaign.startingAmmunition).not.toBe(
+      SEASON_FORMATS.skirmish.startingAmmunition,
+    );
+  });
+
+  /** Same endowment on the other road into a board: a latecomer is not a poorer player. */
+  it('gives the same infantry to a nation that enters the war late', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    await t.mutation(api.players.reserveNation, { token: late, nation: 'germany' });
+    await t.mutation(api.players.chooseDoctrine, { token: late, doctrine: 'influence' });
+    await t.mutation(api.seasons.enterWar, { token: late });
+
+    const view = await t.query(api.view.playerView, { token: late });
+    const hq = view.me.buildings.find((building) => building.key === 'hq')!;
+    expect(view.me.troops).toHaveLength(1);
+    expect(view.me.troops[0]).toMatchObject({ role: 'infantry', tier: 1 });
+    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+    // The kit too, ammunition included: one endowment, written once, read by both roads.
+    expect(view.me.resources.ammunition.stock).toBe(SEASON_FORMATS.skirmish.startingAmmunition);
+  });
 });
 
 describe('lazy accrual', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  /** Nothing is extracted without an exploitation building: the rate comes from the map, not
-   *  from a stored number, and an empty map produces nothing. What a farm changes is in
-   *  `economy.test.ts`. */
-  it('leaves the stocks alone as long as nothing is built', async () => {
+  /**
+   * Nothing is extracted without an exploitation building: the rate comes from the map, not
+   * from a stored number, and an empty map produces nothing. What a farm changes is in
+   * `economy.test.ts`.
+   *
+   * The bread still moves, and only one thing moves it — the company the launch hands out eats
+   * from the first minute (`seasons.endow`, 25/08). So the served rate is the upkeep of that
+   * one troop, net and negative, with nothing at all on the other side of the subtraction.
+   */
+  it('extracts nothing as long as nothing is built, and only the given company moves the bread', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
     vi.advanceTimersByTime(2 * 3_600_000);
     const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.resources.food.stock).toBe(KIT.food);
-    expect(view.me.resources.food.ratePerHour).toBe(0);
+    expect(view.me.upkeep.troops).toBe(1);
+    expect(view.me.upkeep.foodPerHour).toBeGreaterThan(0);
+    expect(view.me.resources.food.ratePerHour).toBe(-view.me.upkeep.foodPerHour);
+    expect(view.me.resources.food.stock).toBe(KIT.food - 2 * view.me.upkeep.foodPerHour);
   });
 });
 
@@ -304,7 +380,7 @@ describe('constructions', () => {
 
   /** The billets, not the mine: the mine belongs to the foundation, and what a foundation
    *  placement costs and waits is nothing at all. */
-  it('debits the materials, raises the building in time, one construction at a time', async () => {
+  it('debits the materials and raises the building in time', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
@@ -315,9 +391,6 @@ describe('constructions', () => {
       building: 'billets',
       regionId: MOSELLE,
     });
-    await expect(
-      t.mutation(api.constructions.start, { token: creator, building: 'hq', regionId: PARIS }),
-    ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
 
     const before = await t.query(api.view.playerView, { token: creator });
     expect(before.me.construction?.name).toBe('billets');
@@ -353,10 +426,8 @@ describe('constructions', () => {
       expect.objectContaining({ key: 'mine', regionId: MOSELLE, level: 1 }),
     );
     expect(after.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
-    // One mine of the two the foundation owes is settled; the rest is still owed.
-    expect(after.me.foundation).toEqual(
-      SEASON_FORMATS.skirmish.foundation.filter((_, rank) => rank !== 0),
-    );
+    // One mine of the two French ground owes is settled; the rest is still owed.
+    expect(after.me.foundation).toEqual(['mine', 'farm', 'mill']);
   });
 
   /** Nothing rises above the headquarters. The rule used to make the HQ the first building of
@@ -560,8 +631,8 @@ describe('scrapping a season', () => {
         target: { kind: 'region', regionId: PRAHOVA },
       });
 
-      // A queue, a lot and a construction, put down without paying for them: what is under
-      // test is the purge, not the economy that would have fed them.
+      // A queue, a lot, a construction and a notice, put down without paying for them: what is
+      // under test is the purge, not the economy that would have fed them.
       const playerId = await playerOf(t, creator);
       await t.run(async (ctx) => {
         await ctx.db.insert('recruitments', {
@@ -583,7 +654,16 @@ describe('scrapping a season', () => {
           playerId,
           building: 'billets',
           regionId: MOSELLE,
+          level: 1,
+          rank: 0,
           finishesAt: Date.now() + 3_600_000,
+        });
+        await ctx.db.insert('notices', {
+          playerId,
+          at: Date.now(),
+          kind: 'constructionCancelled',
+          building: 'farm',
+          regionId: MOSELLE,
         });
       });
 

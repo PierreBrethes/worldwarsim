@@ -1,6 +1,7 @@
 import { useMutation } from 'convex/react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
+import type { Id } from '../../../convex/_generated/dataModel';
 import {
   REST_WINDOW_MINUTES,
   SEASON_FORMATS,
@@ -19,9 +20,9 @@ import {
   type ResourceKey,
 } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
-import { placementOf, type Placement } from '@/domain/construction';
+import { pledgedCount, placementOf, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
-import type { Building, ChainView, PlayerView } from '@/domain/player-view';
+import type { Building, ChainView, PlayerView, QueuedWork } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { conditionText } from './MobilizationCard';
@@ -84,7 +85,7 @@ export function EconomyWindow({
           </button>
         </DragHandle>
 
-        <RunningWork view={view} now={now} />
+        <RunningWork view={view} token={token} now={now} />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <p className="shrink-0 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
@@ -136,11 +137,7 @@ export function EconomyWindow({
             />
           ))}
 
-          <Header
-            note={<BuildingBudget taken={view.me.buildings.length} cap={view.me.buildingCap} />}
-          >
-            {fr.economy.worksHeader}
-          </Header>
+          <Header note={<BuildingBudget view={view} />}>{fr.economy.worksHeader}</Header>
           <Headquarters view={view} token={token} now={now} focused={focused} />
           {WORK_KEYS.map((key) => (
             <EstateRows
@@ -186,18 +183,20 @@ const placementsOf = (view: PlayerView): Readonly<Record<BuildingKey, Placement>
   >;
 
 /**
- * **The construction, at the head and once for the whole window.** Written under every line it
- * turned inert, the same twelve words appeared four times over and the most important datum of
- * the surface became background noise. The banner keeps its watching version; this is the
- * acting one — what, where, how much is left.
+ * **The construction, at the head and once for the whole window** — then the queue behind it.
+ * Written under every line it turned inert, the same twelve words appeared four times over and
+ * the most important datum of the surface became background noise. The banner keeps its watching
+ * version; this is the acting one — what, where, how much is left, and what comes after.
  *
- * **No cancel button.** The rule that a placement cannot be undone is not this window's to
- * invent: `troops.ts` refuses to cancel a batch that has started precisely so that matter and
- * time do not become a free round trip, and no server mutation cancels a construction. The
- * button would need a refund rule, and a refund rule is a game rule.
+ * **The head has no cancel button, the queue has one per line.** That is the rule itself, not a
+ * choice of layout: a site that started has consumed the queue's time, and giving it back would
+ * open a free round trip between matter and time (`troops.cancel` refuses a started batch for
+ * the same reason). Behind the head nothing has started, and a full refund costs the game
+ * nothing.
  */
-function RunningWork({ view, now }: { view: PlayerView; now: number }) {
+function RunningWork({ view, token, now }: { view: PlayerView; token: string; now: number }) {
   const running = view.me.construction;
+  const queue = view.me.constructionQueue;
   if (running === null) {
     return (
       <p className="shrink-0 border-b border-[var(--ink)] px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
@@ -208,23 +207,79 @@ function RunningWork({ view, now }: { view: PlayerView; now: number }) {
   const left = currentMinutes(running.minutesLeft, view.loadedAt, now);
 
   return (
-    <div className="flex shrink-0 items-center gap-[14px] border-b border-[var(--ink)] bg-[rgba(42,33,24,.05)] px-4 py-3">
-      <span className="w-[58px] shrink-0 text-[9.5px] leading-[1.3] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-        {fr.economy.constructionHeader}
-      </span>
-      <BuildingPlate building={running.key} height={30} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-[10px]">
-          <span className="text-[16px] font-semibold text-[var(--ink)]">{running.name}</span>
-          <span className="text-[13px] text-[var(--ink-soft)]">{running.regionName}</span>
-        </div>
-        {/* No progress bar: the view serves what is *left*, never how long the site was given,
-            and a bar drawn from the first would start empty at every reload. The countdown is
-            the whole of what is actually known. */}
-        <div className="mt-[4px] font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
-          {fr.economy.constructionRemaining(asDuration(left))}
+    <div className="shrink-0 border-b border-[var(--ink)] bg-[rgba(42,33,24,.05)]">
+      <div className="flex items-center gap-[14px] px-4 py-3">
+        <span className="w-[58px] shrink-0 text-[9.5px] leading-[1.3] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+          {fr.economy.constructionHeader}
+        </span>
+        <BuildingPlate building={running.key} height={30} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-[10px]">
+            <span className="text-[16px] font-semibold text-[var(--ink)]">{running.name}</span>
+            <span className="text-[13px] text-[var(--ink-soft)]">{running.regionName}</span>
+          </div>
+          {/* No progress bar: the view serves what is *left*, never how long the site was given,
+              and a bar drawn from the first would start empty at every reload. The countdown is
+              the whole of what is actually known. */}
+          <div className="mt-[4px] font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
+            {fr.economy.constructionRemaining(asDuration(left))}
+          </div>
         </div>
       </div>
+      {queue.length > 0 && <QueuedWorks queue={queue} token={token} />}
+    </div>
+  );
+}
+
+/**
+ * The queue, under the head and sober. **No countdown on a waiting line**: nothing behind the
+ * head is dated in the database, precisely so a cancellation re-dates nothing — the rank is
+ * what is true, a due time would be invented.
+ */
+function QueuedWorks({ queue, token }: { queue: ReadonlyArray<QueuedWork>; token: string }) {
+  const cancel = useMutation(api.constructions.cancel);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="border-t border-[rgba(42,33,24,.28)] px-4 pt-[6px] pb-2">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[9.5px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+          {fr.economy.queueHeader(queue.length)}
+        </span>
+        <span className="text-[10px] text-[var(--ink-quiet)] italic">{fr.economy.queuePaid}</span>
+      </div>
+      {queue.map((entry, index) => (
+        <div
+          key={entry.id}
+          className="flex items-center gap-[10px] border-b border-[rgba(42,33,24,.14)] py-[5px] last:border-0"
+        >
+          <span className="w-[22px] shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
+            {fr.economy.queueRank(index + 2)}
+          </span>
+          <BuildingPlate building={entry.key} height={22} />
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--ink)]">
+            {entry.name}{' '}
+            <span className="text-[11.5px] text-[var(--ink-soft)]">{entry.regionName}</span>
+          </span>
+          <span className="shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+            {fr.economy.queueLevel(entry.level)}
+          </span>
+          <button
+            type="button"
+            title={fr.economy.queueCancelTitle}
+            onClick={() => {
+              setError(null);
+              cancel({ token, constructionId: entry.id as Id<'constructions'> }).catch(
+                (problem: unknown) => handleError(problem, setError),
+              );
+            }}
+            className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
+          >
+            {fr.economy.queueCancel}
+          </button>
+        </div>
+      ))}
+      {error !== null && <p className="pt-1 text-[11px] text-[var(--critical)]">{error}</p>}
     </div>
   );
 }
@@ -364,13 +419,18 @@ const extractionRate = (
     .reduce((total, site) => total + site.perHour, 0);
 
 /**
- * The three states of a link, and only three. **A raise is not a state**: a foundry standing at
- * level 2 while its level 3 rises is *built*, and drawing it hatched would tell the player the
- * alloy has stopped. The site rows below carry the raise.
+ * The four states of a link. **A raise is not a state**: a foundry standing at level 2 while its
+ * level 3 rises is *built*, and drawing it hatched would tell the player the alloy has stopped.
+ * The site rows below carry the raise.
+ *
+ * `queued` exists because the queue is prepaid (25/08): a link the player has already bought and
+ * that is waiting its turn is not *missing*, and offering him the sentence that would open it
+ * would be the window telling him to buy it twice.
  */
 type LinkState =
   | { readonly kind: 'built'; readonly level: number }
   | { readonly kind: 'underway'; readonly minutesLeft: number }
+  | { readonly kind: 'queued' }
   | { readonly kind: 'missing' };
 
 function stateOf(view: PlayerView, key: BuildingKey): LinkState {
@@ -379,18 +439,37 @@ function stateOf(view: PlayerView, key: BuildingKey): LinkState {
     return { kind: 'built', level: standing.reduce((total, one) => total + one.level, 0) };
   }
   const work = view.me.construction;
-  return work !== null && work.key === key
-    ? { kind: 'underway', minutesLeft: work.minutesLeft }
+  if (work !== null && work.key === key) return { kind: 'underway', minutesLeft: work.minutesLeft };
+  return view.me.constructionQueue.some((entry) => entry.key === key)
+    ? { kind: 'queued' }
     : { kind: 'missing' };
 }
 
-/** The three skins of a box, said once: solid ink for what stands, a hatch for what rises, a
+/** The skins of a box, said once: solid ink for what stands, a hatch for what rises or waits, a
  *  dotted rule for what is not there — the legend at the head of the chart names them. */
 const SKIN: Readonly<Record<LinkState['kind'], string>> = {
   built: 'border border-[var(--ink)] bg-[rgba(42,33,24,.06)]',
   underway: 'border border-[var(--ink)] chart-underway',
+  queued: 'border border-[var(--ink)] chart-underway',
   missing: 'border border-dashed border-[rgba(42,33,24,.5)]',
 };
+
+/**
+ * What a link says of itself on its right edge: its real rate once it stands, its countdown while
+ * it rises, and the fact that it is bought while it waits. A queued link has **no** due time — it
+ * is dated nowhere until it reaches the head — so saying so is the only honest thing to print.
+ */
+function noteOn(
+  state: Exclude<LinkState, { kind: 'missing' }>,
+  view: PlayerView,
+  now: number,
+  rate: number,
+): string {
+  if (state.kind === 'underway') {
+    return asDuration(currentMinutes(state.minutesLeft, view.loadedAt, now));
+  }
+  return state.kind === 'queued' ? fr.economy.legendQueued : fr.economy.perHour(rate);
+}
 
 function ChartLegend() {
   return (
@@ -402,6 +481,10 @@ function ChartLegend() {
       <span className="flex items-center gap-[4px]">
         <span className="chart-underway h-[9px] w-[12px] border border-[var(--ink)]" />
         {fr.economy.legendUnderway}
+      </span>
+      <span className="flex items-center gap-[4px]">
+        <span className="chart-underway h-[9px] w-[12px] border border-dashed border-[var(--ink)]" />
+        {fr.economy.legendQueued}
       </span>
       <span className="flex items-center gap-[4px]">
         <span className="h-[9px] w-[12px] border border-dashed border-[rgba(42,33,24,.5)]" />
@@ -525,9 +608,7 @@ function StepBox({
         </span>
         {state.kind !== 'missing' && (
           <span className="shrink-0 font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-            {state.kind === 'underway'
-              ? asDuration(currentMinutes(state.minutesLeft, view.loadedAt, now))
-              : fr.economy.perHour(rate)}
+            {noteOn(state, view, now, rate)}
           </span>
         )}
       </div>
@@ -559,7 +640,9 @@ function ConversionBox({
       ? fr.economy.roleConversionMissing
       : state.kind === 'underway'
         ? fr.economy.roleConversionUnderway
-        : fr.economy.roleConversion;
+        : state.kind === 'queued'
+          ? fr.economy.roleConversionQueued
+          : fr.economy.roleConversion;
 
   return (
     <>
@@ -575,14 +658,9 @@ function ConversionBox({
           >
             {fr.buildings[chain.by]}
           </span>
-          {state.kind === 'underway' && (
+          {state.kind !== 'missing' && (
             <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-              {asDuration(currentMinutes(state.minutesLeft, view.loadedAt, now))}
-            </span>
-          )}
-          {state.kind === 'built' && (
-            <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-              {fr.economy.perHour(chain.perHour)}
+              {noteOn(state, view, now, chain.perHour)}
             </span>
           )}
         </div>
@@ -771,13 +849,7 @@ function EstateRow({
           {fr.economy.cappedByHq}
         </span>
       )}
-      <UpgradeControl
-        building={building}
-        view={view}
-        token={token}
-        now={now}
-        runningSaidElsewhere
-      />
+      <UpgradeControl building={building} view={view} token={token} now={now} />
     </div>
   );
 }
@@ -825,7 +897,7 @@ function Headquarters({
           {fr.economy.hqLevelLine(level, SEASON_FORMATS[view.season.format].maxHqLevel)}
         </span>
         <span className="ml-auto">
-          <UpgradeControl building={hq} view={view} token={token} now={now} runningSaidElsewhere />
+          <UpgradeControl building={hq} view={view} token={token} now={now} />
         </span>
       </div>
       <p className="mt-[6px] text-[10px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
@@ -848,33 +920,60 @@ function Headquarters({
  * The budget, as a reading rather than a figure. A bar and not "9 / 13": this is the most
  * structuring trade of a season, and a fraction has to be parsed before it is understood.
  *
- * The count comes from the list itself — `buildings.length` — because the view deliberately
- * does not serve it a second time (`view.ts`): two numbers for one fact can disagree.
+ * The count comes from the lists themselves — the buildings standing, plus what the prepaid
+ * queue has already claimed — because the view deliberately serves neither a second time
+ * (`view.ts`): two numbers for one fact can disagree. What the *next* headquarters level would
+ * carry is served, on the other hand, and for the opposite reason: it is a reading of
+ * `buildingCap`, and the client must not own a second copy of that ladder.
  */
-function BuildingBudget({ taken, cap }: { taken: number; cap: number }) {
+function BuildingBudget({ view }: { view: PlayerView }) {
+  const pledged = pledgedCount(view);
+  const taken = view.me.buildings.length + pledged;
+  const cap = view.me.buildingCap;
   const filled = cap === 0 ? 0 : Math.min(1, taken / cap);
   const free = cap - taken;
 
+  /**
+   * **Le plafond dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé —
+   * pas avant : une ligne permanente sur la décision la plus structurante de la saison redevient
+   * du bruit de fond, et c'est la faute que le chantier en tête a déjà coûtée une fois.
+   *
+   * Les deux nombres arrivent servis (`me.capRelief`) : `buildingCap` est lu une fois, côté
+   * serveur, par la phrase et par le refus qui la motive.
+   */
+  const relief = view.me.capRelief;
+  const said =
+    free > 0 && pledged === 0
+      ? null
+      : relief === null
+        ? fr.economy.budgetAtCeiling
+        : fr.economy.budgetRelief(relief);
+
   return (
-    <span className="flex min-w-[220px] items-center gap-2">
-      <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink)]">
-        {fr.economy.budgetTaken(taken, cap)}
-      </span>
-      <span className="h-[8px] w-[70px] border border-[var(--ink)]">
+    <span className="flex min-w-[220px] flex-col items-end gap-[2px]">
+      <span className="flex items-center gap-2">
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink)]">
+          {fr.economy.budgetTaken(taken, cap)}
+        </span>
+        <span className="h-[8px] w-[70px] border border-[var(--ink)]">
+          <span
+            className="block h-full"
+            style={{
+              width: `${filled * 100}%`,
+              background: free <= 0 ? 'var(--critical)' : 'var(--ink)',
+            }}
+          />
+        </span>
         <span
-          className="block h-full"
-          style={{
-            width: `${filled * 100}%`,
-            background: free <= 0 ? 'var(--critical)' : 'var(--ink)',
-          }}
-        />
+          className="text-[11px] normal-case"
+          style={{ color: free <= 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
+        >
+          {fr.economy.budgetFree(free)}
+        </span>
       </span>
-      <span
-        className="text-[11px] normal-case"
-        style={{ color: free <= 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
-      >
-        {fr.economy.budgetFree(free)}
-      </span>
+      {said !== null && (
+        <span className="text-[10px] normal-case text-[var(--ink-quiet)]">{said}</span>
+      )}
     </span>
   );
 }

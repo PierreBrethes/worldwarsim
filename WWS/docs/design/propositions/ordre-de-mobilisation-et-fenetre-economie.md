@@ -117,10 +117,29 @@ Si la proposition est retenue, l'ADR 0015 prend une note de révision datée, co
 
 ## Ce que ça ne touche pas
 
-**Un chantier à la fois** reste — aucune file de construction : une UI de file promettrait un
-empilement que le serveur refuse. **Le contextuel du panneau de région** reste. **Le panneau
-des réserves et le bandeau** restent tels que le dégraissage les a tranchés. Aucune règle de
-jeu ne bouge : cette proposition ne déplace que des surfaces.
+> ⚠️ **Révision (25/08/2026) : « un chantier à la fois, aucune file de construction » est
+> remplacé.** La règle qui vaut désormais :
+>
+> > **La file de construction est illimitée et se paie à la mise en file.**
+>
+> L'objection d'origine visait une file qui *promettait* un empilement que le serveur refuse.
+> Une file **prépayée** ne promet rien : chaque entrée a déjà réglé sa facture, le serveur l'a
+> déjà acceptée. « Un chantier à la fois » reste vrai **en exécution** — une seule tête avance,
+> les suivants attendent leur tour. Le reste de la proposition est inchangé.
+>
+> Le modèle est celui du **recrutement**, jamais un second : file séquentielle, seule la tête
+> porte un `finishesAt`, débit à la mise en file, remboursement intégral d'un non-commencé
+> (`convex/constructions.ts`, `convex/troops.ts`). Ce qui s'y ajoute est propre à la
+> construction : les contrôles se lisent **aux deux portes** — à la mise en file contre l'état
+> courant *plus la file* (deux entrées ne visent jamais la même région, la file compte dans le
+> plafond du QG), puis **au démarrage d'une tête**, où un droit disparu entre-temps annule
+> l'entrée, la rembourse intégralement et laisse une ligne de journal. Les **poses de fondation
+> offertes** ne passent toujours pas par la file : gratuites, immédiates, sans rang ni tour
+> (acquis du 19/08).
+
+**Le contextuel du panneau de région** reste. **Le panneau des réserves et le bandeau** restent
+tels que le dégraissage les a tranchés. Aucune règle de jeu ne bouge : cette proposition ne
+déplace que des surfaces.
 
 ## L'ordre
 

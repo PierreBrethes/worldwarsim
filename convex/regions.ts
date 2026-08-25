@@ -1,6 +1,7 @@
 import type { LonLat } from '../src/domain/geo';
 import { distanceKm } from '../src/domain/geo';
-import type { DepositKey, Nation } from '../src/domain/ids';
+import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
+import { foundationFor } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
 import depositsAsset from '../public/deposits.json';
 import indexAsset from '../public/region-index.json';
@@ -86,6 +87,59 @@ export function nearestRegion(point: LonLat): RegionFacts | null {
 
 export const homeCountryOf = (nation: string | null): string | null =>
   isNation(nation) ? ADM0_BY_NATION[nation] : null;
+
+/**
+ * **Which of the five deposits a country's ground holds — presence, never a count.** Built once
+ * per isolate off the baked asset, because it is a fact about the map and not about a season:
+ * a nation is never annexed (ADR 0004), so what it holds at home it holds for the whole game.
+ *
+ * It is what the season's foundation is computed from (`foundationOwed`): a player is owed the
+ * extractors his own ground can carry, and nothing else — a `farm` where there is bread, an
+ * `oilWell` only where there is oil.
+ */
+const DEPOSITS_BY_COUNTRY: ReadonlyMap<string, ReadonlySet<DepositKey>> = (() => {
+  const held = new Map<string, Set<DepositKey>>();
+  for (const [regionId, deposit] of Object.entries(DEPOSIT_OF_REGION)) {
+    const country = COUNTRY_OF_REGION[regionId];
+    if (country === undefined || deposit === undefined) continue;
+    const seen = held.get(country) ?? new Set<DepositKey>();
+    seen.add(deposit);
+    held.set(country, seen);
+  }
+  return held;
+})();
+
+const NOTHING: ReadonlySet<DepositKey> = new Set();
+
+/** A nation whose flag is not taken yet holds nothing — the empty set, never a throw: the
+ *  lobby reads a player before he has picked, and an empty foundation is the honest answer. */
+export const homeDepositsOf = (nation: string | null): ReadonlySet<DepositKey> => {
+  const country = homeCountryOf(nation);
+  return (country === null ? undefined : DEPOSITS_BY_COUNTRY.get(country)) ?? NOTHING;
+};
+
+/**
+ * **What the season still owes this nation, in placement order.** The join of the two halves:
+ * the rule is `foundationFor` in `constants.ts`, the ground is the map above.
+ *
+ * It lives here and not beside the rule because `constants.ts` is read by the client — the
+ * screens price and cap against it — and an import of this file from there would put the whole
+ * region index in the bundle. Nothing on the client imports `regions.ts`, and nothing should.
+ *
+ * A key held on several regions consumes one debt each time, so the two mines a country with
+ * iron and coal is owed are two free placements and the third is paid for like anything else.
+ */
+export function foundationOwed(
+  nation: string | null,
+  standing: ReadonlyArray<BuildingKey>,
+): ReadonlyArray<BuildingKey> {
+  const owed = [...foundationFor(homeDepositsOf(nation))];
+  for (const key of standing) {
+    const rank = owed.indexOf(key);
+    if (rank >= 0) owed.splice(rank, 1);
+  }
+  return owed;
+}
 
 /**
  * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges

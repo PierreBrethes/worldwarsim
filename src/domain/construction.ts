@@ -21,8 +21,11 @@ export type BuildReason =
  * What holds a line back **for now** — as opposed to what this ground can never carry, which
  * is `BlockedReason` below. The two are drawn apart and must stay apart: a hold is a deadline
  * or a remedy ("come back in twenty minutes"), a block is a fact about the region.
+ *
+ * A running site is no longer one of them: the queue is unbounded and paid at the enqueue
+ * (25/08), so a chantier holds back nothing but its own turn.
  */
-export type BuildHold = 'constructionRunning' | 'buildingCap' | 'materials';
+export type BuildHold = 'buildingCap' | 'materials';
 
 export type BuildOption = {
   readonly key: BuildingKey;
@@ -40,13 +43,14 @@ export type Site = {
   readonly coastal: boolean;
   /** The building already standing on this very region — one per region (ADR 0015). */
   readonly standing: BuildingKey | null;
+  /** Standing **plus pledged**: an entry of the queue has paid for its place under the ceiling,
+   *  and leaving it out would make the queue where a nation keeps what it may not hold. */
   readonly standingCount: number;
   readonly cap: number;
   readonly hqLevel: number;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
-  readonly constructionRunning: boolean;
-  /** A construction rising on **this very region**: nothing stands yet, but the ground is
-   *  taken — the `finish` will fill it, and a second placement would leave two on one region. */
+  /** A construction aimed at **this very region**, running or queued: nothing stands yet, but
+   *  the ground is taken — the server refuses a second entry on it (`constructions.ts`). */
   readonly constructionHere: boolean;
   /** What the season still owes (`me.foundation`), served — never re-derived here. */
   readonly foundation: ReadonlyArray<BuildingKey>;
@@ -108,11 +112,13 @@ export function buildableOn(
 
     /**
      * A key the foundation still owes is placed for nothing and stands at once — so it carries
-     * no bill and no delay, and neither matter nor a running site can hold it back. The
-     * ceiling still can: the foundation buys the price and the wait, never a place on the map.
+     * no bill and no delay, and **nothing at all holds it back**: neither matter, nor a running
+     * site, nor the ceiling since 25/08. The debt of the format outranks the ambition of the
+     * player, and the ambition is what waits for the headquarters.
      */
     const free = site.foundation.includes(key);
     const cost = free ? {} : spec.cost;
+    const cappedByCeiling = !free && asThingsStand === 'BUILDING_CAP_REACHED';
 
     return [
       {
@@ -121,7 +127,7 @@ export function buildableOn(
         minutes: free ? 0 : spec.minutes,
         reason: reasonFor(key, site.deposit),
         free,
-        hold: holdOn(site, free, cost, asThingsStand === 'BUILDING_CAP_REACHED'),
+        hold: holdOn(site, free, cost, cappedByCeiling),
       } satisfies BuildOption,
     ];
   });
@@ -198,15 +204,16 @@ function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedR
 }
 
 /**
- * What stands between a line and the click, most immediate first. **A free placement is never
- * held by a construction**: it opens none and waits for nothing, so the single-site rule has
- * nothing to say about it — the server refuses it the same way (`constructions.start`), and a
- * playtest lost three offered buildings behind one paid mill because both said otherwise.
+ * What stands between a line and the click, most immediate first. **A running site holds
+ * nothing back any more** (the queue is unbounded and paid at the enqueue), and **neither does
+ * the ceiling on a key the season owes** (25/08): a debt of the format is not refused by a rule
+ * of the format, and the server places it the same way (`constructions.start`). What is left on
+ * a free line is nothing at all, and on a paid one the ceiling and the bill.
  */
 function holdOn(site: Site, free: boolean, cost: Cost, cappedByCeiling: boolean): BuildHold | null {
-  if (!free && site.constructionRunning) return 'constructionRunning';
+  if (free) return null;
   if (cappedByCeiling) return 'buildingCap';
-  return free || affordable(cost, site.stocks) ? null : 'materials';
+  return affordable(cost, site.stocks) ? null : 'materials';
 }
 
 const affordable = (cost: Cost, stocks: Readonly<Record<ResourceKey, number>>): boolean =>
@@ -218,6 +225,34 @@ function reasonFor(key: BuildingKey, deposit: DepositKey | null): BuildReason | 
   }
   return key === 'port' ? { kind: 'coastal' } : null;
 }
+
+/**
+ * **The whole construction queue as one list**, head first — the running site and everything
+ * paid for behind it. Every rule that used to ask "is a construction running" asks this
+ * instead: the queue is unbounded now, and what matters is no longer *whether* one runs but
+ * *what ground and how many slots* the queue has already claimed.
+ */
+export const pledgedWork = (
+  view: PlayerView,
+): ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }> =>
+  view.me.construction === null
+    ? view.me.constructionQueue
+    : [view.me.construction, ...view.me.constructionQueue];
+
+/** The regions a construction is aimed at. One entry per region, so this is also the set of
+ *  regions no further entry may take (`convex/constructions.ts`). */
+export const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
+  new Set(pledgedWork(view).map((work) => work.regionId));
+
+/**
+ * How many slots of the ceiling the queue has already claimed. A pledge on a bare region is a
+ * building coming; a pledge on a region that already carries one is a raise, and a raise moves
+ * neither the count nor the ceiling — the server counts it exactly this way.
+ */
+export const pledgedCount = (view: PlayerView): number =>
+  pledgedWork(view).filter(
+    (work) => !view.me.buildings.some((building) => building.regionId === work.regionId),
+  ).length;
 
 /**
  * The site a player's view describes for one region, or `null` when that region is none of
@@ -240,12 +275,11 @@ export function siteOf(view: PlayerView, regionId: string, now: number): Site | 
     deposit: region.deposit,
     coastal: region.coastal,
     standing: region.buildings[0]?.key ?? null,
-    standingCount: view.me.buildings.length,
+    standingCount: view.me.buildings.length + pledgedCount(view),
     cap: view.me.buildingCap,
     hqLevel: view.me.hqLevel,
     stocks,
-    constructionRunning: view.me.construction !== null,
-    constructionHere: view.me.construction?.regionId === regionId,
+    constructionHere: pledgedRegions(view).has(regionId),
     foundation: view.me.foundation,
   };
 }
@@ -266,13 +300,14 @@ export function buildOptionsAt(
  * has anything to say — which is why this reads the three refusals `constructions.start` can
  * still raise, and not `placementRefusal`.
  *
- * None of them is re-decided here. The single construction and the headquarters ceiling arrive
- * cooked in the view (`me.construction`, `building.cappedByHq`); the bill is the served cost
- * against the served stock. A fourth rule appearing in this function would mean the view is
- * short of a field — the answer is to serve it, never to guess it.
+ * None of them is re-decided here. The queue and the headquarters ceiling arrive cooked in the
+ * view (`me.construction`, `me.constructionQueue`, `building.cappedByHq`); the bill is the
+ * served cost against the served stock. A fourth rule appearing in this function would mean the
+ * view is short of a field — the answer is to serve it, never to guess it.
  */
 export type UpgradeHold =
-  | { readonly kind: 'constructionRunning' }
+  /** An order already stands on this region — one entry per region, running or queued. */
+  | { readonly kind: 'alreadyQueued' }
   | { readonly kind: 'cappedByHq' }
   | {
       readonly kind: 'materials';
@@ -303,7 +338,9 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
 }
 
 export function upgradeHold(building: Building, view: PlayerView, now: number): UpgradeHold | null {
-  if (view.me.construction !== null) return { kind: 'constructionRunning' };
+  // A raise already queued on this very region is the one thing that still blocks a second
+  // order there: the server allows one entry per region, standing or not.
+  if (pledgedRegions(view).has(building.regionId)) return { kind: 'alreadyQueued' };
   if (building.cappedByHq) return { kind: 'cappedByHq' };
 
   // The first shortfall in resource order, never a list: a bill is paid whole or not at all
@@ -361,6 +398,8 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
 
   const regionIds: string[] = [];
   const natures = new Set<PlacementRefusal>();
+  const pledged = pledgedRegions(view);
+  const standingCount = view.me.buildings.length + pledgedCount(view);
   let carriable = false;
 
   for (const region of impossible ? [] : view.me.regions) {
@@ -376,16 +415,17 @@ export function placementOf(view: PlayerView, key: BuildingKey): Placement {
     }
     carriable = true;
 
-    // A region a construction is rising on is taken, though nothing stands on it yet — the
-    // `finish` will fill it, and the server refuses a second placement there (`start`).
-    if (view.me.construction?.regionId === region.id) continue;
+    // A region an entry of the queue aims at is taken, though nothing stands on it yet — the
+    // `finish` will fill it, and the server refuses a second entry there (`start`).
+    if (pledged.has(region.id)) continue;
     const asThingsStand = placementRefusal(
       key,
       region,
       {
         onRegion: region.buildings[0]?.key ?? null,
-        standing: view.me.buildings.length,
-        cap: view.me.buildingCap,
+        standing: standingCount,
+        // A key the season owes escapes the ceiling, exactly as the server places it (25/08).
+        cap: free ? Number.POSITIVE_INFINITY : view.me.buildingCap,
         hqLevel,
       },
       unlockedAtHqLevel,
@@ -419,7 +459,9 @@ function conditionOf(
     // headquarters, or the second headquarters that never exists.
     return { kind: 'locked', hqLevel: Math.max(1, view.buildCatalog[key].unlockedAtHqLevel) };
   }
-  return view.me.buildings.length >= view.me.buildingCap
+  // A key the season owes is never held by the ceiling, so its only remaining excuse is ground.
+  return !view.me.foundation.includes(key) &&
+    view.me.buildings.length + pledgedCount(view) >= view.me.buildingCap
     ? { kind: 'cap' }
     : { kind: 'regionsTaken' };
 }

@@ -125,7 +125,8 @@ function roleTable(name, mirrored) {
   }
 }
 
-/** The two formats: the four numbers each, plus the foundation read as a list of keys. */
+/** The two formats: the numbers each. The foundation left the table on 25/08 — it is read off
+ *  the nation's ground now, and `foundation()` below watches the two tables that decide it. */
 function formats() {
   const body = bodyOf('SEASON_FORMATS');
   if (body === null) return unverified.push('SEASON_FORMATS (bloc introuvable)');
@@ -133,17 +134,37 @@ function formats() {
     const block = body.match(new RegExp(`${key}\\s*:\\s*\\{([\\s\\S]*?)\\n  \\}`));
     if (!block) { unverified.push(`SEASON_FORMATS.${key}`); continue; }
     const held = mirror.SEASON_FORMATS[key];
-    for (const field of ['durationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil']) {
+    for (const field of ['durationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil', 'startingAmmunition']) {
       const found = block[1].match(new RegExp(`${field}:\\s*(\\d+)`));
       if (!found) { unverified.push(`SEASON_FORMATS.${key}.${field}`); continue; }
       report(`SEASON_FORMATS.${key}.${field}`, found[1], held[field]);
     }
-    const list = block[1].match(/foundation:\s*\[([^\]]*)\]/);
-    if (!list) { unverified.push(`SEASON_FORMATS.${key}.foundation`); continue; }
+  }
+}
+
+/**
+ * The national foundation: which extractor works which ground, and in what order the debts are
+ * named. Two lists, read as text like everything else — the *nation* each one is applied to is
+ * the instrument's own choice (`scenarios.mjs`, REFERENCE_GROUND) and there is nothing in the
+ * game to compare it against.
+ */
+function foundation() {
+  const order = text.match(/const FOUNDATION_ORDER: ReadonlyArray<DepositKey> = \[([^\]]*)\]/);
+  if (!order) unverified.push('FOUNDATION_ORDER');
+  else {
     checked += 1;
-    const keys = [...list[1].matchAll(/'([^']+)'/g)].map(([, k]) => k).join(' + ');
-    const mine = held.foundation.join(' + ');
-    if (keys !== mine) problems.push(`SEASON_FORMATS.${key}.foundation : le jeu dit « ${keys} », le miroir dit « ${mine} »`);
+    const keys = [...order[1].matchAll(/'([^']+)'/g)].map(([, k]) => k).join(' + ');
+    const mine = mirror.FOUNDATION_ORDER.join(' + ');
+    if (keys !== mine) problems.push(`FOUNDATION_ORDER : le jeu dit « ${keys} », le miroir dit « ${mine} »`);
+  }
+
+  const body = bodyOf('FOUNDATION_EXTRACTORS');
+  if (body === null) return unverified.push('FOUNDATION_EXTRACTORS (bloc introuvable)');
+  for (const [deposit, held] of Object.entries(mirror.FOUNDATION_EXTRACTORS)) {
+    const found = body.match(new RegExp(`${deposit}:\\s*'([^']+)'`));
+    if (!found) { unverified.push(`FOUNDATION_EXTRACTORS.${deposit}`); continue; }
+    checked += 1;
+    if (found[1] !== held) problems.push(`FOUNDATION_EXTRACTORS.${deposit} : le jeu dit « ${found[1]} », le miroir dit « ${held} »`);
   }
 }
 
@@ -181,6 +202,7 @@ flatTable('STARTING_STOCK', mirror.STARTING_STOCK);
 specTable('BUILDING_SPEC', mirror.BUILDING_SPEC);
 roleTable('COST_BY_ROLE', mirror.COST_BY_ROLE);
 formats();
+foundation();
 
 /**
  * Left unread on purpose, and said out loud rather than skipped in silence: the chains and the

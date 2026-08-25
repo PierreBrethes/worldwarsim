@@ -363,16 +363,12 @@ const PROFILES = {
   // Ruhr, Saar and the central lignite; the ore is the gap, which is why the iron came from
   // Sweden through Narvik.
   germany: { food: 3, textile: 3 },
-  // Silk, first exporter in the world, against imported rice and imported iron. The nation
-  // that went to war because it had nothing.
-  japan: {
-    food: 2,
-    textile: 4,
-    secondGap: [
-      'ore',
-      'Japan in 1940 has neither oil nor iron, and its carrier exists in this game only to go and fetch them — the asset answers the lack exactly, which is what makes the exception admissible',
-    ],
-  },
+  // Silk, first exporter in the world, against imported rice and one single iron mine. The
+  // nation that went to war because it had nothing — **oil is the gap**, and it is the whole
+  // fuse: the carrier exists in this game to go and fetch it. The second gap it used to declare
+  // on ore is withdrawn (25/08/2026): a nation that can neither buy nor take iron cannot play,
+  // and Kamaishi is what makes the shortage a shape instead of a wall.
+  japan: { food: 2, textile: 4 },
   // Sardinia and Elba for ore; the coal is the gap, hence the dependency on German deliveries.
   italy: { food: 4, textile: 2 },
   // Plains and silk on a scale nothing else matches, over almost no coal and less ore.
@@ -443,8 +439,19 @@ const CORRECTIONS = {
     'FRA-5321': ['ore', 'Segré in Anjou, worked without interruption through the period'],
 
     // Japan — the third basin, after Chikuhō and Ishikari: coal is the one thing the archipelago
-    // does hold, which is what makes its lack of oil and iron a shape rather than poverty.
+    // does hold in quantity, which is what makes its lack of oil a shape rather than poverty.
     'JPN-1864': ['coal', 'the Jōban coalfield around Iwaki, which burned in the Tokyo factories'],
+    /**
+     * And the one iron. Drawn from nothing, Japan held **no** ore at all, and with looting not
+     * coded there is no road to any: at that point the lack stops being a shape and the nation
+     * stops being playable — a nation is never annexed, so it cannot even take a mine (ADR
+     * 0004). One region and not two: what is corrected here is the unplayable, never the
+     * unequal, and the asymmetry still comes from the map.
+     */
+    'JPN-1865': [
+      'ore',
+      'Kamaishi in Iwate, the first blast furnace of Japan and the only iron mine of the archipelago',
+    ],
 
     // United Kingdom — coal is the profile, and the ore that goes with Cumbrian haematite.
     'GBR-2032': ['ore', 'Cleveland ironstone, which fed the Teesside furnaces'],

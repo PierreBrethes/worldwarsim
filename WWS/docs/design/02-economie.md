@@ -155,6 +155,13 @@ ordre de grandeur selon la nation — un déséquilibre offert par Natural Earth
 Le jour où ce plafond serrera trop, le régulateur sera un **plafond global indexé sur le QG**,
 comme les slots de mouvement. Jamais un compteur par région.
 
+
+> ⚠️ **Révision (25/08/2026)** : la règle vaut désormais pour l'**exécution** seulement — une
+> file d'attente **prépayée** s'ajoute derrière le chantier en cours (paiement intégral à la
+> mise en file, remboursement intégral d'un non-commencé, re-vérification des droits au
+> démarrage de chaque tête). Voir la note du même jour dans l'ADR 0015 ; le modèle est celui
+> de la file de recrutement.
+
 ## Placement et expansion
 
 - **Chez soi** : un bâtiment se pose librement sur n'importe quelle région de sa nation.

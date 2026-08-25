@@ -1,6 +1,7 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 import {
   BUILDINGS,
   DEPOSITS,
@@ -20,11 +21,13 @@ import {
   EXTRACTION_PER_HOUR,
   SEASON_FORMATS,
   STORAGE_CAP_PER_LEVEL,
+  buildCost,
+  buildMinutes,
   buildingCap,
   startingStock,
   unlockLevel,
 } from './constants';
-import { capitalRegionOf, regionFacts } from './regions';
+import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
 import { clipToStorage, settle } from './resources';
 import regionIndex from '../public/region-index.json';
 import schema from './schema';
@@ -52,21 +55,46 @@ const JURA = 'FRA-5312'; // food
 const PARIS = 'FRA-5333'; // the capital, where the headquarters already stands
 const RUHR = 'DEU-1572'; // German
 
-async function launchedSeason(t: ReturnType<typeof boot>, durationHours: 48 | 168 = 48) {
+async function launchedSeason(
+  t: ReturnType<typeof boot>,
+  durationHours: 48 | 168 = 48,
+  nation = 'france',
+) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
     durationHours,
     compensation: 0.5,
   });
   const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
+  await t.mutation(api.players.reserveNation, { token, nation });
   await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'hegemony' });
   await t.mutation(api.players.declareReady, { token, ready: true });
   await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
   await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'domination' });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   await t.mutation(api.seasons.launch, { token });
+  await disbandTheGift(t, token);
   return token;
+}
+
+/**
+ * **The company the launch hands out, taken back** (`seasons.endow`, 25/08). What this file
+ * measures is an economy, and the endowment eats: cleared at the door, so a figure here still
+ * says what the ground produces. The gift itself is under test in `off-season.test.ts`.
+ */
+async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
+  await t.run(async (ctx) => {
+    const player = await ctx.db
+      .query('players')
+      .withIndex('byToken', (q) => q.eq('token', token))
+      .unique();
+    if (!player) throw new Error('player not found');
+    const held = await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect();
+    for (const troop of held) await ctx.db.delete(troop._id);
+  });
 }
 
 /**
@@ -497,14 +525,17 @@ describe('placement', () => {
   });
 
   /**
-   * **A format may not owe what it cannot open.** The foundation is placed by the player under
-   * every other rule, the tier included, so a key above the launch level would be a debt the
-   * season is born unable to pay — silently, since nothing would ever offer it.
+   * **No format may owe what it cannot open, to any nation.** The foundation is placed by the
+   * player under every other rule, the tier included, so a key above the launch level would be
+   * a debt the season is born unable to pay — silently, since nothing would ever offer it. It
+   * is read over the eight grounds now, because the debt is national since 25/08.
    */
   it('never owes a foundation key above the headquarters its format plants', () => {
     for (const [format, spec] of formats()) {
-      for (const key of spec.foundation) {
-        expect(unlockLevel(key, format)).toBeLessThanOrEqual(spec.hqLevelAtLaunch);
+      for (const nation of NATIONS) {
+        for (const key of foundationOwed(nation, [])) {
+          expect(unlockLevel(key, format)).toBeLessThanOrEqual(spec.hqLevelAtLaunch);
+        }
       }
     }
   });
@@ -549,6 +580,79 @@ describe('placement', () => {
 });
 
 /**
+ * **The foundation is read off the ground, not off the format** (decision of 25/08). A season
+ * owes a player one extractor per resource his own country holds — and a well only where there
+ * is oil, which six nations out of eight have none of. What left with the list: the foundry,
+ * the warehouse and the arsenal, which are decisions and not ground.
+ */
+describe('the foundation a nation is owed', () => {
+  it('owes France its two mines, its farm and its mill, and no well', () => {
+    expect(foundationOwed('france', [])).toEqual(['mine', 'mine', 'farm', 'mill']);
+  });
+
+  /** The one ground that holds all five: the United States is the only nation whose foundation
+   *  carries a well, alongside the Soviet Union. */
+  it('owes the United States the same, plus the well its oil carries', () => {
+    expect(foundationOwed('usa', [])).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
+  });
+
+  /** Kamaishi, added on 25/08: without it Japan held no ore at all and, with looting not coded,
+   *  had no road to any — an unplayable nation rather than a shaped one. */
+  it('owes Japan four extractors now that its ore exists, and still no well', () => {
+    expect(foundationOwed('japan', [])).toEqual(['mine', 'mine', 'farm', 'mill']);
+  });
+
+  /**
+   * **The criterion, not the case.** Japan was the one nation known short; what has to hold is
+   * that no playable ground lacks a dry resource — a nation is never annexed (ADR 0004), so a
+   * missing deposit at home is a missing deposit for the whole season.
+   */
+  it('leaves no playable nation short of iron, coal, cloth or bread', () => {
+    for (const nation of NATIONS) {
+      const held = homeDepositsOf(nation);
+      for (const deposit of DEPOSITS) {
+        if (deposit === 'oil') continue; // the one deliberate gap of the map, and the fuse
+        expect({ nation, deposit, held: held.has(deposit) }).toEqual({
+          nation,
+          deposit,
+          held: true,
+        });
+      }
+    }
+  });
+
+  /** A nation still choosing its flag owes nothing: the lobby reads a player before he has one,
+   *  and an empty debt is the honest answer rather than a throw. */
+  it('owes nothing to a seat that has not taken a nation', () => {
+    expect(foundationOwed(null, [])).toEqual([]);
+  });
+
+  /** A key held on several regions consumes one debt each time — two mines are two placements,
+   *  and the third is paid for like anything else. */
+  it('lets a standing key settle one debt at a time', () => {
+    expect(foundationOwed('france', ['mine'])).toEqual(['mine', 'farm', 'mill']);
+    expect(foundationOwed('france', ['mine', 'mine', 'farm', 'mill'])).toEqual([]);
+    expect(foundationOwed('france', ['barracks', 'foundry'])).toEqual([
+      'mine',
+      'mine',
+      'farm',
+      'mill',
+    ]);
+  });
+
+  /** The foundry, the warehouse and the arsenal are paid for now — they are what a player
+   *  decides to do with his ground, never what the ground carries. */
+  it('owes no foundry, warehouse or arsenal to anybody', () => {
+    for (const nation of NATIONS) {
+      const owed = foundationOwed(nation, []);
+      for (const key of ['foundry', 'warehouse', 'arsenal'] as const) {
+        expect(owed).not.toContain(key);
+      }
+    }
+  });
+});
+
+/**
  * **The foundation of a format.** What the season owes the player is placed by him — the region
  * is the one decision of the opening — and what it takes back is the price and the wait on what
  * is not one. The measure this answers: on the fifteen buildings, twelve first moves used to be
@@ -588,10 +692,14 @@ describe('the foundation the season owes', () => {
         ) === null,
     )?.id ?? null;
 
+  /** What France is owed: iron, coal, bread and cloth — and no well, since the country has
+   *  no oil. Every test of this file plays France, so this is the reading list. */
+  const FRENCH_FOUNDATION: ReadonlyArray<BuildingKey> = ['mine', 'mine', 'farm', 'mill'];
+
   /** Places what the season **still** owes, one key at a time, and hands back what it cost. */
   async function placeFoundation(t: ReturnType<typeof boot>, token: string) {
     const bills: Array<Record<string, number>> = [];
-    for (let guard = 0; guard < SEASON_FORMATS.skirmish.foundation.length; guard += 1) {
+    for (let guard = 0; guard < FRENCH_FOUNDATION.length; guard += 1) {
       const view = await t.query(api.view.playerView, { token });
       const key = view.me.foundation[0];
       if (key === undefined) break;
@@ -611,7 +719,7 @@ describe('the foundation the season owes', () => {
     const t = boot();
     const token = await launchedSeason(t);
     const opening = await t.query(api.view.playerView, { token });
-    expect(opening.me.foundation).toEqual(SEASON_FORMATS.skirmish.foundation);
+    expect(opening.me.foundation).toEqual(FRENCH_FOUNDATION);
 
     const bills = await placeFoundation(t, token);
 
@@ -619,8 +727,8 @@ describe('the foundation the season owes', () => {
     expect(bills.every((bill) => Object.keys(bill).length === 0)).toBe(true);
     expect(view.me.foundation).toEqual([]);
     expect(view.me.construction).toBeNull();
-    expect(view.me.buildings).toHaveLength(SEASON_FORMATS.skirmish.foundation.length + 1);
-    for (const key of SEASON_FORMATS.skirmish.foundation) {
+    expect(view.me.buildings).toHaveLength(FRENCH_FOUNDATION.length + 1);
+    for (const key of FRENCH_FOUNDATION) {
       expect(view.me.buildings.map((building) => building.key)).toContain(key);
     }
     // Not one unit spent, the alloy of the kit included — and it survives the ceiling of a
@@ -647,14 +755,14 @@ describe('the foundation the season owes', () => {
 
     const placed = await t.mutation(api.constructions.start, {
       token,
-      building: 'foundry',
+      building: 'farm',
       regionId: JURA,
     });
     expect(placed.cost).toEqual({});
     expect(placed.finishesAt).toBe(Date.now());
 
     const view = await t.query(api.view.playerView, { token });
-    expect(view.me.buildings.map((building) => building.key)).toContain('foundry');
+    expect(view.me.buildings.map((building) => building.key)).toContain('farm');
     expect(view.me.resources.alloy.stock).toBe(spent);
     // The paid site is untouched: what moved is what the offered placement is allowed to skip.
     expect(view.me.construction?.key).toBe('barracks');
@@ -674,13 +782,28 @@ describe('the foundation the season owes', () => {
     ).rejects.toThrow('REGION_TAKEN');
   });
 
-  it('still refuses a paid placement while a construction runs', async () => {
+  /**
+   * **A free placement never enters the queue.** It costs nothing, waits for nothing and opens
+   * no site, so it has no rank, no bill and no turn — whatever the queue behind it is doing.
+   */
+  it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    await t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES });
-    await expect(
-      t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA }),
-    ).rejects.toThrow('CONSTRUCTION_IN_PROGRESS');
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
+
+    const placed = await t.mutation(api.constructions.start, {
+      token,
+      building: 'farm',
+      regionId: MARNE,
+    });
+    expect(placed).toMatchObject({ cost: {}, rank: null, finishesAt: Date.now() });
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.buildings.map((building) => building.key)).toContain('farm');
+    // The queue is exactly what it was: the offered placement passed beside it.
+    expect(view.me.construction?.key).toBe('billets');
+    expect(view.me.constructionQueue.map((entry) => entry.key)).toEqual(['depot']);
   });
 
   /**
@@ -730,9 +853,9 @@ describe('the foundation the season owes', () => {
    */
   it('leaves every format room for its foundation, its headquarters and one free choice', () => {
     for (const [format, spec] of formats()) {
-      expect(buildingCap(format, spec.maxHqLevel)).toBeGreaterThanOrEqual(
-        spec.foundation.length + 2,
-      );
+      // The widest ground of the eight, since the debt follows the nation and not the format.
+      const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
+      expect(buildingCap(format, spec.maxHqLevel)).toBeGreaterThanOrEqual(widest + 2);
     }
   });
 
@@ -742,14 +865,18 @@ describe('the foundation the season owes', () => {
    * free placements are the whole width of the decision — and a skirmish used to open with
    * *none* and end the season with one, which is the defect ADR 0017 said to come back to.
    */
-  it('leaves each format the free placements its length asks for', () => {
+  it('leaves each format the free placements its length asks for, on French ground', () => {
+    // France is the reading nation of every figure in this file — four extractors owed, the
+    // common case. A ground owed five (the United States, oil included) has one fewer.
+    const owed = foundationOwed('france', []).length;
+    expect(owed).toBe(4);
     const free = (format: SeasonFormat, hqLevel: number) =>
-      buildingCap(format, hqLevel) - (SEASON_FORMATS[format].foundation.length + 1);
+      buildingCap(format, hqLevel) - (owed + 1);
 
-    expect(free('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch)).toBe(4);
-    expect(free('skirmish', SEASON_FORMATS.skirmish.maxHqLevel)).toBe(7);
-    expect(free('campaign', SEASON_FORMATS.campaign.hqLevelAtLaunch)).toBe(1);
-    expect(free('campaign', SEASON_FORMATS.campaign.maxHqLevel)).toBe(9);
+    expect(free('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch)).toBe(6);
+    expect(free('skirmish', SEASON_FORMATS.skirmish.maxHqLevel)).toBe(9);
+    expect(free('campaign', SEASON_FORMATS.campaign.hqLevelAtLaunch)).toBe(0);
+    expect(free('campaign', SEASON_FORMATS.campaign.maxHqLevel)).toBe(8);
   });
 });
 
@@ -791,6 +918,261 @@ describe('the headquarters at launch', () => {
   });
 });
 
+/**
+ * **La file de chantier prépayée** (décision du 25/08). "One construction at a time" still holds
+ * *in execution* — one head advances — but what is behind it is a queue without a ceiling, and
+ * every entry of it has already settled its bill. The objection the single site answered was a
+ * queue that *promised* a stacking the server refuses; a prepaid entry promises nothing.
+ *
+ * It is the very patron of `recruitments` (`troops.ts`), deliberately: one model of queue in the
+ * game, not two. The symmetry is asserted below rather than described.
+ */
+describe('the construction queue', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses. */
+  const SITES = [
+    { building: 'billets' as const, regionId: ARDENNES },
+    { building: 'depot' as const, regionId: JURA },
+    { building: 'barracks' as const, regionId: MEURTHE },
+  ];
+
+  const alloyOf = async (t: ReturnType<typeof boot>, token: string) =>
+    (await t.query(api.view.playerView, { token })).me.resources.alloy.stock;
+
+  it('bills every entry at the enqueue and runs them one at a time, in order', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const opening = await alloyOf(t, token);
+
+    for (const site of SITES) await t.mutation(api.constructions.start, { token, ...site });
+
+    // Not one stone laid, and the three bills are already settled.
+    const spent = SITES.reduce(
+      (total, site) => total + (buildCost(site.building, 1).alloy ?? 0),
+      0,
+    );
+    expect(await alloyOf(t, token)).toBe(opening - spent);
+
+    const queued = await t.query(api.view.playerView, { token });
+    expect(queued.me.construction?.key).toBe('billets');
+    expect(queued.me.constructionQueue.map((entry) => entry.key)).toEqual(['depot', 'barracks']);
+
+    // Only the head is dated: the followers are dated nowhere until their turn comes.
+    const dated = await t.run(async (ctx) =>
+      (await ctx.db.query('constructions').collect()).filter((row) => row.finishesAt !== null),
+    );
+    expect(dated).toHaveLength(1);
+
+    vi.advanceTimersByTime(buildMinutes('billets', 1) * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const midway = await t.query(api.view.playerView, { token });
+    expect(midway.me.buildings.map((building) => building.key)).toContain('billets');
+    expect(midway.me.construction?.key).toBe('depot');
+    expect(midway.me.constructionQueue.map((entry) => entry.key)).toEqual(['barracks']);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const done = await t.query(api.view.playerView, { token });
+    expect(done.me.construction).toBeNull();
+    expect(done.me.constructionQueue).toEqual([]);
+    for (const site of SITES) {
+      expect(done.me.buildings).toContainEqual(
+        expect.objectContaining({ key: site.building, regionId: site.regionId, level: 1 }),
+      );
+    }
+  });
+
+  /** One entry per region, standing or queued: two entries aiming at one region would leave two
+   *  buildings on it, and the door that refuses it is the enqueue — never the start. */
+  it('refuses a second entry on a region the queue already aims at', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
+
+    // Against the head, and against a follower alike.
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES }),
+    ).rejects.toThrow('REGION_TAKEN');
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'barracks', regionId: JURA }),
+    ).rejects.toThrow('REGION_TAKEN');
+  });
+
+  /** The queue counts against the ceiling the headquarters carries, or it is where a nation
+   *  keeps the buildings it is not allowed to hold. */
+  it('counts what is queued against the building ceiling', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await fill(t, token, 'alloy', 100_000);
+    await fill(t, token, 'food', 100_000);
+    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+
+    const view = await t.query(api.view.playerView, { token });
+    const free = view.me.regions.filter((region) => region.buildings.length === 0);
+    // The headquarters stands, so the queue may take the rest of the ceiling and not one more.
+    for (const region of free.slice(0, cap - 1)) {
+      await t.mutation(api.constructions.start, {
+        token,
+        building: 'billets',
+        regionId: region.id,
+      });
+    }
+    await expect(
+      t.mutation(api.constructions.start, {
+        token,
+        building: 'billets',
+        regionId: free[cap - 1]!.id,
+      }),
+    ).rejects.toThrow('BUILDING_CAP_REACHED');
+  });
+
+  /**
+   * **The second door.** An entry is accepted against the world as it stood at the enqueue; by
+   * the time its turn comes the world may have taken the right back. Nothing starts on a right
+   * that no longer exists — the entry is cancelled, refunded whole, and said in the journal.
+   *
+   * Alloy is the reserve read here on purpose: a fresh nation stands no foundry, so nothing
+   * produces any, and every unit of it that moves is a bill or a refund.
+   */
+  it('cancels a head whose right has gone, refunds it whole and files a notice', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const opening = await alloyOf(t, token);
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
+
+    // The ceiling comes down under the queue: the buildings below are put up without paying,
+    // and what is under test is what the *start* of the follower does about it.
+    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    const view = await t.query(api.view.playerView, { token });
+    const spare = view.me.regions.filter(
+      (region) => region.buildings.length === 0 && region.id !== ARDENNES && region.id !== JURA,
+    );
+    for (const region of spare.slice(0, cap - 2)) await raise(t, token, 'depot', region.id);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const after = await t.query(api.view.playerView, { token });
+    expect(after.me.buildings.map((building) => building.key)).toContain('billets');
+    // The follower never rose, and its matter came back whole — only the head's bill stands.
+    expect(after.me.constructionQueue).toEqual([]);
+    expect(after.me.construction).toBeNull();
+    expect(after.me.buildings.some((building) => building.regionId === JURA)).toBe(false);
+    expect(await alloyOf(t, token)).toBe(opening - (buildCost('billets', 1).alloy ?? 0));
+
+    expect(after.notices).toEqual([
+      expect.objectContaining({ kind: 'constructionCancelled', building: 'depot' }),
+    ]);
+  });
+
+  /** The head has started and has consumed the queue's time; the follower has not, and its
+   *  matter is handed back untouched — the very rule `troops.cancel` writes for a batch. */
+  it('refunds a follower in full and refuses to cancel the head', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
+
+    const before = await t.query(api.view.playerView, { token });
+    const head = before.me.construction!;
+    const follower = before.me.constructionQueue[0]!;
+
+    await expect(
+      t.mutation(api.constructions.cancel, { token, constructionId: head.id }),
+    ).rejects.toThrow('CONSTRUCTION_ALREADY_STARTED');
+
+    const { refunded } = await t.mutation(api.constructions.cancel, {
+      token,
+      constructionId: follower.id,
+    });
+    expect(refunded).toEqual(buildCost('depot', 1));
+
+    const after = await t.query(api.view.playerView, { token });
+    expect(after.me.constructionQueue).toEqual([]);
+    expect(after.me.construction?.key).toBe('billets');
+    for (const [resource, amount] of Object.entries(refunded) as ReadonlyArray<
+      [ResourceKey, number]
+    >) {
+      expect(after.me.resources[resource].stock).toBe(before.me.resources[resource].stock + amount);
+    }
+  });
+
+  /**
+   * **One model of queue, not two.** Recruitment and construction have to debit at the enqueue
+   * and refund a batch that has not started, or the day one of them drifts a player will have
+   * learned a rule that only holds on one screen. The two are checked against each other here
+   * rather than each against a paragraph.
+   */
+  it('debits and refunds exactly as the recruitment queue does', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await fill(t, token, 'alloy', 100_000);
+    await fill(t, token, 'ammunition', 100_000);
+    await fill(t, token, 'food', 100_000);
+    await raise(t, token, 'barracks', MARNE);
+    const barracks = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('buildings').collect()).find((row) => row.key === 'barracks')!._id,
+    );
+
+    /** What one enqueue takes and what its cancellation gives back, whichever queue it was. */
+    const measure = async (enqueue: () => Promise<unknown>, withdraw: () => Promise<unknown>) => {
+      const before = await t.query(api.view.playerView, { token });
+      await enqueue();
+      const paid = await t.query(api.view.playerView, { token });
+      await withdraw();
+      const back = await t.query(api.view.playerView, { token });
+      return {
+        debited: RESOURCES.map(
+          (key) => before.me.resources[key].stock - paid.me.resources[key].stock,
+        ),
+        restored: RESOURCES.map(
+          (key) => back.me.resources[key].stock - paid.me.resources[key].stock,
+        ),
+      };
+    };
+
+    // Both queues get a head first, so what is measured is a *follower* on either side.
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+
+    const troops = await measure(
+      () =>
+        t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 }),
+      async () => {
+        const waiting = await t.run(async (ctx) =>
+          (await ctx.db.query('recruitments').collect()).find((row) => row.finishesAt === null),
+        );
+        await t.mutation(api.troops.cancel, { token, recruitmentId: waiting!._id });
+      },
+    );
+    const sites = await measure(
+      () => t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA }),
+      async () => {
+        const waiting = (await t.query(api.view.playerView, { token })).me.constructionQueue[0]!;
+        await t.mutation(api.constructions.cancel, {
+          token,
+          constructionId: waiting.id as Id<'constructions'>,
+        });
+      },
+    );
+
+    // Same shape on both sides: something goes out at the enqueue, and all of it comes back.
+    for (const queue of [troops, sites]) {
+      expect(queue.debited.some((moved) => moved > 0)).toBe(true);
+      expect(queue.restored).toEqual(queue.debited);
+    }
+  });
+});
+
 describe('one building per region, and a global ceiling', () => {
   it('refuses a second building on a region that already carries one', async () => {
     const t = boot();
@@ -816,11 +1198,10 @@ describe('one building per region, and a global ceiling', () => {
   });
 
   /**
-   * The ceiling is the one refusal the foundation does not lift: a free placement buys the
-   * price and the wait, never a place on the map. Hence the farm below — owed by the skirmish
-   * foundation, and refused all the same.
+   * The ceiling refuses a **paid** placement, and it names the level that would widen it — the
+   * billets below, which nothing owes to anybody.
    */
-  it('refuses past the ceiling the headquarters carries, and says so differently', async () => {
+  it('refuses a paid placement past the ceiling, and says what would lift it', async () => {
     const t = boot();
     const token = await launchedSeason(t);
     const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
@@ -835,13 +1216,75 @@ describe('one building per region, and a global ceiling', () => {
     expect(free.length).toBe(cap - 1);
     for (const region of free) await raise(t, token, 'depot', region.id);
 
-    await expect(
-      t.mutation(api.constructions.start, { token, building: 'farm', regionId: JURA }),
-    ).rejects.toThrow('BUILDING_CAP_REACHED');
+    const refused: Record<string, unknown> = await t
+      .mutation(api.constructions.start, { token, building: 'billets', regionId: JURA })
+      .then(() => ({}))
+      .catch((error: { data: Record<string, unknown> }) => error.data);
+    const next = SEASON_FORMATS.skirmish.hqLevelAtLaunch + 1;
+    expect(refused).toMatchObject({
+      code: 'BUILDING_CAP_REACHED',
+      cap,
+      hqLevel: SEASON_FORMATS.skirmish.hqLevelAtLaunch,
+      // The remedy, in figures the screen never recomputes — both out of `buildingCap`.
+      nextHqLevel: next,
+      nextCap: buildingCap('skirmish', next),
+    });
 
     // The same order goes through once the headquarters carries a wider one.
     await promoteHq(t, token, SEASON_FORMATS.skirmish.maxHqLevel);
-    await t.mutation(api.constructions.start, { token, building: 'farm', regionId: JURA });
+    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA });
+  });
+
+  /**
+   * **A key the season owes is never refused by the ceiling** (decision of 25/08). The measured
+   * case: a campaign plants its headquarters at 1, which carries five buildings, and the
+   * American ground is owed five extractors — the fifth used to be refused on an empty map, a
+   * debt of the format made unpayable by a rule of the format.
+   */
+  it('places every owed key at a ceiling the foundation alone fills', async () => {
+    const t = boot();
+    const token = await launchedSeason(t, 168, 'usa');
+
+    const owed = foundationOwed('usa', []);
+    expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
+    const cap = buildingCap('campaign', SEASON_FORMATS.campaign.hqLevelAtLaunch);
+    expect(cap).toBe(5);
+    // The headquarters already stands, so the debt alone runs the ceiling over.
+    expect(owed.length + 1).toBeGreaterThan(cap);
+
+    for (let placed = 0; placed < owed.length; placed += 1) {
+      const view = await t.query(api.view.playerView, { token });
+      const key = view.me.foundation[0]!;
+      const regionId = view.me.regions.find(
+        (region) =>
+          region.buildings.length === 0 &&
+          placementRefusal(
+            key,
+            region,
+            {
+              onRegion: null,
+              standing: 0,
+              cap: Number.POSITIVE_INFINITY,
+              hqLevel: view.me.hqLevel,
+            },
+            unlockLevel(key, 'campaign'),
+          ) === null,
+      )?.id;
+      if (regionId === undefined) throw new Error(`nowhere to place ${key}`);
+      const { cost } = await t.mutation(api.constructions.start, {
+        token,
+        building: key,
+        regionId,
+      });
+      expect(cost).toEqual({});
+    }
+
+    const done = await t.query(api.view.playerView, { token });
+    expect(done.me.foundation).toEqual([]);
+    // Above the ceiling, and deliberately: what stands counts like anything else, so the next
+    // paid placement waits for the headquarters.
+    expect(done.me.buildings).toHaveLength(owed.length + 1);
+    expect(done.me.buildings.length).toBeGreaterThan(done.me.buildingCap);
   });
 
   /**

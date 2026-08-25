@@ -8,6 +8,7 @@ import {
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
+  NOTICE_KIND,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_DURATION_HOURS,
@@ -317,11 +318,42 @@ export default defineSchema({
     .index('byAttacker', ['attackerId'])
     .index('byDefender', ['defenderId']),
 
+  /**
+   * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`
+   * above, and deliberately the same one: a second model of queue would be a second set of
+   * rules to remember. "Un chantier à la fois" still holds *in execution* — only the head
+   * advances — but the queue behind it is unbounded and **already paid for**.
+   *
+   * Only the head carries a `finishesAt`. The followers have not started, they are dated
+   * nowhere, and they are exactly the ones a cancellation refunds in full without re-dating
+   * anything.
+   *
+   * `level` is written at the enqueue and never recomputed: it is what the entry was billed
+   * for, so it is what a refund hands back and what the `finish` raises the building to.
+   */
   constructions: defineTable({
     playerId: v.id('players'),
     building: BUILDING_KEY,
     regionId: v.string(),
-    finishesAt: v.number(),
+    level: v.number(),
+    rank: v.number(),
+    finishesAt: v.union(v.number(), v.null()),
+  }).index('byPlayer', ['playerId']),
+
+  /**
+   * **What happened to a player without him asking for it** — the journal's own ledger for the
+   * things no engagement accounts for. Today it holds exactly one kind: a queued construction
+   * the world took the right to before its turn came, refunded whole.
+   *
+   * A notice is a line of the journal and nothing else. It carries ids and numbers, never a
+   * sentence (ADR 0016): the French is put on it on the client, like every other dispatch.
+   */
+  notices: defineTable({
+    playerId: v.id('players'),
+    at: v.number(),
+    kind: NOTICE_KIND,
+    building: BUILDING_KEY,
+    regionId: v.string(),
   }).index('byPlayer', ['playerId']),
 
   /**

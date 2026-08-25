@@ -9,7 +9,7 @@
  * else, exactly as `seasons.launch` leaves it.
  */
 
-import { SEASON_FORMATS, startingStock, tier2HqLevel } from './constants.mjs';
+import { SEASON_FORMATS, foundationFor, startingStock, tier2HqLevel } from './constants.mjs';
 
 /** Awake hours, local clock. Rest runs 23 h → 06 h, so nothing is scheduled inside it. */
 export const PROFILES = {
@@ -22,24 +22,35 @@ export const PROFILES = {
 };
 
 /**
- * Where the player puts each key the season owes him. The game table says *which* keys; the
+ * Where the player puts each key the season owes him. The game rule says *which* keys; the
  * site and its deposit are the instrument's business, and they stand in for the region a
  * player would aim at.
  */
 const FOUNDATION_SITES = {
   mine: [
-    { site: 'mine-coal', deposit: 'coal' },
     { site: 'mine-ore', deposit: 'ore' },
+    { site: 'mine-coal', deposit: 'coal' },
   ],
-  foundry: [{ site: 'foundry-1' }],
-  warehouse: [{ site: 'warehouse-1' }],
   farm: [{ site: 'farm-1', deposit: 'food' }],
-  arsenal: [{ site: 'arsenal-1' }],
+  mill: [{ site: 'mill-1', deposit: 'textile' }],
+  oilWell: [{ site: 'oilwell-1', deposit: 'oil' }],
 };
 
-export function foundationOrders(format) {
+/**
+ * **The ground the instrument measures on.** Since 25/08 the foundation is national, so a
+ * single-player study has to name the nation it reads for: **France** — iron, coal, bread and
+ * cloth, no oil — which is the common shape of the map (six of the eight hold no oil, and every
+ * one of the eight holds the four dry resources). A ground owed a fifth extractor, the United
+ * States or the USSR, opens one placement richer and one ceiling slot poorer.
+ *
+ * Changing this line is how the study is re-run for another nation; nothing else here reads a
+ * flag.
+ */
+export const REFERENCE_GROUND = ['ore', 'coal', 'food', 'textile'];
+
+export function foundationOrders(format, ground = REFERENCE_GROUND) {
   const used = {};
-  return SEASON_FORMATS[format].foundation.map((key) => {
+  return foundationFor(ground).map((key) => {
     const rank = used[key] ?? 0;
     used[key] = rank + 1;
     const place = FOUNDATION_SITES[key]?.[rank];
@@ -100,6 +111,9 @@ export function seasonOf(format, overrides = {}) {
     startingSites: overrides.startingSites ?? [
       { id: 'hq', key: 'hq', level: spec.hqLevelAtLaunch },
     ],
+    /** One infantry at the headquarters, the endowment of 25/08 — so an opening is measured
+     *  with the one troop every player actually has on his first evening. */
+    startingTroops: overrides.startingTroops ?? [{ role: 'infantry', tier: 1, from: 'hq' }],
     foundation: overrides.foundation ?? foundationOrders(format),
     tuning: {
       maxHqLevel: spec.maxHqLevel,

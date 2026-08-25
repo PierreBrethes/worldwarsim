@@ -43,7 +43,29 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'domination' });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   await t.mutation(api.seasons.launch, { token });
+  await disbandTheGift(t, token);
+  await disbandTheGift(t, guest);
   return { token, guest };
+}
+
+/**
+ * **The company the launch hands out, taken back** (`seasons.endow`, 25/08). What this file
+ * measures is an economy, and the endowment eats: cleared at the door, so a figure here still
+ * says what the ground produces. The gift itself is under test in `off-season.test.ts`.
+ */
+async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
+  await t.run(async (ctx) => {
+    const player = await ctx.db
+      .query('players')
+      .withIndex('byToken', (q) => q.eq('token', token))
+      .unique();
+    if (!player) throw new Error('player not found');
+    const held = await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect();
+    for (const troop of held) await ctx.db.delete(troop._id);
+  });
 }
 
 const playerOf = async (t: ReturnType<typeof boot>, token: string) =>

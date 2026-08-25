@@ -9,8 +9,8 @@
 import { writeFileSync } from 'node:fs';
 import { run, hqLevel, troopCapOf } from './engine.mjs';
 import { makePolicy } from './policy.mjs';
-import { seasonOf, PROFILES, PLANS, PROFILE_DEFAULT } from './scenarios.mjs';
-import { SEASON_FORMATS } from './constants.mjs';
+import { seasonOf, PROFILES, PLANS, PROFILE_DEFAULT, REFERENCE_GROUND } from './scenarios.mjs';
+import { SEASON_FORMATS, foundationFor } from './constants.mjs';
 
 const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}h${String(Math.round(m % 60)).padStart(2, '0')}`;
 const pct = (v) => `${v.toFixed(1)} %`;
@@ -97,7 +97,7 @@ if (args.includes('--sweep')) {
   for (const format of ['skirmish', 'campaign']) {
     const spec = SEASON_FORMATS[format];
     console.log(`\n════════ ${format.toUpperCase()} — ${spec.durationHours} h, QG ${spec.hqLevelAtLaunch}, `
-      + `socle ${spec.foundation.join(' + ')}, alliage ${spec.startingAlloy} ════════`);
+      + `socle ${foundationFor(REFERENCE_GROUND).join(' + ')}, alliage ${spec.startingAlloy} ════════`);
     for (const key of ['assiduous', 'occasional', 'absent']) {
       keep(`${format}-${key}`, measure(seasonOf(format, { profile: PROFILES[key] })));
     }

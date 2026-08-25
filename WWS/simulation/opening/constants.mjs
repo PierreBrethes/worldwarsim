@@ -92,9 +92,12 @@ export const MAX_QUEUED_BATCHES = 12;
 
 /**
  * The two formats, mirrored key for key. Only the entry point into the curve changes: the
- * headquarters at launch, its ceiling, the foundation the season owes, and the alloy of the
- * kit. Rates, chains and bills are shared, and a second copy of one under a format key would
- * be exactly the mistake the table exists to prevent.
+ * headquarters at launch, its ceiling, and the alloy of the kit. Rates, chains and bills are
+ * shared, and a second copy of one under a format key would be exactly the mistake the table
+ * exists to prevent.
+ *
+ * **The foundation is no longer here** (25/08): it is read off the nation's ground, not the
+ * format — see `FOUNDATION_EXTRACTORS` below.
  */
 export const SEASON_FORMATS = {
   skirmish: {
@@ -103,9 +106,9 @@ export const SEASON_FORMATS = {
     maxHqLevel: 3,
     buildingCapBase: 5,
     buildingCapPerHqLevel: 3,
-    foundation: ['mine', 'mine', 'foundry', 'warehouse', 'farm', 'arsenal'],
     startingAlloy: 1000,
     startingOil: 60,
+    startingAmmunition: 140,
   },
   campaign: {
     durationHours: 168,
@@ -113,21 +116,22 @@ export const SEASON_FORMATS = {
     maxHqLevel: 5,
     buildingCapBase: 3,
     buildingCapPerHqLevel: 2,
-    foundation: ['mine', 'mine', 'foundry'],
     startingAlloy: 500,
     startingOil: 40,
+    startingAmmunition: 80,
   },
 };
 
-/** Everything but the alloy and the oil, the two figures a format sets. */
+/** Everything but the alloy, the oil and the ammunition — the three figures a format sets. */
 export const STARTING_STOCK = {
-  food: 120, textile: 40, coal: 20, ore: 20, ammunition: 40, bandages: 0,
+  food: 120, textile: 40, coal: 20, ore: 20, bandages: 0,
 };
 
 export const startingStock = (format) => ({
   ...STARTING_STOCK,
   alloy: SEASON_FORMATS[format].startingAlloy,
   oil: SEASON_FORMATS[format].startingOil,
+  ammunition: SEASON_FORMATS[format].startingAmmunition,
 });
 
 /**
@@ -158,6 +162,26 @@ export const tier2HqLevel = (format) =>
  * here because a sweep may override it by name in the tuning.
  */
 export const roleHqLevel = (role, tier2Level) => (role === 'armor' ? tier2Level : 0);
+
+/**
+ * **The foundation is read off the ground** (25/08): one extractor per dry resource the nation's
+ * own country holds, and a well only where there is oil. The foundry, the warehouse and the
+ * arsenal left the debt and are paid for like anything else — which is exactly what this
+ * instrument is meant to price.
+ */
+export const FOUNDATION_ORDER = ['ore', 'coal', 'food', 'textile', 'oil'];
+export const FOUNDATION_EXTRACTORS = {
+  ore: 'mine',
+  coal: 'mine',
+  food: 'farm',
+  textile: 'mill',
+  oil: 'oilWell',
+};
+
+export const foundationFor = (deposits) =>
+  FOUNDATION_ORDER.filter((deposit) => deposits.includes(deposit)).map(
+    (deposit) => FOUNDATION_EXTRACTORS[deposit],
+  );
 
 /** What the foundation still owes, in placement order. */
 export function foundationOwed(foundation, standing) {

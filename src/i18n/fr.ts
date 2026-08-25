@@ -10,6 +10,7 @@ import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import type { UpgradeHold } from '../domain/construction';
+import type { CapRelief } from '../domain/player-view';
 import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -243,7 +244,8 @@ export const fr = {
     MISSING_RESOURCE: (d) => `ressource absente : ${resourceName(d.resource)}`,
     INSUFFICIENT_RESOURCE: (d) =>
       `il faut ${num(d.needed)} de ${resourceName(d.resource)} (${num(d.available)} disponibles)`,
-    CONSTRUCTION_IN_PROGRESS: () => 'un chantier est déjà en cours',
+    UNKNOWN_CONSTRUCTION: () => 'chantier introuvable',
+    CONSTRUCTION_ALREADY_STARTED: () => 'un chantier commencé ne s’annule plus',
     CAPPED_BY_HQ: () => 'plafonné par le QG — montez le quartier général d’abord',
     UNKNOWN_REGION: () => 'région inconnue',
     UNKNOWN_CAPITAL_REGION: (d) =>
@@ -257,8 +259,11 @@ export const fr = {
     NOT_COASTAL: () => 'un port se pose sur une région côtière',
     REGION_TAKEN: (d) =>
       `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
+    /** Le refus nomme son remède **chiffré** : « montez le QG » est un conseil, « un quartier
+     *  général niveau 2 le porte à 8 » est un plan. Les deux nombres viennent de `buildingCap`,
+     *  servis par le serveur — jamais recopiés ici (ADR 0015, révision du 24/08). */
     BUILDING_CAP_REACHED: (d) =>
-      `plafond atteint : ${num(d.cap)} bâtiments — montez le quartier général pour l’élargir`,
+      `plafond de bâtiments atteint (${num(d.cap)})${capRelief(d.nextHqLevel, d.nextCap)}`,
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
     ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
@@ -637,6 +642,10 @@ export const fr = {
      *  dit qu'un belligérant de plus est entré). */
     warEntry: (nickname: string, nation: string) =>
       `${nation.toUpperCase()} ENTRE EN GUERRE — ${nickname} rejoint le conflit`,
+    /** Une entrée de la file annulée à son tour : le droit avait disparu entre la mise en file
+     *  et le démarrage. La dépêche dit la restitution, sinon le joueur cherche sa matière. */
+    constructionCancelled: (building: string, region: string) =>
+      `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
     masthead: 'LE JOURNAL DES OPÉRATIONS',
@@ -876,6 +885,8 @@ export const fr = {
     never: (none: string) => `jamais : ${none}`,
     neverOnDeposit: (none: string, deposit: string) => `jamais : ${none} de ${deposit}`,
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
+    /** Une seule entrée par région, en cours ou en file — le refus que le serveur oppose. */
+    alreadyQueued: 'un chantier vise déjà cette région — annulez-le ou attendez son tour',
   },
 
   economy: {
@@ -889,8 +900,21 @@ export const fr = {
      * devenue du bruit de fond (`ordre-de-mobilisation-et-fenetre-economie.md` §2).
      */
     constructionHeader: 'chantier en cours',
-    constructionNone: 'Aucun chantier. Un seul à la fois — la file de construction n’existe pas.',
+    constructionNone:
+      'Aucun chantier. La file est illimitée et se paie à la mise en file — un seul chantier avance à la fois.',
     constructionRemaining: (time: string) => `${time} restant`,
+
+    /**
+     * **La file, sous la tête et sobrement.** Aucun temps restant sur une ligne en attente : rien
+     * derrière la tête n'est daté en base, précisément pour qu'une annulation ne redate rien
+     * (`convex/constructions.ts`). Le rang est ce qui est vrai, un compte à rebours serait inventé.
+     */
+    queueHeader: (count: number) => `en file — ${count} chantier${plural(count, '', 's')}`,
+    queueRank: (rank: number) => `${rank}ᵉ`,
+    queueLevel: (level: number) => `niv. ${level}`,
+    queueCancel: 'annuler',
+    queueCancelTitle: 'annuler et rembourser intégralement',
+    queuePaid: 'payé d’avance',
 
     /**
      * **La filière, dessinée.** Un maillon bâti porte son débit réel, un maillon en chantier son
@@ -901,6 +925,7 @@ export const fr = {
     chartHeader: 'la filière',
     legendBuilt: 'bâti',
     legendUnderway: 'en chantier',
+    legendQueued: 'en file',
     legendMissing: 'manquant',
     roleDeposit: 'gisement',
     roleDepositNone: 'gisement — aucun',
@@ -909,6 +934,7 @@ export const fr = {
     roleConversion: 'conversion',
     roleConversionMissing: 'conversion — manquante',
     roleConversionUnderway: 'conversion — en chantier',
+    roleConversionQueued: 'conversion — en file',
     roleOutput: 'sortie',
     depositHeld: (count: number) => `${count} tenu${plural(count, '', 's')}`,
     depositNoneHeld: (deposit: string) =>
@@ -1011,6 +1037,14 @@ export const fr = {
 
     /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite. */
     budgetTaken: (taken: number, cap: number) => `${taken} sur ${cap}`,
+    /**
+     * **Le plafond dit son remède, à l'endroit où le joueur décide quoi poser.** L'ordre de
+     * mobilisation dit quoi poser gratuitement ; celle-ci dit quand monter le QG — même règle
+     * que le refus ci-dessus, mêmes nombres, et rien de neuf à apprendre.
+     */
+    budgetRelief: (relief: { nextHqLevel: number; nextCap: number }) =>
+      `un QG niveau ${relief.nextHqLevel} le porte à ${relief.nextCap}`,
+    budgetAtCeiling: 'quartier général au maximum — le plafond ne bougera plus',
     budgetFree: (free: number) =>
       free <= 0
         ? 'plus un emplacement libre'
@@ -1200,11 +1234,10 @@ export const fr = {
     depositReason: (deposit: string) => `gisement de ${deposit}`,
     coastalReason: 'région côtière',
     // The blocking reason is written once, at the head of the panel — never as fifteen grey
-    // badges. A construction names its deadline, a ceiling names its remedy.
-    heldByConstruction: (name: string, remaining: string) =>
-      `Chantier en cours : ${name} — reste ${remaining}. Un seul à la fois.`,
-    heldByCap: (cap: number) =>
-      `Plafond de bâtiments atteint (${cap}) — élevez votre quartier général pour l’élargir.`,
+    // badges. A ceiling names its remedy; a running site names nothing, since the queue takes
+    // everything the player can pay for (25/08).
+    heldByCap: (cap: number, relief: CapRelief) =>
+      `Plafond de bâtiments atteint (${cap})${capRelief(relief?.nextHqLevel, relief?.nextCap)}.`,
     heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
     /**
      * A launched season whose foundation is not placed is a normal state — so it is said, and
@@ -1226,7 +1259,7 @@ export const fr = {
      *  together. Hidden at zero — a column of « ×0 » is noise, not a count. */
     built: (count: number) => `×${count}`,
     blocked: {
-      constructionHere: 'chantier déjà en cours ici',
+      constructionHere: 'un chantier vise déjà cette région',
       standing: 'déjà debout ici',
       regionTaken: (name: string) => `la région porte déjà ${name}`,
       unique: 'un seul quartier général',
@@ -1298,10 +1331,10 @@ export const fr = {
  * and no deadline, where the view does. "Come back in twenty minutes" is information; "un
  * chantier est déjà en cours" is a wall.
  */
-export function upgradeHoldText(hold: UpgradeHold, running: string | null): string {
+export function upgradeHoldText(hold: UpgradeHold): string {
   switch (hold.kind) {
-    case 'constructionRunning':
-      return running ?? fr.errors.CONSTRUCTION_IN_PROGRESS();
+    case 'alreadyQueued':
+      return fr.upgrade.alreadyQueued;
     case 'cappedByHq':
       return fr.errors.CAPPED_BY_HQ();
     case 'materials':
@@ -1369,6 +1402,16 @@ export function doctrineLabel(doctrine: string | null): string | null {
     ? fr.doctrines[doctrine as Doctrine]
     : doctrine;
 }
+
+/**
+ * Le remède du plafond, en une demi-phrase — vide quand le QG est au maximum, parce qu'il n'y a
+ * alors rien à faire et qu'une phrase qui ne dit rien vaut moins que le silence. Les deux
+ * nombres arrivent servis (`me.capRelief`, `convex/constructions.ts`) : rien n'est calculé ici.
+ */
+const capRelief = (nextHqLevel: unknown, nextCap: unknown): string =>
+  typeof nextHqLevel === 'number' && typeof nextCap === 'number'
+    ? ` — un quartier général niveau ${nextHqLevel} le porte à ${nextCap}`
+    : ' — le quartier général est au maximum';
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '—');
 const num = (value: unknown): string => (typeof value === 'number' ? String(value) : '—');

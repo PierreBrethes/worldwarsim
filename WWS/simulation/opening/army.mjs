@@ -9,7 +9,7 @@
  *     tallies every refusal the recruiting rule met, so the answer is counted, not guessed.
  */
 
-import { COST_BY_ROLE, ammunitionLoad, recruitmentCost, troopCap, TROOP_CAP_BASE } from './constants.mjs';
+import { COST_BY_ROLE, SEASON_FORMATS, ammunitionLoad, recruitmentCost, troopCap, TROOP_CAP_BASE } from './constants.mjs';
 import { run, hqLevel, troopCapOf, totalLevelOf } from './engine.mjs';
 import { makePolicy } from './policy.mjs';
 import { seasonOf, PROFILES, PROFILE_DEFAULT } from './scenarios.mjs';
@@ -57,7 +57,13 @@ console.log('\n════════ CE QU’UNE SAISON DE 48 H MET SUR PIED 
 console.log('alliage  plafond visé │ troupes / plafond  baraq.  QG  bâtim.  reste alliage  ce qui bloque');
 for (const alloy of [250, 450, 700, 1000, 1500]) {
   for (const target of [24, 12]) {
-    const r = fielded({ startingStock: { alloy, ammunition: 60 }, tuning: { troopCapTarget: target } });
+    // The alloy is the axis swept here; the ammunition is **not** a knob of this study, so it
+    // reads the kit its format hands out (`startingAmmunition`, 25/08). Pinned at 60 it named
+    // ammunition as the wall at every alloy above 700 — the wall of a season nobody plays.
+    const r = fielded({
+      startingStock: { alloy, ammunition: SEASON_FORMATS.skirmish.startingAmmunition },
+      tuning: { troopCapTarget: target },
+    });
     console.log(
       `   ${pad(alloy, 4)}       ${pad(target, 2)}      │      ${pad(r.troops, 2)} / ${pad(r.cap, 2)}`
       + `        ${pad(r.billets, 2)}    ${r.hq}    ${pad(r.sites, 2)}      ${pad(r.alloy, 6)}`

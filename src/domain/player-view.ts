@@ -310,7 +310,41 @@ export type Opponent = {
   readonly lastIntel: string;
 };
 
+/**
+ * What the next headquarters level would carry — `null` at the top of the format's ladder. It
+ * is what turns "plafond atteint" from a wall into a plan, and it is **served** so the sentence
+ * and the refusal that raised it read the same `buildingCap`.
+ */
+export type CapRelief = { readonly nextHqLevel: number; readonly nextCap: number } | null;
+
+export type RunningWork = {
+  readonly id: string;
+  readonly name: string;
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly regionName: string;
+  readonly minutesLeft: number;
+};
+
+export type QueuedWork = {
+  readonly id: string;
+  readonly name: string;
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly regionName: string;
+  readonly level: number;
+};
+
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
+
+/** A line the journal owes the player and no engagement accounts for. One kind so far: an
+ *  entry of the construction queue the world took the right to before its turn came. */
+export type Notice = {
+  readonly at: number;
+  readonly kind: 'constructionCancelled';
+  readonly building: BuildingKey;
+  readonly regionName: string;
+};
 
 export type JournalDispatch = {
   readonly t: string;
@@ -372,6 +406,9 @@ export type PlayerView = {
      * standing against it is `buildings.length`: the list is complete, so it holds the count.
      */
     readonly buildingCap: number;
+    /** What the next headquarters level would carry — `null` at the top of the format's ladder.
+     *  It is what turns "plafond atteint" from a wall into a plan. */
+    readonly capRelief: CapRelief;
     /** The headquarters level that opens mark 2 in this format — served, never derived here. */
     readonly tier2HqLevel: number;
     /**
@@ -383,13 +420,15 @@ export type PlayerView = {
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     readonly regions: ReadonlyArray<RegionView>;
-    readonly construction: {
-      readonly name: string;
-      readonly key: BuildingKey;
-      readonly regionId: string;
-      readonly regionName: string;
-      readonly minutesLeft: number;
-    } | null;
+    /** The head of the construction queue — the only entry that is dated, hence the only one
+     *  the banner counts down and the map plants a crane on. */
+    readonly construction: RunningWork | null;
+    /**
+     * What is paid for and waiting its turn, behind the head and in build order. A queued entry
+     * structurally carries **no** due time: nothing behind the head is dated, so a countdown
+     * here could only be invented (`convex/constructions.ts`).
+     */
+    readonly constructionQueue: ReadonlyArray<QueuedWork>;
     readonly armyPresent: Stack;
     readonly armyInTransit: Stack;
     /** How many troops may stand at once, carried by the billets. `troops` holds the count. */

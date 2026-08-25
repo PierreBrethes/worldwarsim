@@ -47,7 +47,12 @@ export function createState(scenario) {
     construction: null,
     /** One queue per projection site, as `convex/troops.ts` holds it. */
     queues: new Map(),
-    troops: [],
+    /**
+     * The company the launch hands out (`seasons.endow`, 25/08), garrisoned at the headquarters.
+     * It takes a place under `troopCap` from the first minute; what it *eats* is not modelled
+     * here, because this engine models no upkeep at all — see the README's limits.
+     */
+    troops: (scenario.startingTroops ?? []).map((troop) => ({ ...troop })),
     /** Outstanding arsenal lot, in units of ammunition still owed. */
     arsenalOrder: 0,
     random: makeRandom(scenario.seed ?? 1),

@@ -13,6 +13,7 @@ export const reset = internalMutation({
   handler: async (ctx) => {
     const tables = [
       'constructions',
+      'notices',
       'recruitments',
       'troops',
       'buildings',

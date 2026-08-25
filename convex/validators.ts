@@ -75,6 +75,10 @@ export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 
+/** What a journal notice is about. One member for now, and a union all the same: the next kind
+ *  has to be added here, where the schema and the client's translation table both read it. */
+export const NOTICE_KIND = v.union(v.literal('constructionCancelled'));
+
 /**
  * The five kinds of movement of the design, plus the one the resolution creates on its own, plus
  * `recall`, which nobody orders any more (ADR 0019 §1) and which stays here on purpose: a column

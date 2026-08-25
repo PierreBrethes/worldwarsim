@@ -10,6 +10,7 @@ import { followDrag, scaleOf, type Grab } from './dragging';
 import {
   blockedOn,
   buildableOn,
+  pledgedCount,
   siteOf,
   type BlockedOption,
   type BlockedReason,
@@ -18,7 +19,7 @@ import {
 } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import { RESOURCES, type BuildingKey } from '@/domain/ids';
-import { currentMinutes, type Cost, type PlayerView } from '@/domain/player-view';
+import type { Cost, PlayerView } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 
@@ -159,12 +160,15 @@ export function ConstructionPanel({
             the subject of the decision taken there, and choosing where to build is that
             decision. The count is the list — `buildings.length` — never a third served number. */}
         <p className="mt-2 shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-          {fr.construction.budget(view.me.buildings.length, view.me.buildingCap)}
+          {fr.construction.budget(
+            view.me.buildings.length + pledgedCount(view),
+            view.me.buildingCap,
+          )}
         </p>
 
         <FoundationNotice owed={view.me.foundation} />
 
-        <HeldNotice view={view} options={options} now={now} />
+        <HeldNotice view={view} options={options} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
           {fr.construction.offerHeader}
@@ -241,28 +245,12 @@ function FoundationNotice({ owed }: { owed: ReadonlyArray<BuildingKey> }) {
  * wall this rule exists to prevent; one line at the head of the panel says it better, and says
  * it with the deadline or the remedy the player actually needs.
  */
-function HeldNotice({
-  view,
-  options,
-  now,
-}: {
-  view: PlayerView;
-  options: ReadonlyArray<BuildOption>;
-  now: number;
-}) {
-  const construction = view.me.construction;
-  const held = options.some((option) => option.hold === 'constructionRunning')
-    ? construction === null
-      ? null
-      : fr.construction.heldByConstruction(
-          construction.name,
-          asDuration(currentMinutes(construction.minutesLeft, view.loadedAt, now)),
-        )
-    : options.some((option) => option.hold === 'buildingCap')
-      ? fr.construction.heldByCap(view.me.buildingCap)
-      : options.some((option) => option.hold === 'materials')
-        ? fr.construction.heldByMaterials
-        : null;
+function HeldNotice({ view, options }: { view: PlayerView; options: ReadonlyArray<BuildOption> }) {
+  const held = options.some((option) => option.hold === 'buildingCap')
+    ? fr.construction.heldByCap(view.me.buildingCap, view.me.capRelief)
+    : options.some((option) => option.hold === 'materials')
+      ? fr.construction.heldByMaterials
+      : null;
 
   if (held === null) return null;
   return (

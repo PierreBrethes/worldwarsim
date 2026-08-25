@@ -12,7 +12,6 @@ import {
   buildCost,
   buildMinutes,
   buildingCap,
-  foundationOwed,
   formatOf,
   isCommanded,
   tier2HqLevel,
@@ -21,8 +20,9 @@ import {
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
+import { capReliefOf, queueOf } from './constructions';
 import { movementsOf, outpostsOf, restHold } from './movements';
-import { homeCountryOf, regionFacts, regionsOf } from './regions';
+import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
@@ -43,10 +43,10 @@ export const playerView = query({
     const economy = await economyOf(ctx, player._id, now);
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    const construction = await ctx.db
-      .query('constructions')
-      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .unique();
+    const queue = await queueOf(ctx, player._id);
+    /** The head of the queue is the only entry a `finishesAt` ever dates, so it is the only one
+     *  the banner and the map can put a crane on — the rest is a list waiting its turn. */
+    const construction = queue[0] ?? null;
 
     /**
      * The ground a player may build on: his home country, plus any region already carrying
@@ -252,6 +252,15 @@ export const playerView = query({
          */
         buildingCap: buildingCap(format, hqLevel),
         /**
+         * **What the next headquarters level would carry**, `null` at the top of the ladder.
+         * Served rather than derived on the client for the reason the ceiling itself is: the
+         * line that says "un quartier général niveau 2 le porte à 8" and the refusal that
+         * raised it have to be the same two numbers, and a client-side copy of `buildingCap`
+         * is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché sans sa
+         * condition, et une condition qui se chiffre est un plan).
+         */
+        capRelief: capReliefOf(format, hqLevel),
+        /**
          * The headquarters level that opens mark 2 **in this format** (ADR 0017). Served rather
          * than read off a constant by the screen: the line that says "verrouillé jusqu'au QG 3"
          * and the recruitment that refuses tier 2 have to be the same number, and a client-side
@@ -265,7 +274,7 @@ export const playerView = query({
          * to be able to say out loud.
          */
         foundation: foundationOwed(
-          format,
+          player.nation,
           buildings.map((building) => building.key),
         ),
         buildings: buildings.map((building) => ({
@@ -290,15 +299,31 @@ export const playerView = query({
         })),
         // The region and the key travel with it because the map plants the crane on the
         // ground: a region name is a caption, not an anchor.
-        construction: construction
-          ? {
-              name: construction.building,
-              key: construction.building,
-              regionId: construction.regionId,
-              regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
-              minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
-            }
-          : null,
+        construction:
+          construction !== null && construction.finishesAt !== null
+            ? {
+                id: construction._id,
+                name: construction.building,
+                key: construction.building,
+                regionId: construction.regionId,
+                regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
+                minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              }
+            : null,
+        /**
+         * **What is paid for and waiting its turn**, in the order it will be built. It carries
+         * no due time and cannot: nothing behind the head is dated in the database, precisely
+         * so that a cancellation re-dates nothing (`constructions.ts`). What the screen shows
+         * beside a queued line is its rank, not a countdown it would have had to invent.
+         */
+        constructionQueue: queue.slice(1).map((entry) => ({
+          id: entry._id,
+          name: entry.building,
+          key: entry.building,
+          regionId: entry.regionId,
+          regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
+          level: entry.level,
+        })),
         armyPresent,
         /**
          * What the army costs to hold, and how much of it is standing where nobody feeds it
@@ -482,6 +507,22 @@ export const playerView = query({
         if (at === null || season.launchedAt === null || at <= season.launchedAt) return [];
         return [{ nickname: seat.nickname, nation: seat.nation ?? seat.nickname, at }];
       }),
+      /**
+       * **What happened to the player without him asking**, raw. Today: a queued construction
+       * the world took the right to before its turn came. Ids and numbers only — the sentence
+       * is put on it by `journalDispatches`, like every other dispatch (ADR 0016).
+       */
+      notices: (
+        await ctx.db
+          .query('notices')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      ).map((notice) => ({
+        at: notice.at,
+        kind: notice.kind,
+        building: notice.building,
+        regionName: regionFacts(notice.regionId)?.name ?? notice.regionId,
+      })),
       journal: [],
       loadedAt: now,
       opponents: others.map((other) => ({

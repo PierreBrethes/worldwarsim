@@ -7,13 +7,7 @@ import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construc
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration } from '@/domain/duration';
 import { DEPOSITS, RESOURCES } from '@/domain/ids';
-import {
-  currentMinutes,
-  currentStock,
-  type Building,
-  type Cost,
-  type PlayerView,
-} from '@/domain/player-view';
+import { currentStock, type Building, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourcePlate } from '@/emblems/Plate';
 
 /**
@@ -35,37 +29,18 @@ export function UpgradeControl({
   view,
   token,
   now,
-  runningSaidElsewhere = false,
 }: {
   building: Building;
   view: PlayerView;
   token: string;
   now: number;
-  /**
-   * The single-construction sentence is written by the window itself, once. Under fifteen
-   * buildings the same twelve words are noise — the button stays inert either way, and the
-   * hover title still answers the one line the player is pointing at.
-   */
-  runningSaidElsewhere?: boolean;
 }) {
   const start = useMutation(api.constructions.start);
   const [error, setError] = useState<string | null>(null);
   const hold = upgradeHold(building, view, now);
   const next = building.level + 1;
 
-  const running = view.me.construction;
-  const held =
-    hold === null
-      ? null
-      : upgradeHoldText(
-          hold,
-          running === null
-            ? null
-            : fr.construction.heldByConstruction(
-                running.name,
-                asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)),
-              ),
-        );
+  const held = hold === null ? null : upgradeHoldText(hold);
 
   return (
     <div className="flex shrink-0 flex-col items-end gap-[3px]">
@@ -92,7 +67,7 @@ export function UpgradeControl({
           {fr.upgrade.action}
         </button>
       </div>
-      {held !== null && !(runningSaidElsewhere && hold?.kind === 'constructionRunning') && (
+      {held !== null && (
         <span className="max-w-[42ch] text-right text-[11px] leading-[1.35] text-[var(--ink-soft)]">
           {held}
         </span>
