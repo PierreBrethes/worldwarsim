@@ -128,7 +128,9 @@ export function MovementPreview({
     >
       <div className="paper-grain border border-[var(--ink)] p-[3px]">
         <div className="border border-[rgba(42,33,24,.4)] px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
-          <div className="flex items-baseline justify-between text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {/* Wrapping rather than abbreviating: the cost says a whole sentence, and on a card
+              262 px wide it does not always share a line with the kicker. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             <span>{fr.aim.previewKicker}</span>
             <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
           </div>

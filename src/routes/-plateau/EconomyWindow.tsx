@@ -557,19 +557,19 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
         <BoxLabel ink={none ? 'var(--critical)' : 'var(--paper-dim-2)'}>
           {none ? fr.economy.roleDepositNone : fr.economy.roleDeposit}
         </BoxLabel>
-        <div className="flex items-baseline justify-between gap-2">
-          <span
-            className="text-[14px] font-semibold"
-            style={{ color: none ? 'var(--ink)' : 'var(--paper)' }}
-          >
-            {fr.deposits[source.deposit]}
-          </span>
-          {!none && (
-            <span className="font-(family-name:--font-mono) text-[12px] text-[var(--notable)]">
-              {fr.economy.depositHeld(source.held)}
-            </span>
-          )}
-        </div>
+        <span
+          className="block text-[14px] font-semibold"
+          style={{ color: none ? 'var(--ink)' : 'var(--paper)' }}
+        >
+          {fr.deposits[source.deposit]}
+        </span>
+        {/* Under the name rather than beside it: the count says a whole sentence now, and a
+            sentence in a right-hand column crushes the name it belongs to. */}
+        {!none && (
+          <p className="mt-[2px] font-(family-name:--font-mono) text-[11px] text-[var(--notable)]">
+            {fr.economy.depositHeld(source.held)}
+          </p>
+        )}
         {none && (
           <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-soft)]">
             {fr.economy.depositNoneHeld(fr.deposits[source.deposit])}
@@ -836,7 +836,7 @@ function EstateRow({
       <span className="w-[100px] shrink-0 truncate text-[11.5px] text-[var(--ink-soft)]">
         {fr.economy.inRegion(region)}
       </span>
-      <span className="w-[52px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
+      <span className="w-[68px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
         {fr.economy.level(building.level)}
       </span>
       <span className="min-w-[160px] flex-1 truncate text-[11.5px] text-[var(--ink-soft)]">

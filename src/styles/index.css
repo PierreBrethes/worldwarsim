@@ -25,6 +25,53 @@ body {
   overflow: hidden;
 }
 
+/* **Les barres de défilement sont du mobilier de journal, pas du chrome de navigateur.** Une
+   seule déclaration pour toute l'application — fenêtres, panneaux, listes et la feuille — parce
+   qu'une barre habillée par écran est une barre oubliée le jour où l'on ajoute le suivant.
+
+   Le pouce est l'encre, la gouttière est du papier assombri, et les coins sont carrés : un
+   arrondi est la seule chose de cette interface qui daterait d'après 1940. Les deux moteurs
+   veulent deux dialectes — `::-webkit-scrollbar*` pour Chrome, Edge et Safari, `scrollbar-width`
+   et `scrollbar-color` pour Firefox — et disent ici la même chose. */
+:root {
+  --scroll-gutter: color-mix(in srgb, var(--paper) 78%, var(--ink));
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) var(--scroll-gutter);
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scroll-gutter);
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: var(--ink);
+}
+
+/* Un filet de gouttière de chaque côté du pouce : sans lui la barre est un bloc plein, et le
+   pouce ne se distingue plus de la piste qu'il parcourt. */
+::-webkit-scrollbar-thumb:vertical {
+  border-left: 1px solid var(--scroll-gutter);
+  border-right: 1px solid var(--scroll-gutter);
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  border-top: 1px solid var(--scroll-gutter);
+  border-bottom: 1px solid var(--scroll-gutter);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--scroll-gutter);
+}
+
 /* Pictograms are laid as masks, not images: the PNG cuts, the background color makes the
    ink. The paper reserve, in turn, sits on a parent — a filter applied to the masked element
    would be cut out with it and the shadow would disappear. */

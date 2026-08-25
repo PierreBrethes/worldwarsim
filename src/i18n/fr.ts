@@ -401,9 +401,10 @@ export const fr = {
     codeNote: 'Toute personne qui a ce code peut prendre une nation libre.',
     copyCode: 'copier le code',
     codeCopied: 'code copié',
-    openCount: (count: number) => `salon ouvert · ${count} / 8`,
+    openCount: (count: number) => `salon ouvert · ${count} joueur${plural(count, '', 's')} sur 8`,
     nationsHeader: 'nations — premier arrivé, premier servi',
-    nationsFree: (count: number) => `${count} libres`,
+    nationsFree: (count: number) =>
+      `${count} nation${plural(count, '', 's')} libre${plural(count, '', 's')}`,
     you: 'vous',
     takenBy: (nickname: string) => `prise · ${nickname}`,
     toBalance: 'à équilibrer',
@@ -680,8 +681,9 @@ export const fr = {
     collapsed: 'replié',
     expand: 'déplier le widget de troupes',
     collapse: 'replier le widget de troupes',
-    cap: (standing: number, cap: number) => `${standing} / ${cap}`,
-    slots: (used: number, total: number) => `slots ${used} / ${total}`,
+    cap: (standing: number, cap: number) =>
+      `${standing} troupe${plural(standing, '', 's')} sur ${cap}`,
+    slots: (used: number, total: number) => `${used} slot${plural(used, '', 's')} sur ${total}`,
     stationary: 'stationnaires',
     stationaryPower: 'dirigeables',
     moving: 'en mouvement',
@@ -729,7 +731,7 @@ export const fr = {
     intelRule: 'une sentinelle ne voit que ce qui part après elle',
     intelBearing: (cardinal: string) => `cap ${cardinal}`,
     intelAtMe: 'cap sur vous',
-    intelEstimate: (duration: string) => `~ ${duration}`,
+    intelEstimate: (duration: string) => `arrivée estimée ~ ${duration}`,
     intelLost: (duration: string) => `perdu de vue il y a ${duration}`,
   },
 
@@ -750,7 +752,8 @@ export const fr = {
      * offrent, ni ce que sa pile demande. Un transport sans capacité n'affiche rien — le jour où
      * l'allure en donne une au camion, le compteur suit sans une ligne de plus.
      */
-    seats: (needed: number, offered: number) => `places : ${needed}/${offered}`,
+    seats: (needed: number, offered: number) =>
+      `${needed} place${plural(needed, '', 's')} demandée${plural(needed, '', 's')} sur ${offered} offerte${plural(offered, '', 's')}`,
     /**
      * **L'allure se lit en composant, pas à l'arrivée de l'aperçu.** Le compteur de places dit
      * l'embarquement — traverser un milieu qui n'est pas le sien — et il ne dit rien du sol :
@@ -788,7 +791,7 @@ export const fr = {
     gesture: 'survol : destinations légales · clic droit : type',
     disarm: 'échap — désarme la visée',
     previewKicker: 'aperçu de trajet',
-    slot: '1 slot',
+    slot: 'coûte 1 slot de mouvement',
     heading: (destination: string, type: string) => `${destination} — ${type}`,
     computing: 'calcul de la route…',
     noRoute: 'Aucune route terrestre vers cette destination.',
@@ -831,13 +834,14 @@ export const fr = {
     opening: 'Ouverture de l’atelier…',
     domains: { land: 'terre', air: 'air', sea: 'mer' },
     site: 'site',
-    siteOption: (region: string, level: number) => `${region} — niv. ${level}`,
+    siteOption: (region: string, level: number) => `${region} — niveau ${level}`,
     // The single limiting factor, never the list of conditions (brief §5).
     blockedBy: (none: string) => `bloqué : ${none}`,
     noSite: (building: string) =>
       `Aucun bâtiment de ce type. Bâtissez ${building} pour former ce domaine.`,
     queueHeader: 'files de production',
-    queueOf: (region: string, count: number, max: number) => `${region} — ${count} / ${max}`,
+    queueOf: (region: string, count: number, max: number) =>
+      `${region} — ${count} lot${plural(count, '', 's')} en file sur ${max}`,
     queueEmpty: 'Aucune troupe en chaîne. Choisissez un site et enfilez un rôle.',
     atWaking: 'au réveil',
     wakingNote:
@@ -849,7 +853,7 @@ export const fr = {
      */
     inService: 'en service',
     inQueue: 'en file',
-    capOf: (cap: number) => `plafond ${cap}`,
+    capOf: (cap: number) => `plafond ${cap} troupes`,
     /** The two halves of a card's ledger. Kept as eyebrows, never as sentences. */
     costLabel: 'coût',
     trainingLabel: 'formation',
@@ -875,7 +879,7 @@ export const fr = {
   upgrade: {
     action: 'améliorer',
     title: (name: string, level: number) => `passer ${name} au niveau ${level}`,
-    toLevel: (level: number) => `→ niv. ${level}`,
+    toLevel: (level: number) => `→ niveau ${level}`,
     /**
      * A refusal that names its cause beats a refusal that counts (brief §5). "Il faut 72 de
      * charbon (0 disponibles)" is a wall; "disponible dans 4 h 20" is a plan, and when nothing
@@ -911,7 +915,7 @@ export const fr = {
      */
     queueHeader: (count: number) => `en file — ${count} chantier${plural(count, '', 's')}`,
     queueRank: (rank: number) => `${rank}ᵉ`,
-    queueLevel: (level: number) => `niv. ${level}`,
+    queueLevel: (level: number) => `niveau ${level}`,
     queueCancel: 'annuler',
     queueCancelTitle: 'annuler et rembourser intégralement',
     queuePaid: 'payé d’avance',
@@ -936,11 +940,12 @@ export const fr = {
     roleConversionUnderway: 'conversion — en chantier',
     roleConversionQueued: 'conversion — en file',
     roleOutput: 'sortie',
-    depositHeld: (count: number) => `${count} tenu${plural(count, '', 's')}`,
+    depositHeld: (count: number) =>
+      `${count} gisement${plural(count, '', 's')} sur votre territoire`,
     depositNoneHeld: (deposit: string) =>
       `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
     fromChain: (building: string) => `de ${lowerFirst(building)}`,
-    noRate: '— / h',
+    noRate: 'ne produit rien',
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
@@ -1030,13 +1035,13 @@ export const fr = {
     listeningTemporary:
       'La station d’écoute est ici en attendant la fenêtre Espionnage : un jalon inerte serait pire.',
 
-    level: (level: number) => `niv. ${level}`,
+    level: (level: number) => `niveau ${level}`,
     // The real rate is a settled quantity, not a table entry: it arrives with a tail of
     // floating point behind it, and "2.9999999 / h" is not a figure anyone reads.
     perHour: (rate: number) => `${tenths(rate)} / h`,
 
     /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite. */
-    budgetTaken: (taken: number, cap: number) => `${taken} sur ${cap}`,
+    budgetTaken: (taken: number, cap: number) => `${taken} emplacements sur ${cap}`,
     /**
      * **Le plafond dit son remède, à l'endroit où le joueur décide quoi poser.** L'ordre de
      * mobilisation dit quoi poser gratuitement ; celle-ci dit quand monter le QG — même règle
@@ -1083,7 +1088,7 @@ export const fr = {
       `${andList(regions)} surlignée${plural(regions.length, '', 's')} sur le plateau.`,
     zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
     cancel: 'annuler la sélection de clé',
-    count: (count: number) => `×${count}`,
+    count: (count: number) => `${count} à poser`,
     /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
      *  coup : rien d'affiché sans sa condition. */
     wants: {
@@ -1256,23 +1261,24 @@ export const fr = {
      */
     elsewhereHeader: 'pas sur cette région',
     /** After the name, never instead of it: what the nation already stands, all regions
-     *  together. Hidden at zero — a column of « ×0 » is noise, not a count. */
-    built: (count: number) => `×${count}`,
+     *  together. Hidden at zero — a column of « 0 déjà bâti » is noise, not a count. */
+    built: (count: number) => `${count} déjà bâti${plural(count, '', 's')}`,
     blocked: {
       constructionHere: 'un chantier vise déjà cette région',
-      standing: 'déjà debout ici',
+      standing: 'déjà debout sur cette région',
       regionTaken: (name: string) => `la région porte déjà ${name}`,
-      unique: 'un seul quartier général',
-      locked: (level: number) => `quartier général niveau ${level}`,
-      deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')}`,
-      coastal: 'région côtière',
-      here: 'pas ici',
+      unique: 'un seul quartier général par nation',
+      locked: (level: number) => `demande un quartier général niveau ${level}`,
+      deposit: (deposits: ReadonlyArray<string>) =>
+        `demande une région à gisement de ${deposits.join(' ou ')}`,
+      coastal: 'demande une région côtière',
+      here: 'ne peut pas se poser sur cette région',
     },
   },
 
   labels: {
-    levelAndGarrison: (level: number, garrison: number) => `NIV. ${level} · GARN. ${garrison}`,
-    buildingLevel: (level: number) => `NIV. ${level}`,
+    levelAndGarrison: (level: number, garrison: number) => `NIVEAU ${level} · GARNISON ${garrison}`,
+    buildingLevel: (level: number) => `NIVEAU ${level}`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',
   },

@@ -279,8 +279,8 @@ function BuildingName({ building, built }: { building: BuildingKey; built: numbe
     <span className="block text-[13px] font-semibold text-[var(--ink)]">
       {fr.buildings[building]}
       {built > 0 && (
-        <span className="ml-[5px] font-(family-name:--font-mono) text-[11px] font-normal text-[var(--ink-soft)]">
-          {fr.construction.built(built)}
+        <span className="ml-[6px] font-(family-name:--font-mono) text-[11px] font-normal text-[var(--ink-soft)]">
+          · {fr.construction.built(built)}
         </span>
       )}
     </span>

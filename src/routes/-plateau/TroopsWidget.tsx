@@ -84,8 +84,10 @@ export function TroopsWidget({
       className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-(family-name:--font-body)"
     >
       <DragHandle className="flex items-baseline gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[11px] py-[7px]">
-        <span className="eyebrow-dark flex-1 tracking-[.22em]">{fr.troops.header}</span>
-        <span className="font-(family-name:--font-mono) text-[10px] text-[var(--paper-dim-2)]">
+        <span className="eyebrow-dark min-w-0 flex-1 truncate tracking-[.22em]">
+          {fr.troops.header}
+        </span>
+        <span className="shrink-0 font-(family-name:--font-mono) text-[9.5px] text-[var(--paper-dim-2)]">
           {collapsed
             ? fr.troops.collapsed
             : `${fr.troops.cap(view.me.troops.length, view.me.troopCap)} · ${fr.troops.slots(
