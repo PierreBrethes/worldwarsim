@@ -67,12 +67,16 @@ export type CompassTarget =
     };
 
 /**
- * The six pictograms of the radial menu plate. Three mark nothing yet — the crane awaits
- * economy v2, the helmet the agent, the rifles the force sheet — and are declared here so
- * that when the day comes there is only wiring to write, never a drawing to find.
+ * The pictograms of the radial menu plate. Two mark nothing yet — the helmet awaits the agent,
+ * the propeller the day something flies — and are declared here so that when the day comes there
+ * is only wiring to write, never a drawing to find.
+ *
+ * `silhouette` is the decoy's, and it is the plate's one hollow drawing: the march's hut with
+ * nothing inside it. A feint is the shape of a column and none of its substance, and the
+ * pictogram says exactly that before the tooltip does.
  */
 export type CompassPictogram =
-  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant';
+  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'silhouette';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -174,7 +178,7 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
   outpost: 'cabin',
   recall: 'anchor',
   agent: 'helmet',
-  decoy: 'propeller',
+  decoy: 'silhouette',
   return: 'anchor',
 };
 
@@ -183,7 +187,14 @@ const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassA
   pictogram: AIM_PICTOGRAM[type],
   label: fr.movementTypes[type],
   cost: slotCost(view),
-  consequence: fr.compass.marchConsequence(fr.movementTypes[type]),
+  /** **The forfait is not quantified here, and that is deliberate**: the figure lives in
+   *  `convex/constants.ts` with every other balance number, and the domain does not read it
+   *  (ADR 0016, the layering of `CLAUDE.md`). The aiming card says it, one gesture later, at the
+   *  moment it is a price rather than a warning. */
+  consequence:
+    type === 'decoy'
+      ? fr.compass.decoyConsequence
+      : fr.compass.marchConsequence(fr.movementTypes[type]),
   aim,
   type,
 });
@@ -272,11 +283,19 @@ function fanOf(
       .filter((type) => !taken.has(type) && taken.add(type) !== undefined)
       .map((type) => march(type, aimed, view)),
   );
+  /**
+   * **The motive is about the marches, and the decoy is not one.** A feint asks nothing of the
+   * pile — it carries none — so it stands on ground a hull with no quay cannot leave, and a fan
+   * holding nothing but the feint is a fan whose marches were all refused. Reading the motive
+   * off `actions.length` would have swallowed it the day the decoy landed, and the player would
+   * have watched his marches vanish with no sentence to say why.
+   */
+  const marches = actions.filter((action) => action.key === 'aim' && action.type !== 'decoy');
   return {
     kicker: fr.compass.aiming(column.roles.length),
     name,
     actions,
-    refusal: actions.length === 0 ? refusalIn(aims, column) : null,
+    refusal: marches.length === 0 ? refusalIn(aims, column) : null,
   };
 }
 
@@ -306,7 +325,11 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
  */
 function refusalIn(aims: ReadonlyArray<MovementAim>, column: Column): string | null {
   const met = new Set(
-    aims.flatMap((aimed) => ORDERABLE_TYPES.map((type) => refusalOf(type, aimed, column))),
+    aims.flatMap((aimed) =>
+      ORDERABLE_TYPES.filter((type) => type !== 'decoy').map((type) =>
+        refusalOf(type, aimed, column),
+      ),
+    ),
   );
   const code = REFUSAL_PRIORITY.find((candidate) => met.has(candidate));
   if (code === undefined) return null;

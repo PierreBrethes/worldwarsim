@@ -1,6 +1,7 @@
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
+import { DECOY_COST } from '../../../convex/constants';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -74,6 +75,7 @@ export function MovementPreview({
   const marchTo = useMutation(api.movements.marchTo);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
+  const decoy = useMutation(api.movements.decoy);
 
   const send = () => {
     setError(null);
@@ -83,29 +85,32 @@ export function MovementPreview({
     // them: the call itself.
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
     const from = wireOrigin(origin);
-    /** Three orders and no fourth: founding is not one of them any more — it is what a column
-     *  does where it stands (`foundOutpostHere`), and the fan stopped offering it. */
+    /** Four orders and no fifth: founding is not one of them any more — it is what a column does
+     *  where it stands (`foundOutpostHere`), and the fan stopped offering it. The decoy takes no
+     *  manifest at all: what is armed behind this card stays exactly where it stands. */
     const order =
-      type === 'march' && aim.kind === 'point'
-        ? marchTo({
-            token,
-            origin: from,
-            troopIds: ids,
-            point: { lon: aim.lon, lat: aim.lat },
-          })
-        : type === 'raid' && aim.kind === 'outpost'
-          ? raid({
+      type === 'decoy' && aim.kind === 'point'
+        ? decoy({ token, origin: from, point: { lon: aim.lon, lat: aim.lat } })
+        : type === 'march' && aim.kind === 'point'
+          ? marchTo({
               token,
               origin: from,
               troopIds: ids,
-              outpostId: aim.outpostId as Id<'outposts'>,
+              point: { lon: aim.lon, lat: aim.lat },
             })
-          : attack({
-              token,
-              origin: from,
-              troopIds: ids,
-              target: wireTarget(aim),
-            });
+          : type === 'raid' && aim.kind === 'outpost'
+            ? raid({
+                token,
+                origin: from,
+                troopIds: ids,
+                outpostId: aim.outpostId as Id<'outposts'>,
+              })
+            : attack({
+                token,
+                origin: from,
+                troopIds: ids,
+                target: wireTarget(aim),
+              });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);
@@ -132,7 +137,9 @@ export function MovementPreview({
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             <span>{fr.aim.previewKicker}</span>
-            <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
+            <span className="font-(family-name:--font-mono) tracking-[.06em]">
+              {type === 'decoy' ? fr.aim.decoyCost(DECOY_COST.alloy ?? 0) : fr.aim.slot}
+            </span>
           </div>
           <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
             {fr.aim.heading(destinationOf(aim, preview), fr.movementTypes[type])}
@@ -152,11 +159,25 @@ export function MovementPreview({
                     a hull routes `combined` even when the road gets there dry, and the card
                     would then promise a crossing to the next region. */}
                 <div>
-                  {fr.aim.duration(asDuration(preview.minutes), preview.troops)} ·{' '}
-                  {legOf(preview.route)}
+                  {type === 'decoy'
+                    ? fr.aim.durationAlone(asDuration(preview.minutes))
+                    : fr.aim.duration(asDuration(preview.minutes), preview.troops)}{' '}
+                  · {legOf(preview.route)}
                 </div>
                 <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
               </div>
+              {/* **Ce qu'on achète, dit en toutes lettres** (fiche 04) : un leurre ne vaut que
+                  par ce qu'il fait croire, et il ne le fait croire qu'une fois. */}
+              {type === 'decoy' && (
+                <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+                  <p className="text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                    {fr.aim.decoyNote}
+                  </p>
+                  <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                    {fr.aim.decoyKeepsColumn}
+                  </p>
+                </div>
+              )}
               {preview.holdUntil !== null && (
                 <div className="mt-[7px] flex items-center gap-[7px]">
                   <span

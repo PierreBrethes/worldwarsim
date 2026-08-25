@@ -68,7 +68,11 @@ export function CompassRose({
   }, [hovered, bubbleHeight]);
 
   const action = compass.actions[hovered] ?? null;
-  const refusal = compass.actions.length === 0 ? compass.refusal : null;
+  /** **A motive shows beside a fan, not only instead of one.** Since the decoy joined the plate
+   *  a point always has one branch, and a rose that only spoke when it drew nothing would have
+   *  gone mute exactly where the marches were refused (`fanOf`). Hovering a branch replaces the
+   *  motive with that branch's own tooltip, which is the reading order one wants. */
+  const refusal = compass.refusal;
   // Due east, so a bubble with nothing to point at sits level with the crosshair it explains.
   const bubbleAngle = action === null ? 90 : angleOf(hovered, compass.actions.length);
   const placement =
@@ -257,6 +261,17 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
         transform="rotate(240 10 10)"
       />
     </>
+  ),
+  /**
+   * **The one hollow drawing of the plate**, and the decoy's: the march's own hut, emptied. A
+   * feint has the shape of a column and none of its substance, so the pictogram is the outline
+   * and the hole — `evenodd` is what makes the inner subpath a hole rather than a second roof.
+   */
+  silhouette: (
+    <path
+      fillRule="evenodd"
+      d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z M10 4.3 L14.9 8.5 V16.3 H5.1 V8.5 Z"
+    />
   ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */

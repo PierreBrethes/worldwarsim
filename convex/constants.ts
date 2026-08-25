@@ -738,6 +738,18 @@ export const OUTPOST_DISABLED_HOURS = 6;
 export const OUTPOST_IMMUNITY_HOURS = 3;
 
 /**
+ * **What a decoy costs, whatever it pretends to carry** (ADR 0006, design sheet 04). A movement
+ * with an empty manifest would otherwise be free — cargo decides the price of nothing else here,
+ * but a trip that carries nobody is the one order a player could spam until the fog was pure
+ * noise, the espionage worthless and the server's fan-out unbounded.
+ *
+ * A flat rate **plus the slot** is the whole rule: feinting is paid in attacks one will not
+ * launch. `@a-mesurer` — sixty is a little over three infantry (`COST_BY_ROLE`), shaped only so
+ * the order reads as a decision rather than a reflex. Nothing simulates it.
+ */
+export const DECOY_COST: Costs = { alloy: 60 };
+
+/**
  * **How far an outpost opens the ground around it**, in kilometres (ADR 0015). A placeholder
  * like the rest, and the only shape the rule may take: no quantity is counted in regions, so
  * the reach is a radius. Four hundred kilometres is a handful of Romanian counties, one

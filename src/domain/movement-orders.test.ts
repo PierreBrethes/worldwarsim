@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { DECOY_COST } from '../../convex/constants';
+import { fr } from '@/i18n/fr';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   foundingRefusal,
   landCostOf,
   legalMovementTypes,
   motorized,
+  movementSlots,
+  ORDERABLE_TYPES,
   refusalOf,
   routeModeOf,
   type Column,
@@ -67,13 +71,58 @@ describe('refusals', () => {
   });
 
   /** Nobody orders a return: the resolution creates it, so the rule has to say so out loud.
-   *  The foundation joins them — it is not a march at all any more. */
-  it('refuses the return, the agent, the decoy, the recall and the foundation', () => {
+   *  The foundation joins them — it is not a march at all any more. The decoy left this list
+   *  the day it was coded (ADR 0006); it refuses on its target, like a real order. */
+  it('refuses the return, the agent, the recall and the foundation', () => {
     expect(refusalOf('outpost', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('return', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('agent', region, column(['infantry']))).toBe('NOT_ORDERABLE');
-    expect(refusalOf('decoy', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('recall', region, column(['infantry']))).toBe('NOT_ORDERABLE');
+  });
+});
+
+/**
+ * **Le leurre : un mouvement sans troupe** (ADR 0006, fiche 04). Il occupe un slot comme un
+ * vrai — c'est le forfait et le slot qui en font une décision — et il ne demande rien à la pile,
+ * puisqu'il n'en emmène aucune. C'est la seule sorte que la pile vide ne refuse pas.
+ */
+describe('the decoy', () => {
+  const empty: Column = {
+    roles: [],
+    myRegionIds: new Set(),
+    myOutpostIds: new Set(),
+    departureBuildings: new Set(),
+  };
+  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
+
+  it('is the one order an empty manifest does not refuse', () => {
+    expect(refusalOf('decoy', somewhere, empty)).toBeNull();
+    expect(refusalOf('march', somewhere, empty)).toBe('EMPTY_MOVEMENT');
+  });
+
+  /** A feint goes where a march goes and nowhere else: one that could raid would be a raid. */
+  it('goes to a point and to nothing else', () => {
+    expect(refusalOf('decoy', region, empty)).toBe('POINT_TARGET_ONLY');
+    expect(refusalOf('decoy', outpost, empty)).toBe('POINT_TARGET_ONLY');
+  });
+
+  /** **Le slot, comme un vrai** : le plafond ne connaît pas les sortes, il compte les
+   *  mouvements — ce qui est exactement ce qui fait payer la feinte en attaques non lancées. */
+  it('costs a slot like any other movement', () => {
+    expect(movementSlots(0)).toBe(1);
+    expect(ORDERABLE_TYPES).toContain('decoy');
+  });
+
+  /** **Le refus dit le forfait** : le serveur débite `DECOY_COST`, et le message que le joueur
+   *  lit après le clic est celui qui chiffre ce qui manque, jamais une paraphrase. */
+  it('says the flat rate when the alloy is short', () => {
+    expect(
+      fr.errors.INSUFFICIENT_RESOURCE({
+        resource: 'alloy',
+        needed: DECOY_COST.alloy,
+        available: 0,
+      }),
+    ).toContain(String(DECOY_COST.alloy));
   });
 });
 
@@ -215,7 +264,11 @@ describe('a point as a destination', () => {
   const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
 
   it('takes a march, at any scale and with no region drawn', () => {
-    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['march', 'attack']);
+    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual([
+      'march',
+      'attack',
+      'decoy',
+    ]);
   });
 
   /**

@@ -70,6 +70,11 @@ export function TroopsWidget({
   const flying = view.arcs.filter(
     (arc): arc is Extract<ArcView, { state: 'mine' }> => arc.state === 'mine',
   );
+  /** **Un leurre n'est pas une colonne, donc il n'est pas dans la liste des colonnes** : une
+   *  ligne sans troupe glissée entre des piles se lirait comme des troupes en route, et c'est
+   *  précisément le mensonge que le leurre est censé servir à l'adversaire, jamais à soi. */
+  const columns = flying.filter((arc) => arc.type !== 'decoy');
+  const decoys = flying.filter((arc) => arc.type === 'decoy');
   /** Detected and stale are one list on the card: the player watched the same thread, and
    *  splitting them would ask him to hold two sections for one piece of intelligence. */
   const surveyed = view.arcs.filter(
@@ -133,7 +138,7 @@ export function TroopsWidget({
 
             <SectionHead title={fr.troops.moving} power={fr.troops.movingPower} lit={false} />
             <div className="flex flex-col px-[11px] pb-3">
-              {flying.map((arc) => (
+              {columns.map((arc) => (
                 <MovingCard
                   key={arc.id}
                   arc={arc}
@@ -145,10 +150,32 @@ export function TroopsWidget({
                   onFollow={onFollow}
                 />
               ))}
-              {flying.length === 0 && (
+              {columns.length === 0 && (
                 <p className="text-[11.5px] text-[var(--paper-dim)]">{fr.troops.foldedQuiet}</p>
               )}
             </div>
+
+            {decoys.length > 0 && (
+              <>
+                <SectionHead title={fr.troops.decoys} power={fr.troops.decoysPower} lit={false} />
+                <div className="flex flex-col px-[11px] pb-3">
+                  {decoys.map((arc) => (
+                    <DecoyCard
+                      key={arc.id}
+                      arc={arc}
+                      loadedAt={view.loadedAt}
+                      now={now}
+                      designated={arc.id === hoveredMovement}
+                      onHover={onHover}
+                      onFollow={onFollow}
+                    />
+                  ))}
+                  <p className="mt-[7px] text-[10.5px] text-[var(--paper-dim-2)] italic">
+                    {fr.troops.decoyMark}
+                  </p>
+                </div>
+              </>
+            )}
 
             <SectionHead title={fr.troops.intel} power={fr.troops.intelPower} lit={false} />
             <div className="flex flex-col px-[11px] pb-3">
@@ -360,16 +387,58 @@ function MovingCard({
           </span>
         </div>
       )}
-      {/* The decoy's mark belongs to its owner alone — an adversary reads an ordinary arc
-          (fiche 04). It cannot appear yet: nothing sends a decoy. */}
-      {arc.type === 'decoy' && (
-        <div className="mt-[4px] flex items-center gap-[7px]">
-          <span className="h-[5px] w-[5px] shrink-0 border border-[var(--ink-quiet)]" />
-          <span className="text-[10.5px] tracking-[.1em] text-[var(--paper-dim-2)] uppercase">
-            {fr.troops.decoyMark}
-          </span>
-        </div>
-      )}
+    </div>
+  );
+}
+
+/**
+ * **Une ligne, et rien de ce qu'une colonne montre.** Pas de sprite — il n'y a personne à
+ * dessiner — pas d'effectif, pas de barre de progression : ce que le joueur suit d'un leurre,
+ * c'est où il va et quand il s'y dissipe. Comme la carte des colonnes, elle n'a **aucun
+ * gestionnaire qui commande** : un leurre parti est parti (décision 13a).
+ */
+function DecoyCard({
+  arc,
+  loadedAt,
+  now,
+  designated,
+  onHover,
+  onFollow,
+}: {
+  arc: Extract<ArcView, { state: 'mine' }>;
+  loadedAt: number;
+  now: number;
+  designated: boolean;
+  onHover: (id: string | null) => void;
+  onFollow: (arcId: string) => void;
+}) {
+  const remaining = currentMinutes(arc.minutesLeft, loadedAt, now);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onMouseEnter={() => onHover(arc.id)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(arc.id)}
+      onBlur={() => onHover(null)}
+      onClick={() => onFollow(arc.id)}
+      onKeyDown={(key) => key.key === 'Enter' && onFollow(arc.id)}
+      title={fr.troops.observe(fr.troops.decoyRoute(arc.destinationLabel))}
+      className="cursor-pointer border-b border-[var(--ink-quiet)] py-[7px] first:border-t"
+      style={{ opacity: designated ? 1 : 0.8 }}
+    >
+      <div className="flex items-baseline gap-[8px]">
+        <span className="flex shrink-0 self-center text-[var(--paper-dim-2)]">
+          <TypeMark type="decoy" />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--paper-dim)]">
+          {fr.troops.decoyRoute(arc.destinationLabel)}
+        </span>
+        <span className="shrink-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim-2)]">
+          {fr.troops.remaining(asDuration(remaining))}
+        </span>
+      </div>
     </div>
   );
 }
@@ -389,7 +458,9 @@ const MARKS: Readonly<Record<MovementType, string>> = {
   recall: 'M10 17.6 L3 10.6 H6.6 V2.4 H13.4 V10.6 H17 Z',
   agent:
     'M4.5 11.9 C4.5 8 6.9 5.2 10 5.2 C13.1 5.2 15.5 8 15.5 11.9 Z M1.3 11.3 C1.3 14.9 5.2 16.1 10 16.1 C14.8 16.1 18.7 14.9 18.7 11.3 Z',
-  decoy: 'M10 1 C12.8 2.9 13.7 5.9 12.8 9.2 H7.2 C6.3 5.9 7.2 2.9 10 1 Z',
+  /** La hutte de la marche, évidée : c'est le dessin que la rose des vents donne au leurre, et
+   *  les deux doivent se reconnaître d'un écran à l'autre. */
+  decoy: 'M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z M10 4.3 L14.9 8.5 V16.3 H5.1 V8.5 Z',
   return: 'M10 2.4 L3 9.4 H6.6 V17.6 H13.4 V9.4 H17 Z',
 };
 
@@ -409,7 +480,9 @@ export function TypeMark({ type, size = 15 }: { type: MovementType; size?: numbe
           <path d={MARKS.attack} transform="rotate(28 10 10)" />
         </>
       ) : (
-        <path d={MARKS[type]} />
+        /** `evenodd` est ce qui fait du sous-tracé intérieur du leurre un trou plutôt qu'un
+         *  second toit ; il ne change rien aux dessins pleins. */
+        <path d={MARKS[type]} fillRule="evenodd" />
       )}
     </svg>
   );

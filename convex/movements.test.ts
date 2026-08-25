@@ -5,6 +5,7 @@ import type { Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
   ARRIVAL_RADIUS_KM,
+  DECOY_COST,
   nominalStrength,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_REACH_KM,
@@ -1755,7 +1756,9 @@ describe('the door of the sea, read on the pile', () => {
       departureBuildings: new Set<BuildingKey>(['barracks', 'depot']),
     };
     expect(refusalOf('attack', aim, quayless)).toBe('NO_PORT_AT_DEPARTURE');
-    expect(legalMovementTypes(aim, quayless)).toEqual([]);
+    /** The decoy is left standing there and it is not an exception to the door: it takes nobody
+     *  aboard, so there is nothing for a quay to answer for (ADR 0006). */
+    expect(legalMovementTypes(aim, quayless)).toEqual(['decoy']);
   });
 
   it('asks no port of a column that only walks', async () => {
@@ -2352,5 +2355,212 @@ describe('a posted troop sees what passes within its radius', () => {
     vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
 
     expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
+  });
+});
+
+/**
+ * **Le leurre : un mouvement sans troupe** (ADR 0006, fiche 04). Ce qu'on vérifie ici n'est pas
+ * qu'il marche — n'importe quel mouvement marche — mais qu'il est **indiscernable** : même
+ * relevé, même interception, mêmes lignes dans le registre du brouillard. Le jour où l'un de ces
+ * tests dit « presque pareil », le leurre ne sert plus à rien.
+ */
+describe('a decoy walks with nobody in it', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+  const road = () => routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
+
+  async function noticesOf(t: ReturnType<typeof boot>, token: string, kind: string) {
+    const playerId = await playerOf(t, token);
+    const filed = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+    return filed.filter((notice) => notice.kind === kind);
+  }
+
+  const alloyOf = async (t: ReturnType<typeof boot>, token: string) =>
+    (await t.query(api.view.playerView, { token })).me.resources.alloy.stock;
+
+  /**
+   * **Le critère qui fonde tout le reste.** Un guetteur ne relève pas un type ni une
+   * composition — il relève un fil — donc la ligne qu'un leurre laisse dans son registre doit
+   * avoir exactement la forme de celle qu'une vraie colonne y laisse.
+   */
+  it('leaves a sighting of the same shape as a real column does', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const halfway = road().points[Math.floor(road().points.length / 2)]!;
+    await post(t, guest, eastOf(halfway, 40));
+
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const column = await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [await form(t, token, 'infantry', barracks)],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    const feint = await t.mutation(api.movements.decoy, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      point: asPoint(regionFacts(PRAHOVA)!.point),
+    });
+    /** À l'allure de l'infanterie : un leurre qui doublerait une colonne se reconnaîtrait au
+     *  chronomètre, et l'horaire est la première chose qu'un relevé donne. */
+    expect(feint.minutes).toBe(column.minutes);
+
+    const guestId = await playerOf(t, guest);
+    const seen = await t.run(async (ctx) =>
+      ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+        .collect(),
+    );
+    expect(seen).toHaveLength(2);
+    expect(Object.keys(seen[0]!).sort()).toEqual(Object.keys(seen[1]!).sort());
+
+    /** And on the board: two threads, neither carrying a type or a composition. */
+    vi.advanceTimersByTime(feint.minutes * 60_000 * 0.5);
+    const watched = await t.query(api.view.playerView, { token: guest });
+    expect(watched.detected).toHaveLength(2);
+    for (const arc of watched.detected) {
+      expect(arc).not.toHaveProperty('type');
+      expect(arc).not.toHaveProperty('roles');
+    }
+  });
+
+  /** Le forfait et le slot : c'est ce qui fait du leurre une décision (ADR 0006). */
+  it('costs the flat rate and holds a slot', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const before = await alloyOf(t, token);
+
+    await t.mutation(api.movements.decoy, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      point: asPoint(regionFacts(PRAHOVA)!.point),
+    });
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.resources.alloy.stock).toBe(before - (DECOY_COST.alloy ?? 0));
+    expect(view.me.slots.used).toBe(1);
+  });
+
+  /** **Il ne part pas de nulle part** : sans cette porte, un leurre dessinerait une colonne sur
+   *  un sol que son propriétaire ne tient pas — le brouillard percé à rebours. */
+  it('refuses to leave ground where nothing of the player stands', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+
+    await expect(
+      t.mutation(api.movements.decoy, {
+        token,
+        origin: { kind: 'point', point: asPoint(regionFacts(RIYADH)!.point) },
+        point: asPoint(regionFacts(PRAHOVA)!.point),
+      }),
+    ).rejects.toThrow('NO_DECOY_ORIGIN');
+  });
+
+  /**
+   * **Éventé au premier contact, et rien d'autre ne se passe.** Pas d'engagement — il n'y a
+   * personne à frapper — donc pas une munition tirée : le leurre est une arme contre le
+   * renseignement, jamais contre le magasin.
+   */
+  it('is exposed by an interception without opening a pass or spending a round', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const ambush = road().points[Math.floor(road().points.length / 2)]!;
+    const outpostId = await plant(t, guest, ambush, 'ROU');
+    await garrison(t, guest, outpostId);
+
+    const mine = await ammunitionOf(t, token);
+    const theirs = await ammunitionOf(t, guest);
+
+    await t.mutation(api.movements.decoy, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      point: asPoint(regionFacts(PRAHOVA)!.point),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect(await ammunitionOf(t, token)).toBe(mine);
+    expect(await ammunitionOf(t, guest)).toBe(theirs);
+    expect(await movementsOf(t, token)).toHaveLength(0);
+
+    /** Une dépêche par camp, et aucune ne nomme l'autre joueur. */
+    expect(await noticesOf(t, guest, 'decoyExposed')).toMatchObject([{ hostCountry: 'ROU' }]);
+    expect(await noticesOf(t, token, 'decoyBlown')).toMatchObject([{ hostCountry: 'ROU' }]);
+    expect(await noticesOf(t, token, 'decoyExposed')).toEqual([]);
+    expect(await noticesOf(t, guest, 'decoyBlown')).toEqual([]);
+  });
+
+  /** Le camp posé sur lequel il arrive l'évente exactement comme une interception : une seule
+   *  lecture de « qui est là », celle de l'arrivée. */
+  it('is exposed just the same by the camp it walks onto', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const target = regionFacts(PRAHOVA)!.point;
+    await post(t, guest, target);
+
+    await t.mutation(api.movements.decoy, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      point: asPoint(target),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect(await noticesOf(t, guest, 'decoyExposed')).toHaveLength(1);
+    expect(await noticesOf(t, token, 'decoyBlown')).toHaveLength(1);
+  });
+
+  /** Arrivé sans rencontre : il se dissipe, et son propriétaire est le seul à avoir jamais su
+   *  qu'il existait — c'est la bonne fin d'une feinte. */
+  it('fades without a word for anybody but its owner when nobody meets it', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+
+    await t.mutation(api.movements.decoy, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      point: asPoint(regionFacts(PRAHOVA)!.point),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await movementsOf(t, token)).toHaveLength(0);
+    expect(await noticesOf(t, token, 'decoyArrived')).toMatchObject([{ hostCountry: 'ROU' }]);
+    expect(await noticesOf(t, guest, 'decoyArrived')).toEqual([]);
+    expect(await noticesOf(t, guest, 'decoyExposed')).toEqual([]);
+    expect(await engagementsIn(t)).toHaveLength(0);
+  });
+
+  /**
+   * **La porte dérobée refermée** : « à zéro troupe » ne doit jamais être une façon d'obtenir un
+   * leurre sous un autre nom. Un ordre qui porte des troupes en porte au moins une.
+   */
+  it('is the only order an empty manifest can buy', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [],
+        point: asPoint(regionFacts(PRAHOVA)!.point),
+      }),
+    ).rejects.toThrow('EMPTY_MOVEMENT');
   });
 });

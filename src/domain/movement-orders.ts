@@ -68,8 +68,10 @@ export type OrderRefusal =
  * columns already sent are still walking, and a document the schema can no longer read is a
  * worse tidiness than a word one no longer offers.
  *
- * The agent and the decoy wait for the fog surfaces; they refuse as `NOT_ORDERABLE` rather than
- * being absent from the union, so the day they land there is a branch to fill, not one to find.
+ * **The decoy is one of them since ADR 0006 was finally coded**, and it is the odd one: the only
+ * order whose manifest is empty on purpose. The agent still waits for the fog surfaces and
+ * refuses as `NOT_ORDERABLE` rather than being absent from the union, so the day it lands there
+ * is a branch to fill, not one to find.
  */
 /**
  * **The movement slots, carried by the headquarters** (ADR 0006, reindexed by 0015). One slot
@@ -86,13 +88,30 @@ export type OrderRefusal =
  */
 export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
 
-export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
+export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid', 'decoy'];
+
+/**
+ * **The pace a decoy walks at: the infantry's, the slowest there is.** A thread that crossed
+ * Europe faster than any column could would name itself a decoy to whoever timed it, and being
+ * untellable from a real column is the entire point (design sheet 04) — a sighting reports a
+ * schedule before it reports anything else.
+ *
+ * It is a pile of one rifleman **on paper and nowhere else**: no troop is named, none is sent,
+ * and these roles are read by `routeModeOf` and `landCostOf` and by nothing at all after that.
+ */
+export const DECOY_PACE: ReadonlyArray<UnitRole> = ['infantry'];
 
 export function refusalOf(
   type: MovementType,
   aim: MovementAim,
   column: Column,
 ): OrderRefusal | null {
+  /**
+   * **The one order an empty pile does not refuse, because it *is* the empty pile** (ADR 0006).
+   * It carries nothing, so no door under it is ever consulted — a decoy walks, always — and it
+   * goes where a march goes and nowhere else: a feint that could raid would be a raid.
+   */
+  if (type === 'decoy') return aim.kind === 'point' ? null : 'POINT_TARGET_ONLY';
   if (column.roles.length === 0) return 'EMPTY_MOVEMENT';
   switch (type) {
     /**
