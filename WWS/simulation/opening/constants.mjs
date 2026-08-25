@@ -83,8 +83,10 @@ export const COST_BY_ROLE = {
   carrier: { alloy: 430, minutes: 480 },
 };
 
-export const INITIAL_AMMUNITION_ENGAGEMENTS = 2;
+/** One round per five points of engaged strength, per pass — and the pass is the only bill
+ *  there is since question 18 (25/08). Mirrored, not used: this engine models no combat. */
 export const STRENGTH_PER_ROUND = 5;
+export const DRY_AMMUNITION_FACTOR = 0.6;
 export const TIER_2_FACTOR = 1.6;
 /** Counted above the headquarters the format plants, never in the absolute (ADR 0017). */
 export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
@@ -232,16 +234,13 @@ export const nominalStrength = (role, tier) => {
   return s;
 };
 
-export const ammunitionLoad = (role, tier) =>
-  Math.ceil(nominalStrength(role, tier) / STRENGTH_PER_ROUND) * INITIAL_AMMUNITION_ENGAGEMENTS;
-
 /** Only recruitment reads this. `chainsOf` does **not** apply it — the chains run at their
  *  building's level alone, whatever the headquarters. Kept faithful on purpose. */
 export const chainSpeed = (hqLevel) => 1 + Math.max(0, hqLevel - 1) * 0.225;
 
+/** Alloy and time, and nothing else: the rounds are billed at the pass now (question 18). */
 export const recruitmentCost = (role, tier, hqLevel) => ({
   alloy: Math.round(COST_BY_ROLE[role].alloy * (tier === 2 ? TIER_2_FACTOR : 1)),
-  ammunition: ammunitionLoad(role, tier),
   minutes: Math.round((COST_BY_ROLE[role].minutes * (tier === 2 ? TIER_2_FACTOR : 1)) / chainSpeed(hqLevel)),
 });
 

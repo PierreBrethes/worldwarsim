@@ -121,11 +121,17 @@ async function credit(t: ReturnType<typeof boot>, token: string, stock: number) 
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .collect();
     for (const row of rows) {
-      if (row.key === 'alloy' || row.key === 'ammunition') {
+      if (row.key === 'alloy') {
         await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
       }
     }
   });
+}
+
+/** The ammunition stock, read the way the board reads it — the workshop no longer serves it. */
+async function ammunitionOf(t: ReturnType<typeof boot>, token: string): Promise<number> {
+  const view = await t.query(api.view.playerView, { token });
+  return view.me.resources.ammunition.stock;
 }
 
 describe('a queue per projection building', () => {
@@ -213,7 +219,6 @@ describe('a queue per projection building', () => {
     const after = await t.query(api.troops.workshop, { token });
     expect(after.troopsQueued).toBe(1);
     expect(after.alloy.stock).toBe(before.alloy.stock + cost.alloy);
-    expect(after.ammunition.stock).toBe(before.ammunition.stock + cost.ammunition);
   });
 });
 
@@ -486,6 +491,63 @@ describe('tiers', () => {
         TIERS_BY_ROLE[role] === 2 ? [1, 2] : [1],
       );
     }
+  });
+});
+
+/**
+ * **A troop is bought in alloy and in nothing else** (question 18, settled 25/08). Ammunition
+ * used to be billed here *as well* as at the pass, which priced the same rounds twice; the
+ * recruitment now says the whole of its price, and the whole of its price is what it takes.
+ */
+describe('what a recruitment costs', () => {
+  it('debits the alloy of the announced price and not one round', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const before = await t.query(api.troops.workshop, { token });
+    const shown = before.grid.find((entry) => entry.role === 'infantry')!.unit;
+
+    const { cost } = await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
+
+    // The price on the card, the price the mutation answers, the alloy that actually left.
+    expect(cost.alloy).toBe(shown.alloy);
+    const after = await t.query(api.troops.workshop, { token });
+    expect(after.alloy.stock).toBe(before.alloy.stock - shown.alloy);
+    expect(await ammunitionOf(t, token)).toBe(KIT.ammunition);
+  });
+
+  it('hands the same alloy back and takes no round back when a waiting batch is withdrawn', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const before = await t.query(api.troops.workshop, { token });
+
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
+    await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
+    const queue = (await t.query(api.troops.workshop, { token })).facilities.find(
+      (facility) => facility.id === barracks,
+    )!.queue;
+    await t.mutation(api.troops.cancel, { token, recruitmentId: queue[1]!.id });
+
+    const after = await t.query(api.troops.workshop, { token });
+    const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.alloy;
+    expect(after.alloy.stock).toBe(before.alloy.stock - one);
+    expect(await ammunitionOf(t, token)).toBe(KIT.ammunition);
   });
 });
 

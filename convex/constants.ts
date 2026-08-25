@@ -228,24 +228,23 @@ export type SeasonFormatSpec = {
    */
   readonly startingOil: number;
   /**
-   * **What the given company is allowed to become.** Arbitrary and assumed, never simulated —
-   * like every number in this file — but *derived* rather than picked, so moving one of the
-   * three tables it reads moves it too:
+   * **How many passes a nation can fight before its arsenal has to exist.** Arbitrary and
+   * assumed, never simulated — like every number in this file — but read against the one rule
+   * that spends it: a full company of infantry draws `STRENGTH_PER_ROUND` = one round per five
+   * points, so **ten per engagement**. A hundred and forty is fourteen company-passes: enough
+   * for a nation to be attacked, to answer, and to go and take something back before the
+   * arsenal it has not built yet becomes the whole question.
    *
-   * - a company of infantry bills `ammunitionLoad('infantry', 1)` = **20** at the recruitment,
-   *   and that is the only facturation there is (a troop never pays again to fight);
-   * - a nation with no billets carries `TROOP_CAP_BASE` = **8** troops, and the launch already
-   *   hands one over — so **seven** are left to form before a billets is worth its slot;
-   * - seven companies is therefore what a first day can absorb: 7 × 20 = **140**.
+   * The campaign takes eighty rather than a hundred and forty. It enters the curve at half the
+   * alloy, its headquarters opens at 1, and its first day buys the ground — the arsenal has six
+   * more days to arrive, which the skirmish does not.
    *
-   * The campaign takes four rather than seven. It enters the curve at half the alloy, its
-   * headquarters opens at 1, and its first day buys the ground — the arsenal has six more days
-   * to arrive, which the skirmish does not.
-   *
-   * The measured reason it exists at all (`run.mjs`, 25/08): with the arsenal out of the
-   * foundation, a skirmish used to die militarily at H+15 — two recruitments, the reserve at
-   * zero, and nothing until an arsenal that never got built. A given infantry with no
-   * ammunition behind it is a company that can never be replaced.
+   * **Its old justification is void, and the two numbers survive it unchanged** (question 18,
+   * 25/08). They were sized against the *recruitment* bill — seven companies at twenty rounds
+   * each — and the recruitment no longer bills anything. The measurement behind them
+   * (`run.mjs`, 25/08: a skirmish dying militarily at H+15) measured a rule that has been
+   * removed. Nothing here is calibrated any more; the first campaign has to look at it, and the
+   * simulator cannot help — it does not model combat at all.
    */
   readonly startingAmmunition: number;
 };
@@ -417,20 +416,15 @@ export const COST_BY_ROLE: Readonly<Record<UnitRole, { alloy: number; minutes: n
 };
 
 /**
- * The ammunition a troop costs to recruit, **derived** rather than tabulated: the chiffrage
- * prices one round per five points of strength and per engagement (§5), so a fresh troop bills
- * two engagements' worth up front. Nine hand-written numbers would be nine chances to
- * contradict that rule.
+ * One round per five points of engaged strength, per pass (chiffrage §5): a full mark-1
+ * infantry spends ten to fight once.
  *
- * **This is the only facturation** (question 18): combat itself never debits ammunition — a
- * troop that already paid to be formed does not pay again to fight. Billing both ends was the
- * bug; one billing, at recruitment, is the fix.
+ * **The pass is the only facturation** (question 18, settled 25/08). Recruitment used to bill a
+ * troop's magazine up front *as well*, which priced the same rounds twice and made every
+ * measurement of the bottleneck read false. One bill, at the moment of firing — a troop is not
+ * expensive to raise, it is expensive to keep fighting.
  */
-export const INITIAL_AMMUNITION_ENGAGEMENTS = 2;
 export const STRENGTH_PER_ROUND = 5;
-
-export const ammunitionLoad = (role: UnitRole, tier: UnitTier): number =>
-  Math.ceil(nominalStrength(role, tier) / STRENGTH_PER_ROUND) * INITIAL_AMMUNITION_ENGAGEMENTS;
 
 export const TIER_2_FACTOR = 1.6;
 
@@ -524,7 +518,6 @@ export function recruitmentCost(role: UnitRole, tier: UnitTier, hqLevel: number)
   const factor = tier === 2 ? TIER_2_FACTOR : 1;
   return {
     alloy: Math.round(base.alloy * factor),
-    ammunition: ammunitionLoad(role, tier),
     minutes: Math.round((base.minutes * factor) / chainSpeed(hqLevel)),
   };
 }
@@ -635,10 +628,19 @@ export const DAMAGE_TABLE: DamageTable = {
 export const DEFENDER_BONUS = 1.15;
 export const ROUT_THRESHOLD = 0.25;
 
+/**
+ * **The third modifier, and the only one of the five that a rule can read today**: a side whose
+ * national stock cannot cover the pass fires at ×0.60. It never declines the engagement — an
+ * army out of ammunition is bad, not absent (chiffrage §4, design sheet 08 §7).
+ */
+export const DRY_AMMUNITION_FACTOR = 0.6;
+
 export const COMBAT_RULES: CombatRules = {
   damage: DAMAGE_TABLE,
   defenderBonus: DEFENDER_BONUS,
   routThreshold: ROUT_THRESHOLD,
+  strengthPerRound: STRENGTH_PER_ROUND,
+  dryFactor: DRY_AMMUNITION_FACTOR,
 };
 
 /**

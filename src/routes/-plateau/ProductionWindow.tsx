@@ -114,9 +114,10 @@ function Workshop({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* No stock header. Alloy and ammunition were the banner's figures printed a fourth
-          time, and the decision taken here is priced on each role's own line — where the
-          shortfall is actually actionable. */}
+      {/* No stock header. The alloy was the banner's figure printed a fourth time, and the
+          decision taken here is priced on each role's own line — where the shortfall is
+          actually actionable. Ammunition never appears: it is billed at the pass, not at the
+          line (question 18, 25/08), and a bill announced here would be a bill nobody pays. */}
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
           {error}
@@ -498,7 +499,6 @@ function RoleCard({
           </div>
           <div className="mt-[3px] flex gap-[11px]">
             <Expense resource="alloy" value={cost.alloy} />
-            <Expense resource="ammunition" value={cost.ammunition} />
           </div>
         </div>
         <div className="w-px self-stretch bg-[rgba(42,33,24,.16)]" />

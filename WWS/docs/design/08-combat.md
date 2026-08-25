@@ -133,12 +133,21 @@ se repliant vers une **pharmacie** — amélioration d'avant-poste — ou chez e
 plus chère et plus rapide, et surtout plus proche : le choix est distance contre ressource. Le soin
 crée des mouvements de retour, et la carte vit dans les deux sens.
 
-**Les munitions se facturent une seule fois, au recrutement.** Une troupe achète sa dotation en
-même temps que son effectif — de quoi tenir deux engagements avant réapprovisionnement — et ce
-compte n'est plus jamais rouvert pendant une passe de résolution : une troupe ne s'use pas au
-combat, elle épuise seulement ce qu'elle a payé en se formant. Les munitions restent une ressource
-comme les autres, produite par l'arsenal et plafonnée par le dépôt. Facturer les deux bouts, au
-recrutement et au combat, était l'ambiguïté du brief d'origine ; une seule facturation la tranche.
+**Les munitions se facturent une seule fois, et c'est au tir** (question 18, tranchée le 25/08 —
+elle renverse la version du 18/08, qui facturait au recrutement). Former une troupe ne coûte pas
+une munition ; la faire combattre en coûte **une par tranche de 5 points d'effectif engagé et par
+passe**, prélevée sur le stock national. Une infanterie MK1 à pleine force dépense donc 10 par
+engagement. Facturer les deux bouts était l'ambiguïté du brief d'origine ; ce qui la tranche est
+d'avoir choisi **le bout qui se répète** — une troupe n'est pas chère à lever, elle est chère à
+faire durer, et c'est ce qui fait des munitions un goulot de guerre plutôt qu'une taxe de
+production.
+
+**Un camp à sec ne cesse pas de combattre, il devient mauvais.** Quand le stock national ne
+couvre pas la passe, le camp entier frappe à **×0,60** et dépense le peu qu'il lui reste. La
+sécheresse est une propriété du camp, jamais d'une troupe : le stock est national, et distribuer
+les derniers obus à une compagnie plutôt qu'à sa voisine demanderait une règle d'ordre que
+personne n'a écrite. Les munitions restent une ressource comme les autres, produite par l'arsenal
+et plafonnée par le dépôt.
 
 **L'entretien en nourriture se paie sur l'effectif *nominal*, pas courant.** Une troupe entamée
 coûte autant qu'une troupe pleine — sinon perdre des hommes devient une économie.

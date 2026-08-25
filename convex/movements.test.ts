@@ -155,6 +155,25 @@ async function engagementsIn(t: ReturnType<typeof boot>) {
   return t.run(async (ctx) => ctx.db.query('engagements').collect());
 }
 
+async function ammunitionOf(t: ReturnType<typeof boot>, token: string): Promise<number> {
+  const view = await t.query(api.view.playerView, { token });
+  return view.me.resources.ammunition.stock;
+}
+
+/** The magazine, set where a case needs it — full, or too thin to cover the pass. */
+async function setAmmunition(t: ReturnType<typeof boot>, token: string, stock: number) {
+  const playerId = await playerOf(t, token);
+  await t.run(async (ctx) => {
+    const row = await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    const held = row.find((one) => one.key === 'ammunition');
+    if (!held) throw new Error('no ammunition row');
+    await ctx.db.patch(held._id, { stock, updatedAt: Date.now() });
+  });
+}
+
 /** An outpost planted without walking to it: what is under test is what happens *at* it. */
 async function plant(
   t: ReturnType<typeof boot>,
@@ -588,6 +607,82 @@ describe('an attack marches at somebody', () => {
         target: { kind: 'region', regionId: MARNE },
       }),
     ).rejects.toThrow('FRIENDLY_TARGET');
+  });
+});
+
+/**
+ * **The only bill there is** (question 18, settled 25/08). The recruitment stopped debiting
+ * ammunition and the pass took it over, so this is where the resource has to be seen leaving
+ * the national stock — and where a nation that let it run out has to be seen paying for it.
+ */
+describe('the pass is what ammunition is spent on', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function fight(t: ReturnType<typeof boot>, token: string, guest: string) {
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+    const theirs = await raise(t, guest, 'barracks', PRAHOVA);
+    const defender = await form(t, guest, 'infantry', theirs);
+    await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    return { troop, defender };
+  }
+
+  it('takes ten rounds off each side for one company apiece', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    await setAmmunition(t, token, 500);
+    await setAmmunition(t, guest, 500);
+
+    await fight(t, token, guest);
+
+    // Fifty soldiers, one round per five points: ten, on both sides of the field.
+    expect(await ammunitionOf(t, token)).toBe(490);
+    expect(await ammunitionOf(t, guest)).toBe(490);
+  });
+
+  it('strikes at .60 and empties what is left when the magazine cannot cover the pass', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    await setAmmunition(t, token, 4);
+    await setAmmunition(t, guest, 500);
+
+    const { troop, defender } = await fight(t, token, guest);
+
+    // Supplied, the reference case takes 22 off the defender and 16 off the attacker. Dry, the
+    // attack is worth .60 of its strike — and the riposte, answering less damage, bites harder.
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 13);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
+    // The four rounds it had went into the pass; it did not fight for free.
+    expect(await ammunitionOf(t, token)).toBe(0);
+  });
+
+  it('leaves the magazine alone on a march that meets nobody', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await setAmmunition(t, token, 500);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+    const troop = await form(t, token, 'infantry', barracks);
+
+    await t.mutation(api.movements.attack, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect(await ammunitionOf(t, token)).toBe(500);
   });
 });
 

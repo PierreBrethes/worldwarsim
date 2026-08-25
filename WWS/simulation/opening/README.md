@@ -25,8 +25,8 @@ Node nu, aucune dépendance, déterministe : deux exécutions à graine égale s
 Les huit ressources, l'extraction par gisement, les trois chaînes (dont l'arsenal **commandé**,
 qui ne tourne que sur lot), les plafonds de stock, le plafond de bâtiments porté par le QG,
 `cappedByHq`, un seul chantier à la fois, le recrutement avec sa file par site de projection, le
-plafond de troupes qui compte la file, les munitions embarquées, et **une infanterie au QG dès
-la première minute** (la dotation du 25/08).
+plafond de troupes qui compte la file, et **une infanterie au QG dès la première minute** (la
+dotation du 25/08).
 
 Le **socle** n'est plus une liste de format : depuis le 25/08 il se lit sur les gisements du
 pays, et l'instrument mesure sur un sol de référence nommé — `REFERENCE_GROUND` dans
@@ -48,7 +48,15 @@ bougent, `constants.mjs` bouge avec eux, sinon l'instrument ment.
 > - **la pose due hors plafond** — une clé du socle n'est plus refusée par le plafond de
 >   bâtiments (`buildRefusal` rend encore `BUILDING_CAP_REACHED` avant `owesFirstPlacement`).
 >   Sans effet sur le sol de référence, qui doit quatre extracteurs ; un sol à cinq — États-Unis,
->   URSS — serait mesuré une pose trop court en `campaign`.
+>   URSS — serait mesuré une pose trop court en `campaign` ;
+> - **les munitions ne se dépensent plus nulle part** (question 18, tranchée le 25/08). Le
+>   recrutement a cessé de les débiter et c'est la passe de résolution qui les paie — or ce
+>   moteur ne modélise aucun combat. L'arsenal produit donc dans un stock que rien ne vide :
+>   `ammoTarget` reste une commande unique au lieu d'un réapprovisionnement, l'alliage qu'elle
+>   n'engloutit plus part en troupes, et `INSUFFICIENT_ammunition` a disparu de la colonne « ce
+>   qui bloque ». **Les munitions ne sont plus mesurables ici du tout** : le goulot qu'elles
+>   forment est un fait de combat, et c'est au simulateur refondu (`refonte-simulateur.md`) de
+>   le dire.
 >
 > À rattraper avant de relire les chiffres comme un équilibrage.
 

@@ -85,7 +85,6 @@ export const workshop = query({
       troopsInService: troops.length,
       troopsQueued: waiting.length,
       alloy: snapshotOf(economy, 'alloy'),
-      ammunition: snapshotOf(economy, 'ammunition'),
       facilities,
       roster: roster(troops),
       grid: (Object.keys(COST_BY_ROLE) as ReadonlyArray<UnitRole>).map((role) => ({
@@ -150,7 +149,7 @@ export const recruit = mutation({
 
     const now = Date.now();
     const cost = recruitmentCost(role, tier, hqLevel);
-    await debit(ctx, player._id, { alloy: cost.alloy, ammunition: cost.ammunition }, now);
+    await debit(ctx, player._id, { alloy: cost.alloy }, now);
 
     const last = queue[queue.length - 1];
     const rank = last ? last.rank + 1 : 0;
@@ -187,7 +186,7 @@ export const cancel = mutation({
 
     const hqLevel = await hqLevelOf(ctx, player._id);
     const cost = recruitmentCost(batch.role, batch.tier, hqLevel);
-    await credit(ctx, player._id, { alloy: cost.alloy, ammunition: cost.ammunition }, Date.now());
+    await credit(ctx, player._id, { alloy: cost.alloy }, Date.now());
     await ctx.db.delete(recruitmentId);
     return { refunded: cost };
   },

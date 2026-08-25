@@ -24,6 +24,13 @@ const UNIT_OF: Readonly<Record<CombatProfile, { role: UnitRole; tier: UnitTier }
   carrier: { role: 'carrier', tier: 1 },
 };
 
+/**
+ * Every case below that is not about the magazine is fought with one: the measured figures of
+ * the chiffrage are the figures of a *supplied* pass, and letting a case run dry by omission
+ * would move them by ×0.60 without a line saying so.
+ */
+const SUPPLIED = { attacker: 10_000, defender: 10_000 };
+
 let formed = 0;
 function troop(profile: CombatProfile, strength?: number): Combatant {
   const { role, tier } = UNIT_OF[profile];
@@ -45,6 +52,7 @@ const duel = (attacker: CombatProfile, defender: CombatProfile) => {
   const engagement = resolveEngagement({
     attackers: [a],
     defenders: [d],
+    ammunition: SUPPLIED,
     rules: COMBAT_RULES,
   });
   const outcome = (id: string) => engagement.outcomes.find((one) => one.id === id)!;
@@ -126,6 +134,7 @@ describe('one pass, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers,
       defenders: [lone],
+      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -144,6 +153,7 @@ describe('one pass, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [rifles],
       defenders: [armour, lorries],
+      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -159,6 +169,7 @@ describe('one pass, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [lorries],
       defenders: [worn],
+      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -177,6 +188,7 @@ describe('one pass, and the excess is lost', () => {
     const engagement = resolveEngagement({
       attackers: [lorries, bombers],
       defenders: [holder],
+      ammunition: SUPPLIED,
       rules: COMBAT_RULES,
     });
 
@@ -184,6 +196,81 @@ describe('one pass, and the excess is lost', () => {
     // a bomber. It fires back at the lorries it can reach instead.
     const riposte = engagement.strikes.find((strike) => strike.phase === 'riposte')!;
     expect(riposte.target).toBe(lorries.id);
+  });
+});
+
+/**
+ * Question 18, settled 25/08. The bill moved from the recruitment to the pass, so this is where
+ * the whole of the ammunition rule now lives — there is no other place a round is spent.
+ */
+describe('the magazine is billed at the pass', () => {
+  it('draws one round per five points of engaged strength, on both sides', () => {
+    const engagement = resolveEngagement({
+      attackers: [troop('infantry1'), troop('armor1')],
+      defenders: [troop('infantry1', 22)],
+      ammunition: SUPPLIED,
+      rules: COMBAT_RULES,
+    });
+
+    // 50 soldiers and 12 tanks: ten rounds and three. The defender's 22 points round up to five.
+    expect(engagement.magazine.attacker).toEqual({ needed: 13, spent: 13, dry: false });
+    expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
+  });
+
+  it('bills a company that never lives to riposte, because it was engaged all the same', () => {
+    const engagement = resolveEngagement({
+      attackers: [troop('armor2'), troop('armor2')],
+      defenders: [troop('infantry1')],
+      ammunition: SUPPLIED,
+      rules: COMBAT_RULES,
+    });
+
+    expect(engagement.outcomes.find((one) => one.side === 'defender')!.state).toBe('destroyed');
+    expect(engagement.magazine.defender.spent).toBe(10);
+  });
+
+  it('takes everything that is left and fires at .60 when the stock cannot cover the pass', () => {
+    const dry = resolveEngagement({
+      attackers: [troop('infantry1')],
+      defenders: [troop('infantry1')],
+      ammunition: { attacker: 4, defender: 10_000 },
+      rules: COMBAT_RULES,
+    });
+    const supplied = duel('infantry1', 'infantry1');
+
+    expect(dry.magazine.attacker).toEqual({ needed: 10, spent: 4, dry: true });
+    // Bad, never absent: it still strikes, at .60 of the twenty-two of the reference case.
+    const lost = dry.strikes.find((strike) => strike.phase === 'strike')!.losses;
+    expect(lost).toBe(Math.round(supplied.lostByDefender * 0.6));
+    expect(lost).toBeGreaterThan(0);
+  });
+
+  it('leaves the other side alone when only one magazine is empty', () => {
+    const engagement = resolveEngagement({
+      attackers: [troop('infantry1')],
+      defenders: [troop('infantry1')],
+      ammunition: { attacker: 0, defender: 10_000 },
+      rules: COMBAT_RULES,
+    });
+    const supplied = duel('infantry1', 'infantry1');
+
+    expect(engagement.magazine.attacker).toEqual({ needed: 10, spent: 0, dry: true });
+    expect(engagement.magazine.defender.dry).toBe(false);
+    // The riposte answers a strike weakened by .60, so it has more to answer with.
+    expect(engagement.strikes.find((strike) => strike.phase === 'riposte')!.losses).toBeGreaterThan(
+      supplied.lostByAttacker,
+    );
+  });
+
+  it('asks nothing of a side that brings nothing', () => {
+    const engagement = resolveEngagement({
+      attackers: [troop('infantry1')],
+      defenders: [],
+      ammunition: { attacker: 10_000, defender: 0 },
+      rules: COMBAT_RULES,
+    });
+
+    expect(engagement.magazine.defender).toEqual({ needed: 0, spent: 0, dry: false });
   });
 });
 

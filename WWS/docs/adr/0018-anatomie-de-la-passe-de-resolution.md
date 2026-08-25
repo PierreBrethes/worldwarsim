@@ -1,6 +1,7 @@
-# ADR 0018 — Anatomie de la passe de résolution, table unique, munitions au recrutement seul
+# ADR 0018 — Anatomie de la passe de résolution, table unique, munitions au tir seul
 
 **Statut :** acceptée — précise l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md), gravée après coup
+— **§7 renversée le 25/08/2026** (question 18, option a) : les munitions se facturent au tir, plus au recrutement
 
 > Cette ADR ne décide rien de nouveau. Elle grave des décisions déjà prises par le code pendant
 > le traitement combat-séquentiel et jamais formalisées — le mécanisme documenté ici tourne en
@@ -19,7 +20,8 @@ tranchaient au niveau du mécanisme : comment une passe choisit ses cibles, ce q
 une troupe qui tombe sous le seuil de déroute, si la cible d'un mouvement peut l'intercepter en
 chemin, et — question longtemps ouverte — si les munitions se consomment au combat ou seulement
 au recrutement. Ces réponses vivent dans le code depuis, sans ADR pour les justifier ni pour
-empêcher qu'on les rejoue autrement par inadvertance.
+empêcher qu'on les rejoue autrement par inadvertance. La dernière a été rejouée pour de bon le
+25/08 : voir §7.
 
 ## Décision
 
@@ -125,18 +127,35 @@ une demi-nuit de répit, sur une saison de 48 h. Sans l'immunité, une désactiv
 équivaudrait à une destruction déguisée — ce que le modèle refuse tant que le pillage n'existe pas
 (ADR 0004).
 
-### 7. Les munitions ne se consomment pas au combat
+### 7. Les munitions se consomment au combat, et nulle part ailleurs
 
-Une troupe ne débite pas de munitions pendant une passe de résolution. La seule facturation a
-lieu **au recrutement** : `ammunitionLoad` (`convex/constants.ts:356`) calcule la charge initiale
-d'une troupe — un round pour cinq points d'effectif, deux engagements d'avance
-(`INITIAL_AMMUNITION_ENGAGEMENTS`) — et ce montant est débité une fois, à la formation de la
-troupe. `DRY_AMMUNITION_FACTOR` et le champ `dryAmmunitionFactor` de `CombatRules` ont été
-retirés du modèle de combat ; `resolveEngagement` ne lit ni ne débite de munitions.
+> **Renversé le 25/08/2026** (question 18, option a). Cette section disait l'inverse — facturation
+> au recrutement, aucune consommation au combat — et c'est cette version-là qui avait été codée.
+> Le texte ci-dessous est la règle en vigueur ; le paragraphe qui suit dit pourquoi elle a changé.
 
-C'est la décision finale sur un point qui était resté contesté dans le brief d'origine
-(« munitions nationales »). Facturer les deux bouts — au recrutement et au combat — était le bug ;
-une seule facturation, au recrutement, est le correctif retenu.
+Une passe de résolution débite le **stock national** de chaque camp : une munition par tranche de
+`STRENGTH_PER_ROUND` = 5 points d'effectif engagé, lue à l'entrée de la passe. Une infanterie MK1
+à pleine force dépense donc 10 par engagement. Le recrutement, lui, ne débite plus rien :
+`ammunitionLoad` et `INITIAL_AMMUNITION_ENGAGEMENTS` ont disparu du schéma, et `recruitmentCost`
+ne rend plus qu'un prix en alliage et en minutes.
+
+`DRY_AMMUNITION_FACTOR` = **0,60** est réinstallé dans `CombatRules` : un camp dont le stock ne
+couvre pas la passe frappe à ×0,60 et dépense ce qui lui reste. La sécheresse est une propriété du
+**camp**, jamais d'une troupe — le stock est national, et un ordre de distribution des derniers
+obus serait une règle inventée ici. Le débit ne refuse jamais un engagement : il se borne à ce que
+la nation détient (`Magazine` dans `src/domain/combat.ts`, débit dans `convex/combat.ts`).
+
+Facturer les deux bouts — au recrutement et au combat — était l'ambiguïté du brief d'origine, et
+elle se tranche par une seule facturation. Le 18/08 avait choisi le recrutement ; le 25/08 choisit
+**le tir**, parce que c'est le bout qui se répète. Une facture unique payée à la formation fait
+des munitions une taxe de production que l'on paie une fois et que l'on oublie ; payée au tir,
+elle fait une nation qui doit alimenter sa guerre. C'est aussi la seule version où le stock
+national, l'arsenal et le dépôt qui explose décident de quelque chose.
+
+**Conséquence chiffrée et assumée** : l'infanterie retombe à ses 18 d'alliage réels, et les deux
+`startingAmmunition` (140 et 80) perdent leur justification — ils avaient été dimensionnés contre
+la facture de recrutement. Les nombres survivent inchangés, leur calibrage non ; le simulateur ne
+peut pas le refaire, il ne modélise aucun combat.
 
 ## Justification
 
@@ -158,10 +177,10 @@ qui rejoue la vraie fonction de résolution est la seule version qui ne peut pas
 
 ## Conséquences
 
-- **La fiche [08 — Combat](../design/08-combat.md) diverge maintenant du code sur un point : ses
-  §5 et §7 décrivent encore des munitions qui se consomment au combat (« à sec, une troupe se bat
-  à taux réduit »).** Cette ADR grave l'état final inverse. La fiche n'est pas corrigée par ce
-  travail — signalé en fin de session, à trancher.
+- **La divergence entre la fiche 08 et le code est refermée, dans l'autre sens** (25/08). Cette
+  ADR gravait l'inverse de ce que disaient les §5 et §7 de la fiche ; la question 18 a tranché
+  pour la fiche, et c'est le code qui a bougé. La fiche 08 §7 est réécrite avec la date, le
+  chiffrage §4 et §5 étaient déjà justes et n'ont pas été touchés.
 - **Le rayon d'interception reste à mesurer.** Rien dans cette ADR ne le calibre ; elle se
   contente de nommer sa nature de placeholder pour qu'il ne soit pas lu comme une valeur de
   design.
@@ -175,8 +194,10 @@ qui rejoue la vraie fonction de résolution est la seule version qui ne peut pas
 
 ## Ce qu'on abandonne
 
-- **La consommation de munitions au combat**, et le modificateur « à sec » qui l'accompagnait
-  dans la fiche 08 §5 et §7 — la question 18 est tranchée, une seule facturation subsiste.
+- **La facturation des munitions au recrutement** — `ammunitionLoad`,
+  `INITIAL_AMMUNITION_ENGAGEMENTS`, et la composante munitions de `recruitmentCost`. Une seule
+  facturation subsiste, et c'est la passe de résolution qui la paie (25/08 ; le 18/08 avait
+  abandonné l'inverse, avec le modificateur « à sec » qui est réinstallé avec elle).
 - **`verif-chiffrage.mjs` et l'idée d'une seconde table de vérification.** Le garde-fou vit dans
   le domaine testé, pas dans une copie externe.
 - **Tout écran ou fodder tactique.** Chaque troupe encaisse pour elle-même ; le plafond de

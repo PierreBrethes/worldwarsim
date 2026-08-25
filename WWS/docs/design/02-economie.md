@@ -217,8 +217,9 @@ Cf. [ADR 0006](../adr/0006-slots-de-mouvement.md).
 ## Le kit de départ
 
 Assez pour se **déployer**, pas pour s'installer : de quoi bâtir une caserne, une ferme et une
-filature, plus une avance offerte d'alliage et de munitions pour former les premières troupes
-légères. Le reste s'exploite.
+filature, plus une avance offerte d'alliage pour former les premières troupes légères et une
+avance de munitions pour les faire combattre — le recrutement n'en débite aucune (question 18,
+tranchée le 25/08). Le reste s'exploite.
 
 ## Ce qui reste ouvert
 

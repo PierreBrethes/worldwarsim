@@ -51,6 +51,31 @@ export type CombatRules = {
   readonly damage: DamageTable;
   readonly defenderBonus: number;
   readonly routThreshold: number;
+  /**
+   * One round per this many points of engaged strength, per pass (chiffrage §5). A full
+   * mark-1 infantry therefore draws ten rounds to fight once.
+   */
+  readonly strengthPerRound: number;
+  /** What a side whose magazine cannot cover the pass strikes at (chiffrage §4). */
+  readonly dryFactor: number;
+};
+
+/**
+ * **What one side's pass takes out of the national stock** (question 18, settled 25/08). The
+ * bill is read at the *entry* of the pass, from the strength each troop brings into it: a
+ * company that is wiped out before it can riposte still drew its rounds, and reading the
+ * strengths once is what keeps the amount independent of the strike order.
+ *
+ * **Dryness is a property of the side, never of a troop.** The stock is national — there is no
+ * order in which to hand rounds to one company before another that would not be a rule
+ * invented here. Either the magazine covers the pass, or the whole side fires at `dryFactor`
+ * and spends what little it had.
+ */
+export type Magazine = {
+  readonly needed: number;
+  /** `needed`, or everything that was left — this debit clamps, it never refuses. */
+  readonly spent: number;
+  readonly dry: boolean;
 };
 
 export type Combatant = {
@@ -86,6 +111,7 @@ export type Engagement = {
   readonly strikes: ReadonlyArray<Strike>;
   readonly outcomes: ReadonlyArray<CombatantOutcome>;
   readonly winner: CombatSide;
+  readonly magazine: Readonly<Record<CombatSide, Magazine>>;
 };
 
 const damageOf = (rules: CombatRules, from: Combatant, to: Combatant): number | undefined =>
@@ -113,10 +139,13 @@ type Fighter = {
 export function resolveEngagement({
   attackers,
   defenders,
+  ammunition,
   rules,
 }: {
   attackers: ReadonlyArray<Combatant>;
   defenders: ReadonlyArray<Combatant>;
+  /** Each side's national stock, as it stands when the two forces meet. */
+  ammunition: Readonly<Record<CombatSide, number>>;
   rules: CombatRules;
 }): Engagement {
   const line = (combatant: Combatant, side: CombatSide): Fighter => ({
@@ -130,12 +159,18 @@ export function resolveEngagement({
   const striking = [...attackers].sort(byStrikeOrder).map((one) => line(one, 'attacker'));
   const holding = [...defenders].sort(byStrikeOrder).map((one) => line(one, 'defender'));
 
+  const magazine = {
+    attacker: draw(attackers, ammunition.attacker, rules),
+    defender: draw(defenders, ammunition.defender, rules),
+  };
+  const supply = (side: CombatSide) => (magazine[side].dry ? rules.dryFactor : 1);
+
   const strikes: Strike[] = [];
 
   for (const shooter of striking) {
     const target = pick(shooter, holding, rules);
     if (target === null) continue;
-    strikes.push(hit(shooter, target, 'strike', 1 / rules.defenderBonus, rules));
+    strikes.push(hit(shooter, target, 'strike', supply('attacker') / rules.defenderBonus, rules));
   }
 
   /**
@@ -147,7 +182,7 @@ export function resolveEngagement({
     if (holder.state !== 'standing') continue;
     const target = riposteTarget(holder, striking, rules);
     if (target === null) continue;
-    strikes.push(hit(holder, target, 'riposte', rules.defenderBonus, rules));
+    strikes.push(hit(holder, target, 'riposte', supply('defender') * rules.defenderBonus, rules));
   }
 
   const all = [...striking, ...holding];
@@ -159,7 +194,20 @@ export function resolveEngagement({
     state: fighter.state,
   }));
 
-  return { strikes, outcomes, winner: winnerOf(striking, holding) };
+  return { strikes, outcomes, winner: winnerOf(striking, holding), magazine };
+}
+
+/**
+ * The rounds a force draws for one pass, against what its nation actually holds. Rounded up per
+ * troop rather than on the sum: the tranche is a magazine, and half a magazine is a full one.
+ */
+function draw(force: ReadonlyArray<Combatant>, stock: number, rules: CombatRules): Magazine {
+  const needed = force.reduce(
+    (rounds, one) => rounds + Math.ceil(one.strength / rules.strengthPerRound),
+    0,
+  );
+  const held = Math.max(0, Math.floor(stock));
+  return { needed, spent: Math.min(needed, held), dry: held < needed };
 }
 
 /**

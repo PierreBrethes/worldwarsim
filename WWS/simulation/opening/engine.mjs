@@ -223,7 +223,6 @@ export function recruitRefusal(s, role, tier, siteId) {
   if (queueOf(s, siteId).length >= MAX_QUEUED_BATCHES) return 'QUEUE_FULL';
   const cost = recruitmentCost(role, tier, hqLevel(s));
   if (s.stocks.alloy < cost.alloy - 1e-9) return 'INSUFFICIENT_alloy';
-  if (s.stocks.ammunition < cost.ammunition - 1e-9) return 'INSUFFICIENT_ammunition';
   return null;
 }
 
@@ -231,7 +230,6 @@ export function recruit(s, role, tier, siteId) {
   if (recruitRefusal(s, role, tier, siteId) !== null) return false;
   const cost = recruitmentCost(role, tier, hqLevel(s));
   s.stocks.alloy -= cost.alloy;
-  s.stocks.ammunition -= cost.ammunition;
   if (!s.queues.has(siteId)) s.queues.set(siteId, []);
   s.queues.get(siteId).push({ role, tier, minutes: cost.minutes, finishesAt: null });
   s.log.push({ minute: s.minute, kind: 'recruit', role, tier, cost });

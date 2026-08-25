@@ -11,8 +11,11 @@
 > au profit de `FOUNDATION_EXTRACTORS` + `foundationOwed(nation, standing)`
 > (`convex/constants.ts`, `convex/regions.ts`). Le mécanisme « une clé debout consomme une
 > dette » et la pose gratuite et immédiate restent tels quels. Mesuré le même jour : l'arsenal
-> n'étant plus offert, les munitions s'épuisent tôt en skirmish — constat ouvert, voir la
-> simulation d'ouverture.
+> n'étant plus offert, les munitions s'épuisaient tôt en skirmish — **constat périmé le soir
+> même** par la question 18, qui a sorti les munitions du recrutement pour les facturer au tir
+> ([ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) §7). Le recrutement n'en consomme
+> plus, la simulation d'ouverture n'en consomme donc plus du tout, et le goulot est désormais un
+> fait de combat que cet instrument ne mesure pas.
 
 > ⚠️ **Révision (18/08/2026) : le plafond de bâtisses appartient désormais au format.**
 > `BUILDING_CAP_BASE` et `BUILDING_CAP_PER_HQ_LEVEL` n'existent plus ; `buildingCap(format,

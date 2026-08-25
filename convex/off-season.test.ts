@@ -7,8 +7,8 @@ import {
   NATIONS,
   SCOUT_RADIUS_KM,
   SEASON_FORMATS,
+  STRENGTH_PER_ROUND,
   buildCost,
-  ammunitionLoad,
   nominalStrength,
   startingStock,
 } from './constants';
@@ -308,8 +308,8 @@ describe('launching', () => {
   });
 
   /**
-   * **Le kit de munitions** (décision du 25/08). Without the arsenal in the foundation, a
-   * skirmish used to die militarily at H+15 — two recruitments and the reserve at zero. The
+   * **Le kit de munitions** (décision du 25/08). Since question 18 the rounds are billed at the
+   * pass and nowhere else, so what this endowment buys is *engagements*, not companies. The
    * figure is a format's, never a nation's, like the alloy and the oil beside it.
    */
   it('hands out the ammunition its format sets, not a shared figure', async () => {
@@ -319,9 +319,10 @@ describe('launching', () => {
 
     const view = await t.query(api.view.playerView, { token: creator });
     expect(view.me.resources.ammunition.stock).toBe(SEASON_FORMATS.skirmish.startingAmmunition);
-    // Enough to replace the given company several times over: the endowment is a defence only
-    // if the reserve behind it can rebuild it.
-    expect(view.me.resources.ammunition.stock).toBeGreaterThan(ammunitionLoad('infantry', 1));
+    // Enough for the given company to fight several passes: an endowment that covered one
+    // engagement would be a nation disarmed by its first contact.
+    const onePass = Math.ceil(nominalStrength('infantry', 1) / STRENGTH_PER_ROUND);
+    expect(view.me.resources.ammunition.stock).toBeGreaterThan(onePass * 3);
     // And the two formats do not read the same number.
     expect(SEASON_FORMATS.campaign.startingAmmunition).not.toBe(
       SEASON_FORMATS.skirmish.startingAmmunition,

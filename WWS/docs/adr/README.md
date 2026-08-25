@@ -25,5 +25,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0015](0015-economie-v2-ressources-localisees.md) | Économie v2 : ressources localisées et filières courtes | acceptée |
 | [0016](0016-code-anglais-jeu-francais.md) | Code en anglais, jeu en français via une table de traduction unique | acceptée |
 | [0017](0017-format-de-saison-et-socle-place.md) | Format de saison, socle placé, et ce que borne un plafond de stockage | acceptée |
-| [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au recrutement seul | acceptée, §3 amendé par 0019 |
+| [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08 |
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée |

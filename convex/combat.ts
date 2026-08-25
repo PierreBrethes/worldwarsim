@@ -3,6 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import { resolveEngagement, type Combatant, type Engagement } from '../src/domain/combat';
 import { COMBAT_RULES } from './constants';
+import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
 
 /**
@@ -63,11 +64,31 @@ export async function resolveContact(
     at: number;
   },
 ): Promise<Resolution> {
+  /**
+   * **The magazine is read before the pass and paid after it** (question 18, settled 25/08).
+   * Ammunition is billed here and nowhere else — a troop costs nothing in rounds to raise, it
+   * costs rounds every time it fires — so this is the only place a stock and a strike meet.
+   *
+   * The debit cannot refuse: `resolveEngagement` has already clamped it to what the nation
+   * holds, and a camp that could not pay has already fired at `DRY_AMMUNITION_FACTOR`. An
+   * engagement is never declined for want of matter.
+   */
   const engagement = resolveEngagement({
     attackers: attacker.troops.map(combatantOf),
     defenders: defender.troops.map(combatantOf),
+    ammunition: {
+      attacker: (await economyOf(ctx, attacker.playerId, at)).stocks.ammunition,
+      defender: (await economyOf(ctx, defender.playerId, at)).stocks.ammunition,
+    },
     rules: COMBAT_RULES,
   });
+
+  for (const side of ['attacker', 'defender'] as const) {
+    const { spent } = engagement.magazine[side];
+    if (spent === 0) continue;
+    const who = side === 'attacker' ? attacker.playerId : defender.playerId;
+    await debit(ctx, who, { ammunition: spent }, at);
+  }
 
   /** Read **before** the outcomes land: "this pass is the one that crossed the bar" needs the
    *  state it crossed from, and one line later nothing on the board remembers it. */
