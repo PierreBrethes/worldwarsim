@@ -71,6 +71,21 @@ export type OrderRefusal =
  * The agent and the decoy wait for the fog surfaces; they refuse as `NOT_ORDERABLE` rather than
  * being absent from the union, so the day they land there is a branch to fill, not one to find.
  */
+/**
+ * **The movement slots, carried by the headquarters** (ADR 0006, reindexed by 0015). One slot
+ * outlives the building: a nation always has one movement to make, even with its capital
+ * flattened.
+ *
+ * It lives in the domain so that the count `convex/view.ts` serves and the count `march`
+ * refuses on are one reading of one rule. They were two — a placeholder constant capped the
+ * server at one movement while the banner promised `1 + hqLevel` — and a screen that promises
+ * what the server turns down is exactly the fault ADR 0015 exists to forbid.
+ *
+ * **A return holds no slot**, and that is not said here: it is a property of the movement, not
+ * of the ceiling, so the callers filter their own list before counting it.
+ */
+export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
+
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
 export function refusalOf(

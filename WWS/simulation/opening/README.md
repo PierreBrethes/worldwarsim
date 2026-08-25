@@ -62,7 +62,12 @@ bougent, `constants.mjs` bouge avec eux, sinon l'instrument ment.
 
 ## Ce qu'il ne modélise pas
 
-Les mouvements, le combat, les avant-postes, le brouillard. Les **pertes** sont un bouton
+Les mouvements, le combat, les avant-postes, le brouillard. Le **plafond de mouvements en vol**
+a quitté le miroir le 25/08 : ce n'est plus la constante `MOVEMENTS_IN_FLIGHT` mais
+`movementSlots(hqLevel)` — `1 + hqLevel`, dans `src/domain/movement-orders.ts`. `verify.mjs` lit
+des scalaires comme du texte et ne sait pas surveiller la dérive d'une formule ; comme aucun
+scénario ne lisait ce nombre, rien n'est perdu à la mesure, mais la règle n'est **plus miroitée**
+et il faut la relire à la main si un jour le moteur simule un mouvement. Les **pertes** sont un bouton
 (`lossesPerDay`), pas une bataille : elles tiennent la place de ce que les boucles de combat
 prendront à l'armée, pour que le puits d'alliage et l'action « reconstruire » existent avant le
 code du combat. Les chiffres qu'elles produisent sont une *forme*, jamais un équilibrage.

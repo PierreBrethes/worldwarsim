@@ -141,10 +141,14 @@ export const startingStock = (format) => ({
  * clicking on his own ground — so nothing here is read by a scenario. They are mirrored all
  * the same: an unmirrored constant is a constant `verify.mjs` cannot watch drift, and these
  * two are the ones the expansion loop turns on.
+ *
+ * `MOVEMENTS_IN_FLIGHT` left on 25/08 with the scaffold it was: the ceiling on movements in
+ * flight is now `movementSlots(hqLevel)` in `src/domain/movement-orders.ts`, a formula and no
+ * longer a number. `verify.mjs` reads scalars as text and cannot watch a formula drift — see
+ * the README.
  */
 export const OUTPOST_REACH_KM = 400;
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
-export const MOVEMENTS_IN_FLIGHT = 1;
 
 /**
  * The pace, mirrored on the same terms and from `src/domain/`, where the two of them live: the

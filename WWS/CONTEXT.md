@@ -11,7 +11,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
 | **Pays neutre** | Un pays non joué. Support d'avant-postes, partenaire commercial, source de mercenaires. |
-| **Avant-poste** | Point posé sur un pays neutre. Trois spécialisations exclusives. Se détruit, ne se capture pas. |
+| **Avant-poste** | Point posé sur un pays neutre. Ouvre un rayon (`OUTPOST_REACH_KM`) où l'on bâtit et où les troupes posées s'entretiennent au tarif domestique. Une spécialisation (relais ou écoute), choisie à la construction. Se désactive ou se détruit, ne se capture jamais. *(révisé 25/08 — l'Extraction a disparu le 18/08, fiche 03)* |
 | **Mouvement** | Un envoi de troupes d'un point A à un point B. Irréversible. Représenté par un arc. |
 | **Slot de mouvement** | La ressource la plus rare du jeu. Limite le nombre de mouvements simultanés. |
 | **Doctrine** | La condition de victoire choisie par un joueur. Secrète jusqu'à 25 % de progression. |
@@ -22,9 +22,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
-| **Ravitaillement** | Flux sûr, produit à domicile et par le commerce. La ressource du prudent. |
-| **Acier** | Vient uniquement des avant-postes d'extraction. Contestée par construction. |
-| **Effectifs** | Ni achetables ni convertibles, plafond dur. Le pivot du design. |
+| **Ressources** | Huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
 
 ## Actions
 

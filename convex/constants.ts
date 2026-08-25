@@ -762,14 +762,6 @@ export const MINUTES_PER_ROUTE_UNIT =
 export const routeMinutes = (costUnits: number): number =>
   Math.max(1, Math.round(costUnits * MINUTES_PER_ROUTE_UNIT));
 
-/**
- * **One movement in flight per player, in the meantime.** The regulator of ADR 0006 is the
- * movement slot, carried by a building that the economy v2 dissolved — until it is re-hung
- * somewhere, this stands in its place: a single constraint that bounds the fan-out and
- * prejudges nothing about the slots to come. It is a placeholder, not a decision.
- */
-export const MOVEMENTS_IN_FLIGHT = 1;
-
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS_TO_LAUNCH = 2;
 

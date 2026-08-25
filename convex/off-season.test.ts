@@ -503,6 +503,130 @@ describe('rest window', () => {
   });
 });
 
+/**
+ * **A concluded season writes nothing more.** Concluding does not empty the scheduler: the jobs
+ * already in it wake up all the same. Without a guard, a skirmish won at noon keeps resolving
+ * engagements, delivering batches and finishing sites all evening — and every measurement taken
+ * after a test is measuring a game nobody was playing.
+ *
+ * The jobs **return**, they do not fail: Convex never retries a mutation that throws, so a
+ * refusal here would sit in the dashboard as an error that is not one. Nothing is cleaned up
+ * either — the rows stay exactly as they are, and `destroy` purges them whole.
+ */
+describe('a concluded season', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 17, 12, 0, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** Romanian oil, far enough east of Moselle that the column is still walking. */
+  const PRAHOVA = 'ROU-310';
+
+  it('lets no scheduled job write once it is won', async () => {
+    const t = boot();
+    const { creator, guest } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    const playerId = await playerIdOf(t, creator);
+    const barracks = await t.run(async (ctx) =>
+      ctx.db.insert('buildings', { playerId, key: 'barracks', regionId: MOSELLE, level: 1 }),
+    );
+    // Somebody standing at the far end, so an arrival that resolved would leave an account.
+    const theirs = await playerIdOf(t, guest);
+    await t.run(async (ctx) => {
+      const holding = await ctx.db.insert('buildings', {
+        playerId: theirs,
+        key: 'barracks',
+        regionId: PRAHOVA,
+        level: 1,
+      });
+      await ctx.db.insert('troops', {
+        playerId: theirs,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: holding,
+      });
+    });
+
+    const marching = await t.run(async (ctx) =>
+      ctx.db.insert('troops', {
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: barracks,
+      }),
+    );
+    await t.mutation(api.movements.attack, {
+      token: creator,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [marching],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+
+    // A batch and a site both dated after the conclusion: the two other jobs that write.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('recruitments', {
+        playerId,
+        buildingId: barracks,
+        role: 'infantry',
+        tier: 1,
+        rank: 0,
+        finishesAt: Date.now() + 3_600_000,
+      });
+      await ctx.db.insert('constructions', {
+        playerId,
+        building: 'billets',
+        regionId: MOSELLE,
+        level: 1,
+        rank: 0,
+        finishesAt: Date.now() + 3_600_000,
+      });
+    });
+
+    const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
+    await t.run(async (ctx) => {
+      const season = (await ctx.db.query('seasons').first())!;
+      await ctx.db.patch(season._id, {
+        status: 'concluded',
+        winnerId: playerId,
+        concludedAt: Date.now(),
+      });
+    });
+    const before = await dumpRows(t, tables);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    // Not "no engagement" and not "no delivery": **nothing at all**, which is the only shape
+    // that still holds for a job added tomorrow.
+    expect(await dumpRows(t, tables)).toEqual(before);
+    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toEqual([]);
+  });
+
+  async function playerIdOf(t: ReturnType<typeof boot>, token: string) {
+    return t.run(async (ctx) => {
+      const player = await ctx.db
+        .query('players')
+        .withIndex('byToken', (q) => q.eq('token', token))
+        .unique();
+      if (!player) throw new Error('player not found');
+      return player._id;
+    });
+  }
+
+  async function dumpRows(t: ReturnType<typeof boot>, tables: ReadonlyArray<TableNames>) {
+    const dumped: Record<string, unknown> = {};
+    for (const table of tables) {
+      dumped[table] = await t.run(async (ctx) => ctx.db.query(table).collect());
+    }
+    return dumped;
+  }
+});
+
 describe('scrapping a season', () => {
   it('belongs to the founder and leaves nothing behind', async () => {
     const t = boot();

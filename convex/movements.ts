@@ -8,6 +8,7 @@ import { firstInterception, sightingsAlong, type MarchingForce } from '../src/do
 import {
   foundingRefusal,
   liftOf,
+  movementSlots,
   refusalOf,
   landCostOf,
   routeModeOf,
@@ -18,22 +19,23 @@ import { isNation } from '../src/domain/nations';
 import { nearestOutpost } from '../src/domain/outposts';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
-import { buildingAt, playerBuildings } from './buildings';
+import { buildingAt, buildingLevel, playerBuildings } from './buildings';
 import { resolveContact, troopsStationedAt } from './combat';
 import {
   ARRIVAL_RADIUS_KM,
   INTERCEPTION_RADIUS_KM,
-  MOVEMENTS_IN_FLIGHT,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_IMMUNITY_HOURS,
   routeMinutes,
   SCOUT_RADIUS_KM,
+  SEASON_FORMATS,
+  formatOf,
 } from './constants';
 import { fail } from './errors';
 import { capitalRegionOf, homeCountryOf, nearestRegion, regionFacts } from './regions';
 import { hostAtPoint, routeBetween } from './routes';
 import { isAnchored } from './upkeep';
-import { playerByToken, requirePlayable } from './seasons';
+import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import {
   ATTACK_TARGET,
   CONTACT_FORCE,
@@ -146,6 +148,7 @@ export const marchTo = mutation({
 
     return march(ctx, {
       playerId: player._id,
+      season,
       type: 'march',
       origin,
       troopIds,
@@ -167,6 +170,7 @@ export const attack = mutation({
 
     return march(ctx, {
       playerId: player._id,
+      season,
       type: 'attack',
       origin,
       troopIds,
@@ -193,6 +197,7 @@ export const raid = mutation({
 
     return march(ctx, {
       playerId: player._id,
+      season,
       type: 'raid',
       origin,
       troopIds,
@@ -280,6 +285,7 @@ export const arrive = internalMutation({
   handler: async (ctx, { movementId }) => {
     const movement = await ctx.db.get(movementId);
     if (!movement) return;
+    if (!(await seasonStillPlays(ctx, movement.playerId))) return;
 
     const now = Date.now();
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
@@ -317,6 +323,7 @@ export const intercept = internalMutation({
   handler: async (ctx, { movementId, by, point }) => {
     const movement = await ctx.db.get(movementId);
     if (!movement) return;
+    if (!(await seasonStillPlays(ctx, movement.playerId))) return;
     const owner = await ctx.db.get(movement.playerId);
     if (!owner) return;
 
@@ -593,16 +600,31 @@ async function departureOf(
   };
 }
 
+/**
+ * The next headquarters level and what it would carry, empty at the top of the format's ladder
+ * — the same shape and the same reason as `capReliefOf` for the buildings: "montez le QG" is
+ * advice, "un quartier général niveau 3 les porte à 4" is a plan. Both numbers come out of
+ * `movementSlots`, never recopied.
+ */
+const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
+  hqLevel >= SEASON_FORMATS[formatOf(season.durationHours)].maxHqLevel
+    ? {}
+    : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
+
 async function march(
   ctx: MutationCtx,
   {
     playerId,
+    season,
     type,
     origin,
     troopIds,
     aim,
   }: {
     playerId: Id<'players'>;
+    /** Read for the format alone — the ladder a headquarters climbs, which is what the refusal
+     *  needs to name the level that would buy the next slot. */
+    season: Doc<'seasons'>;
     type: 'march' | 'attack' | 'raid' | 'recall';
     origin: MarchOrigin;
     troopIds: ReadonlyArray<Id<'troops'>>;
@@ -610,20 +632,23 @@ async function march(
   },
 ) {
   /**
-   * Standing in for the movement slots of ADR 0006, which have no building left to hang from
-   * since the economy v2 dissolved the logistics centre. One column at a time bounds the
-   * fan-out and prejudges nothing: when the slots land, this constant goes and the rule they
-   * bring takes its place.
+   * **The movement slots of ADR 0006, carried by the headquarters** since the economy v2
+   * dissolved the logistics centre (ADR 0015). The count comes from `movementSlots`, the very
+   * function `view.ts` fills the banner from: a placeholder constant used to cap this door at
+   * one while the banner promised `1 + hqLevel`, and a player at headquarters 2 saw two slots
+   * for the one he had.
    *
    * **A return does not count against it**: it is not an order, and holding a player's only
    * slot hostage while his beaten column walks back would punish him twice for one defeat. A
    * recall is not a return — it is the one order a garrison gets — so it counts like any other.
    */
+  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
+  const maximum = movementSlots(hqLevel);
   const flying = (await movementsOf(ctx, playerId)).filter(
     (movement) => movement.type !== 'return',
   );
-  if (flying.length >= MOVEMENTS_IN_FLIGHT) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum: MOVEMENTS_IN_FLIGHT });
+  if (flying.length >= maximum) {
+    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(season, hqLevel) });
   }
 
   /**

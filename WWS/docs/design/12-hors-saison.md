@@ -58,8 +58,14 @@ Deux adoucissements, sans lesquels « premier servi » devient « premier connec
 progression). Le salon montre « prêt / pas prêt », jamais le choix. Un joueur est prêt quand il a
 une nation et une doctrine.
 
-**Le lancement** appartient au créateur, possible dès 2 joueurs prêts. Les nations non prises
-restent neutres toute la saison.
+**Le lancement** appartient au créateur, possible dès 2 joueurs prêts. ~~Les nations non prises
+restent neutres toute la saison.~~
+
+> **Révision du 25/08.** Depuis le prompt `rejoindre-en-guerre` (24/08), `seasons.join` accepte
+> une saison `launched` **à tout moment** : un retardataire prend une nation encore neutre, reçoit
+> la dotation (`endow`), et son entrée fait une manchette au journal. Choix de test assumé (1b du
+> 25/08) — l'entrée tardive est-elle vécue comme jouable ou punitive ? se mesure au skirmish. Si
+> elle est punitive, la fenêtre se ferme à une fraction de `durationHours`, pas au lancement.
 
 ## Pièges
 

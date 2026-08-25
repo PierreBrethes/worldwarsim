@@ -41,6 +41,27 @@ export function requirePlayable(season: Doc<'seasons'>): void {
   requireStarted(season);
 }
 
+/**
+ * **What a scheduled job has to find to be allowed to write.** A conclusion does not empty the
+ * scheduler, and neither does a `destroy` that leaves a job behind: without this, engagements
+ * resolve, batches deliver and sites finish on a season nobody plays any more — a concluded
+ * skirmish still fighting would falsify every measurement taken after a test.
+ *
+ * **It returns, it never fails.** Convex does not retry a mutation that throws, so a refusal
+ * raised here would sit in the dashboard as an error that is not one. Nothing is cleaned up
+ * either: the movement, the batch and the site stay exactly as they are, nobody will read
+ * them, and `destroy` purges the season whole.
+ *
+ * It takes a **player**, not a season, because that is the handle every job actually holds — a
+ * movement, a batch and a construction all hang from a player, none of them from a season.
+ */
+export async function seasonStillPlays(ctx: QueryCtx, playerId: Id<'players'>): Promise<boolean> {
+  const player = await ctx.db.get(playerId);
+  if (!player) return false;
+  const season = await ctx.db.get(player.seasonId);
+  return season?.status === 'launched';
+}
+
 /** What a season has to be to be **looked at**. A concluded one passes: it is the game one
  *  reads back before the wipe, and a board that shuts the moment it is won says nothing. */
 export function requireStarted(season: Doc<'seasons'>): void {

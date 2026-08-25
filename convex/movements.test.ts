@@ -1550,31 +1550,51 @@ describe('a march goes to a point and the column stays there', () => {
     expect(account!.attackerId).toBe(await playerOf(t, guest));
   });
 
-  /** **A slot like any other** (ADR 0006): the march is an order, and orders are what the
-   *  regulator counts. Nothing about "going nowhere in particular" exempts it. */
-  it('spends a slot, and is refused once none is left', async () => {
+  /**
+   * **A slot like any other** (ADR 0006): the march is an order, and orders are what the
+   * regulator counts. Nothing about "going nowhere in particular" exempts it.
+   *
+   * **And the ceiling is the headquarters'**, `1 + niveau` (ADR 0015) — the very number the
+   * banner reads. A placeholder constant used to hold this door at one movement while `view.ts`
+   * promised three: the fan then offered what the server turned down, which is the one fault
+   * ADR 0015 exists to forbid.
+   */
+  it('spends a slot, and is refused once the headquarters has no more to give', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
+    await setHqLevel(t, token, 1);
     const barracks = await raise(t, token, 'barracks', MARNE);
-    const first = await form(t, token, 'infantry', barracks);
-    const second = await form(t, token, 'infantry', barracks);
 
-    await t.mutation(api.movements.marchTo, {
-      token,
-      origin: { kind: 'building', buildingId: barracks },
-      troopIds: [first],
-      point: asPoint(AIMED),
-    });
-    expect((await t.query(api.view.playerView, { token })).me.slots.used).toBe(1);
-
-    await expect(
+    const send = async (km: number) =>
       t.mutation(api.movements.marchTo, {
         token,
         origin: { kind: 'building', buildingId: barracks },
-        troopIds: [second],
-        point: asPoint(eastOf(AIMED, 200)),
-      }),
-    ).rejects.toThrow('MOVEMENT_IN_FLIGHT');
+        troopIds: [await form(t, token, 'infantry', barracks)],
+        point: asPoint(eastOf(AIMED, km)),
+      });
+
+    await send(0);
+    await send(200);
+    const held = await t.query(api.view.playerView, { token });
+    expect(held.me.slots).toEqual({ used: 2, total: 2 });
+
+    // The refusal names the level that would buy the next slot, in figures the screen never
+    // recomputes — both out of `movementSlots`, like the building ceiling's own remedy.
+    const refused: Record<string, unknown> = await send(400)
+      .then(() => ({}))
+      .catch((error: { data: Record<string, unknown> }) => error.data);
+    expect(refused).toMatchObject({
+      code: 'MOVEMENT_IN_FLIGHT',
+      maximum: 2,
+      hqLevel: 1,
+      nextHqLevel: 2,
+      nextSlots: 3,
+    });
+
+    // The same order goes through the moment the headquarters carries a wider one.
+    await setHqLevel(t, token, 2);
+    expect((await t.query(api.view.playerView, { token })).me.slots.total).toBe(3);
+    await send(600);
   });
 
   /**
@@ -2011,6 +2031,11 @@ describe('a rout refluxes to the nearest anchor', () => {
     const camp = eastOf(ARABIA, 600);
     const walker = await post(t, guest, camp);
     await t.run(async (ctx) => ctx.db.patch(walker, { currentStrength: 30 }));
+    // Two companies of the guest's kept at home, well clear of the road: the rout must not put
+    // him under the victory bar, or the season concludes and the walk home is rightly refused
+    // a season nobody plays any more (`seasonStillPlays`).
+    await form(t, guest, 'infantry', null);
+    await form(t, guest, 'infantry', null);
     // Two French columns holding the ground it walks onto: they open the pass and it breaks.
     await post(t, token, ARABIA);
     await post(t, token, ARABIA);

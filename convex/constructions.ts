@@ -20,7 +20,7 @@ import { outpostsOf, pointOf } from './movements';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwed, homeCountryOf, regionFacts } from './regions';
 import { credit, debit } from './resources';
-import { playerByToken, requirePlayable } from './seasons';
+import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import { BUILDING_KEY } from './validators';
 
 /** An outpost row, as the reach reads it: a point and nothing else. */
@@ -137,6 +137,7 @@ export const finish = internalMutation({
   handler: async (ctx, { constructionId }) => {
     const construction = await ctx.db.get(constructionId);
     if (!construction) return;
+    if (!(await seasonStillPlays(ctx, construction.playerId))) return;
 
     const buildings = await playerBuildings(ctx, construction.playerId);
     const standing = buildingAt(buildings, construction.building, construction.regionId);

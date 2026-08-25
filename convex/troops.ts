@@ -21,7 +21,7 @@ import {
 import { fail } from './errors';
 import { regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf } from './resources';
-import { playerByToken, requirePlayable, requireStarted } from './seasons';
+import { playerByToken, requirePlayable, requireStarted, seasonStillPlays } from './seasons';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 
 /** Derived from the domain table rather than written a second time: one key, one domain. */
@@ -202,6 +202,7 @@ export const deliver = internalMutation({
   handler: async (ctx, { recruitmentId }) => {
     const batch = await ctx.db.get(recruitmentId);
     if (!batch) return;
+    if (!(await seasonStillPlays(ctx, batch.playerId))) return;
 
     const strength = nominalStrength(batch.role, batch.tier);
     const station = await ctx.db.get(batch.buildingId);
@@ -230,6 +231,7 @@ export const deliver = internalMutation({
 export const resumeQueues = internalMutation({
   args: { playerId: v.id('players') },
   handler: async (ctx, { playerId }) => {
+    if (!(await seasonStillPlays(ctx, playerId))) return;
     const now = Date.now();
     if ((await economyOf(ctx, playerId, now)).starving) return;
     const waiting = await recruitmentsOf(ctx, playerId);

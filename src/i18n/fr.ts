@@ -286,8 +286,10 @@ export const fr = {
     ORDER_RUNNING: (d) =>
       `un lot court déjà : ${num(d.produced)} sur ${num(d.ordered)} — annulez-le d’abord`,
     NO_ORDER: () => 'aucun lot en cours',
+    /** Même règle que le plafond de bâtiments : le refus dit son remède **chiffré**. Les deux
+     *  nombres viennent de `movementSlots`, servis par le serveur — jamais recopiés ici. */
     MOVEMENT_IN_FLIGHT: (d) =>
-      `un seul mouvement en vol à la fois (${num(d.maximum)}) — attendez son arrivée`,
+      `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     UNKNOWN_TROOP: () => 'troupe inconnue',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
@@ -1465,6 +1467,11 @@ export function doctrineLabel(doctrine: string | null): string | null {
 const capRelief = (nextHqLevel: unknown, nextCap: unknown): string =>
   typeof nextHqLevel === 'number' && typeof nextCap === 'number'
     ? ` — un quartier général niveau ${nextHqLevel} le porte à ${nextCap}`
+    : ' — le quartier général est au maximum';
+
+const slotRelief = (nextHqLevel: unknown, nextSlots: unknown): string =>
+  typeof nextHqLevel === 'number' && typeof nextSlots === 'number'
+    ? ` — un quartier général niveau ${nextHqLevel} les porte à ${nextSlots}`
     : ' — le quartier général est au maximum';
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '—');

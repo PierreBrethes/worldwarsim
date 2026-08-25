@@ -6,6 +6,7 @@ import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
+import { movementSlots } from '../src/domain/movement-orders';
 import type { TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
@@ -235,7 +236,7 @@ export const playerView = query({
         // (ADR 0015). One slot outlives the building: a nation always has one movement to
         // make, even with its capital flattened.
         slots: {
-          total: 1 + hqLevel,
+          total: movementSlots(hqLevel),
           // A return is not an order and holds nothing (`movements.ts`), so it is not counted.
           used: movements.filter((movement) => movement.type !== 'return').length,
         },
