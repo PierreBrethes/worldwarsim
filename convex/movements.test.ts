@@ -24,7 +24,7 @@ import {
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { regionFacts } from './regions';
-import { pointOf } from './movements';
+import { pointOf } from './movement/forces';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';

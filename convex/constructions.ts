@@ -16,7 +16,7 @@ import {
   buildingCap,
   formatOf,
 } from './constants';
-import { outpostsOf, pointOf } from './movements';
+import { outpostsOf, pointOf } from './movement/forces';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwed, homeCountryOf, regionFacts } from './regions';
 import { credit, debit } from './resources';

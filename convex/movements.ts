@@ -2,56 +2,54 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
-import type { MutationCtx, QueryCtx } from './_generated/server';
-import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
-import {
-  firstInterception,
-  INTERCEPTION_SAMPLES,
-  positionAt,
-  sightingsAlong,
-  type MarchingForce,
-  type Watcher,
-} from '../src/domain/interception';
+import type { QueryCtx } from './_generated/server';
 import {
   DECOY_PACE,
   foundingRefusal,
-  liftOf,
-  movementSlots,
-  refusalOf,
   landCostOf,
+  refusalOf,
   routeModeOf,
   type Column,
-  type MovementAim,
 } from '../src/domain/movement-orders';
-import { isNation } from '../src/domain/nations';
-import { nearestOutpost } from '../src/domain/outposts';
-import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 import { windowExit } from '../src/domain/rest-window';
-import type { BuildingKey } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
-import { relayedCostUnits } from '../src/domain/route-timing';
-import { buildingAt, buildingLevel, playerBuildings, seasonBuildings } from './buildings';
-import { resolveContact, troopsStationedAt } from './combat';
-import {
-  ARRIVAL_RADIUS_KM,
-  DECOY_COST,
-  INTERCEPTION_RADIUS_KM,
-  LISTENING_STATION_RADIUS_KM,
-  OUTPOST_DISABLED_HOURS,
-  OUTPOST_IMMUNITY_HOURS,
-  OUTPOST_REACH_KM,
-  RELAY_SPEED_MULTIPLIER,
-  routeMinutes,
-  SCOUT_RADIUS_KM,
-  SEASON_FORMATS,
-  formatOf,
-} from './constants';
+import { playerBuildings } from './buildings';
+import { resolveContact } from './combat';
+import { DECOY_COST, routeMinutes } from './constants';
 import { fail } from './errors';
+import {
+  attachHome,
+  engageAt,
+  exposeDecoy,
+  fadeAt,
+  forgetMovement,
+  recallAt,
+  standAt,
+  walkHome,
+} from './movement/arrival';
+import { fileSightings, scheduleInterception } from './movement/detection';
+import {
+  asPoint,
+  forceOf,
+  movementsOf,
+  pointOf,
+  recognises,
+  troopsCarriedBy,
+} from './movement/forces';
+import {
+  aimOf,
+  claimSlot,
+  columnOf,
+  decoyGate,
+  departureOf,
+  march,
+  pacedMinutes,
+  sameStation,
+  troopsAmong,
+} from './movement/orders';
+import { homeCountryOf, nearestRegion } from './regions';
 import { debit } from './resources';
-import { capitalRegionOf, homeCountryOf, nearestRegion, regionFacts } from './regions';
-import { hostAmongCountries, hostAtPoint, routeBetween } from './routes';
-import { seasonTroops } from './troops';
-import { isAnchored } from './upkeep';
+import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import {
   ATTACK_TARGET,
@@ -63,29 +61,14 @@ import {
 } from './validators';
 
 /**
- * The second act of the game: **see the deposit, walk, plant the outpost, build on it** — and,
- * since the combat pass, **walk at somebody**. Three kinds of march are ordered: the foundation,
- * the attack and the raid. A fourth exists that nobody orders, the return: a column that has
- * fought, or broken contact, is put back on the road home by the resolution itself.
- *
- * **They leave from wherever the column stands** (ADR 0019 §1) — a projection building or the
- * outpost it garrisons. What that ground carries decides only the domain gates: a port to
- * embark, an airfield to take off, nothing at all to walk.
- *
- * **The decoy joined them** (ADR 0006): a movement with an empty manifest, indiscernible from
- * the road for everybody but its owner. Naval and air movement are still not here, nor the
- * agent: they need routing in three media and the fog, in that order.
+ * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
+ * attack and raid are ordered, plus the decoy (ADR 0006) and the return nobody orders (ADR 0019).
+ * The helpers are in `convex/movement/`: `orders` files a departure, `detection` fills the fog,
+ * `arrival` resolves the far end, `forces` answers who stands where.
  */
-/**
- * **One founds where one stands.** It was a kind of march until ADR 0019 let a column stay on
- * the map: the player named the specialisation at departure, hours of walking from ground he
- * had not seen. Now the column is already there and looking at it — the terrain is under its
- * feet when the choice is made, which is a better game and cost nothing to get.
- *
- * The founding column **becomes the garrison** of its own point, exactly as the arrival of an
- * `outpost` movement used to leave it (`garnison-adresse.md`): one address, and it changes from
- * a coordinate to the outpost standing on it.
- */
+
+/** ADR 0019 §1: one founds where one stands, and the founding column becomes the garrison of
+ *  its own point (`garnison-adresse.md`). */
 export const foundOutpostHere = mutation({
   args: {
     token: v.string(),
@@ -97,9 +80,8 @@ export const foundOutpostHere = mutation({
     const { player, season } = await playerByToken(ctx, token);
     requirePlayable(season);
 
-    /** A column keeps its address while it walks (`troopIds` is the manifest, not a second
-     *  attachment), so standing at the point is not enough: one that left it is on the road, and
-     *  a point is planted by boots on the ground, never by an order sent after them. */
+    /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
+     *  enough: a column that left it is on the road. */
     const marching = new Set<Id<'troops'>>(
       (await movementsOf(ctx, player._id)).flatMap((movement) => movement.troopIds),
     );
@@ -114,11 +96,8 @@ export const foundOutpostHere = mutation({
       troops.push(troop);
     }
 
-    /**
-     * **Whose ground this is, read as everything else reads it**: the nearest region's, which
-     * is the only containment the server has (`hostAtPoint`). A region carrying a building of
-     * mine has nothing to gain from an outpost — that is `FRIENDLY_TARGET`, unchanged.
-     */
+    /** The server holds no polygons, so whose ground this is is the nearest region's — the only
+     *  containment it has. A region already carrying a building of mine is `FRIENDLY_TARGET`. */
     const here = nearestRegion(pointOf(point));
     const buildings = await playerBuildings(ctx, player._id);
     const refusal = foundingRefusal(
@@ -150,17 +129,9 @@ export const foundOutpostHere = mutation({
   },
 });
 
-/**
- * **Go there, and stay** — the plainest order there is, and the one the game had no word for
- * until ADR 0019 §7. A slot like any other (ADR 0006), irreversible like any other, the same
- * domain gates as any other; what sets it apart is that it refuses no ground for allegiance —
- * one marches on one's own soil exactly as on somebody else's — and that it is the only order
- * whose column has an address at the end of it.
- *
- * **`marchTo`, not `march`**: `march` below is the corridor all three orders walk down, and the
- * name was taken years before the type existed. Renaming the corridor to free the word would
- * touch three call sites to gain nothing.
- */
+/** ADR 0019 §7: go there and stay — a slot like any other (ADR 0006), and the only order whose
+ *  column has an address at the end of it. **`marchTo`, not `march`**: `march` is the corridor
+ *  all three orders walk down, and the name was taken before the type existed. */
 export const marchTo = mutation({
   args: {
     token: v.string(),
@@ -205,11 +176,8 @@ export const attack = mutation({
   },
 });
 
-/**
- * A raid marches at an outpost and nothing else: it does not come to hold ground, it comes to
- * put the point out of service for a while. Winning the engagement is what deactivates it — a
- * raid that fails to clear the garrison has walked for nothing.
- */
+/** ADR 0004: a raid marches at an outpost and nothing else, and winning the engagement is what
+ *  deactivates it — one that fails to clear the garrison has walked for nothing. */
 export const raid = mutation({
   args: {
     token: v.string(),
@@ -233,22 +201,10 @@ export const raid = mutation({
 });
 
 /**
- * **A movement with nobody in it** (ADR 0006, design sheet 04). It occupies a slot, it walks the
- * same road at the infantry's pace, it is filed against the same sightings and caught by the same
- * interception — and when something finally reaches it, there is no column to fight. That is the
- * whole of it: the fog only hides what it has something to hide, and the decoy is the something.
- *
- * **It is billed a flat rate rather than by what it carries**, which is the decision ADR 0006 was
- * written for: cargo prices nothing else here, so an empty manifest would be free, and a free
- * feint drowns the espionage in noise and the server in fan-out. `DECOY_COST` plus the slot means
- * feinting is paid in attacks one will not launch.
- *
- * **It leaves from ground the player actually holds** — a garrison or a projection building, the
- * same doors as a march. A feint starting anywhere would draw a column on ground its owner does
- * not hold, which is piercing the fog backwards rather than thickening it.
- *
- * It takes no `troopIds` and there is no argument to pass them in: a decoy that could name a
- * manifest is a march spelled another way.
+ * ADR 0006 and design sheet 04: an empty manifest, filed, paced and caught exactly like a march.
+ * Flat `DECOY_COST` plus a slot — a free feint would drown the espionage in noise and the server
+ * in fan-out. There is no argument to pass troops in: a decoy that could name a manifest is a
+ * march spelled another way.
  */
 export const decoy = mutation({
   args: { token: v.string(), origin: MOVEMENT_ORIGIN, point: LON_LAT },
@@ -266,8 +222,7 @@ export const decoy = mutation({
     if (!(await decoyGate(ctx, player._id, departure))) fail('NO_DECOY_ORIGIN', {});
 
     const aim = await aimOf(ctx, { kind: 'point', point });
-    /** The same function the rose filters its fan with, asked of an empty pile: a decoy goes
-     *  where a march goes and nowhere else (ADR 0015, one rule and two callers). */
+    /** ADR 0015, one rule and two callers, asked here of an empty pile. */
     const refusal = refusalOf('decoy', aim.aim, emptyColumn());
     if (refusal !== null) fail(refusal, { type: 'decoy' });
 
@@ -282,9 +237,8 @@ export const decoy = mutation({
     const now = Date.now();
     await debit(ctx, player._id, DECOY_COST, now);
 
-    /** **A feint is timed like a march or it is not a feint**: a decoy that ignored its owner's
-     *  relays would arrive at an hour no real column of his ever keeps, and the fog would tell
-     *  the two apart on the clock alone. */
+    /** A decoy that ignored its owner's relays would arrive at an hour no real column of his
+     *  ever keeps, and the fog would tell the two apart on the clock alone. */
     const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     const movementId = await ctx.db.insert('movements', {
@@ -315,8 +269,7 @@ export const decoy = mutation({
   },
 });
 
-/** The empty pile a decoy is, in the shape the shared rule reads. It holds nothing a decoy could
- *  need: no role opens a door, and no ground of the player's is consulted for a point. */
+/** No role opens a door, and no ground of the player's is consulted for a point. */
 const emptyColumn = (): Column => ({
   roles: [],
   myRegionIds: new Set(),
@@ -325,50 +278,9 @@ const emptyColumn = (): Column => ({
 });
 
 /**
- * **Where a decoy may set out from**: a projection building, or an address the player's own
- * troops are standing at. A march proves its origin by the manifest it names — the troops have
- * to be hanging from that very address — and a decoy names nobody, so the proof has to be made
- * here or not at all.
- *
- * A troop in flight does not hold a place open: it kept its address while it walks (`troopIds`
- * is a manifest, not a second attachment), and a garrison that has marched off is an empty
- * point like any other.
- */
-async function decoyGate(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  departure: Departure,
-): Promise<boolean> {
-  const station = departure.stationId;
-  if (station === null) return false;
-  if (typeof station === 'string') {
-    const buildingId = ctx.db.normalizeId('buildings', station);
-    const building = buildingId === null ? null : await ctx.db.get(buildingId);
-    if (building !== null && PROJECTION_KEYS.has(building.key)) return true;
-  }
-  const marching = new Set<Id<'troops'>>(
-    (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
-  );
-  return (
-    await ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  ).some((troop) => sameStation(troop.stationedAt, station) && !marching.has(troop._id));
-}
-
-const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
-
-/**
- * **What the player sees before he pays.** The route drawn under the aim is the one the march
- * will store — same grid, same weights, same pace (ADR 0012) — so the preview cannot promise a
- * Paris–Alger as short as a Paris–Berlin. It also answers the rest window: an arrival that bites
- * the target's window stalls at the border, and that is exactly the kind of thing one wants to
- * learn before the slot is spent, not after.
- *
- * It refuses nothing: the fan only ever offered legal types (`legalMovementTypes`), and a query
- * that failed would turn a hover into an error. An impassable target answers `null` and the card
- * says so.
+ * What the player sees before he pays: the route the march will store (ADR 0012) and the rest
+ * window it would stall in (design sheet 07). **It refuses nothing** — the fan only ever offered
+ * legal types (ADR 0015), and a query that failed would turn a hover into an error.
  */
 export const preview = query({
   args: {
@@ -383,12 +295,9 @@ export const preview = query({
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
-    /** The medium is read off the pile, exactly as the march will read it: a preview drawn on a
-     *  road for a column that sails would promise a route nobody takes.
-     *
-     *  **A decoy reads its own pace and not the armed pile's** (`DECOY_PACE`): the player still
-     *  has a column selected when he picks the feint, and drawing the trip that column would
-     *  have made would promise an hour the decoy never keeps. */
+    /** **A decoy reads its own pace and not the armed pile's** (`DECOY_PACE`): a column is still
+     *  selected when the player picks the feint, and its trip would promise an hour the decoy
+     *  never keeps. */
     const troops = await troopsAmong(ctx, player._id, troopIds);
     const column = await columnOf(ctx, player._id, troops, departure);
     const pace = type === 'decoy' ? DECOY_PACE : column.roles;
@@ -403,13 +312,10 @@ export const preview = query({
     return {
       minutes,
       arrivesAt,
-      /** What the relays took off the trip, in minutes, and `0` when none of them watches this
-       *  road. The card owes the player the reason for an hour he did not expect — an
-       *  acceleration nothing on screen accounts for reads as a bug, not as a reward. */
+      /** The card owes the player the reason for an hour he did not expect: an acceleration
+       *  nothing on screen accounts for reads as a bug, not as a reward. */
       relayed: routeMinutes(route.costUnits) - minutes,
-      /** Where the column would wait if it walked into a sleeping nation's window. */
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
-      /** What the player knows about the ground he is pointing at — see `recognises`. */
       recognised: await recognises(ctx, player, point),
       /** A decoy carries nobody, whatever is armed behind the card. */
       troops: type === 'decoy' ? 0 : troopIds.length,
@@ -421,22 +327,19 @@ export const preview = query({
   },
 });
 
+const routeFacts = (route: ComputedRoute) => ({
+  mode: route.mode,
+  points: route.points.map(asPoint),
+  distanceUnits: route.distanceUnits,
+  costUnits: route.costUnits,
+  landCost: route.landCost,
+  legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
+});
+
 /**
- * The arrival. A foundation plants its point and the column becomes its garrison; an attack or
- * a raid engages what stands there and turns around; a return hangs its troops back on what
- * they came from.
- *
- * **The rest window of design sheet 07 forbids arrivals, never departures**, and it forbids
- * them *at a player*: a column reaching the home country of somebody at rest waits at the
- * border until the window closes. Neutral ground has nobody to wake, so nothing waits.
- *
- * **A return never engages**, and that is a decision, not an omission. It can land on ground
- * that has turned against it while it walked — the outpost it rallied to razed, an enemy camp
- * pitched inside the arrival radius — and it still only hangs its troops back up. Survivors do
- * not open a pass of resolution: the rout was the end of that engagement, and a beaten column
- * that arrives fighting would be resolved twice for one defeat (ADR 0014, one pass per
- * engagement). It stands where it arrives, at its own risk — what walks past it afterwards will
- * find it, since a posted troop defends the ground it stands on like any other.
+ * The far end of every movement (design sheet 07 for the rest window, ADR 0014 for the pass).
+ * **A return never engages**, and that is a decision: the rout ended that engagement, and a
+ * beaten column arriving in arms would be resolved twice for one defeat.
  */
 export const arrive = internalMutation({
   args: { movementId: v.id('movements') },
@@ -450,9 +353,8 @@ export const arrive = internalMutation({
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId });
-      /** **What one discovers on waking** (fiche 11 §4.1): the column is at the border and the
-       *  hour it goes through is the only fact worth a headline. Filed at the hold, once — the
-       *  reschedule lands past the window, so it cannot file a second. */
+      /** Fiche 11 §4.1. Filed at the hold, once — the reschedule lands past the window, so it
+       *  cannot file a second. */
       await ctx.db.insert('notices', {
         playerId: movement.playerId,
         at: now,
@@ -470,14 +372,9 @@ export const arrive = internalMutation({
     else if (movement.type === 'recall') await recallAt(ctx, movement);
     else await attachHome(ctx, movement);
 
-    /**
-     * **The three arrivals nothing else accounts for.** An attack and a raid leave an engagement
-     * — the journal's battle dispatches are built from that account, and a notice beside it would
-     * word the same event twice; when they meet nobody there is no account, and `engageAt` files
-     * its own. A decoy files its own too, both faces of it. A march, a recall and a return leave
-     * nothing at all, which is exactly why a player who came back after eight quiet hours read
-     * "rien à signaler".
-     */
+    /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
+     *  their own notice. Without this a player came back to "rien à signaler" after eight quiet
+     *  hours. */
     if (movement.type === 'march' || movement.type === 'recall' || movement.type === 'return') {
       await ctx.db.insert('notices', {
         playerId: movement.playerId,
@@ -493,15 +390,9 @@ export const arrive = internalMutation({
   },
 });
 
-/**
- * **The interceptor takes the initiative** (ADR 0008): the force that was already there strikes
- * first, and that is the whole point of the counter-power — a defender who reads the map right
- * is not condemned to receive the first blow at home.
- *
- * The date and the place were settled when the column left (`src/domain/interception.ts`).
- * Everything can have changed since: the interceptor may have marched off, the column may have
- * been destroyed elsewhere. Both are ordinary, and both mean nothing happens.
- */
+/** ADR 0008: the interceptor takes the initiative. Date and place were settled at departure
+ *  (`src/domain/interception.ts`), and everything can have changed since — that is ordinary, and
+ *  it means nothing happens. */
 export const intercept = internalMutation({
   args: {
     movementId: v.id('movements'),
@@ -520,13 +411,8 @@ export const intercept = internalMutation({
     if (interceptor.playerId === movement.playerId) return;
 
     const now = Date.now();
-    /**
-     * **A decoy caught on the road is not a battle, it is a discovery.** There is nobody to
-     * strike, so no engagement is opened and no round is paid for — a magazine emptied against
-     * an empty road would make the feint a weapon against the ammunition rather than against
-     * the espionage (design sheet 04). Both boards learn what happened, and the thread stops
-     * there.
-     */
+    /** **A decoy caught on the road is not a battle, it is a discovery** (design sheet 04): no
+     *  round is paid for, or the feint would be a weapon against the ammunition. */
     if (movement.type === 'decoy') {
       await exposeDecoy(ctx, movement, interceptor.playerId, now);
       await forgetMovement(ctx, movement._id);
@@ -553,10 +439,7 @@ export const intercept = internalMutation({
         .filter((outcome) => outcome.side === 'defender' && outcome.state === 'standing')
         .map((outcome) => outcome.id),
     );
-    /**
-     * **What survives the ambush keeps walking.** Breaking off the whole march would make one
-     * cheap contact worth an entire order — the column that still stands has somewhere to be.
-     */
+    /** Breaking off the whole march would make one cheap contact worth an entire order. */
     const carriedOn = movement.troopIds.filter((troopId) => left.has(troopId));
     if (carriedOn.length === 0) await forgetMovement(ctx, movement._id);
     else await ctx.db.patch(movement._id, { troopIds: carriedOn });
@@ -576,1591 +459,9 @@ export const intercept = internalMutation({
   },
 });
 
-export async function movementsOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-): Promise<Array<Doc<'movements'>>> {
-  return ctx.db
-    .query('movements')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-}
-
-export async function outpostsOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-): Promise<Array<Doc<'outposts'>>> {
-  return ctx.db
-    .query('outposts')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-}
-
-/**
- * **The board, as one season sees it** — the two sweeps this file cannot avoid, and the only
- * shape they are allowed to take. Everything that asks "what else is on the map" asks one of
- * these: the interception, the fog's watchers, the camps, the defence of a point.
- *
- * The season is what bounds them, not a page size: eight players and their columns is the whole
- * of it (ADR 0001), and a scan of that is the same order of magnitude as the garrison of an
- * outpost. What it is **not** allowed to be is the whole table: several seasons stand at once,
- * and a global sweep is a movement of one game intercepted by a garrison of another.
- */
-export async function seasonMovements(
-  ctx: QueryCtx,
-  seasonId: Id<'seasons'>,
-): Promise<Array<Doc<'movements'>>> {
-  return ctx.db
-    .query('movements')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
-}
-
-export async function seasonOutposts(
-  ctx: QueryCtx,
-  seasonId: Id<'seasons'>,
-): Promise<Array<Doc<'outposts'>>> {
-  return ctx.db
-    .query('outposts')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
-}
-
-/** The stored `{ lon, lat }` back as the tuple the domain measures distances with. */
-export const pointOf = (point: { lon: number; lat: number }): LonLat => [point.lon, point.lat];
-
-const asPoint = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
-
-/**
- * A target resolved to a place. The **legality** of marching there is not decided here: it is
- * `refusalOf` in `src/domain/movement-orders.ts`, the very function the compass rose filters its
- * fan with — one rule, so a fan can never offer what a mutation then turns down (ADR 0015).
- */
-type Aimed = {
-  readonly aim: MovementAim;
-  /** The same target in the shape the table stores, brand and all — `MovementAim` is domain
-   *  data and knows nothing of Convex ids. */
-  readonly target: Doc<'movements'>['target'];
-  readonly point: LonLat;
-  readonly name: string;
-  /**
-   * The country the destination stands in. It travels with the target rather than being read
-   * back off the aim, because a **point** does not carry it: only the geometry knows, and the
-   * geometry is consulted once, here. The open sea alone answers `''` — a country nobody plays
-   * is still a host, and is named as one.
-   */
-  readonly host: string;
-};
-
-async function aimOf(
-  ctx: QueryCtx,
-  target: Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' },
-): Promise<Aimed> {
-  /**
-   * **A point is kept as it was aimed.** Nothing looks up what stands there — that is the fog's
-   * business and the arrival's (ADR 0019 §1). The only thing read off it is the country it falls
-   * in, because a rest window is owed to whoever owns the ground, not to the ground itself; only
-   * the open sea owes none, and it alone answers the empty string that every reader treats as
-   * "no name" for a movement that left no building behind.
-   */
-  if (target.kind === 'point') {
-    const point = pointOf(target.point);
-    const country = hostAtPoint(point);
-    return {
-      aim: { kind: 'point', lon: point[0], lat: point[1] },
-      target: { kind: 'point', point: target.point },
-      point,
-      name: country,
-      host: country,
-    };
-  }
-  if (target.kind === 'outpost') {
-    const outpost = await ctx.db.get(target.outpostId);
-    if (!outpost) fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
-    return {
-      aim: { kind: 'outpost', outpostId: outpost._id, hostCountry: outpost.hostCountry },
-      target: { kind: 'outpost', outpostId: outpost._id },
-      point: pointOf(outpost.point),
-      name: outpost.hostCountry,
-      host: outpost.hostCountry,
-    };
-  }
-  const region = regionFacts(target.regionId);
-  if (!region) fail('UNKNOWN_REGION', { regionId: target.regionId });
-  return {
-    aim: { kind: 'region', regionId: region.id, country: region.country },
-    target: { kind: 'region', regionId: region.id },
-    point: region.point,
-    name: region.name,
-    host: region.country,
-  };
-}
-
-/** What the map needs to draw the thread, straight off the route the server just computed. */
-const routeFacts = (route: ComputedRoute) => ({
-  mode: route.mode,
-  points: route.points.map(asPoint),
-  distanceUnits: route.distanceUnits,
-  costUnits: route.costUnits,
-  landCost: route.landCost,
-  legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
-});
-
-/**
- * The column as the shared rule reads it: what it carries, and what its owner already holds.
- * Built from documents here, from `PlayerView` on the client — the shape is the seam.
- */
-/** The troops of an order, silently skipping what does not answer — a preview reads them to know
- *  which medium to draw in, and a hover is not the place to raise an error. */
-async function troopsAmong(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  troopIds: ReadonlyArray<Id<'troops'>>,
-): Promise<Array<Doc<'troops'>>> {
-  const troops: Array<Doc<'troops'>> = [];
-  for (const troopId of troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop && troop.playerId === playerId) troops.push(troop);
-  }
-  return troops;
-}
-
-async function columnOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  troops: ReadonlyArray<Doc<'troops'>>,
-  departure: Departure,
-): Promise<Column> {
-  const buildings = await ctx.db
-    .query('buildings')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-  return {
-    roles: troops.map((troop) => troop.role),
-    myRegionIds: new Set(buildings.map((building) => building.regionId)),
-    myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
-    departureBuildings: new Set(
-      buildings
-        .filter((building) => building.regionId === departure.regionId)
-        .map((building) => building.key),
-    ),
-  };
-}
-
-/** Where a march leaves from — a building, the outpost a column garrisons, or the plain point
- *  it was left standing on (ADR 0019 §1). Exactly one of the three, never two, never none. */
-type MarchOrigin =
-  | { readonly kind: 'building'; readonly buildingId: Id<'buildings'> }
-  | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> }
-  | { readonly kind: 'point'; readonly point: { readonly lon: number; readonly lat: number } };
-
-/** A troop's address as the row stores it. Named here because three functions compare it and
- *  one of its three forms is not an id. */
-type TroopAddress = Doc<'troops'>['stationedAt'];
-
-/**
- * **Two addresses are the same when they name the same place**: an id by identity, a point by
- * its coordinates. The point is compared as it was written — nothing rounds, because nothing
- * ever writes a second point *near* the first one: an address is copied, never re-measured.
- */
-const sameStation = (a: TroopAddress, b: TroopAddress): boolean => {
-  if (a === null || b === null) return a === b;
-  if (typeof a === 'string' || typeof b === 'string') return a === b;
-  return a.lon === b.lon && a.lat === b.lat;
-};
-
-/**
- * The origin resolved to a place. `regionId` is `null` for an outpost, and that null is the rule
- * rather than a hole: an outpost is a point, it carries no region and therefore no port and no
- * airfield — a garrison walks, it does not embark (ADR 0019 §2).
- */
-type Departure = {
-  readonly point: LonLat;
-  readonly name: string;
-  readonly regionId: string | null;
-  /** The address the troops must already be standing at to be ordered out of it. */
-  readonly stationId: TroopAddress;
-  /** What a return walks back to — an outpost keeps its garrison on the spot and needs none. */
-  readonly fromBuildingId: Id<'buildings'> | null;
-};
-
-async function departureOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  origin: MarchOrigin,
-): Promise<Departure | null> {
-  if (origin.kind === 'outpost') {
-    const outpost = await ctx.db.get(origin.outpostId);
-    if (!outpost || outpost.playerId !== playerId) return null;
-    return {
-      point: pointOf(outpost.point),
-      /** A code, never a phrase (ADR 0016): the same `hostCountry` a stored movement falls back
-       *  to when it left no building behind (`view.ts`). */
-      name: outpost.hostCountry,
-      regionId: null,
-      stationId: outpost._id,
-      fromBuildingId: null,
-    };
-  }
-  if (origin.kind === 'point') {
-    /**
-     * **A place is not a thing, so there is nothing to own here.** No document answers for it;
-     * what makes the order legitimate is that the player's own troops are standing at exactly
-     * this coordinate, which `march` checks address by address. The ground carries no building,
-     * therefore no gate: a column left on the map walks (ADR 0019 §2).
-     */
-    const point = pointOf(origin.point);
-    return {
-      point,
-      name: hostAtPoint(point),
-      regionId: null,
-      stationId: origin.point,
-      fromBuildingId: null,
-    };
-  }
-  const building = await ctx.db.get(origin.buildingId);
-  if (!building || building.playerId !== playerId) return null;
-  const region = regionFacts(building.regionId);
-  if (!region) return null;
-  return {
-    point: region.point,
-    name: region.name,
-    regionId: building.regionId,
-    stationId: building._id,
-    fromBuildingId: building._id,
-  };
-}
-
-/**
- * The next headquarters level and what it would carry, empty at the top of the format's ladder
- * — the same shape and the same reason as `capReliefOf` for the buildings: "montez le QG" is
- * advice, "un quartier général niveau 3 les porte à 4" is a plan. Both numbers come out of
- * `movementSlots`, never recopied.
- */
-const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
-  hqLevel >= SEASON_FORMATS[formatOf(season.durationHours)].maxHqLevel
-    ? {}
-    : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
-
-/**
- * **The movement slots of ADR 0006, carried by the headquarters** since the economy v2 dissolved
- * the logistics centre (ADR 0015). The count comes from `movementSlots`, the very function
- * `view.ts` fills the banner from: a placeholder constant used to cap this door at one while the
- * banner promised `1 + hqLevel`, and a player at headquarters 2 saw two slots for the one he had.
- *
- * **A return does not count against it**: it is not an order, and holding a player's only slot
- * hostage while his beaten column walks back would punish him twice for one defeat. A recall is
- * not a return — it is the one order a garrison gets — so it counts like any other, and so does
- * a decoy: a feint that cost no slot would be the reflex ADR 0006 exists to forbid.
- */
-async function claimSlot(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  season: Doc<'seasons'>,
-): Promise<void> {
-  const hqLevel = await buildingLevel(ctx, playerId, 'hq');
-  const maximum = movementSlots(hqLevel);
-  const flying = (await movementsOf(ctx, playerId)).filter(
-    (movement) => movement.type !== 'return',
-  );
-  if (flying.length >= maximum) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(season, hqLevel) });
-  }
-}
-
-async function march(
-  ctx: MutationCtx,
-  {
-    playerId,
-    season,
-    type,
-    origin,
-    troopIds,
-    aim,
-  }: {
-    playerId: Id<'players'>;
-    /** Read for the format alone — the ladder a headquarters climbs, which is what the refusal
-     *  needs to name the level that would buy the next slot. */
-    season: Doc<'seasons'>;
-    type: 'march' | 'attack' | 'raid' | 'recall';
-    origin: MarchOrigin;
-    troopIds: ReadonlyArray<Id<'troops'>>;
-    aim: Aimed;
-  },
-) {
-  await claimSlot(ctx, playerId, season);
-
-  /**
-   * **Where the column stands, and nothing more.** It no longer decides what may be asked for
-   * (ADR 0019 §1) — it only has to be the address the troops actually hang from, so that a
-   * garrison abroad is not ordered out of a barracks it is not in.
-   */
-  const departure = await departureOf(ctx, playerId, origin);
-  if (departure === null) {
-    if (origin.kind === 'outpost') fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
-    fail('UNKNOWN_BUILDING');
-  }
-
-  const troops: Array<Doc<'troops'>> = [];
-  for (const troopId of troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (!troop || troop.playerId !== playerId) fail('UNKNOWN_TROOP', { troopId });
-    if (!sameStation(troop.stationedAt, departure.stationId)) {
-      fail('TROOP_NOT_AT_ORIGIN', { troopId });
-    }
-    troops.push(troop);
-  }
-
-  /**
-   * **The refusal comes before the route**, and can again: nothing in it reads a trip any more —
-   * a pile that crosses is a pile carrying a transport, which the composition says on its own
-   * (design sheet 09). So an order the fan should never have offered costs nothing, and the fan
-   * itself can be exact, which is the whole of ADR 0015.
-   */
-  const column = await columnOf(ctx, playerId, troops, departure);
-  const refusal = refusalOf(type, aim.aim, column);
-  if (refusal !== null) fail(refusal, { type, ...liftOf(column.roles) });
-
-  const route = routeBetween(
-    departure.point,
-    aim.point,
-    routeModeOf(column.roles),
-    landCostOf(column.roles),
-  );
-  if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
-
-  const now = Date.now();
-  const minutes = await pacedMinutes(ctx, playerId, route, now);
-  const arrivesAt = now + minutes * 60_000;
-  const movementId = await ctx.db.insert('movements', {
-    seasonId: season._id,
-    playerId,
-    type,
-    fromBuildingId: departure.fromBuildingId,
-    target: aim.target,
-    from: asPoint(departure.point),
-    to: asPoint(aim.point),
-    hostCountry: aim.host,
-    points: route.points.map(asPoint),
-    legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
-    distanceUnits: route.distanceUnits,
-    costUnits: route.costUnits,
-    landCost: route.landCost,
-    troopIds: [...troopIds],
-    departedAt: now,
-    arrivesAt,
-  });
-  await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
-  /** The document rather than its parts: the sweep has to read the order exactly as the arrival
-   *  will read it, and the surest way to say that is to hand it the same row. */
-  const filed = (await ctx.db.get(movementId))!;
-  await scheduleInterception(ctx, filed);
-  await fileSightings(ctx, filed);
-  return { movementId, minutes, arrivesAt };
-}
-
-/**
- * **What the trip costs once the player's own relays are counted** (design sheet 03). It is the
- * one road to a duration in the game: the departure and the preview both come through here, so
- * the hour on the card is the hour the movement will be dated at.
- *
- * The relays are read **at departure, like everything else that times a movement** (ADR 0018
- * §3): one raided while a column is in the air does not slow down a march already gone, and one
- * founded behind it does not speed it up. A column that has left is not re-examined by anything.
- *
- * A relay serves its owner and nobody else — never an opponent, and never an ally, of which
- * there are none (ADR 0019 §5).
- */
-async function pacedMinutes(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  route: ComputedRoute,
-  at: number,
-): Promise<number> {
-  const relays = (
-    await ctx.db
-      .query('outposts')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  )
-    .filter((outpost) => outpost.specialization === 'relay')
-    .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
-    .map((outpost) => pointOf(outpost.point));
-
-  return routeMinutes(
-    relayedCostUnits({
-      route,
-      relays,
-      reachKm: OUTPOST_REACH_KM,
-      multiplier: RELAY_SPEED_MULTIPLIER,
-    }),
-  );
-}
-
-/**
- * Who a contact is with, as the scheduled pass reads it back. `CONTACT_FORCE` is the same union
- * in the shape Convex checks at run time; this is the one TypeScript reads.
- */
-type ContactForce =
-  | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> }
-  | { readonly kind: 'movement'; readonly movementId: Id<'movements'> }
-  | {
-      readonly kind: 'posted';
-      readonly playerId: Id<'players'>;
-      readonly point: { readonly lon: number; readonly lat: number };
-    };
-
-/** The one form that names its owner, which is what a sighting is filed under. */
-type PostedForce = Extract<ContactForce, { kind: 'posted' }>;
-
-/**
- * The contact is looked for **once, at departure**, against everything already on the board: an
- * outpost with a garrison stands still, a column in flight moves, and both carry the same
- * radius. It is the newcomer that looks — nothing already marching is re-examined, which is
- * what keeps a departure from costing a sweep of every pair on the map.
- */
-async function scheduleInterception(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const movementId = movement._id;
-  const { playerId, departedAt, arrivesAt } = movement;
-  const points = movement.points.map(pointOf);
-
-  /**
-   * **One pass per engagement (ADR 0014), and the arrival answers for exactly what it will
-   * resolve — no more.** The set is `defenceOf`'s own answer, asked here at departure: the same
-   * function the arrival will ask hours later, never a second reading of "who stands here" to
-   * drift from it. That is the whole point — the rule this replaces was a blind radius around
-   * the aim, and it cost the garrison of a neighbouring outpost its entire net for a raid it
-   * would never have been part of.
-   *
-   * So: a march on a point silences whatever holds ground within `ARRIVAL_RADIUS_KM` of it; a
-   * raid silences the garrison it is walking at, and it alone — the old `except`, now a case of
-   * the rule rather than a second exclusion; a march on a region silences nothing, because what
-   * answers there hangs from buildings and buildings are not swept.
-   *
-   * **The long interception is untouched everywhere else** (ADR 0019 §3): the net cast across a
-   * road does not move, only the double at its far end goes.
-   */
-  const answered = new Set<Id<'troops'>>(
-    (await defenceOf(ctx, movement))?.troops.map((troop) => troop._id) ?? [],
-  );
-  const willBeMet = (troopIds: ReadonlyArray<Id<'troops'>>): boolean =>
-    troopIds.some((troopId) => answered.has(troopId));
-
-  const sources = new Map<string, ContactForce>();
-  const standing: Array<{ id: string; point: LonLat }> = [];
-  for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
-    if (outpost.playerId === playerId) continue;
-    const garrison = await troopsStationedAt(ctx, outpost._id);
-    if (garrison.length === 0) continue;
-    if (willBeMet(garrison.map((troop) => troop._id))) continue;
-    const id = `outpost:${outpost._id}`;
-    sources.set(id, { kind: 'outpost', outpostId: outpost._id });
-    standing.push({ id, point: pointOf(outpost.point) });
-  }
-
-  const marching: Array<MarchingForce> = (await seasonMovements(ctx, movement.seasonId))
-    .filter((other) => other.playerId !== playerId && other._id !== movementId)
-    .map((other) => {
-      const id = `movement:${other._id}`;
-      sources.set(id, { kind: 'movement', movementId: other._id });
-      return {
-        id,
-        points: other.points.map(pointOf),
-        departedAt: other.departedAt,
-        arrivesAt: other.arrivesAt,
-      };
-    });
-
-  const mine = { id: `movement:${movementId}`, points, departedAt, arrivesAt };
-  const intercepted = firstInterception({
-    mine,
-    standing,
-    marching,
-    radiusKm: INTERCEPTION_RADIUS_KM,
-  });
-
-  /**
-   * **Two contacts of different natures, and they must not be read as one another.**
-   *
-   * — An **interception** is a net cast across a road, at `INTERCEPTION_RADIUS_KM` (200 km). It
-   *   is a fact *between movements* (ADR 0018 §3): a force reaches out to catch what passes.
-   * — A **crossing** is a march walking into a camp, at `ARRIVAL_RADIUS_KM` (25 km). Nobody
-   *   reaches for anything: a posted force never orders anything, it only defends the ground it
-   *   stands on (ADR 0019 §3). Two hundred kilometres would make three pawns a continental
-   *   blockade; twenty-five on a world map is a needle, and a needle is what a meeting is.
-   */
-  const posted = (await postedForces(ctx, movement.seasonId, playerId)).filter(
-    (camp) => !willBeMet(camp.troopIds),
-  );
-  for (const camp of posted) sources.set(camp.id, camp.force);
-  const crossed = firstInterception({
-    mine,
-    standing: posted,
-    marching: [],
-    radiusKm: ARRIVAL_RADIUS_KM,
-  });
-
-  /** The first on the road answers, and it alone: an engagement changes the column that comes
-   *  out of it, so what it would have met later has to be met by what is left of it. */
-  const contact = [intercepted, crossed]
-    .filter((candidate) => candidate !== null)
-    .sort((a, b) => a.at - b.at)[0];
-  if (contact === undefined) return;
-
-  await ctx.scheduler.runAt(contact.at, internal.movements.intercept, {
-    /** The identifier only ever travelled inside this function: `firstInterception` hands back
-     *  one of the ones it was given, and every one of them was filed above. */
-    by: sources.get(contact.withId)!,
-    movementId,
-    point: asPoint(contact.point),
-  });
-}
-
-/**
- * **What the departure teaches the rest of the board** (ADR 0019 §5, design sheet 04). A posted
- * troop is the fourth source of detection, after the territory, the listening station and the
- * listening outpost, and it is the shortest of them: `SCOUT_RADIUS_KM`, sixty kilometres.
- *
- * **The rows are written here, once, and never recomputed.** That is the whole answer to the
- * fan-out (`WWS/docs/technique/brouillard-et-fanout.md`): each observer reads a table of his own
- * instead of a filtered scan of every movement in flight. It is also the rule of the
- * interception, read the same way (ADR 0018 §3) — the newcomer looks at what already stands, and
- * nothing already standing is re-examined when a third force appears.
- *
- * The consequence is a design decision rather than a limit of the optimisation: **a troop posted
- * after a departure will never see that movement.** One posts a sentry in anticipation of what
- * will pass, never to catch what is passing — intelligence is a wager, not a reaction, and the
- * screen has to say so or it reads as a bug on the first day.
- *
- * **A troop in flight watches nothing**: `postedForces` skips whatever a manifest carries, which
- * is the same reading that keeps a column from defending the ground it left.
- */
-async function fileSightings(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const mine: MarchingForce = {
-    id: `movement:${movement._id}`,
-    points: movement.points.map(pointOf),
-    departedAt: movement.departedAt,
-    arrivesAt: movement.arrivesAt,
-  };
-
-  const watchers = await watchersAgainst(ctx, movement);
-  const caught: Array<Caught> = [];
-  for (const sighting of sightingsAlong({ mine, watchers })) {
-    const watcher = watchers.find((candidate) => candidate.id === sighting.id);
-    if (watcher === undefined) continue;
-    caught.push({ ...watcher, from: sighting.from, to: sighting.to });
-  }
-  caught.push(...(await crossedSoil(ctx, movement, mine)));
-  if (caught.length === 0) return;
-
-  /**
-   * **One row per observer, whatever caught the thread.** Two detectors of the same owner are
-   * one sighting: the observer is a player, not a picket line, and two rows would draw the same
-   * arc twice on the same board. The window is the union of theirs — the whole stretch he had
-   * eyes on it — and the detector kept is **the one that saw it first**, which is the only one
-   * the dispatch can honestly name. `DETECTOR_ORDER` breaks a tie between two that caught it at
-   * the same step, so the same board always names the same one.
-   */
-  const byObserver = new Map<Id<'players'>, Caught>();
-  for (const sighting of caught) {
-    const held = byObserver.get(sighting.playerId);
-    if (held === undefined) {
-      byObserver.set(sighting.playerId, sighting);
-      continue;
-    }
-    const first = earlier(held, sighting);
-    byObserver.set(sighting.playerId, {
-      ...first,
-      from: Math.min(held.from, sighting.from),
-      to: Math.max(held.to, sighting.to),
-    });
-  }
-
-  /**
-   * **The heading is the whole movement's**, and it leaks nothing the observer does not already
-   * hold: the detected arc hands him the thread's own endpoints (`detectedArcs`), so the bearing
-   * is a reading of what he can already see. What the sentence never gets is what the row never
-   * carries — no type, no composition, no nation (fiche 04).
-   */
-  const heading = bearingDegrees(pointOf(movement.from), pointOf(movement.to));
-
-  for (const [playerId, sighting] of byObserver) {
-    await ctx.db.insert('sightings', {
-      playerId,
-      movementId: movement._id,
-      from: sighting.from,
-      to: sighting.to,
-      detector: sighting.detector,
-      detectorId: sighting.detectorId,
-    });
-    /** Filed **here**, at the departure, and not on reading: the sighting is an event of the
-     *  observer's board, and a journal that recomputed it would date it from the visit. */
-    await ctx.db.insert('notices', {
-      playerId,
-      at: sighting.from,
-      kind: 'movementSighted',
-      hostCountry: sighting.hostCountry,
-      headingDegrees: heading,
-      detector: sighting.detector,
-      detectorRegion: sighting.detectorRegion,
-    });
-  }
-}
-
-/**
- * The four detectors of design sheet 04, in the order the sheet ranks them: the ground one owns,
- * then the two things one builds to hear, then the company one leaves standing. Nothing reads
- * this order as a priority of detection — every detector files the same row — it only settles
- * which of two that caught a thread at the very same step gets named.
- */
-const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
-type Detector = (typeof DETECTOR_ORDER)[number];
-
-/** What one detector knows about one thread. `playerId` is the **observer**, never the owner of
- *  what was seen — the whole table is written from the watching side. */
-type Caught = {
-  readonly playerId: Id<'players'>;
-  readonly detector: Detector;
-  readonly detectorId: Id<'buildings'> | Id<'outposts'> | null;
-  /** Where the detector stands, so the dispatch can place it without a second lookup. The
-   *  territory answers with the observer's own soil: that is exactly where it detects. */
-  readonly hostCountry: string;
-  readonly detectorRegion: string | null;
-  readonly from: number;
-  readonly to: number;
-};
-
-const earlier = (held: Caught, sighting: Caught): Caught =>
-  sighting.from < held.from ||
-  (sighting.from === held.from &&
-    DETECTOR_ORDER.indexOf(sighting.detector) < DETECTOR_ORDER.indexOf(held.detector))
-    ? sighting
-    : held;
-
-/**
- * **The three detectors that stand somewhere**, everybody's but the mover's own, each with the
- * radius its kind hears at. The territory is not among them and cannot be: it has no point and
- * no radius — it is the ground, and it is walked separately (`crossedSoil`).
- *
- * **A detector out of service hears nothing.** Only an outpost can be, and a raid is what puts
- * it there (ADR 0018 §6): silencing what one raided is the second sense of the raid, and an
- * outpost that kept listening while disabled would make that half of the rule decorative.
- */
-async function watchersAgainst(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-): Promise<ReadonlyArray<Watcher & Omit<Caught, 'from' | 'to'>>> {
-  const at = movement.departedAt;
-  const watchers: Array<Watcher & Omit<Caught, 'from' | 'to'>> = [];
-
-  for (const camp of await postedForces(ctx, movement.seasonId, movement.playerId)) {
-    watchers.push({
-      id: camp.id,
-      point: camp.point,
-      radiusKm: SCOUT_RADIUS_KM,
-      playerId: camp.force.playerId,
-      detector: 'troop',
-      detectorId: null,
-      hostCountry: hostAtPoint(camp.point),
-      detectorRegion: null,
-    });
-  }
-
-  for (const building of await seasonBuildings(ctx, movement.seasonId)) {
-    if (building.key !== 'listening' || building.playerId === movement.playerId) continue;
-    /** A station listens from the point of its region and from nothing else: it is the same
-     *  place every other rule measures a distance to, and a second one would put the same
-     *  building in two spots on the same map. */
-    const facts = regionFacts(building.regionId);
-    if (facts === null) continue;
-    watchers.push({
-      id: `station:${building._id}`,
-      point: facts.point,
-      radiusKm: LISTENING_STATION_RADIUS_KM,
-      playerId: building.playerId,
-      detector: 'station',
-      detectorId: building._id,
-      hostCountry: facts.country,
-      detectorRegion: facts.name,
-    });
-  }
-
-  for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
-    if (outpost.specialization !== 'listening' || outpost.playerId === movement.playerId) continue;
-    if (outpost.disabledUntil !== null && outpost.disabledUntil > at) continue;
-    watchers.push({
-      id: `outpost:${outpost._id}`,
-      point: pointOf(outpost.point),
-      radiusKm: OUTPOST_REACH_KM,
-      playerId: outpost.playerId,
-      detector: 'outpost',
-      detectorId: outpost._id,
-      hostCountry: outpost.hostCountry,
-      detectorRegion: null,
-    });
-  }
-
-  return watchers;
-}
-
-/**
- * **The first detector of design sheet 04, and the only one that is not a thing**: a column
- * whose road crosses a player's own soil is filed against him, with no radius in it at all. A
- * radius here would have been a border drawn in kilometres around a country that already has
- * one, and the sheet says the opposite — *c'est le sol lui-même*.
- *
- * The road is walked the way every other contact of the game is walked, and the containment is
- * asked only of the soils that can answer: the players of this season, at most eight, against
- * the hundred and fifty-five countries a full reading would test (`hostAmongCountries`).
- */
-async function crossedSoil(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  mine: MarchingForce,
-): Promise<ReadonlyArray<Caught>> {
-  const owner = await ctx.db.get(movement.playerId);
-  if (owner === null) return [];
-
-  const soils = new Map<string, Id<'players'>>();
-  for (const player of await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', owner.seasonId))
-    .collect()) {
-    if (player._id === movement.playerId) continue;
-    const home = homeCountryOf(player.nation);
-    if (home !== null) soils.set(home, player._id);
-  }
-  if (soils.size === 0) return [];
-
-  const span = mine.arrivesAt - mine.departedAt;
-  if (span <= 0) return [];
-  const windows = new Map<string, { from: number; to: number }>();
-  for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
-    const at = mine.departedAt + (index * span) / INTERCEPTION_SAMPLES;
-    const host = hostAmongCountries(positionAt(mine, at), new Set(soils.keys()));
-    if (host === '') continue;
-    const window = windows.get(host);
-    if (window === undefined) windows.set(host, { from: at, to: at });
-    else window.to = at;
-  }
-
-  return [...windows].map(([host, window]) => ({
-    playerId: soils.get(host)!,
-    detector: 'territory' as const,
-    detectorId: null,
-    hostCountry: host,
-    detectorRegion: null,
-    from: window.from,
-    to: window.to,
-  }));
-}
-
-/**
- * A movement and every row filed against it. A sighting lives in somebody else's ledger and
- * points at a thread; left behind, it is an arc the map is asked to draw from nothing. The
- * movement disappears in three places and this is the one function all three go through.
- */
-async function forgetMovement(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
-  const seen = await ctx.db
-    .query('sightings')
-    .withIndex('byMovement', (q) => q.eq('movementId', movementId))
-    .collect();
-  for (const sighting of seen) await ctx.db.delete(sighting._id);
-  await ctx.db.delete(movementId);
-}
-
-/**
- * **The camps, as a departing column sees them**: troops standing on plain ground, grouped by
- * owner and place, everybody's but the player's own. A troop keeps its address while it walks
- * (`troopIds` is a manifest, not a second attachment), so the manifests are what tell a camp
- * from a column that has already left it.
- *
- * A camp is not a document, so it has no id: what it is filed under is its owner and its point,
- * and that pair travels to the resolution whole. The `id` here never leaves this pass — it
- * groups the troops of one camp and breaks a tie between two, and nothing reads it back.
- */
-async function postedForces(
-  ctx: MutationCtx,
-  seasonId: Id<'seasons'>,
-  playerId: Id<'players'>,
-): Promise<
-  Array<{ id: string; point: LonLat; force: PostedForce; troopIds: ReadonlyArray<Id<'troops'>> }>
-> {
-  const marching = new Set<Id<'troops'>>(
-    (await seasonMovements(ctx, seasonId)).flatMap((movement) => movement.troopIds),
-  );
-  const camps = new Map<
-    string,
-    { point: LonLat; force: PostedForce; troopIds: Array<Id<'troops'>> }
-  >();
-  for (const troop of await seasonTroops(ctx, seasonId)) {
-    const address = troop.stationedAt;
-    if (troop.playerId === playerId || marching.has(troop._id)) continue;
-    if (address === null || typeof address === 'string') continue;
-    const key = `posted:${troop.playerId}@${address.lon},${address.lat}`;
-    const camp = camps.get(key) ?? {
-      point: pointOf(address),
-      force: { kind: 'posted' as const, playerId: troop.playerId, point: address },
-      troopIds: [],
-    };
-    camp.troopIds.push(troop._id);
-    camps.set(key, camp);
-  }
-  return [...camps].map(([id, camp]) => ({ id, ...camp }));
-}
-
-/**
- * **A column that finds nobody has not fought.** Buildings are not looted yet (that is the next
- * step), so an attack that arrives on empty ground turns around — no engagement, no account, and
- * nothing to show for the walk. It is the honest reading of "the fog made me march for nothing".
- */
-async function engageAt(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  /** The order, narrowed by the caller: the stored `type` is the whole vocabulary, and only two
-   *  of its words ever walk in here — the dispatch below has to name one of those two. */
-  type: 'attack' | 'raid',
-  now: number,
-): Promise<void> {
-  const owner = await ctx.db.get(movement.playerId);
-  const marching = await troopsCarriedBy(ctx, movement);
-  if (!owner || marching.length === 0) return;
-
-  const outpost =
-    movement.target.kind === 'outpost' ? await ctx.db.get(movement.target.outpostId) : null;
-  const defence = await defenceOf(ctx, movement);
-  if (defence === null) {
-    /** **An outpost nobody garrisons falls to whoever walks up to it.** There is no engagement
-     *  to file — a raid without an adversary is not a battle — but the point still goes out of
-     *  service, which is the only thing the raid came for. */
-    if (type === 'raid' && outpost !== null) await deactivate(ctx, outpost, now, null);
-    /**
-     * **The one arrival that used to leave no trace anywhere.** No pass, therefore no account,
-     * therefore nothing in the journal: a player came back to "rien à signaler" after the
-     * longest march of his season. The dispatch is the honest reading of the fog — one marched
-     * on what one believed was there.
-     */
-    await ctx.db.insert('notices', {
-      playerId: movement.playerId,
-      at: now,
-      kind: 'columnFoundNothing',
-      movementType: type,
-      hostCountry: movement.hostCountry,
-      troops: marching.length,
-    });
-    await walkHome(ctx, { winners: marching, beaten: [] }, pointOf(movement.to), now);
-    return;
-  }
-
-  const { engagementId, engagement, routed } = await resolveContact(ctx, {
-    seasonId: owner.seasonId,
-    attacker: { playerId: movement.playerId, troops: marching },
-    defender: { playerId: defence.playerId, troops: defence.troops },
-    cause: 'arrival',
-    point: movement.to,
-    hostCountry: movement.hostCountry,
-    outpostId: defence.outpostId,
-    disabledUntil: null,
-    at: now,
-  });
-
-  if (type === 'raid' && outpost !== null && engagement.winner === 'attacker') {
-    await deactivate(ctx, outpost, now, engagementId);
-  }
-
-  /**
-   * Whoever is still on his feet walks back, routed or not: the column came to fight, not to
-   * stay. On the other side, a routed **garrison** is already at its attachment and a routed
-   * building defender stands in its own region — only what hung from a point has lost the very
-   * ground it stood on, and it refluxes to its nearest anchor (ADR 0019 §3), whichever side of
-   * the pass it was on.
-   */
-  const survivors = marching.filter((troop) =>
-    engagement.outcomes.some(
-      (outcome) => outcome.id === troop._id && outcome.state !== 'destroyed',
-    ),
-  );
-  await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now);
-}
-
-/**
- * **The end of a decoy: nothing arrives.** Whatever is standing at the point finds an empty
- * road, so there is no pass to open and nobody to debit — the feint is a weapon against the
- * espionage, never against the magazine.
- *
- * `defenceOf` is asked exactly as an attack would ask it, and for the same reason: what a
- * movement meets on arrival is one question with one answer, and a decoy read by a second rule
- * would be a decoy one could tell apart by where it dies.
- */
-async function fadeAt(ctx: MutationCtx, movement: Doc<'movements'>, now: number): Promise<void> {
-  const defence = await defenceOf(ctx, movement);
-  if (defence !== null) {
-    await exposeDecoy(ctx, movement, defence.playerId, now);
-    return;
-  }
-  /** Nobody met it, so nobody but its owner ever knew it existed — which is the good ending
-   *  for a feint, and the one that leaves the adversary still guessing. */
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'decoyArrived',
-    hostCountry: movement.hostCountry,
-  });
-}
-
-/**
- * **Éventé.** The two faces of one minute, filed on the two boards it happened to: the force
- * that made contact learns the thread carried nobody, its owner learns his feint has been read.
- * Neither dispatch names the other player — a decoy exposed says nothing the contact itself did
- * not already say (design sheet 04).
- *
- * It does not erase the thread: the arrival erases its own, and the interception erases the one
- * it cut short. One function, two callers, and neither deletes a row the other already took.
- */
-async function exposeDecoy(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  caughtBy: Id<'players'>,
-  now: number,
-): Promise<void> {
-  await ctx.db.insert('notices', {
-    playerId: caughtBy,
-    at: now,
-    kind: 'decoyExposed',
-    hostCountry: movement.hostCountry,
-  });
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'decoyBlown',
-    hostCountry: movement.hostCountry,
-  });
-}
-
-/**
- * **The end of a march: the column stops walking and stands there** (ADR 0019 §3). Nothing
- * waiting, nothing to resolve — the address becomes the point, and that is the whole order.
- *
- * When something *is* waiting, the pass belongs to whoever was already on the ground:
- * `resolveContact` is handed the standing force as the **attacker**, and that is what initiative
- * means here. An attack buys its initiative by declaring itself (ADR 0014); a march declares
- * nothing, so it takes the first blow — it holds the terrain, the arrival is surprised.
- *
- * What is still on its feet stays where it walked to: the column came to stay, and losing a
- * pass it did not seek does not send it home. Only what broke contact walks back.
- */
-async function standAt(ctx: MutationCtx, movement: Doc<'movements'>, now: number): Promise<void> {
-  const owner = await ctx.db.get(movement.playerId);
-  const marching = await troopsCarriedBy(ctx, movement);
-  if (!owner || marching.length === 0) return;
-
-  const defence = await defenceOf(ctx, movement);
-  if (defence === null) {
-    for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: movement.to });
-    return;
-  }
-
-  const { engagement, routed } = await resolveContact(ctx, {
-    seasonId: owner.seasonId,
-    attacker: { playerId: defence.playerId, troops: defence.troops },
-    defender: { playerId: movement.playerId, troops: marching },
-    cause: 'arrival',
-    point: movement.to,
-    hostCountry: movement.hostCountry,
-    outpostId: defence.outpostId,
-    disabledUntil: null,
-    at: now,
-  });
-
-  const stateOf = (troopId: string) =>
-    engagement.outcomes.find((outcome) => outcome.id === troopId)?.state ?? null;
-  for (const troop of marching) {
-    if (stateOf(troop._id) === 'standing')
-      await ctx.db.patch(troop._id, { stationedAt: movement.to });
-  }
-  /** **The winner stands, the loser leaves** — including when the loser is the camp that held
-   *  the ground and lost it (ADR 0019 §3). `routed` carries both sides of the pass, so the
-   *  column that broke contact walks back from here just as the camp does. */
-  await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now);
-}
-
-/**
- * **Deactivated, never taken** (ADR 0004). The immunity window that follows is what stops a
- * relay of cheap raids from holding a point out of service for good — and destruction after
- * several raids waits for looting, so nothing here counts them.
- */
-async function deactivate(
-  ctx: MutationCtx,
-  outpost: Doc<'outposts'>,
-  now: number,
-  engagementId: Id<'engagements'> | null,
-): Promise<void> {
-  if (outpost.immuneUntil !== null && outpost.immuneUntil > now) return;
-
-  const disabledUntil = now + OUTPOST_DISABLED_HOURS * 3_600_000;
-  await ctx.db.patch(outpost._id, {
-    disabledUntil,
-    immuneUntil: disabledUntil + OUTPOST_IMMUNITY_HOURS * 3_600_000,
-  });
-  if (engagementId !== null) await ctx.db.patch(engagementId, { disabledUntil });
-  /** **For the owner, and him alone.** A raid that met no garrison files no engagement at all,
-   *  so without this the point stops paying and nothing anywhere says why. */
-  await ctx.db.insert('notices', {
-    playerId: outpost.playerId,
-    at: now,
-    kind: 'outpostDisabled',
-    hostCountry: outpost.hostCountry,
-    specialization: outpost.specialization,
-  });
-}
-
-/**
- * Where a returning column re-hangs itself. A building razed while its troops were away leaves
- * them **standing where they arrived** rather than hanging from nothing: they come home, they
- * do not die (rule 3 of the project), and since ADR 0019 §1 the map is an address — the ground
- * they walked to is the one place the game can honestly say they are.
- */
-async function attachHome(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const home = await homeOf(ctx, movement);
-  for (const troopId of movement.troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop) await ctx.db.patch(troopId, { stationedAt: home });
-  }
-}
-
-async function homeOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<TroopAddress> {
-  if (movement.fromBuildingId !== null) {
-    const station = await ctx.db.get(movement.fromBuildingId);
-    return station?._id ?? movement.to;
-  }
-  /**
-   * A rout that refluxed to one of its own outposts (ADR 0019 §3) **becomes its garrison**: the
-   * address is the outpost, exactly as a founding column's is. Razed while the return walked —
-   * the anchor is read once, at the rout, and never again — the column stands on the ground it
-   * reached rather than on nothing.
-   */
-  if (movement.target.kind === 'outpost') {
-    const outpost = await ctx.db.get(movement.target.outpostId);
-    return outpost?._id ?? movement.to;
-  }
-  /**
-   * A winner walking back to the plain ground it left (ADR 0019 §3): the point **is** the
-   * address, and the target carries it, so nothing here has to remember where the column was
-   * standing when it was ordered out.
-   */
-  if (movement.target.kind === 'point') return movement.to;
-  /**
-   * A return that left **no building behind** and rallied to no point of its own came back to
-   * national soil hanging from nothing that stands — which is what a `null` address means,
-   * written once in the schema and not reinvented here.
-   */
-  return null;
-}
-
-/**
- * Where a recalled garrison re-hangs itself. `fromBuildingId` carries no address here — the
- * column left an outpost, not a building (question 21, 18/08) — so the barracks is looked up
- * fresh, in the region the order aimed at. Razed or lost since departure, the troops still come
- * home rather than die for it: the same rule `attachHome` reads for an ordinary return.
- */
-async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const buildings =
-    movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
-  const barracks =
-    movement.target.kind === 'region'
-      ? buildingAt(buildings, 'barracks', movement.target.regionId)
-      : undefined;
-  for (const troopId of movement.troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop) await ctx.db.patch(troopId, { stationedAt: barracks ? barracks._id : movement.to });
-  }
-}
-
-/**
- * Where a rout refluxes, and where a beaten column that hung from no building goes back to
- * (ADR 0019 §3, amended 19/08): the nearest of the anchors the player already holds — his
- * capital, or one of his own outposts. It is the same set that puts the upkeep at ×1 and that
- * the aim calls recognised ground; three readers, one notion of home ground, and no frontier
- * invented here. The capital is the single home coordinate the game writes (ADR 0015), so it
- * stands for the national soil.
- *
- * **A deactivated outpost rallies all the same.** It already hosts its own garrison while out of
- * service — a raid deactivates, it never takes (ADR 0004) — so refusing the rally would invent a
- * third state for it. What deactivation suspends is its effects, never its address.
- *
- * **An ally's outpost is not an anchor**: same decision as the supply, same reason — no
- * diplomatic currency before the diplomacy.
- */
-async function nearestAnchor(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  from: LonLat,
-): Promise<{ point: LonLat; hostCountry: string; outpostId: Id<'outposts'> | null } | null> {
-  const owner = await ctx.db.get(playerId);
-  const capital =
-    owner && isNation(owner.nation) ? regionFacts(capitalRegionOf(owner.nation)) : null;
-  const home =
-    capital === null
-      ? null
-      : { point: capital.point, hostCountry: capital.country, outpostId: null };
-
-  const outposts = (await outpostsOf(ctx, playerId)).map((outpost) => ({
-    point: pointOf(outpost.point),
-    outpost,
-  }));
-  const found = nearestOutpost(from, outposts);
-  if (found === null) return home;
-  if (home !== null && distanceKm(home.point, from) <= found.km) return home;
-  return {
-    point: found.nearest.point,
-    hostCountry: found.nearest.outpost.hostCountry,
-    outpostId: found.nearest.outpost._id,
-  };
-}
-
-/**
- * Where one troop is headed when a pass lets it go, resolved to a place.
- *
- * `key` is what groups the troops sharing one road: one `return` per destination **and per
- * owner**, so a movement never carries two nations. `stranded` is the address written when no
- * route answers — the anti-death fallback (rule 3 of the project), and the only address this
- * file writes without a trip behind it.
- */
-type HomeRoad = {
-  readonly kind: 'walks';
-  readonly key: string;
-  readonly point: LonLat;
-  readonly hostCountry: string;
-  readonly target: Doc<'movements'>['target'];
-  readonly fromBuildingId: Id<'buildings'> | null;
-  readonly stranded: TroopAddress;
-};
-
-type Homeward = { readonly kind: 'stays'; readonly address: TroopAddress } | HomeRoad;
-
-/**
- * **Where?** — the first of the two questions the road home turns on.
- *
- * A **winner** goes back to the address it left from, whatever its form: a building, the outpost
- * it garrisons, or the plain point it was standing on. `stationedAt` survives the departure, and
- * that is its whole reason for being.
- *
- * A **beaten** troop whose address is not a building refluxes to its nearest anchor: the ground
- * it hung from is ground nobody holds any more, and left standing it would sit ten kilometres
- * from the force that beat it for the rest of the season — the exact opposite of the terrain
- * cleared (ADR 0018 §1). A building **is** its own anchor, so nothing changes for a column that
- * left one. The anchor is read once, here, at the rout: one founded or razed while the return
- * walks does not move its destination, the same rule as the interception and for the same
- * reason.
- */
-async function homeFor(
-  ctx: MutationCtx,
-  troop: Doc<'troops'>,
-  routed: boolean,
-  from: LonLat,
-): Promise<Homeward | null> {
-  const address = troop.stationedAt;
-  /** It hangs from nothing, which is national soil already (`homeOf`): there is nowhere to send
-   *  it back to, and no trip to make of it. */
-  if (address === null) return null;
-
-  const buildingId = typeof address === 'string' ? ctx.db.normalizeId('buildings', address) : null;
-  if (buildingId !== null) {
-    const building = await ctx.db.get(buildingId);
-    const origin = building === null ? null : regionFacts(building.regionId);
-    /** Razed while its column was away: it stays on the ground it fought on, which is an address
-     *  now (ADR 0019 §1) and no longer a hole in the model. */
-    if (building === null || origin === null) return { kind: 'stays', address: asPoint(from) };
-    return {
-      kind: 'walks',
-      key: `building:${troop.playerId}:${building._id}`,
-      point: origin.point,
-      hostCountry: origin.country,
-      target: { kind: 'home' },
-      fromBuildingId: building._id,
-      stranded: asPoint(from),
-    };
-  }
-
-  if (routed) {
-    const anchor = await nearestAnchor(ctx, troop.playerId, from);
-    /** A player without a nation has no home ground to reflux to. He comes home all the same
-     *  rather than dying for it; he just does not walk. */
-    if (anchor === null) return { kind: 'stays', address: null };
-    return {
-      kind: 'walks',
-      key: `anchor:${troop.playerId}:${anchor.outpostId ?? 'soil'}`,
-      point: anchor.point,
-      hostCountry: anchor.hostCountry,
-      /** The anchor travels as the aim it is: `attachHome` reads it back to know whether the
-       *  column becomes a garrison or comes back to national soil hanging from nothing. */
-      target:
-        anchor.outpostId === null
-          ? { kind: 'home' }
-          : { kind: 'outpost', outpostId: anchor.outpostId },
-      fromBuildingId: null,
-      stranded: null,
-    };
-  }
-
-  if (typeof address !== 'string') {
-    const point = pointOf(address);
-    return {
-      kind: 'walks',
-      key: `point:${troop.playerId}:${point[0]},${point[1]}`,
-      point,
-      /** The country is read off the geometry, exactly as a departure reads it: only the point
-       *  knows, and a point handed back by the schema knows no more than it did. */
-      hostCountry: hostAtPoint(point),
-      target: { kind: 'point', point: asPoint(point) },
-      fromBuildingId: null,
-      stranded: asPoint(from),
-    };
-  }
-
-  const outpostId = ctx.db.normalizeId('outposts', address);
-  const outpost = outpostId === null ? null : await ctx.db.get(outpostId);
-  /** Razed while its garrison was away: it stands on the ground it fought on rather than
-   *  hanging from a point that is gone (rule 3 of the project). */
-  if (outpost === null) return { kind: 'stays', address: asPoint(from) };
-  return {
-    kind: 'walks',
-    key: `outpost:${troop.playerId}:${outpost._id}`,
-    point: pointOf(outpost.point),
-    hostCountry: outpost.hostCountry,
-    target: { kind: 'outpost', outpostId: outpost._id },
-    fromBuildingId: null,
-    stranded: asPoint(from),
-  };
-}
-
-/**
- * **The road home, and nobody teleports on it** (ADR 0019 §3, amended 19/08). Two orthogonal
- * questions settle every troop a pass lets go, and they are the whole of this function.
- *
- * **Where?** `homeFor` answers it: the address it left from for a winner, the nearest anchor for
- * a beaten column that hung from no building.
- *
- * **How?** Always by a real `return`: created by the resolution, never ordered, no slot, no
- * domain gate, and it never engages what it lands on. Travel time is real for the winners as
- * much as for the beaten — it is the central lever the simulation measured, and it owns no
- * exception. This was two functions reading disjoint forms of the address, which is what kept
- * anybody from being put on two roads at once; the map below keeps that guarantee, and it closes
- * the two holes the pair left between them — the column that broke contact after leaving an
- * outpost, which neither answered for, and the winner that left a point, which used to reappear
- * where it started the instant the pass was resolved.
- */
-async function walkHome(
-  ctx: MutationCtx,
-  {
-    winners,
-    beaten,
-  }: {
-    readonly winners: ReadonlyArray<Doc<'troops'>>;
-    readonly beaten: ReadonlyArray<Doc<'troops'>>;
-  },
-  from: LonLat,
-  now: number,
-): Promise<void> {
-  /** The rout wins the tie: an attacker that came through the pass and broke contact is named on
-   *  both lists, and breaking contact is the last thing it did. A map keyed by the troop cannot
-   *  hold it twice, which is what makes two roads at once impossible rather than merely absent. */
-  const homeward = new Map<Id<'troops'>, { troop: Doc<'troops'>; routed: boolean }>();
-  for (const troop of winners) homeward.set(troop._id, { troop, routed: false });
-  for (const troop of beaten) homeward.set(troop._id, { troop, routed: true });
-
-  const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
-  for (const { troop, routed } of homeward.values()) {
-    const home = await homeFor(ctx, troop, routed, from);
-    if (home === null) continue;
-    if (home.kind === 'stays') {
-      await ctx.db.patch(troop._id, { stationedAt: home.address });
-      continue;
-    }
-    const road = roads.get(home.key) ?? { home, group: [] };
-    road.group.push(troop);
-    roads.set(home.key, road);
-  }
-
-  for (const { home, group } of roads.values()) {
-    /** **Already standing on it**, and it never left: a garrison routed on its own outpost, a
-     *  defender routed in the region its building stands in. No march, and no re-addressing
-     *  either — the address it has is the one it would come back to. */
-    if (home.point[0] === from[0] && home.point[1] === from[1]) continue;
-
-    /** A column coming home from overseas has a sea to recross; `'land'` here would find no
-     *  route at all and leave it hanging from a place it never reaches (rule 3). A return is
-     *  not an order, so it owes no port — nobody asked for it. */
-    const roles = group.map((troop) => troop.role);
-    const route = routeBetween(from, home.point, routeModeOf(roles), landCostOf(roles));
-    /** No road home — a landing whose transports sank, and nothing else. */
-    if (route === null) {
-      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: home.stranded });
-      continue;
-    }
-
-    /** A column walking home is its owner's like any other, and his relays carry it back. */
-    const arrivesAt = now + (await pacedMinutes(ctx, group[0]!.playerId, route, now)) * 60_000;
-    const movementId = await ctx.db.insert('movements', {
-      /** Read off the column itself: a return is filed by the resolution, which holds no season
-       *  of its own, and the troops walking home carry the one they were formed in. */
-      seasonId: group[0]!.seasonId,
-      playerId: group[0]!.playerId,
-      type: 'return',
-      fromBuildingId: home.fromBuildingId,
-      target: home.target,
-      from: asPoint(from),
-      to: asPoint(home.point),
-      hostCountry: home.hostCountry,
-      points: route.points.map(asPoint),
-      legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
-      distanceUnits: route.distanceUnits,
-      costUnits: route.costUnits,
-      landCost: route.landCost,
-      troopIds: group.map((troop) => troop._id),
-      departedAt: now,
-      arrivesAt,
-    });
-    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
-    /** **A return is a movement, and what moves is seen** (ADR 0005). It engages nobody — that
-     *  is the one thing it is exempt from — but a column walking home draws a thread on the map
-     *  like any other, and a second class of movement invisible to the fog would be a hole in
-     *  the rule rather than a rule of its own. */
-    await fileSightings(ctx, (await ctx.db.get(movementId))!);
-  }
-}
-
-type Defence = {
-  readonly playerId: Id<'players'>;
-  readonly troops: ReadonlyArray<Doc<'troops'>>;
-  readonly outpostId: Id<'outposts'> | null;
-};
-
-/**
- * Who answers an arrival. At an outpost, its garrison. On a region, the troops hanging from the
- * buildings that stand there — and if several nations hold ground in the same region, the one
- * with the most troops answers: an arrival is **one** engagement, and splitting the column
- * across two of them would resolve the same pass twice.
- */
-async function defenceOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<Defence | null> {
-  const target = movement.target;
-  if (target.kind === 'point') return defenceNear(ctx, movement, pointOf(target.point));
-  if (target.kind === 'outpost') {
-    const outpost = await ctx.db.get(target.outpostId);
-    if (!outpost) return null;
-    const garrison = await troopsStationedAt(ctx, outpost._id);
-    return garrison.length === 0
-      ? null
-      : { playerId: outpost.playerId, troops: garrison, outpostId: outpost._id };
-  }
-  if (target.kind !== 'region') return null;
-
-  const buildings = (await seasonBuildings(ctx, movement.seasonId)).filter(
-    (building) => building.regionId === target.regionId && building.playerId !== movement.playerId,
-  );
-
-  const byPlayer = new Map<Id<'players'>, Array<Doc<'troops'>>>();
-  for (const building of buildings) {
-    for (const troop of await troopsStationedAt(ctx, building._id)) {
-      const kept = byPlayer.get(troop.playerId) ?? [];
-      if (!kept.some((seen) => seen._id === troop._id)) kept.push(troop);
-      byPlayer.set(troop.playerId, kept);
-    }
-  }
-
-  let defender: Defence | null = null;
-  for (const [playerId, troops] of byPlayer) {
-    if (troops.length === 0) continue;
-    if (defender === null || troops.length > defender.troops.length) {
-      defender = { playerId, troops, outpostId: null };
-    }
-  }
-  return defender;
-}
-
-/**
- * **Who answers a point, by distance rather than by containment.** The server holds no polygons
- * — `region-index.json` gives one point per region, which names a place and contains nothing —
- * so "which region encloses this coordinate" has no answer here. It is the wrong question
- * anyway: what an arrival meets is what stands within `ARRIVAL_RADIUS_KM` of where it stopped,
- * which is the same reading the interception has always used (ADR 0018 §3).
- *
- * **A troop in flight stands nowhere.** It is excluded here and nowhere else, and the difference
- * is the question: an outpost is raided whether or not its garrison walked out — the address is
- * the thing being attacked — where a point asks literally who is present.
- *
- * One arrival is **one** engagement (ADR 0014): if several nations answer inside the radius, the
- * one with the most troops does, exactly as a region-aimed arrival already settles it.
- */
-async function defenceNear(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  arrival: LonLat,
-): Promise<Defence | null> {
-  const marching = new Set<Id<'troops'>>(
-    (await seasonMovements(ctx, movement.seasonId)).flatMap((other) => other.troopIds),
-  );
-  const byPlayer = new Map<
-    Id<'players'>,
-    { troops: Array<Doc<'troops'>>; outposts: Set<Id<'outposts'>> }
-  >();
-
-  for (const troop of await seasonTroops(ctx, movement.seasonId)) {
-    if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
-    const stance = await stanceOf(ctx, troop.stationedAt);
-    if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
-    const kept = byPlayer.get(troop.playerId) ?? { troops: [], outposts: new Set() };
-    kept.troops.push(troop);
-    if (stance.outpostId !== null) kept.outposts.add(stance.outpostId);
-    byPlayer.set(troop.playerId, kept);
-  }
-
-  let defender: Defence | null = null;
-  for (const [playerId, kept] of byPlayer) {
-    if (defender !== null && kept.troops.length <= defender.troops.length) continue;
-    /** The engagement names an outpost only when the defence is one: two of them answering the
-     *  same arrival is a place, not a point, and the account must not pick one of them. */
-    const [only] = [...kept.outposts];
-    defender = {
-      playerId,
-      troops: kept.troops,
-      outpostId: kept.outposts.size === 1 ? only! : null,
-    };
-  }
-  return defender;
-}
-
-/** Where an address stands on the globe. A building answers by the point of its region — the
- *  only coordinate the index carries for it — an outpost and a point by their own. `null` is a
- *  troop the game cannot place: at home, or hanging from something razed. */
-async function stanceOf(
-  ctx: MutationCtx,
-  address: TroopAddress,
-): Promise<{ point: LonLat; outpostId: Id<'outposts'> | null } | null> {
-  if (address === null) return null;
-  if (typeof address !== 'string') return { point: pointOf(address), outpostId: null };
-  const outpostId = ctx.db.normalizeId('outposts', address);
-  if (outpostId !== null) {
-    const outpost = await ctx.db.get(outpostId);
-    return outpost === null ? null : { point: pointOf(outpost.point), outpostId };
-  }
-  const buildingId = ctx.db.normalizeId('buildings', address);
-  const building = buildingId === null ? null : await ctx.db.get(buildingId);
-  const region = building === null ? null : regionFacts(building.regionId);
-  return region === null ? null : { point: region.point, outpostId: null };
-}
-
-/**
- * How far a posted troop may stand from the point a contact was filed at and still be the camp
- * that was caught there. **A technical tolerance, not a radius of the game** — it settles no
- * rule and nothing is balanced on it: it is the width of a coordinate that has been through the
- * database and back.
- *
- * A kilometre is two orders of magnitude under anything the rules measure (`ARRIVAL_RADIUS_KM`
- * is twenty-five) and orders of magnitude over any rounding, so no reading changes on it. What
- * it replaces is an equality between two floating-point numbers, in the one place a missed
- * comparison would resolve a battle against nobody and say nothing about it.
- */
-const POSTED_MATCH_KM = 1;
-
-/**
- * An interceptor is a garrison, a column, or a camp, and all three answer the same question:
- * who is here. The first two are documents; the third is not — a force posted on the map is
- * troops sharing an address, and that address is the only name it has.
- *
- * It is read **now**, not at the moment the contact was computed: a camp that has since marched
- * off answers with what is left of it, exactly as a garrison does. Hence the distance: the camp
- * is found by standing where the contact says it stood, never by matching a coordinate to the
- * digit.
- */
-async function forceOf(
-  ctx: MutationCtx,
-  force: ContactForce,
-): Promise<{
-  playerId: Id<'players'>;
-  troops: ReadonlyArray<Doc<'troops'>>;
-  movementId: Id<'movements'> | null;
-} | null> {
-  if (force.kind === 'posted') {
-    /** His own columns and nobody else's: the set exists to drop **his** troops that have walked
-     *  off the camp, and no other player's manifest can name one of them. */
-    const marching = new Set<Id<'troops'>>(
-      (await movementsOf(ctx, force.playerId)).flatMap((movement) => movement.troopIds),
-    );
-    const here = pointOf(force.point);
-    const troops = (
-      await ctx.db
-        .query('troops')
-        .withIndex('byPlayer', (q) => q.eq('playerId', force.playerId))
-        .collect()
-    ).filter((troop) => {
-      const address = troop.stationedAt;
-      if (marching.has(troop._id) || address === null || typeof address === 'string') return false;
-      return distanceKm(pointOf(address), here) <= POSTED_MATCH_KM;
-    });
-    return { playerId: force.playerId, troops, movementId: null };
-  }
-  if (force.kind === 'outpost') {
-    const outpost = await ctx.db.get(force.outpostId);
-    if (!outpost) return null;
-    return {
-      playerId: outpost.playerId,
-      troops: await troopsStationedAt(ctx, outpost._id),
-      movementId: null,
-    };
-  }
-  const movement = await ctx.db.get(force.movementId);
-  if (!movement) return null;
-  return {
-    playerId: movement.playerId,
-    troops: await troopsCarriedBy(ctx, movement),
-    movementId: movement._id,
-  };
-}
-
-async function troopsCarriedBy(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-): Promise<Array<Doc<'troops'>>> {
-  const troops: Array<Doc<'troops'>> = [];
-  for (const troopId of movement.troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop) troops.push(troop);
-  }
-  return troops;
-}
-
-/**
- * **What the player already watches — and nothing whatsoever about what stands there.** A point
- * is *recognised* when it falls on his own country or inside the reach of one of his outposts.
- * Two sources today; the list is meant to grow, and `SCOUT_RADIUS_KM` is the third
- * (`reperage-des-troupes-posees.md`) — the door is left open here on purpose.
- *
- * **It promises nothing.** It does not say an adversary is there, and above all it does not say
- * that recognised ground would be safe: a posted force is invisible everywhere, at home
- * included (ADR 0019 §6). It is information about one's own level of information, which is why
- * the server may answer it at all — there is no fog to leak.
- */
-async function recognises(ctx: QueryCtx, player: Doc<'players'>, point: LonLat): Promise<boolean> {
-  const outposts = await outpostsOf(ctx, player._id);
-  /** **Every** point of his, deactivated ones included: a raid burns the depot, it does not
-   *  blind the relay. That is the one thing this reading does not share with the upkeep's, which
-   *  is fed by standing points only (`upkeep.ts`). */
-  return isAnchored(
-    point,
-    homeCountryOf(player.nation),
-    outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
-  );
-}
-
-/**
- * When a column reaching `hostCountry` at `at` would be let in. **The rest window of design
- * sheet 07 forbids arrivals, never departures**, and it forbids them *at a player*: neutral
- * ground has nobody to wake, so it answers `null` and nothing waits.
- *
- * Shared by the arrival, which stalls the movement, and by the preview, which says so before
- * the slot is spent — two readings of one rule rather than two rules.
- */
+/** Design sheet 07: the rest window forbids arrivals at a player, never departures — neutral
+ *  ground has nobody to wake. Shared by the arrival, which stalls, and by the preview, which
+ *  says so before the slot is spent. */
 export async function restHold(
   ctx: QueryCtx,
   playerId: Id<'players'>,

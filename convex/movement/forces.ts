@@ -1,0 +1,311 @@
+/**
+ * Who and what stands on the board, and where. The four season/player sweeps every movement
+ * reads, the two point conversions, and the one question an arrival or a contact ever asks —
+ * who answers here. One arrival is one engagement (ADR 0014), a posted force defends the ground
+ * it stands on and orders nothing (ADR 0019 §3), and nothing here ever scans a whole table.
+ */
+
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { distanceKm, type LonLat } from '../../src/domain/geo';
+import { homeCountryOf, regionFacts } from '../regions';
+import { ARRIVAL_RADIUS_KM } from '../constants';
+import { seasonBuildings } from '../buildings';
+import { troopsStationedAt } from '../combat';
+import { seasonTroops } from '../troops';
+import { isAnchored } from '../upkeep';
+
+export async function movementsOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<Array<Doc<'movements'>>> {
+  return ctx.db
+    .query('movements')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+}
+
+export async function outpostsOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<Array<Doc<'outposts'>>> {
+  return ctx.db
+    .query('outposts')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+}
+
+/** **The board, as one season sees it.** The season bounds these two, not a page size (ADR 0001).
+ *  What they must **not** be is the whole table: several seasons stand at once, and a global
+ *  sweep is a movement of one game intercepted by a garrison of another. */
+export async function seasonMovements(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'movements'>>> {
+  return ctx.db
+    .query('movements')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+}
+
+export async function seasonOutposts(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'outposts'>>> {
+  return ctx.db
+    .query('outposts')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+}
+
+export const pointOf = (point: { lon: number; lat: number }): LonLat => [point.lon, point.lat];
+
+export const asPoint = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
+
+/** A troop's address as the row stores it. Named because one of its three forms is not an id. */
+export type TroopAddress = Doc<'troops'>['stationedAt'];
+
+/** Who a contact is with. `CONTACT_FORCE` is the same union in the shape Convex checks at run
+ *  time; this is the one TypeScript reads. */
+export type ContactForce =
+  | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> }
+  | { readonly kind: 'movement'; readonly movementId: Id<'movements'> }
+  | {
+      readonly kind: 'posted';
+      readonly playerId: Id<'players'>;
+      readonly point: { readonly lon: number; readonly lat: number };
+    };
+
+type PostedForce = Extract<ContactForce, { kind: 'posted' }>;
+
+/**
+ * **The camps, as a departing column sees them.** A troop keeps its address while it walks, so
+ * the manifests are what tell a camp from a column that has already left it. A camp is not a
+ * document and has no id: it is filed under its owner and its point, and the `id` here never
+ * leaves this pass.
+ */
+export async function postedForces(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  playerId: Id<'players'>,
+): Promise<
+  Array<{ id: string; point: LonLat; force: PostedForce; troopIds: ReadonlyArray<Id<'troops'>> }>
+> {
+  const marching = new Set<Id<'troops'>>(
+    (await seasonMovements(ctx, seasonId)).flatMap((movement) => movement.troopIds),
+  );
+  const camps = new Map<
+    string,
+    { point: LonLat; force: PostedForce; troopIds: Array<Id<'troops'>> }
+  >();
+  for (const troop of await seasonTroops(ctx, seasonId)) {
+    const address = troop.stationedAt;
+    if (troop.playerId === playerId || marching.has(troop._id)) continue;
+    if (address === null || typeof address === 'string') continue;
+    const key = `posted:${troop.playerId}@${address.lon},${address.lat}`;
+    const camp = camps.get(key) ?? {
+      point: pointOf(address),
+      force: { kind: 'posted' as const, playerId: troop.playerId, point: address },
+      troopIds: [],
+    };
+    camp.troopIds.push(troop._id);
+    camps.set(key, camp);
+  }
+  return [...camps].map(([id, camp]) => ({ id, ...camp }));
+}
+
+type Defence = {
+  readonly playerId: Id<'players'>;
+  readonly troops: ReadonlyArray<Doc<'troops'>>;
+  readonly outpostId: Id<'outposts'> | null;
+};
+
+/** Who answers an arrival. If several nations hold ground in the same region, the one with the
+ *  most troops answers: ADR 0014, splitting the column would resolve the same pass twice. */
+export async function defenceOf(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<Defence | null> {
+  const target = movement.target;
+  if (target.kind === 'point') return defenceNear(ctx, movement, pointOf(target.point));
+  if (target.kind === 'outpost') {
+    const outpost = await ctx.db.get(target.outpostId);
+    if (!outpost) return null;
+    const garrison = await troopsStationedAt(ctx, outpost._id);
+    return garrison.length === 0
+      ? null
+      : { playerId: outpost.playerId, troops: garrison, outpostId: outpost._id };
+  }
+  if (target.kind !== 'region') return null;
+
+  const buildings = (await seasonBuildings(ctx, movement.seasonId)).filter(
+    (building) => building.regionId === target.regionId && building.playerId !== movement.playerId,
+  );
+
+  const byPlayer = new Map<Id<'players'>, Array<Doc<'troops'>>>();
+  for (const building of buildings) {
+    for (const troop of await troopsStationedAt(ctx, building._id)) {
+      const kept = byPlayer.get(troop.playerId) ?? [];
+      if (!kept.some((seen) => seen._id === troop._id)) kept.push(troop);
+      byPlayer.set(troop.playerId, kept);
+    }
+  }
+
+  let defender: Defence | null = null;
+  for (const [playerId, troops] of byPlayer) {
+    if (troops.length === 0) continue;
+    if (defender === null || troops.length > defender.troops.length) {
+      defender = { playerId, troops, outpostId: null };
+    }
+  }
+  return defender;
+}
+
+/**
+ * **Who answers a point, by distance rather than by containment**: the server holds no polygons,
+ * so ADR 0018 §3's reading is used instead. **A troop in flight stands nowhere** — excluded here
+ * and nowhere else, because an outpost is raided whether or not its garrison walked out, where a
+ * point asks literally who is present.
+ */
+async function defenceNear(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  arrival: LonLat,
+): Promise<Defence | null> {
+  const marching = new Set<Id<'troops'>>(
+    (await seasonMovements(ctx, movement.seasonId)).flatMap((other) => other.troopIds),
+  );
+  const byPlayer = new Map<
+    Id<'players'>,
+    { troops: Array<Doc<'troops'>>; outposts: Set<Id<'outposts'>> }
+  >();
+
+  for (const troop of await seasonTroops(ctx, movement.seasonId)) {
+    if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
+    const stance = await stanceOf(ctx, troop.stationedAt);
+    if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
+    const kept = byPlayer.get(troop.playerId) ?? { troops: [], outposts: new Set() };
+    kept.troops.push(troop);
+    if (stance.outpostId !== null) kept.outposts.add(stance.outpostId);
+    byPlayer.set(troop.playerId, kept);
+  }
+
+  let defender: Defence | null = null;
+  for (const [playerId, kept] of byPlayer) {
+    if (defender !== null && kept.troops.length <= defender.troops.length) continue;
+    /** Two outposts answering the same arrival is a place, not a point, and the account must
+     *  not pick one of them. */
+    const [only] = [...kept.outposts];
+    defender = {
+      playerId,
+      troops: kept.troops,
+      outpostId: kept.outposts.size === 1 ? only! : null,
+    };
+  }
+  return defender;
+}
+
+/** A building answers by the point of its region, the only coordinate the index carries for it.
+ *  `null` is a troop the game cannot place: at home, or hanging from something razed. */
+async function stanceOf(
+  ctx: MutationCtx,
+  address: TroopAddress,
+): Promise<{ point: LonLat; outpostId: Id<'outposts'> | null } | null> {
+  if (address === null) return null;
+  if (typeof address !== 'string') return { point: pointOf(address), outpostId: null };
+  const outpostId = ctx.db.normalizeId('outposts', address);
+  if (outpostId !== null) {
+    const outpost = await ctx.db.get(outpostId);
+    return outpost === null ? null : { point: pointOf(outpost.point), outpostId };
+  }
+  const buildingId = ctx.db.normalizeId('buildings', address);
+  const building = buildingId === null ? null : await ctx.db.get(buildingId);
+  const region = building === null ? null : regionFacts(building.regionId);
+  return region === null ? null : { point: region.point, outpostId: null };
+}
+
+/** **A technical tolerance, not a radius of the game** — the width of a coordinate that has been
+ *  through the database and back. It replaces an equality between two floats, where a missed
+ *  comparison would resolve a battle against nobody and say nothing about it. */
+const POSTED_MATCH_KM = 1;
+
+/** An interceptor is a garrison, a column or a camp, read **now** and not at the moment the
+ *  contact was computed. Hence the distance: the camp is found by standing where the contact says
+ *  it stood, never by matching a coordinate to the digit. */
+export async function forceOf(
+  ctx: MutationCtx,
+  force: ContactForce,
+): Promise<{
+  playerId: Id<'players'>;
+  troops: ReadonlyArray<Doc<'troops'>>;
+  movementId: Id<'movements'> | null;
+} | null> {
+  if (force.kind === 'posted') {
+    /** His own columns and nobody else's: no other player's manifest can name one of his
+     *  troops. */
+    const marching = new Set<Id<'troops'>>(
+      (await movementsOf(ctx, force.playerId)).flatMap((movement) => movement.troopIds),
+    );
+    const here = pointOf(force.point);
+    const troops = (
+      await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', force.playerId))
+        .collect()
+    ).filter((troop) => {
+      const address = troop.stationedAt;
+      if (marching.has(troop._id) || address === null || typeof address === 'string') return false;
+      return distanceKm(pointOf(address), here) <= POSTED_MATCH_KM;
+    });
+    return { playerId: force.playerId, troops, movementId: null };
+  }
+  if (force.kind === 'outpost') {
+    const outpost = await ctx.db.get(force.outpostId);
+    if (!outpost) return null;
+    return {
+      playerId: outpost.playerId,
+      troops: await troopsStationedAt(ctx, outpost._id),
+      movementId: null,
+    };
+  }
+  const movement = await ctx.db.get(force.movementId);
+  if (!movement) return null;
+  return {
+    playerId: movement.playerId,
+    troops: await troopsCarriedBy(ctx, movement),
+    movementId: movement._id,
+  };
+}
+
+export async function troopsCarriedBy(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<Array<Doc<'troops'>>> {
+  const troops: Array<Doc<'troops'>> = [];
+  for (const troopId of movement.troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop) troops.push(troop);
+  }
+  return troops;
+}
+
+/**
+ * **What the player already watches — and nothing whatsoever about what stands there.**
+ * `SCOUT_RADIUS_KM` is meant to be the third source (`reperage-des-troupes-posees.md`). ADR 0019
+ * §6: recognised ground is not safe ground. It is information about one's own level of
+ * information, which is why the server may answer it at all — there is no fog to leak.
+ */
+export async function recognises(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  point: LonLat,
+): Promise<boolean> {
+  const outposts = await outpostsOf(ctx, player._id);
+  /** **Every** point of his, deactivated ones included: a raid burns the depot, it does not
+   *  blind the relay. `upkeep.ts` reads the same notion from standing points only. */
+  return isAnchored(
+    point,
+    homeCountryOf(player.nation),
+    outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
+  );
+}

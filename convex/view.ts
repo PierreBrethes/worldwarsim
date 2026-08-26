@@ -22,7 +22,8 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { capReliefOf, queueOf } from './constructions';
-import { movementsOf, outpostsOf, restHold } from './movements';
+import { movementsOf, outpostsOf } from './movement/forces';
+import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
