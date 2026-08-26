@@ -4,10 +4,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { api } from './_generated/api';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { landCostOf } from '../src/domain/movement-orders';
 import { nominalStrength, routeMinutes, SCOUT_RADIUS_KM } from './constants';
+import { GAME_TABLES } from './dev';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
@@ -268,5 +269,13 @@ describe('no table is swept whole', () => {
   it('scans the server code rather than an empty list', () => {
     expect(sources).toContain('movements.ts');
     expect(sources.length).toBeGreaterThan(10);
+  });
+
+  /** **What earns `dev.ts` its exemption**: it is whitelisted because it has to read every table
+   *  whole, so the least it owes is to read *all* of them. A slice that lands mid-season is
+   *  emptied and never migrated (ADR 0001) — a table missing from the wipe is the one thing that
+   *  would make "reset the base" a false answer. */
+  it('wipes every table of the schema, since it migrates none of them', () => {
+    expect([...GAME_TABLES].sort()).toEqual(Object.keys(schema.tables).sort());
   });
 });
