@@ -148,25 +148,24 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 14px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
-  animation: gauge-inflow 2.4s linear infinite;
+  width: 26px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  animation: gauge-inflow 1.8s linear infinite;
 }
 
 @keyframes gauge-inflow {
   from {
-    left: -14px;
+    left: -26px;
   }
   to {
     left: 100%;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .gauge-inflow {
-    display: none;
-  }
-}
+/* No `prefers-reduced-motion` guard here, on purpose: this sweep is not decoration, it is the
+   only thing on the panel that distinguishes a reserve that is filling from one that is stuck,
+   and hiding it takes the information away rather than the motion. It is 26 px sliding inside a
+   4 px bar — nothing that triggers vestibular trouble. */
 
 /* Moving from one newspaper screen to another is a page being turned:
    the axis is the left fold, never a crossfade. */

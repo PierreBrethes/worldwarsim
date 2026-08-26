@@ -33,9 +33,10 @@ export function Gauge({
   inflow?: number | null;
 }) {
   const ratio = Math.max(0, Math.min(1, filled));
-  // Only the green stretch sweeps: past the mark the inflow is the problem, and the colour
-  // has already said so — a bar that celebrates what it is warning about says neither.
-  const flowing = inflow !== null && inflow > 0 && ratio < SATURATION_MARK;
+  // The sweep says "something is still coming in", which stays true right up to the ceiling:
+  // green and amber both run. Only saturation stops it — there, what arrives is lost, and the
+  // red bar is warning about the very flow the light would be celebrating.
+  const flowing = inflow !== null && inflow > 0 && ratio < 1;
 
   return (
     <div
