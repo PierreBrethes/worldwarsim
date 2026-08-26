@@ -56,10 +56,19 @@ export function requirePlayable(season: Doc<'seasons'>): void {
  * movement, a batch and a construction all hang from a player, none of them from a season.
  */
 export async function seasonStillPlays(ctx: QueryCtx, playerId: Id<'players'>): Promise<boolean> {
+  return (await playingSeason(ctx, playerId)) !== null;
+}
+
+/** The same reading, handing back the season rather than a yes: a job that writes a row needs
+ *  the season to stamp it with, and reading it twice is two chances to read two different ones. */
+export async function playingSeason(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<Doc<'seasons'> | null> {
   const player = await ctx.db.get(playerId);
-  if (!player) return false;
+  if (!player) return null;
   const season = await ctx.db.get(player.seasonId);
-  return season?.status === 'launched';
+  return season?.status === 'launched' ? season : null;
 }
 
 /** What a season has to be to be **looked at**. A concluded one passes: it is the game one
@@ -115,6 +124,7 @@ async function endow(
     });
   }
   const hq = await ctx.db.insert('buildings', {
+    seasonId: player.seasonId,
     playerId: player._id,
     key: 'hq',
     regionId: capitalRegionOf(player.nation),
@@ -134,6 +144,7 @@ async function endow(
    */
   const strength = nominalStrength('infantry', 1);
   await ctx.db.insert('troops', {
+    seasonId: player.seasonId,
     playerId: player._id,
     role: 'infantry',
     tier: 1,

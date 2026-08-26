@@ -4,7 +4,14 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
-import { firstInterception, sightingsAlong, type MarchingForce } from '../src/domain/interception';
+import {
+  firstInterception,
+  INTERCEPTION_SAMPLES,
+  positionAt,
+  sightingsAlong,
+  type MarchingForce,
+  type Watcher,
+} from '../src/domain/interception';
 import {
   DECOY_PACE,
   foundingRefusal,
@@ -22,14 +29,18 @@ import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 import { windowExit } from '../src/domain/rest-window';
 import type { BuildingKey } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
-import { buildingAt, buildingLevel, playerBuildings } from './buildings';
+import { relayedCostUnits } from '../src/domain/route-timing';
+import { buildingAt, buildingLevel, playerBuildings, seasonBuildings } from './buildings';
 import { resolveContact, troopsStationedAt } from './combat';
 import {
   ARRIVAL_RADIUS_KM,
   DECOY_COST,
   INTERCEPTION_RADIUS_KM,
+  LISTENING_STATION_RADIUS_KM,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_IMMUNITY_HOURS,
+  OUTPOST_REACH_KM,
+  RELAY_SPEED_MULTIPLIER,
   routeMinutes,
   SCOUT_RADIUS_KM,
   SEASON_FORMATS,
@@ -38,7 +49,8 @@ import {
 import { fail } from './errors';
 import { debit } from './resources';
 import { capitalRegionOf, homeCountryOf, nearestRegion, regionFacts } from './regions';
-import { hostAtPoint, routeBetween } from './routes';
+import { hostAmongCountries, hostAtPoint, routeBetween } from './routes';
+import { seasonTroops } from './troops';
 import { isAnchored } from './upkeep';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import {
@@ -116,6 +128,7 @@ export const foundOutpostHere = mutation({
     if (refusal !== null) fail(refusal, {});
 
     const outpostId = await ctx.db.insert('outposts', {
+      seasonId: season._id,
       playerId: player._id,
       point,
       hostCountry: hostAtPoint(pointOf(point)),
@@ -269,9 +282,13 @@ export const decoy = mutation({
     const now = Date.now();
     await debit(ctx, player._id, DECOY_COST, now);
 
-    const minutes = routeMinutes(route.costUnits);
+    /** **A feint is timed like a march or it is not a feint**: a decoy that ignored its owner's
+     *  relays would arrive at an hour no real column of his ever keeps, and the fog would tell
+     *  the two apart on the clock alone. */
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     const movementId = await ctx.db.insert('movements', {
+      seasonId: season._id,
       playerId: player._id,
       type: 'decoy',
       fromBuildingId: departure.fromBuildingId,
@@ -381,11 +398,15 @@ export const preview = query({
     if (route === null) return null;
 
     const now = Date.now();
-    const minutes = routeMinutes(route.costUnits);
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     return {
       minutes,
       arrivesAt,
+      /** What the relays took off the trip, in minutes, and `0` when none of them watches this
+       *  road. The card owes the player the reason for an hour he did not expect — an
+       *  acceleration nothing on screen accounts for reads as a bug, not as a reward. */
+      relayed: routeMinutes(route.costUnits) - minutes,
       /** Where the column would wait if it walked into a sleeping nation's window. */
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       /** What the player knows about the ground he is pointing at — see `recognises`. */
@@ -572,6 +593,36 @@ export async function outpostsOf(
   return ctx.db
     .query('outposts')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+}
+
+/**
+ * **The board, as one season sees it** — the two sweeps this file cannot avoid, and the only
+ * shape they are allowed to take. Everything that asks "what else is on the map" asks one of
+ * these: the interception, the fog's watchers, the camps, the defence of a point.
+ *
+ * The season is what bounds them, not a page size: eight players and their columns is the whole
+ * of it (ADR 0001), and a scan of that is the same order of magnitude as the garrison of an
+ * outpost. What it is **not** allowed to be is the whole table: several seasons stand at once,
+ * and a global sweep is a movement of one game intercepted by a garrison of another.
+ */
+export async function seasonMovements(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'movements'>>> {
+  return ctx.db
+    .query('movements')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+}
+
+export async function seasonOutposts(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'outposts'>>> {
+  return ctx.db
+    .query('outposts')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
 }
 
@@ -879,9 +930,10 @@ async function march(
   if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
 
   const now = Date.now();
-  const minutes = routeMinutes(route.costUnits);
+  const minutes = await pacedMinutes(ctx, playerId, route, now);
   const arrivesAt = now + minutes * 60_000;
   const movementId = await ctx.db.insert('movements', {
+    seasonId: season._id,
     playerId,
     type,
     fromBuildingId: departure.fromBuildingId,
@@ -905,6 +957,44 @@ async function march(
   await scheduleInterception(ctx, filed);
   await fileSightings(ctx, filed);
   return { movementId, minutes, arrivesAt };
+}
+
+/**
+ * **What the trip costs once the player's own relays are counted** (design sheet 03). It is the
+ * one road to a duration in the game: the departure and the preview both come through here, so
+ * the hour on the card is the hour the movement will be dated at.
+ *
+ * The relays are read **at departure, like everything else that times a movement** (ADR 0018
+ * §3): one raided while a column is in the air does not slow down a march already gone, and one
+ * founded behind it does not speed it up. A column that has left is not re-examined by anything.
+ *
+ * A relay serves its owner and nobody else — never an opponent, and never an ally, of which
+ * there are none (ADR 0019 §5).
+ */
+async function pacedMinutes(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  route: ComputedRoute,
+  at: number,
+): Promise<number> {
+  const relays = (
+    await ctx.db
+      .query('outposts')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()
+  )
+    .filter((outpost) => outpost.specialization === 'relay')
+    .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
+    .map((outpost) => pointOf(outpost.point));
+
+  return routeMinutes(
+    relayedCostUnits({
+      route,
+      relays,
+      reachKm: OUTPOST_REACH_KM,
+      multiplier: RELAY_SPEED_MULTIPLIER,
+    }),
+  );
 }
 
 /**
@@ -958,7 +1048,7 @@ async function scheduleInterception(ctx: MutationCtx, movement: Doc<'movements'>
 
   const sources = new Map<string, ContactForce>();
   const standing: Array<{ id: string; point: LonLat }> = [];
-  for (const outpost of await ctx.db.query('outposts').collect()) {
+  for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
     if (outpost.playerId === playerId) continue;
     const garrison = await troopsStationedAt(ctx, outpost._id);
     if (garrison.length === 0) continue;
@@ -968,7 +1058,7 @@ async function scheduleInterception(ctx: MutationCtx, movement: Doc<'movements'>
     standing.push({ id, point: pointOf(outpost.point) });
   }
 
-  const marching: Array<MarchingForce> = (await ctx.db.query('movements').collect())
+  const marching: Array<MarchingForce> = (await seasonMovements(ctx, movement.seasonId))
     .filter((other) => other.playerId !== playerId && other._id !== movementId)
     .map((other) => {
       const id = `movement:${other._id}`;
@@ -999,7 +1089,9 @@ async function scheduleInterception(ctx: MutationCtx, movement: Doc<'movements'>
    *   stands on (ADR 0019 §3). Two hundred kilometres would make three pawns a continental
    *   blockade; twenty-five on a world map is a needle, and a needle is what a meeting is.
    */
-  const posted = (await postedForces(ctx, playerId)).filter((camp) => !willBeMet(camp.troopIds));
+  const posted = (await postedForces(ctx, movement.seasonId, playerId)).filter(
+    (camp) => !willBeMet(camp.troopIds),
+  );
   for (const camp of posted) sources.set(camp.id, camp.force);
   const crossed = firstInterception({
     mine,
@@ -1044,33 +1136,44 @@ async function scheduleInterception(ctx: MutationCtx, movement: Doc<'movements'>
  * is the same reading that keeps a column from defending the ground it left.
  */
 async function fileSightings(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
-  const camps = await postedForces(ctx, movement.playerId);
-  if (camps.length === 0) return;
+  const mine: MarchingForce = {
+    id: `movement:${movement._id}`,
+    points: movement.points.map(pointOf),
+    departedAt: movement.departedAt,
+    arrivesAt: movement.arrivesAt,
+  };
 
-  const seen = sightingsAlong({
-    mine: {
-      id: `movement:${movement._id}`,
-      points: movement.points.map(pointOf),
-      departedAt: movement.departedAt,
-      arrivesAt: movement.arrivesAt,
-    },
-    watchers: camps.map((camp) => ({ id: camp.id, point: camp.point })),
-    radiusKm: SCOUT_RADIUS_KM,
-  });
+  const watchers = await watchersAgainst(ctx, movement);
+  const caught: Array<Caught> = [];
+  for (const sighting of sightingsAlong({ mine, watchers })) {
+    const watcher = watchers.find((candidate) => candidate.id === sighting.id);
+    if (watcher === undefined) continue;
+    caught.push({ ...watcher, from: sighting.from, to: sighting.to });
+  }
+  caught.push(...(await crossedSoil(ctx, movement, mine)));
+  if (caught.length === 0) return;
 
-  /** Two camps of the same owner watching the same thread are one sighting: the observer is a
-   *  player, not a pile, and he would otherwise read the same arc twice on his board. */
-  const byObserver = new Map<Id<'players'>, { from: number; to: number }>();
-  for (const sighting of seen) {
-    const camp = camps.find((candidate) => candidate.id === sighting.id);
-    if (camp === undefined) continue;
-    const held = byObserver.get(camp.force.playerId);
-    byObserver.set(
-      camp.force.playerId,
-      held === undefined
-        ? { from: sighting.from, to: sighting.to }
-        : { from: Math.min(held.from, sighting.from), to: Math.max(held.to, sighting.to) },
-    );
+  /**
+   * **One row per observer, whatever caught the thread.** Two detectors of the same owner are
+   * one sighting: the observer is a player, not a picket line, and two rows would draw the same
+   * arc twice on the same board. The window is the union of theirs — the whole stretch he had
+   * eyes on it — and the detector kept is **the one that saw it first**, which is the only one
+   * the dispatch can honestly name. `DETECTOR_ORDER` breaks a tie between two that caught it at
+   * the same step, so the same board always names the same one.
+   */
+  const byObserver = new Map<Id<'players'>, Caught>();
+  for (const sighting of caught) {
+    const held = byObserver.get(sighting.playerId);
+    if (held === undefined) {
+      byObserver.set(sighting.playerId, sighting);
+      continue;
+    }
+    const first = earlier(held, sighting);
+    byObserver.set(sighting.playerId, {
+      ...first,
+      from: Math.min(held.from, sighting.from),
+      to: Math.max(held.to, sighting.to),
+    });
   }
 
   /**
@@ -1081,23 +1184,175 @@ async function fileSightings(ctx: MutationCtx, movement: Doc<'movements'>): Prom
    */
   const heading = bearingDegrees(pointOf(movement.from), pointOf(movement.to));
 
-  for (const [playerId, window] of byObserver) {
+  for (const [playerId, sighting] of byObserver) {
     await ctx.db.insert('sightings', {
       playerId,
       movementId: movement._id,
-      from: window.from,
-      to: window.to,
+      from: sighting.from,
+      to: sighting.to,
+      detector: sighting.detector,
+      detectorId: sighting.detectorId,
     });
     /** Filed **here**, at the departure, and not on reading: the sighting is an event of the
      *  observer's board, and a journal that recomputed it would date it from the visit. */
     await ctx.db.insert('notices', {
       playerId,
-      at: window.from,
+      at: sighting.from,
       kind: 'movementSighted',
-      hostCountry: hostAtPoint(camps.find((camp) => camp.force.playerId === playerId)!.point),
+      hostCountry: sighting.hostCountry,
       headingDegrees: heading,
+      detector: sighting.detector,
+      detectorRegion: sighting.detectorRegion,
     });
   }
+}
+
+/**
+ * The four detectors of design sheet 04, in the order the sheet ranks them: the ground one owns,
+ * then the two things one builds to hear, then the company one leaves standing. Nothing reads
+ * this order as a priority of detection — every detector files the same row — it only settles
+ * which of two that caught a thread at the very same step gets named.
+ */
+const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
+type Detector = (typeof DETECTOR_ORDER)[number];
+
+/** What one detector knows about one thread. `playerId` is the **observer**, never the owner of
+ *  what was seen — the whole table is written from the watching side. */
+type Caught = {
+  readonly playerId: Id<'players'>;
+  readonly detector: Detector;
+  readonly detectorId: Id<'buildings'> | Id<'outposts'> | null;
+  /** Where the detector stands, so the dispatch can place it without a second lookup. The
+   *  territory answers with the observer's own soil: that is exactly where it detects. */
+  readonly hostCountry: string;
+  readonly detectorRegion: string | null;
+  readonly from: number;
+  readonly to: number;
+};
+
+const earlier = (held: Caught, sighting: Caught): Caught =>
+  sighting.from < held.from ||
+  (sighting.from === held.from &&
+    DETECTOR_ORDER.indexOf(sighting.detector) < DETECTOR_ORDER.indexOf(held.detector))
+    ? sighting
+    : held;
+
+/**
+ * **The three detectors that stand somewhere**, everybody's but the mover's own, each with the
+ * radius its kind hears at. The territory is not among them and cannot be: it has no point and
+ * no radius — it is the ground, and it is walked separately (`crossedSoil`).
+ *
+ * **A detector out of service hears nothing.** Only an outpost can be, and a raid is what puts
+ * it there (ADR 0018 §6): silencing what one raided is the second sense of the raid, and an
+ * outpost that kept listening while disabled would make that half of the rule decorative.
+ */
+async function watchersAgainst(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<ReadonlyArray<Watcher & Omit<Caught, 'from' | 'to'>>> {
+  const at = movement.departedAt;
+  const watchers: Array<Watcher & Omit<Caught, 'from' | 'to'>> = [];
+
+  for (const camp of await postedForces(ctx, movement.seasonId, movement.playerId)) {
+    watchers.push({
+      id: camp.id,
+      point: camp.point,
+      radiusKm: SCOUT_RADIUS_KM,
+      playerId: camp.force.playerId,
+      detector: 'troop',
+      detectorId: null,
+      hostCountry: hostAtPoint(camp.point),
+      detectorRegion: null,
+    });
+  }
+
+  for (const building of await seasonBuildings(ctx, movement.seasonId)) {
+    if (building.key !== 'listening' || building.playerId === movement.playerId) continue;
+    /** A station listens from the point of its region and from nothing else: it is the same
+     *  place every other rule measures a distance to, and a second one would put the same
+     *  building in two spots on the same map. */
+    const facts = regionFacts(building.regionId);
+    if (facts === null) continue;
+    watchers.push({
+      id: `station:${building._id}`,
+      point: facts.point,
+      radiusKm: LISTENING_STATION_RADIUS_KM,
+      playerId: building.playerId,
+      detector: 'station',
+      detectorId: building._id,
+      hostCountry: facts.country,
+      detectorRegion: facts.name,
+    });
+  }
+
+  for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
+    if (outpost.specialization !== 'listening' || outpost.playerId === movement.playerId) continue;
+    if (outpost.disabledUntil !== null && outpost.disabledUntil > at) continue;
+    watchers.push({
+      id: `outpost:${outpost._id}`,
+      point: pointOf(outpost.point),
+      radiusKm: OUTPOST_REACH_KM,
+      playerId: outpost.playerId,
+      detector: 'outpost',
+      detectorId: outpost._id,
+      hostCountry: outpost.hostCountry,
+      detectorRegion: null,
+    });
+  }
+
+  return watchers;
+}
+
+/**
+ * **The first detector of design sheet 04, and the only one that is not a thing**: a column
+ * whose road crosses a player's own soil is filed against him, with no radius in it at all. A
+ * radius here would have been a border drawn in kilometres around a country that already has
+ * one, and the sheet says the opposite — *c'est le sol lui-même*.
+ *
+ * The road is walked the way every other contact of the game is walked, and the containment is
+ * asked only of the soils that can answer: the players of this season, at most eight, against
+ * the hundred and fifty-five countries a full reading would test (`hostAmongCountries`).
+ */
+async function crossedSoil(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  mine: MarchingForce,
+): Promise<ReadonlyArray<Caught>> {
+  const owner = await ctx.db.get(movement.playerId);
+  if (owner === null) return [];
+
+  const soils = new Map<string, Id<'players'>>();
+  for (const player of await ctx.db
+    .query('players')
+    .withIndex('bySeason', (q) => q.eq('seasonId', owner.seasonId))
+    .collect()) {
+    if (player._id === movement.playerId) continue;
+    const home = homeCountryOf(player.nation);
+    if (home !== null) soils.set(home, player._id);
+  }
+  if (soils.size === 0) return [];
+
+  const span = mine.arrivesAt - mine.departedAt;
+  if (span <= 0) return [];
+  const windows = new Map<string, { from: number; to: number }>();
+  for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
+    const at = mine.departedAt + (index * span) / INTERCEPTION_SAMPLES;
+    const host = hostAmongCountries(positionAt(mine, at), new Set(soils.keys()));
+    if (host === '') continue;
+    const window = windows.get(host);
+    if (window === undefined) windows.set(host, { from: at, to: at });
+    else window.to = at;
+  }
+
+  return [...windows].map(([host, window]) => ({
+    playerId: soils.get(host)!,
+    detector: 'territory' as const,
+    detectorId: null,
+    hostCountry: host,
+    detectorRegion: null,
+    from: window.from,
+    to: window.to,
+  }));
 }
 
 /**
@@ -1126,18 +1381,19 @@ async function forgetMovement(ctx: MutationCtx, movementId: Id<'movements'>): Pr
  */
 async function postedForces(
   ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
   playerId: Id<'players'>,
 ): Promise<
   Array<{ id: string; point: LonLat; force: PostedForce; troopIds: ReadonlyArray<Id<'troops'>> }>
 > {
   const marching = new Set<Id<'troops'>>(
-    (await ctx.db.query('movements').collect()).flatMap((movement) => movement.troopIds),
+    (await seasonMovements(ctx, seasonId)).flatMap((movement) => movement.troopIds),
   );
   const camps = new Map<
     string,
     { point: LonLat; force: PostedForce; troopIds: Array<Id<'troops'>> }
   >();
-  for (const troop of await ctx.db.query('troops').collect()) {
+  for (const troop of await seasonTroops(ctx, seasonId)) {
     const address = troop.stationedAt;
     if (troop.playerId === playerId || marching.has(troop._id)) continue;
     if (address === null || typeof address === 'string') continue;
@@ -1643,8 +1899,12 @@ async function walkHome(
       continue;
     }
 
-    const arrivesAt = now + routeMinutes(route.costUnits) * 60_000;
+    /** A column walking home is its owner's like any other, and his relays carry it back. */
+    const arrivesAt = now + (await pacedMinutes(ctx, group[0]!.playerId, route, now)) * 60_000;
     const movementId = await ctx.db.insert('movements', {
+      /** Read off the column itself: a return is filed by the resolution, which holds no season
+       *  of its own, and the troops walking home carry the one they were formed in. */
+      seasonId: group[0]!.seasonId,
       playerId: group[0]!.playerId,
       type: 'return',
       fromBuildingId: home.fromBuildingId,
@@ -1695,7 +1955,7 @@ async function defenceOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<
   }
   if (target.kind !== 'region') return null;
 
-  const buildings = (await ctx.db.query('buildings').collect()).filter(
+  const buildings = (await seasonBuildings(ctx, movement.seasonId)).filter(
     (building) => building.regionId === target.regionId && building.playerId !== movement.playerId,
   );
 
@@ -1738,14 +1998,14 @@ async function defenceNear(
   arrival: LonLat,
 ): Promise<Defence | null> {
   const marching = new Set<Id<'troops'>>(
-    (await ctx.db.query('movements').collect()).flatMap((other) => other.troopIds),
+    (await seasonMovements(ctx, movement.seasonId)).flatMap((other) => other.troopIds),
   );
   const byPlayer = new Map<
     Id<'players'>,
     { troops: Array<Doc<'troops'>>; outposts: Set<Id<'outposts'>> }
   >();
 
-  for (const troop of await ctx.db.query('troops').collect()) {
+  for (const troop of await seasonTroops(ctx, movement.seasonId)) {
     if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
     const stance = await stanceOf(ctx, troop.stationedAt);
     if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
@@ -1822,8 +2082,10 @@ async function forceOf(
   movementId: Id<'movements'> | null;
 } | null> {
   if (force.kind === 'posted') {
+    /** His own columns and nobody else's: the set exists to drop **his** troops that have walked
+     *  off the camp, and no other player's manifest can name one of them. */
     const marching = new Set<Id<'troops'>>(
-      (await ctx.db.query('movements').collect()).flatMap((movement) => movement.troopIds),
+      (await movementsOf(ctx, force.playerId)).flatMap((movement) => movement.troopIds),
     );
     const here = pointOf(force.point);
     const troops = (

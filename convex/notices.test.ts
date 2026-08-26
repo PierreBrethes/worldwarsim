@@ -83,7 +83,10 @@ async function raise(
   regionId: string,
 ): Promise<Id<'buildings'>> {
   const playerId = await playerOf(t, token);
-  return t.run(async (ctx) => ctx.db.insert('buildings', { playerId, key, regionId, level: 1 }));
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+  });
 }
 
 async function form(
@@ -94,16 +97,18 @@ async function form(
 ): Promise<Id<'troops'>> {
   const playerId = await playerOf(t, token);
   const strength = nominalStrength(role, 1);
-  return t.run(async (ctx) =>
-    ctx.db.insert('troops', {
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('troops', {
+      seasonId,
       playerId,
       role,
       tier: 1,
       nominalStrength: strength,
       currentStrength: strength,
       stationedAt,
-    }),
-  );
+    });
+  });
 }
 
 async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
@@ -263,6 +268,7 @@ describe('what the jobs file for the journal', () => {
     const guestId = await playerOf(t, guest);
     await t.run(async (ctx) =>
       ctx.db.insert('outposts', {
+        seasonId: (await ctx.db.get(guestId))!.seasonId,
         playerId: guestId,
         point: asPoint(point),
         hostCountry: 'ROU',
@@ -323,10 +329,22 @@ describe('what the jobs file for the journal', () => {
 
     const [sighted] = await noticesOf(t, guest, 'movementSighted');
     expect(sighted).toBeDefined();
-    // A place and a heading, and nothing else exists to file: no type, no nation.
+    // A place, a heading and what caught it — nothing else exists to file: no type, no nation.
+    // The detector is the observer's own, so naming it leaks nothing about what walked past.
     expect(Object.keys(sighted!).sort()).toEqual(
-      ['_creationTime', '_id', 'at', 'headingDegrees', 'hostCountry', 'kind', 'playerId'].sort(),
+      [
+        '_creationTime',
+        '_id',
+        'at',
+        'detector',
+        'detectorRegion',
+        'headingDegrees',
+        'hostCountry',
+        'kind',
+        'playerId',
+      ].sort(),
     );
+    expect(sighted).toMatchObject({ detector: 'troop', detectorRegion: null });
     expect(await noticesOf(t, token, 'movementSighted')).toEqual([]);
   });
 

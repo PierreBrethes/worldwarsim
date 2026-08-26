@@ -76,6 +76,22 @@ export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
 
 /**
+ * **What saw a movement go past** (design sheet 04). Four detectors, in the order the sheet
+ * ranks them: the soil itself, the listening station, the listening outpost, and the posted
+ * troop that was the only one in the code until now.
+ *
+ * The territory has no radius and no document — it is the ground, not a thing standing on it —
+ * so `detectorId` is null for it, as it is for a camp: a posted force is a pile at a point, and
+ * a pile is not a row (`postedForces`).
+ */
+export const DETECTOR = v.union(
+  v.literal('territory'),
+  v.literal('station'),
+  v.literal('outpost'),
+  v.literal('troop'),
+);
+
+/**
  * **What the journal owes a player, one shape per kind** — a union of whole documents rather
  * than one document with nine optional fields (convention §8). A sighting structurally carries
  * no building and a finished site no heading, so no job can file a row half-filled and no
@@ -151,6 +167,10 @@ export const NOTICE = v.union(
     kind: v.literal('movementSighted'),
     hostCountry: v.string(),
     headingDegrees: v.number(),
+    detector: DETECTOR,
+    /** The region a station listens from, and nothing else: it is the one detector the player
+     *  can point at on his own map by name. A country would not tell two stations apart. */
+    detectorRegion: v.union(v.string(), v.null()),
   }),
   /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
    *  else on the board says it, and it is the difference between a defeat and a supply fault. */

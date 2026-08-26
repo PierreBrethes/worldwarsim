@@ -542,6 +542,13 @@ function SurveyedCard({
           {schedule}
         </span>
       </div>
+      {/* **Par quoi**, sous le cap. C'est la seule ligne de la fiche qui parle du lecteur et non
+          de la colonne — et sans elle, quatre détecteurs payés se lisent tous pareil. */}
+      <div className="mt-[2px] pl-[13px] text-[10px] text-[var(--paper-dim-2)]">
+        {arc.detector === 'station' && arc.detectorRegion !== null
+          ? fr.troops.intelByStation(arc.detectorRegion)
+          : fr.troops.intelBy(fr.detectors[arc.detector])}
+      </div>
     </div>
   );
 }

@@ -91,7 +91,16 @@ describe('the journal', () => {
       [],
       null,
       [],
-      [{ kind: 'movementSighted', at: NOON, hostCountry: 'FRA', headingDegrees: 45 }],
+      [
+        {
+          kind: 'movementSighted',
+          at: NOON,
+          hostCountry: 'FRA',
+          headingDegrees: 45,
+          detector: 'troop',
+          detectorRegion: null,
+        },
+      ],
     );
 
     expect(sighted!.text).toContain('inconnue');

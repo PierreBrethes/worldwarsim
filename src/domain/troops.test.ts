@@ -64,6 +64,8 @@ const arcs: ReadonlyArray<ArcView> = [
   },
   {
     state: 'enemyDetected',
+    detector: 'troop',
+    detectorRegion: null,
     id: 'ARC-001',
     from: [0, 0],
     to: [1, 1],

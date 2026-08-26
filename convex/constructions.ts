@@ -20,7 +20,7 @@ import { outpostsOf, pointOf } from './movements';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwed, homeCountryOf, regionFacts } from './regions';
 import { credit, debit } from './resources';
-import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
+import { playerByToken, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY } from './validators';
 
 /** An outpost row, as the reach reads it: a point and nothing else. */
@@ -87,7 +87,13 @@ export const start = mutation({
      * mill the day it did (19/08).
      */
     if (owedFreely(player.nation, buildings, building, regionId)) {
-      await ctx.db.insert('buildings', { playerId: player._id, key: building, regionId, level: 1 });
+      await ctx.db.insert('buildings', {
+        seasonId: season._id,
+        playerId: player._id,
+        key: building,
+        regionId,
+        level: 1,
+      });
       return { finishesAt: now, cost: {}, level, rank: null };
     }
 
@@ -137,7 +143,8 @@ export const finish = internalMutation({
   handler: async (ctx, { constructionId }) => {
     const construction = await ctx.db.get(constructionId);
     if (!construction) return;
-    if (!(await seasonStillPlays(ctx, construction.playerId))) return;
+    const season = await playingSeason(ctx, construction.playerId);
+    if (season === null) return;
 
     const buildings = await playerBuildings(ctx, construction.playerId);
     const standing = buildingAt(buildings, construction.building, construction.regionId);
@@ -145,6 +152,7 @@ export const finish = internalMutation({
       await ctx.db.patch(standing._id, { level: construction.level });
     } else {
       await ctx.db.insert('buildings', {
+        seasonId: season._id,
         playerId: construction.playerId,
         key: construction.building,
         regionId: construction.regionId,

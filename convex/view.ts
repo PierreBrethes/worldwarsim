@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
@@ -294,6 +294,12 @@ export const playerView = query({
           name: facts.name,
           deposit: facts.deposit,
           coastal: facts.coastal,
+          /** **The point every rule measures from**, and now the one the map draws from too: a
+           *  listening station's reach is a circle around it, and drawing that circle around
+           *  the region layer's own centroid instead would put the ring tens of kilometres off
+           *  the radius the fog actually applies. It is the player's own region — nothing about
+           *  anybody else travels with it. */
+          point: facts.point,
           buildings: buildings
             .filter((building) => building.regionId === facts.id)
             .map((building) => ({ key: building.key, level: building.level })),
@@ -616,7 +622,21 @@ async function detectedArcs(
       headingAtMe: isAnchored([movement.to.lon, movement.to.lat], home, anchors),
       seenFrom: sighting.from,
       seenTo: sighting.to,
+      /** **Ce que le joueur a de lui-même**, jamais de la colonne : le détecteur est une ligne
+       *  de son propre plateau, et la station se nomme par sa région parce que c'est la seule
+       *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
+      detector: sighting.detector,
+      detectorRegion: await regionOfStation(ctx, sighting),
     });
   }
   return seen;
+}
+
+/** The region a station listens from, and nothing for the three other detectors: the ground has
+ *  no name of its own here, an outpost is named by the country the card already carries, and a
+ *  camp is a pile at a point, which is not a place. */
+async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promise<string | null> {
+  if (sighting.detector !== 'station' || sighting.detectorId === null) return null;
+  const building = await ctx.db.get(sighting.detectorId as Id<'buildings'>);
+  return building === null ? null : (regionFacts(building.regionId)?.name ?? null);
 }

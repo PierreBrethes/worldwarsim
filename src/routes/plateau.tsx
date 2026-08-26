@@ -3,13 +3,14 @@ import { useMutation, useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard } from '@/map/ControlsCard';
 import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
-import { buildLabels, type MapMarker } from '@/domain/labels';
+import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -460,6 +461,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       specialization: outpost.specialization,
       level: outpost.level,
       garrison: outpost.garrison,
+      /** **Ce qu'il écoute est ce qu'il ravitaille** : le même rayon, montré au survol. Le
+       *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
+       *  change, et la carte n'a pas de trait pour dire une vitesse. */
+      reach:
+        outpost.specialization === 'listening'
+          ? { lonLat: outpost.lonLat, km: OUTPOST_REACH_KM }
+          : null,
       ink: view.me.ink,
     }));
 
@@ -467,6 +475,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
+    const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: `building-${building.regionId}-${building.key}`,
@@ -482,6 +491,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         work !== null && work.regionId === building.regionId && work.key === building.key
           ? finishesAt
           : null,
+      /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
+       *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
+       *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
+       *  sur ce que la station entend vraiment. */
+      reach: reachOfStation(building.key, pointOfRegion.get(building.regionId)),
       ink: view.me.ink,
     }));
 
@@ -502,6 +516,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               level: null,
               plate: null,
               finishesAt,
+              /** Rien ne se tient encore : un chantier n'entend rien. */
+              reach: null,
               ink: view.me.ink,
             },
           ];
@@ -920,3 +936,10 @@ function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) 
     </div>
   );
 }
+
+/** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
+ *  other one covers nothing, and a region the view does not carry has no point to draw around. */
+const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | null =>
+  key === 'listening' && point !== undefined
+    ? { lonLat: point, km: LISTENING_STATION_RADIUS_KM }
+    : null;

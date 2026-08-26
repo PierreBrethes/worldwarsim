@@ -94,7 +94,10 @@ async function raise(
   regionId: string,
 ): Promise<Id<'buildings'>> {
   const playerId = await playerOf(t, token);
-  return t.run(async (ctx) => ctx.db.insert('buildings', { playerId, key, regionId, level: 1 }));
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+  });
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */
@@ -120,16 +123,18 @@ async function form(
 ): Promise<Id<'troops'>> {
   const playerId = await playerOf(t, token);
   const strength = nominalStrength(role, 1);
-  return t.run(async (ctx) =>
-    ctx.db.insert('troops', {
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('troops', {
+      seasonId,
       playerId,
       role,
       tier: 1,
       nominalStrength: strength,
       currentStrength: strength,
       stationedAt,
-    }),
-  );
+    });
+  });
 }
 
 async function outpostsOf(t: ReturnType<typeof boot>, token: string) {
@@ -183,8 +188,10 @@ async function plant(
   hostCountry: string,
 ): Promise<Id<'outposts'>> {
   const playerId = await playerOf(t, token);
-  return t.run(async (ctx) =>
-    ctx.db.insert('outposts', {
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('outposts', {
+      seasonId,
       playerId,
       point: { lon: point[0], lat: point[1] },
       hostCountry,
@@ -193,8 +200,8 @@ async function plant(
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
-    }),
-  );
+    });
+  });
 }
 
 async function garrison(t: ReturnType<typeof boot>, token: string, outpostId: Id<'outposts'>) {

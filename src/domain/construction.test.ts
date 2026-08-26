@@ -370,6 +370,7 @@ describe('placement over the whole estate', () => {
     name: id,
     deposit: null,
     coastal: false,
+    point: [0, 0],
     buildings: [],
     ...extra,
   });

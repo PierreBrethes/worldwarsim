@@ -24,6 +24,8 @@ import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import type { ArcView } from '@/domain/player-view';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
+import { ReachRing } from './reach';
+import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
@@ -115,6 +117,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
   private readonly arcs: ArcLayer;
+  private readonly reach: ReachRing;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly countries: CountryMesh[];
@@ -236,7 +239,9 @@ export class MapEngine {
     this.scene.add(borders);
 
     this.arcs = new ArcLayer(this.frame);
+    this.reach = new ReachRing(this.frame);
     this.scene.add(this.arcs.group);
+    this.scene.add(this.reach.object);
 
     this.regions = new RegionLayer(this.frame, this.curvature);
     this.labels = new LabelLayer(
@@ -410,9 +415,18 @@ export class MapEngine {
     this.regions.showDesignated(new Set(regionIds));
   }
 
+  /**
+   * **The ground one detector covers, while the pointer asks for it and no longer** (fiche 03).
+   * `null` puts it away — the ring is an answer to a hover, not a layer of the board.
+   */
+  showReach(reach: Reach | null): void {
+    this.reach.show(reach);
+  }
+
   setCurvature(intensity: number): void {
     this.frame.curvature = intensity;
     this.curvature.applyAll();
+    this.reach.rebuild();
     this.arcs.rebuild();
     this.labels.rebuild();
     this.regions.rebuild();
@@ -448,6 +462,7 @@ export class MapEngine {
     removeEventListener('keyup', this.onKeyUp);
     removeEventListener('blur', this.onFocusLost);
 
+    this.reach.dispose();
     this.arcs.dispose();
     this.regions.dispose();
     this.scene.traverse(disposeNode);

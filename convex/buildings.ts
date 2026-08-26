@@ -15,6 +15,22 @@ export async function playerBuildings(
 }
 
 /**
+ * **Every building of one season, and of no other.** The single door for the readings that are
+ * not about a player — the ground a defence answers from, the stations that listen — so that the
+ * season filter is written once instead of at each call site. Several seasons stand at the same
+ * time (`schema.ts`), and an unfiltered sweep here is a nation of another game defending this one.
+ */
+export async function seasonBuildings(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'buildings'>>> {
+  return ctx.db
+    .query('buildings')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+}
+
+/**
  * **Level 0 means absent.** A building is put up on a region or it does not exist (ADR 0015) —
  * the old floor of 1, which made every building exist from the launch, is gone. A key held on
  * several regions answers with its best instance: the headquarters cap and the tier gates read

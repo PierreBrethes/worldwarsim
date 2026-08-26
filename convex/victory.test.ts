@@ -78,7 +78,13 @@ async function playerOf(t: ReturnType<typeof boot>, token: string) {
 async function raise(t: ReturnType<typeof boot>, token: string, regionId: string) {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
-    ctx.db.insert('buildings', { playerId, key: 'barracks' as const, regionId, level: 1 }),
+    ctx.db.insert('buildings', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
+      playerId,
+      key: 'barracks' as const,
+      regionId,
+      level: 1,
+    }),
   );
 }
 
@@ -91,6 +97,7 @@ async function form(
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       role: 'infantry' as const,
       tier: 1 as const,
@@ -106,6 +113,7 @@ async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       role: 'infantry' as const,
       tier: 1 as const,
@@ -120,6 +128,7 @@ async function plant(t: ReturnType<typeof boot>, token: string, point: LonLat) {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       point: { lon: point[0], lat: point[1] },
       hostCountry: 'ROU',

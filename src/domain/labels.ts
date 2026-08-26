@@ -17,6 +17,7 @@ export type MapMarker =
       readonly specialization: Specialization;
       readonly level: number;
       readonly garrison: number;
+      readonly reach: Reach | null;
       readonly ink: string;
     }
   | {
@@ -63,6 +64,7 @@ export type MapMarker =
        * same thing: work is going on here. The crane takes the plate's place until it is done.
        */
       readonly finishesAt: number | null;
+      readonly reach: Reach | null;
       readonly ink: string;
     }
   | {
@@ -89,6 +91,15 @@ export type MapMarker =
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
 export type LabelPictogram = 'outpost' | 'stack' | 'construction';
+
+/**
+ * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
+ * listening outpost's reach. It travels on the marker rather than being looked up on the map:
+ * the point a rule measures from is the server's own (`regionFacts`), and the map layer holds a
+ * different one — the centroid it draws the polygon around. Drawing the ring on that second
+ * point would put it tens of kilometres off the radius the fog actually applies.
+ */
+export type Reach = { readonly lonLat: LonLat; readonly km: number };
 
 export type LabelType =
   | 'outpost'
@@ -125,6 +136,8 @@ export type MapLabel = {
   readonly type: LabelType;
   readonly priority: number;
   readonly anchor: LabelAnchor;
+  /** What the pointer reveals under this label, `null` for everything that covers no ground. */
+  readonly reach: Reach | null;
   /** The owning nation's ink; `null` when the label is not mine. */
   readonly ink: string | null;
   /** The ground pictogram; `null` for a movement head, whose 3D sprite stands in. */
@@ -224,6 +237,9 @@ function markerLabel(marker: MapMarker): MapLabel {
     offensive: false,
     idle: false,
     buildingId: null,
+    /** Only two things cover ground, and only while the pointer asks: everything else answers
+     *  `null` and the map draws nothing (`map/engine/reach.ts`). */
+    reach: marker.kind === 'outpost' || marker.kind === 'building' ? marker.reach : null,
   } as const;
 
   switch (marker.kind) {
@@ -320,6 +336,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       type: 'my-movement',
       priority: PRIORITY['my-movement'],
       anchor: { kind: 'movementHead', arc: arc.id },
+      reach: null,
       ink: null,
       pictogram: null,
       plate: null,
@@ -357,6 +374,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     type,
     priority: PRIORITY[type],
     anchor: { kind: 'movementHead', arc: arc.id },
+    reach: null,
     ink: null,
     pictogram: null,
     plate: null,

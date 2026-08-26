@@ -2,6 +2,7 @@ import type { LonLat } from './geo';
 import type {
   BuildingKey,
   DepositKey,
+  Detector,
   Doctrine,
   MovementType,
   ResourceKey,
@@ -75,6 +76,11 @@ export type ArcView =
       readonly to: LonLat;
       readonly route: ComputedRoute;
       readonly suspectedNation: string | null;
+      /** **What of mine caught it**, and the region of the station when it was one. It says
+       *  nothing about the column — it is a fact about my own board — and it is what turns a
+       *  sighting into a reason to have built the thing that made it. */
+      readonly detector: Detector;
+      readonly detectorRegion: string | null;
       readonly headingDegrees: number;
       /** The heading cuts through my territory or one of my outposts: the card turns critical. */
       readonly headingAtMe: boolean;
@@ -88,6 +94,8 @@ export type ArcView =
       readonly from: LonLat;
       readonly to: LonLat;
       readonly route: ComputedRoute;
+      readonly detector: Detector;
+      readonly detectorRegion: string | null;
       readonly headingDegrees: number;
       readonly seenMinutesAgo: number;
       readonly progress: number;
@@ -288,6 +296,9 @@ export type RegionView = {
   readonly name: string;
   readonly deposit: DepositKey | null;
   readonly coastal: boolean;
+  /** Where the region stands, as every rule of the game measures it (`regionFacts`) — never the
+   *  centroid the map draws its polygon around, which is a different point. */
+  readonly point: LonLat;
   readonly buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly level: number }>;
 };
 
@@ -394,12 +405,18 @@ export type Notice =
       readonly hostCountry: string;
       readonly specialization: Specialization;
     }
-  /** A thread, a place, a heading — and nothing a sentry could not honestly report (fiche 04). */
+  /**
+   * A thread, a place, a heading — and nothing a sentry could not honestly report (fiche 04).
+   * The detector is the fourth, and it is a fact about the reader's own board: naming what of
+   * his caught the column says nothing whatsoever about the column.
+   */
   | {
       readonly kind: 'movementSighted';
       readonly at: number;
       readonly hostCountry: string;
       readonly headingDegrees: number;
+      readonly detector: Detector;
+      readonly detectorRegion: string | null;
     }
   | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
   /** The adversary's face of a spent decoy: what he was watching carried nobody (fiche 04). */

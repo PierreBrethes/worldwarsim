@@ -530,18 +530,27 @@ describe('a concluded season', () => {
 
     const playerId = await playerIdOf(t, creator);
     const barracks = await t.run(async (ctx) =>
-      ctx.db.insert('buildings', { playerId, key: 'barracks', regionId: MOSELLE, level: 1 }),
+      ctx.db.insert('buildings', {
+        seasonId: (await ctx.db.get(playerId))!.seasonId,
+        playerId,
+        key: 'barracks',
+        regionId: MOSELLE,
+        level: 1,
+      }),
     );
     // Somebody standing at the far end, so an arrival that resolved would leave an account.
     const theirs = await playerIdOf(t, guest);
     await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(theirs))!.seasonId;
       const holding = await ctx.db.insert('buildings', {
+        seasonId,
         playerId: theirs,
         key: 'barracks',
         regionId: PRAHOVA,
         level: 1,
       });
       await ctx.db.insert('troops', {
+        seasonId,
         playerId: theirs,
         role: 'infantry',
         tier: 1,
@@ -553,6 +562,7 @@ describe('a concluded season', () => {
 
     const marching = await t.run(async (ctx) =>
       ctx.db.insert('troops', {
+        seasonId: (await ctx.db.get(playerId))!.seasonId,
         playerId,
         role: 'infantry',
         tier: 1,
@@ -683,7 +693,13 @@ describe('scrapping a season', () => {
     async function raise(t: ReturnType<typeof boot>, token: string, regionId: string) {
       const playerId = await playerOf(t, token);
       return t.run(async (ctx) =>
-        ctx.db.insert('buildings', { playerId, key: 'barracks', regionId, level: 1 }),
+        ctx.db.insert('buildings', {
+          seasonId: (await ctx.db.get(playerId))!.seasonId,
+          playerId,
+          key: 'barracks',
+          regionId,
+          level: 1,
+        }),
       );
     }
 
@@ -696,6 +712,7 @@ describe('scrapping a season', () => {
       const strength = nominalStrength('infantry', 1);
       return t.run(async (ctx) =>
         ctx.db.insert('troops', {
+          seasonId: (await ctx.db.get(playerId))!.seasonId,
           playerId,
           role: 'infantry',
           tier: 1,

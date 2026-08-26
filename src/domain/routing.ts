@@ -348,8 +348,26 @@ export function directRoute(
  * cut it short is not worth its own bugs until a profile asks for it.
  */
 export function countryAt(world: World, lonLat: LonLat): string | null {
+  return hostAmong(world, lonLat, null);
+}
+
+/**
+ * **The same containment, asked of a handful of countries instead of all of them.** The
+ * territory detector walks a road sample by sample and only ever cares about the soil of the
+ * players in the season — at most eight (`MAX_PLAYERS`), against the hundred and fifty-five the
+ * full scan tests. Same projection, same ray, one filter: a second implementation of "is this
+ * point in that country" would be a second border.
+ */
+export const countryAmong = (
+  world: World,
+  lonLat: LonLat,
+  adm0s: ReadonlySet<string>,
+): string | null => (adm0s.size === 0 ? null : hostAmong(world, lonLat, adm0s));
+
+function hostAmong(world: World, lonLat: LonLat, adm0s: ReadonlySet<string> | null): string | null {
   const [x, y] = project(world.outline, world.sphere, lonLat);
   for (const country of world.countries) {
+    if (adm0s !== null && !adm0s.has(country.adm0)) continue;
     let inside = false;
     for (const ring of country.rings) {
       for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {

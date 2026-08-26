@@ -90,6 +90,7 @@ async function form(
   const strength = nominalStrength(role, 1);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       role,
       tier: 1 as const,
@@ -103,7 +104,13 @@ async function form(
 async function raise(t: ReturnType<typeof boot>, token: string, key: 'farm' | 'barracks') {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
-    ctx.db.insert('buildings', { playerId, key, regionId: MARNE, level: 1 }),
+    ctx.db.insert('buildings', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
+      playerId,
+      key,
+      regionId: MARNE,
+      level: 1,
+    }),
   );
 }
 
@@ -116,6 +123,7 @@ async function plant(
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       point: { lon: point[0], lat: point[1] },
       hostCountry: 'SAU',

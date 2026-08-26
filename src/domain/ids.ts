@@ -123,12 +123,24 @@ export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' |
  * abroad is the economy's own buildings (ADR 0015), put up in the reach the outpost opens —
  * counted, capped and lootable like any other, which an outpost was never going to be.
  *
- * The two that remain are shells: their effects wait for the systems that read them, the relay
- * for movement timing and the listening post for the fog. Others are expected — a field
- * pharmacy has been floated — and the union takes them without a migration, which is all they
- * are owed today.
+ * The two that remain both do what they sell: the relay speeds up the stretch of its owner's
+ * roads that passes inside its reach, the listening post files a sighting against what crosses
+ * the same reach. Others are expected — a field pharmacy has been floated — and the union takes
+ * them without a migration, which is all they are owed today.
  */
 export type Specialization = 'relay' | 'listening';
+
+/**
+ * **What caught a movement** (fiche 04), in the order the sheet ranks the four: the ground a
+ * player owns, the station he built to hear, the outpost he specialised to listen, and the
+ * company he left standing.
+ *
+ * It travels to the observer and to nobody else. Naming it leaks nothing about what walked
+ * past — it is a fact about his own board, and it is the difference between "quelque chose a
+ * été vu" and "ma station de Prahova l'a vu", which is the difference between a line of
+ * flavour and a reason to build one.
+ */
+export type Detector = 'territory' | 'station' | 'outpost' | 'troop';
 
 /** Land, sea, sky — the three environments a route can traverse. */
 export type Medium = 'land' | 'sea' | 'air';

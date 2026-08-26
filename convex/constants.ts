@@ -691,6 +691,21 @@ export const ARRIVAL_RADIUS_KM = 25;
 export const SCOUT_RADIUS_KM = 60;
 
 /**
+ * **How far a listening station hears what moves** — the second source of detection of design
+ * sheet 04, between the territory it stands on and the listening outpost.
+ *
+ * `@a-mesurer` — a hundred and twenty kilometres is a placement in the ordering the design
+ * asks for and nothing more: longer than a sentry's `SCOUT_RADIUS_KM` (60), because a station
+ * bought for forty minutes and thirty-five of alloy has to be worth more than a rifleman
+ * standing still; shorter than `INTERCEPTION_RADIUS_KM` (200), because a station hears and
+ * catches nothing — the day it saw as far as one intercepts, it would be a weapon.
+ *
+ * A station belongs to a region and has no point of its own: what it listens from is the
+ * region's own point, the same one every other rule measures a distance to (`regionFacts`).
+ */
+export const LISTENING_STATION_RADIUS_KM = 120;
+
+/**
  * **What one troop eats an hour, whatever it is** (`consommation-continue.md` D1). One constant
  * and no table of nine: `nominalStrength` is not the same unit from one role to the next — 50
  * soldiers, 12 tanks, 24 embarked aircraft — so feeding a carrier "in proportion to 24" would
@@ -757,6 +772,22 @@ export const DECOY_COST: Costs = { alloy: 60 };
  * count is the geography's business.
  */
 export const OUTPOST_REACH_KM = 400;
+
+/**
+ * **What a logistics relay does to the stretch of road that passes it** (design sheet 03): the
+ * share of a march inside `OUTPOST_REACH_KM` of one of its owner's active relays is walked this
+ * much faster. It is the only specialization that touches the core of the game — travel time —
+ * and with it the arbitration the sheet names: an army, or the means to project it.
+ *
+ * `@a-mesurer` — one and a half is shaped so the relay reads as a decision rather than a
+ * rounding: on a route entirely under its reach it turns fourteen minutes per thousand
+ * kilometres into a little over nine. Nothing simulates it.
+ *
+ * **It never touches an opponent** and never an ally — there are none. A relay accelerates what
+ * its owner sends, and the reading is made at departure like every other timing of the game: a
+ * relay raided while a column is in the air does not slow down a march already gone.
+ */
+export const RELAY_SPEED_MULTIPLIER = 1.5;
 
 /**
  * **The one measured number of movement**, straight out of the simulation report: 14 minutes

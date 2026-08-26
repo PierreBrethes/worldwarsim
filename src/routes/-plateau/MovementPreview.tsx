@@ -165,6 +165,13 @@ export function MovementPreview({
                   · {legOf(preview.route)}
                 </div>
                 <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
+                {/* La seule ligne de la carte qui explique une durée plutôt que de l'annoncer :
+                    sans elle, le relais est un cadeau anonyme. */}
+                {preview.relayed > 0 && (
+                  <div className="text-[var(--valid)]">
+                    {fr.aim.relayed(asDuration(preview.relayed))}
+                  </div>
+                )}
               </div>
               {/* **Ce qu'on achète, dit en toutes lettres** (fiche 04) : un leurre ne vaut que
                   par ce qu'il fait croire, et il ne le fait croire qu'une fois. */}

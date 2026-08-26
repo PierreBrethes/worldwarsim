@@ -181,15 +181,26 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
-    case 'movementSighted':
+    /**
+     * **La dépêche nomme le détecteur, jamais la colonne.** C'est un fait du plateau de celui
+     * qui lit — il sait ce qu'il a bâti — et c'est ce qui sépare « on a vu quelque chose » de
+     * « ma station de Prahova l'a vu ». Rien de ce que le brouillard cache n'y entre : ni type,
+     * ni composition, ni nation (fiche 04).
+     */
+    case 'movementSighted': {
+      const country = countryLabel(notice.hostCountry);
+      const cardinal = cardinalLabel(notice.headingDegrees);
       return {
         at: notice.at,
         severity: 'notable',
-        text: said.movementSighted(
-          countryLabel(notice.hostCountry),
-          cardinalLabel(notice.headingDegrees),
-        ),
+        text:
+          notice.detector === 'territory'
+            ? said.soilCrossed(country, cardinal)
+            : notice.detector === 'station' && notice.detectorRegion !== null
+              ? said.stationSighted(notice.detectorRegion, country, cardinal)
+              : said.movementSighted(fr.detectors[notice.detector], country, cardinal),
       };
+    }
     case 'firedDry':
       return {
         at: notice.at,

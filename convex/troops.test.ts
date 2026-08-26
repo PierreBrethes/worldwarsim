@@ -88,7 +88,10 @@ async function raise(
   level = 1,
 ): Promise<Id<'buildings'>> {
   const playerId = await playerOf(t, token);
-  return t.run(async (ctx) => ctx.db.insert('buildings', { playerId, key, regionId, level }));
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level });
+  });
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */

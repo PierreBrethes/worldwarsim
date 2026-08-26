@@ -314,6 +314,9 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         onMovementHover={onLabelHover ?? (() => {})}
+        /** **Le rayon d'un détecteur, montré au doigt et rangé aussitôt** (fiche 03) : c'est le
+         *  chiffre qui décide où on plante la chose, et il n'était nulle part sur la carte. */
+        onReachHover={(reach) => engine.current?.showReach(reach)}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onContextMenu={onLabelMenu}

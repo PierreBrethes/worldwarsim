@@ -1,6 +1,6 @@
 import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, RouteMode } from '../src/domain/routing';
-import { buildGrid, computeRoute, countryAt } from '../src/domain/routing';
+import { buildGrid, computeRoute, countryAmong, countryAt } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import worldAsset from '../public/world.json';
 
@@ -61,4 +61,14 @@ export function routeBetween(
  */
 export function hostAtPoint(point: LonLat): string {
   return countryAt(world, point) ?? '';
+}
+
+/**
+ * **Whose soil this is, asked only of the players' own** — the territory detector of design
+ * sheet 04, which has no radius because it is not a thing standing on the ground: it *is* the
+ * ground. A road is walked sample by sample against it, so the reading is restricted to the
+ * countries that can answer rather than to the whole world.
+ */
+export function hostAmongCountries(point: LonLat, adm0s: ReadonlySet<string>): string {
+  return countryAmong(world, point, adm0s) ?? '';
 }

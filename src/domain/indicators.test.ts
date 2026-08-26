@@ -31,6 +31,7 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   type: 'inbound-movement',
   priority: 5,
   anchor: { kind: 'movementHead', arc: 'mv-1' },
+  reach: null,
   ink: null,
   pictogram: null,
   plate: null,

@@ -5,7 +5,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { asDuration } from '@/domain/duration';
-import { URGENCY_MS, isCountdown, type MapLabel, type LabelPictogram } from '@/domain/labels';
+import {
+  URGENCY_MS,
+  isCountdown,
+  type MapLabel,
+  type LabelPictogram,
+  type Reach,
+} from '@/domain/labels';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
@@ -43,6 +49,7 @@ export function MapLabels({
   labels,
   engine,
   onMovementHover,
+  onReachHover,
   onSelect,
   onOpenBuilding,
   onContextMenu,
@@ -50,6 +57,8 @@ export function MapLabels({
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
   onMovementHover: (id: string | null) => void;
+  /** What the label covers on the ground, while the pointer is on it and no longer. */
+  onReachHover: (reach: Reach | null) => void;
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
@@ -224,9 +233,11 @@ export function MapLabels({
             style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
             onPointerEnter={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
+              onReachHover(label.reach);
             }}
             onPointerLeave={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
+              onReachHover(null);
             }}
             onClick={(event) => {
               // A building's mast opens its surface and nothing else: opening a window *and*

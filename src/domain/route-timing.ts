@@ -1,3 +1,5 @@
+import { distanceKm, type LonLat } from './geo';
+import { INTERCEPTION_SAMPLES, positionAt } from './interception';
 import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
@@ -118,4 +120,74 @@ export function temporalPosition(
     start = end;
   }
   return { kind: 'leg', legIndex: 0, local: 0 };
+}
+
+/**
+ * **What a logistics relay covers of a road, as a share of its length** (design sheet 03).
+ *
+ * The road is walked the way the interception walks it — the same sampled path against the same
+ * point/circle test (`positionAt`, `INTERCEPTION_SAMPLES`). A second geometry for the same
+ * question is a second answer waiting to disagree with the first, and the two questions really
+ * are one: "what stretch of this march passes within `reachKm` of that point".
+ *
+ * **The share is measured on the road, never on the legs**, and that is a deliberate reading of
+ * a sheet that says "leg". A `RouteLeg` is a run of one medium — the Dijkstra's own bookkeeping,
+ * with no geometry attached to it and no relation whatsoever to where a relay stands. Speeding
+ * up a whole ocean crossing because its first mile grazed a relay is not what the sheet asks
+ * for; what it asks for is that the ground a relay watches be walked faster, and that ground is
+ * a stretch of polyline.
+ */
+export const relayedShare = ({
+  points,
+  relays,
+  reachKm,
+  samples = INTERCEPTION_SAMPLES,
+}: {
+  points: ReadonlyArray<LonLat>;
+  relays: ReadonlyArray<LonLat>;
+  reachKm: number;
+  samples?: number;
+}): number => {
+  if (relays.length === 0 || points.length < 2) return 0;
+  const road = { id: 'route', points, departedAt: 0, arrivesAt: 1 };
+
+  let covered = 0;
+  for (let index = 0; index <= samples; index += 1) {
+    const here = positionAt(road, index / samples);
+    if (relays.some((relay) => distanceKm(here, relay) <= reachKm)) covered += 1;
+  }
+  return covered / (samples + 1);
+};
+
+/**
+ * **The route repriced by the relays that watch it**, in the cost units `routeMinutes` reads.
+ *
+ * Only the ground and the water are accelerated: the transfers are the eight units it takes to
+ * put a column on a hull (`TRANSFER_COST`), and a relay does not make a quay faster. They are
+ * recovered rather than stored — the route carries one total, and the legs carry what that
+ * total is made of, so the difference is what the docks cost and nothing else.
+ *
+ * The whole computation is here, in the domain, and both roads through it call this one
+ * function: the preview owes the player the hour the departure will actually write, and two
+ * implementations of a duration are two hours to reconcile on the same card.
+ */
+export function relayedCostUnits({
+  route,
+  relays,
+  reachKm,
+  multiplier,
+  samples = INTERCEPTION_SAMPLES,
+}: {
+  route: ComputedRoute;
+  relays: ReadonlyArray<LonLat>;
+  reachKm: number;
+  multiplier: number;
+  samples?: number;
+}): number {
+  const share = relayedShare({ points: route.points, relays, reachKm, samples });
+  if (share <= 0 || multiplier <= 0) return route.costUnits;
+
+  const legs = route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);
+  const docks = Math.max(0, route.costUnits - legs);
+  return legs * (1 - share + share / multiplier) + docks;
 }

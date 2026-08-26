@@ -21,7 +21,13 @@ import {
 import { fail } from './errors';
 import { regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf } from './resources';
-import { playerByToken, requirePlayable, requireStarted, seasonStillPlays } from './seasons';
+import {
+  playerByToken,
+  playingSeason,
+  requirePlayable,
+  requireStarted,
+  seasonStillPlays,
+} from './seasons';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 
 /** Derived from the domain table rather than written a second time: one key, one domain. */
@@ -202,11 +208,13 @@ export const deliver = internalMutation({
   handler: async (ctx, { recruitmentId }) => {
     const batch = await ctx.db.get(recruitmentId);
     if (!batch) return;
-    if (!(await seasonStillPlays(ctx, batch.playerId))) return;
+    const season = await playingSeason(ctx, batch.playerId);
+    if (season === null) return;
 
     const strength = nominalStrength(batch.role, batch.tier);
     const station = await ctx.db.get(batch.buildingId);
     await ctx.db.insert('troops', {
+      seasonId: season._id,
       playerId: batch.playerId,
       role: batch.role,
       tier: batch.tier,
@@ -257,6 +265,22 @@ export async function troopsOf(
   return ctx.db
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+}
+
+/**
+ * **Every troop of one season, and of no other.** What a contact sweeps when the question is
+ * "who stands here" rather than "what is mine": the camps a departing column can walk into, the
+ * defence that answers a point. The season filter lives here alone — a sweep without it lets a
+ * garrison of a test game defend ground in the skirmish.
+ */
+export async function seasonTroops(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'troops'>>> {
+  return ctx.db
+    .query('troops')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
 }
 

@@ -187,6 +187,10 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
     from,
     to,
     route: routeOf(seen),
+    /** The one thing on this card that is about the observer rather than about the column: what
+     *  of his caught it. It survives into `lastKnown` — a memory keeps the eye that made it. */
+    detector: seen.detector,
+    detectorRegion: seen.detectorRegion,
     headingDegrees: bearingDegrees(from, to),
     progress: span <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.departedAt) / span)),
   };

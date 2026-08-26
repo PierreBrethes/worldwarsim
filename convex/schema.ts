@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import {
   BUILDING_KEY,
   COMBAT_SIDE,
+  DETECTOR,
   DOCTRINE,
   LON_LAT,
   MOVEMENT_TARGET,
@@ -20,6 +21,19 @@ import {
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
+
+/**
+ * **`seasonId` is carried by every table a rule sweeps whole**, denormalised and stamped at the
+ * write — never recomputed, never joined for at the read. Several seasons stand at once since the
+ * multi-game lobby, and a global `.collect()` on `troops`, `movements`, `buildings` or `outposts`
+ * reads all of them together: a column of one game intercepted by a garrison of another, a defence
+ * counting troops from a season nobody in this one is playing. Every such reading goes through an
+ * indexed range on `bySeason` instead, one function per table.
+ *
+ * The tables read `byPlayer` alone — `resources`, `recruitments`, `constructions`, `orders`,
+ * `notices`, `sightings` — do **not** carry it: a player belongs to exactly one season, so his own
+ * index already partitions them, and a second key would be a second thing to keep true.
+ */
 
 export default defineSchema({
   seasons: defineTable({
@@ -99,11 +113,14 @@ export default defineSchema({
   /** One row per building **instance**: a nation holds as many mines as it has regions with
    *  ore, each with its own level. The `regionId` is the `id` of `regions.json`. */
   buildings: defineTable({
+    seasonId: v.id('seasons'),
     playerId: v.id('players'),
     key: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
-  }).index('byPlayer', ['playerId']),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId']),
 
   /**
    * **One row per troop** (ADR 0014): discrete, unique, never merged with another. Its hit
@@ -140,6 +157,7 @@ export default defineSchema({
    * arrives with the research ADR.
    */
   troops: defineTable({
+    seasonId: v.id('seasons'),
     playerId: v.id('players'),
     role: UNIT_ROLE,
     tier: UNIT_TIER,
@@ -148,6 +166,7 @@ export default defineSchema({
     stationedAt: v.union(v.id('buildings'), v.id('outposts'), LON_LAT, v.null()),
   })
     .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId'])
     /** Who defends a place is read from the place, not from a player: an engagement asks "what
      *  hangs from this outpost", and the answer must not be a scan of every troop in the game.
      *  A point is asked by distance instead — see the note above. */
@@ -212,6 +231,7 @@ export default defineSchema({
    * a garrison routed off its own outpost.
    */
   movements: defineTable({
+    seasonId: v.id('seasons'),
     playerId: v.id('players'),
     type: MOVEMENT_TYPE,
     fromBuildingId: v.union(v.id('buildings'), v.null()),
@@ -237,7 +257,9 @@ export default defineSchema({
     troopIds: v.array(v.id('troops')),
     departedAt: v.number(),
     arrivesAt: v.number(),
-  }).index('byPlayer', ['playerId']),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId']),
 
   /**
    * **A point, never a polygon** (fiche 03): an outpost sits at a lon/lat, holds no ground, and
@@ -251,6 +273,7 @@ export default defineSchema({
    * raids. Destruction itself waits for looting; nothing here counts raids towards it.
    */
   outposts: defineTable({
+    seasonId: v.id('seasons'),
     playerId: v.id('players'),
     point: LON_LAT,
     hostCountry: v.string(),
@@ -259,7 +282,9 @@ export default defineSchema({
     foundedAt: v.number(),
     disabledUntil: v.union(v.number(), v.null()),
     immuneUntil: v.union(v.number(), v.null()),
-  }).index('byPlayer', ['playerId']),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId']),
 
   /**
    * **The account of one engagement, written once and never resolved again.** It is what the
@@ -386,6 +411,17 @@ export default defineSchema({
     movementId: v.id('movements'),
     from: v.number(),
     to: v.number(),
+    /**
+     * **Which of his four detectors caught it first**, and the row it hangs from when it has
+     * one. There is one row per observer whatever saw the thread — two would draw the same arc
+     * twice on the same board — so what is kept is the earliest, which is also the only one a
+     * dispatch can honestly name: *relevé par* is a first sight, not a roll call.
+     *
+     * The territory and a posted camp carry no id, and for opposite reasons: one is the ground
+     * itself, the other a pile at a point, and a pile is not a row (`postedForces`).
+     */
+    detector: DETECTOR,
+    detectorId: v.union(v.id('buildings'), v.id('outposts'), v.null()),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),

@@ -115,7 +115,13 @@ async function raise(
       .withIndex('byToken', (q) => q.eq('token', token))
       .unique();
     if (!player) throw new Error('player not found');
-    await ctx.db.insert('buildings', { playerId: player._id, key, regionId, level });
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId: player._id,
+      key,
+      regionId,
+      level,
+    });
   });
 }
 

@@ -26,6 +26,8 @@ const mineArc = (override: Partial<Extract<ArcView, { state: 'mine' }>>): ArcVie
 
 const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected' }>>): ArcView => ({
   state: 'enemyDetected',
+  detector: 'troop',
+  detectorRegion: null,
   id: 'mv-x',
   from: [0, 0],
   to: [1, 1],
@@ -50,6 +52,7 @@ const OUTPOST: MapMarker = {
   specialization: 'relay',
   level: 2,
   garrison: 40,
+  reach: null,
   ink: '#4a4f7a',
 };
 
@@ -122,6 +125,8 @@ describe('buildLabels', () => {
     const arcs: ReadonlyArray<ArcView> = [
       {
         state: 'lastKnown',
+        detector: 'troop',
+        detectorRegion: null,
         id: 'a',
         from: [0, 0],
         to: [1, 1],
@@ -169,6 +174,7 @@ describe('buildLabels', () => {
         level: 1,
         plate: '/mine.webp',
         finishesAt: null,
+        reach: null,
         ink: '#2f4f78',
       },
     ]);

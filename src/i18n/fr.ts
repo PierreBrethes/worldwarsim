@@ -8,6 +8,7 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
+import { LISTENING_STATION_RADIUS_KM } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import type { UpgradeHold } from '../domain/construction';
 import type { CapRelief } from '../domain/player-view';
@@ -16,6 +17,7 @@ import type { ChainState } from '../domain/economy';
 import type {
   BuildingKey,
   DepositKey,
+  Detector,
   Doctrine,
   Medium,
   MovementType,
@@ -187,7 +189,7 @@ export const fr = {
     barracks: 'ouvre le domaine terrestre et forme l’infanterie et les véhicules',
     airfield: 'ouvre le domaine aérien et assemble les avions',
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
-    listening: 'rayon de révélation passif autour du territoire',
+    listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
     billets: 'relève le nombre de troupes que l’armée peut aligner',
     warehouse: 'relève le plafond des matières et de l’alliage — se pille',
     depot: 'relève le plafond du pétrole et des munitions — explose',
@@ -210,8 +212,32 @@ export const fr = {
 
   specializations: {
     relay: 'relais logistique',
-    listening: 'station d’écoute',
+    listening: 'écoute',
   } satisfies Record<Specialization, string>,
+
+  /**
+   * **Ce que fait une spécialisation, en une phrase et avec son rayon.** L'invité choisissait à
+   * l'aveugle : deux mots sur une carte, aucun chiffre, aucun effet. Le rayon est écrit ici
+   * plutôt que deviné parce que c'est le seul chiffre qui décide où l'on plante l'avant-poste.
+   */
+  specializationEffects: {
+    relay: (reachKm: number, multiplier: number) =>
+      `accélère de ×${multiplier} la part de vos routes qui passe à moins de ${num(reachKm)} km`,
+    listening: (reachKm: number) =>
+      `relève les mouvements adverses qui passent à moins de ${num(reachKm)} km`,
+  } satisfies Record<Specialization, (...args: never[]) => string>,
+
+  /**
+   * **Qui a relevé le fil** (fiche 04). Le détecteur est un fait du plateau de l'observateur :
+   * le nommer ne dit rien de la colonne, et c'est ce qui transforme un relevé en raison d'avoir
+   * bâti la chose qui l'a fait.
+   */
+  detectors: {
+    territory: 'notre sol',
+    station: 'station d’écoute',
+    outpost: 'avant-poste d’écoute',
+    troop: 'nos guetteurs',
+  } satisfies Record<Detector, string>,
 
   mediums: {
     land: 'terrestre',
@@ -706,8 +732,14 @@ export const fr = {
        * la notice ne porte pas la nation de la colonne, et la phrase ne doit pas laisser croire
        * qu'elle la donne (fiche 04).
        */
-      movementSighted: (country: string, cardinal: string) =>
-        `Nos guetteurs ont relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
+      movementSighted: (detector: string, country: string, cardinal: string) =>
+        `${detector} a relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
+      /** Le sol n'a pas de guetteur : personne n'a relevé, quelque chose est passé. */
+      soilCrossed: (country: string, cardinal: string) =>
+        `Une colonne inconnue a traversé notre sol — ${country}, cap ${cardinal}.`,
+      /** La station est le seul détecteur que le joueur puisse montrer du doigt sur sa carte. */
+      stationSighted: (region: string, country: string, cardinal: string) =>
+        `Notre station d’écoute de ${region} a relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
       /**
@@ -799,6 +831,10 @@ export const fr = {
      */
     intelRule: 'une sentinelle ne voit que ce qui part après elle',
     intelBearing: (cardinal: string) => `cap ${cardinal}`,
+    /** **Par quoi**, sous le cap : sans elle, huit relevés se lisent pareil et rien ne dit
+     *  laquelle des quatre choses payées a servi. */
+    intelBy: (detector: string) => `relevé par ${detector}`,
+    intelByStation: (region: string) => `relevé par la station de ${region}`,
     intelAtMe: 'cap sur vous',
     intelEstimate: (duration: string) => `arrivée estimée ~ ${duration}`,
     intelLost: (duration: string) => `perdu de vue il y a ${duration}`,
@@ -870,6 +906,12 @@ export const fr = {
      *  erreur, alors que c'est exactement ce qu'on achète. */
     durationAlone: (duration: string) => `durée ${duration}`,
     arrival: (time: string) => `arrivée ${time}`,
+    /**
+     * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
+     * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
+     * précisément ce qu'on a acheté en spécialisant l'avant-poste.
+     */
+    relayed: (duration: string) => `relais logistiques — ${duration} de moins`,
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée

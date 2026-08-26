@@ -106,6 +106,8 @@ describe('movementSprite', () => {
   it('structurally shows nothing of an enemy arc', () => {
     const enemy: ArcView = {
       state: 'enemyDetected',
+      detector: 'troop',
+      detectorRegion: null,
       id: 'MVT-2',
       from: [0, 0],
       to: [10, 10],
@@ -127,6 +129,8 @@ describe('movementSprite', () => {
   it('stays mute on an identified enemy, known stack included', () => {
     const identified: ArcView = {
       state: 'enemyDetected',
+      detector: 'troop',
+      detectorRegion: null,
       id: 'MVT-3',
       from: [0, 0],
       to: [10, 10],

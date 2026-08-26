@@ -2,6 +2,7 @@ import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import {
   boards,
@@ -284,6 +285,13 @@ export function GarrisonPanel({
                 </button>
               ))}
             </div>
+            {/* **Le choix est irréversible, et il se faisait à l'aveugle** : deux mots, aucun
+                chiffre, aucun effet. Le rayon est la seule donnée qui décide où l'on plante. */}
+            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {specialization === 'relay'
+                ? fr.specializationEffects.relay(OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER)
+                : fr.specializationEffects.listening(OUTPOST_REACH_KM)}
+            </p>
             <button
               type="button"
               disabled={picked.size === 0}

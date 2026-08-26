@@ -123,8 +123,7 @@ describe('what a posted watcher sees pass', () => {
     // 150 km of a watcher standing on the fifth degree.
     const [seen] = sightingsAlong({
       mine: march,
-      watchers: [{ id: 'camp', point: [5, 0] }],
-      radiusKm: 150,
+      watchers: [{ id: 'camp', point: [5, 0], radiusKm: 150 }],
     });
 
     expect(seen).toBeDefined();
@@ -138,8 +137,7 @@ describe('what a posted watcher sees pass', () => {
     expect(
       sightingsAlong({
         mine: march,
-        watchers: [{ id: 'far', point: [5, 20] }],
-        radiusKm: 150,
+        watchers: [{ id: 'far', point: [5, 20], radiusKm: 150 }],
       }),
     ).toEqual([]);
   });
@@ -148,11 +146,10 @@ describe('what a posted watcher sees pass', () => {
     const seen = sightingsAlong({
       mine: march,
       watchers: [
-        { id: 'first', point: [2, 0] },
-        { id: 'second', point: [8, 0] },
-        { id: 'nobody', point: [2, 30] },
+        { id: 'first', point: [2, 0], radiusKm: 150 },
+        { id: 'second', point: [8, 0], radiusKm: 150 },
+        { id: 'nobody', point: [2, 30], radiusKm: 150 },
       ],
-      radiusKm: 150,
     });
 
     expect(seen.map((sighting) => sighting.id).sort()).toEqual(['first', 'second']);

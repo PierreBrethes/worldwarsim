@@ -124,6 +124,19 @@ export type Sighting = {
 };
 
 /**
+ * A detector and how far it hears. **The radius travels with the watcher and not beside the
+ * list**: the four detectors of design sheet 04 do not share one — a rifleman standing still
+ * hears sixty kilometres, a listening station a hundred and twenty, a listening outpost its
+ * whole reach — and a single radius for the call would have meant one walk of the road per
+ * kind, which is three chances for three geometries to disagree.
+ */
+export type Watcher = {
+  readonly id: string;
+  readonly point: LonLat;
+  readonly radiusKm: number;
+};
+
+/**
  * **What a standing watcher sees pass** (ADR 0019 §5, design sheet 04). The same walk down the
  * same sampled path as the contact above, against the same segment/circle test — a second
  * geometry for the same question is a second answer waiting to disagree with the first.
@@ -141,12 +154,10 @@ export type Sighting = {
 export function sightingsAlong({
   mine,
   watchers,
-  radiusKm,
   samples = INTERCEPTION_SAMPLES,
 }: {
   mine: MarchingForce;
-  watchers: ReadonlyArray<StandingForce>;
-  radiusKm: number;
+  watchers: ReadonlyArray<Watcher>;
   samples?: number;
 }): ReadonlyArray<Sighting> {
   const span = mine.arrivesAt - mine.departedAt;
@@ -158,7 +169,7 @@ export function sightingsAlong({
     const at = mine.departedAt + index * step;
     const here = positionAt(mine, at);
     for (const watcher of watchers) {
-      if (distanceKm(here, watcher.point) > radiusKm) continue;
+      if (distanceKm(here, watcher.point) > watcher.radiusKm) continue;
       const window = windows.get(watcher.id);
       if (window === undefined) windows.set(watcher.id, { from: at, to: at });
       else window.to = at;
