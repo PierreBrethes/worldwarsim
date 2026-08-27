@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { OUTPOST_REACH_KM, SCOUT_RADIUS_KM } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -8,7 +9,9 @@ import { fr } from '@/i18n/fr';
  * ferme au premier regard n'a rien perdu — tout ce qu'elle dit se relit depuis les Réglages.
  *
  * Elle ne lit **aucune** donnée de partie. Ce qu'elle décrit est vrai avant le premier clic
- * comme au dernier jour de la saison ; l'y brancher inventerait un état.
+ * comme au dernier jour de la saison ; l'y brancher inventerait un état. Les deux rayons sont
+ * l'exception qui confirme la règle : ce sont des **constantes d'équilibrage**, pas l'état d'une
+ * partie, et les lire ici est ce qui empêche la notice de mentir le jour où elles bougent.
  */
 export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
   useEffect(() => {
@@ -43,7 +46,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
           </h1>
 
           <div className="grid grid-cols-1 border-t border-[var(--ink)] sm:grid-cols-3">
-            {fr.briefing.columns.map((column) => (
+            {fr.briefing.columns(SCOUT_RADIUS_KM, OUTPOST_REACH_KM).map((column) => (
               <Column key={column.title} title={column.title} lines={column.lines} />
             ))}
           </div>

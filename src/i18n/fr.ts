@@ -1284,12 +1284,17 @@ export const fr = {
    * disait comment tenir la carte. Ce mode d'emploi ne pointe rien du doigt, ne fléche rien et
    * n'attend aucune étape : la doctrine « sans tutoriel » tient. Chaque phrase décrit ce que le
    * code fait vraiment — ce qui n'existe pas n'y figure pas.
+   *
+   * **Les deux rayons sont des paramètres, jamais des chiffres écrits ici.** Une notice qui
+   * recopie 60 et 400 est vraie le jour où on l'écrit et fausse le jour où l'équilibrage bouge —
+   * et c'est la seule feuille du jeu qu'un joueur lit en croyant apprendre la règle. Ils sortent
+   * de `convex/constants.ts`, comme partout ailleurs dans cette table.
    */
   briefing: {
     kicker: 'entrée en campagne',
     header: 'aide-mémoire du commandement',
     subtitle: 'Notice à l’usage de l’officier nouvellement affecté',
-    columns: [
+    columns: (scoutRadiusKm: number, outpostReachKm: number) => [
       {
         title: 'La carte et la souris',
         lines: [
@@ -1305,8 +1310,8 @@ export const fr = {
         lines: [
           'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
           'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
-          'Une troupe posée observe : elle relève les mouvements qui passent à moins de 60 km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.',
-          'Un avant-poste ouvre 400 km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.',
+          `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
+          `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
         ],
       },
       {

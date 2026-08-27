@@ -131,6 +131,13 @@ ici et coûterait un modèle mental de plus.
 **La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
 géométrie plate et le clic tombe à côté sur les bords de la carte.
 
+## Schéma Convex
+
+**Un champ ajouté à une table existante est `v.optional`**, avec un lecteur qui donne le défaut
+par `??` — ou bien il s'accompagne d'une migration de backfill. Un champ obligatoire posé sans
+migration casse le déploiement en production : les documents déjà écrits ne le portent pas et
+la validation du schéma refuse la poussée (vu le 27/08/2026 sur `buildings.seasonId`).
+
 ## Conventions
 
 Elles sont dans [CONVENTIONS.md](CONVENTIONS.md) et font autorité. Les quatre qui structurent le
