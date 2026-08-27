@@ -13,14 +13,17 @@ import {
   DOMAIN_BY_ROLE,
   LIFT_CAPACITY,
   LIFT_COST,
+  PROJECTION_BY_DOMAIN,
 } from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
-import type { Specialization } from '@/domain/ids';
+import type { BuildingKey, Specialization } from '@/domain/ids';
 import type { PlayerView, TroopStation } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Draggable } from './Draggable';
 import { Panel } from './Panel';
+
+const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
 /**
  * **The garrison, and the column one composes out of it.** It opens on the mast of a projection
@@ -99,9 +102,12 @@ export function GarrisonPanel({
     station.kind === 'outpost'
       ? (view.me.outposts.find((candidate) => candidate.id === station.outpostId) ?? null)
       : null;
-  // The server marches from a barracks and from nothing else today — naval and air projection
-  // wait for their own passes, and the panel must not promise what would be refused.
-  const projection = building !== null && building.key === 'barracks';
+  /** **Les trois portes, pas la seule caserne.** Le serveur part de n'importe quel bâtiment
+   *  possédé (`departureOf`) et c'est `closedGate` qui lit la porte du domaine : un port arme
+   *  une colonne de coques exactement comme la caserne arme une colonne de bottes. La ligne
+   *  qui ne connaissait que `barracks` grisait la flotte au quai — le refus après le clic que
+   *  l'ADR 0015 interdit, à l'envers. */
+  const projection = building !== null && PROJECTION_KEYS.has(building.key);
   /** A garrison composes a column too, and so does a column left standing on the map: the ground
    *  under it decides nothing any more (ADR 0019 §1), only where the domain gates are read. */
   const canPrepare = projection || outpost !== null || station.kind === 'point';

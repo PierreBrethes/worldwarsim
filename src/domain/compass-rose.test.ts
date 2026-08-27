@@ -141,6 +141,7 @@ describe('in aim', () => {
     myRegionIds: new Set(['FRA-5333', 'FRA-9999']),
     myOutpostIds: new Set(['AP-01']),
     departureBuildings: new Set<BuildingKey>(['barracks']),
+    afloat: false,
   };
 
   const aragon = {
@@ -284,6 +285,7 @@ describe('aiming at a point', () => {
     myRegionIds: new Set(['FRA-5333']),
     myOutpostIds: new Set(['AP-01']),
     departureBuildings: new Set<BuildingKey>(['barracks']),
+    afloat: false,
   };
 
   it('opens a fan with no region under it at all — zoomed out, or at sea', () => {

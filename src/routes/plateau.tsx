@@ -835,6 +835,10 @@ function armedColumn(
               .filter((building) => building.regionId === departure.regionId)
               .map((building) => building.key),
       ),
+      /** The same reading the server makes with `hostAtPoint`: the station carries the host the
+       *  view already resolved, and the open sea is the one that comes back empty. Nothing is
+       *  recomputed here — a second geometry on the client is a second answer. */
+      afloat: station.kind === 'point' && station.country === '',
     },
   };
 }

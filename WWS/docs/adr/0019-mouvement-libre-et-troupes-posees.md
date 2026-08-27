@@ -46,6 +46,26 @@ paie : il reste la seule chose qui rende l'action lointaine structurellement co�
 l'un des trois leviers listés contre l'avantage d'isolement géographique (`QUESTIONS.md`, 🔴). Le
 mouvement terrestre, lui, ne demande plus rien.
 
+> ⚠️ **Révision (27/08/2026) : la porte navale se lit à l'embarquement, jamais depuis l'eau.**
+> « Embarquer exige un port » était juste et se lisait au mauvais moment : la porte était
+> consultée à *chaque* ordre, y compris sur une pile déjà à flot. Conséquence, découverte en
+> jouant : une flotte arrivée au large avait son adresse écrite sur l'eau, et on lui réclamait
+> ensuite un quai qu'elle ne retrouverait jamais — des troupes que le jeu tient, place et
+> nourrit, et qu'aucun ordre ne peut plus bouger. Un **mouvement fantôme**, pas une règle.
+>
+> La porte se lit désormais sur une pile **qui n'est pas encore à l'eau, ou qui emporte une
+> aile** — l'air garde sa clause, parce que rien n'est jamais posté dans le ciel. La colonne
+> combinée est exemptée comme les autres : le port a été payé au premier départ, quand les
+> bottes ont quitté le sol pour l'eau, et le passage de l'ADR 0013 reste acheté là où il
+> s'achète. Ce qui n'a pas bougé : `overloaded` compte les places à chaque ordre, donc la
+> contrepartie du transport — une flotte qu'on construit, protège et peut perdre — tient
+> toujours. Une pile qui n'est pas à flot est refusée exactement comme avant.
+>
+> « À flot » se lit sur le **point de départ** (`hostAtPoint` ne répond la chaîne vide qu'en
+> haute mer) et n'est **jamais stocké** : ce serait une seconde vérité à tenir en phase avec
+> `stationedAt`. Implémentée le 27/08 (`src/domain/movement-orders.ts`, `closedGate` et
+> `embarking` ; `Column.afloat` rempli par `convex/movement/orders.ts` et par `plateau.tsx`).
+
 ### 3. Une troupe peut rester sur la carte, et elle y défend son sol
 
 **Amendé le 18/08/2026.** La première rédaction disait « une cible, jamais un attaquant » et

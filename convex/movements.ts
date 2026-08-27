@@ -275,6 +275,9 @@ const emptyColumn = (): Column => ({
   myRegionIds: new Set(),
   myOutpostIds: new Set(),
   departureBuildings: new Set(),
+  /** No role, no domain, no gate: what the water under a feint would exempt it from is never
+   *  asked. The field is false because it has to be something, not because it decides anything. */
+  afloat: false,
 });
 
 /**

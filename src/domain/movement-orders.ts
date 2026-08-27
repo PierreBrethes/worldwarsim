@@ -1,6 +1,7 @@
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
+import type { UnitDomain } from './troops';
 import {
   DOMAIN_BY_ROLE,
   LAND_SEATS_PER_TRANSPORT,
@@ -44,6 +45,15 @@ export type Column = {
   readonly myRegionIds: ReadonlySet<string>;
   readonly myOutpostIds: ReadonlySet<string>;
   readonly departureBuildings: ReadonlySet<BuildingKey>;
+  /**
+   * **Whether the column is already in the water it would be asked to embark on.** Read off the
+   * departure point and nowhere else — the open sea is the one place `hostAtPoint` answers the
+   * empty string — and **never stored**: a column is a reading made at the moment an order is
+   * weighed, and a troop's address is the only durable fact behind it. A persisted flag would be
+   * a second truth to keep in step with `stationedAt`, which is exactly the divergence ADR 0015
+   * exists to forbid.
+   */
+  readonly afloat: boolean;
 };
 
 export type OrderRefusal =
@@ -192,11 +202,30 @@ const closedGate = (column: Column): OrderRefusal | null => {
   if (domains.has('air') && !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)) {
     return 'NO_AIRFIELD_AT_DEPARTURE';
   }
-  if (domains.has('sea') && !column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) {
-    return 'NO_PORT_AT_DEPARTURE';
+  if (domains.has('sea') && embarking(column, domains)) {
+    if (!column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) return 'NO_PORT_AT_DEPARTURE';
   }
   return overloaded(column);
 };
+
+/**
+ * **A quay is what one takes to the water from, not what one sails from.** A fleet posted at sea
+ * has no ground under it and never will — reading the port gate on it left every hull that
+ * reached the open sea stranded there for the rest of the season, an address the game could
+ * write and no order could ever leave.
+ *
+ * **The combined column is exempted too, and it is the same reason rather than a softening**:
+ * the port was paid at the first departure (ADR 0019 §2), when the boots actually left the
+ * ground for the water. Asking a second quay of a hull that never touched one again turned a
+ * transport moored offshore into a **mouvement fantôme** — troops the game holds, places, feeds,
+ * and cannot move. The passage of ADR 0013 stays bought where it is bought, at the embarkation,
+ * and `overloaded` still counts the berths on every order.
+ *
+ * The air keeps its own clause because it is the one domain nothing is ever posted in: a wing
+ * standing on water is a wing at a station, and its aerodrome is read as it always was.
+ */
+const embarking = (column: Column, domains: ReadonlySet<UnitDomain>): boolean =>
+  !column.afloat || domains.has('air');
 
 /**
  * **Crossing a medium that is not yours is an investment, not a surcharge** (design sheet 09):

@@ -897,6 +897,7 @@ describe('a column whose infantry rides goes faster', () => {
           myRegionIds: new Set(),
           myOutpostIds: new Set(),
           departureBuildings: new Set<BuildingKey>(['barracks']),
+          afloat: false,
         },
       ),
     ).toContain('attack');
@@ -1677,6 +1678,8 @@ describe('the door of the sea, read on the pile', () => {
 
   const NORD = 'FRA-5330'; // coastal, facing the Channel
   const KENT: LonLat = [0.73, 51.21]; // across the water, and only across it
+  const DOGGER: LonLat = [2.5, 54.5]; // open sea, hosted by nobody
+  const HELIGOLAND: LonLat = [6.5, 54.6]; // another patch of the same water
 
   /**
    * The whole column leaves from the quay: the transport is moored there and its passengers
@@ -1700,6 +1703,44 @@ describe('the door of the sea, read on the pile', () => {
       target: { kind: 'point', point: { lon: KENT[0], lat: KENT[1] } },
     });
   };
+
+  /**
+   * **The stranding this closes.** A fleet that reached the open sea had its address written on
+   * water, and the quay was then read on ground it would never stand on again: the hulls were
+   * posted there for the rest of the season with no order able to leave. `afloat` is read off
+   * the departure point — `hostAtPoint` answers the empty string out there and nowhere else —
+   * and it is computed at every order, never written down beside `stationedAt`.
+   */
+  it('lets a fleet posted on the open sea sail again with no quay under it', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const quay = await raise(t, token, 'port', NORD);
+    const troopIds = [await form(t, token, 'escort', quay), await form(t, token, 'cargo', quay)];
+
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds,
+      point: { lon: DOGGER[0], lat: DOGGER[1] },
+    });
+    /** Read before the arrival clears the row: nobody hosts that water, which is the whole of
+     *  what `afloat` will find at the second departure. */
+    const [sailing] = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    expect(sailing!.hostCountry).toBe('');
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const posted = await t.run(async (ctx) => ctx.db.get(troopIds[0]!));
+    expect(posted!.stationedAt).toEqual({ lon: DOGGER[0], lat: DOGGER[1] });
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'point', point: { lon: DOGGER[0], lat: DOGGER[1] } },
+        troopIds,
+        point: { lon: HELIGOLAND[0], lat: HELIGOLAND[1] },
+      }),
+    ).resolves.toBeDefined();
+  });
 
   it('carries infantry across the Channel aboard a cargo, by land and sea', async () => {
     const t = boot();
@@ -1761,6 +1802,7 @@ describe('the door of the sea, read on the pile', () => {
       myRegionIds: new Set([NORD]),
       myOutpostIds: new Set(),
       departureBuildings: new Set<BuildingKey>(['barracks', 'depot']),
+      afloat: false,
     };
     expect(refusalOf('attack', aim, quayless)).toBe('NO_PORT_AT_DEPARTURE');
     /** The decoy is left standing there and it is not an exception to the door: it takes nobody

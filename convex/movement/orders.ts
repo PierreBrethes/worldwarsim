@@ -54,6 +54,9 @@ type Departure = {
   readonly stationId: TroopAddress;
   /** What a return walks back to — an outpost keeps its garrison on the spot and needs none. */
   readonly fromBuildingId: Id<'buildings'> | null;
+  /** **Read off the point, once, here** — `hostAtPoint` answers the empty string on the open sea
+   *  and nowhere else. A building and an outpost stand on ground by construction. */
+  readonly afloat: boolean;
 };
 
 export async function departureOf(
@@ -72,18 +75,21 @@ export async function departureOf(
       regionId: null,
       stationId: outpost._id,
       fromBuildingId: null,
+      afloat: false,
     };
   }
   if (origin.kind === 'point') {
     /** **A place is not a thing, so there is nothing to own here**: what makes the order
      *  legitimate is that `march` checks the troops address by address. No building, no gate. */
     const point = pointOf(origin.point);
+    const host = hostAtPoint(point);
     return {
       point,
-      name: hostAtPoint(point),
+      name: host,
       regionId: null,
       stationId: origin.point,
       fromBuildingId: null,
+      afloat: host === '',
     };
   }
   const building = await ctx.db.get(origin.buildingId);
@@ -96,6 +102,7 @@ export async function departureOf(
     regionId: building.regionId,
     stationId: building._id,
     fromBuildingId: building._id,
+    afloat: false,
   };
 }
 
@@ -194,6 +201,7 @@ export async function columnOf(
         .filter((building) => building.regionId === departure.regionId)
         .map((building) => building.key),
     ),
+    afloat: departure.afloat,
   };
 }
 

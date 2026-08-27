@@ -21,11 +21,13 @@ const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Col
   myRegionIds: new Set(),
   myOutpostIds: new Set(),
   departureBuildings: new Set<BuildingKey>(),
+  afloat: false,
   ...held,
 });
 
 const region: MovementAim = { kind: 'region', regionId: 'TUN-1', country: 'Tunisia' };
 const outpost: MovementAim = { kind: 'outpost', outpostId: 'op1', hostCountry: 'Libya' };
+const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4 };
 
 describe('what a column may ask for', () => {
   it('offers the attack on a foreign region — founding is no longer a march', () => {
@@ -92,6 +94,7 @@ describe('the decoy', () => {
     myRegionIds: new Set(),
     myOutpostIds: new Set(),
     departureBuildings: new Set(),
+    afloat: false,
   };
   const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
 
@@ -171,6 +174,44 @@ describe('the doors of the domains', () => {
       departureBuildings: new Set<BuildingKey>(['barracks', 'port']),
     });
     expect(refusalOf('attack', region, quay)).toBeNull();
+  });
+
+  /**
+   * A fleet posted on the open sea has no ground under it and never will: reading the quay on it
+   * stranded every hull that reached the water for the rest of the season. What separates the
+   * two cases below is the water under the pile, never what the pile carries.
+   */
+  it('asks no port of a fleet already at sea — there is no quay to leave from out there', () => {
+    const posted = column(['escort', 'cargo'], { afloat: true });
+    expect(refusalOf('attack', region, posted)).toBeNull();
+    expect(refusalOf('march', point, posted)).toBeNull();
+  });
+
+  it('still asks it of the same fleet at a quayless coast — afloat is the point, not the pile', () => {
+    expect(refusalOf('attack', region, column(['escort', 'cargo']))).toBe('NO_PORT_AT_DEPARTURE');
+  });
+
+  /**
+   * **The port was paid at the first departure** (ADR 0019 §2), when the boots left the ground
+   * for the water. Asking a second quay of a transport that never touched one again made every
+   * mixed column moored offshore a *mouvement fantôme*: troops the game holds, places and feeds,
+   * and that no order can ever move. The water under the pile decides, not what it carries.
+   */
+  it('lets a combined column posted at sea march on towards a coast', () => {
+    const posted = column(['infantry', 'cargo'], { afloat: true });
+    expect(refusalOf('march', point, posted)).toBeNull();
+    expect(refusalOf('attack', region, posted)).toBeNull();
+  });
+
+  it('still refuses the same combined column on a coast with no port', () => {
+    const ashore = column(['infantry', 'cargo']);
+    expect(refusalOf('march', point, ashore)).toBe('NO_PORT_AT_DEPARTURE');
+    expect(refusalOf('attack', region, ashore)).toBe('NO_PORT_AT_DEPARTURE');
+  });
+
+  it('exempts nothing of the sky: nothing is ever posted there', () => {
+    const posted = column(['bomber'], { afloat: true });
+    expect(refusalOf('attack', region, posted)).toBe('NO_AIRFIELD_AT_DEPARTURE');
   });
 });
 
