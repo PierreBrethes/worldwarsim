@@ -34,6 +34,26 @@ import ukCargo from './uk/cargo.webp';
 import ukCarrier from './uk/carrier.webp';
 import ukAirTransport from './uk/airTransport.webp';
 import ukLandTransport from './uk/landTransport.webp';
+import ussrArmor1 from './ussr/armor-1.webp';
+import ussrArmor2 from './ussr/armor-2.webp';
+import ussrBomber from './ussr/bomber.webp';
+import ussrFighter from './ussr/fighter.webp';
+import ussrEscort from './ussr/escort.webp';
+import ussrInfantry1 from './ussr/infantry-1.webp';
+import ussrInfantry2 from './ussr/infantry-2.webp';
+import ussrCargo from './ussr/cargo.webp';
+import ussrAirTransport from './ussr/airTransport.webp';
+import ussrLandTransport from './ussr/landTransport.webp';
+import germanyArmor1 from './germany/armor-1.webp';
+import germanyArmor2 from './germany/armor-2.webp';
+import germanyBomber from './germany/bomber.webp';
+import germanyFighter from './germany/fighter.webp';
+import germanyEscort from './germany/escort.webp';
+import germanyInfantry1 from './germany/infantry-1.webp';
+import germanyInfantry2 from './germany/infantry-2.webp';
+import germanyCargo from './germany/cargo.webp';
+import germanyCarrier from './germany/carrier.webp';
+import germanyLandTransport from './germany/landTransport.webp';
 
 /**
  * A tiered role exposes both of its levels, the others structurally only have one. The union
@@ -88,10 +108,38 @@ const USA: NationSprites = {
   carrier: { kind: 'single', url: usaCarrier },
 };
 
+/** Everything but the carrier, still undrawn: `null` is the answer the type asks for. */
+const USSR: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [ussrInfantry1, ussrInfantry2] },
+  armor: { kind: 'tiered', tiers: [ussrArmor1, ussrArmor2] },
+  landTransport: { kind: 'single', url: ussrLandTransport },
+  fighter: { kind: 'single', url: ussrFighter },
+  bomber: { kind: 'single', url: ussrBomber },
+  airTransport: { kind: 'single', url: ussrAirTransport },
+  escort: { kind: 'single', url: ussrEscort },
+  cargo: { kind: 'single', url: ussrCargo },
+  carrier: null,
+};
+
+/** The Junkers is the one plate still to redraw: its render came out with a baked motion blur. */
+const GERMANY: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [germanyInfantry1, germanyInfantry2] },
+  armor: { kind: 'tiered', tiers: [germanyArmor1, germanyArmor2] },
+  landTransport: { kind: 'single', url: germanyLandTransport },
+  fighter: { kind: 'single', url: germanyFighter },
+  bomber: { kind: 'single', url: germanyBomber },
+  airTransport: null,
+  escort: { kind: 'single', url: germanyEscort },
+  cargo: { kind: 'single', url: germanyCargo },
+  carrier: { kind: 'single', url: germanyCarrier },
+};
+
 export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>> = {
   france: FRANCE,
   uk: UK,
   usa: USA,
+  ussr: USSR,
+  germany: GERMANY,
 };
 
 /**

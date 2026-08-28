@@ -62,10 +62,31 @@ describe('unit sprite manifest', () => {
     expect(spriteUrl(nation, 'cargo', 1)).not.toBeNull();
   });
 
+  /**
+   * Two plates are drawn but for one role each — the soviet carrier, the german Junkers whose
+   * render came out blurred. The `null` is the manifest's own vocabulary, not an omission:
+   * naming the hole here turns it back into a failure the day the plate is drawn and left
+   * unwired, and forbids a second hole from slipping in unannounced.
+   */
+  it.each([
+    ['ussr', 'carrier'],
+    ['germany', 'airTransport'],
+  ] as const)('draws the whole %s plate but its %s', (nation, undrawn) => {
+    const sprites = SPRITES_BY_NATION[nation];
+    if (sprites === undefined) throw new Error(`${nation} must be in the manifest`);
+    for (const role of ROLES) {
+      if (role === undrawn) continue;
+      expect(sprites[role], role).not.toBeNull();
+    }
+    expect(sprites[undrawn]).toBeNull();
+    expect(spriteUrl(nation, undrawn, 1)).toBeNull();
+    expect(spriteUrl(nation, 'infantry', 1)).not.toBe(spriteUrl(nation, 'infantry', 2));
+  });
+
   /** Two nations must never share a file: one plate imported twice is the failure this
    *  catches, and on screen it reads as a nation that forgot to change uniform. */
   it('gives each drawn nation its own images', () => {
-    const urls = (['france', 'uk', 'usa'] as const).flatMap((nation) =>
+    const urls = (['france', 'uk', 'usa', 'ussr', 'germany'] as const).flatMap((nation) =>
       ROLES.map((role) => spriteUrl(nation, role, 1)).filter((url) => url !== null),
     );
     expect(new Set(urls).size).toBe(urls.length);

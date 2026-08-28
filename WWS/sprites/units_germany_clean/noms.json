@@ -1,0 +1,12 @@
+{
+  "infantry-1-kar98k": "infantry-1",
+  "infantry-2-schiessbecher": "infantry-2",
+  "armor-1-panzer2": "armor-1",
+  "armor-2-panzer4": "armor-2",
+  "land-transport-opel-blitz": "landTransport",
+  "fighter-bf109": "fighter",
+  "bomber-ju87": "bomber",
+  "escort-zerstorer": "escort",
+  "cargo-frachter": "cargo",
+  "carrier-graf-zeppelin": "carrier"
+}

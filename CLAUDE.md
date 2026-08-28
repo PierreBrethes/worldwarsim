@@ -68,14 +68,16 @@ oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/con
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.
 
-Les sprites d'unités sont rangés par nation dans `src/emblems/units/` — **la France, le
-Royaume-Uni et les États-Unis sont dessinés** (les deux derniers sont complets, `cargo` compris ;
-la France n'a pas de cargo), les cinq autres nations tombent sur le repli en cadre pointillé. Sur la carte, le jalon
-d'un mouvement `mien` porte le **véhicule du segment en cours** : le sprite du rôle majoritaire
-de la pile sur terre (billboard, lacet caméra seul), la coque en mer, le delta dans le ciel, et
-il change de costume au quai en affichant déjà celui du segment suivant. Un arc adverse garde la
-silhouette de domaine, **identifié ou non** — le brouillard interdit structurellement mieux, et
-la nation sans planche dessinée retombe sur la même silhouette terrestre.
+Les sprites d'unités sont rangés par nation dans `src/emblems/units/` — **cinq nations sont
+dessinées** : le Royaume-Uni et les États-Unis au complet, la France sans cargo, l'URSS sans
+porte-avions, l'Allemagne sans avion de transport (le Ju 52 est à refaire). Un rôle sans planche
+vaut `null` au manifeste et tombe sur le repli en cadre pointillé, comme les trois nations
+restantes. Sur la carte, le jalon d'un mouvement `mien` porte le **véhicule du segment en
+cours** : le sprite du rôle majoritaire de la pile sur terre (billboard, lacet caméra seul), la
+coque en mer, le delta dans le ciel, et il change de costume au quai en affichant déjà celui du
+segment suivant. Un arc adverse garde la silhouette de domaine, **identifié ou non** — le
+brouillard interdit structurellement mieux, et la nation sans planche dessinée retombe sur la
+même silhouette terrestre.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
