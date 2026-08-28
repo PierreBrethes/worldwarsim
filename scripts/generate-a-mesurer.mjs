@@ -134,6 +134,11 @@ export function renderRegister(rows) {
     '',
     `${rows.length} valeurs marquées dans \`convex/\` et \`src/domain/\`.`,
     '',
+    "**Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,",
+    "`EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le",
+    "simulateur d'ouverture (`WWS/simulation/opening/`), et l'en-tête de `convex/constants.ts` les",
+    'déclare placeholders en bloc. Le registre sert les valeurs que rien ne mesure encore.',
+    '',
     '| Constante | Valeur | Où | Pourquoi elle attend |',
     '| --- | --- | --- | --- |',
     ...rows.map(
