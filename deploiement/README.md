@@ -4,16 +4,17 @@ La même pile partout : `convex-backend` + dashboard en Docker, front statique N
 front tourne via Vite, sur le VPS il est servi par le conteneur `front`, derrière le **Traefik
 déjà en place sur le VPS** qui porte le TLS.
 
-Les trois adresses de production :
+Les quatre adresses de production :
 
 | Adresse | Sert | Conteneur |
 |---|---|---|
 | `wws.pierrebrethes.cloud` | le jeu | `front` (Nginx, port 80) |
 | `convex.pierrebrethes.cloud` | l'API Convex + WebSocket | `backend` (port 3210) |
 | `convex-actions.pierrebrethes.cloud` | les actions HTTP Convex | `backend` (port 3211) |
+| `convex-dashboard.pierrebrethes.cloud` | la console d'admin Convex | `dashboard` (port 6791) |
 
-Le dashboard n'a **pas** d'adresse publique — c'est une console d'admin, elle s'ouvre en
-tunnel SSH (§ Dashboard).
+Le dashboard s'ouvre depuis n'importe où, mais derrière deux barrières : le BasicAuth de
+Traefik, puis la clé d'admin Convex (§ Dashboard).
 
 ## Dev local (Windows, Docker Desktop)
 
@@ -53,8 +54,7 @@ tunnel SSH (§ Dashboard).
 En prod, le compose de dev est complété par
 [`deploiement/compose.prod.yml`](compose.prod.yml) : **plus aucun port publié** (Docker
 contourne ufw — un port publié sur le VPS est un port mondial), Traefik route par le réseau
-Docker, le dashboard reste sur 127.0.0.1. Toute commande compose sur le VPS prend les deux
-fichiers :
+Docker, dashboard compris. Toute commande compose sur le VPS prend les deux fichiers :
 
 ```bash
 alias wws-compose='docker compose -f docker-compose.yml -f deploiement/compose.prod.yml'
@@ -130,7 +130,10 @@ wws-compose --profile prod up -d --build front
   **101 Switching Protocols** — c'est le test du passage des upgrades par Traefik ;
 - `curl https://convex-actions.pierrebrethes.cloud` répond (peu importe le code : c'est le
   routage 3211 qu'on teste, l'ancien README l'oubliait) ;
-- depuis l'extérieur, `curl http://<IP>:3210` et `:6791` **échouent** — rien ne publie.
+- depuis l'extérieur, `curl http://<IP>:3210` et `:6791` **échouent** — rien ne publie ;
+- `curl -o /dev/null -w '%{http_code}' https://convex-dashboard.pierrebrethes.cloud` répond
+  **401** sans identifiants et **200** avec — un 200 tout court voudrait dire que le middleware
+  BasicAuth n'est pas attaché au routeur.
 
 ## CI/CD (GitHub Actions)
 
@@ -155,15 +158,26 @@ Un `convex deploy` dont la migration de schéma est incompatible avec les donné
 
 ## Dashboard
 
-Jamais public. Depuis le poste de dev :
+`https://convex-dashboard.pierrebrethes.cloud`, depuis n'importe quel navigateur. Deux
+barrières successives : le BasicAuth de Traefik, puis la clé d'admin Convex à la connexion.
+Le sous-domaine n'est pas secret — c'est le mot de passe qui tient la porte.
+
+Le couple identifiant/hash est dans `WWS_DASHBOARD_AUTH` du `.env` du VPS (jamais commité, le
+`.env` est ignoré). Pour le changer :
 
 ```bash
-ssh -L 6791:127.0.0.1:6791 <utilisateur>@<IP-du-VPS>
+htpasswd -nbB <utilisateur> <mot de passe>          # sur le VPS
+# reporter dans .env en DOUBLANT chaque `$` du hash — Compose interpole les valeurs du .env,
+# et un `$tqFtK…` non doublé part en variable vide, ce qui laisserait un users vide.
+docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d dashboard
 ```
 
-→ http://127.0.0.1:6791, connexion avec la clé d'admin du VPS. `NEXT_PUBLIC_DEPLOYMENT_URL`
-pointe sur l'origine publique, donc le dashboard tunnelé parle au backend par
-`https://convex.pierrebrethes.cloud` — normal.
+La clé d'admin, elle, se régénère par `docker compose exec backend ./generate_admin_key.sh` :
+elle dérive d'`INSTANCE_SECRET`, donc la relancer ne casse pas les clés déjà distribuées.
+
+`NEXT_PUBLIC_DEPLOYMENT_URL` pointe sur l'origine publique : le dashboard parle au backend par
+`https://convex.pierrebrethes.cloud`, depuis le navigateur — normal, il n'y a pas d'appel
+serveur à serveur.
 
 ## Sauvegardes
 

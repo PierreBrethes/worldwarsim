@@ -37,11 +37,27 @@ services:
       - traefik.http.routers.wws-actions.service=wws-actions
       - traefik.http.services.wws-actions.loadbalancer.server.port=3211
 
-  # Le dashboard est une console d'admin : il ne passe PAS par Traefik et n'a pas de
-  # sous-domaine. 127.0.0.1 seulement — on l'ouvre par tunnel : voir le README.
+  # Le dashboard est une console d'admin, joignable depuis le web sur son propre sous-domaine
+  # derrière deux barrières : le BasicAuth de Traefik, puis la clé d'admin Convex demandée à la
+  # connexion. Aucun port publié — 6791 sur l'hôte appartient déjà au dashboard de l'autre
+  # instance Convex du VPS, et un port publié contourne ufw (voir l'en-tête de ce fichier).
+  #
+  # Le couple identifiant/hash vit dans `.env` et pas ici : le dépôt est lu par tous ceux qui
+  # ont le code, pas seulement par ceux qui ont l'accès. `:?` pour que l'absence fasse échouer
+  # le `up` — un `basicauth.users` vide, Traefik le lit comme « tout le monde passe ».
+  # Régénérer : `htpasswd -nbB <utilisateur> <mot de passe>`.
   dashboard:
-    ports: !override
-      - '127.0.0.1:6791:6791'
+    ports: !reset []
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=worldwarsim_default
+      - traefik.http.routers.wws-dashboard.rule=Host(`convex-dashboard.pierrebrethes.cloud`)
+      - traefik.http.routers.wws-dashboard.entrypoints=websecure
+      - traefik.http.routers.wws-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.routers.wws-dashboard.service=wws-dashboard
+      - traefik.http.routers.wws-dashboard.middlewares=wws-dashboard-auth
+      - traefik.http.services.wws-dashboard.loadbalancer.server.port=6791
+      - traefik.http.middlewares.wws-dashboard-auth.basicauth.users=${WWS_DASHBOARD_AUTH:?definir WWS_DASHBOARD_AUTH dans .env — voir deploiement/README.md}
 
   front:
     ports: !reset []
