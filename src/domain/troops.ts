@@ -43,12 +43,15 @@ export const projectionKeyOf = (role: UnitRole): BuildingKey =>
  *
  * A role absent from either table weighs nothing and lifts nothing: an escort is not a ferry,
  * and a fleet on its own has no passenger to answer for.
+ *
+ * @a-mesurer assumed against the troop ceiling alone — two cargos lift half an army
  */
 export const LIFT_CAPACITY: Readonly<Partial<Record<UnitRole, number>>> = {
   cargo: 6,
   airTransport: 2,
 };
 
+/** @a-mesurer the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing */
 export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
   infantry: 1,
   armor: 2,
@@ -68,6 +71,8 @@ export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
  * offered an armour to seat, and would be both a carrier and a passenger inside one crossing.
  * Land seats answer a different question — who rolls and who walks — and it is read by
  * `motorized` alone.
+ *
+ * @a-mesurer two seats, assumed; at four, motorizing an army would be nearly free
  */
 export const LAND_SEATS_PER_TRANSPORT = 2;
 

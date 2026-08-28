@@ -70,6 +70,8 @@ export const KM_PER_UNIT = 111;
  * `MINUTES_PER_ROUTE_UNIT` prices a cost unit off `land` and off nothing else: the one measured
  * number of movement is 14 minutes per 1 000 km **on foot** (simulation report), so a motorized
  * column comes out at 1.15/1.6 of it rather than at a second measurement nobody took.
+ *
+ * @a-mesurer relative prices chosen for their ordering; only the foot pace behind them is measured
  */
 export const COST_BY_MEDIUM: Readonly<Record<'land' | 'sea' | 'landMotorized', number>> = {
   land: 1.6,

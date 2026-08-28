@@ -551,6 +551,8 @@ export const COMBAT_RULES: CombatRules = {
  *
  * Two hundred kilometres is a **placeholder with no measurement behind it whatsoever**, roughly a
  * quarter of an hour of marching at the measured pace. The first campaign must look at it.
+ *
+ * @a-mesurer no measurement whatsoever; the simulator does not model interception at all
  */
 export const INTERCEPTION_RADIUS_KM = 200;
 
@@ -562,6 +564,8 @@ export const INTERCEPTION_RADIUS_KM = 200;
  * `INTERCEPTION_RADIUS_KM` and deliberately not the same value: an interception is a net cast
  * across a road, an arrival is a place one walked to. Wider, aiming stops saying anything;
  * narrower, the point one clicks would have to land on a defender to find him.
+ *
+ * @a-mesurer an assumed starting point; nothing measures how close is close enough on arrival
  */
 export const ARRIVAL_RADIUS_KM = 25;
 
@@ -575,18 +579,22 @@ export const ARRIVAL_RADIUS_KM = 25;
  * **It is meant to become a role statistic**, and stays one constant until something reads a
  * second value — laying a table of nine before a second consumer exists is the mistake D1 of
  * `consommation-continue.md` turned down once.
+ *
+ * @a-mesurer picked for realism and for its rank among the detectors, never measured
  */
 export const SCOUT_RADIUS_KM = 60;
 
 /**
  * **How far a listening station hears what moves** — design sheet 04's second detector.
  *
- * `@a-mesurer` — a hundred and twenty kilometres is a placement in the ordering the design asks
- * for and nothing more: longer than `SCOUT_RADIUS_KM` (60), because a station bought for forty
- * minutes and thirty-five of alloy has to be worth more than a rifleman standing still; shorter
- * than `INTERCEPTION_RADIUS_KM` (200), because a station hears and catches nothing.
+ * A hundred and twenty kilometres is a placement in the ordering the design asks for and nothing
+ * more: longer than `SCOUT_RADIUS_KM` (60), because a station bought for forty minutes and
+ * thirty-five of alloy has to be worth more than a rifleman standing still; shorter than
+ * `INTERCEPTION_RADIUS_KM` (200), because a station hears and catches nothing.
  *
  * A station has no point of its own: it listens from its region's (`regionFacts`).
+ *
+ * @a-mesurer a rank in the ordering the design asks for, and nothing more
  */
 export const LISTENING_STATION_RADIUS_KM = 120;
 
@@ -600,6 +608,8 @@ export const LISTENING_STATION_RADIUS_KM = 120;
  *
  * One an hour against a farm's twelve: an army at the ceiling of twenty-four is two farms at
  * level one, which is the scale the number was picked to read at. Never measured.
+ *
+ * @a-mesurer picked to read against a farm at level one, never measured
  */
 export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
 
@@ -611,6 +621,8 @@ export const FOOD_UPKEEP_PER_TROOP_PER_HOUR = 1;
  * **Two is an assumed starting point, never a measured value**, chosen so the rule exists and can
  * be measured. The known risk is that at ×2 the surcharge drowns in an economy where alloy is the
  * bottleneck and food abundant; if the measurement says so, the value rises and the rule does not.
+ *
+ * @a-mesurer assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck
  */
 export const UPKEEP_UNSUPPLIED_MULTIPLIER = 2;
 
@@ -619,6 +631,8 @@ export const UPKEEP_UNSUPPLIED_MULTIPLIER = 2;
  * immunity window" and stops there. Both are placeholders shaped only so the pair reads: a night
  * out of service, half a night of respite, on a 48-hour season. The immunity is what keeps the
  * rule from collapsing into a permanent shutdown by relays of cheap raids.
+ *
+ * @a-mesurer neither figure is in the design; shaped only so the pair reads on a 48-hour season
  */
 export const OUTPOST_DISABLED_HOURS = 6;
 export const OUTPOST_IMMUNITY_HOURS = 3;
@@ -627,14 +641,20 @@ export const OUTPOST_IMMUNITY_HOURS = 3;
  * **What a decoy costs, whatever it pretends to carry** (ADR 0006, design sheet 04): an empty
  * manifest would otherwise be free, and a free feint is the one order a player could repeat until
  * the fog was pure noise and the fan-out unbounded. A flat rate **plus the slot** is the whole
- * rule. `@a-mesurer` — sixty is a little over three infantry (`COST_BY_ROLE`), shaped only so the
- * order reads as a decision. Nothing simulates it.
+ * rule. Sixty is a little over three infantry (`COST_BY_ROLE`), shaped only so the order reads as
+ * a decision. Nothing simulates it.
+ *
+ * @a-mesurer shaped so a feint reads as a decision; nothing simulates it
  */
 export const DECOY_COST: Costs = { alloy: 60 };
 
-/** **How far an outpost opens the ground around it** (ADR 0015). A radius rather than a count of
- *  regions, which is the only shape the rule may take. Four hundred kilometres is a handful of
- *  Romanian counties, one Australian state and no French department at all. */
+/**
+ * **How far an outpost opens the ground around it** (ADR 0015). A radius rather than a count of
+ * regions, which is the only shape the rule may take. Four hundred kilometres is a handful of
+ * Romanian counties, one Australian state and no French department at all.
+ *
+ * @a-mesurer sized against what it covers on a map, never against a game it changed
+ */
 export const OUTPOST_REACH_KM = 400;
 
 /**
@@ -642,10 +662,12 @@ export const OUTPOST_REACH_KM = 400;
  * only specialization that touches travel time, and with it the arbitration the sheet names: an
  * army, or the means to project it.
  *
- * `@a-mesurer` — one and a half is shaped so the relay reads as a decision rather than a rounding:
- * on a route entirely under its reach it turns fourteen minutes per thousand kilometres into a
- * little over nine. Nothing simulates it. **It never touches an opponent**, and the reading is
- * made at departure like every other timing of the game.
+ * One and a half is shaped so the relay reads as a decision rather than a rounding: on a route
+ * entirely under its reach it turns fourteen minutes per thousand kilometres into a little over
+ * nine. Nothing simulates it. **It never touches an opponent**, and the reading is made at
+ * departure like every other timing of the game.
+ *
+ * @a-mesurer shaped so the relay reads as a decision rather than a rounding
  */
 export const RELAY_SPEED_MULTIPLIER = 1.5;
 
@@ -667,8 +689,12 @@ export const routeMinutes = (costUnits: number): number =>
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS_TO_LAUNCH = 2;
 
-/** **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
- *  scaffold it serves the day the doctrines of design sheet 05 land. */
+/**
+ * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
+ * scaffold it serves the day the doctrines of design sheet 05 land.
+ *
+ * @a-mesurer the bar of a scaffold, measured by nothing — it leaves with the doctrines
+ */
 export const REDUCTION_FACTOR = 0.5;
 
 /** Design sheet 07. The duration is **fixed, not chosen**: the window forbids any arrival while
