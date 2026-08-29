@@ -10,7 +10,7 @@ import type { LonLat } from '@/domain/geo';
 import type { MapLabel } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
-import type { ArcView } from '@/domain/player-view';
+import type { ArcView, TroopStation } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
@@ -37,6 +37,8 @@ type Props = {
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
+  /** Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât. */
+  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => void;
   onCountryHover?: (adm0: string | null) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
@@ -79,6 +81,7 @@ export function WorldMap({
   accentedMovement,
   onSelect,
   onOpenBuilding,
+  onOpenStack,
   onCountryHover,
   onRegionHover,
   onArcHover,
@@ -319,6 +322,7 @@ export function WorldMap({
         onReachHover={(reach) => engine.current?.showReach(reach)}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
+        onOpenStack={onOpenStack ?? (() => {})}
         onContextMenu={onLabelMenu}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />

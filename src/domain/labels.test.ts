@@ -101,7 +101,15 @@ describe('buildLabels', () => {
       ]),
       [
         OUTPOST,
-        { kind: 'stack', id: 'stack', lonLat: [0, 0], stack: { infantry: 4 }, ink: '#000' },
+        {
+          kind: 'stack',
+          id: 'stack',
+          lonLat: [0, 0],
+          station: { kind: 'point', lonLat: [0, 0], country: 'FRA' },
+          stack: { infantry: 4 },
+          plate: null,
+          ink: '#000',
+        },
         {
           kind: 'construction',
           id: 'construction',
@@ -155,7 +163,15 @@ describe('buildLabels', () => {
   it('gives an outpost’s click to its host country, never a stack’s', () => {
     const labels = buildLabels(viewWith([]), [
       OUTPOST,
-      { kind: 'stack', id: 'stack', lonLat: [0, 0], stack: { infantry: 4 }, ink: '#000' },
+      {
+        kind: 'stack',
+        id: 'stack',
+        lonLat: [0, 0],
+        station: { kind: 'point', lonLat: [0, 0], country: 'FRA' },
+        stack: { infantry: 4 },
+        plate: null,
+        ink: '#000',
+      },
     ]);
     expect(labels[0]?.hostCountry).toBe('Norway');
     expect(labels[1]?.hostCountry).toBeNull();

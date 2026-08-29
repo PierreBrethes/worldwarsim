@@ -2,7 +2,12 @@ import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
+import {
+  FOOD_UPKEEP_PER_TROOP_PER_HOUR,
+  OUTPOST_REACH_KM,
+  RELAY_SPEED_MULTIPLIER,
+  UPKEEP_UNSUPPLIED_MULTIPLIER,
+} from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import {
   boards,
@@ -108,9 +113,16 @@ export function GarrisonPanel({
    *  qui ne connaissait que `barracks` grisait la flotte au quai — le refus après le clic que
    *  l'ADR 0015 interdit, à l'envers. */
   const projection = building !== null && PROJECTION_KEYS.has(building.key);
-  /** A garrison composes a column too, and so does a column left standing on the map: the ground
-   *  under it decides nothing any more (ADR 0019 §1), only where the domain gates are read. */
-  const canPrepare = projection || outpost !== null || station.kind === 'point';
+  /**
+   * **Une adresse compose, sauf celle qui n'en est pas une.** Le sol ne décide plus de ce qu'une
+   * pile peut demander (ADR 0019 §1) et le mouvement terrestre ne demande plus de bâtiment du
+   * tout (§2) : la porte du domaine se lit à la visée, par `closedGate`, et le motif du refus
+   * s'affiche dans la rose. Exiger un bâtiment de projection ici grisait l'infanterie du QG —
+   * une colonne que le serveur accepte et que l'écran refusait, la divergence même que l'ADR
+   * 0015 interdit. `home` reste dehors : c'est une troupe que le jeu ne sait plus placer, donc
+   * qu'il ne sait pas router.
+   */
+  const canPrepare = station.kind !== 'home';
   const region = building
     ? (view.me.regions.find((candidate) => candidate.id === building.regionId)?.name ?? null)
     : null;
@@ -256,6 +268,23 @@ export function GarrisonPanel({
                     <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
                       {fr.troops.strength(troop.strength, troop.nominalStrength)}
                     </span>
+                    {/**
+                     * **La vie et le coût sur la même carte.** L'effectif *est* la barre de vie
+                     * (ADR 0014) ; l'entretien est ce qu'elle coûte à l'heure, au taux plein ou
+                     * au taux relevé — une coque posée en mer paie le second, et c'est ici
+                     * qu'on l'apprend, pas sur un écran de comptabilité.
+                     */}
+                    <span
+                      className="block font-(family-name:--font-mono) text-[10.5px]"
+                      style={{ color: troop.supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
+                    >
+                      {troop.supplied
+                        ? fr.troops.upkeepRate(FOOD_UPKEEP_PER_TROOP_PER_HOUR)
+                        : fr.troops.upkeepRaised(
+                            FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER,
+                            UPKEEP_UNSUPPLIED_MULTIPLIER,
+                          )}
+                    </span>
                   </span>
                 </div>
               );
@@ -361,7 +390,7 @@ export function GarrisonPanel({
         ) : (
           held.length > 0 && (
             <p className="mt-[11px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
-              {fr.garrison.notProjection}
+              {fr.garrison.unplaceable}
             </p>
           )
         )}

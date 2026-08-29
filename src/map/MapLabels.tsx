@@ -12,6 +12,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
+import type { TroopStation } from '@/domain/player-view';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
@@ -52,6 +53,7 @@ export function MapLabels({
   onReachHover,
   onSelect,
   onOpenBuilding,
+  onOpenStack,
   onContextMenu,
 }: {
   labels: ReadonlyArray<MapLabel>;
@@ -62,6 +64,8 @@ export function MapLabels({
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
+  /** A pile posted on the map opens its garrison — the same panel the widget's card opens. */
+  onOpenStack: (station: TroopStation, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
@@ -244,6 +248,8 @@ export function MapLabels({
               // moving the country selection would be two answers to one click.
               if (label.buildingId !== null) {
                 onOpenBuilding(label.buildingId, event.clientX, event.clientY);
+              } else if (label.station !== null) {
+                onOpenStack(label.station, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onContextMenu={(event) => {
@@ -325,7 +331,9 @@ function classesOf(label: MapLabel): string {
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
-    label.hostCountry === null && label.buildingId === null ? '' : 'label--clickable',
+    label.hostCountry === null && label.buildingId === null && label.station === null
+      ? ''
+      : 'label--clickable',
   ]
     .filter(Boolean)
     .join(' ');

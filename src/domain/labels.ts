@@ -1,7 +1,7 @@
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
 import type { DepositKey, MovementType, Specialization, UnitRole } from './ids';
-import type { ArcView, PlayerView, Stack } from './player-view';
+import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -21,10 +21,24 @@ export type MapMarker =
       readonly ink: string;
     }
   | {
+      /**
+       * **A pile posted on the map**, and the only marker that is troops rather than a place:
+       * a column left standing in the field, a hull holding a stretch of sea. Its address is
+       * a point, so it carries one — a garrison at a building or on an outpost reads on the
+       * mast that is already drawn there, never here.
+       */
       readonly kind: 'stack';
       readonly id: string;
       readonly lonLat: LonLat;
+      /** The address a click opens the garrison of, and what the camera flies to. */
+      readonly station: TroopStation;
       readonly stack: Stack;
+      /**
+       * The pile's own portrait — the sprite of its majority role, the same plate the garrison
+       * panel shows. `null` for a role its nation has no drawing for; the pictogram stands in
+       * then, and nothing else changes.
+       */
+      readonly plate: string | null;
       readonly ink: string;
     }
   | {
@@ -172,6 +186,12 @@ export type MapLabel = {
    * and only one of them was asked for.
    */
   readonly buildingId: string | null;
+  /**
+   * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
+   * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
+   * second read-only sheet for the same pile.
+   */
+  readonly station: TroopStation | null;
 };
 
 export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role: 'countdown' }> =>
@@ -237,6 +257,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     offensive: false,
     idle: false,
     buildingId: null,
+    station: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
     reach: marker.kind === 'outpost' || marker.kind === 'building' ? marker.reach : null,
@@ -260,7 +281,11 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'stack',
         priority: PRIORITY.stack,
-        pictogram: 'stack',
+        // The portrait wins over the sign, exactly as on a building's mast: the plate says
+        // *what* stands there, the pictogram only that something does.
+        pictogram: marker.plate === null ? 'stack' : null,
+        plate: marker.plate,
+        station: marker.station,
         hostCountry: null,
         lines: [
           { role: 'headcount', text: String(stackHeadcount(marker.stack)) },
@@ -346,6 +371,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       idle: false,
       hostCountry: null,
       buildingId: null,
+      station: null,
       lines: [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }],
     };
   }
@@ -384,6 +410,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     idle: false,
     hostCountry: null,
     buildingId: null,
+    station: null,
     lines: [...schedule, second],
   };
 }

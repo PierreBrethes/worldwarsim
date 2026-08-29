@@ -19,8 +19,22 @@ import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import { placementOf } from '@/domain/construction';
 import type { Column, MovementAim } from '@/domain/movement-orders';
-import type { ArcView, MovementType, PlayerView, TroopStation } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN, stationKeyOf, type MarchStation } from '@/domain/troops';
+import type {
+  ArcView,
+  MovementType,
+  PlayerView,
+  Stack,
+  TroopStation,
+  TroopView,
+} from '@/domain/player-view';
+import {
+  PROJECTION_BY_DOMAIN,
+  marchingTroopIds,
+  representativeRole,
+  stationKeyOf,
+  type MarchStation,
+} from '@/domain/troops';
+import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
@@ -328,6 +342,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   );
 
   /**
+   * **La troisième porte de la même garnison** : la pile posée sur la carte. Rien de coché
+   * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
+   */
+  const openStack = useCallback(
+    (station: TroopStation, clientX: number, clientY: number) => {
+      const rect = document.body.getBoundingClientRect();
+      openGarrison(station, [], { x: clientX - rect.left, y: clientY - rect.top });
+    },
+    [openGarrison],
+  );
+
+  /**
    * The fan the right click opens. Armed, it holds **only** the marches the server will accept
    * for that target — same function, same rule (ADR 0015). Unarmed, it is the ordinary fan.
    */
@@ -424,9 +450,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [view.me.buildings, view.me.ink],
   );
 
+  /** Une troupe en route n'est pas posée : elle pend du mouvement qui la porte, et c'est son
+   *  pion qui la dessine. La même exclusion que le widget, lue sur la même liste. */
+  const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
+
   // Buildings hang from a region id and the map layer resolves it; an outpost carries its own
-  // point, because it *is* a point and colours no ground (fiche 03). Stacks and sited
-  // constructions still wait for 4.7 to serve positions — see `MapMarker`.
+  // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
+  // wait for 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
     // Same rule as the buildings above and for the same reason: `me.regions` is the ground the
     // player may build on and there is no other, so an opponent's deposit cannot reach the map
@@ -471,7 +501,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       ink: view.me.ink,
     }));
 
-    if (!toggles.buildings) return [...deposits, ...outposts];
+    /**
+     * **Une troupe posée se tient sur la carte**, et c'est la seule adresse qui n'a pas déjà un
+     * mât : une colonne laissée en campagne, une coque qui tient un bout de mer. Sans ce
+     * marqueur elles n'existaient que dans le widget — le joueur lisait « en campagne » sans
+     * jamais savoir où. Les autres adresses ne passent pas par ici : une garnison de bâtiment
+     * se lit sur sa plaque, celle d'un avant-poste sur son point.
+     */
+    const posted: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
+
+    if (!toggles.buildings) return [...deposits, ...outposts, ...posted];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
@@ -521,18 +560,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...outposts, ...standing, ...raising];
-  }, [
-    toggles.buildings,
-    toggles.deposits,
-    view.me.buildings,
-    view.me.outposts,
-    view.me.regions,
-    view.me.construction,
-    view.me.nation,
-    view.me.ink,
-    view.loadedAt,
-  ]);
+    return [...deposits, ...outposts, ...posted, ...standing, ...raising];
+  }, [marching, view.me, view.loadedAt, toggles.buildings, toggles.deposits]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
@@ -620,6 +649,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           accentedMovement={hoveredMovement}
           onSelect={select}
           onOpenBuilding={openBuilding}
+          onOpenStack={openStack}
           onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
           onArcHover={setHoveredArc}
@@ -905,7 +935,51 @@ const PREVIEW_ARC = 'preview';
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds
  *  still rather than flying somewhere approximate. */
+/**
+ * **Les piles posées, une carte par adresse.** Le portrait est celui du rôle majoritaire — la
+ * règle du pion d'un mouvement (`movementSprite`), pour qu'une colonne ne change pas de visage
+ * en s'arrêtant. Une nation sans planche pour ce rôle rend `null` et l'étiquette retombe sur
+ * son pictogramme : c'est un dessin qui manque, jamais une pile qui disparaît.
+ */
+function postedStacks(
+  me: PlayerView['me'],
+  marching: ReadonlySet<string>,
+): ReadonlyArray<MapMarker> {
+  const posts = new Map<
+    string,
+    { readonly at: Extract<TroopStation, { kind: 'point' }>; readonly held: TroopView[] }
+  >();
+  for (const troop of me.troops) {
+    const at = troop.stationedAt;
+    if (marching.has(troop.id) || at.kind !== 'point') continue;
+    const key = stationKeyOf(at);
+    const post = posts.get(key);
+    if (post === undefined) posts.set(key, { at, held: [troop] });
+    else post.held.push(troop);
+  }
+
+  return [...posts].map(([key, { at, held }]) => {
+    const stack: Stack = held.reduce<Stack>(
+      (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
+      {},
+    );
+    const face = representativeRole(stack);
+    const tier = held.find((troop) => troop.role === face)?.tier ?? 1;
+    return {
+      kind: 'stack' as const,
+      id: `stack-${key}`,
+      lonLat: at.lonLat,
+      station: at,
+      stack,
+      plate: face === null ? null : spriteUrl(me.nation, face, tier),
+      ink: me.ink,
+    };
+  });
+}
+
 function markerOfStation(view: PlayerView, station: TroopStation): string | null {
+  /** Une pile posée a désormais son marqueur : la caméra a où aller quand on ouvre sa carte. */
+  if (station.kind === 'point') return `stack-${stationKeyOf(station)}`;
   if (station.kind === 'outpost') {
     return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
       ? `outpost-${station.outpostId}`

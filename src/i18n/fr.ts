@@ -793,6 +793,14 @@ export const fr = {
     postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
     postedAtSea: 'en campagne — en mer',
     strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
+    /**
+     * **Ce que la troupe mange, lu sur la troupe** (ADR 0019 §4). Le bandeau sert un débit net
+     * et la fenêtre Économie le décompose par nation ; ici c'est la ligne d'une seule troupe —
+     * le seul endroit où le surcoût du hors-ravitaillement se lit à côté de qui le paie.
+     */
+    upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} nourriture / h`,
+    upkeepRaised: (perHour: number, factor: number) =>
+      `entretien ${tenths(perHour)} nourriture / h — hors ravitaillement ×${factor}`,
     open: (station: string) => `voir ${station} et composer un mouvement`,
     remaining: (duration: string) => `${duration} restant`,
     arrivalAt: (time: string) => `arrivée ${time}`,
@@ -881,7 +889,9 @@ export const fr = {
     foundHere: 'fonder ici',
     // A garrison abroad has no barracks to leave from: the server only marches from a
     // projection building (ADR 0013), and saying so beats a refusal after the click.
-    notProjection: 'Une colonne part d’un bâtiment de projection — celle-ci tient son point.',
+    /** La seule adresse d'où rien ne part : le bâtiment qui logeait ces troupes n'est plus là,
+     *  le jeu ne sait plus où elles se tiennent, donc il ne sait pas les router (ADR 0019 §1). */
+    unplaceable: 'Ces troupes n’ont plus d’adresse sur la carte — rien ne peut partir d’ici.',
   },
 
   /** La visée en carte : ce qui remplace la modale d’envoi. */

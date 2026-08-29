@@ -41,6 +41,7 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   offensive: false,
   idle: false,
   buildingId: null,
+  station: null,
   hostCountry: null,
   ...override,
 });

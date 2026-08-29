@@ -304,6 +304,30 @@
   display: none;
 }
 
+/* Une pile posée porte le même apparat qu'un bâtiment, et pour la même raison : sa plaque *est*
+   la troupe. Sans elle, une colonne laissée en campagne ou une coque tenant un bout de mer
+   n'était qu'une flaque d'ombre sur l'eau — visible de personne, y compris de son propriétaire.
+   Plus basse que la plaque d'un bâtiment : une escorte ne tient pas le terrain d'une fonderie. */
+.label--stack .label-pictogram {
+  top: auto;
+  bottom: -2px;
+  transform: none;
+}
+
+.label--stack .label-plate {
+  height: 30px;
+}
+
+.label--stack.label--glyph .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--stack.label--glyph .label-lines,
+.label--stack.label--glyph .label-bar {
+  display: none;
+}
+
 .label--clickable::before,
 .label--clickable .label-block {
   cursor: pointer;
