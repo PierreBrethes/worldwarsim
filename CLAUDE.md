@@ -73,11 +73,15 @@ dessinées** : le Royaume-Uni et les États-Unis au complet, la France sans carg
 porte-avions, l'Allemagne sans avion de transport (le Ju 52 est à refaire). Un rôle sans planche
 vaut `null` au manifeste et tombe sur le repli en cadre pointillé, comme les trois nations
 restantes. Sur la carte, le jalon d'un mouvement `mien` porte le **véhicule du segment en
-cours** : le sprite du rôle majoritaire de la pile sur terre (billboard, lacet caméra seul), la
-coque en mer, le delta dans le ciel, et il change de costume au quai en affichant déjà celui du
-segment suivant. Un arc adverse garde la silhouette de domaine, **identifié ou non** — le
-brouillard interdit structurellement mieux, et la nation sans planche dessinée retombe sur la
-même silhouette terrestre.
+cours**, et chaque milieu est habillé par **ses propres unités** (`movementSprites`) : les
+bottes majoritaires sur la route, la coque qui les transporte sur l'eau, l'aile qui les emporte
+dans le ciel — il change de costume au quai en affichant déjà celui du segment suivant. Un
+milieu dont la pile ne porte rien, et tout arc adverse, gardent la silhouette de domaine,
+**identifié ou non** — le brouillard interdit structurellement mieux, et la nation sans planche
+dessinée retombe sur la même silhouette. La planche est un billboard **lacet + tangage, pivoté
+sur son pied** : elle se couche sur le plateau quand la caméra passe à la verticale, au lieu de
+disparaître par la tranche, et sa taille est une **aire** constante — à hauteur égale, un
+fantassin (planche haute et étroite) devenait un fil quand un bombardier tenait la mer.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière

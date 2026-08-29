@@ -1,5 +1,5 @@
 import type { Nation, UnitRole } from '@/domain/ids';
-import { representativeRole, type UnitTier } from '@/domain/troops';
+import { representativeRole, stackInDomain, type UnitDomain, type UnitTier } from '@/domain/troops';
 import { isNation } from '@/domain/nations';
 import type { ArcView } from '@/domain/player-view';
 import armor1 from './france/armor-1.webp';
@@ -142,17 +142,28 @@ export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>>
   germany: GERMANY,
 };
 
+/** One face per medium the route may cross — what the pawn wears leg by leg. */
+export type MediumSprites = Readonly<Record<UnitDomain, string | null>>;
+
 /**
- * A movement's face on the map. Only a `mine` arc has one: the fog means an enemy arc
- * structurally has no stack, hence no sprite — the renderer falls back to its anonymous
- * marker without any display `if` able to leak the information.
+ * A movement's faces on the map, **one per medium and each read on that medium's own units**.
+ * A column shows its majority boots on the road, the hull that ferries it on the water, the
+ * wing that lifts it in the sky — never the same drawing carried across a dock it just used.
+ *
+ * Only a `mine` arc has any: the fog means an enemy arc structurally has no stack, hence no
+ * sprite, and the renderer falls back to its anonymous silhouettes without a single display
+ * `if` able to leak a role. A medium the pile carries nothing for answers `null` the same way
+ * — a pile with no hull never sails, so that face is never asked for.
+ *
  * Tier MK1 by default: a movement's stack does not carry the tier yet.
  */
-export function movementSprite(arc: ArcView, playerNation: string | null): string | null {
+export function movementSprites(arc: ArcView, playerNation: string | null): MediumSprites | null {
   if (arc.state !== 'mine') return null;
-  const role = representativeRole(arc.stack);
-  if (role === null) return null;
-  return spriteUrl(playerNation, role, 1);
+  const faceOf = (domain: UnitDomain): string | null => {
+    const role = representativeRole(stackInDomain(arc.stack, domain));
+    return role === null ? null : spriteUrl(playerNation, role, 1);
+  };
+  return { land: faceOf('land'), sea: faceOf('sea'), air: faceOf('air') };
 }
 
 export function spriteUrl(nation: string | null, role: UnitRole, tier: UnitTier): string | null {

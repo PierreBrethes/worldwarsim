@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { Medium } from '@/domain/routing';
+import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
 
 /**
@@ -16,8 +17,14 @@ import { faceCamera, textureOf } from './billboard';
  * is a dust speck in orbit and covers the North Sea up close. The silhouette is narrower
  * than the sprite it replaces, but solid: at equal size it weighs more to the eye, and
  * eight movements out of the same port would make a blot.
+ *
+ * **It is a side, not a height** (see `orient`): the plates are not drawn to one frame — a
+ * bomber is twice as wide as it is tall, a rifleman half. Scaling them all to the same height
+ * gave every wing a generous span and left the infantry a sliver, the one plate a player looks
+ * for most. The share now sets the square each plate covers, so the eye weighs them the same
+ * whatever their shape.
  */
-const PAWN_SHARE = 0.028;
+const PAWN_SHARE = 0.031;
 const PAWN_SILHOUETTE_SHARE = 0.018;
 
 /**
@@ -65,34 +72,39 @@ const SILHOUETTES: Readonly<
  */
 const PLATE_WIDTH = 20;
 
+/** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
+type SpriteCostume = {
+  readonly mesh: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  aspect: number;
+  measured: boolean;
+};
+
 /**
  * A movement's pawn: a single piece over the whole route, changing costume at the dock and
- * standing still during the transfer. The billboard only follows the camera's yaw — a shape
- * tilting with it would lift off the board, and a three.js `Sprite` slides as soon as the
- * orbit dives.
+ * standing still during the transfer.
  *
- * The majority role's sprite only takes the land costume: a column is recognized by what
- * composes it, a convoy at sea by its hull and a flight by its delta — embarked infantry
- * travels on a ship, not on foot. `spriteUrl` is already null for any enemy arc
- * (`movementSprite`), so no display `if` here can leak a role.
+ * **Each medium wears its own plate**, and each is read on the units that actually cross it
+ * (`movementSprites`): the boots on the road, the hull that ferries them, the wing that lifts
+ * them. Embarked infantry still travels on a ship rather than on foot — that rule moved into
+ * the manifest, where the stack is, instead of being enforced here by showing nothing.
+ *
+ * A medium with no plate keeps the anonymous silhouette, and so does every enemy arc: the
+ * manifest hands back `null` throughout for one (the fog leaves it no stack to read), so no
+ * display `if` here can leak a role.
  */
 export class Pawn {
   readonly object = new Group();
   private readonly costumes = new Map<Medium, Group>();
-  private sprite: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
+  private readonly sprites = new Map<Medium, SpriteCostume>();
   private readonly color: string;
   private medium: Medium = 'land';
-  private aspect = 1;
-  private aspectMeasured = false;
   private westward = false;
 
-  constructor(spriteUrl: string | null, color: string) {
+  constructor(sprites: MediumSprites | null, color: string) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
-      const costume =
-        medium === 'land' && spriteUrl !== null
-          ? this.buildSprite(spriteUrl)
-          : this.buildSilhouette(medium);
+      const url = sprites?.[medium] ?? null;
+      const costume = url === null ? this.buildSilhouette(medium) : this.buildSprite(medium, url);
       costume.visible = medium === this.medium;
       this.costumes.set(medium, costume);
       this.object.add(costume);
@@ -132,10 +144,14 @@ export class Pawn {
     const distance = this.object.position.distanceTo(cameraPosition);
     faceCamera(this.object, cameraPosition);
     const sign = this.westward ? -1 : 1;
-    if (this.sprite !== null && this.medium === 'land') {
-      const height = distance * PAWN_SHARE;
-      this.measureAspect();
-      this.sprite.scale.set(this.aspect * height * sign, height, 1);
+    const worn = this.sprites.get(this.medium);
+    if (worn !== undefined) {
+      measureAspect(worn);
+      /** Equal area rather than equal height: the side of the square the plate is worth,
+       *  stretched into its own ratio. A wide plate keeps its span, a tall one its stature. */
+      const side = distance * PAWN_SHARE;
+      const height = side / Math.sqrt(worn.aspect);
+      worn.mesh.scale.set(worn.aspect * height * sign, height, 1);
       return;
     }
     const costume = this.costumes.get(this.medium);
@@ -159,21 +175,26 @@ export class Pawn {
    * The texture stays in the shared cache: two French armor columns point at the same
    * bitmap, and freeing it here would burst the neighbor's.
    */
-  private buildSprite(url: string): Group {
+  private buildSprite(medium: Medium, url: string): Group {
     const geometry = new PlaneGeometry(1, 1);
     geometry.translate(0, 0.5, 0);
-    this.sprite = new Mesh(
+    const mesh = new Mesh(
       geometry,
       new MeshBasicMaterial({
         map: textureOf(url),
         transparent: true,
         alphaTest: 0.35,
         side: DoubleSide,
+        /** Tipped flat under a vertical camera, the plate lies **in** the board's own plane
+         *  and would fight it for every pixel. It is the head of a movement and passes over
+         *  its thread already: it passes over the ground too, like the silhouettes. */
+        depthTest: false,
       }),
     );
-    this.sprite.renderOrder = 13;
+    mesh.renderOrder = 13;
+    this.sprites.set(medium, { mesh, aspect: 1, measured: false });
     const group = new Group();
-    group.add(this.sprite);
+    group.add(mesh);
     return group;
   }
 
@@ -202,17 +223,16 @@ export class Pawn {
     }
     return group;
   }
+}
 
-  /**
-   * The width/height ratio is only known once the image is decoded; rather than a load
-   * callback per pawn, we look at each orientation while it is missing.
-   */
-  private measureAspect(): void {
-    if (this.aspectMeasured) return;
-    const image = this.sprite?.material.map?.image as
-      { width?: number; height?: number } | undefined;
-    if (!image?.width || !image.height) return;
-    this.aspect = image.width / image.height;
-    this.aspectMeasured = true;
-  }
+/**
+ * The width/height ratio is only known once the image is decoded; rather than a load callback
+ * per pawn, we look at each orientation while it is missing.
+ */
+function measureAspect(costume: SpriteCostume): void {
+  if (costume.measured) return;
+  const image = costume.mesh.material.map?.image as { width?: number; height?: number } | undefined;
+  if (!image?.width || !image.height) return;
+  costume.aspect = image.width / image.height;
+  costume.measured = true;
 }

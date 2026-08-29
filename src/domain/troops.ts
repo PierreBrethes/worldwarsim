@@ -169,6 +169,19 @@ export type StationGroup = {
 };
 
 /**
+ * **The pile's units of one domain, as a stack of its own.** What a segment of a route wears is
+ * decided on it and not on the whole pile: an embarked infantry crosses the water *aboard a
+ * hull*, so the sea leg shows the hull. Reading the majority of the whole pile there would put
+ * a rifleman on the waves — the thing the silhouettes were standing in for.
+ */
+export function stackInDomain(stack: Stack, domain: UnitDomain): Stack {
+  return ROLE_ORDER.filter((role) => DOMAIN_BY_ROLE[role] === domain).reduce<Stack>(
+    (kept, role) => (stack[role] ? { ...kept, [role]: stack[role] } : kept),
+    {},
+  );
+}
+
+/**
  * The role that gives a movement its face on the map: the most numerous of the stack, ties
  * broken by the canonical role order. An empty stack has no face — it is the renderer's job
  * to decide what to show, not the domain's to invent a unit.

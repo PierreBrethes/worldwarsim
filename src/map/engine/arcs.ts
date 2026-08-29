@@ -7,7 +7,7 @@ import {
   type UnrolledSegment,
 } from '@/domain/route-timing';
 import type { ArcView } from '@/domain/player-view';
-import { movementSprite } from '@/emblems/units/manifest';
+import { movementSprites } from '@/emblems/units/manifest';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -115,7 +115,10 @@ export class ArcLayer {
         this.targets.push(target);
       }
 
-      const pawn = new Pawn(movementSprite(arc, this.playerNation), ARC_COLORS[arc.state].progress);
+      const pawn = new Pawn(
+        movementSprites(arc, this.playerNation),
+        ARC_COLORS[arc.state].progress,
+      );
       pawn.visible = !stale;
       this.group.add(pawn.object);
 

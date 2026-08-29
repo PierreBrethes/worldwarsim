@@ -17,8 +17,8 @@ const wornCostume = (pawn: Pawn): Medium | null => {
 
 /**
  * The sprite is not tested here: `TextureLoader` needs a `document`, and the rule that must
- * be engraved — an enemy arc structurally has no sprite URL — lives in `movementSprite`,
- * hence in `manifest.test.ts`.
+ * be engraved — an enemy arc structurally has no sprite URL, and each medium is dressed by its
+ * own units — lives in `movementSprites`, hence in `manifest.test.ts`.
  */
 describe('the spriteless pawn', () => {
   it('holds the three medium silhouettes and only wears one', () => {

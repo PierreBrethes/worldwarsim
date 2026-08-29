@@ -3,7 +3,7 @@ import { DOMAIN_BY_ROLE, TIERS_BY_ROLE } from '@/domain/troops';
 import { directRoute } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
-import { SPRITES_BY_NATION, movementSprite, spriteUrl, type NationSprites } from './manifest';
+import { SPRITES_BY_NATION, movementSprites, spriteUrl, type NationSprites } from './manifest';
 
 const ROLES = Object.keys(DOMAIN_BY_ROLE) as ReadonlyArray<UnitRole>;
 
@@ -101,7 +101,7 @@ describe('unit sprite manifest', () => {
   });
 });
 
-describe('movementSprite', () => {
+describe('movementSprites', () => {
   const mine = {
     state: 'mine',
     id: 'MVT-1',
@@ -120,8 +120,30 @@ describe('movementSprite', () => {
     progress: 0.4,
   } as const satisfies ArcView;
 
-  it('shows the dominant role of my stack', () => {
-    expect(movementSprite(mine, 'france')).toBe(spriteUrl('france', 'armor', 1));
+  it('shows the dominant role of my stack on the ground it walks', () => {
+    expect(movementSprites(mine, 'france')?.land).toBe(spriteUrl('france', 'armor', 1));
+  });
+
+  /**
+   * **The medium is dressed by what crosses it**, never by the majority of the whole pile: a
+   * column is mostly boots and it still crosses the water aboard the hull that carries it.
+   * Reading `representativeRole` on the whole stack here would put a rifleman on the waves.
+   */
+  it('dresses each medium with its own units', () => {
+    const embarked = { ...mine, stack: { infantry: 8, armor: 2, cargo: 1, fighter: 1 } } as const;
+    const faces = movementSprites(embarked, 'france');
+    expect(faces?.land).toBe(spriteUrl('france', 'infantry', 1));
+    expect(faces?.air).toBe(spriteUrl('france', 'fighter', 1));
+    // La France n'a pas de cargo dessiné : le milieu retombe sur la silhouette, pas sur un
+    // rôle d'un autre domaine.
+    expect(faces?.sea).toBeNull();
+    expect(movementSprites(embarked, 'uk')?.sea).toBe(spriteUrl('uk', 'cargo', 1));
+  });
+
+  it('leaves a medium the pile carries nothing for bare', () => {
+    const faces = movementSprites(mine, 'france');
+    expect(faces?.sea).toBeNull();
+    expect(faces?.air).toBeNull();
   });
 
   it('structurally shows nothing of an enemy arc', () => {
@@ -140,7 +162,7 @@ describe('movementSprite', () => {
       estimatedMinutesLeft: null,
       progress: 0.1,
     };
-    expect(movementSprite(enemy, 'france')).toBeNull();
+    expect(movementSprites(enemy, 'france')).toBeNull();
   });
 
   /**
@@ -163,11 +185,15 @@ describe('movementSprite', () => {
       estimatedMinutesLeft: 30,
       progress: 0.6,
     };
-    expect(movementSprite(identified, 'france')).toBeNull();
+    expect(movementSprites(identified, 'france')).toBeNull();
   });
 
-  it('returns null without a drawn plate or on an empty stack', () => {
-    expect(movementSprite(mine, 'japan')).toBeNull();
-    expect(movementSprite({ ...mine, stack: {} }, 'france')).toBeNull();
+  it('draws no face without a plate for the nation, nor on an empty stack', () => {
+    expect(movementSprites(mine, 'japan')).toEqual({ land: null, sea: null, air: null });
+    expect(movementSprites({ ...mine, stack: {} }, 'france')).toEqual({
+      land: null,
+      sea: null,
+      air: null,
+    });
   });
 });
