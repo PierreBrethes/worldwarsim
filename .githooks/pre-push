@@ -3,5 +3,23 @@
 # Contournement ponctuel : git push --no-verify
 set -e
 
+# Le dépôt vit sur /mnt/c et `node_modules` est installé depuis WSL : les binaires natifs
+# (rolldown, esbuild) sont des .so Linux. Poussé depuis Windows — VS Code, Git Bash — le hook
+# les charge avec le node de Windows et meurt sur « Cannot find native binding », un échec qui
+# ne dit rien du code poussé. On repasse donc la vérification à WSL plutôt que d'installer deux
+# fois les mêmes paquets dans un `node_modules` que les deux systèmes se partagent.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    if ! command -v wsl.exe >/dev/null 2>&1; then
+      echo "pre-push : lancé depuis Windows, WSL introuvable — pousse depuis WSL, ou git push --no-verify." >&2
+      exit 1
+    fi
+    echo "pre-push : vérifications déléguées à WSL (npm run verifier)"
+    # `bash -lic` et pas `sh -c` : node vient de nvm, qui ne se charge que dans un shell de
+    # connexion. /c/... est le chemin de Git Bash, /mnt/c/... le même dossier vu de Linux.
+    exec wsl.exe -e bash -lic "cd '$(pwd | sed 's|^/\([A-Za-z]\)/|/mnt/\1/|')' && npm run verifier"
+    ;;
+esac
+
 echo "pre-push : vérifications (npm run verifier)"
 npm run verifier
