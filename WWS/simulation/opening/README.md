@@ -62,10 +62,10 @@ bougent, `constants.mjs` bouge avec eux, sinon l'instrument ment.
 
 ## Ce qu'il ne modélise pas
 
-Les mouvements, le combat, les avant-postes, le brouillard — et le **leurre non modélisé** :
-il coûte un slot et un forfait d'alliage (`DECOY_COST`, `@a-mesurer`), or ce moteur ne compte
-ni slot ni mouvement, donc l'arbitrage « feinter se paie en attaques qu'on ne lancera pas » ne
-se mesure nulle part ici. Le **plafond de mouvements en vol**
+Les mouvements, le combat, les avant-postes, le brouillard. La ligne du **leurre** a quitté
+cette liste le 29/08/2026, avec le leurre lui-même — il n'y a plus rien à ne pas modéliser
+(note de révision en tête de `WWS/docs/design/04-information.md`). Le **plafond de mouvements
+en vol**
 a quitté le miroir le 25/08 : ce n'est plus la constante `MOVEMENTS_IN_FLIGHT` mais
 `movementSlots(hqLevel)` — `1 + hqLevel`, dans `src/domain/movement-orders.ts`. `verify.mjs` lit
 des scalaires comme du texte et ne sait pas surveiller la dérive d'une formule ; comme aucun

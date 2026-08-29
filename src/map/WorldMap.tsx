@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
-import type { MapLabel } from '@/domain/labels';
+import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
 import type { ArcView, TroopStation } from '@/domain/player-view';
@@ -39,6 +39,14 @@ type Props = {
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
   /** Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât. */
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => void;
+  /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
+  selectedLabel?: string | null;
+  /**
+   * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
+   * détection d'une troupe désignée. Le survol l'emporte tant qu'il dure et le rend ensuite —
+   * une seule onde à l'écran, jamais deux qui se disputent l'anneau.
+   */
+  reach?: Reach | null;
   onCountryHover?: (adm0: string | null) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
@@ -82,6 +90,8 @@ export function WorldMap({
   onSelect,
   onOpenBuilding,
   onOpenStack,
+  selectedLabel = null,
+  reach = null,
   onCountryHover,
   onRegionHover,
   onArcHover,
@@ -97,6 +107,7 @@ export function WorldMap({
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
+  const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
@@ -225,7 +236,10 @@ export function WorldMap({
     (label: MapLabel, clientX: number, clientY: number) => {
       const map = engine.current;
       const country = map?.countryAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country);
+      /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
+       *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
+      const region = map?.regionAtPoint(clientX, clientY) ?? null;
+      const target = targetOfLabel(label, country, region);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
@@ -234,7 +248,7 @@ export function WorldMap({
        */
       const aimed =
         aiming && target?.kind !== 'outpost' && map !== null
-          ? pointTarget(country, map.regionAtPoint(clientX, clientY), map.pointAt(clientX, clientY))
+          ? pointTarget(country, region, map.pointAt(clientX, clientY))
           : target;
       if (aimed === null) return;
       openRose(aimed, clientX, clientY);
@@ -303,6 +317,13 @@ export function WorldMap({
     engine.current?.select(selectedCountry);
   }, [selectedCountry]);
 
+  /** **Le rayon d'un détecteur, montré au doigt et rangé aussitôt** (fiche 03) : c'est le chiffre
+   *  qui décide où on plante la chose, et il n'était nulle part sur la carte. Une troupe désignée
+   *  tient le sien ouvert tant qu'elle l'est ; le survol passe devant et le lui rend. */
+  useEffect(() => {
+    readyEngine?.showReach(hoveredReach ?? reach);
+  }, [readyEngine, hoveredReach, reach]);
+
   return (
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div
@@ -316,10 +337,9 @@ export function WorldMap({
       <MapLabels
         labels={labels}
         engine={readyEngine}
+        selected={selectedLabel}
         onMovementHover={onLabelHover ?? (() => {})}
-        /** **Le rayon d'un détecteur, montré au doigt et rangé aussitôt** (fiche 03) : c'est le
-         *  chiffre qui décide où on plante la chose, et il n'était nulle part sur la carte. */
-        onReachHover={(reach) => engine.current?.showReach(reach)}
+        onReachHover={setHoveredReach}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onOpenStack ?? (() => {})}
@@ -404,7 +424,11 @@ function pointTarget(
  * A marker label designates the entity it carries; any other — construction, movement head —
  * falls back to the land aimed beneath, which is the only target the game can honor today.
  */
-function targetOfLabel(label: MapLabel, country: string | null): CompassTarget | null {
+function targetOfLabel(
+  label: MapLabel,
+  country: string | null,
+  region: RegionIdentity | null,
+): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null) {
     return {
       kind: 'outpost',
@@ -420,6 +444,9 @@ function targetOfLabel(label: MapLabel, country: string | null): CompassTarget |
       country,
       name: lineText(label, 'figures') ?? fr.compass.fallbackForce,
       headcount: Number(lineText(label, 'headcount') ?? 0),
+      /** Son adresse : on fonde où l'on se tient, donc c'est le point que la branche plantera. */
+      station: label.station,
+      regionId: region?.id ?? null,
     };
   }
   return country === null ? null : { kind: 'country', country };

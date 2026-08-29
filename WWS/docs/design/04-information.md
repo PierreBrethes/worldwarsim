@@ -1,5 +1,32 @@
 # 04 — Information : brouillard, espionnage, leurres
 
+> ## ⚠️ Révision du 29/08/2026 — le leurre est retiré du jeu
+>
+> Le leurre a été conçu ici, codé (`d37e9b6`), puis **retiré** sur décision de Pierre le
+> 29/08/2026, sans avoir jamais été éprouvé en partie réelle. La raison n'est pas qu'il marchait
+> mal : c'est **un outil de plus que personne n'avait demandé**. Le jeu en offrait déjà davantage
+> qu'une saison de test n'en consomme, et chaque ordre supplémentaire est une ligne de menu, une
+> règle à apprendre et une surface à maintenir avant d'être une histoire à raconter.
+>
+> Ce que le retrait emporte : la mutation, le forfait `DECOY_COST`, les trois dépêches, l'allure
+> dédiée, l'entrée du menu contextuel, la section du widget de troupes — et la tolérance qui
+> faisait d'un manifeste vide un ordre. **Une pile vide redevient un refus franc**
+> (`EMPTY_MOVEMENT`).
+>
+> Ce que le retrait laisse en place : la `columnFoundNothing`, née avec lui et qui n'était pas à
+> lui — elle dit la marche qui arrive sur un sol vide, et c'est le seul événement du jeu qui ne
+> laissait aucune trace.
+>
+> **Ce qui reprend son rôle d'incertitude d'intention : rien, pour l'instant.** C'est le trou
+> assumé de cette révision, et il est nommé ici pour qu'on ne le redécouvre pas en partie. Le
+> brouillard continue de cacher le type et la composition (§ « Ce que révèle un mouvement
+> détecté ») ; ce qu'il ne fait plus, c'est laisser douter qu'il y ait quelqu'un derrière le fil.
+> Le jour où l'incertitude d'intention manque vraiment, c'est **cette section-là** qui se relit —
+> et une reprise du leurre serait une décision neuve, pas un retour en arrière.
+>
+> Le reste de la fiche est conservé tel quel : c'est le dossier de la décision, pas son état.
+> Ce qui suit décrit un outil que le jeu n'a plus.
+
 C'est le cœur du jeu, pas une couche annexe. Cf.
 [ADR 0005](../adr/0005-brouillard-par-defaut.md).
 
@@ -53,7 +80,7 @@ ce qui passe — le renseignement est un pari, pas une réaction.
 | **Sonde** | révèle les mouvements sortants d'un joueur pendant X min | ravitaillement |
 | **Agent dormant** | posé dans un pays neutre, révèle en continu les arcs proches | ravitaillement + slot |
 | **Sabotage** | un agent dormant retarde ou dégrade un convoi à sa portée | action de l'agent |
-| **Convoi leurre** | mouvement à zéro unité, indiscernable d'un vrai pour l'espionnage | **forfait fixe + 1 slot** |
+| ~~**Convoi leurre**~~ | ~~mouvement à zéro unité, indiscernable d'un vrai pour l'espionnage~~ | ~~**forfait fixe + 1 slot**~~ — *retiré le 29/08/2026* |
 
 ### Pourquoi le sabotage existe
 
@@ -61,7 +88,7 @@ Sans lui, la doctrine Influence n'a aucune prise sur la partie : elle observe sa
 agir. Six couples nation × doctrine sur 24 devenaient morts, tous concentrés sur Influence. Le
 sabotage est ce qui rend la doctrine jouable plutôt que contemplative.
 
-### Pourquoi le leurre coûte un forfait fixe
+### Pourquoi le leurre coûtait un forfait fixe *(retiré le 29/08/2026)*
 
 Si le coût d'un mouvement dépendait de sa cargaison, un convoi vide coûterait zéro. Résultat : spam
 illimité, espionnage réduit à du bruit pur, condition de victoire « suprématie de renseignement »
@@ -84,7 +111,8 @@ critique : adverse détecté dont la trajectoire croise mon territoire ou mes av
 **renseignement** (encre sourde : adverse détecté ailleurs, sans conséquence directe).
 
 **Un mouvement adverse détecté ne révèle par défaut ni son type ni sa composition** —
-seulement le fil, le cap et un horaire estimé. C'est la condition d'existence du leurre.
+seulement le fil, le cap et un horaire estimé. C'était la condition d'existence du leurre ; la
+règle lui survit et vaut pour elle-même.
 
 **L'identification est un état, pas une catégorie.** Certains bâtiments, unités ou
 placements permettent de percer un mouvement détecté : sa fiche révèle alors type et

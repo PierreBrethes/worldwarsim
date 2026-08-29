@@ -3,7 +3,12 @@ import { useMutation, useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM } from '../../convex/constants';
+import {
+  ARRIVAL_RADIUS_KM,
+  LISTENING_STATION_RADIUS_KM,
+  OUTPOST_REACH_KM,
+  SCOUT_RADIUS_KM,
+} from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard } from '@/map/ControlsCard';
 import { WorldMap } from '@/map/WorldMap';
@@ -17,6 +22,7 @@ import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
+import { knownObjectiveAt } from '@/domain/objectives';
 import { placementOf } from '@/domain/construction';
 import type { Column, MovementAim } from '@/domain/movement-orders';
 import type {
@@ -32,6 +38,7 @@ import {
   marchingTroopIds,
   representativeRole,
   stationKeyOf,
+  troopsAt,
   type MarchStation,
 } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
@@ -48,6 +55,7 @@ import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
 import { ReservesPanel } from './-plateau/ReservesPanel';
 import { MobilizationCard } from './-plateau/MobilizationCard';
 import { BriefingSheet } from './-plateau/BriefingSheet';
+import { TroopBadge } from './-plateau/TroopBadge';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
@@ -69,6 +77,18 @@ type ArmedColumn = {
   readonly station: MarchStation;
   readonly troopIds: ReadonlyArray<string>;
   readonly rule: Column;
+};
+
+/**
+ * **La troupe désignée sur la carte**, et le point où le cartouche se pose. Une seule : un point
+ * qui en porte plusieurs ouvre la garnison, parce qu'il y a alors une pile à composer.
+ */
+type PostedTroop = {
+  readonly station: Extract<TroopStation, { readonly kind: 'point' }>;
+  readonly troop: TroopView;
+  readonly labelId: string;
+  readonly x: number;
+  readonly y: number;
 };
 
 /** An aim named on the map: what the preview card sits on and what the mutation will carry. */
@@ -272,6 +292,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
   const [column, setColumn] = useState<ArmedColumn | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+  /**
+   * **Une troupe seule est désignée, pas ouverte** (décision Pierre, 29/08). La fenêtre de
+   * garnison sert à composer une pile ; un point qui n'en porte qu'une n'a rien à composer, et
+   * lui faire payer un formulaire pour trois lignes était le reproche de la première partie.
+   * Ce qu'elle vaut se lit sur la carte : sa planche prend l'encre, son cercle de détection
+   * s'ouvre, et le cartouche dit le reste.
+   */
+  const [posted, setPosted] = useState<PostedTroop | null>(null);
+  const [foundError, setFoundError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ ids: ReadonlyArray<string>; nonce: number } | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
@@ -302,10 +331,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * mast open this same panel with the same troops pre-checked — never two flows for one thing.
    * The camera goes to the mast either way, so the panel always names something one can see.
    */
+  /** Une troupe en route n'est pas posée : elle pend du mouvement qui la porte, et c'est son
+   *  pion qui la dessine. La même exclusion que le widget, lue sur la même liste. */
+  const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
+
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setColumn(null);
       setOrder(null);
+      setPosted(null);
       setGarrison({ station, preselect, ...at });
       const marker = markerOfStation(view, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
@@ -348,9 +382,23 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const openStack = useCallback(
     (station: TroopStation, clientX: number, clientY: number) => {
       const rect = document.body.getBoundingClientRect();
-      openGarrison(station, [], { x: clientX - rect.left, y: clientY - rect.top });
+      const at = { x: clientX - rect.left, y: clientY - rect.top };
+      /**
+       * **Une seule troupe ne compose rien** (décision Pierre, 29/08) : elle se désigne, et la
+       * carte répond — planche surlignée, cercle de détection, cartouche d'état. La fenêtre est
+       * pour les piles ; la servir ici faisait payer un formulaire pour trois lignes.
+       */
+      const held = troopsAt(view.me, stationKeyOf(station), marching);
+      const alone = held.length === 1 ? held[0] : undefined;
+      if (alone === undefined || station.kind !== 'point') {
+        openGarrison(station, [], at);
+        return;
+      }
+      setGarrison(null);
+      setFoundError(null);
+      setPosted({ station, troop: alone, labelId: `stack-${stationKeyOf(station)}`, ...at });
     },
-    [openGarrison],
+    [openGarrison, view.me, marching],
   );
 
   /**
@@ -358,9 +406,12 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * for that target — same function, same rule (ADR 0015). Unarmed, it is the ordinary fan.
    */
   const compassOfTarget = useCallback(
-    (target: CompassTarget) => compassOf(target, view, column?.rule ?? null),
+    (target: CompassTarget) =>
+      compassOf(target, view, column?.rule ?? null, objectiveUnder(target, view)),
     [view, column],
   );
+
+  const foundHere = useMutation(api.movements.foundOutpostHere);
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
@@ -373,9 +424,27 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           return;
         case 'aim':
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
+          return;
+        /**
+         * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
+         * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
+         * d'un formulaire — c'est le panneau du point, une fois planté, qui rattrape ce choix
+         * tant qu'aucune passe ne l'a lu (`movements.respecialize`).
+         */
+        case 'found':
+          setFoundError(null);
+          foundHere({
+            token,
+            point: { lon: action.point[0], lat: action.point[1] },
+            specialization: 'relay',
+            troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
+          }).then(
+            () => setPosted(null),
+            (problem: unknown) => handleError(problem, setFoundError),
+          );
       }
     },
-    [select],
+    [select, foundHere, token],
   );
 
   // Escape disarms the aim — and only the aim: the rose stops the key before it gets here.
@@ -389,6 +458,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     document.addEventListener('keydown', disarm);
     return () => document.removeEventListener('keydown', disarm);
   }, [column]);
+
+  // Une désignation se lâche de la même touche que la visée, et les deux ne coexistent jamais.
+  useEffect(() => {
+    if (posted === null) return;
+    const release = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPosted(null);
+    };
+    document.addEventListener('keydown', release);
+    return () => document.removeEventListener('keydown', release);
+  }, [posted]);
 
   /**
    * **The keys the season still owes, and the ground each one accepts.** The eligibility is
@@ -450,10 +529,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [view.me.buildings, view.me.ink],
   );
 
-  /** Une troupe en route n'est pas posée : elle pend du mouvement qui la porte, et c'est son
-   *  pion qui la dessine. La même exclusion que le widget, lue sur la même liste. */
-  const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
-
   // Buildings hang from a region id and the map layer resolves it; an outpost carries its own
   // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
   // wait for 4.7 to serve positions — see `MapMarker`.
@@ -508,9 +583,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
      * jamais savoir où. Les autres adresses ne passent pas par ici : une garnison de bâtiment
      * se lit sur sa plaque, celle d'un avant-poste sur son point.
      */
-    const posted: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
+    const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
 
-    if (!toggles.buildings) return [...deposits, ...outposts, ...posted];
+    if (!toggles.buildings) return [...deposits, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
@@ -560,10 +635,23 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...outposts, ...posted, ...standing, ...raising];
+    return [...deposits, ...outposts, ...stacks, ...standing, ...raising];
   }, [marching, view.me, view.loadedAt, toggles.buildings, toggles.deposits]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+
+  /**
+   * **Le cercle de détection de la troupe désignée** (ADR 0019 §5) : le seul détecteur qui soit
+   * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il est rendu comme le cercle
+   * d'écoute — une onde, pas une couche — et part avec la désignation.
+   */
+  const postedReach = useMemo<Reach | null>(
+    () =>
+      posted === null
+        ? null
+        : { lonLat: posted.station.lonLat, km: SCOUT_RADIUS_KM, ink: view.me.ink },
+    [posted, view.me.ink],
+  );
 
   const closeWindow = useCallback(
     (name: BoardWindow) => {
@@ -650,6 +738,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onSelect={select}
           onOpenBuilding={openBuilding}
           onOpenStack={openStack}
+          selectedLabel={posted?.labelId ?? null}
+          reach={postedReach}
           onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
           onArcHover={setHoveredArc}
@@ -695,6 +785,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             }}
           />
         )}
+        {posted && (
+          <TroopBadge
+            key={posted.labelId}
+            nation={view.me.nation}
+            troop={posted.troop}
+            at={posted}
+            onClose={() => setPosted(null)}
+          />
+        )}
         {column && order && (
           <MovementPreview
             token={token}
@@ -715,6 +814,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             placements, and the aim banner joins it above rather than covering it. */}
         <div className="pointer-events-none absolute top-4 left-4 z-10 flex flex-col items-start gap-3 [&>*]:pointer-events-auto">
           {column && !order && <AimBanner view={view} column={column} />}
+          {foundError !== null && (
+            <div className="hud border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
+              {foundError}
+            </div>
+          )}
           <MobilizationCard
             view={view}
             placements={foundation}
@@ -1021,3 +1125,17 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
   key === 'listening' && point !== undefined
     ? { lonLat: point, km: LISTENING_STATION_RADIUS_KM }
     : null;
+
+/**
+ * **Ce que la vue du joueur donne pour attaquable sous le clic** — et rien d'autre ne répond à
+ * cette question (décision Pierre, 29/08). Un avant-poste cliqué en est un par définition : on ne
+ * dessine que les siens, et viser le sien reste refusé par `FRIENDLY_TARGET`, pas par ici.
+ *
+ * `ARRIVAL_RADIUS_KM` est le rayon parce que c'est celui que l'arrivée lira (`defenceNear`) : un
+ * objectif hors de ce cercle est un objectif que l'assaut ne trouverait pas.
+ */
+function objectiveUnder(target: CompassTarget, view: PlayerView): boolean {
+  if (target.kind === 'outpost') return true;
+  if (target.kind !== 'point') return false;
+  return knownObjectiveAt(view, [target.lon, target.lat], target.country, ARRIVAL_RADIUS_KM);
+}

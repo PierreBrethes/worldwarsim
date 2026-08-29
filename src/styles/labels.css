@@ -328,6 +328,20 @@
   display: none;
 }
 
+/* La troupe désignée. Sélectionner ne l'ouvre plus (décision du 29/08) : ce que le clic répond
+   se lit sur la carte, et c'est ici que ça se dit. La planche prend l'encre du joueur en halo et
+   sa flaque d'ombre passe à la même encre — rien d'autre ne bouge, ni la taille, ni la place :
+   une planche qui grossit à la sélection déplace la troupe sous le pointeur. */
+.label--selected .label-plate,
+.label--selected .label-pictogram {
+  filter: drop-shadow(0 0 2px var(--label-ink)) drop-shadow(0 0 4px var(--label-ink))
+    drop-shadow(0 0 1.4px var(--paper));
+}
+
+.label--selected::before {
+  background: radial-gradient(closest-side, var(--label-ink), rgb(38 30 20 / 0%));
+}
+
 .label--clickable::before,
 .label--clickable .label-block {
   cursor: pointer;

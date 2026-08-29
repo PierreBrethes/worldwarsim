@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { journalDispatches } from './journal';
+import { isAlarm, journalDispatches } from './journal';
+import { fr } from '@/i18n/fr';
 import type { CombatReport, Notice } from './player-view';
 
 /**
@@ -83,8 +84,8 @@ describe('the journal', () => {
 
   /**
    * Le relevé ne porte ni type, ni composition, ni nation de la colonne — la notice ne les a pas
-   * (`convex/validators.ts`), donc la phrase ne peut pas les dire. C'est la condition d'existence
-   * du leurre. Le pays qu'elle nomme est **celui d'où l'on a regardé**, et la phrase le dit.
+   * (`convex/validators.ts`), donc la phrase ne peut pas les dire. Le pays qu'elle nomme est
+   * **celui d'où l'on a regardé**, et la phrase le dit.
    */
   it('words a sighting from the sentry, with a place and a heading', () => {
     const [sighted] = journalDispatches(
@@ -108,31 +109,6 @@ describe('the journal', () => {
     expect(sighted!.text).toContain('NE');
   });
 
-  /**
-   * **Les deux faces d'une même minute.** Celui qui a éventé le leurre n'apprend rien de plus
-   * qu'avant sur son adversaire — pas la nation, pas ce qu'elle prépare — seulement que ce fil-là
-   * ne portait personne ; son propriétaire, lui, sait que sa feinte est lue. Aucune des deux
-   * phrases ne nomme l'autre joueur.
-   */
-  it('words the two faces of a spent decoy without naming anybody', () => {
-    const [exposed] = journalDispatches(
-      [],
-      null,
-      [],
-      [{ kind: 'decoyExposed', at: NOON, hostCountry: 'ROU' }],
-    );
-    expect(exposed!.text).toContain('leurre');
-    expect(exposed!.severity).toBe('notable');
-
-    const [blown] = journalDispatches(
-      [],
-      null,
-      [],
-      [{ kind: 'decoyBlown', at: NOON, hostCountry: 'ROU' }],
-    );
-    expect(blown!.text).toContain('éventé');
-  });
-
   /** La colonne bredouille : sans cette dépêche, la plus longue marche d'une saison se lit
    *  « rien à signaler ». */
   it('words the arrival that found nobody', () => {
@@ -152,5 +128,70 @@ describe('the journal', () => {
     );
     expect(nothing!.text).toContain('personne');
     expect(nothing!.severity).toBe('notable');
+  });
+});
+
+/**
+ * **La sorte, à côté de la gravité et jamais déduite d'elle.** C'est ce que la marge du journal
+ * tamponne (`shell/Stamp.tsx`), et c'est la seule chose qui sépare d'un coup d'œil un assaut mené
+ * d'un assaut subi — deux nouvelles d'une même passe, de même gravité.
+ */
+describe('the sort a dispatch is stamped with', () => {
+  it('splits the two faces of one pass, and only the suffered one is an alarm', () => {
+    const [led] = journalDispatches([battle(NOON)], null, []);
+    const [suffered] = journalDispatches([{ ...battle(NOON), side: 'defender' }], null, []);
+
+    expect(led!.kind).toBe('assault');
+    expect(suffered!.kind).toBe('attacked');
+    expect(isAlarm(led!.kind)).toBe(false);
+    expect(isAlarm(suffered!.kind)).toBe(true);
+  });
+
+  /** Les quatre encres rouges de la règle, et pas une cinquième : ce qu'on a subi, ce qu'on a
+   *  perdu, ce qui a manqué en tirant, ce qu'on a vu passer. */
+  it('reserves the red ink for the four sorts that ask for a decision now', () => {
+    const alarms: ReadonlyArray<Notice> = [
+      { kind: 'outpostDisabled', at: NOON, hostCountry: 'ROU', specialization: 'listening' },
+      { kind: 'firedDry', at: NOON, hostCountry: 'ROU' },
+      {
+        kind: 'movementSighted',
+        at: NOON,
+        hostCountry: 'ROU',
+        headingDegrees: 90,
+        detector: 'troop',
+        detectorRegion: null,
+      },
+    ];
+    for (const notice of alarms) {
+      expect(isAlarm(journalDispatches([], null, [], [notice])[0]!.kind)).toBe(true);
+    }
+
+    const quiet: ReadonlyArray<Notice> = [
+      finished(NOON),
+      { kind: 'outpostFounded', at: NOON, hostCountry: 'ROU', specialization: 'relay' },
+      { kind: 'columnArrived', at: NOON, movementType: 'march', hostCountry: 'ROU', troops: 2 },
+    ];
+    for (const notice of quiet) {
+      expect(isAlarm(journalDispatches([], null, [], [notice])[0]!.kind)).toBe(false);
+    }
+  });
+
+  /** Une saison close se relit, elle ne se joue plus : elle n'exige plus rien de personne, donc
+   *  pas d'encre rouge — c'est la limite de la règle, et elle se vérifie. */
+  it('leaves the concluded season to the plain ink', () => {
+    const [closed] = journalDispatches(
+      [],
+      { target: 1, concludedAt: NOON, winnerNation: 'france', standings: [] },
+      [],
+    );
+    expect(closed!.kind).toBe('seasonConcluded');
+    expect(isAlarm(closed!.kind)).toBe(false);
+  });
+
+  /** Chaque sorte a son mot : un tampon sans libellé serait un cadre vide dans la marge. */
+  it('gives every sort a label of its own', () => {
+    const labels = Object.values(fr.stamps.dispatches);
+    expect(labels.every((label) => label.length > 0)).toBe(true);
+    expect(new Set(labels).size).toBe(labels.length);
   });
 });

@@ -2,6 +2,8 @@ import { useMutation } from 'convex/react';
 import { useCallback } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
+import { isAlarm } from '@/domain/journal';
+import { Stamp } from '@/shell/Stamp';
 import type {
   JournalDispatch,
   DispatchSeverity,
@@ -75,9 +77,14 @@ export function JournalWindow({
         </DragHandle>
 
         <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px] text-center">
-          <h2 className="font-(family-name:--font-display) text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
-            {fr.journal.masthead}
-          </h2>
+          <div className="flex items-center justify-center gap-[18px]">
+            <h2 className="font-(family-name:--font-display) text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
+              {fr.journal.masthead}
+            </h2>
+            {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
+                relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
+            {view.season.reduction.concludedAt !== null && <Stamp label={fr.stamps.seasonClosed} />}
+          </div>
           <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
             <span>
               {fr.journal.nationLine(
@@ -103,6 +110,12 @@ export function JournalWindow({
                   <span className="text-[10px] font-bold tracking-[.22em] text-[var(--critical)] uppercase">
                     {fr.journal.severities[lead.severity]} — {lead.t}
                   </span>
+                  <span className="flex-1" />
+                  <Stamp
+                    label={fr.stamps.dispatches[lead.kind]}
+                    tone={isAlarm(lead.kind) ? 'critical' : 'ink'}
+                    size="small"
+                  />
                 </div>
                 <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(22px,3.7cqi,38px)] leading-[1.02] font-extrabold text-[var(--ink)]">
                   {lead.text}
@@ -256,8 +269,20 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
       className="border-b border-[rgba(42,33,24,.16)] py-[10px] last:border-b-0"
       style={{ opacity: entry.unread ? 1 : 0.5 }}
     >
-      <div className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-        {entry.t}
+      {/* **La sorte dans la marge, la manchette en vedette.** Un cachet en petit corps à côté de
+          l'heure dit *de quoi il s'agit* avant qu'on ait lu la phrase — c'est ce qu'on cherche en
+          parcourant une colonne. Un seul par dépêche : deux cachets sur trois lignes de texte
+          feraient de la colonne un formulaire. */}
+      <div className="flex items-center gap-3">
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+          {entry.t}
+        </span>
+        <span className="flex-1" />
+        <Stamp
+          label={fr.stamps.dispatches[entry.kind]}
+          tone={isAlarm(entry.kind) ? 'critical' : 'ink'}
+          size="small"
+        />
       </div>
       <div className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.15] font-semibold text-[var(--ink)]">
         {entry.text}

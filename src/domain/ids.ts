@@ -47,9 +47,13 @@ export type UnitTier = 1 | 2;
  * stood decided what it could ask for. ADR 0019 removed that origin and the word with it, but
  * columns recalled before the change are still walking and their documents still say `recall` —
  * so the vocabulary keeps it and `ORDERABLE_TYPES` no longer offers it.
+ *
+ * **Révision du 29/08/2026 : `decoy` a quitté cette liste.** Le leurre a été retiré du jeu, et
+ * c'est la différence avec `recall` : un rappel en vol atterrit encore, un leurre ne fait plus
+ * rien nulle part. Le mot reste dans le validateur Convex — et là seulement — le temps que les
+ * documents déjà écrits partent au prochain wipe (`convex/validators.ts`).
  */
-export type MovementType =
-  'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'decoy' | 'return';
+export type MovementType = 'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'return';
 
 /**
  * The two season formats. What each one is worth — duration, headquarters at launch, ceiling,

@@ -1,6 +1,7 @@
 import { countryLabel, fr } from '@/i18n/fr';
 import { buildOptionsAt } from './construction';
 import {
+  foundingRefusal,
   legalMovementTypes,
   liftOf,
   ORDERABLE_TYPES,
@@ -10,8 +11,10 @@ import {
   type OrderRefusal,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
+import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
+import type { LonLat } from './geo';
 import type { MovementType } from './ids';
-import type { PlayerView } from './player-view';
+import type { PlayerView, TroopStation } from './player-view';
 
 /**
  * What the right click touched. A discriminated union rather than an object with optional
@@ -59,11 +62,18 @@ export type CompassTarget =
       readonly name: string;
     }
   | {
+      /**
+       * Une pile posée sur la carte, désignée par sa propre étiquette. Elle porte son adresse —
+       * c'est là qu'un avant-poste se planterait, puisqu'on fonde où l'on se tient (ADR 0019 §1)
+       * — et la région dessinée sous elle, la seule chose qui dise si ce sol est déjà le sien.
+       */
       readonly kind: 'force';
       readonly id: string;
       readonly country: string | null;
       readonly name: string;
       readonly headcount: number;
+      readonly station: TroopStation | null;
+      readonly regionId: string | null;
     };
 
 /**
@@ -71,12 +81,15 @@ export type CompassTarget =
  * the propeller the day something flies — and are declared here so that when the day comes there
  * is only wiring to write, never a drawing to find.
  *
- * `silhouette` is the decoy's, and it is the plate's one hollow drawing: the march's hut with
- * nothing inside it. A feint is the shape of a column and none of its substance, and the
- * pictogram says exactly that before the tooltip does.
+ * `post` est la fondation : la hutte **avec son mât**. Elle ne pouvait pas reprendre `cabin` —
+ * une pile posée offre « fonder » et « voir le pays » dans la même rose, et deux branches sous
+ * le même dessin sont deux branches qu'on ne distingue qu'en survolant.
+ *
+ * La hutte évidée est partie avec le leurre (révision du 29/08/2026) : c'était le seul dessin
+ * creux de la plate, et il ne désignait plus rien.
  */
 export type CompassPictogram =
-  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'silhouette';
+  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'post';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -114,6 +127,21 @@ export type CompassAction =
       readonly consequence: string;
       readonly regionId: string;
       readonly regionName: string;
+    }
+  /**
+   * **Fonder, au clic droit sur la pile qui fonde** (décision Pierre, 29/08). Le geste a quitté la
+   * fenêtre de garnison : la fondation est un ordre donné à une troupe sur la carte, pas une ligne
+   * d'un formulaire. Elle ne paraît que si `foundingRefusal` la laisse passer là — rien de grisé,
+   * jamais (ADR 0015).
+   */
+  | {
+      readonly key: 'found';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly point: LonLat;
+      readonly troopIds: ReadonlyArray<string>;
     };
 
 type Fan = {
@@ -178,7 +206,6 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
   outpost: 'cabin',
   recall: 'anchor',
   agent: 'helmet',
-  decoy: 'silhouette',
   return: 'anchor',
 };
 
@@ -191,10 +218,7 @@ const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassA
    *  `convex/constants.ts` with every other balance number, and the domain does not read it
    *  (ADR 0016, the layering of `CLAUDE.md`). The aiming card says it, one gesture later, at the
    *  moment it is a price rather than a warning. */
-  consequence:
-    type === 'decoy'
-      ? fr.compass.decoyConsequence
-      : fr.compass.marchConsequence(fr.movementTypes[type]),
+  consequence: fr.compass.marchConsequence(fr.movementTypes[type]),
   aim,
   type,
 });
@@ -232,8 +256,9 @@ export function compassOf(
   target: CompassTarget,
   view: PlayerView,
   column: Column | null = null,
+  objectiveKnown = false,
 ): Compass | null {
-  if (column !== null) return aim(target, view, column);
+  if (column !== null) return aim(target, view, column, objectiveKnown);
   const fan = build(target, view);
   return fan.actions.length === 0 ? null : { ...fan, refusal: null };
 }
@@ -249,11 +274,20 @@ export function compassOf(
  * What is left aims at places — which is what ADR 0019 §1 says a movement does. Aiming, the map
  * hands back a point at every scale, so no region target ever reaches here.
  */
-function aim(target: CompassTarget, view: PlayerView, column: Column): Compass | null {
+function aim(
+  target: CompassTarget,
+  view: PlayerView,
+  column: Column,
+  objectiveKnown: boolean,
+): Compass | null {
   if (target.kind === 'outpost') {
-    return fanOf(target.name, view, column, [
-      { kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry },
-    ]);
+    return fanOf(
+      target.name,
+      view,
+      column,
+      [{ kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry }],
+      objectiveKnown,
+    );
   }
   if (target.kind !== 'point') return null;
   /**
@@ -261,8 +295,24 @@ function aim(target: CompassTarget, view: PlayerView, column: Column): Compass |
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed
    * at and nothing rounds it to a centroid.
    */
-  return fanOf(target.name, view, column, [{ kind: 'point', lon: target.lon, lat: target.lat }]);
+  return fanOf(
+    target.name,
+    view,
+    column,
+    [{ kind: 'point', lon: target.lon, lat: target.lat }],
+    objectiveKnown,
+  );
 }
+
+/**
+ * **Ce que la rose propose, parmi ce que le serveur accepterait** — un seul retrait, et rien de
+ * grisé pour autant (décision Pierre, 29/08) : **l'attaque demande un objectif identifié.**
+ * `objectiveKnown` est lu dans la vue du joueur et nulle part ailleurs (`knownObjectiveAt`) : le
+ * renseignement devient le préalable de l'assaut, et l'agression à l'aveugle reste possible par
+ * la marche, qui en subit l'interception.
+ */
+const offeredInFan = (type: MovementType, objectiveKnown: boolean): boolean =>
+  type !== 'attack' || objectiveKnown;
 
 /**
  * One branch per legal type, and never two for the same type: the first aim that legalises a type
@@ -276,21 +326,22 @@ function fanOf(
   view: PlayerView,
   column: Column,
   aims: ReadonlyArray<MovementAim>,
+  objectiveKnown: boolean,
 ): Compass {
   const taken = new Set<MovementType>();
   const actions = aims.flatMap((aimed) =>
     legalMovementTypes(aimed, column)
+      .filter((type) => offeredInFan(type, objectiveKnown))
       .filter((type) => !taken.has(type) && taken.add(type) !== undefined)
       .map((type) => march(type, aimed, view)),
   );
   /**
-   * **The motive is about the marches, and the decoy is not one.** A feint asks nothing of the
-   * pile — it carries none — so it stands on ground a hull with no quay cannot leave, and a fan
-   * holding nothing but the feint is a fan whose marches were all refused. Reading the motive
-   * off `actions.length` would have swallowed it the day the decoy landed, and the player would
-   * have watched his marches vanish with no sentence to say why.
+   * **Le motif parle des marches, et une attaque retenue faute d'objectif n'en est pas une
+   * absence.** Tant qu'une marche reste sur la plate, il n'y a rien à expliquer : le joueur a un
+   * ordre à donner là. Le motif ne sort que lorsque la porte du domaine a tout refusé — le cas
+   * qu'aucune carte ne peut dire, et le seul que l'ADR 0019 voulait sortir du silence.
    */
-  const marches = actions.filter((action) => action.key === 'aim' && action.type !== 'decoy');
+  const marches = actions.filter((action) => action.key === 'aim');
   return {
     kicker: fr.compass.aiming(column.roles.length),
     name,
@@ -325,11 +376,7 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
  */
 function refusalIn(aims: ReadonlyArray<MovementAim>, column: Column): string | null {
   const met = new Set(
-    aims.flatMap((aimed) =>
-      ORDERABLE_TYPES.filter((type) => type !== 'decoy').map((type) =>
-        refusalOf(type, aimed, column),
-      ),
-    ),
+    aims.flatMap((aimed) => ORDERABLE_TYPES.map((type) => refusalOf(type, aimed, column))),
   );
   const code = REFUSAL_PRIORITY.find((candidate) => met.has(candidate));
   if (code === undefined) return null;
@@ -380,7 +427,10 @@ function build(target: CompassTarget, view: PlayerView): Fan {
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions: target.country === null ? [] : [viewCountry(target.country)],
+        actions: [
+          ...foundHere(target, view),
+          ...(target.country === null ? [] : [viewCountry(target.country)]),
+        ],
       };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
@@ -392,4 +442,44 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         ? { kicker: fr.compass.openWater, name: target.name, actions: [] }
         : build({ kind: 'country', country: target.country }, view);
   }
+}
+
+/**
+ * **On fonde où l'on se tient** (ADR 0019 §1), donc la branche vit sur la pile elle-même et sur
+ * rien d'autre : c'est son adresse qui devient le point, et sa composition entière qui décide.
+ * `foundingRefusal` est la fonction dont le serveur refuse (`foundOutpostHere`) — la rose ne tient
+ * pas une seconde table de ce qui plante un point.
+ *
+ * Le sol se lit sur la région dessinée sous la pile ; au-dessus du seuil de fondu il n'y en a
+ * aucune et la branche paraît quand même — le refus du serveur reste alors possible, et c'est le
+ * seul endroit où la rose ne peut pas savoir avant de demander.
+ */
+function foundHere(
+  target: Extract<CompassTarget, { kind: 'force' }>,
+  view: PlayerView,
+): ReadonlyArray<CompassAction> {
+  const station = target.station;
+  if (station === null || station.kind !== 'point') return [];
+  const held = troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));
+  const onMyGround =
+    target.regionId !== null &&
+    view.me.buildings.some((building) => building.regionId === target.regionId);
+  if (
+    foundingRefusal(
+      held.map((troop) => troop.role),
+      onMyGround,
+    ) !== null
+  )
+    return [];
+  return [
+    {
+      key: 'found',
+      pictogram: 'post',
+      label: fr.compass.found,
+      cost: null,
+      consequence: fr.compass.foundConsequence,
+      point: station.lonLat,
+      troopIds: held.map((troop) => troop.id),
+    },
+  ];
 }

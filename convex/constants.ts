@@ -638,17 +638,6 @@ export const OUTPOST_DISABLED_HOURS = 6;
 export const OUTPOST_IMMUNITY_HOURS = 3;
 
 /**
- * **What a decoy costs, whatever it pretends to carry** (ADR 0006, design sheet 04): an empty
- * manifest would otherwise be free, and a free feint is the one order a player could repeat until
- * the fog was pure noise and the fan-out unbounded. A flat rate **plus the slot** is the whole
- * rule. Sixty is a little over three infantry (`COST_BY_ROLE`), shaped only so the order reads as
- * a decision. Nothing simulates it.
- *
- * @a-mesurer shaped so a feint reads as a decision; nothing simulates it
- */
-export const DECOY_COST: Costs = { alloy: 60 };
-
-/**
  * **How far an outpost opens the ground around it** (ADR 0015). A radius rather than a count of
  * regions, which is the only shape the rule may take. Four hundred kilometres is a handful of
  * Romanian counties, one Australian state and no French department at all.

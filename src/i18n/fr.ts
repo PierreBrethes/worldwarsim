@@ -11,7 +11,7 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import type { UpgradeHold } from '../domain/construction';
-import type { CapRelief } from '../domain/player-view';
+import type { CapRelief, DispatchKind } from '../domain/player-view';
 import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -101,7 +101,6 @@ export const fr = {
     outpost: 'fondation d’avant-poste',
     recall: 'rappel de garnison',
     agent: 'agent',
-    decoy: 'leurre',
     return: 'retour',
   } satisfies Record<MovementType, string>,
 
@@ -112,7 +111,6 @@ export const fr = {
     outpost: 'avant-postes',
     recall: 'rappels',
     agent: 'agents',
-    decoy: 'leurres',
     return: 'retours',
   } satisfies Record<MovementType, string>,
 
@@ -304,6 +302,8 @@ export const fr = {
     TIER_2_LOCKED: (d) => `palier 2 : quartier général niveau ${num(d.requiredLevel)} requis`,
     QUEUE_FULL: (d) => `file pleine (${num(d.maximum)} lots)`,
     UNKNOWN_BATCH: () => 'lot inconnu',
+    SPECIALIZATION_SEALED: () =>
+      'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
     BATCH_ALREADY_STARTED: () => 'ce lot a déjà commencé — il ne s’annule plus',
     CHAIN_NOT_COMMANDED: (d) => `${buildingName(d.chain)} tourne seule — elle ne se commande pas`,
     CHAIN_NOT_STANDING: (d) => `aucun ${buildingName(d.building)} debout`,
@@ -334,10 +334,6 @@ export const fr = {
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
-    /** Le leurre ne part pas de nulle part : sinon il percerait le brouillard à rebours, en
-     *  dessinant une colonne là où le joueur ne tient rien. */
-    NO_DECOY_ORIGIN: () =>
-      'un leurre part d’une garnison ou d’un bâtiment de projection, jamais d’un sol vide',
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
@@ -363,10 +359,21 @@ export const fr = {
     dash: '—',
   },
 
+  /**
+   * **La manchette : le titre du journal, et le journal est le jeu.** « WW » est un pavé
+   * d'imprimeur, « SIM » la suite en didone — un logo au trait, jamais une image : il doit vivre
+   * à toutes les tailles et prendre l'encre du support sans qu'on repasse par un fichier.
+   */
+  masthead: {
+    block: 'WW',
+    tail: 'SIM',
+    dateline: 'le monde en jeu — édition de guerre',
+    title: 'WorldWarSim',
+  },
+
   home: {
     edition: 'édition du jour',
     audience: '2 à 8 joueurs — entre amis',
-    masthead: 'WORLDWARSIM',
     tagline: 'projeter de la force — l’information est chère, tout engagement est irréversible',
     stampTitle: 'état-major',
     stampSub: 'bureau des cartes',
@@ -666,6 +673,38 @@ export const fr = {
     homeConcluded: (nation: string) => `saison conclue — ${nation} l’emporte`,
   },
 
+  /**
+   * **Ce qu'un tampon dit, et il ne dit qu'une chose** (`shell/Stamp.tsx`). Un mot, deux au plus :
+   * un cachet qui a besoin d'une phrase n'est pas un cachet, c'est une note. La casse haute et le
+   * crènelage sont posés par le composant — écrire les majuscules ici doublerait la règle.
+   */
+  stamps: {
+    /** La sorte de chaque dépêche, tamponnée dans la marge du journal. */
+    dispatches: {
+      seasonConcluded: 'saison close',
+      reduction: 'réduction',
+      warEntry: 'entrée en guerre',
+      assault: 'assaut mené',
+      attacked: 'attaque subie',
+      construction: 'chantier',
+      delivery: 'livraison',
+      column: 'colonne',
+      stalled: 'arrivée retenue',
+      outpostFounded: 'avant-poste fondé',
+      outpostDisabled: 'avant-poste désactivé',
+      sighting: 'relevé',
+      firedDry: 'tir à sec',
+      foundNothing: 'bredouille',
+    } satisfies Record<DispatchKind, string>,
+    /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
+     *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
+    outpostDisabled: 'désactivé',
+    /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
+    unidentified: 'non identifié',
+    /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
+    seasonClosed: 'saison close',
+  },
+
   journal: {
     editionOf: (time: string) => `édition de ${time}`,
     /** La manchette d'une entrée en guerre — le seul canal qui l'annonce (aucun autre écran ne
@@ -698,7 +737,7 @@ export const fr = {
     /**
      * **Une phrase entière par sorte, à la manière presse.** Le relevé ne nomme jamais la nation
      * ni le type : la notice ne les porte pas (`convex/validators.ts`), et la phrase ne pourrait
-     * pas les dire même si elle essayait — c'est la condition d'existence du leurre (fiche 04).
+     * pas les dire même si elle essayait — c'est tout ce que la fiche 04 accorde à un relevé.
      */
     notices: {
       constructionFinished: (building: string, region: string, level: number) =>
@@ -742,16 +781,6 @@ export const fr = {
         `Notre station d’écoute de ${region} a relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
-      /**
-       * **Ce que le brouillard rend au joueur quand il se referme.** Celui qui a éventé le leurre
-       * n'apprend rien de plus qu'avant — pas la nation, pas ce qu'elle prépare — seulement que ce
-       * fil-là ne portait personne. Le propriétaire, lui, sait que sa feinte est lue.
-       */
-      decoyExposed: (country: string) =>
-        `La colonne relevée — ${country} — n’était qu’un leurre : elle ne portait personne.`,
-      decoyBlown: (country: string) => `Notre leurre a été éventé — ${country}.`,
-      decoyArrived: (country: string) =>
-        `Notre leurre est arrivé — ${country} — sans rencontre : personne ne l’a vu se dissiper.`,
       /**
        * **Le seul événement du jeu qui ne laissait aucune trace.** Pas d'engagement, donc pas de
        * compte rendu : sans cette ligne, la plus longue marche d'une saison se lit « rien à
@@ -805,13 +834,6 @@ export const fr = {
     remaining: (duration: string) => `${duration} restant`,
     arrivalAt: (time: string) => `arrivée ${time}`,
     restMark: (time: string) => `arrive en repos — libre à ${time}`,
-    // The decoy is visible to its owner alone (fiche 04) — the adversary sees an ordinary arc.
-    decoyMark: 'leurre — visible de vous seul',
-    /** **Les leurres ne se mélangent pas aux colonnes** : ils n'en sont pas, et une ligne au
-     *  milieu des piles se lirait comme des troupes en route. */
-    decoys: 'leurres',
-    decoysPower: 'sans troupe',
-    decoyRoute: (destination: string) => `leurre → ${destination}`,
     observe: (route: string) => `suivre ${route}`,
     foldedQuiet: 'rien en vol',
     foldedFlight: (count: number, next: string) =>
@@ -846,6 +868,15 @@ export const fr = {
     intelAtMe: 'cap sur vous',
     intelEstimate: (duration: string) => `arrivée estimée ~ ${duration}`,
     intelLost: (duration: string) => `perdu de vue il y a ${duration}`,
+    /**
+     * **Le cartouche d'une troupe seule** (décision du 29/08). Sélectionner une troupe n'ouvre plus
+     * la fenêtre de garnison : elle dit ce que la vue du joueur sait déjà — le rôle, l'effectif,
+     * l'état — et la carte trace son cercle de détection. La fenêtre reste pour composer une pile.
+     */
+    badgeKicker: 'troupe',
+    badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
+    badgeFound: 'clic droit sur la troupe : fonder un avant-poste',
+    supplied: 'ravitaillée',
   },
 
   /**
@@ -887,6 +918,14 @@ export const fr = {
     found: 'fonder un avant-poste',
     foundSpecialization: 'spécialisation',
     foundHere: 'fonder ici',
+    /**
+     * **La spécialisation se règle sur le point, une fois planté** (décision du 29/08). Le serveur
+     * exige un mot à la fondation : le clic droit pose « relais » et c'est ici qu'on en change,
+     * tant qu'aucune passe ne l'a servi. Après quoi la phrase dit pourquoi les deux boutons ne
+     * sont plus là — plutôt que de les montrer éteints.
+     */
+    specializationSealed:
+      'Scellée : une passe s’en est déjà servie — un avant-poste ne change plus de métier.',
     // A garrison abroad has no barracks to leave from: the server only marches from a
     // projection building (ADR 0013), and saying so beats a refusal after the click.
     /** La seule adresse d'où rien ne part : le bâtiment qui logeait ces troupes n'est plus là,
@@ -912,9 +951,6 @@ export const fr = {
     noRoute: 'Aucune route terrestre vers cette destination.',
     duration: (duration: string, count: number) =>
       `durée ${duration} · ${count} troupe${plural(count, '', 's')}`,
-    /** Le leurre ne porte personne : « 0 troupe » se lirait comme une pile vide envoyée par
-     *  erreur, alors que c'est exactement ce qu'on achète. */
-    durationAlone: (duration: string) => `durée ${duration}`,
     arrival: (time: string) => `arrivée ${time}`,
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
@@ -949,15 +985,6 @@ export const fr = {
     unscouted: 'sol non reconnu',
     unscoutedNote:
       'rien à vous ne regarde ce sol. Un sol reconnu ne serait pas plus sûr : une troupe posée ne se voit pas.',
-    /**
-     * **Le forfait, dit avant le clic** (ADR 0006). Il ne dépend pas de la cargaison — il n'y en
-     * a pas — et c'est exactement ce qui fait du leurre une décision : feinter se paie en
-     * attaques qu'on ne lancera pas.
-     */
-    decoyCost: (alloy: number) => `forfait ${alloy} alliage · 1 slot`,
-    decoyNote: 'Indiscernable d’une vraie colonne. Éventé au premier contact.',
-    /** La pile armée reste où elle est : le leurre ne l'emporte pas, il n'emporte personne. */
-    decoyKeepsColumn: 'Aucune troupe ne part — votre pile reste en place.',
     submit: 'envoyer — irréversible',
     cancel: 'annuler',
   },
@@ -1389,10 +1416,6 @@ export const fr = {
     seeCountry: 'Voir le pays',
     seeCountryConsequence: (name: string) => `Sélectionne ${name} et ouvre son panneau de bord.`,
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,
-    /** Le leurre ne dit pas ce qu'il coûte ici — la carte d'aperçu le chiffre. Il dit ce qu'il
-     *  est : une colonne qui n'existe pas, et qui ne trompe qu'une fois. */
-    decoyConsequence:
-      'Trace l’arc d’une colonne qui n’existe pas : indiscernable, éventée au premier contact.',
     aiming: (count: number) => `visée armée · ${count} troupe${plural(count, '', 's')}`,
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
     neutralHeld: 'pays neutre · avant-poste tenu',
@@ -1406,6 +1429,11 @@ export const fr = {
     fallbackForce: 'force',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
+    /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
+     *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
+    found: 'Fonder un avant-poste',
+    foundConsequence:
+      'Plante un avant-poste ici : la colonne y devient garnison, et la spécialisation se règle sur son panneau.',
     region: (country: string) => `région · ${country}`,
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */

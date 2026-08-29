@@ -33,8 +33,8 @@ export type MovementIdentification =
  * accident.
  *
  * `route` is present in all four states, enemy included: the medium — land, sea or air — of a
- * detected movement is visible (design sheet 04). The thread would betray it anyway, and the
- * decoy gains a bluffing option. The type and the composition stay out of reach.
+ * detected movement is visible (design sheet 04). The thread would betray it anyway. The type
+ * and the composition stay out of reach.
  * `from` and `to` remain alongside: they are the declared endpoints, not the polyline followed.
  */
 export type ArcView =
@@ -160,6 +160,14 @@ export type OutpostView = {
    *  **deactivated**, never taken — nothing here says who put it out. */
   readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
+  /**
+   * **Le métier du point est-il scellé ?** La fondation part du clic droit et pose « relais » —
+   * le serveur exige un mot à l'insertion — et le panneau de l'avant-poste permet d'en changer
+   * tant qu'aucune passe ne l'a lu (`specializationServed`, `convex/movement/forces.ts`). Servi
+   * plutôt que redérivé : l'écran qui montre les deux boutons et le serveur qui les refuse
+   * lisent la même réponse.
+   */
+  readonly specializationLocked: boolean;
 };
 
 /**
@@ -349,6 +357,31 @@ export type QueuedWork = {
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
 
 /**
+ * **La sorte d'une dépêche — ce que la marge du journal tamponne.** La gravité dit *combien fort*
+ * on le crie ; la sorte dit *de quoi il s'agit*, et les deux ne se déduisent pas l'une de l'autre :
+ * un assaut mené et un assaut subi partagent une gravité et ne sont pas la même nouvelle.
+ *
+ * Elle est **portée par la dépêche** plutôt que redevinée depuis son texte : une phrase française
+ * est ce qu'on lit, jamais ce sur quoi on branche une règle d'affichage (ADR 0016).
+ */
+export type DispatchKind =
+  | 'seasonConcluded'
+  | 'reduction'
+  | 'warEntry'
+  /** L'assaut qu'on a mené, et celui qu'on a subi : une passe, deux nouvelles. */
+  | 'assault'
+  | 'attacked'
+  | 'construction'
+  | 'delivery'
+  | 'column'
+  | 'stalled'
+  | 'outpostFounded'
+  | 'outpostDisabled'
+  | 'sighting'
+  | 'firedDry'
+  | 'foundNothing';
+
+/**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
  * the job that did the thing (`convex/validators.ts`, `NOTICE`), never derived on reading: the
  * journal answers *what changed while I was away*, and anything recomputed from the board would
@@ -419,11 +452,11 @@ export type Notice =
       readonly detectorRegion: string | null;
     }
   | { readonly kind: 'firedDry'; readonly at: number; readonly hostCountry: string }
-  /** The adversary's face of a spent decoy: what he was watching carried nobody (fiche 04). */
-  | { readonly kind: 'decoyExposed'; readonly at: number; readonly hostCountry: string }
-  /** Its owner's: the feint has been read, and it cost a slot and the forfait all the same. */
-  | { readonly kind: 'decoyBlown'; readonly at: number; readonly hostCountry: string }
-  | { readonly kind: 'decoyArrived'; readonly at: number; readonly hostCountry: string }
+  /**
+   * Les trois dépêches du leurre ont quitté cette union le 29/08/2026, avec le leurre lui-même.
+   * Leurs littéraux restent dans le validateur Convex le temps d'un wipe, et `convex/view.ts`
+   * ne sert plus les lignes déjà écrites — rien de ce que le client reçoit ne les porte.
+   */
   | {
       readonly kind: 'columnFoundNothing';
       readonly at: number;
@@ -438,6 +471,8 @@ export type JournalDispatch = {
   readonly at: number;
   readonly t: string;
   readonly severity: DispatchSeverity;
+  /** Ce que la marge tamponne — la sorte, à côté de la gravité et jamais déduite d'elle. */
+  readonly kind: DispatchKind;
   readonly text: string;
   /** Read is not a per-dispatch flag anywhere: it is `at > journalReadAt`, decided once here. */
   readonly unread: boolean;

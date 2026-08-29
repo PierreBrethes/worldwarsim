@@ -10,7 +10,6 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
-import type { BuildingKey } from '../../src/domain/ids';
 import {
   liftOf,
   movementSlots,
@@ -22,7 +21,6 @@ import {
 } from '../../src/domain/movement-orders';
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
-import { PROJECTION_BY_DOMAIN } from '../../src/domain/troops';
 import { buildingLevel } from '../buildings';
 import {
   OUTPOST_REACH_KM,
@@ -346,34 +344,4 @@ export async function pacedMinutes(
       multiplier: RELAY_SPEED_MULTIPLIER,
     }),
   );
-}
-
-const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
-
-/**
- * **Where a decoy may set out from.** A march proves its origin by the manifest it names; a decoy
- * names nobody, so the proof has to be made here or not at all. A troop in flight does not hold a
- * place open: a garrison that has marched off is an empty point like any other.
- */
-export async function decoyGate(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  departure: Departure,
-): Promise<boolean> {
-  const station = departure.stationId;
-  if (station === null) return false;
-  if (typeof station === 'string') {
-    const buildingId = ctx.db.normalizeId('buildings', station);
-    const building = buildingId === null ? null : await ctx.db.get(buildingId);
-    if (building !== null && PROJECTION_KEYS.has(building.key)) return true;
-  }
-  const marching = new Set<Id<'troops'>>(
-    (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
-  );
-  return (
-    await ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  ).some((troop) => sameStation(troop.stationedAt, station) && !marching.has(troop._id));
 }

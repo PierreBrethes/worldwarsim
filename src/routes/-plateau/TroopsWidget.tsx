@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { cardinalLabel, fr, roleLabel } from '@/i18n/fr';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -18,6 +18,7 @@ import {
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { keepTroopsCollapsed, readTroopsCollapsed } from '@/data/settings';
 import { useClock } from '@/shell/clock';
+import { Stamp } from '@/shell/Stamp';
 import { DragHandle, Draggable } from './Draggable';
 
 /**
@@ -70,11 +71,7 @@ export function TroopsWidget({
   const flying = view.arcs.filter(
     (arc): arc is Extract<ArcView, { state: 'mine' }> => arc.state === 'mine',
   );
-  /** **Un leurre n'est pas une colonne, donc il n'est pas dans la liste des colonnes** : une
-   *  ligne sans troupe glissée entre des piles se lirait comme des troupes en route, et c'est
-   *  précisément le mensonge que le leurre est censé servir à l'adversaire, jamais à soi. */
-  const columns = flying.filter((arc) => arc.type !== 'decoy');
-  const decoys = flying.filter((arc) => arc.type === 'decoy');
+  const columns = flying;
   /** Detected and stale are one list on the card: the player watched the same thread, and
    *  splitting them would ask him to hold two sections for one piece of intelligence. */
   const surveyed = view.arcs.filter(
@@ -87,6 +84,9 @@ export function TroopsWidget({
     <Draggable
       remember="troops"
       className="hud absolute bottom-4 left-4 z-10 w-[340px] border border-[var(--ink-quiet)] font-(family-name:--font-body)"
+      /** Le widget est sur le bureau sombre : l'encre du tampon y est le papier, pas l'encre
+       *  (`shell/Stamp.tsx`). Posée sur la surface, pas sur chaque cachet — le support décide. */
+      style={{ '--stamp-ink': 'var(--paper-dim-2)' } as CSSProperties}
     >
       <DragHandle className="flex items-baseline gap-2 border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-[11px] py-[7px]">
         <span className="eyebrow-dark min-w-0 flex-1 truncate tracking-[.22em]">
@@ -154,28 +154,6 @@ export function TroopsWidget({
                 <p className="text-[11.5px] text-[var(--paper-dim)]">{fr.troops.foldedQuiet}</p>
               )}
             </div>
-
-            {decoys.length > 0 && (
-              <>
-                <SectionHead title={fr.troops.decoys} power={fr.troops.decoysPower} lit={false} />
-                <div className="flex flex-col px-[11px] pb-3">
-                  {decoys.map((arc) => (
-                    <DecoyCard
-                      key={arc.id}
-                      arc={arc}
-                      loadedAt={view.loadedAt}
-                      now={now}
-                      designated={arc.id === hoveredMovement}
-                      onHover={onHover}
-                      onFollow={onFollow}
-                    />
-                  ))}
-                  <p className="mt-[7px] text-[10.5px] text-[var(--paper-dim-2)] italic">
-                    {fr.troops.decoyMark}
-                  </p>
-                </div>
-              </>
-            )}
 
             <SectionHead title={fr.troops.intel} power={fr.troops.intelPower} lit={false} />
             <div className="flex flex-col px-[11px] pb-3">
@@ -392,58 +370,6 @@ function MovingCard({
 }
 
 /**
- * **Une ligne, et rien de ce qu'une colonne montre.** Pas de sprite — il n'y a personne à
- * dessiner — pas d'effectif, pas de barre de progression : ce que le joueur suit d'un leurre,
- * c'est où il va et quand il s'y dissipe. Comme la carte des colonnes, elle n'a **aucun
- * gestionnaire qui commande** : un leurre parti est parti (décision 13a).
- */
-function DecoyCard({
-  arc,
-  loadedAt,
-  now,
-  designated,
-  onHover,
-  onFollow,
-}: {
-  arc: Extract<ArcView, { state: 'mine' }>;
-  loadedAt: number;
-  now: number;
-  designated: boolean;
-  onHover: (id: string | null) => void;
-  onFollow: (arcId: string) => void;
-}) {
-  const remaining = currentMinutes(arc.minutesLeft, loadedAt, now);
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onMouseEnter={() => onHover(arc.id)}
-      onMouseLeave={() => onHover(null)}
-      onFocus={() => onHover(arc.id)}
-      onBlur={() => onHover(null)}
-      onClick={() => onFollow(arc.id)}
-      onKeyDown={(key) => key.key === 'Enter' && onFollow(arc.id)}
-      title={fr.troops.observe(fr.troops.decoyRoute(arc.destinationLabel))}
-      className="cursor-pointer border-b border-[var(--ink-quiet)] py-[7px] first:border-t"
-      style={{ opacity: designated ? 1 : 0.8 }}
-    >
-      <div className="flex items-baseline gap-[8px]">
-        <span className="flex shrink-0 self-center text-[var(--paper-dim-2)]">
-          <TypeMark type="decoy" />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--paper-dim)]">
-          {fr.troops.decoyRoute(arc.destinationLabel)}
-        </span>
-        <span className="shrink-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--paper-dim-2)]">
-          {fr.troops.remaining(asDuration(remaining))}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
  * The type pictograms of the mockup, at the trait. Local to this widget: the compass rose draws
  * the same three at its own scale and neither of them gains from a shared file of six paths.
  */
@@ -458,9 +384,6 @@ const MARKS: Readonly<Record<MovementType, string>> = {
   recall: 'M10 17.6 L3 10.6 H6.6 V2.4 H13.4 V10.6 H17 Z',
   agent:
     'M4.5 11.9 C4.5 8 6.9 5.2 10 5.2 C13.1 5.2 15.5 8 15.5 11.9 Z M1.3 11.3 C1.3 14.9 5.2 16.1 10 16.1 C14.8 16.1 18.7 14.9 18.7 11.3 Z',
-  /** La hutte de la marche, évidée : c'est le dessin que la rose des vents donne au leurre, et
-   *  les deux doivent se reconnaître d'un écran à l'autre. */
-  decoy: 'M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z M10 4.3 L14.9 8.5 V16.3 H5.1 V8.5 Z',
   return: 'M10 2.4 L3 9.4 H6.6 V17.6 H13.4 V9.4 H17 Z',
 };
 
@@ -480,9 +403,7 @@ export function TypeMark({ type, size = 15 }: { type: MovementType; size?: numbe
           <path d={MARKS.attack} transform="rotate(28 10 10)" />
         </>
       ) : (
-        /** `evenodd` est ce qui fait du sous-tracé intérieur du leurre un trou plutôt qu'un
-         *  second toit ; il ne change rien aux dessins pleins. */
-        <path d={MARKS[type]} fillRule="evenodd" />
+        <path d={MARKS[type]} />
       )}
     </svg>
   );
@@ -544,10 +465,18 @@ function SurveyedCard({
       </div>
       {/* **Par quoi**, sous le cap. C'est la seule ligne de la fiche qui parle du lecteur et non
           de la colonne — et sans elle, quatre détecteurs payés se lisent tous pareil. */}
-      <div className="mt-[2px] pl-[13px] text-[10px] text-[var(--paper-dim-2)]">
-        {arc.detector === 'station' && arc.detectorRegion !== null
-          ? fr.troops.intelByStation(arc.detectorRegion)
-          : fr.troops.intelBy(fr.detectors[arc.detector])}
+      <div className="mt-[2px] flex items-center gap-3 pl-[13px]">
+        <span className="text-[10px] text-[var(--paper-dim-2)]">
+          {arc.detector === 'station' && arc.detectorRegion !== null
+            ? fr.troops.intelByStation(arc.detectorRegion)
+            : fr.troops.intelBy(fr.detectors[arc.detector])}
+        </span>
+        <span className="flex-1" />
+        {/* **Ce que le relevé n'a pas.** Le brouillard se lit mieux tamponné que sous-entendu : la
+            carte ne dit rien du type ni de la composition, et sans ce cachet le joueur croit que
+            la fiche est incomplète plutôt qu'exacte (fiche 04). À l'encre — un relevé qui exige
+            l'attention le dit par « cap sur vous », pas par un état administratif. */}
+        <Stamp label={fr.stamps.unidentified} size="small" />
       </div>
     </div>
   );

@@ -56,7 +56,9 @@ export class ReachRing {
   show(reach: Reach | null): void {
     this.shown = reach;
     this.object.visible = reach !== null;
-    if (reach !== null) this.write(reach);
+    if (reach === null) return;
+    this.material.color.set(reach.ink ?? PALETTE.paper);
+    this.write(reach);
   }
 
   /** The curvature moved every vertex of the board under a ring that did not: same reach, new

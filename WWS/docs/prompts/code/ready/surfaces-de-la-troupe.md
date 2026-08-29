@@ -25,14 +25,15 @@ Retours de jeu réel : la fenêtre de sélection sert trop tôt et dit trop de c
    le préalable de l'attaque. ⚠️ La condition se lit EXCLUSIVEMENT dans la vue du joueur —
    la lire dans l'état serveur percerait le brouillard. Un relevé périmé qui montre encore
    l'option est un comportement correct (le serveur résoudra une bredouille). L'agression à
-   l'aveugle reste possible par « Marche » et en subit l'interception. · « Leurre » **sort du
-   menu contextuel** (décision de Pierre, 29/08) — le serveur et les tests ne bougent pas
-   pour l'instant, seul le point d'entrée UI disparaît ; le sort définitif du leurre se
-   tranche après une vraie partie (note de guet dédiée).
+   l'aveugle reste possible par « Marche » et en subit l'interception. · « Leurre » disparaît du menu — sa
+   suppression complète est un prompt à part (`retirer-le-leurre.md`) ; si les deux prompts
+   se font ensemble, laisse-le retirer l'entrée du menu.
 
 ## Vérifications
 
 `npm run verifier`. À la main : clic sur troupe seule → surbrillance + cartouche + onde, pas
 de fenêtre ; point à deux troupes → fenêtre ; clic droit sur sa propre région → pas
-d'« Attaquer » ; clic droit en territoire inconnu → « Attaquer » présent même si vide ;
+d'« Attaquer » ; sol adverse connu → « Attaquer » présent même sans relevé ; territoire sans
+objectif connu de la vue → pas d'« Attaquer » (correction du 29/08 : l'ancienne ligne de
+vérification contredisait la décision, c'est la décision qui vaut) ;
 fonder un avant-poste au clic droit → panneau d'avant-poste → changer la spécialisation.

@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { DECOY_COST } from '../../convex/constants';
-import { fr } from '@/i18n/fr';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   foundingRefusal,
@@ -73,8 +71,8 @@ describe('refusals', () => {
   });
 
   /** Nobody orders a return: the resolution creates it, so the rule has to say so out loud.
-   *  The foundation joins them — it is not a march at all any more. The decoy left this list
-   *  the day it was coded (ADR 0006); it refuses on its target, like a real order. */
+   *  The foundation joins them — it is not a march at all any more. Le leurre les a rejoints
+   *  le 29/08/2026, en quittant `MovementType` tout entier. */
   it('refuses the return, the agent, the recall and the foundation', () => {
     expect(refusalOf('outpost', region, column(['infantry']))).toBe('NOT_ORDERABLE');
     expect(refusalOf('return', region, column(['infantry']))).toBe('NOT_ORDERABLE');
@@ -84,11 +82,11 @@ describe('refusals', () => {
 });
 
 /**
- * **Le leurre : un mouvement sans troupe** (ADR 0006, fiche 04). Il occupe un slot comme un
- * vrai — c'est le forfait et le slot qui en font une décision — et il ne demande rien à la pile,
- * puisqu'il n'en emmène aucune. C'est la seule sorte que la pile vide ne refuse pas.
+ * **Une pile vide ne part plus.** C'était la porte du leurre, retiré du jeu le 29/08/2026 : le
+ * refus redevient franc, pour toutes les sortes et sans exception — la porte dérobée que la
+ * fiche 04 signalait, « à zéro troupe » pour obtenir une marche gratuite, est refermée.
  */
-describe('the decoy', () => {
+describe('an empty manifest', () => {
   const empty: Column = {
     roles: [],
     myRegionIds: new Set(),
@@ -98,34 +96,21 @@ describe('the decoy', () => {
   };
   const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
 
-  it('is the one order an empty manifest does not refuse', () => {
-    expect(refusalOf('decoy', somewhere, empty)).toBeNull();
-    expect(refusalOf('march', somewhere, empty)).toBe('EMPTY_MOVEMENT');
+  it('is refused for every orderable type, and for the same reason', () => {
+    for (const type of ORDERABLE_TYPES) {
+      expect(refusalOf(type, somewhere, empty)).toBe('EMPTY_MOVEMENT');
+    }
   });
 
-  /** A feint goes where a march goes and nowhere else: one that could raid would be a raid. */
-  it('goes to a point and to nothing else', () => {
-    expect(refusalOf('decoy', region, empty)).toBe('POINT_TARGET_ONLY');
-    expect(refusalOf('decoy', outpost, empty)).toBe('POINT_TARGET_ONLY');
+  it('leaves nothing in the fan of an armed board', () => {
+    expect(legalMovementTypes(somewhere, empty)).toEqual([]);
   });
 
-  /** **Le slot, comme un vrai** : le plafond ne connaît pas les sortes, il compte les
-   *  mouvements — ce qui est exactement ce qui fait payer la feinte en attaques non lancées. */
-  it('costs a slot like any other movement', () => {
+  /** Le plafond ne connaît pas les sortes, il compte les mouvements — et il en reste un même
+   *  au joueur dont le quartier général est à terre (ADR 0006). */
+  it('would still cost a slot, because the ceiling counts movements and not kinds', () => {
     expect(movementSlots(0)).toBe(1);
-    expect(ORDERABLE_TYPES).toContain('decoy');
-  });
-
-  /** **Le refus dit le forfait** : le serveur débite `DECOY_COST`, et le message que le joueur
-   *  lit après le clic est celui qui chiffre ce qui manque, jamais une paraphrase. */
-  it('says the flat rate when the alloy is short', () => {
-    expect(
-      fr.errors.INSUFFICIENT_RESOURCE({
-        resource: 'alloy',
-        needed: DECOY_COST.alloy,
-        available: 0,
-      }),
-    ).toContain(String(DECOY_COST.alloy));
+    expect(movementSlots(2)).toBe(3);
   });
 });
 
@@ -305,11 +290,7 @@ describe('a point as a destination', () => {
   const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
 
   it('takes a march, at any scale and with no region drawn', () => {
-    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual([
-      'march',
-      'attack',
-      'decoy',
-    ]);
+    expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['march', 'attack']);
   });
 
   /**

@@ -5,6 +5,7 @@ import { currentMinutes } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
 import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/plateau';
+import { Wordmark } from './Masthead';
 import { NationCartouche } from './NationCartouche';
 import { Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
@@ -40,6 +41,13 @@ export function NationBanner({ view }: { view: PlayerView }) {
       className="hud flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)]"
       style={{ fontFamily: 'var(--font-body)', height: BANNER_HEIGHT }}
     >
+      {/* **La manchette réduite, à la tête du seul en-tête du jeu.** Le pavé et sa suite, rien
+          d'autre : la ligne de date et les filets appartiennent au papier, pas à une barre de
+          32 px. Il ne mène nulle part — le plateau *est* la destination. */}
+      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3">
+        <Wordmark size={15} />
+      </div>
+
       <NationCartouche nation={me.nation} doctrine={me.doctrine} height={BANNER_HEIGHT} />
 
       {me.construction !== null && <SiteStrip view={view} />}

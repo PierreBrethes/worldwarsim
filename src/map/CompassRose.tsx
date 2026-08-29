@@ -68,10 +68,10 @@ export function CompassRose({
   }, [hovered, bubbleHeight]);
 
   const action = compass.actions[hovered] ?? null;
-  /** **A motive shows beside a fan, not only instead of one.** Since the decoy joined the plate
-   *  a point always has one branch, and a rose that only spoke when it drew nothing would have
-   *  gone mute exactly where the marches were refused (`fanOf`). Hovering a branch replaces the
-   *  motive with that branch's own tooltip, which is the reading order one wants. */
+  /** **A motive shows beside a fan, not only instead of one.** A point can carry a branch while
+   *  another is refused, and a rose that only spoke when it drew nothing would go mute exactly
+   *  there (`fanOf`). Hovering a branch replaces the motive with that branch's own tooltip,
+   *  which is the reading order one wants. */
   const refusal = compass.refusal;
   // Due east, so a bubble with nothing to point at sits level with the crosshair it explains.
   const bubbleAngle = action === null ? 90 : angleOf(hovered, compass.actions.length);
@@ -240,6 +240,11 @@ function placeBubble(
  */
 const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   cabin: <path d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z" />,
+  /** La fondation : la hutte de la marche, plantée — un mât, un fanion, et le sol sous elle.
+   *  C'est là que la colonne s'arrête d'être une colonne. */
+  post: (
+    <path d="M6.6 7 H12.4 V17.4 H6.6 Z M4.2 17.4 H15.8 V19.2 H4.2 Z M9.4 1.2 H10.7 V7 H9.4 Z M11.4 1.6 H17.6 L15.2 3.8 L17.6 6 H11.4 Z" />
+  ),
   crane: (
     <path d="M2.3 2.5 H18.2 V5.4 H2.3 Z M6.2 5.4 H9.7 V17 H6.2 Z M14.3 5.4 H16.2 V10.2 H14.3 Z M13.2 10.2 H17.3 V13.2 H13.2 Z M3.1 17 H12.8 V19.5 H3.1 Z" />
   ),
@@ -261,17 +266,6 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
         transform="rotate(240 10 10)"
       />
     </>
-  ),
-  /**
-   * **The one hollow drawing of the plate**, and the decoy's: the march's own hut, emptied. A
-   * feint has the shape of a column and none of its substance, so the pictogram is the outline
-   * and the hole — `evenodd` is what makes the inner subpath a hole rather than a second roof.
-   */
-  silhouette: (
-    <path
-      fillRule="evenodd"
-      d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z M10 4.3 L14.9 8.5 V16.3 H5.1 V8.5 Z"
-    />
   ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */

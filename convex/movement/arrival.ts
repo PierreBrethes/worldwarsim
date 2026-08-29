@@ -141,50 +141,6 @@ export async function standAt(
   await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now);
 }
 
-/** **The end of a decoy: nothing arrives** — the feint is a weapon against the espionage, never
- *  against the magazine. `defenceOf` is asked exactly as an attack asks it: a decoy read by a
- *  second rule would be one the fog could tell apart by where it dies. */
-export async function fadeAt(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  now: number,
-): Promise<void> {
-  const defence = await defenceOf(ctx, movement);
-  if (defence !== null) {
-    await exposeDecoy(ctx, movement, defence.playerId, now);
-    return;
-  }
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'decoyArrived',
-    hostCountry: movement.hostCountry,
-  });
-}
-
-/** **Éventé**, on the two boards it happened to. Neither dispatch names the other player
- *  (design sheet 04), and neither caller erases the thread — each of the two already deletes
- *  its own. */
-export async function exposeDecoy(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  caughtBy: Id<'players'>,
-  now: number,
-): Promise<void> {
-  await ctx.db.insert('notices', {
-    playerId: caughtBy,
-    at: now,
-    kind: 'decoyExposed',
-    hostCountry: movement.hostCountry,
-  });
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
-    at: now,
-    kind: 'decoyBlown',
-    hostCountry: movement.hostCountry,
-  });
-}
-
 /** ADR 0004, deactivated and never taken: the immunity window stops a relay of cheap raids from
  *  holding a point out of service for good. Destruction waits for looting, so nothing counts
  *  them. */

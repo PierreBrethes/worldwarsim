@@ -33,7 +33,7 @@ personnel.
 | Surface 4.6 — Production | **implémentée sur Convex** : file de recrutement, annulation remboursée, paliers MK1/MK2 |
 | Sprites d'unités | **France** (10 WebP, 240 Ko) et **États-Unis** (11 WebP, 224 Ko, planche complète) branchés ; Royaume-Uni détouré mais pas branché ; cinq nations à générer — pipeline dans `sprites/README.md` |
 | Schéma de données | hors-saison et état de nation (ADR 0010) ; schéma de jeu écrit jusqu'au combat (`troops`, `recruitments`, `movements`, `outposts`, `engagements`) |
-| Code de jeu serveur | accueil/salon/lancement, ressources, production, **mouvements terrestres et passe de combat** servis par Convex ; naval, aérien, agent, leurre, pillage : rien |
+| Code de jeu serveur | accueil/salon/lancement, ressources, production, **mouvements terrestres et passe de combat** servis par Convex ; naval, aérien, agent, pillage : rien. **Le leurre a été codé puis retiré le 29/08/2026** — révision documentée en tête de la fiche 04 |
 | Condition de victoire | **échafaudage de test** : Domination simplifiée, publique et nominative (`src/domain/victory.ts`, `convex/victory.ts`, étape 5 du plan de progression). Le triangle de la fiche 05 reste la cible ; ce module se **remplace**, il ne s'amende pas |
 
 **Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
@@ -136,8 +136,9 @@ disent explicitement ; ne pas les traiter comme des décisions.
 ## Pièges connus
 
 **Ne jamais afficher ce que le joueur n'a pas le droit de voir.** Un mouvement adverse ne révèle ni
-son type ni sa composition — sinon le leurre, le sabotage et l'espionnage perdent tout intérêt. Un
-filtrage côté client se contourne en trois lignes de console.
+son type ni sa composition — sinon le sabotage et l'espionnage perdent tout intérêt. Un filtrage
+côté client se contourne en trois lignes de console. *(Le leurre tenait la première place dans
+cette phrase ; il a été retiré le 29/08/2026, la règle ne dépendait pas de lui.)*
 
 **« Aucun tick serveur » est faux.** L'accumulation de ressources est bien paresseuse, mais cinq
 mécaniques ont besoin d'une exécution datée. La formulation correcte : *pas de boucle globale, mais

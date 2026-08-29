@@ -3,44 +3,33 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
-import {
-  DECOY_PACE,
-  foundingRefusal,
-  landCostOf,
-  refusalOf,
-  routeModeOf,
-  type Column,
-} from '../src/domain/movement-orders';
+import { foundingRefusal, landCostOf, routeModeOf } from '../src/domain/movement-orders';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
 import { resolveContact } from './combat';
-import { DECOY_COST, routeMinutes } from './constants';
+import { routeMinutes } from './constants';
 import { fail } from './errors';
 import {
   attachHome,
   engageAt,
-  exposeDecoy,
-  fadeAt,
   forgetMovement,
   recallAt,
   standAt,
   walkHome,
 } from './movement/arrival';
-import { fileSightings, scheduleInterception } from './movement/detection';
 import {
   asPoint,
   forceOf,
   movementsOf,
   pointOf,
   recognises,
+  specializationServed,
   troopsCarriedBy,
 } from './movement/forces';
 import {
   aimOf,
-  claimSlot,
   columnOf,
-  decoyGate,
   departureOf,
   march,
   pacedMinutes,
@@ -48,7 +37,6 @@ import {
   troopsAmong,
 } from './movement/orders';
 import { homeCountryOf, nearestRegion } from './regions';
-import { debit } from './resources';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import {
@@ -62,7 +50,8 @@ import {
 
 /**
  * The ordering surface, and nothing else: every `api.movements.*` door lives here. Foundation,
- * attack and raid are ordered, plus the decoy (ADR 0006) and the return nobody orders (ADR 0019).
+ * march, attack and raid are ordered, plus the return nobody orders (ADR 0019). Le leurre a été
+ * retiré du jeu le 29/08/2026 : plus aucune porte ne le file.
  * The helpers are in `convex/movement/`: `orders` files a departure, `detection` fills the fog,
  * `arrival` resolves the far end, `forces` answers who stands where.
  */
@@ -126,6 +115,38 @@ export const foundOutpostHere = mutation({
       specialization,
     });
     return { outpostId };
+  },
+});
+
+/**
+ * **Le métier d'un point se règle sur le point, tant qu'aucune passe ne s'en est servie.**
+ *
+ * La fondation part du clic droit et pose « relais » : le serveur exige un mot à l'insertion, et
+ * ce mot ne peut plus être choisi sur la carte au moment où l'on plante (décision Pierre du
+ * 29/08). Le panneau de l'avant-poste rattrape ce choix — et le referme dès qu'un départ a lu ce
+ * point, parce que c'est exactement là que les deux spécialisations servent : `pacedMinutes` lit
+ * les relais au départ (ADR 0018 §3) et `fileSightings` lit les postes d'écoute au même instant.
+ *
+ * « S'en être servi » se mesure donc à un départ qui **passe à portée** : un mouvement à l'autre
+ * bout du monde n'a rien lu de ce point-là, et sceller sur lui aurait scellé chaque avant-poste
+ * dans la minute qui suit sa fondation.
+ */
+export const respecialize = mutation({
+  args: {
+    token: v.string(),
+    outpostId: v.id('outposts'),
+    specialization: SPECIALIZATION,
+  },
+  handler: async (ctx, { token, outpostId, specialization }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(season);
+
+    const outpost = await ctx.db.get(outpostId);
+    if (!outpost || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST', { outpostId });
+    if (await specializationServed(ctx, outpost)) fail('SPECIALIZATION_SEALED', { outpostId });
+
+    await ctx.db.patch(outpost._id, { specialization });
+    return { outpostId: outpost._id };
   },
 });
 
@@ -201,86 +222,6 @@ export const raid = mutation({
 });
 
 /**
- * ADR 0006 and design sheet 04: an empty manifest, filed, paced and caught exactly like a march.
- * Flat `DECOY_COST` plus a slot — a free feint would drown the espionage in noise and the server
- * in fan-out. There is no argument to pass troops in: a decoy that could name a manifest is a
- * march spelled another way.
- */
-export const decoy = mutation({
-  args: { token: v.string(), origin: MOVEMENT_ORIGIN, point: LON_LAT },
-  handler: async (ctx, { token, origin, point }) => {
-    const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
-
-    await claimSlot(ctx, player._id, season);
-
-    const departure = await departureOf(ctx, player._id, origin);
-    if (departure === null) {
-      if (origin.kind === 'outpost') fail('UNKNOWN_OUTPOST', { outpostId: origin.outpostId });
-      fail('UNKNOWN_BUILDING');
-    }
-    if (!(await decoyGate(ctx, player._id, departure))) fail('NO_DECOY_ORIGIN', {});
-
-    const aim = await aimOf(ctx, { kind: 'point', point });
-    /** ADR 0015, one rule and two callers, asked here of an empty pile. */
-    const refusal = refusalOf('decoy', aim.aim, emptyColumn());
-    if (refusal !== null) fail(refusal, { type: 'decoy' });
-
-    const route = routeBetween(
-      departure.point,
-      aim.point,
-      routeModeOf(DECOY_PACE),
-      landCostOf(DECOY_PACE),
-    );
-    if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
-
-    const now = Date.now();
-    await debit(ctx, player._id, DECOY_COST, now);
-
-    /** A decoy that ignored its owner's relays would arrive at an hour no real column of his
-     *  ever keeps, and the fog would tell the two apart on the clock alone. */
-    const minutes = await pacedMinutes(ctx, player._id, route, now);
-    const arrivesAt = now + minutes * 60_000;
-    const movementId = await ctx.db.insert('movements', {
-      seasonId: season._id,
-      playerId: player._id,
-      type: 'decoy',
-      fromBuildingId: departure.fromBuildingId,
-      target: aim.target,
-      from: asPoint(departure.point),
-      to: asPoint(aim.point),
-      hostCountry: aim.host,
-      points: route.points.map(asPoint),
-      legs: route.legs.map((leg) => ({ medium: leg.medium, distanceUnits: leg.distanceUnits })),
-      distanceUnits: route.distanceUnits,
-      costUnits: route.costUnits,
-      landCost: route.landCost,
-      troopIds: [],
-      departedAt: now,
-      arrivesAt,
-    });
-    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
-    /** **Indiscernible means the same two calls, in the same order** — a decoy filed by a
-     *  different path would be a decoy one could tell apart by the rows it leaves. */
-    const filed = (await ctx.db.get(movementId))!;
-    await scheduleInterception(ctx, filed);
-    await fileSightings(ctx, filed);
-    return { movementId, minutes, arrivesAt };
-  },
-});
-
-/** No role opens a door, and no ground of the player's is consulted for a point. */
-const emptyColumn = (): Column => ({
-  roles: [],
-  myRegionIds: new Set(),
-  myOutpostIds: new Set(),
-  departureBuildings: new Set(),
-  /** No role, no domain, no gate: what the water under a feint would exempt it from is never
-   *  asked. The field is false because it has to be something, not because it decides anything. */
-  afloat: false,
-});
-
-/**
  * What the player sees before he pays: the route the march will store (ADR 0012) and the rest
  * window it would stall in (design sheet 07). **It refuses nothing** — the fan only ever offered
  * legal types (ADR 0015), and a query that failed would turn a hover into an error.
@@ -298,12 +239,9 @@ export const preview = query({
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
-    /** **A decoy reads its own pace and not the armed pile's** (`DECOY_PACE`): a column is still
-     *  selected when the player picks the feint, and its trip would promise an hour the decoy
-     *  never keeps. */
     const troops = await troopsAmong(ctx, player._id, troopIds);
     const column = await columnOf(ctx, player._id, troops, departure);
-    const pace = type === 'decoy' ? DECOY_PACE : column.roles;
+    const pace = column.roles;
 
     const { point, name, host } = await aimOf(ctx, target);
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
@@ -320,8 +258,7 @@ export const preview = query({
       relayed: routeMinutes(route.costUnits) - minutes,
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       recognised: await recognises(ctx, player, point),
-      /** A decoy carries nobody, whatever is armed behind the card. */
-      troops: type === 'decoy' ? 0 : troopIds.length,
+      troops: troopIds.length,
       type,
       destinationName: name,
       originName: departure.name,
@@ -371,8 +308,10 @@ export const arrive = internalMutation({
     if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') await standAt(ctx, movement, now);
-    else if (movement.type === 'decoy') await fadeAt(ctx, movement, now);
     else if (movement.type === 'recall') await recallAt(ctx, movement);
+    /** **Un leurre encore en vol le 29/08/2026 finit ici, et n'y fait rien** : il ne porte
+     *  personne, donc `attachHome` ne rattache rien et `forgetMovement` l'efface. Une branche
+     *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
     else await attachHome(ctx, movement);
 
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
@@ -414,15 +353,9 @@ export const intercept = internalMutation({
     if (interceptor.playerId === movement.playerId) return;
 
     const now = Date.now();
-    /** **A decoy caught on the road is not a battle, it is a discovery** (design sheet 04): no
-     *  round is paid for, or the feint would be a weapon against the ammunition. */
-    if (movement.type === 'decoy') {
-      await exposeDecoy(ctx, movement, interceptor.playerId, now);
-      await forgetMovement(ctx, movement._id);
-      return;
-    }
-
     const marching = await troopsCarriedBy(ctx, movement);
+    /** Rien à intercepter : la colonne a été défaite ailleurs, ou c'est un leurre resté en vol
+     *  au retrait du 29/08/2026. Son arrivée l'effacera. */
     if (marching.length === 0) return;
 
     const { engagement, routed } = await resolveContact(ctx, {

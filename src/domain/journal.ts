@@ -3,6 +3,7 @@ import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
 import type {
   CombatReport,
+  DispatchKind,
   DispatchSeverity,
   JournalDispatch,
   Notice,
@@ -39,6 +40,7 @@ export function journalDispatches(
           {
             at: reduction.concludedAt,
             severity: 'critical',
+            kind: 'seasonConcluded',
             text: fr.victory.concluded(nationName(reduction.winnerNation)),
           },
         ];
@@ -56,6 +58,7 @@ export function journalDispatches(
           {
             at: report.at,
             severity: 'critical' as const,
+            kind: 'reduction' as const,
             text: fr.victory.dispatch(
               nationName(report.reduced.by),
               nationName(report.reduced.whom),
@@ -72,6 +75,7 @@ export function journalDispatches(
   const arrivals: ReadonlyArray<Written> = entries.map((entry) => ({
     at: entry.at,
     severity: 'critical' as const,
+    kind: 'warEntry' as const,
     text: fr.journal.warEntry(entry.nickname, nationName(entry.nation)),
   }));
 
@@ -85,6 +89,7 @@ export function journalDispatches(
       at: entry.at,
       t: asLocalTime(entry.at),
       severity: entry.severity,
+      kind: entry.kind,
       text: entry.text,
       unread: readAt === null || entry.at > readAt,
       remaining: entry.remaining ?? null,
@@ -97,6 +102,7 @@ export function journalDispatches(
 type Written = {
   readonly at: number;
   readonly severity: DispatchSeverity;
+  readonly kind: DispatchKind;
   readonly text: string;
   readonly remaining?: string | null;
   readonly resolutionAt?: string | null;
@@ -117,12 +123,14 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'construction',
         text: fr.journal.constructionCancelled(fr.buildings[notice.building], notice.regionName),
       };
     case 'constructionFinished':
       return {
         at: notice.at,
         severity: 'routine',
+        kind: 'construction',
         text: said.constructionFinished(
           fr.buildings[notice.building],
           notice.regionName,
@@ -133,6 +141,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'routine',
+        kind: 'delivery',
         text:
           notice.site === null
             ? said.deliveredHome(fr.roles[notice.role].one)
@@ -146,6 +155,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'column',
         text: said.columnArrived(
           notice.movementType,
           notice.troops,
@@ -158,6 +168,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'stalled',
         text: said.movementStalled(countryLabel(notice.hostCountry)),
         resolutionAt: asLocalTime(notice.resolvesAt),
       };
@@ -165,6 +176,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'outpostFounded',
         text: said.outpostFounded(
           fr.specializations[notice.specialization],
           countryLabel(notice.hostCountry),
@@ -176,6 +188,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'critical',
+        kind: 'outpostDisabled',
         text: said.outpostDisabled(
           fr.specializations[notice.specialization],
           countryLabel(notice.hostCountry),
@@ -193,6 +206,7 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'sighting',
         text:
           notice.detector === 'territory'
             ? said.soilCrossed(country, cardinal)
@@ -205,35 +219,20 @@ function written(notice: Notice): Written {
       return {
         at: notice.at,
         severity: 'critical',
+        kind: 'firedDry',
         text: said.firedDry(countryLabel(notice.hostCountry)),
       };
     /**
-     * **Le leurre éventé et la colonne bredouille sont la même passe, lue des deux côtés.** L'un
-     * apprend que ce qu'il guettait ne portait personne, l'autre que sa feinte est lue ; ni l'un
-     * ni l'autre n'a livré bataille, et rien d'autre sur le plateau ne le dirait.
+     * **La seule passe qui n'en est pas une** : une colonne qui marche sur un sol vide ne dépose
+     * ni engagement ni butin, et sans cette ligne le joueur lisait « rien à signaler » après la
+     * plus longue marche de sa saison. Elle est née avec le leurre, qui en était l'autre face ;
+     * le leurre est parti le 29/08/2026 et elle reste, parce qu'elle n'a jamais été à lui.
      */
-    case 'decoyExposed':
-      return {
-        at: notice.at,
-        severity: 'notable',
-        text: said.decoyExposed(countryLabel(notice.hostCountry)),
-      };
-    case 'decoyBlown':
-      return {
-        at: notice.at,
-        severity: 'notable',
-        text: said.decoyBlown(countryLabel(notice.hostCountry)),
-      };
-    case 'decoyArrived':
-      return {
-        at: notice.at,
-        severity: 'routine',
-        text: said.decoyArrived(countryLabel(notice.hostCountry)),
-      };
     case 'columnFoundNothing':
       return {
         at: notice.at,
         severity: 'notable',
+        kind: 'foundNothing',
         text: said.columnFoundNothing(
           notice.movementType,
           notice.troops,
@@ -246,6 +245,10 @@ function written(notice: Notice): Written {
 const fromCombat = (report: CombatReport): Written => ({
   at: report.at,
   severity: severityOf(report),
+  /** **Une passe, deux nouvelles.** L'assaut mené est une décision qu'on a prise ; l'assaut subi
+   *  est une chose qui vous est arrivée pendant que vous dormiez — seule la seconde est une
+   *  alarme, et le tampon de la marge est le seul endroit qui les sépare d'un coup d'œil. */
+  kind: report.side === 'defender' ? 'attacked' : 'assault',
   text: fr.combat.dispatch({
     where: countryLabel(report.hostCountry),
     intercepted: report.cause === 'interception',
@@ -264,3 +267,16 @@ const severityOf = (report: CombatReport): DispatchSeverity =>
  *  falls back to the nickname, and printing an internal key would be worse than either. */
 export const nationName = (nation: string): string =>
   isNation(nation) ? fr.nations[nation] : nation;
+
+/**
+ * **Ce qui prend l'encre rouge, et rien d'autre** (règle 3 du tampon, `shell/Stamp.tsx`). Quatre
+ * sortes : ce qu'on a subi, ce qu'on a perdu, ce qui a manqué au moment de tirer, et ce qu'on a
+ * vu passer. Elles ont en commun d'appeler une décision *maintenant* ; une livraison, un chantier
+ * fini, un avant-poste fondé sont des nouvelles qu'on lit à son heure.
+ *
+ * `seasonConcluded` n'y est pas, et c'est délibéré : une saison close n'exige plus rien de
+ * personne — elle se relit, elle ne se joue plus.
+ */
+const ALARMS: ReadonlyArray<DispatchKind> = ['attacked', 'outpostDisabled', 'firedDry', 'sighting'];
+
+export const isAlarm = (kind: DispatchKind): boolean => ALARMS.includes(kind);

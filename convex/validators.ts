@@ -180,10 +180,11 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
   }),
   /**
-   * **The two faces of a decoy's last minute, and they are filed on opposite boards.** The one
-   * who caught it learns that what he was watching carried nobody; its owner learns his feint
-   * has been spent. Neither row names the other player — a decoy exposed says nothing a contact
-   * did not already say (design sheet 04).
+   * **Legacy — plus jamais écrites.** Les trois dépêches du leurre, retiré du jeu le 29/08/2026.
+   * Rien ne les insère plus et `convex/view.ts` ne les sert plus ; elles restent ici parce que
+   * les lignes déjà déposées dans le journal d'une saison en cours les portent, et qu'un
+   * littéral retiré d'une union fait refuser la poussée du schéma (leçon du 27/08). Elles
+   * partent au prochain wipe, avec la saison qui les a écrites (ADR 0001).
    */
   v.object({
     ...NOTICE_HEAD,
@@ -195,8 +196,6 @@ export const NOTICE = v.union(
     kind: v.literal('decoyBlown'),
     hostCountry: v.string(),
   }),
-  /** A decoy that met nobody: it fades where it arrived, and its owner alone ever knows it
-   *  existed. */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('decoyArrived'),
@@ -223,6 +222,12 @@ export const NOTICE = v.union(
  * unreadable to the very mutation that has to land it. `agent` alone still waits for the fog
  * surfaces; the union is the vocabulary, and narrowing it to what is coded would make every
  * later kind a schema migration.
+ *
+ * **`decoy` est legacy — plus jamais écrit.** Le leurre a été retiré du jeu le 29/08/2026 et il
+ * a quitté le vocabulaire du domaine (`src/domain/ids.ts`) ; le littéral reste ici seul, parce
+ * qu'un leurre encore en vol porte ce mot en base et qu'une union rétrécie fait refuser la
+ * poussée du schéma (leçon du 27/08). `convex/view.ts` ne sert plus ces lignes, leur arrivée les
+ * efface sans rien faire, et le mot partira au prochain wipe.
  */
 export const MOVEMENT_TYPE = v.union(
   v.literal('march'),

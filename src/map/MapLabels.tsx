@@ -49,6 +49,7 @@ import type { MapEngine } from './engine';
 export function MapLabels({
   labels,
   engine,
+  selected,
   onMovementHover,
   onReachHover,
   onSelect,
@@ -58,6 +59,9 @@ export function MapLabels({
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
+  /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
+   *  et rien d'autre ne bouge (décision du 29/08). */
+  selected: string | null;
   onMovementHover: (id: string | null) => void;
   /** What the label covers on the ground, while the pointer is on it and no longer. */
   onReachHover: (reach: Reach | null) => void;
@@ -233,7 +237,7 @@ export function MapLabels({
             ref={(node) => {
               register(roots.current, label.id, node);
             }}
-            className={classesOf(label)}
+            className={classesOf(label, label.id === selected)}
             style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
             onPointerEnter={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
@@ -325,12 +329,13 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
   else map.delete(id);
 }
 
-function classesOf(label: MapLabel): string {
+function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
+    selected ? 'label--selected' : '',
     label.hostCountry === null && label.buildingId === null && label.station === null
       ? ''
       : 'label--clickable',

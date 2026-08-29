@@ -21,10 +21,11 @@ import {
   PROJECTION_BY_DOMAIN,
 } from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
-import type { BuildingKey, Specialization } from '@/domain/ids';
+import type { BuildingKey } from '@/domain/ids';
 import type { PlayerView, TroopStation } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
 import { Panel } from './Panel';
 
@@ -95,9 +96,8 @@ export function GarrisonPanel({
    * dire.
    */
   const onLand = useMemo(() => roles.some((role) => DOMAIN_BY_ROLE[role] === 'land'), [roles]);
-  const [specialization, setSpecialization] = useState<Specialization>('relay');
   const [error, setError] = useState<string | null>(null);
-  const foundHere = useMutation(api.movements.foundOutpostHere);
+  const respecialize = useMutation(api.movements.respecialize);
 
   const building =
     station.kind === 'building'
@@ -175,6 +175,21 @@ export function GarrisonPanel({
       }}
     >
       <Panel title={title} marker={fr.garrison.kicker} position="static" width={340}>
+        {/**
+         * **Désactivé, jamais pris** (ADR 0004) : un raid gagné met le point hors service pour un
+         * temps, il ne change pas de main. Le tampon est rouge parce que c'est la seule chose du
+         * plateau qui cesse de payer sans que le joueur ait rien fait.
+         *
+         * Il n'y a **pas** de tampon « détruit » : la destruction attend le pillage et rien ne
+         * compte les raids vers elle (ADR 0004, `CLAUDE.md`). Un cachet qu'aucun état ne peut
+         * allumer serait un état inventé.
+         */}
+        {outpost !== null && outpost.disabledMinutesLeft !== null && (
+          <div className="mb-[9px] flex shrink-0 justify-center">
+            <Stamp label={fr.stamps.outpostDisabled} tone="critical" />
+          </div>
+        )}
+
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
           <span>{projection ? fr.garrison.projection : (region ?? '')}</span>
           <span className="ml-auto font-(family-name:--font-mono)">
@@ -293,56 +308,64 @@ export function GarrisonPanel({
         )}
 
         {/**
-         * **One founds where one stands** (ADR 0019 §1): a column left on the map plants its
-         * point without walking anywhere, and the specialisation is chosen here — with the
-         * terrain in view — rather than at a departure hours away from it. Moving that choice
-         * back to a departure would be a regression dressed as a simplification.
+         * **Le métier du point se règle sur le point, une fois planté** (décision Pierre, 29/08).
+         * Il se choisissait au départ d'une colonne, puis sur la pile qui allait fonder — deux
+         * fois à l'aveugle, sur deux mots. Ici le terrain est sous les pieds de la garnison et
+         * l'avant-poste est déjà debout : c'est le dernier moment où le choix veut encore dire
+         * quelque chose.
+         *
+         * Le serveur exige un mot à la fondation, alors le clic droit pose « relais » et ce
+         * panneau rattrape. Scellé, il ne montre pas deux boutons éteints : il dit ce que le
+         * point fait, et pourquoi il ne change plus (ADR 0015).
          */}
-        {station.kind === 'point' && (
+        {outpost !== null && (
           <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
             <div className="flex items-center gap-2">
               <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
                 {fr.garrison.foundSpecialization}
               </span>
-              {(['relay', 'listening'] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={specialization === key}
-                  onClick={() => setSpecialization(key)}
-                  className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
-                    specialization === key
-                      ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)] text-[var(--ink)]'
-                      : 'border-[rgba(42,33,24,.32)] text-[var(--ink-soft)]'
-                  }`}
-                >
-                  {fr.specializations[key]}
-                </button>
-              ))}
+              {outpost.specializationLocked ? (
+                <span className="text-[11px] text-[var(--ink)]">
+                  {fr.specializations[outpost.specialization]}
+                </span>
+              ) : (
+                (['relay', 'listening'] as const).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={outpost.specialization === key}
+                    onClick={() => {
+                      setError(null);
+                      if (outpost.specialization === key) return;
+                      respecialize({
+                        token,
+                        outpostId: outpost.id as Id<'outposts'>,
+                        specialization: key,
+                      }).catch((problem: unknown) => handleError(problem, setError));
+                    }}
+                    className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
+                      outpost.specialization === key
+                        ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)] text-[var(--ink)]'
+                        : 'border-[rgba(42,33,24,.32)] text-[var(--ink-soft)]'
+                    }`}
+                  >
+                    {fr.specializations[key]}
+                  </button>
+                ))
+              )}
             </div>
-            {/* **Le choix est irréversible, et il se faisait à l'aveugle** : deux mots, aucun
-                chiffre, aucun effet. Le rayon est la seule donnée qui décide où l'on plante. */}
+            {/* **Le choix se faisait à l'aveugle** : deux mots, aucun chiffre, aucun effet. Le
+                rayon est la seule donnée qui dise ce que le point rapporte. */}
             <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {specialization === 'relay'
+              {outpost.specialization === 'relay'
                 ? fr.specializationEffects.relay(OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER)
                 : fr.specializationEffects.listening(OUTPOST_REACH_KM)}
             </p>
-            <button
-              type="button"
-              disabled={picked.size === 0}
-              onClick={() => {
-                setError(null);
-                foundHere({
-                  token,
-                  point: { lon: station.lonLat[0], lat: station.lonLat[1] },
-                  specialization,
-                  troopIds: [...picked].map((troopId) => troopId as Id<'troops'>),
-                }).then(onClose, (problem: unknown) => handleError(problem, setError));
-              }}
-              className="mt-[7px] w-full cursor-pointer border border-[var(--ink)] px-[10px] py-[6px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {fr.garrison.found}
-            </button>
+            {outpost.specializationLocked && (
+              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
+                {fr.garrison.specializationSealed}
+              </p>
+            )}
             {error !== null && (
               <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>
             )}

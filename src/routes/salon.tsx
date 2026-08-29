@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
+import { Wordmark } from '@/shell/Masthead';
 import { DOCTRINES, NATIONS } from '@/domain/nations';
 import type { PlayableRegion } from '@/domain/ids';
 import { FlagBanner, Flag } from '@/emblems/Flag';
@@ -99,6 +100,10 @@ function ConnectedLobby({ token }: { token: string }) {
         <Newspaper width={WIDTH} turning={turning}>
           <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
             <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
+              {/* La manchette réduite : le salon est une feuille du même journal que l'accueil,
+                  et c'est la seule chose qui le dit une fois la page tournée. */}
+              <Wordmark size={17} />
+              <span aria-hidden className="h-[22px] w-px bg-[rgba(42,33,24,.35)]" />
               <Flag nation={lobby.me.nation} width={33} onPaper />
               <span className="font-(family-name:--font-display) text-[17px] font-extrabold tracking-[.02em] uppercase">
                 {nationLabel(lobby.me.nation)}

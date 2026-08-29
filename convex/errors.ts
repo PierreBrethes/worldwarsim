@@ -64,11 +64,11 @@ export type ErrorCode =
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'NOT_ENOUGH_LIFT'
   | 'UNKNOWN_OUTPOST'
+  | 'SPECIALIZATION_SEALED'
   | 'FRIENDLY_TARGET'
   | 'EMPTY_MOVEMENT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
-  | 'NO_DECOY_ORIGIN'
   | 'NOT_ORDERABLE';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };

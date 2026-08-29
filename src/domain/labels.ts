@@ -113,7 +113,13 @@ export type LabelPictogram = 'outpost' | 'stack' | 'construction';
  * different one — the centroid it draws the polygon around. Drawing the ring on that second
  * point would put it tens of kilometres off the radius the fog actually applies.
  */
-export type Reach = { readonly lonLat: LonLat; readonly km: number };
+export type Reach = {
+  readonly lonLat: LonLat;
+  readonly km: number;
+  /** L'encre de qui regarde, quand le cercle appartient à quelqu'un — le cercle de détection
+   *  d'une troupe désignée. Absente, l'onde garde l'encre neutre du plateau. */
+  readonly ink?: string;
+};
 
 export type LabelType =
   | 'outpost'

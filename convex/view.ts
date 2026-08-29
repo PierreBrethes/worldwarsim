@@ -22,7 +22,7 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { capReliefOf, queueOf } from './constructions';
-import { movementsOf, outpostsOf } from './movement/forces';
+import { movementsOf, outpostsOf, specializationServed } from './movement/forces';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { isAnchored } from './upkeep';
@@ -68,6 +68,12 @@ export const playerView = query({
 
     const troops = await troopsOf(ctx, player._id);
     const outposts = await outpostsOf(ctx, player._id);
+    const sealed = await Promise.all(
+      outposts.map(async (outpost) => ({
+        outpost,
+        specializationLocked: await specializationServed(ctx, outpost),
+      })),
+    );
     const movements = await movementsOf(ctx, player._id);
     /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
      *  "who is far from home": one arbitration, one answer. */
@@ -369,7 +375,7 @@ export const playerView = query({
          * until something else can move one. It is an address and nothing more: what a garrison
          * *does* when attacked is the combat pass's to say.
          */
-        outposts: outposts.map((outpost) => ({
+        outposts: sealed.map(({ outpost, specializationLocked }) => ({
           id: outpost._id,
           hostCountry: outpost.hostCountry,
           lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
@@ -383,6 +389,10 @@ export const playerView = query({
               ? (outpost.disabledUntil - now) / 60_000
               : null,
           isMine: true,
+          /** Le métier se règle sur le panneau du point tant qu'aucune passe ne l'a lu
+           *  (`specializationServed`) — servi plutôt que redérivé : l'écran et le refus du
+           *  serveur lisent la même réponse. */
+          specializationLocked,
         })),
       },
       /**
@@ -445,9 +455,14 @@ export const playerView = query({
        * the thread from it and the pawn walks it. It was written once, at departure, from the
        * grid the server itself routed on (ADR 0012): nothing here recomputes a geometry to
        * display it.
+       *
+       * **Un leurre encore en vol ne passe plus le fil** : il a été retiré du jeu le 29/08/2026
+       * et le mot a quitté le vocabulaire du domaine (`src/domain/ids.ts`). Le filtre est ce qui
+       * permet au littéral de rester legacy en base sans que le client ait à connaître un type
+       * qui n'existe plus (`convex/validators.ts`).
        */
       movements: await Promise.all(
-        movements.map(async (movement) => {
+        movements.filter(notDecoyMovement).map(async (movement) => {
           const barracks =
             movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
           const origin = barracks === null ? null : regionFacts(barracks.regionId);
@@ -491,9 +506,9 @@ export const playerView = query({
        *
        * **Nothing here can leak a type or a composition, because nothing here carries one.** The
        * thread, the endpoints, the media and the two dates: that is exactly what design sheet 04
-       * grants a detected movement that has not been identified, and it is the condition the
-       * decoy exists on. The nation is not served either — a sentry sees a column go by, not a
-       * flag; identification stays the business of the agent and the buildings that carry it.
+       * grants a detected movement that has not been identified. The nation is not served
+       * either — a sentry sees a column go by, not a flag; identification stays the business of
+       * the agent and the buildings that carry it.
        *
        * A window that has not opened yet is not served at all. Past its close, the row stays and
        * turns into the last known position ADR 0005 asks for — the client reads the two dates
@@ -529,7 +544,9 @@ export const playerView = query({
           .query('notices')
           .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
           .collect()
-      ).map(named),
+      )
+        .filter(notDecoyNotice)
+        .map(named),
       /** The hour he last closed the window, `null` while he never has: the client decides what
        *  is unread from it, and nothing on the server counts dispatches. */
       journalReadAt: player.journalReadAt ?? null,
@@ -544,6 +561,22 @@ export const playerView = query({
     };
   },
 });
+
+/**
+ * **Ce que le retrait du leurre laisse en base, et que rien ne doit servir** (29/08/2026). Les
+ * littéraux `decoy` restent dans le schéma le temps d'un wipe — un mouvement en vol, des dépêches
+ * déjà déposées — mais le client ne connaît plus le mot : ni `MovementType`, ni l'union `Notice`
+ * ne le portent. Le filtre est la couture entre les deux, et il vaut mieux qu'une migration : la
+ * saison est jetable (ADR 0001), le mot part avec elle.
+ */
+const notDecoyMovement = <T extends { readonly type: string }>(
+  movement: T,
+): movement is T & { readonly type: Exclude<T['type'], 'decoy'> } => movement.type !== 'decoy';
+
+const notDecoyNotice = <T extends { readonly kind: string }>(
+  notice: T,
+): notice is T & { readonly kind: Exclude<T['kind'], `decoy${string}`> } =>
+  !notice.kind.startsWith('decoy');
 
 /**
  * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
@@ -577,8 +610,8 @@ function named(notice: Doc<'notices'>) {
  *
  * What travels is the thread, its two endpoints, the media and the two dates. **Neither the type
  * nor the composition nor the nation is here**, and none of them is fetched: that is what design
- * sheet 04 grants an unidentified movement, and it is the condition the decoy exists on. A sentry
- * watches a column go past; it does not read its flag.
+ * sheet 04 grants an unidentified movement. A sentry watches a column go past; it does not read
+ * its flag.
  *
  * `headingAtMe` is the third ink of design sheet 04, decided on the destination alone: the
  * arrival lands on ground the player recognises — his own soil, or the reach of one of his

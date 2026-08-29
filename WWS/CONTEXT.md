@@ -32,7 +32,6 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Raid** | Désactive temporairement un avant-poste. Ne le capture jamais. |
 | **Sonde** | Révèle les mouvements sortants d'un joueur pendant une durée. |
 | **Agent dormant** | Posé dans un pays neutre. Révèle les arcs proches et peut saboter. |
-| **Leurre** | Mouvement à zéro unité. Coûte un slot. Indiscernable d'un vrai. |
 | **Embargo** | Outil d'Hégémonie. Plafonne la production militaire d'une cible. |
 | **Exposition** | Outil d'Influence. Révèle la doctrine d'une cible et gèle sa progression. |
 | **Interception** | Combat déclenché quand un mouvement traverse le rayon d'une force adverse. |
@@ -41,6 +40,13 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Occupation** | État d'une nation vaincue. Production réduite de moitié. Jamais définitif. |
 | **Revanchisme** | Compensation d'un joueur très en retard. Dépensable en offensive uniquement. |
 | **Plage de repos** | 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver. |
+
+> **Retiré du vocabulaire le 29/08/2026 : le leurre.** Il était « un mouvement à zéro unité, un
+> slot, indiscernable d'un vrai ». Conçu par la fiche 04, codé, puis retiré sans avoir jamais été
+> éprouvé en partie — un outil de plus que personne n'avait demandé. Le mot ne s'emploie plus, ni
+> dans le code, ni à l'écran ; la note de révision en tête de
+> [fiche 04](docs/design/04-information.md) dit ce que le retrait emporte et ce qu'il laisse en
+> trou. Un manifeste vide n'est plus un ordre : c'est un refus.
 
 ## Termes bannis
 

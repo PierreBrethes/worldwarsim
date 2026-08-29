@@ -24,7 +24,9 @@ l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le ho
 l'état de nation (ADR 0009, 0010). **Trois mouvements terrestres existent côté serveur**
 (`convex/movements.ts`) : la marche qui fonde un avant-poste, l'attaque et le raid — plus le
 **retour**, que personne n'ordonne et que la résolution crée seule. Pas de naval, pas d'aérien,
-pas d'agent ni de leurre.
+pas d'agent. **Le leurre a été codé puis retiré le 29/08/2026** — décision de Pierre, révision
+documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survit dans
+`convex/validators.ts`, en legacy et jamais réécrit, le temps d'un wipe.
 
 **Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
 (`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
@@ -55,7 +57,7 @@ se calcule **au départ du mouvement, une seule fois**, et se dénormalise dans 
 un filtre sur la table des mouvements (`WWS/docs/technique/brouillard-et-fanout.md`). Conséquence
 assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le bloc
 « Renseignement » du widget de troupes sert ce relevé et rien d'autre ; la station d'écoute,
-l'agent dormant, la sonde et le leurre n'existent toujours pas.
+l'agent dormant et la sonde n'existent toujours pas.
 
 **La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.

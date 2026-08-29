@@ -5,13 +5,8 @@ import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from '
 import { api } from '../../convex/_generated/api';
 import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
-import {
-  ThickRule,
-  ThickRuleInverse,
-  Newspaper,
-  usePageTurn,
-  type Turning,
-} from '@/shell/Newspaper';
+import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
+import { Masthead } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
@@ -42,18 +37,13 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
       <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
         <div className="flex items-baseline justify-between gap-5 px-[30px] pt-[13px] pb-[9px]">
           <span className="eyebrow">{fr.home.edition}</span>
-          <span className="font-(family-name:--font-mono) text-[10.5px] tracking-[.14em] text-[var(--ink-faint)]">
-            {romanDate(new Date())}
-          </span>
           <span className="eyebrow">{fr.home.audience}</span>
         </div>
 
-        <ThickRule />
-
-        <div className="px-[30px] pt-[24px] pb-[18px] text-center">
-          <h1 className="font-(family-name:--font-display) text-[clamp(34px,7.4cqi,56px)] leading-[.92] font-extrabold tracking-[-.005em]">
-            {fr.home.masthead}
-          </h1>
+        {/* La date a quitté l'oreille pour la ligne de date de la manchette, qui est sa place
+            dans un quotidien — et il n'y en a qu'une sur la page. */}
+        <div className="px-[30px] pt-[6px] pb-[18px] text-center">
+          <Masthead date={romanDate(new Date())} />
           <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
             {fr.home.tagline}
           </p>

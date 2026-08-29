@@ -174,9 +174,8 @@ export function cluster(
  * The three intensities of the alert mark, and nothing else on the map carries one.
  *
  * `threat` covers the unidentified heading, and since the spur was removed it is invisible:
- * the glyph stays neutral, otherwise we would assert a nature we do not know — and the decoy,
- * which only exists to be mistaken for something else, would lose its reason to be. It is a
- * mark computed without being drawn; the day a sign is given back to it, it fits here.
+ * the glyph stays neutral, otherwise we would assert a nature we do not know. It is a mark
+ * computed without being drawn; the day a sign is given back to it, it fits here.
  */
 export type AlertMark = 'none' | 'threat' | 'offensive' | 'imminent';
 

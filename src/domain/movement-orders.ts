@@ -68,22 +68,6 @@ export type OrderRefusal =
   | 'NOT_ORDERABLE';
 
 /**
- * The three marches a player orders. **The return is not among them**: it is created by the
- * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things
- * one can ask for — see the note in the brief's implementation.
- *
- * **The foundation left too**, and for a better reason than tidiness: one does not walk *at* a
- * place to found there, one founds where one already stands (`foundOutpostHere`). The recall
- * left with the origin that justified it (ADR 0019 §1). Both survive in `MovementType` because
- * columns already sent are still walking, and a document the schema can no longer read is a
- * worse tidiness than a word one no longer offers.
- *
- * **The decoy is one of them since ADR 0006 was finally coded**, and it is the odd one: the only
- * order whose manifest is empty on purpose. The agent still waits for the fog surfaces and
- * refuses as `NOT_ORDERABLE` rather than being absent from the union, so the day it lands there
- * is a branch to fill, not one to find.
- */
-/**
  * **The movement slots, carried by the headquarters** (ADR 0006, reindexed by 0015). One slot
  * outlives the building: a nation always has one movement to make, even with its capital
  * flattened.
@@ -98,18 +82,26 @@ export type OrderRefusal =
  */
 export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
 
-export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid', 'decoy'];
-
 /**
- * **The pace a decoy walks at: the infantry's, the slowest there is.** A thread that crossed
- * Europe faster than any column could would name itself a decoy to whoever timed it, and being
- * untellable from a real column is the entire point (design sheet 04) — a sighting reports a
- * schedule before it reports anything else.
+ * The three marches a player orders. **The return is not among them**: it is created by the
+ * resolution and by nothing else (`convex/movements.ts`), so it has no place in a fan of things
+ * one can ask for — see the note in the brief's implementation.
  *
- * It is a pile of one rifleman **on paper and nowhere else**: no troop is named, none is sent,
- * and these roles are read by `routeModeOf` and `landCostOf` and by nothing at all after that.
+ * **The foundation left too**, and for a better reason than tidiness: one does not walk *at* a
+ * place to found there, one founds where one already stands (`foundOutpostHere`). The recall
+ * left with the origin that justified it (ADR 0019 §1). Both survive in `MovementType` because
+ * columns already sent are still walking, and a document the schema can no longer read is a
+ * worse tidiness than a word one no longer offers.
+ *
+ * **Le leurre a été retiré du jeu le 29/08/2026** (révision d'une décision livrée, fiche 04) :
+ * il n'est plus ici, et il n'est plus nulle part ailleurs que dans le validateur Convex, qui
+ * garde son littéral le temps d'un wipe. Ce qu'il emportait avec lui : la pile vide n'est plus
+ * un ordre, elle redevient un refus franc (`EMPTY_MOVEMENT`, ci-dessous).
+ *
+ * The agent still waits for the fog surfaces and refuses as `NOT_ORDERABLE` rather than being
+ * absent from the union, so the day it lands there is a branch to fill, not one to find.
  */
-export const DECOY_PACE: ReadonlyArray<UnitRole> = ['infantry'];
+export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
 export function refusalOf(
   type: MovementType,
@@ -117,11 +109,11 @@ export function refusalOf(
   column: Column,
 ): OrderRefusal | null {
   /**
-   * **The one order an empty pile does not refuse, because it *is* the empty pile** (ADR 0006).
-   * It carries nothing, so no door under it is ever consulted — a decoy walks, always — and it
-   * goes where a march goes and nowhere else: a feint that could raid would be a raid.
+   * **Une pile vide ne part pas.** C'était la porte du leurre — le seul ordre dont le manifeste
+   * était vide exprès — et le leurre a été retiré le 29/08/2026 : le refus redevient franc, pour
+   * tous les types et sans exception. C'est aussi ce qui referme la porte dérobée que la fiche 04
+   * signalait, « à zéro troupe » comme moyen d'obtenir une marche gratuite.
    */
-  if (type === 'decoy') return aim.kind === 'point' ? null : 'POINT_TARGET_ONLY';
   if (column.roles.length === 0) return 'EMPTY_MOVEMENT';
   switch (type) {
     /**
