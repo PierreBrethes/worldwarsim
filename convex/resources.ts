@@ -138,7 +138,18 @@ export type SettledOrder = OrderState & { readonly row: Doc<'orders'> };
 export type Economy = {
   readonly rows: ReadonlyArray<Doc<'resources'>>;
   readonly stocks: Record<ResourceKey, number>;
+  /** What **accrues**: the mines, less what the army eats. This is the rate the settlement
+   *  integrates, and it must stay free of the chains — they are applied inside the same pass,
+   *  and adding them here would convert the same ore twice. */
   readonly ratePerHour: Record<ResourceKey, number>;
+  /**
+   * **What the player actually reads move**: the accrual plus what the chains make, less what
+   * they eat, taken from the outlook the industry window already prints. The client extrapolates
+   * a stock between two readings from this number and nothing else — served the accrual alone,
+   * an alloy the foundry casts at four an hour sat frozen at `0 / h` until an unrelated mutation
+   * happened to bank it, and the ore it eats climbed on screen while it was being spent.
+   */
+  readonly netRatePerHour: Record<ResourceKey, number>;
   readonly cap: Record<ResourceKey, number>;
   readonly chains: ReadonlyArray<ChainReport>;
   /** The standing lots, advanced to `now` like the stocks — never as stored. */
@@ -238,10 +249,23 @@ export async function economyOf(
     hours: OUTLOOK_HOURS,
   });
 
+  /**
+   * `made` is what the outlook says the chain gets through over `OUTLOOK_HOURS` — a real rate
+   * and not a nominal one, so a starved foundry prints what it truly casts and a full one
+   * prints nothing. Same arbitration as the stocks: the two cannot disagree, being one reading.
+   */
+  const netRatePerHour = { ...ratePerHour };
+  for (const { conversion, made } of outlook.chains) {
+    const perHour = made / OUTLOOK_HOURS;
+    netRatePerHour[conversion.output] += perHour;
+    for (const [key, quantity] of conversion.inputs) netRatePerHour[key] -= perHour * quantity;
+  }
+
   return {
     rows,
     stocks: settled.stocks,
     ratePerHour,
+    netRatePerHour,
     cap,
     chains: outlook.chains,
     orders,
@@ -285,7 +309,7 @@ export function snapshotOf(
 ): { stock: number; ratePerHour: number; cap: number } {
   return {
     stock: Math.floor(economy.stocks[key]),
-    ratePerHour: economy.ratePerHour[key],
+    ratePerHour: economy.netRatePerHour[key],
     cap: economy.cap[key],
   };
 }

@@ -41,3 +41,20 @@ d'envoi que l'audit réclamait. Respecter l'encre nationale existante.
 2 (composant) avant 3 et 4 qui peuvent s'en servir ; 1 indépendant. Chaque chantier = un
 prompt, une vérification `npm run verifier` + un scénario navigateur. Rien ici ne touche
 l'économie ni le combat : le lot peut se glisser entre deux parties sans re-mesure.
+
+## 5. Le canal général (ajouté le 29/08)
+
+Décision de Pierre : un chat, **un seul canal général par partie**, diégétique — « le fil des
+dépêches » : style journalistique, police du journal, et le tic-tac mécanographique d'une
+machine à écrire à l'arrivée d'un message (discret, coupable dans Réglages, muet par défaut
+si onglet inactif). Le troll entre amis est une *feature* : c'est le carburant social de
+l'adversité. Pseudo + encre nationale, par saison, meurt avec elle (ADR 0009). Pas de canaux
+privés — les télégrammes pseudo-à-pseudo restent au chapitre diplomatie. Techniquement : une
+table `messages` cloisonnée par saison (index `bySeason`, leçon du 26/08), une fenêtre.
+
+## Ordre révisé du lot
+
+2 (tampon) → 5 (canal) → 1 (départ programmé) → 4 (crayon gras) → 3 (manchettes, qui peut
+attendre la dépêche publique). Les deux prompts déjà prêts (`format-sans-horloge`,
+`notifications-info`) s'intercalent où Pierre veut — le premier touche le schéma, à passer
+seul.

@@ -276,6 +276,46 @@ describe('what the industry window reads', () => {
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing', missing: null });
   });
 
+  /**
+   * **Le débit servi est celui que la chaîne tient, pas celui des mines seules.** Le client
+   * extrapole un stock entre deux lectures avec ce nombre : servi l'accroissement nu, l'alliage
+   * restait gelé à « 0 / h » pendant que la fonderie coulait, et le minerai qu'elle mange
+   * montait à l'écran pendant qu'il se dépensait.
+   */
+  it('serves the rate the chains hold, not the mines alone', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    await raise(t, token, 'mine', MEURTHE); // ore, 9/h
+    await raise(t, token, 'mine', PAS_DE_CALAIS); // coal, 10/h
+    await fill(t, token, 'alloy', 0);
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    const cast = CHAINS.foundry.perHourPerLevel;
+    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'running' });
+    // Ce que la fonderie coule, et ce qu'elle prélève sur les deux mines qui la nourrissent.
+    expect(view.me.resources.alloy.ratePerHour).toBe(cast);
+    expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore - 2 * cast);
+    expect(view.me.resources.coal.ratePerHour).toBe(EXTRACTION_PER_HOUR.coal - cast);
+  });
+
+  /** Une fonderie qui ne peut rien poser ne prélève rien non plus : le débit du minerai
+   *  redevient celui de la mine, faute de quoi le joueur lirait une saignée qui n'a pas lieu. */
+  it('takes nothing off the mines while the output has nowhere to go', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await raise(t, token, 'foundry', MOSELLE);
+    await raise(t, token, 'mine', MEURTHE);
+    await fill(t, token, 'alloy', BASE_CAP);
+    vi.advanceTimersByTime(3_600_000);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing' });
+    expect(view.me.resources.alloy.ratePerHour).toBe(0);
+    expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore);
+  });
+
   /** An absent chain is information; an absent line is a hole. */
   it('serves the three chains even when nothing is built, extinguished', async () => {
     const t = boot();

@@ -545,10 +545,19 @@ export type PlayerView = {
 
 export function currentStock(resource: Resource, loadedAt: number, now: number): number {
   const raw = resource.stock + (resource.ratePerHour * Math.max(0, now - loadedAt)) / 3_600_000;
-  /** A net rate goes negative the day an army eats more than its farms grow, and the client
-   *  extrapolates it between two readings like any other: the floor is the same one the
-   *  settlement applies, so the strip never counts down past empty. */
-  return Math.max(0, Math.floor(Math.min(resource.cap, raw)));
+  /**
+   * **The ceiling bounds what comes in, never what is held** — the same bar as the settlement's
+   * `held` (`settleStocks`), and it has to be the same one: the opening kit hands out more alloy
+   * than a nation without a warehouse can store, so clipping the display to the ceiling showed a
+   * player 400 alliage while the server held a thousand of it, pinned and unable to move. He
+   * read that as a foundry producing nothing.
+   *
+   * A net rate goes negative the day an army eats more than its farms grow, and the client
+   * extrapolates it between two readings like any other: the floor is the same one the
+   * settlement applies, so the strip never counts down past empty.
+   */
+  const held = Math.max(resource.cap, resource.stock);
+  return Math.max(0, Math.floor(Math.min(held, raw)));
 }
 
 export function currentMinutes(minutesLeft: number, loadedAt: number, now: number): number {
