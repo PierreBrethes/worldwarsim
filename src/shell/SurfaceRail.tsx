@@ -14,10 +14,12 @@ export function SurfaceRail({
   season,
   loadedAt,
   playerInk,
+  telegraphUnread,
 }: {
   season: PlayerView['season'];
   loadedAt: number;
   playerInk: string;
+  telegraphUnread: number;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   // The season's end counts in days: the minute is enough, and the rail has no reason to
@@ -38,7 +40,21 @@ export function SurfaceRail({
     icon: ReactNode;
     target: BoardSearch;
     active: boolean;
+    /** Ce qui attend derrière l'entrée, `0` quand rien n'attend. Une seule surface en porte
+     *  aujourd'hui — le journal compte au bandeau, où il vit. */
+    unread?: number;
   }> = [
+    {
+      title:
+        telegraphUnread > 0
+          ? `${fr.rail.telegraph.title} — ${fr.rail.telegraphUnread(telegraphUnread)}`
+          : fr.rail.telegraph.title,
+      label: fr.rail.telegraph.label,
+      icon: <TelegraphIcon />,
+      target: toggled('telegraph'),
+      active: windowOpen(search, 'telegraph'),
+      unread: telegraphUnread,
+    },
     {
       title: fr.rail.production.title,
       label: fr.rail.production.label,
@@ -81,12 +97,19 @@ export function SurfaceRail({
                 title={surface.title}
                 className={
                   surface.active
-                    ? 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
-                    : 'flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
+                    ? 'relative flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
+                    : 'relative flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
                 }
               >
                 {surface.icon}
                 <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
+                {/* Un carré à l'encre critique, pas une pastille : le rail est composé, pas
+                    notifié. Il compte depuis la dernière fermeture de la fenêtre. */}
+                {surface.unread ? (
+                  <span className="absolute top-[5px] right-[5px] flex h-[13px] min-w-[13px] items-center justify-center bg-[var(--critical)] px-[3px] font-(family-name:--font-mono) text-[8px] leading-none text-[var(--paper)]">
+                    {surface.unread > 99 ? '99+' : surface.unread}
+                  </span>
+                ) : null}
               </Link>
             </li>
           ))}
@@ -177,6 +200,23 @@ const LIT_INK: Readonly<Record<IndicatorCategory, string | undefined>> = {
   inbound: 'var(--critical)',
   intel: 'var(--routine)',
 };
+
+/**
+ * **Un manipulateur morse** : le levier sur son pivot, le bouton à la main, deux étincelles.
+ * Dessiné et non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire
+ * pour lui, exactement comme la bascule des bâtiments et l'icône des réglages.
+ */
+function TelegraphIcon() {
+  return (
+    <Glyph>
+      <path d="M3 15.5h11" />
+      <path d="M5 11.5h7" />
+      <path d="M9.5 11.5v4" />
+      <circle cx="5" cy="11.5" r="1.3" />
+      <path d="M14 8.2l1.8-1.7M16.4 9.4l2.3-.7" />
+    </Glyph>
+  );
+}
 
 function SettingsIcon() {
   return (

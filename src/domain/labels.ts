@@ -116,9 +116,6 @@ export type LabelPictogram = 'outpost' | 'stack' | 'construction';
 export type Reach = {
   readonly lonLat: LonLat;
   readonly km: number;
-  /** L'encre de qui regarde, quand le cercle appartient à quelqu'un — le cercle de détection
-   *  d'une troupe désignée. Absente, l'onde garde l'encre neutre du plateau. */
-  readonly ink?: string;
 };
 
 export type LabelType =

@@ -56,6 +56,21 @@ export const briefingSeen = (): boolean => localStorage.getItem(BRIEFING_KEY) ==
 
 export const markBriefingSeen = (): void => localStorage.setItem(BRIEFING_KEY, 'seen');
 
+const TELEGRAPH_SOUND_KEY = 'wws-telegraph-sound';
+
+/**
+ * **Le son est un réglage à part, et `prefers-reduced-motion` ne le couvre pas** : cette requête
+ * média parle d'animation, pas d'audio, et s'en servir pour taire le télégraphe muterait un
+ * joueur qui n'a jamais demandé le silence. Allumé par défaut — le tic-tac est la moitié de ce
+ * que le canal apporte — et coupé d'un clic dans les Réglages, pour ce navigateur.
+ */
+export const telegraphSoundOn = (): boolean =>
+  localStorage.getItem(TELEGRAPH_SOUND_KEY) !== 'muted';
+
+export const keepTelegraphSound = (on: boolean): void => {
+  localStorage.setItem(TELEGRAPH_SOUND_KEY, on ? 'audible' : 'muted');
+};
+
 const INDICATORS_KEY = 'wws-edge-indicators';
 
 /**

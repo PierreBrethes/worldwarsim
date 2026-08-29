@@ -8,6 +8,7 @@ import { internalMutation } from './_generated/server';
  */
 export const GAME_TABLES = [
   'constructions',
+  'messages',
   'notices',
   'sightings',
   'recruitments',

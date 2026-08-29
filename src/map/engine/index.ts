@@ -443,6 +443,7 @@ export class MapEngine {
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
+    this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
 

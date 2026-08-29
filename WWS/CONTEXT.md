@@ -18,6 +18,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Doctrine** | La condition de victoire choisie par un joueur. Secrète jusqu'à 25 % de progression. |
 | **Arc** | La représentation visuelle d'un mouvement. Visible seulement si détecté. |
 | **Journal d'événements** | L'écran « qu'est-ce qui a changé depuis ma dernière visite ». |
+| **Télégraphe** | Le chat de la partie : **un seul canal général**, ouvert dès le salon, fermé à la conclusion. Le mot est imposé — ni « chat » ni « dépêches », qui appartiennent au journal. *(décision du 29/08)* |
 
 ## Ressources
 

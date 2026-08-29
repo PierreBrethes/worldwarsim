@@ -16,6 +16,7 @@ import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as industry from "../industry.js";
 import type * as journal from "../journal.js";
+import type * as messages from "../messages.js";
 import type * as movement_arrival from "../movement/arrival.js";
 import type * as movement_detection from "../movement/detection.js";
 import type * as movement_forces from "../movement/forces.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   errors: typeof errors;
   industry: typeof industry;
   journal: typeof journal;
+  messages: typeof messages;
   "movement/arrival": typeof movement_arrival;
   "movement/detection": typeof movement_detection;
   "movement/forces": typeof movement_forces;

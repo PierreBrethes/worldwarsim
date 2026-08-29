@@ -66,6 +66,17 @@ avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLA
 oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/constants.ts` sont
 **arbitraires**, jamais simulés.
 
+**Le télégraphe existe** : un canal général par partie, ouvert dès le salon et fermé sur une
+saison conclue (`convex/messages.ts`). Un seul fil (`src/shell/TelegraphThread.tsx`), deux
+cadres : une fenêtre qu'on ouvre au plateau, et une section posée à demeure au salon — c'est là
+que l'écriture acceptée avant le lancement prend son sens, et le salon n'a ni rail ni badge, donc
+il date la lecture en quittant la feuille. Trois bornes,
+d'écran et non d'équilibrage (`src/domain/telegraph.ts`) : 300 caractères, un message par seconde
+et par joueur, les 200 derniers servis — c'est un fil, pas une archive. Pas de canal privé, pas de
+mention, pas de modération. Un tic-tac synthétisé en Web Audio sonne à l'arrivée d'un message des
+autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail compte depuis
+la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
+
 **Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.

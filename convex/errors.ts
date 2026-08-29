@@ -69,7 +69,10 @@ export type ErrorCode =
   | 'EMPTY_MOVEMENT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
-  | 'NOT_ORDERABLE';
+  | 'NOT_ORDERABLE'
+  | 'EMPTY_MESSAGE'
+  | 'MESSAGE_TOO_LONG'
+  | 'TELEGRAPH_TOO_FAST';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };
 

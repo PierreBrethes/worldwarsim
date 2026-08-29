@@ -809,6 +809,9 @@ describe('scrapping a season', () => {
         });
       });
 
+      // And one line of the telegraph: the channel is a table of the season like any other.
+      await t.mutation(api.messages.post, { token: creator, text: 'je marche sur Prahova' });
+
       const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
       const before = await countRows(t, tables);
       // Every table carries something, or the emptiness below proves nothing about it.

@@ -46,6 +46,7 @@ import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
+import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
@@ -118,8 +119,11 @@ const NationWindow = lazy(() =>
 const SettingsWindow = lazy(() =>
   import('./-plateau/SettingsWindow').then((module) => ({ default: module.SettingsWindow })),
 );
+const TelegraphWindow = lazy(() =>
+  import('./-plateau/TelegraphWindow').then((module) => ({ default: module.TelegraphWindow })),
+);
 
-const WINDOWS = ['journal', 'production', 'economy', 'nation', 'settings'] as const;
+const WINDOWS = ['journal', 'telegraph', 'production', 'economy', 'nation', 'settings'] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
 
@@ -397,8 +401,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       setGarrison(null);
       setFoundError(null);
       setPosted({ station, troop: alone, labelId: `stack-${stationKeyOf(station)}`, ...at });
+      /**
+       * **Désigner une troupe, c'est l'armer** (correctif du 30/08). Le cartouche disait ce
+       * qu'elle valait et rien ne pouvait plus la bouger : une troupe seule ne passe par aucune
+       * garnison, donc par aucun bouton « préparer », et le clic droit ne trouvait pas de
+       * colonne à viser. La désignation *est* la préparation — c'est le seul geste qu'il reste
+       * quand il n'y a rien à composer.
+       */
+      setOrder(null);
+      setColumn(armedColumn(view, station, [alone.id]));
     },
-    [openGarrison, view.me, marching],
+    [openGarrison, view, marching],
   );
 
   /**
@@ -439,7 +452,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             specialization: 'relay',
             troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
           }).then(
-            () => setPosted(null),
+            () => {
+              setPosted(null);
+              setColumn(null);
+            },
             (problem: unknown) => handleError(problem, setFoundError),
           );
       }
@@ -459,15 +475,23 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     return () => document.removeEventListener('keydown', disarm);
   }, [column]);
 
-  // Une désignation se lâche de la même touche que la visée, et les deux ne coexistent jamais.
+  /** **Une désignation et la colonne qu'elle arme sont un seul état**, lâché d'un seul geste :
+   *  le cartouche fermé, la troupe n'est plus en visée non plus. */
+  const releasePosted = useCallback(() => {
+    setPosted(null);
+    setColumn(null);
+    setOrder(null);
+  }, []);
+
+  // Une désignation se lâche de la même touche que la visée.
   useEffect(() => {
     if (posted === null) return;
     const release = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPosted(null);
+      if (event.key === 'Escape') releasePosted();
     };
     document.addEventListener('keydown', release);
     return () => document.removeEventListener('keydown', release);
-  }, [posted]);
+  }, [posted, releasePosted]);
 
   /**
    * **The keys the season still owes, and the ground each one accepts.** The eligibility is
@@ -646,11 +670,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * d'écoute — une onde, pas une couche — et part avec la désignation.
    */
   const postedReach = useMemo<Reach | null>(
-    () =>
-      posted === null
-        ? null
-        : { lonLat: posted.station.lonLat, km: SCOUT_RADIUS_KM, ink: view.me.ink },
-    [posted, view.me.ink],
+    () => (posted === null ? null : { lonLat: posted.station.lonLat, km: SCOUT_RADIUS_KM }),
+    [posted],
   );
 
   const closeWindow = useCallback(
@@ -672,6 +693,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * that. The flag is read once at mount: marking it seen inside the season must not make the
    * sheet vanish under a re-render, only stop the *next* arrival from serving it.
    */
+  /** **Le canal général se tient au plateau, fenêtre ouverte ou non** : le badge du rail compte
+   *  et le tic-tac sonne quand on regarde ailleurs (`telegraph.ts`). */
+  const telegraph = useTelegraph(token);
+
   const [briefing, setBriefing] = useState(() => !briefingSeen());
 
   /**
@@ -723,7 +748,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   );
 
   return (
-    <Shell view={view}>
+    <Shell view={view} telegraphUnread={telegraph.unread}>
       <div className="relative min-w-0 flex-1">
         <WorldMap
           world={world}
@@ -791,7 +816,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             nation={view.me.nation}
             troop={posted.troop}
             at={posted}
-            onClose={() => setPosted(null)}
+            onClose={releasePosted}
           />
         )}
         {column && order && (
@@ -807,6 +832,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             onClose={() => {
               setOrder(null);
               setColumn(null);
+              setPosted(null);
             }}
           />
         )}
@@ -873,6 +899,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           switch (name) {
             case 'journal':
               return <JournalWindow key={name} view={view} token={token} {...windowProps} />;
+            case 'telegraph':
+              return (
+                <TelegraphWindow key={name} telegraph={telegraph} token={token} {...windowProps} />
+              );
             case 'production':
               return (
                 <ProductionWindow

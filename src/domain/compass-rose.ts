@@ -258,7 +258,13 @@ export function compassOf(
   column: Column | null = null,
   objectiveKnown = false,
 ): Compass | null {
-  if (column !== null) return aim(target, view, column, objectiveKnown);
+  /**
+   * **La pile qu'on tient n'est pas une destination.** Viser, c'est nommer un ailleurs ; la pile
+   * armée, elle, garde son éventail ordinaire jusque sous la visée — sinon désigner une troupe
+   * lui retirerait « fonder », qui est précisément l'ordre qu'on donne là où l'on se tient
+   * (ADR 0019 §1). Le clic droit sur elle répond donc toujours la même chose, armée ou non.
+   */
+  if (column !== null && target.kind !== 'force') return aim(target, view, column, objectiveKnown);
   const fan = build(target, view);
   return fan.actions.length === 0 ? null : { ...fan, refusal: null };
 }

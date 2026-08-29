@@ -5,7 +5,9 @@ import {
   MAX_HUD_SCALE,
   MIN_HUD_SCALE,
   keepHudScale,
+  keepTelegraphSound,
   readHudScale,
+  telegraphSoundOn,
 } from '@/data/settings';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
@@ -16,6 +18,7 @@ export function SettingsWindow({
   ...windowProps
 }: WindowProps & { onShowBriefing: () => void }) {
   const [scale, setScale] = useState(readHudScale);
+  const [sound, setSound] = useState(telegraphSoundOn);
 
   const set = (value: number) => {
     const clamped = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, value));
@@ -66,6 +69,33 @@ export function SettingsWindow({
               className="shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
             >
               {fr.settingsWindow.reset}
+            </button>
+          </div>
+
+          {/* **Le son est un réglage à part.** `prefers-reduced-motion` parle d'animation, pas
+              d'audio : s'en servir pour taire le télégraphe muterait un joueur qui n'a jamais
+              demandé le silence. */}
+          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="min-w-[180px] flex-1">
+              <div className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.soundLabel}</div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.soundNote}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-pressed={sound}
+              onClick={() => {
+                setSound(!sound);
+                keepTelegraphSound(!sound);
+              }}
+              className={
+                sound
+                  ? 'shrink-0 cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--paper)] uppercase'
+                  : 'shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]'
+              }
+            >
+              {fr.settingsWindow.soundState(sound)}
             </button>
           </div>
 

@@ -335,6 +335,9 @@ export const fr = {
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
+    EMPTY_MESSAGE: () => 'un message vide ne part pas',
+    MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
+    TELEGRAPH_TOO_FAST: () => 'un message par seconde — laissez la ligne respirer',
   } satisfies Record<ErrorCode, (details: Record<string, unknown>) => string>,
 
   unexpectedError: 'une erreur imprévue est survenue — réessayez',
@@ -571,10 +574,13 @@ export const fr = {
     production: { title: 'Production — recrutement d’unités', label: 'prod.' },
     economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
+    telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
     settings: 'Réglages',
     seasonEnd: (season: number, hours: number, minutes: string) =>
       `saison ${season} — fin dans ${hours} h ${minutes}`,
     seasonShort: (season: number) => `S.${season}`,
+    telegraphUnread: (count: number) =>
+      `${count} message${plural(count, '', 's')} non lu${plural(count, '', 's')} au télégraphe`,
     toggleTitle: (label: string, on: boolean) =>
       `${label} au bord de l’écran — ${on ? 'allumé' : 'éteint'}`,
     // The buildings bascule governs the board itself, not only its edge: saying otherwise
@@ -876,6 +882,9 @@ export const fr = {
     badgeKicker: 'troupe',
     badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
     badgeFound: 'clic droit sur la troupe : fonder un avant-poste',
+    /** Désigner arme (correctif du 30/08) : la troupe seule ne passe par aucune garnison, donc
+     *  par aucun bouton « préparer » — le cartouche est le seul endroit qui puisse le dire. */
+    badgeAim: 'clic droit sur la carte : l’envoyer',
     supplied: 'ravitaillée',
   },
 
@@ -1305,6 +1314,22 @@ export const fr = {
     restFrozen: 'Scellée au lancement — elle se déclarait au salon.',
   },
 
+  /**
+   * **Le télégraphe, et pas « chat » ni « dépêches »** : le second mot appartient au journal, et
+   * deux vocabulaires pour deux fils qu'on lit à trente centimètres l'un de l'autre est une
+   * collision qu'on ne rattrape plus (`WWS/CONTEXT.md`).
+   */
+  telegraph: {
+    header: 'télégraphe',
+    channel: 'canal général',
+    empty: 'La ligne est muette — personne n’a encore télégraphié.',
+    placeholder: 'télégraphier…',
+    send: 'envoyer',
+    /** Le décompte ne paraît qu'à l'approche de la borne : un compteur permanent transforme une
+     *  conversation en formulaire. */
+    remaining: (left: number) => `${left} caractère${plural(left, '', 's')}`,
+  },
+
   settingsWindow: {
     header: 'réglages',
     scaleLabel: 'Échelle de l’interface',
@@ -1314,6 +1339,10 @@ export const fr = {
     briefingLabel: 'Aide-mémoire du commandement',
     briefingNote: 'La feuille d’entrée en campagne — les commandes, le terrain, vos bureaux.',
     briefingReopen: 'relire',
+    soundLabel: 'Son du télégraphe',
+    soundNote:
+      'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
+    soundState: (on: boolean) => (on ? 'activé' : 'coupé'),
   },
 
   /**
@@ -1357,6 +1386,7 @@ export const fr = {
           'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
           'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
           'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
+          'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
           'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
         ],
       },

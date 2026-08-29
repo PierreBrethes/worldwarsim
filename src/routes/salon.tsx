@@ -1,6 +1,6 @@
 import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
@@ -15,6 +15,8 @@ import { DestroyButton } from '@/shell/DestroyButton';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { LaunchSequence } from '@/shell/LaunchSequence';
+import { TelegraphThread } from '@/shell/TelegraphThread';
+import { useTelegraph } from '@/data/telegraph';
 
 export const Route = createFileRoute('/salon')({
   component: Lobby,
@@ -418,6 +420,10 @@ function ConnectedLobby({ token }: { token: string }) {
               </aside>
             </div>
 
+            <ThickRuleInverse />
+
+            <LobbyTelegraph token={token} />
+
             {error && (
               <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
                 {error}
@@ -443,6 +449,38 @@ function ConnectedLobby({ token }: { token: string }) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * **Le télégraphe du salon est posé, jamais ouvert.** C'est la raison d'être de l'écriture
+ * acceptée dès le lobby (`convex/messages.ts`) : l'heure où l'on n'a rien à faire qu'attendre les
+ * autres est celle où l'on se chambre. Pas de rail et pas de badge ici — il n'y a rien à ouvrir,
+ * donc rien à compter.
+ *
+ * La lecture se date au **démontage** : la feuille les a montrés tant qu'elle était à l'écran, et
+ * celui qui la quitte pour le plateau ne doit pas y retrouver un badge plein de ce qu'il vient de
+ * lire. C'est la même règle que la fermeture d'une fenêtre, appliquée au seul geste qui existe
+ * ici.
+ */
+function LobbyTelegraph({ token }: { token: string }) {
+  const telegraph = useTelegraph(token);
+  const markRead = useMutation(api.messages.markRead);
+  useEffect(
+    () => () => {
+      void markRead({ token }).catch(() => undefined);
+    },
+    [markRead, token],
+  );
+
+  return (
+    <section className="mx-[30px] mt-4 flex flex-col">
+      <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
+        <span className="eyebrow">{fr.telegraph.header}</span>
+        <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.telegraph.channel}</span>
+      </div>
+      <TelegraphThread telegraph={telegraph} token={token} height={220} />
+    </section>
   );
 }
 

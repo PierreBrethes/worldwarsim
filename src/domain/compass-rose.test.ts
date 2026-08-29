@@ -428,6 +428,23 @@ describe('founding from the map', () => {
     expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
   });
 
+  /**
+   * **Désigner une troupe l'arme** (correctif du 30/08), et la rose lui rend malgré tout son
+   * éventail ordinaire : la pile qu'on tient n'est pas une destination, et lui retirer « fonder »
+   * parce qu'elle est en visée reviendrait à rendre le geste inaccessible dès qu'on la sélectionne.
+   */
+  it('keeps the founding on the pile itself while a column is armed', () => {
+    const armed = {
+      roles: ['infantry' as const],
+      myRegionIds: new Set<string>(),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(),
+      afloat: false,
+    };
+    const compass = compassOf(camp, posted(['infantry']), armed, true);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['found', 'view']);
+  });
+
   /** Une pile en route n'est plus posée : son manifeste est vide, il n'y a rien à planter. */
   it('withdraws it while the column is walking', () => {
     const walking = posted(['infantry']);

@@ -1,8 +1,10 @@
-import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineLoop } from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { LonLat } from '@/domain/geo';
 import type { Reach } from '@/domain/labels';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { PALETTE } from './palette';
+import { ARC_COLORS } from './palette';
 
 /**
  * Fine enough that four hundred kilometres read as a circle rather than as a polygon, coarse
@@ -12,6 +14,23 @@ const SEGMENTS = 96;
 
 /** Just above the country slabs, so the ring is not swallowed by the ground it lies on. */
 const LIFT = 0.04;
+
+/**
+ * **The ring is a fat line, like a thread, and for the same reason**: a `LineBasicMaterial`
+ * ignores `linewidth` in WebGL, so the ring was one hairline pixel whatever was asked of it —
+ * a détection circle nobody could see on the board it was drawn over. In pixels, a notch above
+ * a movement's 2.5: it is read once, at a glance, against a map full of lines.
+ */
+const THICKNESS = 3;
+
+/**
+ * **The board's amber, never a nation's ink.** It carried the owner's colour and that was the
+ * whole of the invisibility: France's blue and the USSR's red are the inks of *ground*, laid on
+ * the very ground the circle is drawn over. The ring is a measure, not a claim — it takes the
+ * same amber the player's own threads do, which is the map's one ink for "this is yours and it
+ * is live".
+ */
+const INK = ARC_COLORS.mine.progress;
 
 const KM_PER_DEGREE = 111.32;
 
@@ -31,23 +50,20 @@ const KM_PER_DEGREE = 111.32;
  * kilometres do not.
  */
 export class ReachRing {
-  readonly object: LineLoop;
-  private readonly geometry = new BufferGeometry();
-  private readonly material: LineBasicMaterial;
+  readonly object: Line2;
+  private readonly geometry = new LineGeometry();
+  private readonly material: LineMaterial;
   private shown: Reach | null = null;
 
   constructor(private readonly frame: WorldFrame) {
-    this.geometry.setAttribute(
-      'position',
-      new Float32BufferAttribute(new Float32Array((SEGMENTS + 1) * 3), 3),
-    );
-    this.material = new LineBasicMaterial({
-      color: PALETTE.paper,
+    this.material = new LineMaterial({
+      color: INK,
+      linewidth: THICKNESS,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.85,
       depthTest: false,
     });
-    this.object = new LineLoop(this.geometry, this.material);
+    this.object = new Line2(this.geometry, this.material);
     this.object.renderOrder = 3;
     this.object.visible = false;
     this.object.frustumCulled = false;
@@ -57,12 +73,17 @@ export class ReachRing {
     this.shown = reach;
     this.object.visible = reach !== null;
     if (reach === null) return;
-    this.material.color.set(reach.ink ?? PALETTE.paper);
     this.write(reach);
   }
 
+  /** A fat line thickens in pixels: without the canvas size it is born at the wrong scale,
+   *  exactly as a thread would be (`ArcLayer.resize`). */
+  resize(width: number, height: number): void {
+    this.material.resolution.set(width, height);
+  }
+
   /** The curvature moved every vertex of the board under a ring that did not: same reach, new
-   *  drop. Rewritten rather than rebuilt — the vertex count never changes. */
+   *  drop. */
   rebuild(): void {
     if (this.shown !== null) this.write(this.shown);
   }
@@ -76,7 +97,7 @@ export class ReachRing {
   private write({ lonLat, km }: Reach): void {
     const [lon, lat] = lonLat;
     const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
-    const positions = this.geometry.attributes.position!;
+    const positions: number[] = [];
 
     for (let step = 0; step <= SEGMENTS; step += 1) {
       const angle = (step / SEGMENTS) * Math.PI * 2;
@@ -85,9 +106,12 @@ export class ReachRing {
         Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
       ];
       const vertex = this.frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
-      positions.setXYZ(step, vertex.x, vertex.y, vertex.z);
+      positions.push(vertex.x, vertex.y, vertex.z);
     }
-    positions.needsUpdate = true;
+    // The loop is closed by hand: a fat line has no `LineLoop` form, and an open ring shows
+    // its gap at the very radius the player is measuring.
+    positions.push(positions[0]!, positions[1]!, positions[2]!);
+    this.geometry.setPositions(positions);
     this.geometry.computeBoundingSphere();
   }
 }

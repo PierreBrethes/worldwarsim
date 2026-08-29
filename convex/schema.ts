@@ -96,6 +96,13 @@ export default defineSchema({
      * the three dispatches under the fold.
      */
     journalReadAt: v.optional(v.number()),
+    /**
+     * **The hour he last closed the telegraph**, absent while he never has. Deliberately a
+     * second field rather than a reuse of `journalReadAt`: the two windows are read at
+     * different moments and for different reasons, and one hour for both would mean opening
+     * the journal silences the chat's badge.
+     */
+    telegraphReadAt: v.optional(v.number()),
   })
     .index('byToken', ['token'])
     .index('bySeason', ['seasonId']),
@@ -385,6 +392,28 @@ export default defineSchema({
    * sentence (ADR 0016): the French is put on it on the client, like every other dispatch.
    */
   notices: defineTable(NOTICE).index('byPlayer', ['playerId']),
+
+  /**
+   * **The telegraph — one general channel per season, and nothing else.** No private channel, no
+   * mention, no moderation: the avowed purpose is that players write to each other and needle
+   * each other, which is the social fuel of a game about adversity between friends.
+   *
+   * `seasonId` and the `bySeason` index for the reason every swept table carries them: several
+   * boards stand at once, and a channel that read the table whole would serve one game's taunts
+   * to another's players. `byPlayer` is the second reading — the anti-burst guard asks a player
+   * for his own last message, and the wipe of a scrapped season takes his rows with him.
+   *
+   * The text is stored exactly as it was typed, trimmed and nothing more: it is text, never
+   * markup, and the only thing that ever renders it escapes it.
+   */
+  messages: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    text: v.string(),
+    at: v.number(),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byPlayer', ['playerId']),
 
   /**
    * **What one player saw pass, and when** — the fog's own ledger (ADR 0005, ADR 0019 §5).
