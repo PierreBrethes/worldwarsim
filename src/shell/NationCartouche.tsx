@@ -27,9 +27,6 @@ export function NationCartouche({
   height: number;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
-  // Two stacked lines need about forty pixels; under that they touch. The thinned banner is
-  // 32, so the doctrine goes beside the name instead of under it.
-  const inline = height < 40;
   return (
     <Link
       to="/plateau"
@@ -40,22 +37,18 @@ export function NationCartouche({
     >
       <FlagWatermark nation={nation} />
       <div
-        className={`relative flex ${inline ? 'items-baseline gap-[8px]' : 'flex-col justify-center gap-[2px]'}`}
+        className="relative flex flex-col justify-center gap-[3px]"
         style={{
           paddingLeft: Math.round(height * 1.5 * 0.8) + AIR_AFTER_WATERMARK,
           textShadow: '0 1px 3px rgba(23,18,8,.9)',
         }}
       >
-        <span
-          className={`font-(family-name:--font-display) leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase ${
-            inline ? 'text-[15px]' : 'text-[19px]'
-          }`}
-        >
+        <span className="font-(family-name:--font-display) text-[17px] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
           {nationLabel(nation)}
         </span>
-        <span className="eyebrow-dark leading-none">
-          {fr.banner.doctrine(doctrineLabel(doctrine) ?? doctrine)}
-        </span>
+        {/* La doctrine ne se nomme pas : posée sous le pays, en surtitre, elle ne peut être
+            que ça — le mot « doctrine » ne servait qu'à la ligne unique d'avant. */}
+        <span className="eyebrow-dark leading-none">{doctrineLabel(doctrine) ?? doctrine}</span>
       </div>
     </Link>
   );
