@@ -75,10 +75,9 @@ export const isCommanded = (key: BuildingKey): boolean =>
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
-export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<ResourceKey>>> = {
-  warehouse: ['food', 'textile', 'coal', 'ore', 'alloy', 'bandages'],
-  depot: ['oil', 'ammunition'],
-};
+/** The partition itself is a rule both sides read, so it lives in the pure domain; it is
+ *  re-exported here because the ceiling is the one number that belongs to this file. */
+export { STORED_BY } from '../src/domain/economy';
 
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>

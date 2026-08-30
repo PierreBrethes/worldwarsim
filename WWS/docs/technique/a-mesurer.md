@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ee9d089 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 0844758 -->
 
 # Les constantes à mesurer
 
@@ -17,17 +17,17 @@ déclare placeholders en bloc. Le registre sert les valeurs que rien ne mesure e
 
 | Constante | Valeur | Où | Pourquoi elle attend |
 | --- | --- | --- | --- |
-| `INTERCEPTION_RADIUS_KM` | `200` | `convex/constants.ts:572` | no measurement whatsoever; the simulator does not model interception at all |
-| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:585` | an assumed starting point; nothing measures how close is close enough on arrival |
-| `SCOUT_RADIUS_KM` | `60` | `convex/constants.ts:600` | picked for realism and for its rank among the detectors, never measured |
-| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:614` | a rank in the ordering the design asks for, and nothing more |
-| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:629` | picked to read against a farm at level one, never measured |
-| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:642` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
-| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:652` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:653` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `OUTPOST_REACH_KM` | `400` | `convex/constants.ts:662` | sized against what it covers on a map, never against a game it changed |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:676` | shaped so the relay reads as a decision rather than a rounding |
-| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:702` | the bar of a scaffold, measured by nothing — it leaves with the doctrines |
+| `INTERCEPTION_RADIUS_KM` | `200` | `convex/constants.ts:571` | no measurement whatsoever; the simulator does not model interception at all |
+| `ARRIVAL_RADIUS_KM` | `25` | `convex/constants.ts:584` | an assumed starting point; nothing measures how close is close enough on arrival |
+| `SCOUT_RADIUS_KM` | `60` | `convex/constants.ts:599` | picked for realism and for its rank among the detectors, never measured |
+| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:613` | a rank in the ordering the design asks for, and nothing more |
+| `FOOD_UPKEEP_PER_TROOP_PER_HOUR` | `1` | `convex/constants.ts:628` | picked to read against a farm at level one, never measured |
+| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:641` | assumed; at ×2 the surcharge may drown in an economy where alloy is the bottleneck |
+| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:651` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:652` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `OUTPOST_REACH_KM` | `400` | `convex/constants.ts:661` | sized against what it covers on a map, never against a game it changed |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:675` | shaped so the relay reads as a decision rather than a rounding |
+| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:701` | the bar of a scaffold, measured by nothing — it leaves with the doctrines |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:76` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:49` | assumed against the troop ceiling alone — two cargos lift half an army |
 | `LIFT_COST` | `{ infantry: 1, armor: 2, landTransport: 1 }` | `src/domain/troops.ts:55` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |

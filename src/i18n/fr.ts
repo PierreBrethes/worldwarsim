@@ -564,27 +564,27 @@ export const fr = {
   },
 
   /**
-   * The reserves left the banner for a panel of their own: eight figures set flat on a 32 px
-   * strip could not carry the chains, and the arrows had nowhere to live. Vertical, they do.
+   * **Le bandeau des ressources — icône, chiffre, et rien d'autre** (décision du 30/08). Ce qui
+   * est rare et borne l'action vit sur une ligne permanente ; le nom, le plafond, le débit et la
+   * source n'apparaissent qu'au survol, une fois, et nulle part ailleurs.
+   *
+   * Les deux diagnostics héritent des tournures du panneau Réserves qu'ils remplacent : la
+   * saturation nomme ce qui tourne pour rien et le magasin à agrandir, le manque nomme le
+   * chiffre qui manque et le chantier qui l'attend.
    */
-  reserves: {
-    header: 'réserves',
-    cap: (cap: number) => `plafond ${cap}`,
-    collapsed: 'replié',
-    alerts: (count: number) => `${count} alerte${plural(count, '', 's')}`,
-    quiet: 'Rien à signaler',
-    expand: 'déplier les réserves',
-    collapse: 'replier les réserves',
-    flow: (building: string, perHour: number) => `${building} — ${tenths(perHour)} / h`,
-    /** The settled net rate, sign included: a reserve that drains says so with a minus. */
-    rate: (perHour: number) => `${perHour > 0 ? '+' : ''}${tenths(perHour)} / h`,
-    /** The cause, never the symptom: a chain out of matter with nothing that makes it. */
-    starvedNoSource: (none: string, resource: string) => `à sec — ${none} · ${resource}`,
-    saturated: (perHour: number) => `saturé — ${tenths(perHour)} / h perdus`,
-    cappedAlert: (resource: string, perHour: number) =>
-      `${resource} au plafond — ${tenths(perHour)} / h perdus`,
-    haltedAlert: (building: string, resource: string) =>
-      `${building} à l’arrêt — ${resource} à sec`,
+  resourceBand: {
+    expand: 'déplier le bandeau des ressources',
+    collapse: 'replier le bandeau des ressources',
+    /** Le seul endroit où le plafond et le débit se lisent — d'où les quatre champs d'un coup. */
+    tooltip: (resource: string, stock: number, cap: number, perHour: number) =>
+      `${resource} · ${num(stock)} / ${num(cap)} · ${perHour > 0 ? '+' : ''}${tenths(perHour)} / h`,
+    source: (building: string, level: number) => `${building} MK${num(level)}`,
+    fullDiagnosis: (producer: string, store: string, perHour: number) =>
+      `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
+    /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
+    fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
+    shortDiagnosis: (missing: number, resource: string, building: string) =>
+      `il manque ${num(missing)} de ${lowerFirst(resource)} pour ${building} en file`,
   },
 
   rail: {
@@ -1640,6 +1640,15 @@ export function upgradeHoldText(hold: UpgradeHold): string {
 /** `aucune caserne`, `aucun aérodrome` — the sentence that names a blockage, declined. */
 export const noBuilding = (key: BuildingKey): string =>
   `${fr.buildingGender[key] === 'f' ? 'aucune' : 'aucun'} ${lowerFirst(fr.buildings[key])}`;
+
+/** `l’entrepôt`, `le dépôt`, `la fonderie` — the building designated rather than counted, for
+ *  a sentence that tells the player which one to go and raise. */
+export const theBuilding = (key: BuildingKey): string => {
+  const name = lowerFirst(fr.buildings[key]);
+  return 'aeiouyâàéèêîôû'.includes(name.charAt(0))
+    ? `l’${name}`
+    : `${fr.buildingGender[key] === 'f' ? 'la' : 'le'} ${name}`;
+};
 
 /** `une caserne`, `un aérodrome` — the sentence that names the remedy. */
 export const aBuilding = (key: BuildingKey): string =>

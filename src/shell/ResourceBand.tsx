@@ -1,0 +1,202 @@
+import { useState, type MouseEvent, type ReactNode } from 'react';
+import { fr } from '@/i18n/fr';
+import type { ResourceKey } from '@/domain/ids';
+import type { PlayerView } from '@/domain/player-view';
+import { currentStock } from '@/domain/player-view';
+import { BAND_GROUPS, marksOf, sourceOf, type Mark, type Marks } from '@/domain/resource-band';
+import { ResourceIcon } from '@/emblems/ResourceIcon';
+import { keepResourceBandCollapsed, readResourceBandCollapsed } from '@/data/settings';
+import { useClock } from './clock';
+
+/** Twenty-six pixels: an icon at 16 and its mono figure beside it, not one line more — the band
+ *  is glanced past, never read. Folded, it keeps just enough to seat a mark. */
+const BAND_HEIGHT = 26;
+const FOLDED_HEIGHT = 16;
+
+const ICON = 16;
+
+/**
+ * **Une information, une fois, au bon endroit** (décision du 30/08). What is scarce and bounds
+ * the action lives on one permanent line under the masthead, stock-ticker fashion: an icon and a
+ * figure, and nothing else. The name, the ceiling, the rate and the source appear on hover and
+ * nowhere else on the board — the Réserves panel that repeated them in a corner is gone.
+ *
+ * **The marks are ink, never an icon.** A resource an icon already names cannot be alerted by a
+ * second one; a filled pavé is a ceiling reached, a hollow one a bill the site cannot pay, and
+ * both read at a glance because nothing else on the line is a square.
+ *
+ * **Folding gives back the figures, never a mark.** A band that hid a foundry running for
+ * nothing to buy back ten pixels would be worse than no band at all.
+ */
+export function ResourceBand({ view }: { view: PlayerView }) {
+  const now = useClock();
+  const [collapsed, setCollapsed] = useState(readResourceBandCollapsed);
+  const [hovered, setHovered] = useState<Hover | null>(null);
+  const marks = marksOf(view, now);
+  const marked = BAND_GROUPS.flat().filter((resource) => marks[resource] !== null);
+
+  const figure = (resource: ResourceKey) => (
+    <Figure
+      key={resource}
+      resource={resource}
+      view={view}
+      now={now}
+      mark={marks[resource]}
+      onHover={setHovered}
+    />
+  );
+
+  return (
+    <div
+      className="hud relative z-30 flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-2 pl-3"
+      style={{ fontFamily: 'var(--font-body)', height: collapsed ? FOLDED_HEIGHT : BAND_HEIGHT }}
+      onMouseLeave={() => setHovered(null)}
+    >
+      {collapsed ? (
+        <div className="flex flex-1 items-center gap-[14px]">
+          {marked.map(figure)}
+          {/* Rien de marqué : le filet seul. Il tient la place, et son silence est la nouvelle. */}
+          {marked.length === 0 && <span className="h-px flex-1 bg-[var(--ink-quiet)]" />}
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center">
+          {BAND_GROUPS.map((group, rank) => (
+            <div key={rank} className="flex items-center">
+              {rank > 0 && <DoubleRule />}
+              <div className="flex items-center gap-[14px]">{group.map(figure)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        title={collapsed ? fr.resourceBand.expand : fr.resourceBand.collapse}
+        onClick={() => {
+          setCollapsed((folded) => {
+            keepResourceBandCollapsed(!folded);
+            return !folded;
+          });
+          setHovered(null);
+        }}
+        className="ml-2 flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center text-[9px] leading-none text-[var(--paper-dim)] hover:text-[var(--paper)]"
+      >
+        {collapsed ? '▾' : '▴'}
+      </button>
+
+      {hovered !== null && <Tooltip hover={hovered} marks={marks} view={view} now={now} />}
+    </div>
+  );
+}
+
+type Hover = {
+  readonly resource: ResourceKey;
+  /** The pavé and the figure answer two different questions, so they are two different hovers:
+   *  the figure gives the reserve, the pavé gives the diagnosis that lit it. */
+  readonly on: 'figure' | 'mark';
+  readonly left: number;
+};
+
+function Figure({
+  resource,
+  view,
+  now,
+  mark,
+  onHover,
+}: {
+  resource: ResourceKey;
+  view: PlayerView;
+  now: number;
+  mark: Mark | null;
+  onHover: (hover: Hover) => void;
+}) {
+  const stock = currentStock(view.me.resources[resource], view.loadedAt, now);
+  // The band is the tooltip's offset parent — it is the only positioned box on the way up — so
+  // the anchor stays right whatever the fold or the interface scale does to the line.
+  const anchor = (event: MouseEvent<HTMLElement>) => event.currentTarget.offsetLeft;
+
+  return (
+    <span className="flex items-center gap-[5px]">
+      {mark !== null && (
+        <span
+          onMouseEnter={(event) => onHover({ resource, on: 'mark', left: anchor(event) })}
+          className="flex h-[7px] w-[7px] shrink-0 cursor-help border"
+          style={{
+            borderColor: inkOf(mark),
+            background: mark.kind === 'full' ? inkOf(mark) : 'transparent',
+          }}
+        />
+      )}
+      <span
+        onMouseEnter={(event) => onHover({ resource, on: 'figure', left: anchor(event) })}
+        className="flex cursor-help items-center gap-[5px]"
+        style={{ color: mark === null ? 'var(--paper)' : inkOf(mark) }}
+      >
+        <ResourceIcon resource={resource} size={ICON} />
+        <span className="font-(family-name:--font-mono) text-[12px] leading-none font-medium">
+          {stock.toLocaleString('fr-FR')}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+const inkOf = (mark: Mark): string => (mark.kind === 'full' ? 'var(--critical)' : 'var(--notable)');
+
+/** Entrepôt et dépôt : deux magasins, deux plafonds — un filet double entre eux. */
+function DoubleRule() {
+  return (
+    <span className="mx-[14px] h-[16px] w-[3px] shrink-0 border-x border-[var(--ink-quiet)]" />
+  );
+}
+
+/**
+ * **The one place a name, a ceiling, a rate and a source are printed.** On paper, because it is
+ * a reading and not a control: everything the band gives up to stay one line comes back here.
+ */
+function Tooltip({
+  hover,
+  marks,
+  view,
+  now,
+}: {
+  hover: Hover;
+  marks: Marks;
+  view: PlayerView;
+  now: number;
+}) {
+  const mark = marks[hover.resource];
+  if (hover.on === 'mark' && mark !== null) {
+    return (
+      <Card left={hover.left} ink={inkOf(mark)}>
+        {mark.diagnosis}
+      </Card>
+    );
+  }
+
+  const reserve = view.me.resources[hover.resource];
+  const source = sourceOf(view, hover.resource);
+  return (
+    <Card left={hover.left} ink="var(--ink)">
+      {fr.resourceBand.tooltip(
+        fr.resources[hover.resource],
+        currentStock(reserve, view.loadedAt, now),
+        reserve.cap,
+        reserve.ratePerHour,
+      )}
+      {source !== null && ` · ${fr.resourceBand.source(fr.buildings[source.by], source.level)}`}
+    </Card>
+  );
+}
+
+function Card({ left, ink, children }: { left: number; ink: string; children: ReactNode }) {
+  return (
+    <div
+      className="paper-grain pointer-events-none absolute top-full mt-[3px] border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] whitespace-nowrap"
+      style={{ left, color: ink }}
+    >
+      {children}
+    </div>
+  );
+}

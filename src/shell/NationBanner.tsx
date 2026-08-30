@@ -12,9 +12,9 @@ import { useClock } from './clock';
 
 /**
  * Forty-two pixels. The bar held 52 to seat a gauge under each of the eight figures; the
- * reserves left for a panel of their own (`ReservesPanel`) and it fell to 32, which was one
- * line too thin — the cartouche had to lay the doctrine beside the nation instead of under it.
- * These ten pixels buy back the second line, and nothing else asks for them.
+ * reserves left for a line of their own (`ResourceBand`, just below) and it fell to 32, which
+ * was one line too thin — the cartouche had to lay the doctrine beside the nation instead of
+ * under it. These ten pixels buy back the second line, and nothing else asks for them.
  */
 const BANNER_HEIGHT = 42;
 

@@ -34,6 +34,17 @@ export const keepTroopsCollapsed = (collapsed: boolean): void => {
   localStorage.setItem(TROOPS_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded');
 };
 
+const RESOURCE_BAND_KEY = 'wws-resource-band';
+
+/** Folded is a desk choice and it survives the reload, like the troops widget's. What it never
+ *  hides is a mark: the fold gives back the figures, never the alerts. */
+export const readResourceBandCollapsed = (): boolean =>
+  localStorage.getItem(RESOURCE_BAND_KEY) === 'collapsed';
+
+export const keepResourceBandCollapsed = (collapsed: boolean): void => {
+  localStorage.setItem(RESOURCE_BAND_KEY, collapsed ? 'collapsed' : 'expanded');
+};
+
 const GESTURE_HINT_KEY = 'wws-gesture-hint';
 
 /**

@@ -53,7 +53,6 @@ import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
-import { ReservesPanel } from './-plateau/ReservesPanel';
 import { MobilizationCard } from './-plateau/MobilizationCard';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
@@ -869,15 +868,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           }
           onFollow={(arcId) => setFocus({ ids: [arcId], nonce: Date.now() })}
         />
-        {/* The top right is the reserves' now — permanently. What answers a *gesture* (the
-            pointer on a region, a selected country) reads at the other end of the same column,
-            clear of the timeline's band: two things one glances at, one place to look.
-
-            **One column, bottom-anchored, and the map's own help card is in it.** It used to
-            anchor itself and so did this stack; each guessed at the other's height and the open
-            card covered the panel. Stacked, the badge stays on the floor and everything above
-            it is pushed up by whatever is there — no arrangement of the two can overlap. */}
-        <ReservesPanel view={view} />
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
           <GroundPanel
             selected={country ?? null}

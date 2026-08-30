@@ -19,6 +19,18 @@ export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean 
   deposit !== null && (EXPLOITED_DEPOSITS[key]?.includes(deposit) ?? false);
 
 /**
+ * **Which store holds what.** A partition of the eight, not a balance figure: the warehouse
+ * carries the matter, the depot carries what burns and what is fired. It lives in the pure
+ * domain because both sides read it — the server raises a ceiling with it, and the resource
+ * band groups its two halves by it — and a second copy would let the screen group what the
+ * ceiling does not.
+ */
+export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<ResourceKey>>> = {
+  warehouse: ['food', 'textile', 'coal', 'ore', 'alloy', 'bandages'],
+  depot: ['oil', 'ammunition'],
+};
+
+/**
  * Why a region refuses a building — `null` when it takes it. The rule lives here, in the pure
  * domain, because both sides need it and neither may own it: the server refuses the placement
  * with it, and the construction screen offers only what it accepts — the catalogue shelf under
