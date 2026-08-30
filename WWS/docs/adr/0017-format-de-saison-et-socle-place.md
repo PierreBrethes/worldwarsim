@@ -2,6 +2,27 @@
 
 **Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
 
+> ⚠️ **Révision (27/08/2026) : le format se choisit, l'horloge devient optionnelle.**
+> La durée n'est plus la clé du format. `formatOf(durationHours)` a disparu au profit de
+> `formatOfSeason(season)` (`convex/constants.ts`), porte unique qui lit le champ
+> `seasons.format` — `v.optional`, avec repli sur la dérivation par la durée pour les lignes
+> écrites avant ce jour, le temps d'un wipe. `SeasonFormatSpec.durationHours` est devenu
+> `defaultDurationHours` : c'est ce que l'accueil **propose**, plus ce qui définit le format.
+> `seasons.create` prend désormais `format` (obligatoire) et `durationHours` valant 48, 168 ou
+> **`null`** — sans horloge. Aucune combinaison n'est interdite : une campagne en 48 h est un
+> mauvais choix, pas un choix illégal.
+>
+> Le pourquoi est l'alpha entre amis : une partie doit pouvoir n'avoir **aucune** horloge et se
+> conclure à la main. La fin à l'heure n'existe de toute façon pas (audit du 25/08) — cette
+> révision ne la crée pas, elle rend le fait honnête. Sa contrepartie est `seasons.conclude` :
+> réservée au fondateur, sur une saison lancée seulement, `winnerId` nul (personne n'a gagné),
+> une dépêche `seasonClosed` par belligérant, et la même sortie que la victoire de test
+> (`concludeSeason`). Aucun écran n'affiche de compte à rebours sur une saison sans horloge —
+> ni « ∞ », ni « 0 j ».
+>
+> **L'[ADR 0001](0001-saison-longue-asynchrone.md) n'est pas rouverte** : la saison reste longue,
+> asynchrone et jetable. Seule la main qui la clôt change.
+
 > ⚠️ **Révision (25/08/2026) : le socle se lit sur les gisements du pays, plus sur le format.**
 > La ligne « socle » de la table ci-dessous décrit l'ancien modèle. Depuis le 25/08, la
 > fondation due d'un joueur est **calculée depuis les gisements de son territoire national** —
@@ -74,7 +95,7 @@ de format serait le doublon que la table existe pour interdire.
 
 | | `skirmish` | `campaign` |
 |---|---|---|
-| durée | 48 h | 168 h |
+| durée proposée | 48 h | 168 h |
 | QG au lancement | 2 | 1 |
 | plafond de QG | 3 | 5 |
 | socle | mine, mine, fonderie, entrepôt, ferme, arsenal | mine, mine, fonderie |

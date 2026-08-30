@@ -12,7 +12,7 @@ import {
   NOTICE,
   REST_WINDOW,
   RESOURCE_KEY,
-  SEASON_DURATION_HOURS,
+  SEASON_FORMAT,
   SEASON_STATUS,
   SPECIALIZATION,
   TROOP_STATE,
@@ -39,7 +39,15 @@ export default defineSchema({
   seasons: defineTable({
     code: v.string(),
     status: SEASON_STATUS,
-    durationHours: SEASON_DURATION_HOURS,
+    /**
+     * **Le format ne se déduit plus de l'horloge** (révision du 27/08 de l'ADR 0017) : il se
+     * choisit au fondement, et l'horloge peut ne pas exister. `v.optional` pour la raison qui
+     * vaut pour `winnerId` juste dessous — une saison ouverte avant ce champ n'en porte pas, et
+     * `formatOfSeason` la retrouve par sa durée le temps du même wipe.
+     */
+    format: v.optional(SEASON_FORMAT),
+    /** `null` = sans horloge : la saison se clôt à la main (`seasons.conclude`). */
+    durationHours: v.union(v.number(), v.null()),
     compensation: v.number(),
     seed: v.number(),
     playableRegion: v.union(v.string(), v.null()),

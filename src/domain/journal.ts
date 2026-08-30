@@ -239,6 +239,16 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    /** **Une fin sans vainqueur.** Elle partage la sorte de la victoire de test — c'est la même
+     *  nouvelle, la saison est close — mais elle ne nomme personne, parce que personne n'a
+     *  gagné : le fondateur a rangé la partie. */
+    case 'seasonClosed':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'seasonConcluded',
+        text: said.seasonClosed,
+      };
   }
 }
 

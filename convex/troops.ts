@@ -11,7 +11,7 @@ import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
   chainSpeed,
-  formatOf,
+  formatOfSeason,
   nominalStrength,
   recruitmentCost,
   roleHqLevel,
@@ -50,7 +50,7 @@ export const workshop = query({
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    const format = formatOf(season.durationHours);
+    const format = formatOfSeason(season);
     const tier2 = tier2HqLevel(format);
     const troops = await troopsOf(ctx, player._id);
     const waiting = await recruitmentsOf(ctx, player._id);
@@ -131,7 +131,7 @@ export const recruit = mutation({
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    const format = formatOf(season.durationHours);
+    const format = formatOfSeason(season);
     const tier2 = tier2HqLevel(format);
     if (tier === 2 && hqLevel < tier2) {
       fail('TIER_2_LOCKED', { requiredLevel: tier2 });

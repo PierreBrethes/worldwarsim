@@ -164,7 +164,9 @@ export const buildingCap = (format: SeasonFormat, hqLevel: number): number => {
 };
 
 export type SeasonFormatSpec = {
-  readonly durationHours: number;
+  /** **What the home screen offers, never what defines the format** (révision du 27/08 de l'ADR
+   *  0017) : une saison peut n'avoir aucune horloge, et le format se choisit à part. */
+  readonly defaultDurationHours: number;
   /** Where the headquarters stands from the first minute (ADR 0015). */
   readonly hqLevelAtLaunch: number;
   readonly maxHqLevel: number;
@@ -214,7 +216,7 @@ export type SeasonFormatSpec = {
  */
 export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = {
   skirmish: {
-    durationHours: 48,
+    defaultDurationHours: 48,
     hqLevelAtLaunch: 2,
     maxHqLevel: 3,
     buildingCapBase: 5,
@@ -224,7 +226,7 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
     startingAmmunition: 140,
   },
   campaign: {
-    durationHours: 168,
+    defaultDurationHours: 168,
     hqLevelAtLaunch: 1,
     maxHqLevel: 5,
     buildingCapBase: 3,
@@ -235,11 +237,24 @@ export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = 
   },
 };
 
-export function formatOf(durationHours: number): SeasonFormat {
+/**
+ * **The one door onto a season's format.** It is a field now, chosen at the founding, because a
+ * season can run with no clock at all (révision du 27/08 de l'ADR 0017) and a duration of `null`
+ * says nothing about how high a headquarters climbs.
+ *
+ * A row written before that choice existed carries no `format`, and its duration is still the
+ * only thing that knew: the derivation stays here as a fallback for those rows alone, and it
+ * goes with the wipe (ADR 0001).
+ */
+export function formatOfSeason(season: {
+  readonly format?: SeasonFormat | null;
+  readonly durationHours: number | null;
+}): SeasonFormat {
+  if (season.format != null) return season.format;
   const found = (Object.keys(SEASON_FORMATS) as ReadonlyArray<SeasonFormat>).find(
-    (key) => SEASON_FORMATS[key].durationHours === durationHours,
+    (key) => SEASON_FORMATS[key].defaultDurationHours === season.durationHours,
   );
-  if (found === undefined) throw new Error(`no season format lasting ${durationHours} h`);
+  if (found === undefined) throw new Error(`no season format lasting ${season.durationHours} h`);
   return found;
 }
 

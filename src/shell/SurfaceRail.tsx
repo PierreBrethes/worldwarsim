@@ -25,10 +25,12 @@ export function SurfaceRail({
   // The season's end counts in days: the minute is enough, and the rail has no reason to
   // repaint every second for a tooltip.
   const now = useClock(60_000);
-  const minutesLeft = Math.max(
-    0,
-    (season.durationHours - season.elapsedHours) * 60 - (now - loadedAt) / 60_000,
-  );
+  /** `null` = sans horloge : rien à décompter, et le rail le dit en un mot plutôt que d'afficher
+   *  un « 0 h 00 » qui se lirait comme une fin imminente (révision du 27/08 de l'ADR 0017). */
+  const minutesLeft =
+    season.durationHours === null
+      ? null
+      : Math.max(0, (season.durationHours - season.elapsedHours) * 60 - (now - loadedAt) / 60_000);
 
   // The rail is a set of toggles, not a navigation: clicking an open surface removes it from
   // the stack, and the bare state (map alone) needs no "board" entry.
@@ -130,11 +132,15 @@ export function SurfaceRail({
           <SettingsIcon />
         </Link>
         <div
-          title={fr.rail.seasonEnd(
-            season.number,
-            Math.floor(minutesLeft / 60),
-            String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
-          )}
+          title={
+            minutesLeft === null
+              ? fr.rail.seasonNoClock(season.number)
+              : fr.rail.seasonEnd(
+                  season.number,
+                  Math.floor(minutesLeft / 60),
+                  String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
+                )
+          }
           className="text-center font-(family-name:--font-mono) text-[9px] text-[#6b6252]"
         >
           {fr.rail.seasonShort(season.number)}

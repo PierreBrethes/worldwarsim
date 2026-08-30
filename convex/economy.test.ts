@@ -62,6 +62,7 @@ async function launchedSeason(
 ) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
+    format: durationHours === 48 ? 'skirmish' : 'campaign',
     durationHours,
     compensation: 0.5,
   });

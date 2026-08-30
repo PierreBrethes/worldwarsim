@@ -25,6 +25,7 @@ import type {
   PlayableRegion,
   RegionType,
   ResourceKey,
+  SeasonFormat,
   Specialization,
   UnitRole,
 } from '../domain/ids';
@@ -344,6 +345,9 @@ export const fr = {
 
   notifications: {
     kicker: 'dépêche — incident',
+    /** Un avis n'est pas un incident : il dit qu'une action a pris, ailleurs. Un mot, comme le
+     *  kicker d'une brève de journal. */
+    noticeKicker: 'avis',
     close: 'fermer',
   },
 
@@ -398,12 +402,24 @@ export const fr = {
     nicknameNote: 'pas de compte — le pseudo suffit, il meurt avec la saison',
     nicknamePlaceholder: 'votre nom de guerre',
     foundTitle: 'Fonder une saison',
-    foundNote: 'Vous choisissez la cadence. Un code est tiré, vous le partagez.',
-    paceLabel: 'cadence',
-    paces: {
+    foundNote: 'Vous choisissez le format et l’horloge. Un code est tiré, vous le partagez.',
+    /**
+     * **Deux choix, plus un seul.** Le format dit où l'on entre dans la courbe — dotation,
+     * paliers, plafonds ; l'horloge dit combien de temps on y reste, et elle peut ne pas
+     * exister. Les mots sont ceux du glossaire (`WWS/CONTEXT.md`), jamais « blitz ».
+     */
+    formatLabel: 'format',
+    formats: {
+      skirmish: { name: 'Escarmouche', note: 'départ haut, course courte' },
+      campaign: { name: 'Campagne', note: 'départ bas, longue montée' },
+    } satisfies Record<SeasonFormat, { name: string; note: string }>,
+    clockLabel: 'horloge',
+    clocks: {
       fast: { name: '48 heures', note: 'cadence rapide' },
       long: { name: '7 jours', note: 'cadence longue' },
+      none: { name: 'sans horloge', note: 'close à la main' },
     },
+    noClock: 'sans horloge',
     regionLabel: 'région — fixée au lancement',
     regionSlots: { europe: '2–3', 'europe-med': '4–6', world: '7–8' } satisfies Record<
       PlayableRegion,
@@ -500,6 +516,7 @@ export const fr = {
     footerCode: (code: string) => `salon ${code}`,
     pace48: '48 heures',
     pace168: '7 jours',
+    paceNone: 'sans horloge',
   },
 
   launchSequence: {
@@ -578,6 +595,9 @@ export const fr = {
     settings: 'Réglages',
     seasonEnd: (season: number, hours: number, minutes: string) =>
       `saison ${season} — fin dans ${hours} h ${minutes}`,
+    /** Une saison sans horloge ne compte rien à rebours : le rail le dit en un mot plutôt que
+     *  d'afficher un « 0 h 00 » qui se lirait comme une fin imminente. */
+    seasonNoClock: (season: number) => `saison ${season} — sans horloge`,
     seasonShort: (season: number) => `S.${season}`,
     telegraphUnread: (count: number) =>
       `${count} message${plural(count, '', 's')} non lu${plural(count, '', 's')} au télégraphe`,
@@ -723,6 +743,7 @@ export const fr = {
       `Chantier abandonné : ${lowerFirst(building)} en ${region} — le droit d’y bâtir a disparu avant son tour. Matières remboursées.`,
     seasonDay: (season: number, day: number, total: number) =>
       `saison ${season} — jour ${day} sur ${total}`,
+    seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
     masthead: 'LE JOURNAL DES OPÉRATIONS',
     nationLine: (nation: string, doctrine: string) => `${nation} — doctrine ${doctrine}`,
     dispatches: (count: number) => `${count} dépêche${plural(count, '', 's')}`,
@@ -746,6 +767,8 @@ export const fr = {
      * pas les dire même si elle essayait — c'est tout ce que la fiche 04 accorde à un relevé.
      */
     notices: {
+      seasonClosed:
+        'LA SAISON EST CLOSE — son fondateur y a mis fin. Elle se relit, elle ne se joue plus.',
       constructionFinished: (building: string, region: string, level: number) =>
         level <= 1
           ? `${building} en ${region} entre en service.`
@@ -1343,6 +1366,15 @@ export const fr = {
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
     soundState: (on: boolean) => (on ? 'activé' : 'coupé'),
+    /** **Le seul pouvoir de fondateur du plateau.** Une saison sans horloge n'a pas d'autre fin,
+     *  et la note dit ce qui reste après — sinon « clore » se lit comme « supprimer ». */
+    concludeLabel: 'Clore la saison',
+    concludeNote:
+      'La saison passe en lecture : plus aucun ordre, le plateau et le journal restent lisibles.',
+    conclude: 'clore la saison',
+    concludeConfirm: 'confirmer — plus aucun ordre',
+    concludeWarning:
+      'la saison s’arrête pour tous les joueurs, sans vainqueur désigné. Il n’y a pas de retour.',
   },
 
   /**
@@ -1499,6 +1531,11 @@ export const fr = {
      */
     foundationNotice: (owed: string) =>
       `Socle de la saison : ${owed}. Pose gratuite et immédiate — la région reste votre choix.`,
+    /** **L'effet se produit hors du champ où l'on a cliqué** : le panneau se referme sur la carte
+     *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le
+     *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
+     *  le premier de la file démarre, et l'avis ne doit pas mentir sur le cas le plus courant. */
+    queued: (building: string) => `${building} : chantier commandé — voir Économie.`,
     foundationCount: (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name),
     free: 'offert',
     immediate: 'immédiat',
@@ -1649,6 +1686,15 @@ export function countryLabel(adm0: string): string {
   const nation = NATION_BY_ADM0.get(adm0);
   if (nation !== undefined) return fr.nations[nation];
   return (countryNames as Readonly<Record<string, string>>)[adm0] ?? adm0;
+}
+
+/**
+ * **L'horloge d'une saison, en un mot.** Trois écrans la nomment — l'accueil, le salon, la
+ * séquence de lancement — et une saison sans horloge en a besoin d'un plutôt que d'un blanc.
+ */
+export function clockLabel(durationHours: number | null): string {
+  if (durationHours === null) return fr.lobby.paceNone;
+  return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
 }
 
 export function doctrineLabel(doctrine: string | null): string | null {

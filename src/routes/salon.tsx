@@ -2,7 +2,7 @@ import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
 import { Wordmark } from '@/shell/Masthead';
 import { DOCTRINES, NATIONS } from '@/domain/nations';
@@ -68,7 +68,7 @@ function ConnectedLobby({ token }: { token: string }) {
   };
   const holderOf = (nation: string) => lobby.players.find((player) => player.nation === nation);
   const allReady = lobby.players.length >= 2 && lobby.players.every((player) => player.ready);
-  const pace = lobby.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
+  const pace = clockLabel(lobby.durationHours);
   /**
    * **The two faces of this screen.** A season already running and a player who has not entered
    * it is a latecomer: he picks a flag and a doctrine on a board that is being fought over, then

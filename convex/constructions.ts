@@ -14,7 +14,7 @@ import {
   buildCost,
   buildMinutes,
   buildingCap,
-  formatOf,
+  formatOfSeason,
 } from './constants';
 import { outpostsOf, pointOf } from './movement/forces';
 import { fail, type ErrorCode } from './errors';
@@ -284,7 +284,7 @@ async function refusalFor(
   }
 
   const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
-  const format = formatOf(season.durationHours);
+  const format = formatOfSeason(season);
   const hqLevel = levelOf(buildings, 'hq');
   const cap = buildingCap(format, hqLevel);
   const requiredLevel = unlockLevel(building, format);

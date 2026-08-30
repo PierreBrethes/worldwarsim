@@ -34,6 +34,7 @@ const PAS_DE_CALAIS = 'FRA-5334'; // coastal, for the port
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
+    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

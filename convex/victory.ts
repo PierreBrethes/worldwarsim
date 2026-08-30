@@ -2,7 +2,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
-import { isAtWar } from './seasons';
+import { concludeSeason, isAtWar } from './seasons';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
@@ -133,9 +133,5 @@ export async function claimVictory(
   const claimant = standings.find((standing) => standing.player._id === attackerId);
   if (!claimant || claimant.reduced < reductionTarget(standings.length)) return;
 
-  await ctx.db.patch(season._id, {
-    status: 'concluded',
-    winnerId: attackerId,
-    concludedAt: at,
-  });
+  await concludeSeason(ctx, season._id, attackerId, at);
 }

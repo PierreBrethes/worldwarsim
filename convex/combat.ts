@@ -1,6 +1,5 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { LonLat } from '../src/domain/geo';
 import { resolveEngagement, type Combatant, type Engagement } from '../src/domain/combat';
 import { COMBAT_RULES } from './constants';
 import { debit, economyOf } from './resources';
@@ -210,5 +209,3 @@ export async function troopsStationedAt(
     .withIndex('byStation', (q) => q.eq('stationedAt', stationId))
     .collect();
 }
-
-export const pointOf = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });

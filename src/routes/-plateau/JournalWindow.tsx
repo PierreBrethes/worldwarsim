@@ -50,10 +50,11 @@ export function JournalWindow({
   const stalled = dispatches.find((dispatch) => dispatch.resolutionAt !== null);
   const embargo = dispatches.find((dispatch) => dispatch.remaining !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const day = Math.min(
-    Math.ceil(view.season.durationHours / 24),
-    Math.floor(view.season.elapsedHours / 24) + 1,
-  );
+  /** Sans horloge il n'y a pas de « sur n » : le jour se compte encore, la fin ne se promet pas. */
+  const totalDays =
+    view.season.durationHours === null ? null : Math.ceil(view.season.durationHours / 24);
+  const elapsedDay = Math.floor(view.season.elapsedHours / 24) + 1;
+  const day = totalDays === null ? elapsedDay : Math.min(totalDays, elapsedDay);
 
   return (
     <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="top" width={1040}>
@@ -61,11 +62,9 @@ export function JournalWindow({
         <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.journal.editionOf(time)}</span>
           <span>
-            {fr.journal.seasonDay(
-              view.season.number,
-              day,
-              Math.ceil(view.season.durationHours / 24),
-            )}
+            {totalDays === null
+              ? fr.journal.seasonDayNoClock(view.season.number, day)
+              : fr.journal.seasonDay(view.season.number, day, totalDays)}
           </span>
           <button
             type="button"

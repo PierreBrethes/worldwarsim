@@ -70,7 +70,16 @@ export const SEASON_STATUS = v.union(
   v.literal('concluded'),
 );
 
-export const SEASON_DURATION_HOURS = v.union(v.literal(48), v.literal(168));
+/**
+ * **Le format se choisit, il ne se déduit plus de l'horloge** (révision du 27/08 de l'ADR 0017).
+ * `v.optional` au schéma : une saison ouverte avant ce choix n'en porte pas, et `formatOfSeason`
+ * la retrouve par sa durée le temps d'un wipe.
+ */
+export const SEASON_FORMAT = v.union(v.literal('skirmish'), v.literal('campaign'));
+
+/** L'horloge d'une saison, `null` quand elle n'en a pas : on la clôt à la main
+ *  (`seasons.conclude`). Aucun écran n'affiche alors de compte à rebours. */
+export const SEASON_CLOCK_HOURS = v.union(v.literal(48), v.literal(168), v.null());
 
 /** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
@@ -200,6 +209,12 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('decoyArrived'),
     hostCountry: v.string(),
+  }),
+  /** **La saison close à la main par son fondateur** (`seasons.conclude`) — la seule fin qui ne
+   *  désigne personne : elle n'a pas de vainqueur, et le journal ne doit pas en inventer un. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('seasonClosed'),
   }),
   /**
    * **The one event of the game that used to leave no trace at all.** An attack or a raid that

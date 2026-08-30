@@ -96,7 +96,7 @@ if (args.includes('--sweep')) {
 
   for (const format of ['skirmish', 'campaign']) {
     const spec = SEASON_FORMATS[format];
-    console.log(`\n════════ ${format.toUpperCase()} — ${spec.durationHours} h, QG ${spec.hqLevelAtLaunch}, `
+    console.log(`\n════════ ${format.toUpperCase()} — ${spec.defaultDurationHours} h, QG ${spec.hqLevelAtLaunch}, `
       + `socle ${foundationFor(REFERENCE_GROUND).join(' + ')}, alliage ${spec.startingAlloy} ════════`);
     for (const key of ['assiduous', 'occasional', 'absent']) {
       keep(`${format}-${key}`, measure(seasonOf(format, { profile: PROFILES[key] })));

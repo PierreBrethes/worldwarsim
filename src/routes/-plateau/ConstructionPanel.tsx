@@ -4,6 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
+import { notify } from '@/shell/notifications';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
 import { Draggable } from './Draggable';
 import { followDrag, scaleOf, type Grab } from './dragging';
@@ -113,10 +114,21 @@ export function ConstructionPanel({
 
   const built = countByKey(view.me.buildings);
 
+  /**
+   * **Le seul geste du plateau dont l'effet se produit ailleurs** : le panneau se referme sur la
+   * carte, et le chantier commandé n'apparaît qu'en Économie. D'où l'avis.
+   *
+   * **Sauf pour une clé du socle** : elle est debout à l'instant, sur la région qu'on vient de
+   * désigner. Ce qui se voit sous la souris n'a pas besoin qu'on l'annonce.
+   */
   const order = (option: BuildOption) => {
     setError(null);
-    start({ token, building: option.key, regionId }).then(onClose, (problem: unknown) =>
-      handleError(problem, setError),
+    start({ token, building: option.key, regionId }).then(
+      () => {
+        if (!option.free) notify(fr.construction.queued(fr.buildings[option.key]), 'info');
+        onClose();
+      },
+      (problem: unknown) => handleError(problem, setError),
     );
   };
 

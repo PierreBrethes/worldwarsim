@@ -103,7 +103,7 @@ export const MAX_QUEUED_BATCHES = 12;
  */
 export const SEASON_FORMATS = {
   skirmish: {
-    durationHours: 48,
+    defaultDurationHours: 48,
     hqLevelAtLaunch: 2,
     maxHqLevel: 3,
     buildingCapBase: 5,
@@ -113,7 +113,7 @@ export const SEASON_FORMATS = {
     startingAmmunition: 140,
   },
   campaign: {
-    durationHours: 168,
+    defaultDurationHours: 168,
     hqLevelAtLaunch: 1,
     maxHqLevel: 5,
     buildingCapBase: 3,

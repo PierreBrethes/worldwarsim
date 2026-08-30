@@ -929,6 +929,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               return (
                 <SettingsWindow
                   key={name}
+                  token={token}
+                  founder={view.me.creator}
                   onShowBriefing={() => setBriefing(true)}
                   {...windowProps}
                 />

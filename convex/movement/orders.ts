@@ -27,7 +27,7 @@ import {
   RELAY_SPEED_MULTIPLIER,
   routeMinutes,
   SEASON_FORMATS,
-  formatOf,
+  formatOfSeason,
 } from '../constants';
 import { fail } from '../errors';
 import { regionFacts } from '../regions';
@@ -206,7 +206,7 @@ export async function columnOf(
 /** Same shape and reason as `capReliefOf`: "montez le QG" is advice, "un quartier général niveau
  *  3 les porte à 4" is a plan. Both numbers come out of `movementSlots`, never recopied. */
 const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
-  hqLevel >= SEASON_FORMATS[formatOf(season.durationHours)].maxHqLevel
+  hqLevel >= SEASON_FORMATS[formatOfSeason(season)].maxHqLevel
     ? {}
     : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
 
@@ -245,7 +245,7 @@ export async function march(
     /** Read for the format alone — the ladder a headquarters climbs, which is what the refusal
      *  needs to name the level that would buy the next slot. */
     season: Doc<'seasons'>;
-    type: 'march' | 'attack' | 'raid' | 'recall';
+    type: 'march' | 'attack' | 'raid';
     origin: MarchOrigin;
     troopIds: ReadonlyArray<Id<'troops'>>;
     aim: Aimed;

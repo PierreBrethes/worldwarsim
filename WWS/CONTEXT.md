@@ -7,7 +7,9 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
-| **Saison** | Une partie complète, de la création au wipe. 48 h ou 7 jours. |
+| **Saison** | Une partie complète, de la création au wipe. |
+| **Format** | Ce qu'une saison donne au lancement : **escarmouche** ou **campagne** — dotation, palier du QG, plafonds, projection du catalogue. Il se **choisit** au fondement ; il ne se déduit plus de l'horloge. *(révision du 27/08 de l'ADR 0017)* |
+| **Horloge** | La durée d'une saison : 48 h, 7 jours, ou **sans horloge**. Une saison sans horloge se clôt à la main par son fondateur, et aucun écran n'y affiche de compte à rebours. *(révision du 27/08 de l'ADR 0017)* |
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
 | **Pays neutre** | Un pays non joué. Support d'avant-postes, partenaire commercial, source de mercenaires. |

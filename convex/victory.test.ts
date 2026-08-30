@@ -27,6 +27,7 @@ const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
+    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

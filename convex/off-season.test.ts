@@ -9,6 +9,7 @@ import {
   SEASON_FORMATS,
   STRENGTH_PER_ROUND,
   buildCost,
+  formatOfSeason,
   nominalStrength,
   startingStock,
 } from './constants';
@@ -30,6 +31,7 @@ const PARIS = 'FRA-5333';
 async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
+    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });
@@ -53,6 +55,7 @@ describe('creating and joining', () => {
     const t = boot();
     const { code, token } = await t.mutation(api.seasons.create, {
       nickname: 'Pierre',
+      format: 'campaign',
       durationHours: 168,
       compensation: 0,
     });
@@ -617,6 +620,50 @@ describe('a concluded season', () => {
     expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toEqual([]);
   });
 
+  /** **Et la même chose par l'autre porte.** Une saison close à la main (`seasons.conclude`) est
+   *  une saison close : le garde-fou lit le statut, jamais qui l'a mis là. */
+  it('lets no scheduled job write once its founder has closed it', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+
+    const playerId = await playerIdOf(t, creator);
+    const barracks = await t.run(async (ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: (await ctx.db.get(playerId))!.seasonId,
+        playerId,
+        key: 'barracks',
+        regionId: MOSELLE,
+        level: 1,
+      }),
+    );
+    const marching = await t.run(async (ctx) =>
+      ctx.db.insert('troops', {
+        seasonId: (await ctx.db.get(playerId))!.seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: barracks,
+      }),
+    );
+    await t.mutation(api.movements.marchTo, {
+      token: creator,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [marching],
+      point: { lon: regionFacts(PRAHOVA)!.point[0], lat: regionFacts(PRAHOVA)!.point[1] },
+    });
+
+    await t.mutation(api.seasons.conclude, { token: creator });
+    const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
+    const before = await dumpRows(t, tables);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await dumpRows(t, tables)).toEqual(before);
+  });
+
   async function playerIdOf(t: ReturnType<typeof boot>, token: string) {
     return t.run(async (ctx) => {
       const player = await ctx.db
@@ -635,6 +682,73 @@ describe('a concluded season', () => {
     }
     return dumped;
   }
+});
+
+/**
+ * **Le format se choisit, l'horloge devient optionnelle** (révision du 27/08 de l'ADR 0017). Deux
+ * choses se vérifient ici et nulle part ailleurs : que la porte unique du format lit le champ
+ * quand il est là et la durée quand il ne l'est pas, et que la seule fin d'une saison sans
+ * horloge — la main de son fondateur — refuse tout le monde d'autre.
+ */
+describe('a season without a clock', () => {
+  it('reads its format off the field, and off the duration for a row written before it', () => {
+    expect(formatOfSeason({ format: 'campaign', durationHours: null })).toBe('campaign');
+    // Aucune combinaison n'est interdite : le champ l'emporte sur l'horloge, toujours.
+    expect(formatOfSeason({ format: 'campaign', durationHours: 48 })).toBe('campaign');
+    // La ligne d'avant ce changement n'a que sa durée, et c'est encore ce qui savait.
+    expect(formatOfSeason({ durationHours: 48 })).toBe('skirmish');
+    expect(formatOfSeason({ durationHours: 168 })).toBe('campaign');
+  });
+
+  it('is founded with no clock at all', async () => {
+    const t = boot();
+    const { token } = await t.mutation(api.seasons.create, {
+      nickname: 'Pierre',
+      format: 'skirmish',
+      durationHours: null,
+      compensation: 0.5,
+    });
+    const lobby = await t.query(api.seasons.lobby, { token });
+    expect(lobby.durationHours).toBeNull();
+  });
+
+  it('is closed by its founder, by nobody else, and only once it runs', async () => {
+    const t = boot();
+    const { creator, guest } = await readyToLaunch(t);
+
+    // Un salon n'a rien à clore : il se supprime (`destroy`), il ne se conclut pas.
+    await expect(t.mutation(api.seasons.conclude, { token: creator })).rejects.toThrow(
+      'SEASON_NOT_LAUNCHED',
+    );
+
+    await t.mutation(api.seasons.launch, { token: creator });
+    await expect(t.mutation(api.seasons.conclude, { token: guest })).rejects.toThrow(
+      'CREATOR_ONLY',
+    );
+
+    await t.mutation(api.seasons.conclude, { token: creator });
+    const season = await t.run(async (ctx) => (await ctx.db.query('seasons').first())!);
+    expect(season.status).toBe('concluded');
+    // Personne n'a gagné, et le journal ne doit désigner personne.
+    expect(season.winnerId).toBeNull();
+    expect(season.concludedAt).not.toBeNull();
+
+    // Une dépêche par belligérant : c'est le seul écran qui annonce la fin.
+    const notices = await t.run(async (ctx) => ctx.db.query('notices').collect());
+    expect(notices.map((notice) => notice.kind)).toEqual(['seasonClosed', 'seasonClosed']);
+
+    // Elle se relit, elle ne se joue plus.
+    await expect(
+      t.mutation(api.constructions.start, {
+        token: creator,
+        building: 'billets',
+        regionId: MOSELLE,
+      }),
+    ).rejects.toThrow('SEASON_CONCLUDED');
+    expect(
+      (await t.query(api.view.playerView, { token: creator })).season.reduction.concludedAt,
+    ).not.toBeNull();
+  });
 });
 
 describe('scrapping a season', () => {

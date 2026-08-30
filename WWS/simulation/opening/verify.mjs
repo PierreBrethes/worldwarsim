@@ -134,7 +134,7 @@ function formats() {
     const block = body.match(new RegExp(`${key}\\s*:\\s*\\{([\\s\\S]*?)\\n  \\}`));
     if (!block) { unverified.push(`SEASON_FORMATS.${key}`); continue; }
     const held = mirror.SEASON_FORMATS[key];
-    for (const field of ['durationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil', 'startingAmmunition']) {
+    for (const field of ['defaultDurationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil', 'startingAmmunition']) {
       const found = block[1].match(new RegExp(`${field}:\\s*(\\d+)`));
       if (!found) { unverified.push(`SEASON_FORMATS.${key}.${field}`); continue; }
       report(`SEASON_FORMATS.${key}.${field}`, found[1], held[field]);

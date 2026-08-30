@@ -101,7 +101,7 @@ export function seasonOf(format, overrides = {}) {
   return {
     name: overrides.name ?? `${format} — ${profile.name}`,
     format,
-    seasonHours: spec.durationHours,
+    seasonHours: spec.defaultDurationHours,
     seed: overrides.seed ?? 1,
     checkInHours: profile.checkInHours,
     profileName: profile.name,

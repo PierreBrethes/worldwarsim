@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
+import { DestroyButton } from '@/shell/DestroyButton';
 import {
   DEFAULT_HUD_SCALE,
   MAX_HUD_SCALE,
@@ -13,12 +16,15 @@ import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
 export function SettingsWindow({
+  token,
+  founder,
   onClose,
   onShowBriefing,
   ...windowProps
-}: WindowProps & { onShowBriefing: () => void }) {
+}: WindowProps & { token: string; founder: boolean; onShowBriefing: () => void }) {
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
+  const conclude = useMutation(api.seasons.conclude);
 
   const set = (value: number) => {
     const clamped = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, value));
@@ -118,6 +124,26 @@ export function SettingsWindow({
               {fr.settingsWindow.briefingReopen}
             </button>
           </div>
+
+          {/* **Le seul pouvoir de fondateur du plateau**, et il est rangé ici parce qu'une saison
+              sans horloge n'a pas d'autre fin. Deux clics, comme la suppression d'une partie :
+              c'est la même famille de geste, sauf que rien n'est effacé. */}
+          {founder && (
+            <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+              <div className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.concludeLabel}
+              </div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.concludeNote}
+              </p>
+              <DestroyButton
+                label={fr.settingsWindow.conclude}
+                confirm={fr.settingsWindow.concludeConfirm}
+                note={fr.settingsWindow.concludeWarning}
+                onDestroy={() => void conclude({ token }).catch(() => undefined)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </FloatingWindow>

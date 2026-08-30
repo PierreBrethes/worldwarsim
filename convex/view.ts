@@ -13,7 +13,7 @@ import {
   buildCost,
   buildMinutes,
   buildingCap,
-  formatOf,
+  formatOfSeason,
   isCommanded,
   tier2HqLevel,
   unlockLevel,
@@ -117,7 +117,7 @@ export const playerView = query({
       armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
     }
 
-    const format = formatOf(season.durationHours);
+    const format = formatOfSeason(season);
 
     const buildCatalog = Object.fromEntries(
       BUILDINGS.map((key) => [
@@ -199,6 +199,9 @@ export const playerView = query({
       },
       me: {
         nation: player.nation ?? '?',
+        /** Le seul pouvoir que le plateau réserve au fondateur : clore une saison sans horloge
+         *  (`seasons.conclude`). Rien d'autre n'en dépend. */
+        creator: player.creator,
         ink: nationInk(player.nation),
         doctrine: player.doctrine ?? 'domination',
         progress: 0,

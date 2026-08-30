@@ -3,8 +3,8 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
-import type { PlayableRegion } from '@/domain/ids';
+import { fr, clockLabel, doctrineLabel, nationLabel } from '@/i18n/fr';
+import type { PlayableRegion, SeasonFormat } from '@/domain/ids';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
@@ -75,7 +75,10 @@ function ConnectedHome() {
   const destroy = useMutation(api.seasons.destroy);
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
-  const [duration, setDuration] = useState<48 | 168>(48);
+  const [format, setFormat] = useState<SeasonFormat>('skirmish');
+  /** L'horloge suit le format tant que le fondateur ne l'a pas touchée : le format *propose* une
+   *  durée, il ne la définit plus (révision du 27/08 de l'ADR 0017). */
+  const [clock, setClock] = useState<Clock>(FORMATS[0].clock);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<Seat | null>(null);
   const tokens = useTokens();
@@ -109,7 +112,12 @@ function ConnectedHome() {
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const { token } = await create({ nickname, durationHours: duration, compensation: 0.5 });
+      const { token } = await create({
+        nickname,
+        format,
+        durationHours: clock,
+        compensation: 0.5,
+      });
       keepToken(token);
       toLobby();
     } catch (problem) {
@@ -175,22 +183,32 @@ function ConnectedHome() {
             <Title numeral="I" title={fr.home.foundTitle} />
             <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.foundNote}</p>
 
-            <div className="eyebrow mt-[14px]">{fr.home.paceLabel}</div>
+            <div className="eyebrow mt-[14px]">{fr.home.formatLabel}</div>
             <div className="mt-[6px] flex gap-2">
-              {PACES.map((pace) => (
-                <button
-                  key={pace.hours}
-                  type="button"
-                  onClick={() => setDuration(pace.hours)}
-                  className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
-                    duration === pace.hours
-                      ? 'bg-[var(--ink)] text-[var(--paper)]'
-                      : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.08)]'
-                  }`}
-                >
-                  <span className="block text-[12px] tracking-[.16em] uppercase">{pace.name}</span>
-                  <span className="mt-[3px] block text-[10.5px] opacity-70">{pace.note}</span>
-                </button>
+              {FORMATS.map((entry) => (
+                <Choice
+                  key={entry.key}
+                  name={fr.home.formats[entry.key].name}
+                  note={fr.home.formats[entry.key].note}
+                  chosen={format === entry.key}
+                  onChoose={() => {
+                    setFormat(entry.key);
+                    setClock(entry.clock);
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="eyebrow mt-[14px]">{fr.home.clockLabel}</div>
+            <div className="mt-[6px] flex gap-2">
+              {CLOCKS.map((entry) => (
+                <Choice
+                  key={String(entry.hours)}
+                  name={entry.name}
+                  note={entry.note}
+                  chosen={clock === entry.hours}
+                  onChoose={() => setClock(entry.hours)}
+                />
               ))}
             </div>
 
@@ -261,7 +279,7 @@ function ConnectedHome() {
       {resuming && (
         <LaunchSequence
           region={regionNameOf(resuming.playableRegion)}
-          pace={resuming.durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168}
+          pace={clockLabel(resuming.durationHours)}
           players={resuming.players}
           onEnd={toBoard}
         />
@@ -320,7 +338,9 @@ function GameRow({
         </span>
         <span className="relative shrink-0 text-right">
           <span className="eyebrow-dark block">
-            {seat.status === 'launched' ? fr.home.endsIn : fr.home.statusLabel}
+            {seat.status === 'launched' && seat.durationHours !== null
+              ? fr.home.endsIn
+              : fr.home.statusLabel}
           </span>
           <span className="block font-(family-name:--font-mono) text-[16px] text-[var(--paper)]">
             {seat.status === 'lobby'
@@ -375,6 +395,35 @@ function Title({ numeral, title }: { numeral: string; title: string }) {
   );
 }
 
+/** Un choix parmi deux ou trois, du fondement : le format et l'horloge se prennent au même
+ *  geste et se lisent de la même façon. */
+function Choice({
+  name,
+  note,
+  chosen,
+  onChoose,
+}: {
+  name: string;
+  note: string;
+  chosen: boolean;
+  onChoose: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onChoose}
+      className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
+        chosen
+          ? 'bg-[var(--ink)] text-[var(--paper)]'
+          : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.08)]'
+      }`}
+    >
+      <span className="block text-[12px] tracking-[.16em] uppercase">{name}</span>
+      <span className="mt-[3px] block text-[10.5px] opacity-70">{note}</span>
+    </button>
+  );
+}
+
 function Commit({
   active,
   type,
@@ -413,10 +462,19 @@ function NoBackend() {
   );
 }
 
-const PACES = [
-  { hours: 48, name: fr.home.paces.fast.name, note: fr.home.paces.fast.note },
-  { hours: 168, name: fr.home.paces.long.name, note: fr.home.paces.long.note },
-] as const satisfies ReadonlyArray<{ hours: 48 | 168; name: string; note: string }>;
+/** `null` = sans horloge. Le format ne fait que **proposer** la sienne. */
+type Clock = 48 | 168 | null;
+
+const FORMATS = [
+  { key: 'skirmish', clock: 48 },
+  { key: 'campaign', clock: 168 },
+] as const satisfies ReadonlyArray<{ key: SeasonFormat; clock: Clock }>;
+
+const CLOCKS = [
+  { hours: 48, name: fr.home.clocks.fast.name, note: fr.home.clocks.fast.note },
+  { hours: 168, name: fr.home.clocks.long.name, note: fr.home.clocks.long.note },
+  { hours: null, name: fr.home.clocks.none.name, note: fr.home.clocks.none.note },
+] as const satisfies ReadonlyArray<{ hours: Clock; name: string; note: string }>;
 
 const REGIONS: ReadonlyArray<PlayableRegion> = ['europe', 'europe-med', 'world'];
 
@@ -450,7 +508,10 @@ function romanDate(date: Date): string {
   return [date.getDate(), date.getMonth() + 1, date.getFullYear()].map(roman).join(' · ');
 }
 
-function remaining(launchedAt: number | null, durationHours: number): string {
+/** **Aucun compte à rebours sans horloge** — ni « ∞ », ni « 0 h 00 » : la ligne dit ce que la
+ *  saison est, pas un temps qu'elle n'a pas. */
+function remaining(launchedAt: number | null, durationHours: number | null): string {
+  if (durationHours === null) return fr.home.noClock;
   if (launchedAt === null) return '—';
   const milliseconds = launchedAt + durationHours * 3_600_000 - Date.now();
   if (milliseconds <= 0) return fr.home.finished;

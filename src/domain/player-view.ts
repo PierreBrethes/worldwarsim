@@ -463,7 +463,10 @@ export type Notice =
       readonly movementType: 'attack' | 'raid';
       readonly hostCountry: string;
       readonly troops: number;
-    };
+    }
+  /** La fin d'une saison sans horloge : son fondateur l'a close. Aucun vainqueur ne
+   *  l'accompagne, et le journal n'en désigne donc aucun (`seasons.conclude`). */
+  | { readonly kind: 'seasonClosed'; readonly at: number };
 
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
@@ -507,7 +510,9 @@ export type PlayerView = {
   readonly season: {
     readonly number: number;
     readonly format: SeasonFormat;
-    readonly durationHours: number;
+    /** `null` = sans horloge : aucun écran n'affiche alors de compte à rebours, et la saison se
+     *  clôt à la main (révision du 27/08 de l'ADR 0017). */
+    readonly durationHours: number | null;
     readonly elapsedHours: number;
     readonly players: number;
     readonly playableRegion: string;
@@ -516,6 +521,9 @@ export type PlayerView = {
   };
   readonly me: {
     readonly nation: string;
+    /** Le fondateur, et lui seul, clôt une saison sans horloge (`seasons.conclude`). C'est le
+     *  seul pouvoir que le plateau réserve à un joueur plutôt qu'à une nation. */
+    readonly creator: boolean;
     readonly homePosition: LonLat;
     readonly ink: string;
     readonly power: string;

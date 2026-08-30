@@ -7,12 +7,13 @@ import { NATIONS, RESOURCES, type SeasonFormat } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
 import { capitalRegionOf } from './regions';
+import { SEASON_CLOCK_HOURS, SEASON_FORMAT } from './validators';
 import {
   DEFAULT_REST_WINDOW,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
   SEASON_FORMATS,
-  formatOf,
+  formatOfSeason,
   nominalStrength,
   startingStock,
 } from './constants';
@@ -156,17 +157,25 @@ async function endow(
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
 
+/**
+ * **Deux choix, plus un seul** (révision du 27/08 de l'ADR 0017) : le format dit où l'on entre
+ * dans la courbe, l'horloge dit combien de temps on y reste — et elle peut ne pas exister. Aucune
+ * combinaison n'est refusée : une campagne en 48 h est un mauvais choix, pas un choix illégal, et
+ * une règle de plus ici serait une règle à défendre pour rien.
+ */
 export const create = mutation({
   args: {
     nickname: v.string(),
-    durationHours: v.union(v.literal(48), v.literal(168)),
+    format: SEASON_FORMAT,
+    durationHours: SEASON_CLOCK_HOURS,
     compensation: v.number(),
   },
-  handler: async (ctx, { nickname, durationHours, compensation }) => {
+  handler: async (ctx, { nickname, format, durationHours, compensation }) => {
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
       code,
       status: 'lobby',
+      format,
       durationHours,
       compensation: Math.max(0, Math.min(1, compensation)),
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -384,7 +393,7 @@ export const launch = mutation({
       launchedAt: now,
       playableRegion: playableRegion(present.length),
     });
-    const format = formatOf(season.durationHours);
+    const format = formatOfSeason(season);
     for (const entry of present) await endow(ctx, entry, format, now);
   },
 });
@@ -417,7 +426,53 @@ export const enterWar = mutation({
     );
     if (holder) fail('NATION_TAKEN', { nation: player.nation, nickname: holder.nickname });
 
-    await endow(ctx, player, formatOf(season.durationHours), Date.now());
+    await endow(ctx, player, formatOfSeason(season), Date.now());
+  },
+});
+
+/**
+ * **The one exit a season has**, whichever door it takes: the test victory when a pass crosses
+ * the threshold (`victory.ts`), and the founder's own hand when there is no clock to end it
+ * (`conclude`). Three fields, written once, so a season taken and a season closed cannot end up
+ * in two subtly different states — `winnerId: null` is the whole difference, and it is the
+ * honest one: nobody won.
+ */
+export async function concludeSeason(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  winnerId: Id<'players'> | null,
+  at: number,
+): Promise<void> {
+  await ctx.db.patch(seasonId, { status: 'concluded', winnerId, concludedAt: at });
+}
+
+/**
+ * **Le fondateur clôt la saison, à la main.** C'est la seule fin d'une partie sans horloge
+ * (révision du 27/08 de l'ADR 0017), et la fin à l'heure n'existe de toute façon pas encore : ce
+ * bouton rend le fait honnête plutôt que de le cacher derrière un compte à rebours qui ne
+ * déclenche rien.
+ *
+ * Elle ne désigne personne — `winnerId` reste nul — et elle ne détruit rien : le plateau et le
+ * journal servent une saison close (`requireStarted`), c'est la partie qu'on relit avant le wipe.
+ * Les ordres, eux, sont refusés (`requirePlayable`), et les travaux planifiés se taisent
+ * (`seasonStillPlays`).
+ */
+export const conclude = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    if (!player.creator) fail('CREATOR_ONLY');
+    if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
+
+    const now = Date.now();
+    await concludeSeason(ctx, season._id, null, now);
+    const present = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect();
+    for (const entry of present) {
+      await ctx.db.insert('notices', { playerId: entry._id, at: now, kind: 'seasonClosed' });
+    }
   },
 });
 
