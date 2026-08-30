@@ -1,34 +1,48 @@
 import { SCOUT_RADIUS_KM, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
-import { fr, roleLabel } from '@/i18n/fr';
-import { tierLabel } from '@/domain/troops';
-import type { TroopView } from '@/domain/player-view';
+import { fr, roleLabel, stackLabel } from '@/i18n/fr';
+import { representativeRole, tierLabel } from '@/domain/troops';
+import type { Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Draggable, DragHandle } from './Draggable';
 
 /**
- * **Une troupe seule ne mérite pas une fenêtre** (décision Pierre, 29/08). La fenêtre de garnison
- * sert à *composer* une pile ; désigner une troupe ne compose rien, et ouvrir un panneau à chaque
- * clic revenait à faire payer un formulaire pour une question de deux lignes.
+ * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
+ * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucune action** : les ordres
+ * passent par la rose des vents, qui s'ouvre sur le même clic. Un bouton ici serait une
+ * deuxième porte vers le même geste, et la première est déjà sur la carte.
  *
- * Ce cartouche dit ce que la vue du joueur sait déjà — le rôle, l'effectif, l'état — et rien
- * d'autre : pas un bouton d'ordre, pas une composition. Ce qui l'accompagne se lit sur la carte
- * plutôt qu'ici : la planche prend l'encre du joueur, et le cercle de détection s'ouvre autour
- * d'elle. La fenêtre complète reste à un clic — sur un point qui porte plusieurs troupes, ou
- * depuis le widget.
+ * **Il porte l'état de la visée**, et c'est ce qui a fait disparaître la fenêtre « visée armée »
+ * du coin haut-gauche : le seul fait qu'elle disait — combien de troupes partent ensemble — se lit
+ * ici, à côté de la pile qu'il décrit, plutôt qu'à l'autre bout de l'écran.
+ *
+ * Ce qui l'accompagne se lit sur la carte plutôt qu'ici : la planche prend l'encre du joueur, et
+ * le cercle de détection s'ouvre autour d'elle. La fenêtre de garnison reste pour *composer* une
+ * pile — sur un point qui en porte plusieurs, ou depuis le widget.
  */
 export function TroopBadge({
   nation,
-  troop,
+  troops,
+  aiming,
   at,
   onClose,
 }: {
   nation: string;
-  troop: TroopView;
+  /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
+  troops: ReadonlyArray<TroopView>;
+  aiming: boolean;
   at: { x: number; y: number };
   onClose: () => void;
 }) {
   const fromRight = at.x > window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
+  const lead = leadOf(troops);
+  if (lead === undefined) return null;
+
+  const strength = troops.reduce((sum, troop) => sum + troop.strength, 0);
+  const nominal = troops.reduce((sum, troop) => sum + troop.nominalStrength, 0);
+  // Une seule troupe hors ravitaillement suffit à le dire : la ligne nomme le surcoût, et le
+  // surcoût est payé dès qu'il y en a une.
+  const supplied = troops.every((troop) => troop.supplied);
 
   return (
     /* Poussé à la main comme la garnison, et sans rien retenir : il est visé sur une pile, et
@@ -57,35 +71,60 @@ export function TroopBadge({
         </DragHandle>
 
         <div className="mt-[7px] flex items-center gap-[9px]">
-          <UnitSprite nation={nation} role={troop.role} height={28} width={40} />
+          <UnitSprite nation={nation} role={lead.role} height={28} width={40} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
-              {roleLabel(troop.role, 1)} · {tierLabel(troop.tier)}
+              {troops.length > 1
+                ? stackLabel(stackOf(troops))
+                : `${roleLabel(lead.role, 1)} · ${tierLabel(lead.tier)}`}
             </span>
             <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-              {fr.troops.strength(troop.strength, troop.nominalStrength)}
+              {fr.troops.strength(strength, nominal)}
             </span>
           </span>
         </div>
 
+        {/* Ce que la fenêtre « visée armée » disait d'unique, rendu à la pile qu'il décrit. */}
+        {troops.length > 1 && (
+          <p className="mt-[6px] text-[10.5px] tracking-[.06em] text-[var(--ink-soft)] uppercase">
+            {fr.troops.badgePile(troops.length)}
+          </p>
+        )}
+
         <p
           className="mt-[6px] font-(family-name:--font-mono) text-[10.5px]"
-          style={{ color: troop.supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
+          style={{ color: supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
         >
-          {troop.supplied ? fr.troops.supplied : fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+          {supplied ? fr.troops.supplied : fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </p>
 
         {/* Ce que le cercle tracé sur la carte veut dire, une fois, à côté de lui (ADR 0019 §5). */}
         <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
           {fr.troops.badgeScouting(SCOUT_RADIUS_KM)}
         </p>
+
+        {aiming && (
+          <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
+            {fr.troops.badgeAiming}
+          </p>
+        )}
         <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-          {fr.troops.badgeAim}
-        </p>
-        <p className="mt-[2px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-          {fr.troops.badgeFound}
+          {aiming ? fr.troops.badgeDisarm : fr.troops.badgeOrders}
         </p>
       </div>
     </Draggable>
   );
 }
+
+/** Le visage de la pile est celui de son rôle majoritaire — la règle du pion d'un mouvement et
+ *  de la planche posée sur la carte, pour qu'une colonne ne change pas de visage en s'ouvrant. */
+function leadOf(troops: ReadonlyArray<TroopView>): TroopView | undefined {
+  const face = representativeRole(stackOf(troops));
+  return troops.find((troop) => troop.role === face) ?? troops[0];
+}
+
+const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
+  troops.reduce<Stack>(
+    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
+    {},
+  );

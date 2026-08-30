@@ -488,7 +488,7 @@ function SurveyedCard({
  * left in, and `home` with nothing but that. A station the view no longer carries falls back to
  * home rather than printing an id.
  */
-export function stationNamer(view: PlayerView): (station: TroopStation) => string {
+function stationNamer(view: PlayerView): (station: TroopStation) => string {
   const buildings = new Map(view.me.buildings.map((building) => [building.id, building]));
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
   const outposts = new Map(view.me.outposts.map((outpost) => [outpost.id, outpost]));

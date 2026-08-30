@@ -52,7 +52,7 @@ import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
-import { TroopsWidget, stationNamer } from './-plateau/TroopsWidget';
+import { TroopsWidget } from './-plateau/TroopsWidget';
 import { MobilizationCard } from './-plateau/MobilizationCard';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
@@ -80,12 +80,13 @@ type ArmedColumn = {
 };
 
 /**
- * **La troupe désignée sur la carte**, et le point où le cartouche se pose. Une seule : un point
- * qui en porte plusieurs ouvre la garnison, parce qu'il y a alors une pile à composer.
+ * **La force désignée sur la carte**, et le point où le cartouche se pose. Une troupe seule quand
+ * le clic gauche l'a désignée ; la pile entière quand une garnison ou la rose l'a armée — le
+ * cartouche porte alors l'état de la visée, qui n'a plus de fenêtre à lui (décision du 30/08).
  */
-type PostedTroop = {
+type PostedForce = {
   readonly station: Extract<TroopStation, { readonly kind: 'point' }>;
-  readonly troop: TroopView;
+  readonly troops: ReadonlyArray<TroopView>;
   readonly labelId: string;
   readonly x: number;
   readonly y: number;
@@ -302,7 +303,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * Ce qu'elle vaut se lit sur la carte : sa planche prend l'encre, son cercle de détection
    * s'ouvre, et le cartouche dit le reste.
    */
-  const [posted, setPosted] = useState<PostedTroop | null>(null);
+  const [posted, setPosted] = useState<PostedForce | null>(null);
   const [foundError, setFoundError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ ids: ReadonlyArray<string>; nonce: number } | null>(null);
   /**
@@ -315,6 +316,19 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredCard ?? hoveredLabel ?? hoveredArc;
+
+  /**
+   * **Le repère des panneaux est le plateau, jamais la fenêtre.** Ils sont posés en absolu dans
+   * ce cadre — qui commence sous la manchette et le bandeau, et à droite du rail — alors que le
+   * clic arrive en coordonnées d'écran. Les convertir contre `document.body` les décalait de la
+   * hauteur des barres et de la largeur du rail ; le décalage a grandi avec le bandeau des
+   * ressources, et un cartouche qui ne tombe pas sur son sprite ne désigne plus rien.
+   */
+  const board = useRef<HTMLDivElement>(null);
+  const boardPoint = useCallback((clientX: number, clientY: number) => {
+    const rect = board.current?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+  }, []);
 
   const select = useCallback(
     (name: string | null) => {
@@ -361,11 +375,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
       if (standing === undefined) return;
       if (PROJECTION_KEYS.includes(standing.key)) {
-        const rect = document.body.getBoundingClientRect();
-        openGarrison({ kind: 'building', buildingId }, [], {
-          x: clientX - rect.left,
-          y: clientY - rect.top,
-        });
+        openGarrison({ kind: 'building', buildingId }, [], boardPoint(clientX, clientY));
         return;
       }
       void navigate({
@@ -375,7 +385,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         }),
       });
     },
-    [navigate, openGarrison, view.me.buildings],
+    [navigate, openGarrison, boardPoint, view.me.buildings],
   );
 
   /**
@@ -383,9 +393,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
    */
   const openStack = useCallback(
-    (station: TroopStation, clientX: number, clientY: number) => {
-      const rect = document.body.getBoundingClientRect();
-      const at = { x: clientX - rect.left, y: clientY - rect.top };
+    (station: TroopStation, clientX: number, clientY: number): boolean => {
+      const at = boardPoint(clientX, clientY);
       /**
        * **Une seule troupe ne compose rien** (décision Pierre, 29/08) : elle se désigne, et la
        * carte répond — planche surlignée, cercle de détection, cartouche d'état. La fenêtre est
@@ -395,22 +404,22 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const alone = held.length === 1 ? held[0] : undefined;
       if (alone === undefined || station.kind !== 'point') {
         openGarrison(station, [], at);
-        return;
+        return false;
       }
+      /**
+       * **Désigner lit, il n'arme pas** (décision du 30/08). Le cartouche s'ouvre en lecture et la
+       * rose s'ouvre avec lui ; c'est « Envoyer », dans la rose, qui arme. La désignation qui
+       * armait d'elle-même ne laissait plus de place à un état « au repos » — et donc plus rien
+       * à dire à échap.
+       */
       setGarrison(null);
       setFoundError(null);
-      setPosted({ station, troop: alone, labelId: `stack-${stationKeyOf(station)}`, ...at });
-      /**
-       * **Désigner une troupe, c'est l'armer** (correctif du 30/08). Le cartouche disait ce
-       * qu'elle valait et rien ne pouvait plus la bouger : une troupe seule ne passe par aucune
-       * garnison, donc par aucun bouton « préparer », et le clic droit ne trouvait pas de
-       * colonne à viser. La désignation *est* la préparation — c'est le seul geste qu'il reste
-       * quand il n'y a rien à composer.
-       */
+      setColumn(null);
       setOrder(null);
-      setColumn(armedColumn(view, station, [alone.id]));
+      setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
+      return true;
     },
-    [openGarrison, view, marching],
+    [openGarrison, boardPoint, view, marching],
   );
 
   /**
@@ -438,6 +447,30 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
           return;
         /**
+         * **« Envoyer » arme, et rien d'autre** (décision du 30/08) : la rose se ferme, le
+         * cartouche reste et passe en visée, le clic droit suivant nomme la destination. Le
+         * cartouche s'ouvre ici aussi, parce que la rose se prend aussi au clic droit — sans quoi
+         * une pile armée depuis le sprite n'aurait rien à l'écran pour dire qu'elle l'est.
+         */
+        case 'arm': {
+          const key = stationKeyOf(action.station);
+          setGarrison(null);
+          setOrder(null);
+          setPosted((designated) =>
+            designated?.labelId === `stack-${key}`
+              ? designated
+              : {
+                  station: action.station,
+                  troops: troopsAt(view.me, key, marching),
+                  labelId: `stack-${key}`,
+                  x: at.x,
+                  y: at.y,
+                },
+          );
+          setColumn(armedColumn(view, action.station, action.troopIds));
+          return;
+        }
+        /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
          * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
          * d'un formulaire — c'est le panneau du point, une fois planté, qui rattrape ce choix
@@ -459,38 +492,37 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           );
       }
     },
-    [select, foundHere, token],
+    [select, foundHere, token, view, marching],
   );
 
-  // Escape disarms the aim — and only the aim: the rose stops the key before it gets here.
-  useEffect(() => {
-    if (column === null) return;
-    const disarm = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setColumn(null);
-      setOrder(null);
-    };
-    document.addEventListener('keydown', disarm);
-    return () => document.removeEventListener('keydown', disarm);
-  }, [column]);
-
-  /** **Une désignation et la colonne qu'elle arme sont un seul état**, lâché d'un seul geste :
-   *  le cartouche fermé, la troupe n'est plus en visée non plus. */
+  /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
+   *  cartouche est ce qui les porte tous les deux. */
   const releasePosted = useCallback(() => {
     setPosted(null);
     setColumn(null);
     setOrder(null);
   }, []);
 
-  // Une désignation se lâche de la même touche que la visée.
+  /**
+   * **Échap défait un cran, jamais deux.** En visée il désarme et rend le cartouche au repos —
+   * « échap — désarme », ce que le pied promet ; au repos il lâche la désignation. Tout défaire
+   * d'un coup faisait disparaître la troupe qu'on venait de désigner pour avoir changé d'avis
+   * sur sa destination. La rose arrête la touche avant nous quand elle est ouverte.
+   */
   useEffect(() => {
-    if (posted === null) return;
-    const release = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') releasePosted();
+    if (column === null && posted === null) return;
+    const undo = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (column !== null) {
+        setColumn(null);
+        setOrder(null);
+        return;
+      }
+      releasePosted();
     };
-    document.addEventListener('keydown', release);
-    return () => document.removeEventListener('keydown', release);
-  }, [posted, releasePosted]);
+    document.addEventListener('keydown', undo);
+    return () => document.removeEventListener('keydown', undo);
+  }, [column, posted, releasePosted]);
 
   /**
    * **The keys the season still owes, and the ground each one accepts.** The eligibility is
@@ -748,7 +780,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
 
   return (
     <Shell view={view} telegraphUnread={telegraph.unread}>
-      <div className="relative min-w-0 flex-1">
+      <div ref={board} className="relative min-w-0 flex-1">
         <WorldMap
           world={world}
           arcs={arcs}
@@ -806,6 +838,24 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               if (station.kind === 'home') return;
               setGarrison(null);
               setColumn(armedColumn(view, station, troopIds));
+              /**
+               * **Le cartouche porte l'état, et il n'y a plus de fenêtre pour le porter à sa
+               * place.** Une pile armée depuis une garnison posée sur la carte s'y montre — « pile
+               * de 3 », « choisissez la destination », « échap — désarme ». Depuis un mât ou un
+               * avant-poste il n'y a pas d'étiquette de pile à désigner : la garnison se referme
+               * et la visée se lit sur la carte, comme avant.
+               */
+              if (station.kind !== 'point') return;
+              setPosted({
+                station,
+                troops: troopIds.flatMap((troopId) => {
+                  const troop = view.me.troops.find((candidate) => candidate.id === troopId);
+                  return troop ? [troop] : [];
+                }),
+                labelId: `stack-${stationKeyOf(station)}`,
+                x: garrison.x,
+                y: garrison.y,
+              });
             }}
           />
         )}
@@ -813,7 +863,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           <TroopBadge
             key={posted.labelId}
             nation={view.me.nation}
-            troop={posted.troop}
+            troops={posted.troops}
+            aiming={column !== null}
             at={posted}
             onClose={releasePosted}
           />
@@ -835,10 +886,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             }}
           />
         )}
-        {/* Top left, one column: the mobilisation order stands as long as the season owes
-            placements, and the aim banner joins it above rather than covering it. */}
+        {/* Haut-gauche, une colonne : l'ordre de mobilisation tient tant que la saison doit des
+            poses. **Plus rien n'y dit la visée** — le cartouche la porte (décision du 30/08). */}
         <div className="pointer-events-none absolute top-4 left-4 z-10 flex flex-col items-start gap-3 [&>*]:pointer-events-auto">
-          {column && !order && <AimBanner view={view} column={column} />}
           {foundError !== null && (
             <div className="hud border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
               {foundError}
@@ -1114,31 +1164,6 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
   if (station.kind !== 'building') return null;
   const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
   return building === undefined ? null : `building-${building.regionId}-${building.key}`;
-}
-
-/**
- * What the board says while a column is armed: the pile, where it stands, and the two gestures
- * that matter. It names the way out, because a mode one cannot leave is a trap.
- */
-function AimBanner({ view, column }: { view: PlayerView; column: ArmedColumn }) {
-  const address = column.station;
-  const building =
-    address.kind === 'building'
-      ? view.me.buildings.find((candidate) => candidate.id === address.buildingId)
-      : undefined;
-  const station = building?.name ?? stationNamer(view)(address);
-  return (
-    <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-3 py-2">
-      <div className="text-[10px] tracking-[.22em] text-[var(--notable)] uppercase">
-        {fr.aim.armed}
-      </div>
-      <div className="mt-1 font-(family-name:--font-mono) text-[11px] leading-[1.7] text-[var(--paper-dim)]">
-        <div>{fr.aim.column(column.troopIds.length, station)}</div>
-        <div>{fr.aim.gesture}</div>
-        <div>{fr.aim.disarm}</div>
-      </div>
-    </div>
-  );
 }
 
 /** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every

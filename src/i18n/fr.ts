@@ -568,9 +568,8 @@ export const fr = {
    * est rare et borne l'action vit sur une ligne permanente ; le nom, le plafond, le débit et la
    * source n'apparaissent qu'au survol, une fois, et nulle part ailleurs.
    *
-   * Les deux diagnostics héritent des tournures du panneau Réserves qu'ils remplacent : la
-   * saturation nomme ce qui tourne pour rien et le magasin à agrandir, le manque nomme le
-   * chiffre qui manque et le chantier qui l'attend.
+   * Le diagnostic hérite des tournures du panneau Réserves qu'il remplace : la saturation nomme
+   * ce qui tourne pour rien et le magasin à agrandir.
    */
   resourceBand: {
     expand: 'déplier le bandeau des ressources',
@@ -583,8 +582,6 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
-    shortDiagnosis: (missing: number, resource: string, building: string) =>
-      `il manque ${num(missing)} de ${lowerFirst(resource)} pour ${building} en file`,
   },
 
   rail: {
@@ -904,10 +901,17 @@ export const fr = {
      */
     badgeKicker: 'troupe',
     badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
-    badgeFound: 'clic droit sur la troupe : fonder un avant-poste',
-    /** Désigner arme (correctif du 30/08) : la troupe seule ne passe par aucune garnison, donc
-     *  par aucun bouton « préparer » — le cartouche est le seul endroit qui puisse le dire. */
-    badgeAim: 'clic droit sur la carte : l’envoyer',
+    /** Ce que la fenêtre « visée armée » disait d'unique, et la seule chose qu'elle disait :
+     *  combien de troupes partent ensemble (décision du 30/08). */
+    badgePile: (count: number) => `pile de ${count}`,
+    /**
+     * **Le pied du cartouche est le mode.** Au repos il nomme le geste qui ouvre les ordres ; en
+     * visée il nomme la sortie — un mode qu'on ne sait pas quitter est un piège, et c'est la
+     * seule phrase que la fenêtre supprimée portait vraiment.
+     */
+    badgeOrders: 'clic droit — ordres',
+    badgeAiming: 'choisissez la destination',
+    badgeDisarm: 'échap — désarme',
     supplied: 'ravitaillée',
   },
 
@@ -971,11 +975,6 @@ export const fr = {
      *  carries, past which the figure says more than the gesture did. */
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
-    armed: 'visée armée',
-    column: (count: number, station: string) =>
-      `pile ${count} troupe${plural(count, '', 's')} — ${station}`,
-    gesture: 'survol : destinations légales · clic droit : type',
-    disarm: 'échap — désarme la visée',
     previewKicker: 'aperçu de trajet',
     slot: 'coûte 1 slot de mouvement',
     heading: (destination: string, type: string) => `${destination} — ${type}`,
@@ -1489,6 +1488,11 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
+    /** **Envoyer arme, il n'expédie pas.** La phrase doit dire le geste suivant, sinon le joueur
+     *  attend un départ et ne voit qu'un curseur changer de forme. */
+    send: 'Envoyer',
+    sendConsequence:
+      'Arme la pile : le clic droit suivant nomme la destination, trace l’arc réel et propose l’envoi.',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :

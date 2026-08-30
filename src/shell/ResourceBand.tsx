@@ -21,9 +21,9 @@ const ICON = 16;
  * figure, and nothing else. The name, the ceiling, the rate and the source appear on hover and
  * nowhere else on the board — the Réserves panel that repeated them in a corner is gone.
  *
- * **The marks are ink, never an icon.** A resource an icon already names cannot be alerted by a
- * second one; a filled pavé is a ceiling reached, a hollow one a bill the site cannot pay, and
- * both read at a glance because nothing else on the line is a square.
+ * **The mark is ink, never an icon.** A resource an icon already names cannot be alerted by a
+ * second one; a filled pavé is a ceiling reached, and it reads at a glance because nothing else
+ * on the line is a square.
  *
  * **Folding gives back the figures, never a mark.** A band that hid a foundry running for
  * nothing to buy back ten pixels would be worse than no band at all.
@@ -121,17 +121,13 @@ function Figure({
       {mark !== null && (
         <span
           onMouseEnter={(event) => onHover({ resource, on: 'mark', left: anchor(event) })}
-          className="flex h-[7px] w-[7px] shrink-0 cursor-help border"
-          style={{
-            borderColor: inkOf(mark),
-            background: mark.kind === 'full' ? inkOf(mark) : 'transparent',
-          }}
+          className="flex h-[7px] w-[7px] shrink-0 cursor-help bg-[var(--critical)]"
         />
       )}
       <span
         onMouseEnter={(event) => onHover({ resource, on: 'figure', left: anchor(event) })}
         className="flex cursor-help items-center gap-[5px]"
-        style={{ color: mark === null ? 'var(--paper)' : inkOf(mark) }}
+        style={{ color: mark === null ? 'var(--paper)' : 'var(--critical)' }}
       >
         <ResourceIcon resource={resource} size={ICON} />
         <span className="font-(family-name:--font-mono) text-[12px] leading-none font-medium">
@@ -141,8 +137,6 @@ function Figure({
     </span>
   );
 }
-
-const inkOf = (mark: Mark): string => (mark.kind === 'full' ? 'var(--critical)' : 'var(--notable)');
 
 /** Entrepôt et dépôt : deux magasins, deux plafonds — un filet double entre eux. */
 function DoubleRule() {
@@ -169,7 +163,7 @@ function Tooltip({
   const mark = marks[hover.resource];
   if (hover.on === 'mark' && mark !== null) {
     return (
-      <Card left={hover.left} ink={inkOf(mark)}>
+      <Card left={hover.left} ink="var(--critical)">
         {mark.diagnosis}
       </Card>
     );

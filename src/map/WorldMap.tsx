@@ -38,7 +38,7 @@ type Props = {
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
   /** Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât. */
-  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => void;
+  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   /**
@@ -245,9 +245,14 @@ export function WorldMap({
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
        * to the ground it covers. Without this, a right click landing on a mark would be the last
        * place on the board where aiming answers nothing.
+       *
+       * **Une pile à soi n'est pas une destination non plus, et elle garde donc sa rose armée ou
+       * non** (`compassOf`, décision du 30/08). Rendre le sol sous elle faisait exactement le
+       * menu mixte que la décision interdit : le clic tombait sur une troupe et répondait un
+       * terrain. Deux cibles, séparées par ce qui est sous le curseur.
        */
       const aimed =
-        aiming && target?.kind !== 'outpost' && map !== null
+        aiming && target?.kind !== 'outpost' && target?.kind !== 'force' && map !== null
           ? pointTarget(country, region, map.pointAt(clientX, clientY))
           : target;
       if (aimed === null) return;
@@ -342,7 +347,7 @@ export function WorldMap({
         onReachHover={setHoveredReach}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
-        onOpenStack={onOpenStack ?? (() => {})}
+        onOpenStack={onOpenStack ?? (() => false)}
         onContextMenu={onLabelMenu}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />

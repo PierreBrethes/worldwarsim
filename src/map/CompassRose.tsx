@@ -267,6 +267,9 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
       />
     </>
   ),
+  /** La flèche de départ, et le seul dessin de la plate qui sorte de son médaillon : « envoyer »
+   *  ne se confond alors avec rien, et surtout pas avec la hutte de « voir le pays ». */
+  departure: <path d="M2.2 8.3 H10.9 V4 L18.8 10 L10.9 16 V11.7 H2.2 Z" />,
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,

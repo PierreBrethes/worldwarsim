@@ -1,7 +1,7 @@
 import { fr, theBuilding } from '@/i18n/fr';
 import { PRODUCER_OF, STORED_BY } from './economy';
 import type { BuildingKey, ResourceKey } from './ids';
-import type { Cost, PlayerView } from './player-view';
+import type { PlayerView } from './player-view';
 import { currentStock } from './player-view';
 
 /** The two stores, in reading order. A group, never a flat list of eight: the double rule
@@ -15,16 +15,15 @@ export const BAND_GROUPS: ReadonlyArray<ReadonlyArray<ResourceKey>> = BAND_STORE
 );
 
 /**
- * **Two marks and no third.** *Full* is production being thrown away every hour, *short* is a
- * bill the site cannot pay — the only two facts a permanent line owes a player, and the only two
- * that name a move he can make right now. Everything else about a reserve is one hover away and
- * belongs there.
+ * **One mark, and only one.** *Full* is production thrown away every hour: the one fact a
+ * permanent line owes a player, and the one that names a move he can make right now. Everything
+ * else about a reserve is one hover away, and that is where it stays.
  *
  * The diagnosis travels with the mark rather than being derived again beside it: a pavé that
  * lights up for one reason and explains itself with another is worse than a silent one.
  */
 export type Mark = {
-  readonly kind: 'full' | 'short';
+  readonly kind: 'full';
   readonly diagnosis: string;
 };
 
@@ -43,71 +42,25 @@ export function sourceOf(view: PlayerView, resource: ResourceKey): Source | null
 }
 
 /**
- * **The head of the site's queue, and its bill.** The only work a shortfall is ever measured
- * against: what stands behind the head has not been reached, and a band that added the whole
- * queue up would mark every reserve of a player who plans ahead.
- *
- * The cost is not served with the entry — it is read back from what the entry is doing. A
- * building of that key already standing on that region means a raise, so the bill is its
- * `nextLevelCost`, which is the very figure the server charges; anything else is a first level,
- * at the catalogue's price. No level arithmetic here: the scale factor lives with the other
- * balance numbers and the pure domain may not read it.
- */
-export type QueueHead = { readonly key: BuildingKey; readonly cost: Cost };
-
-export function queueHeadOf(view: PlayerView): QueueHead | null {
-  const head = view.me.construction ?? view.me.constructionQueue[0];
-  if (head === undefined || head === null) return null;
-  const raised = view.me.buildings.find(
-    (standing) => standing.regionId === head.regionId && standing.key === head.key,
-  );
-  return { key: head.key, cost: raised?.nextLevelCost ?? view.buildCatalog[head.key].cost };
-}
-
-/**
- * **What the band marks, resource by resource.** `full` wins the tie: a reserve at its ceiling
- * loses something every hour, while a bill it cannot pay is a wait — the first calls for a
- * warehouse now, the second for patience.
- *
- * `full` is `stock >= cap` and nothing softer: a reserve one unit under the bar still takes
- * everything its mines send it, and marking that would teach the player to ignore the mark.
+ * **What the band marks, resource by resource.** `full` is `stock >= cap` and nothing softer: a
+ * reserve one unit under the bar still takes everything its mines send it, and marking that
+ * would teach the player to ignore the mark.
  */
 export function marksOf(view: PlayerView, now: number): Marks {
-  const head = queueHeadOf(view);
   const marks = {} as Record<ResourceKey, Mark | null>;
 
   for (const store of BAND_STORES) {
     for (const resource of STORED_BY[store]) {
       const reserve = view.me.resources[resource];
       const stock = currentStock(reserve, view.loadedAt, now);
-
-      if (reserve.cap > 0 && stock >= reserve.cap) {
-        marks[resource] = { kind: 'full', diagnosis: fullDiagnosis(reserve, resource, store) };
-        continue;
-      }
-
-      marks[resource] = shortOf(head, resource, stock);
+      marks[resource] =
+        reserve.cap > 0 && stock >= reserve.cap
+          ? { kind: 'full', diagnosis: fullDiagnosis(reserve, resource, store) }
+          : null;
     }
   }
 
   return marks;
-}
-
-/** Nothing in the queue is never short: the mark answers a bill, and there is none. */
-function shortOf(head: QueueHead | null, resource: ResourceKey, stock: number): Mark | null {
-  if (head === null) return null;
-  const needed = head.cost[resource] ?? 0;
-  if (needed <= stock) return null;
-  return {
-    kind: 'short',
-    diagnosis: fr.resourceBand.shortDiagnosis(
-      Math.ceil(needed - stock),
-      fr.resources[resource],
-      // The head names itself, never its region: the band has one line, and which of two ports
-      // is waiting is a question the economy window answers.
-      theBuilding(head.key),
-    ),
-  };
 }
 
 /**
