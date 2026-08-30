@@ -11,11 +11,12 @@ import { Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
 /**
- * Thirty-two pixels, twenty given back to the map. The bar held 52 to seat a gauge under each
- * of the eight figures; the reserves left for a panel of their own (`ReservesPanel`), and with
- * them the only content that needed two lines.
+ * Forty-two pixels. The bar held 52 to seat a gauge under each of the eight figures; the
+ * reserves left for a panel of their own (`ReservesPanel`) and it fell to 32, which was one
+ * line too thin — the cartouche had to lay the doctrine beside the nation instead of under it.
+ * These ten pixels buy back the second line, and nothing else asks for them.
  */
-const BANNER_HEIGHT = 32;
+const BANNER_HEIGHT = 42;
 
 const PLATE_HEIGHT = 20;
 
@@ -43,8 +44,11 @@ export function NationBanner({ view }: { view: PlayerView }) {
     >
       {/* **La manchette réduite, à la tête du seul en-tête du jeu.** Le pavé et sa suite, rien
           d'autre : la ligne de date et les filets appartiennent au papier, pas à une barre de
-          32 px. Il ne mène nulle part — le plateau *est* la destination. */}
-      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3">
+          42 px. Il ne mène nulle part — le plateau *est* la destination.
+
+          L'encre de la barre est celle du papier (`.hud` sert `--ink`) : « SIM » prend la
+          couleur courante et disparaissait sur le bureau sombre. Ici il tire du papier. */}
+      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3 text-[var(--paper)]">
         <Wordmark size={15} />
       </div>
 
