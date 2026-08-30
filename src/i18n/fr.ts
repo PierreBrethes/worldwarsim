@@ -905,12 +905,12 @@ export const fr = {
      *  combien de troupes partent ensemble (décision du 30/08). */
     badgePile: (count: number) => `pile de ${count}`,
     /**
-     * **Le pied du cartouche est le mode.** Au repos il nomme le geste qui ouvre les ordres ; en
-     * visée il nomme la sortie — un mode qu'on ne sait pas quitter est un piège, et c'est la
-     * seule phrase que la fenêtre supprimée portait vraiment.
+     * **Le pied du cartouche est le mode.** Désigner une troupe l'arme : le cartouche nomme donc
+     * le geste qui reste — la destination, au clic droit **ailleurs** — puis la sortie. Un mode
+     * qu'on ne sait pas quitter est un piège, et c'est la seule phrase que la fenêtre supprimée
+     * portait vraiment.
      */
-    badgeOrders: 'clic droit — ordres',
-    badgeAiming: 'choisissez la destination',
+    badgeAiming: 'choisissez la destination — clic droit sur la carte',
     badgeDisarm: 'échap — désarme',
     supplied: 'ravitaillée',
   },
@@ -1488,11 +1488,6 @@ export const fr = {
     myForce: (count: number) => `ma force · ${count} unité${plural(count, '', 's')}`,
     fallbackOutpost: 'avant-poste',
     fallbackForce: 'force',
-    /** **Envoyer arme, il n'expédie pas.** La phrase doit dire le geste suivant, sinon le joueur
-     *  attend un départ et ne voit qu'un curseur changer de forme. */
-    send: 'Envoyer',
-    sendConsequence:
-      'Arme la pile : le clic droit suivant nomme la destination, trace l’arc réel et propose l’envoi.',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :

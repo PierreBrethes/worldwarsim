@@ -70,11 +70,11 @@ export function MapLabels({
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
   /** A pile posted on the map opens its garrison — the same panel the widget's card opens. */
   /**
-   * Ouvre ce qui se tient là, et **répond si le clic a désigné** : une pile d'une seule troupe se
-   * désigne, et la rose de ses ordres suit dans le même geste ; une pile à composer ouvre la
-   * garnison, qui n'est pas un ordre et n'ouvre donc rien (décision du 30/08).
+   * Ouvre ce qui se tient là : une troupe seule se **désigne** — cartouche en lecture, pile armée
+   * — et une pile à composer ouvre la garnison. **Aucune rose ne s'ouvre ici** : cliquer sur un
+   * sprite ne propose rien, les ordres se prennent au clic droit ailleurs (décision du 30/08).
    */
-  onOpenStack: (station: TroopStation, clientX: number, clientY: number) => boolean;
+  onOpenStack: (station: TroopStation, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
@@ -258,10 +258,7 @@ export function MapLabels({
               if (label.buildingId !== null) {
                 onOpenBuilding(label.buildingId, event.clientX, event.clientY);
               } else if (label.station !== null) {
-                // La popin lit, la carte agit : un même clic ouvre le cartouche *et* la rose de
-                // la troupe. Elles ne disent pas la même chose et ne se remplacent pas.
-                if (onOpenStack(label.station, event.clientX, event.clientY))
-                  onContextMenu(label, event.clientX, event.clientY);
+                onOpenStack(label.station, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onContextMenu={(event) => {

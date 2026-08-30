@@ -7,13 +7,15 @@ import { Draggable, DragHandle } from './Draggable';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
- * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucune action** : les ordres
- * passent par la rose des vents, qui s'ouvre sur le même clic. Un bouton ici serait une
- * deuxième porte vers le même geste, et la première est déjà sur la carte.
+ * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucune action** : les ordres se
+ * prennent au clic droit **ailleurs**, sur la destination, où la rose des vents ne propose que ce
+ * que le serveur accepterait. Cliquer sur un sprite ne propose rien — ça désigne.
  *
  * **Il porte l'état de la visée**, et c'est ce qui a fait disparaître la fenêtre « visée armée »
  * du coin haut-gauche : le seul fait qu'elle disait — combien de troupes partent ensemble — se lit
- * ici, à côté de la pile qu'il décrit, plutôt qu'à l'autre bout de l'écran.
+ * ici, à côté de la pile qu'il décrit, plutôt qu'à l'autre bout de l'écran. Désigner une troupe
+ * l'arme, donc il est toujours en visée : il nomme la destination qui manque et la touche qui
+ * défait, jamais une action à cliquer.
  *
  * Ce qui l'accompagne se lit sur la carte plutôt qu'ici : la planche prend l'encre du joueur, et
  * le cercle de détection s'ouvre autour d'elle. La fenêtre de garnison reste pour *composer* une
@@ -22,14 +24,12 @@ import { Draggable, DragHandle } from './Draggable';
 export function TroopBadge({
   nation,
   troops,
-  aiming,
   at,
   onClose,
 }: {
   nation: string;
   /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
   troops: ReadonlyArray<TroopView>;
-  aiming: boolean;
   at: { x: number; y: number };
   onClose: () => void;
 }) {
@@ -103,13 +103,13 @@ export function TroopBadge({
           {fr.troops.badgeScouting(SCOUT_RADIUS_KM)}
         </p>
 
-        {aiming && (
-          <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
-            {fr.troops.badgeAiming}
-          </p>
-        )}
+        {/* **Désigner arme**, donc le cartouche est toujours en visée : il nomme le geste qui
+            reste et la sortie, et il ne porte aucun bouton — la carte agit, la popin lit. */}
+        <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
+          {fr.troops.badgeAiming}
+        </p>
         <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-          {aiming ? fr.troops.badgeDisarm : fr.troops.badgeOrders}
+          {fr.troops.badgeDisarm}
         </p>
       </div>
     </Draggable>

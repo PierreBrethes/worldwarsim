@@ -403,43 +403,18 @@ describe('founding from the map', () => {
 
   it('offers the founding on a posted column, carrying its point and its manifest', () => {
     const compass = compassOf(camp, posted(['infantry', 'infantry']));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['arm', 'found', 'view']);
-    expect(compass?.actions[1]).toMatchObject({
+    expect(compass?.actions.map((action) => action.key)).toEqual(['found', 'view']);
+    expect(compass?.actions[0]).toMatchObject({
       pictogram: 'post',
       point: [12, 20],
       troopIds: ['T-0', 'T-1'],
     });
   });
 
-  /**
-   * **« Envoyer » vit sur la pile et sur rien d'autre** (décision du 30/08) : c'est la branche
-   * qui arme, et elle emporte la colonne entière — la même que « fonder », sinon les deux ordres
-   * ne parleraient pas de la même troupe.
-   */
-  it('offers the send on a posted pile, carrying its whole manifest', () => {
-    const compass = compassOf(camp, posted(['infantry', 'armor']));
-    expect(compass?.actions[0]).toMatchObject({
-      key: 'arm',
-      pictogram: 'departure',
-      station: { kind: 'point', lonLat: [12, 20] },
-      troopIds: ['T-0', 'T-1'],
-    });
-  });
-
-  /** Une pile en route n'a plus de manifeste : rien à armer non plus. */
-  it('withdraws the send while the column is walking', () => {
-    const walking = posted(['infantry']);
-    const compass = compassOf(camp, {
-      ...walking,
-      arcs: [{ state: 'mine', troopIds: ['T-0'] }],
-    } as unknown as PlayerView);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
-  });
-
   /** La même fonction que le serveur refuse avec (`foundingRefusal`) : un char ne plante rien. */
   it('withdraws it from a column no infantry stands in', () => {
     const compass = compassOf(camp, posted(['armor']));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['arm', 'view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
   });
 
   /** Un avant-poste porte un chantier hors de chez soi (ADR 0004) : sur son propre sol, il
@@ -450,7 +425,7 @@ describe('founding from the map', () => {
       ...home,
       me: { ...home.me, buildings: [{ regionId: 'FRA-9999' }] },
     } as unknown as PlayerView);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['arm', 'view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
   });
 
   /**
@@ -467,7 +442,7 @@ describe('founding from the map', () => {
       afloat: false,
     };
     const compass = compassOf(camp, posted(['infantry']), armed, true);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['arm', 'found', 'view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['found', 'view']);
   });
 
   /** Une pile en route n'est plus posée : son manifeste est vide, il n'y a rien à planter. */

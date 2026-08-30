@@ -89,17 +89,7 @@ export type CompassTarget =
  * creux de la plate, et il ne désignait plus rien.
  */
 export type CompassPictogram =
-  | 'cabin'
-  | 'crane'
-  | 'anchor'
-  | 'helmet'
-  | 'propeller'
-  | 'rifles'
-  | 'pennant'
-  | 'post'
-  /** « Envoyer » : la flèche de départ. Le seul dessin de la plate qui pointe hors du médaillon,
-   *  et c'est exactement ce que la branche fait — elle met la pile en route. */
-  | 'departure';
+  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'post';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -151,24 +141,6 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly point: LonLat;
-      readonly troopIds: ReadonlyArray<string>;
-    }
-  /**
-   * **Envoyer, depuis la pile elle-même** (décision Pierre, 30/08). C'est la branche qui arme :
-   * elle ne trace rien et ne dépense rien — elle dit *celle-ci*, et le clic droit suivant dit
-   * *où*. Elle vit sur la force et nulle part ailleurs, parce qu'une colonne part d'une adresse
-   * et qu'on ne l'arme donc que là où elle se tient.
-   *
-   * Elle ne double pas les branches de visée : celles-là naissent d'une **destination**, portent
-   * un type et un aim, et n'existent que la pile déjà armée.
-   */
-  | {
-      readonly key: 'arm';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly station: Extract<TroopStation, { readonly kind: 'point' }>;
       readonly troopIds: ReadonlyArray<string>;
     };
 
@@ -462,7 +434,6 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
         actions: [
-          ...sendFrom(target, view),
           ...foundHere(target, view),
           ...(target.country === null ? [] : [viewCountry(target.country)]),
         ],
@@ -477,37 +448,6 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         ? { kicker: fr.compass.openWater, name: target.name, actions: [] }
         : build({ kind: 'country', country: target.country }, view);
   }
-}
-
-/**
- * **Le seul geste que le plateau appelle « envoyer »** (décision Pierre, 30/08) : il arme la pile
- * et rien de plus — la destination se nomme d'un second clic droit, sur la carte, et c'est là que
- * les branches de visée disent le type. Deux gestes, deux roses, jamais un menu qui mélange une
- * troupe et un sol.
- *
- * Elle est offerte sans condition sur une pile posée : ce qui refuse une marche dépend de la
- * destination — la porte du domaine, le tonnage, le sol visé — et rien de tout cela n'existe
- * encore ici. Le refus se lit une fois, au bout de la visée, dans les mots du serveur (`fanOf`).
- */
-function sendFrom(
-  target: Extract<CompassTarget, { kind: 'force' }>,
-  view: PlayerView,
-): ReadonlyArray<CompassAction> {
-  const station = posted(target);
-  if (station === null) return [];
-  const held = heldAt(station, view);
-  if (held.length === 0) return [];
-  return [
-    {
-      key: 'arm',
-      pictogram: 'departure',
-      label: fr.compass.send,
-      cost: slotCost(view),
-      consequence: fr.compass.sendConsequence,
-      station,
-      troopIds: held.map((troop) => troop.id),
-    },
-  ];
 }
 
 /** L'adresse d'une pile posée est un point, toujours : une garnison se lit sur le mât déjà

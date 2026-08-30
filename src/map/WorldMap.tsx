@@ -38,7 +38,7 @@ type Props = {
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
   /** Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât. */
-  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
+  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   /**
@@ -347,7 +347,7 @@ export function WorldMap({
         onReachHover={setHoveredReach}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
-        onOpenStack={onOpenStack ?? (() => false)}
+        onOpenStack={onOpenStack ?? (() => {})}
         onContextMenu={onLabelMenu}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />

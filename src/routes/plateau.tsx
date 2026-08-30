@@ -393,7 +393,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
    */
   const openStack = useCallback(
-    (station: TroopStation, clientX: number, clientY: number): boolean => {
+    (station: TroopStation, clientX: number, clientY: number) => {
       const at = boardPoint(clientX, clientY);
       /**
        * **Une seule troupe ne compose rien** (décision Pierre, 29/08) : elle se désigne, et la
@@ -404,20 +404,19 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const alone = held.length === 1 ? held[0] : undefined;
       if (alone === undefined || station.kind !== 'point') {
         openGarrison(station, [], at);
-        return false;
+        return;
       }
       /**
-       * **Désigner lit, il n'arme pas** (décision du 30/08). Le cartouche s'ouvre en lecture et la
-       * rose s'ouvre avec lui ; c'est « Envoyer », dans la rose, qui arme. La désignation qui
-       * armait d'elle-même ne laissait plus de place à un état « au repos » — et donc plus rien
-       * à dire à échap.
+       * **Désigner une troupe, c'est l'armer** — et c'est tout ce que le geste fait. Le clic sur
+       * un sprite ne propose rien : il dit *celle-ci*, le cartouche la lit, et les ordres se
+       * prennent au clic droit **ailleurs**, sur la destination (décision Pierre, 30/08). Une
+       * rose ouverte sur le sprite mettait un menu là où le joueur venait seulement de désigner.
        */
       setGarrison(null);
       setFoundError(null);
-      setColumn(null);
       setOrder(null);
       setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
-      return true;
+      setColumn(armedColumn(view, station, [alone.id]));
     },
     [openGarrison, boardPoint, view, marching],
   );
@@ -447,30 +446,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
           return;
         /**
-         * **« Envoyer » arme, et rien d'autre** (décision du 30/08) : la rose se ferme, le
-         * cartouche reste et passe en visée, le clic droit suivant nomme la destination. Le
-         * cartouche s'ouvre ici aussi, parce que la rose se prend aussi au clic droit — sans quoi
-         * une pile armée depuis le sprite n'aurait rien à l'écran pour dire qu'elle l'est.
-         */
-        case 'arm': {
-          const key = stationKeyOf(action.station);
-          setGarrison(null);
-          setOrder(null);
-          setPosted((designated) =>
-            designated?.labelId === `stack-${key}`
-              ? designated
-              : {
-                  station: action.station,
-                  troops: troopsAt(view.me, key, marching),
-                  labelId: `stack-${key}`,
-                  x: at.x,
-                  y: at.y,
-                },
-          );
-          setColumn(armedColumn(view, action.station, action.troopIds));
-          return;
-        }
-        /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
          * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
          * d'un formulaire — c'est le panneau du point, une fois planté, qui rattrape ce choix
@@ -492,7 +467,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           );
       }
     },
-    [select, foundHere, token, view, marching],
+    [select, foundHere, token],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -504,24 +479,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   }, []);
 
   /**
-   * **Échap défait un cran, jamais deux.** En visée il désarme et rend le cartouche au repos —
-   * « échap — désarme », ce que le pied promet ; au repos il lâche la désignation. Tout défaire
-   * d'un coup faisait disparaître la troupe qu'on venait de désigner pour avoir changé d'avis
-   * sur sa destination. La rose arrête la touche avant nous quand elle est ouverte.
+   * **Échap lâche la visée, et la désignation avec elle** : désigner une troupe l'arme, donc les
+   * deux sont un seul état et une seule sortie. La rose arrête la touche avant nous quand elle
+   * est ouverte.
    */
   useEffect(() => {
     if (column === null && posted === null) return;
-    const undo = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (column !== null) {
-        setColumn(null);
-        setOrder(null);
-        return;
-      }
-      releasePosted();
+    const disarm = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') releasePosted();
     };
-    document.addEventListener('keydown', undo);
-    return () => document.removeEventListener('keydown', undo);
+    document.addEventListener('keydown', disarm);
+    return () => document.removeEventListener('keydown', disarm);
   }, [column, posted, releasePosted]);
 
   /**
@@ -864,7 +832,6 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             key={posted.labelId}
             nation={view.me.nation}
             troops={posted.troops}
-            aiming={column !== null}
             at={posted}
             onClose={releasePosted}
           />
