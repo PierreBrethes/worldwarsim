@@ -4,16 +4,21 @@ import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { currentStock } from '@/domain/player-view';
 import { BAND_GROUPS, marksOf, sourceOf, type Mark, type Marks } from '@/domain/resource-band';
-import { ResourceIcon } from '@/emblems/ResourceIcon';
+import { ResourcePlate } from '@/emblems/Plate';
 import { keepResourceBandCollapsed, readResourceBandCollapsed } from '@/data/settings';
 import { useClock } from './clock';
 
-/** Twenty-six pixels: an icon at 16 and its mono figure beside it, not one line more — the band
+/** Thirty pixels: a plate at 20 and its mono figure beside it, not one line more — the band
  *  is glanced past, never read. Folded, it keeps just enough to seat a mark. */
-const BAND_HEIGHT = 26;
-const FOLDED_HEIGHT = 16;
+const BAND_HEIGHT = 30;
+const FOLDED_HEIGHT = 20;
 
-const ICON = 16;
+/** The illustrated plates, not the vector silhouettes: the band has the height to carry them,
+ *  and the split of `Plate.tsx` puts everything at 20 px and above on the drawn set. Folded,
+ *  the line comes down to the vector's territory, so the plate shrinks with it rather than
+ *  turning to mush at a size it was never cut for. */
+const PLATE = 20;
+const FOLDED_PLATE = 14;
 
 /**
  * **Une information, une fois, au bon endroit** (décision du 30/08). What is scarce and bounds
@@ -42,24 +47,25 @@ export function ResourceBand({ view }: { view: PlayerView }) {
       view={view}
       now={now}
       mark={marks[resource]}
+      plate={collapsed ? FOLDED_PLATE : PLATE}
       onHover={setHovered}
     />
   );
 
   return (
     <div
-      className="hud relative z-30 flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] pr-2 pl-3"
+      className="hud relative z-30 flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-6"
       style={{ fontFamily: 'var(--font-body)', height: collapsed ? FOLDED_HEIGHT : BAND_HEIGHT }}
       onMouseLeave={() => setHovered(null)}
     >
       {collapsed ? (
-        <div className="flex flex-1 items-center gap-[14px]">
+        <div className="flex flex-1 items-center justify-center gap-[14px]">
           {marked.map(figure)}
           {/* Rien de marqué : le filet seul. Il tient la place, et son silence est la nouvelle. */}
           {marked.length === 0 && <span className="h-px flex-1 bg-[var(--ink-quiet)]" />}
         </div>
       ) : (
-        <div className="flex flex-1 items-center">
+        <div className="flex flex-1 items-center justify-center">
           {BAND_GROUPS.map((group, rank) => (
             <div key={rank} className="flex items-center">
               {rank > 0 && <DoubleRule />}
@@ -80,7 +86,7 @@ export function ResourceBand({ view }: { view: PlayerView }) {
           });
           setHovered(null);
         }}
-        className="ml-2 flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center text-[9px] leading-none text-[var(--paper-dim)] hover:text-[var(--paper)]"
+        className="absolute right-2 flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center text-[9px] leading-none text-[var(--paper-dim)] hover:text-[var(--paper)]"
       >
         {collapsed ? '▾' : '▴'}
       </button>
@@ -103,12 +109,14 @@ function Figure({
   view,
   now,
   mark,
+  plate,
   onHover,
 }: {
   resource: ResourceKey;
   view: PlayerView;
   now: number;
   mark: Mark | null;
+  plate: number;
   onHover: (hover: Hover) => void;
 }) {
   const stock = currentStock(view.me.resources[resource], view.loadedAt, now);
@@ -129,7 +137,7 @@ function Figure({
         className="flex cursor-help items-center gap-[5px]"
         style={{ color: mark === null ? 'var(--paper)' : 'var(--critical)' }}
       >
-        <ResourceIcon resource={resource} size={ICON} />
+        <ResourcePlate resource={resource} height={plate} onDark />
         <span className="font-(family-name:--font-mono) text-[12px] leading-none font-medium">
           {stock.toLocaleString('fr-FR')}
         </span>
