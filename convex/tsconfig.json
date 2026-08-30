@@ -21,5 +21,11 @@
     "noEmit": true
   },
   "include": ["./**/*"],
-  "exclude": ["./_generated"]
+  /* Les fichiers de test ne tournent pas sur Convex : ils tournent sous Vitest, et
+   * `test.setup.ts` s'y sert de `import.meta.glob`, qui appartient à Vite. Ce projet-ci décrit
+   * l'environnement des fonctions serveur — c'est lui que `convex deploy` typecheck — et y faire
+   * entrer les types de Vite reviendrait à autoriser un fichier serveur à s'en servir. Ils
+   * restent typés par le `tsconfig.json` de la racine, qui inclut `convex` et porte
+   * `types: ["vite/client", "node"]` : `npm run types` les couvre, et la CI passe par lui. */
+  "exclude": ["./_generated", "./test.setup.ts", "./**/*.test.ts"]
 }
