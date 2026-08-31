@@ -51,12 +51,17 @@ la **visée** : clic droit sur la cible, rose des vents contextuelle, aperçu d'
 « envoyer — irréversible » au bout de l'arc.
 
 **La carte au clic droit agit, la popin lit** (décision Pierre, 30/08). Le clic gauche sur une
-troupe seule ouvre **les deux à la fois** — le cartouche (`TroopBadge.tsx`, qui ne porte aucun
-ordre) et la rose de cette troupe, posée sur le sprite ; le clic droit sur le sprite ouvre la
-même. « Envoyer » y est la seule branche qui ne commande rien : elle arme la colonne et rend la
-main à la carte, où la destination se nomme. Deux cibles, jamais un menu mixte : le sprite rend
-la rose de la troupe, la région celle du bâti. Il n'y a plus de fenêtre « visée armée » — le
-cartouche porte l'état, et son pied est le mode. Les types proposés par la rose et ceux que le serveur accepte
+troupe seule ouvre le cartouche (`TroopBadge.tsx`, qui ne porte aucun ordre) et **l'arme du même
+geste** ; la destination se nomme au clic droit **ailleurs**. La rose ne s'ouvre avec lui que
+s'il y a quelque chose à faire **sur place** — fonder un avant-poste, et rien d'autre
+aujourd'hui : un bateau désigné n'ouvre donc aucun menu. Deux cibles, jamais un menu mixte : le
+sprite rend la rose de la troupe, la région celle du bâti. Il n'y a plus de fenêtre « visée
+armée » — le cartouche porte l'état.
+
+**« Voir le pays » a été retiré** (décision Pierre, 31/08) : il doublait le clic gauche, qui
+sélectionne déjà ce qu'il touche. La rose ne s'ouvre plus que là où un ordre existe — bâtir,
+fonder, marcher — et **le clic droit reste inerte partout ailleurs**, pays et avant-postes
+compris. Les types proposés par la rose et ceux que le serveur accepte
 sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien n'est grisé, jamais
 (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
 réelle et l'heure d'arrivée, seul le serveur date un mouvement.
@@ -274,8 +279,8 @@ le brouillard ferait de la reddition un acte de renseignement au profit d'un sur
 capitulation est aussi l'événement qui manquait au **transfert du commandement** : le titre de
 fondateur passe au plus ancien joueur non défait, et s'il ne reste qu'un belligérant debout la
 saison se conclut par la sortie commune, à son nom — une victoire, pas une clôture
-administrative. Au front : « Défaite : observer » à l'accueil, un cachet au bandeau, la rose
-réduite à « voir », la carte « à faire maintenant » absente, les boutons d'action retirés plutôt
+administrative. Au front : « Défaite : observer » à l'accueil, un cachet au bandeau, plus aucune
+rose au clic droit, la carte « à faire maintenant » absente, les boutons d'action retirés plutôt
 que grisés, et le bouton « déposer les armes » rangé dans Réglages à côté de « clore la saison ».
 
 **Ni terrain, ni tenaille, ni soin.** Le modificateur de terrain attend l'ADR qui autorise une

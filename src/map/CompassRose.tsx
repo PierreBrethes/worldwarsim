@@ -267,9 +267,6 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
       />
     </>
   ),
-  /** **La flèche de l'envoi** : elle ne dit ni où ni comment, parce que la branche n'en décide
-   *  rien — elle rend la main à la carte, qui est ce qui agit. */
-  arrow: <path d="M2.4 8.4 H11.4 V4.2 L18.6 10 L11.4 15.8 V11.6 H2.4 Z" />,
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,

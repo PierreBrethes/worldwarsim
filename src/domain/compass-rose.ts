@@ -87,14 +87,9 @@ export type CompassTarget =
  *
  * La hutte évidée est partie avec le leurre (révision du 29/08/2026) : c'était le seul dessin
  * creux de la plate, et il ne désignait plus rien.
- *
- * `arrow` est le seul ajout depuis la maquette : « Envoyer » ne nomme aucun type de marche — il
- * ouvre la visée — donc aucun des dessins de marche ne pouvait le porter, et la hutte est déjà
- * celle de « voir le pays ». Deux branches sous le même dessin sont deux branches qu'on ne
- * distingue qu'en survolant.
  */
 export type CompassPictogram =
-  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'post' | 'arrow';
+  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'post';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -102,14 +97,6 @@ export type CompassPictogram =
  * the fan order, due north then clockwise.
  */
 export type CompassAction =
-  | {
-      readonly key: 'view';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly country: string;
-    }
   /**
    * The aimed march. It only exists while a column is armed, and the fan then holds **exactly**
    * the types the server will accept for this target — `legalMovementTypes` is the same
@@ -132,21 +119,6 @@ export type CompassAction =
       readonly consequence: string;
       readonly regionId: string;
       readonly regionName: string;
-    }
-  /**
-   * **Envoyer : la seule branche qui n'ordonne rien** (décision Pierre, 30/08). La pile désignée
-   * n'est pas une destination, donc cette branche n'en nomme aucune — elle arme la colonne et
-   * rend la main à la carte, où le clic droit sur un ailleurs rouvrira la rose avec les marches
-   * que le serveur accepte (`aim`). C'est le passage de « la popin lit » à « la carte agit ».
-   */
-  | {
-      readonly key: 'send';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly station: Extract<TroopStation, { readonly kind: 'point' }>;
-      readonly troopIds: ReadonlyArray<string>;
     }
   /**
    * **Fonder, au clic droit sur la pile qui fonde** (décision Pierre, 29/08). Le geste a quitté la
@@ -201,15 +173,6 @@ function slotCost(view: PlayerView): string {
   const free = view.me.slots.total - view.me.slots.used;
   return fr.compass.slotsCost(free);
 }
-
-const viewCountry = (country: string): CompassAction => ({
-  key: 'view',
-  pictogram: 'cabin',
-  label: fr.compass.seeCountry,
-  cost: null,
-  consequence: fr.compass.seeCountryConsequence(countryLabel(country)),
-  country,
-});
 
 /**
  * The pictogram plate of the aiming fan, taken from the mockup: the crossed rifles for the
@@ -279,17 +242,13 @@ export function compassOf(
   objectiveKnown = false,
 ): Compass | null {
   /**
-   * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08). Il ne reste que
-   * « voir » : le serveur refuse déjà tout le reste (`requirePlayable`), et une rose qui
+   * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08) : le clic droit ne
+   * lui rend plus rien du tout. Le serveur refuse déjà tout (`requirePlayable`), et une rose qui
    * proposerait « bâtir » ou « attaquer » à un défait promettrait ce qu'il ne peut plus obtenir.
    * Le retrait est ici, en un seul endroit, parce que la rose est la seule porte de la carte —
    * elle est aussi la même fonction que le serveur relit (ADR 0015).
    */
-  if (view.me.defeated) {
-    const fan = build(target, view);
-    const actions = fan.actions.filter((action) => action.key === 'view');
-    return actions.length === 0 ? null : { ...fan, actions, refusal: null };
-  }
+  if (view.me.defeated) return null;
   /**
    * **La pile qu'on tient n'est pas une destination.** Viser, c'est nommer un ailleurs ; la pile
    * armée, elle, garde son éventail ordinaire jusque sous la visée — sinon désigner une troupe
@@ -434,6 +393,13 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         actions: [...(buildable ? [buildOn(target)] : []), ...country.actions],
       };
     }
+    /**
+     * **Un pays ne se fait rien.** « Voir le pays » doublait le clic gauche, qui sélectionne déjà
+     * ce qu'il touche (retrait demandé par Pierre, 31/08) — et une rose à une seule branche qui
+     * refait le geste d'à côté est un menu qu'on ouvre pour rien. Le pays garde son nom et sa
+     * qualification parce que la région les lui emprunte ; sans action, `compassOf` renvoie null
+     * et le clic droit reste inerte, comme il l'est déjà en haute mer.
+     */
     case 'country': {
       const allegiance = countryAllegiance(target.country, view);
       const held = view.me.outposts.some((outpost) => outpost.hostCountry === target.country);
@@ -447,16 +413,22 @@ function build(target: CompassTarget, view: PlayerView): Fan {
               ? fr.compass.myTerritory
               : fr.compass.enemyNation,
         name: countryLabel(target.country),
-        actions: [viewCountry(target.country)],
+        actions: [],
       };
     }
     case 'outpost':
       return {
         kicker: fr.compass.outpostAt(countryLabel(target.hostCountry)),
         name: target.name,
-        actions: [viewCountry(target.hostCountry)],
+        actions: [],
       };
     /**
+     * **La rose d'une troupe ne dit que ce qui se fait sur place** (décision Pierre, 31/08). Il
+     * n'y a pas de branche « envoyer » : désigner une troupe l'arme, et la destination se nomme
+     * au clic droit **ailleurs**, où la rose propose déjà les marches que le serveur accepte.
+     * Reste ce qu'on ne peut faire que là où l'on se tient — fonder — et rien la plupart du
+     * temps : le cartouche s'ouvre alors seul, sans menu par-dessus.
+     *
      * A column on the map is a movement in flight, and **a movement in flight takes no order**:
      * the fan says where it is, never what to do with it. The irreversibility is the game's
      * thesis, not an interface limitation (decision 13a).
@@ -465,11 +437,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions: [
-          ...sendFrom(target, view),
-          ...foundHere(target, view),
-          ...(target.country === null ? [] : [viewCountry(target.country)]),
-        ],
+        actions: foundHere(target, view),
       };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
@@ -494,36 +462,6 @@ const posted = (
  *  parler de la même colonne, sinon « fonder » et « envoyer » n'emportent pas les mêmes troupes. */
 const heldAt = (station: Extract<TroopStation, { kind: 'point' }>, view: PlayerView) =>
   troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));
-
-/**
- * **La branche qui arme, et rien de plus.** Elle paraît sur toute pile posée qui a encore des
- * troupes sous elle — une colonne en route n'en a plus, `heldAt` la vide — et elle ne consulte
- * aucune légalité de marche : il n'y a pas encore de destination à laquelle en opposer une, et
- * la rose de l'ailleurs, elle, ne proposera que ce que le serveur accepterait (ADR 0015).
- *
- * Le coût n'est pas dit ici : un slot se paie à l'envoi, pas à la visée, et l'annoncer une
- * première fois sur un geste qui ne débite rien ferait lire deux prix pour un seul.
- */
-function sendFrom(
-  target: Extract<CompassTarget, { kind: 'force' }>,
-  view: PlayerView,
-): ReadonlyArray<CompassAction> {
-  const station = posted(target);
-  if (station === null) return [];
-  const held = heldAt(station, view);
-  if (held.length === 0) return [];
-  return [
-    {
-      key: 'send',
-      pictogram: 'arrow',
-      label: fr.compass.send,
-      cost: null,
-      consequence: fr.compass.sendConsequence,
-      station,
-      troopIds: held.map((troop) => troop.id),
-    },
-  ];
-}
 
 /**
  * **On fonde où l'on se tient** (ADR 0019 §1), donc la branche vit sur la pile elle-même et sur

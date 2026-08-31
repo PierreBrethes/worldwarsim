@@ -883,9 +883,6 @@ export const fr = {
      */
     badgeAiming: 'choisissez la destination — clic droit sur la carte',
     badgeDisarm: 'échap — désarme',
-    /** Au repos, le pied nomme la porte des ordres et non une action : le cartouche lit, la
-     *  carte agit, et la rose est déjà ouverte sur le sprite au moment où il paraît. */
-    badgeOrders: 'clic droit — ordres',
     supplied: 'ravitaillée',
   },
 
@@ -1542,8 +1539,6 @@ export const fr = {
   },
 
   compass: {
-    seeCountry: 'Voir le pays',
-    seeCountryConsequence: (name: string) => `Sélectionne ${name} et ouvre son panneau de bord.`,
     marchConsequence: (type: string) => `Trace l’arc réel et propose l’envoi : ${type}.`,
     aiming: (count: number) => `visée armée · ${count} troupe${plural(count, '', 's')}`,
     slotsCost: (free: number) => `1 slot · ${free} libre${plural(free, '', 's')}`,
@@ -1558,14 +1553,6 @@ export const fr = {
     fallbackForce: 'force',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
-    /**
-     * **La branche qui arme la colonne**, et la seule qui ne commande rien : elle ferme la rose
-     * et rend la main à la carte, où la destination se nomme au clic droit. Sa conséquence dit
-     * donc le geste suivant, pas un effet — c'est le seul endroit de la plate où la phrase
-     * annonce une question plutôt qu'une réponse.
-     */
-    send: 'Envoyer',
-    sendConsequence: 'Choisissez la destination : la rose y trace l’arc réel et propose l’envoi.',
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
      *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
     found: 'Fonder un avant-poste',

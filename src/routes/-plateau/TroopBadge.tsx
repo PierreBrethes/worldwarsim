@@ -35,8 +35,9 @@ export function TroopBadge({
   /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
   troops: ReadonlyArray<TroopView>;
   at: { x: number; y: number };
-  /** Une colonne est armée : le pied cesse de renvoyer aux ordres et nomme le geste qui reste.
-   *  C'est « Envoyer », dans la rose ouverte sur le sprite, qui fait passer d'un état à l'autre. */
+  /** Une colonne est armée. Désigner une troupe l'arme, donc c'est vrai partout sauf pour un
+   *  observateur, à qui il ne reste aucun ailleurs à nommer — et le pied se tait plutôt que de
+   *  lui promettre un geste. */
   aiming: boolean;
   /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
    *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
@@ -114,10 +115,10 @@ export function TroopBadge({
           {fr.troops.badgeScouting(SCOUT_RADIUS_KM)}
         </p>
 
-        {/* **Le pied est le mode, et il ne porte aucun bouton d'ordre** — la carte agit, la popin
-            lit. Au repos il dit par où passent les ordres ; en visée il nomme ce qui manque et la
-            sortie, parce qu'un mode qu'on ne sait pas quitter est un piège. */}
-        {aiming ? (
+        {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste
+            qui reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin
+            lit. Un observateur n'a plus d'ailleurs à viser : le pied se tait pour lui. */}
+        {aiming && (
           <>
             <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
               {fr.troops.badgeAiming}
@@ -126,19 +127,15 @@ export function TroopBadge({
               {fr.troops.badgeDisarm}
             </p>
           </>
-        ) : (
-          <p className="mt-[6px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-            {fr.troops.badgeOrders}
-          </p>
         )}
       </div>
     </Draggable>
   );
 }
 
-/** **La place que la rose occupe sur le sprite.** Le cartouche s'ouvre avec elle depuis le
- *  30/08, et les deux sont ancrés au même point : sous les quatorze pixels d'avant, la popin
- *  passait sous les médaillons qu'elle vient de faire apparaître. */
+/** **La place que la rose occupe sur le sprite**, quand il y a quelque chose à faire sur place :
+ *  les deux sont ancrés au même point, et sous les quatorze pixels d'avant la popin passait sous
+ *  les médaillons qu'elle venait de faire apparaître. */
 const ANCHOR_GAP = 64;
 
 /** Le visage de la pile est celui de son rôle majoritaire — la règle du pion d'un mouvement et

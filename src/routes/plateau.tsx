@@ -451,16 +451,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         return false;
       }
       /**
-       * **Désigner ne vise plus** (décision Pierre, 30/08) : le clic gauche ouvre le cartouche
-       * *et* la rose de la troupe, et c'est « Envoyer » — une branche de cette rose — qui arme la
-       * colonne. Armer au seul contact du sprite mettait le plateau en visée sans que personne
-       * l'ait demandé, et le cartouche l'annonçait pour un joueur qui voulait seulement lire.
+       * **Désigner une troupe, c'est l'armer** (décision Pierre, 29/08, tenue le 31/08). Le geste
+       * ne propose rien : il dit *celle-ci*, le cartouche la lit, et la destination se nomme au
+       * clic droit **ailleurs** — une branche « envoyer » sur le sprite n'aurait fait qu'ajouter
+       * un cran à un état déjà pris.
        */
       setGarrison(null);
       setFoundError(null);
       setOrder(null);
-      setColumn(null);
       setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
+      /** Le cartouche d'un observateur se lit — encre, effectif, abaque de tir — mais désigner
+       *  n'arme plus rien : il n'a plus d'ailleurs à nommer (décision du 31/08). */
+      if (!view.me.defeated) setColumn(armedColumn(view, station, [alone.id]));
       return true;
     },
     [openGarrison, boardPoint, view, marching],
@@ -481,24 +483,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       switch (action.key) {
-        case 'view':
-          select(action.country);
-          return;
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
           return;
         case 'aim':
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
-          return;
-        /**
-         * **La rose arme, la carte vise** (décision Pierre, 30/08). C'est le seul ordre qui ne
-         * part pas d'ici : il pose la colonne et rend la main au plateau, dont le curseur passe
-         * en croix et dont le cartouche dit la destination qui manque. Rien ne se ferme — le
-         * cartouche décrit précisément la pile qu'on vient d'armer.
-         */
-        case 'send':
-          setOrder(null);
-          setColumn(armedColumn(view, action.station, action.troopIds));
           return;
         /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
@@ -522,7 +511,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           );
       }
     },
-    [select, foundHere, token, view],
+    [foundHere, token],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
