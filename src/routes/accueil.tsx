@@ -3,7 +3,6 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
-import { DEFAULT_DURATION_HOURS } from '../../convex/constants';
 import { fr, clockLabel, nationLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
@@ -68,6 +67,23 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
   );
 }
 
+/** `null` = sans horloge (révision du 27/08 de l'ADR 0017). Le serveur accepte toujours les
+ *  trois valeurs : c'est l'écran qui a cessé d'en proposer une. */
+type Clock = 48 | 168 | null;
+
+/**
+ * **Ce que fonder décide à la place du joueur** (décision du 31/08). L'écran ne pose plus la
+ * question ; l'horloge optionnelle et les théâtres restent entiers côté serveur — `seasons.create`
+ * garde ses arguments et une saison à 48 h reste fondable par l'API. Rouvrir le choix, c'est
+ * relire ces deux lignes, pas fouiller.
+ */
+const FOUNDED_CLOCK: Clock = null;
+
+/** **`seasons.create` n'en prend pas** : le théâtre tombe de `playableRegion(présents)` au
+ *  lancement, et 2–3 joueurs donnent l'Europe. La constante est là pour que la phrase de la
+ *  carte et ce qu'on obtient se lisent au même endroit. */
+const FOUNDED_REGION: PlayableRegion = 'europe';
+
 function ConnectedHome() {
   const navigate = useNavigate();
   const { turning, turn } = usePageTurn();
@@ -76,7 +92,6 @@ function ConnectedHome() {
   const destroy = useMutation(api.seasons.destroy);
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
-  const [clock, setClock] = useState<Clock>(DEFAULT_DURATION_HOURS);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<Seat | null>(null);
   const tokens = useTokens();
@@ -110,7 +125,11 @@ function ConnectedHome() {
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const { token } = await create({ nickname, durationHours: clock, compensation: 0.5 });
+      const { token } = await create({
+        nickname,
+        durationHours: FOUNDED_CLOCK,
+        compensation: 0.5,
+      });
       keepToken(token);
       toLobby();
     } catch (problem) {
@@ -174,37 +193,9 @@ function ConnectedHome() {
         <div className="mx-[30px] mt-6 flex items-stretch border-t border-[var(--ink)]">
           <form onSubmit={submitCreate} className="flex-1 pt-4 pr-[26px] pb-1">
             <Title numeral="I" title={fr.home.foundTitle} />
-            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.foundNote}</p>
-
-            <div className="eyebrow mt-[14px]">{fr.home.clockLabel}</div>
-            <div className="mt-[6px] flex gap-2">
-              {CLOCKS.map((entry) => (
-                <Choice
-                  key={String(entry.hours)}
-                  name={entry.name}
-                  note={entry.note}
-                  chosen={clock === entry.hours}
-                  onChoose={() => setClock(entry.hours)}
-                />
-              ))}
-            </div>
-
-            <div className="eyebrow mt-[14px]">{fr.home.regionLabel}</div>
-            <div className="mt-[6px] flex gap-2">
-              {REGIONS.map((region) => (
-                <span
-                  key={region}
-                  className="flex-1 border border-dashed border-[rgba(42,33,24,.4)] px-2 py-[7px] text-center text-[var(--ink-faint)]"
-                >
-                  <span className="block text-[10.5px] tracking-[.12em] uppercase">
-                    {fr.home.regionShort[region]}
-                  </span>
-                  <span className="mt-[2px] block font-(family-name:--font-mono) text-[10px]">
-                    {fr.home.regionSlots[region]}
-                  </span>
-                </span>
-              ))}
-            </div>
+            <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">
+              {fr.home.foundNote(regionNameOf(FOUNDED_REGION))}
+            </p>
 
             <Commit active={nicknameReady} type="submit">
               {fr.home.foundSubmit}
@@ -374,35 +365,6 @@ function Title({ numeral, title }: { numeral: string; title: string }) {
   );
 }
 
-/** Un choix parmi deux ou trois, du fondement : l'horloge et le théâtre se prennent au même
- *  geste et se lisent de la même façon. */
-function Choice({
-  name,
-  note,
-  chosen,
-  onChoose,
-}: {
-  name: string;
-  note: string;
-  chosen: boolean;
-  onChoose: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onChoose}
-      className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
-        chosen
-          ? 'bg-[var(--ink)] text-[var(--paper)]'
-          : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.08)]'
-      }`}
-    >
-      <span className="block text-[12px] tracking-[.16em] uppercase">{name}</span>
-      <span className="mt-[3px] block text-[10.5px] opacity-70">{note}</span>
-    </button>
-  );
-}
-
 function Commit({
   active,
   type,
@@ -440,17 +402,6 @@ function NoBackend() {
     </p>
   );
 }
-
-/** `null` = sans horloge (révision du 27/08 de l'ADR 0017). */
-type Clock = 48 | 168 | null;
-
-const CLOCKS = [
-  { hours: 48, name: fr.home.clocks.fast.name, note: fr.home.clocks.fast.note },
-  { hours: 168, name: fr.home.clocks.long.name, note: fr.home.clocks.long.note },
-  { hours: null, name: fr.home.clocks.none.name, note: fr.home.clocks.none.note },
-] as const satisfies ReadonlyArray<{ hours: Clock; name: string; note: string }>;
-
-const REGIONS: ReadonlyArray<PlayableRegion> = ['europe', 'europe-med', 'world'];
 
 const ROMAN_NUMERALS: ReadonlyArray<readonly [number, string]> = [
   [1000, 'M'],

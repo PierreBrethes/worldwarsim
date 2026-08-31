@@ -410,28 +410,14 @@ export const fr = {
     nicknameNote: 'pas de compte — le pseudo suffit, il meurt avec la saison',
     nicknamePlaceholder: 'votre nom de guerre',
     foundTitle: 'Fonder une saison',
-    foundNote: 'Vous choisissez l’horloge. Un code est tiré, vous le partagez.',
     /**
-     * **Un seul choix depuis le 31/08** (ADR 0020 §11) : l'horloge, et elle peut ne pas exister.
-     * Les mots sont ceux du glossaire (`WWS/CONTEXT.md`), jamais « blitz ».
+     * **Fonder ne demande plus rien** (décision du 31/08) : plus de choix d'horloge ni de
+     * théâtre à l'écran. La phrase dit alors ce qui est décidé à la place du joueur — il doit
+     * savoir ce qu'il obtient sans qu'on le lui ait demandé.
      */
-    clockLabel: 'horloge',
-    clocks: {
-      fast: { name: '48 heures', note: 'cadence rapide' },
-      long: { name: '7 jours', note: 'cadence longue' },
-      none: { name: 'sans horloge', note: 'close à la main' },
-    },
+    foundNote: (theatre: string) =>
+      `Sans horloge — la partie se clôt à la main. Théâtre : ${theatre}.`,
     noClock: 'sans horloge',
-    regionLabel: 'région — fixée au lancement',
-    regionSlots: { europe: '2–3', 'europe-med': '4–6', world: '7–8' } satisfies Record<
-      PlayableRegion,
-      string
-    >,
-    regionShort: {
-      europe: 'Europe',
-      'europe-med': '+ Méditerranée',
-      world: 'Monde',
-    } satisfies Record<PlayableRegion, string>,
     foundSubmit: 'fonder — obtenir un code',
     joinTitle: 'Rejoindre par code',
     joinNote: 'Six caractères reçus d’un fondateur. La cadence est déjà fixée.',
