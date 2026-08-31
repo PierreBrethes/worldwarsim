@@ -59,10 +59,16 @@ const DESIGNATED_OPACITY = 0.62;
  */
 const HELD_OPACITY = 0.5;
 
-/** Ce qu'un joueur tient, et de quelle encre — la forme que `control.held` sert. */
+/**
+ * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
+ * une fois datée. `wash` est la franchise de la teinte : 1 pour une région à jour, décroissant
+ * avec l'âge du relevé (`surveyWash`). L'ancienneté se voit donc en permanence et pas au survol
+ * seul (ADR 0020 §5) — sans ce signal, une décision prise sur un relevé périmé se lit comme un
+ * bug.
+ */
 export type HeldClaim = {
   readonly ink: string;
-  readonly regionIds: ReadonlyArray<string>;
+  readonly regions: ReadonlyArray<{ readonly id: string; readonly wash: number }>;
 };
 
 type PreparedRegion = {
@@ -95,6 +101,10 @@ export class RegionLayer {
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
   private claims: ReadonlyArray<HeldClaim> = [];
+  /** Ce que le dernier `showHeld` a effectivement posé. La liste arrive à chaque battement
+   *  d'horloge pour que le délavage vieillisse, et refondre huit maillages par seconde pour un
+   *  cran qui n'a pas bougé serait le seul coût de tout ce système. */
+  private laid = '';
   /** L'encre du tenant, par région : le survol la lit pour teinter le contour d'une région tenue
    *  à sa couleur plutôt qu'à celle de son terrain. */
   private inkByRegion = new Map<string, string>();
@@ -205,9 +215,12 @@ export class RegionLayer {
    * quand les 500 Ko atterrissent, comme pour les bâtiments.
    */
   showHeld(claims: ReadonlyArray<HeldClaim>): void {
+    const signature = JSON.stringify(claims);
+    if (signature === this.laid) return;
+    this.laid = signature;
     this.claims = claims;
     this.inkByRegion = new Map(
-      claims.flatMap((claim) => claim.regionIds.map((regionId) => [regionId, claim.ink] as const)),
+      claims.flatMap((claim) => claim.regions.map((region) => [region.id, claim.ink] as const)),
     );
     this.rebuildHeld();
   }
@@ -241,8 +254,9 @@ export class RegionLayer {
     this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
   }
 
-  /** Un maillage par tenant, refait entier : la couleur ne bouge qu'à la fondation ou à la perte
-   *  d'un avant-poste, et un diff par région coûterait plus cher que ces huit fusions. */
+  /** Un maillage par tenant **et par cran de délavage**, refait entier : un diff par région
+   *  coûterait plus cher que ces quelques fusions, et les crans sont ce qui garde leur nombre
+   *  borné — huit encres, cinq franchises, jamais une teinte par région. */
   private rebuildHeld(): void {
     for (const child of this.held.children) {
       const mesh = child as Mesh;
@@ -251,26 +265,33 @@ export class RegionLayer {
     }
     this.held.clear();
     for (const claim of this.claims) {
-      const ids = new Set(claim.regionIds);
-      const parts = this.prepared
-        .filter(({ region }) => ids.has(region.id))
-        .map(({ region }) => this.fillOf(region, HELD_LIFT));
-      if (parts.length === 0) continue;
-      const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
-      if (parts.length > 1) parts.forEach((part) => part.dispose());
-      this.held.add(
-        new Mesh(
-          geometry,
-          new MeshStandardMaterial({
-            color: claim.ink,
-            roughness: 0.97,
-            metalness: 0,
-            transparent: true,
-            opacity: HELD_OPACITY,
-            depthWrite: false,
-          }),
-        ),
-      );
+      const byWash = new Map<number, Set<string>>();
+      for (const region of claim.regions) {
+        const kept = byWash.get(region.wash) ?? new Set<string>();
+        kept.add(region.id);
+        byWash.set(region.wash, kept);
+      }
+      for (const [wash, ids] of byWash) {
+        const parts = this.prepared
+          .filter(({ region }) => ids.has(region.id))
+          .map(({ region }) => this.fillOf(region, HELD_LIFT));
+        if (parts.length === 0) continue;
+        const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
+        if (parts.length > 1) parts.forEach((part) => part.dispose());
+        this.held.add(
+          new Mesh(
+            geometry,
+            new MeshStandardMaterial({
+              color: claim.ink,
+              roughness: 0.97,
+              metalness: 0,
+              transparent: true,
+              opacity: HELD_OPACITY * wash,
+              depthWrite: false,
+            }),
+          ),
+        );
+      }
     }
   }
 

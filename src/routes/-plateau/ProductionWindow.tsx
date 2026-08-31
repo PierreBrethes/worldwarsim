@@ -17,6 +17,7 @@ import { asDuration } from '@/domain/duration';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';
+import { GunneryButton } from './GunneryButton';
 import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
 
 const DOMAINS: ReadonlyArray<UnitDomain> = ['land', 'air', 'sea'];
@@ -25,6 +26,7 @@ export function ProductionWindow({
   view,
   token,
   focused,
+  onOpenGunnery,
   onClose,
   ...windowProps
 }: WindowProps & {
@@ -32,6 +34,9 @@ export function ProductionWindow({
   token: string;
   /** The building whose line the window was opened on, `null` when it was opened bare. */
   focused: string | null;
+  /** L'abaque de tir, ouvert d'ici : c'est au moment où l'on choisit quoi former que « qui bat
+   *  qui » est une question, et le catalogue ne répondait pas (ADR 0018 §4). */
+  onOpenGunnery: () => void;
 }) {
   return (
     <FloatingWindow
@@ -44,6 +49,7 @@ export function ProductionWindow({
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.production.header}</span>
+          <GunneryButton onOpen={onOpenGunnery} />
           <span className="flex-1" />
           <button
             type="button"

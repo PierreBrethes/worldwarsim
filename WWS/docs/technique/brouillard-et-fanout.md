@@ -45,6 +45,30 @@ mouvements, mais d'une table qui lui est propre. Le fan-out disparaît.
 - Les détecteurs étant peu nombreux et les mouvements bornés par les slots, le calcul à la création
   est négligeable.
 
+## Le même piège au sol
+
+La couleur des territoires (ADR 0020 §5) est exactement la même requête sous un autre nom : « les
+régions que je connais ». L'implémentation naïve — calculer qui tient quoi, puis garder ce que mes
+portées couvrent — dépend de **toute** la table des avant-postes, donc une fondation par n'importe
+qui recalcule la carte de tout le monde.
+
+La réponse est la même aussi : `regionSightings(observateur, région, tenant vu, date)`, écrite aux
+**événements** (pose d'une troupe, fondation, départ et arrivée d'un mouvement) dans une mutation,
+et lue par chacun sur son propre index. `control.held` ne lit pas une ligne de la table des
+avant-postes.
+
+Deux différences avec `sightings`, et elles suivent de ce que le sol ne bouge pas :
+
+- **la ligne est écrasée, pas empilée** — c'est un *dernier* relevé, pas un journal ;
+- **une fondation relève pour tous ceux qui regardent**, borné aux huit sièges et aux régions que
+  le nouveau point peut avoir touchées : sinon un joueur posté à côté verrait le drapeau se
+  planter et sa carte ne bougerait pas.
+
+Mesure du 31/08 : un mouvement Lisbonne → Moscou (95 sommets, 76 haltes au demi-rayon) écrit
+**21 lignes** en 13 ms ; à quatre joueurs, une heure de jeu — huit avant-postes, huit troupes
+posées, huit marches — laisse **730 lignes** au total, la plus grosse part revenant à qui a fondé
+en Europe centrale.
+
 ## Information périmée
 
 Un arc détecté puis sorti de portée ne doit pas disparaître de l'écran : il devient une **dernière

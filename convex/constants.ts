@@ -670,3 +670,30 @@ export const restWindowFrom = (startMinutes: number) => ({
 });
 
 export const DEFAULT_REST_WINDOW = restWindowFrom(DEFAULT_REST_START_MINUTES);
+
+/**
+ * **Au bout de combien de temps un relevé est aussi délavé qu'il le sera jamais** (ADR 0020 §5).
+ * Ce n'est pas une durée de vie : une région relevée le reste pour toujours, elle pâlit
+ * seulement jusqu'à ce plancher (`FADED_WASH`), parce qu'une couleur qui disparaîtrait
+ * redeviendrait *vierge* et effacerait un déplacement que le joueur a payé.
+ *
+ * Vingt-quatre heures est la journée du jeu asynchrone : un joueur qui passe une fois par jour
+ * doit retrouver sa carte franche là où il vient de regarder, et pâle partout où il n'est pas
+ * retourné depuis sa dernière session.
+ *
+ * @a-mesurer choisi sur la cadence de visite attendue, jamais mesuré en partie
+ */
+export const SURVEY_FADED_HOURS = 24;
+
+/**
+ * **En deçà de quoi un second passage n'écrit rien.** Une observation n'écrit que les régions
+ * dont le relevé *change* : même tenant et ligne récente, la ligne reste telle quelle. Sans ce
+ * frein, une colonne qui fait l'aller-retour à travers un continent réécrit deux fois des
+ * centaines de lignes pour la même information.
+ *
+ * Une heure, soit un vingt-quatrième du délavage : rafraîchir plus finement ne changerait pas
+ * d'un cran la teinte à l'écran, ce qui est la seule chose que la date sert à produire.
+ *
+ * @a-mesurer une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus
+ */
+export const SURVEY_REFRESH_HOURS = 1;

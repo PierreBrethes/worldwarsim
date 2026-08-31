@@ -24,20 +24,10 @@ export function keepHudScale(percent: number): void {
   applyHudScale(percent);
 }
 
-const TROOPS_COLLAPSED_KEY = 'wws-troops-collapsed';
-
-/** A folded widget stays folded: it is a desk-clutter choice, not a screen state. */
-export const readTroopsCollapsed = (): boolean =>
-  localStorage.getItem(TROOPS_COLLAPSED_KEY) === 'collapsed';
-
-export const keepTroopsCollapsed = (collapsed: boolean): void => {
-  localStorage.setItem(TROOPS_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded');
-};
-
 const RESOURCE_BAND_KEY = 'wws-resource-band';
 
-/** Folded is a desk choice and it survives the reload, like the troops widget's. What it never
- *  hides is a mark: the fold gives back the figures, never the alerts. */
+/** Folded is a desk choice and it survives the reload. What it never hides is a mark: the fold
+ *  gives back the figures, never the alerts. */
 export const readResourceBandCollapsed = (): boolean =>
   localStorage.getItem(RESOURCE_BAND_KEY) === 'collapsed';
 

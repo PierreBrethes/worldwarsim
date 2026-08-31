@@ -11,6 +11,7 @@ export const GAME_TABLES = [
   'messages',
   'notices',
   'sightings',
+  'regionSightings',
   'recruitments',
   'orders',
   'engagements',

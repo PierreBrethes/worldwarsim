@@ -6,19 +6,21 @@ import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
 
 /**
- * **The debt of the nation, made visible.** A season opens owing its player one extractor per
- * resource his own ground holds, and he learns it nowhere: a playtest measured a *paid* mill
- * started before the *offered* mines, and the single-construction lock then held three
- * placements that cost nothing and waited for nothing. No rule was missing — `foundationOwed`
- * existed, the view already carried `me.foundation`. Nothing was visible.
+ * **La dette de la saison, dépliée dans la ligne qui l'annonce.** Une saison s'ouvre en devant à
+ * son joueur un extracteur par ressource que son sol porte, et il ne l'apprenait nulle part : un
+ * playtest a mesuré une filature *payée* lancée avant les mines *offertes*.
  *
- * The gesture: **click a key, the board highlights the ground it accepts, click the region.**
- * The card carries no rule of its own — `placementOf` is the server's own placement refusal,
- * read twice — and it holds no state about what was placed: it is drawn from `me.foundation`,
- * so it empties as the season is paid off and **disappears with it**. There is no closed
- * state; its absence is the closed state.
+ * C'était l'ordre de mobilisation, une carte à part en haut à gauche. Il est devenu **la première
+ * ligne de « à faire maintenant »** (décision Pierre, 30/08) : une seule carte dit ce qui attend
+ * le joueur, et la fondation est une attente comme les autres — la plus vieille, donc la première.
+ * Ce fichier n'a plus d'en-tête ni de cadre ; il est le corps qu'on déplie.
+ *
+ * Le geste n'a pas bougé : **on clique une clé, le plateau allume le sol qu'elle accepte, on
+ * clique la région.** Aucune règle propre — `placementOf` est le refus de pose du serveur, lu
+ * deux fois — et aucun état de ce qui a été posé : le corps est dessiné depuis `me.foundation`,
+ * donc il se vide à mesure que la saison s'acquitte, et sa ligne disparaît avec.
  */
-export function MobilizationCard({
+export function FoundationRows({
   view,
   placements,
   armed,
@@ -32,32 +34,16 @@ export function MobilizationCard({
   error: string | null;
   onArm: (key: BuildingKey | null) => void;
 }) {
-  const owed = view.me.foundation;
-  if (owed.length === 0) return null;
-
   const chosen = placements.find((placement) => placement.key === armed) ?? null;
 
   return (
-    <section className="hud paper-grain w-[296px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]">
-      <div className="border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
-        <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
-          {fr.mobilization.header}
-        </h2>
-        <div className="mt-[3px] flex items-baseline gap-2">
-          <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.mobilization.foundation}</span>
-          <span className="h-px flex-1 bg-[rgba(42,33,24,.25)]" />
-          <span className="font-(family-name:--font-mono) text-[11px]">
-            {fr.mobilization.owed(owed.length)}
-          </span>
-        </div>
-      </div>
-
-      <div className="py-[4px]">
+    <div className="border-t border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.05)]">
+      <div className="py-[3px]">
         {placements.map((placement) => (
           <KeyRow
             key={placement.key}
             placement={placement}
-            count={owed.filter((key) => key === placement.key).length}
+            count={view.me.foundation.filter((key) => key === placement.key).length}
             armed={placement.key === armed}
             onArm={() => onArm(placement.key === armed ? null : placement.key)}
           />
@@ -65,7 +51,7 @@ export function MobilizationCard({
       </div>
 
       {chosen === null ? (
-        <p className="border-t border-[var(--ink)] px-[13px] py-[9px] text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
+        <p className="border-t border-[rgba(42,33,24,.22)] px-[13px] py-[8px] text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
           {fr.mobilization.pick}
         </p>
       ) : (
@@ -77,7 +63,7 @@ export function MobilizationCard({
           {error}
         </p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -102,14 +88,14 @@ function KeyRow({
     <button
       type="button"
       onClick={onArm}
-      className={`flex w-full cursor-pointer items-center gap-[9px] border-b border-[rgba(42,33,24,.18)] px-[13px] py-[8px] text-left last:border-b-0 ${
+      className={`flex w-full cursor-pointer items-center gap-[9px] border-b border-[rgba(42,33,24,.18)] px-[13px] py-[7px] text-left last:border-b-0 ${
         armed
           ? 'bg-[var(--ink)] text-[var(--paper)]'
           : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.07)]'
       }`}
     >
-      <BuildingPlate building={placement.key} height={26} />
-      <span className="text-[14px] leading-none font-semibold tracking-[.02em]">
+      <BuildingPlate building={placement.key} height={24} />
+      <span className="text-[13.5px] leading-none font-semibold tracking-[.02em]">
         {fr.buildings[placement.key]}
       </span>
       {count > 1 && (
@@ -143,7 +129,7 @@ const offerText = (placement: Placement): string =>
     : fr.mobilization.eligible(placement.regionIds.length);
 
 /**
- * The foot of the card once a key is armed: what the board is now waiting for, the regions it
+ * The foot of the body once a key is armed: what the board is now waiting for, the regions it
  * lit, and the way out. **A mode one cannot leave is a trap** — the same rule the aim banner
  * follows.
  */

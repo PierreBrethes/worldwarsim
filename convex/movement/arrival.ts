@@ -26,6 +26,7 @@ import {
   troopsCarriedBy,
   type TroopAddress,
 } from './forces';
+import { surveyFromPoint } from '../surveys';
 import { pacedMinutes } from './orders';
 
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
@@ -356,6 +357,13 @@ export async function walkHome(
   const homeward = new Map<Id<'troops'>, { troop: Doc<'troops'>; routed: boolean }>();
   for (const troop of winners) homeward.set(troop._id, { troop, routed: false });
   for (const troop of beaten) homeward.set(troop._id, { troop, routed: true });
+
+  /** **Ce que chacun a vu du sol où il s'est battu** (ADR 0020 §5) : une passe de résolution
+   *  laisse des troupes debout sur un point, et les deux camps en repartent en le sachant. Un
+   *  relevé par joueur présent, pas un par troupe — c'est le même sol. */
+  for (const playerId of new Set([...homeward.values()].map(({ troop }) => troop.playerId))) {
+    await surveyFromPoint(ctx, playerId, from, now);
+  }
 
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
   for (const { troop, routed } of homeward.values()) {

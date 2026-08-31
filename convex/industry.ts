@@ -19,7 +19,7 @@ export const order = mutation({
   args: { token: v.string(), chain: BUILDING_KEY, quantity: v.number() },
   handler: async (ctx, { token, chain, quantity }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
     if (!isCommanded(chain)) fail('CHAIN_NOT_COMMANDED', { chain });
 
     const buildings = await playerBuildings(ctx, player._id);
@@ -63,7 +63,7 @@ export const cancelOrder = mutation({
   args: { token: v.string(), chain: BUILDING_KEY },
   handler: async (ctx, { token, chain }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     const now = Date.now();
     const economy = await settle(ctx, player._id, now);

@@ -4,6 +4,7 @@ import {
   COMBAT_PROFILES,
   profileOf,
   resolveEngagement,
+  TRANSPORT_PROFILES,
   type Combatant,
   type CombatProfile,
 } from './combat';
@@ -85,15 +86,12 @@ describe('the damage table holds no absolute counter', () => {
     expect(COMBAT_PROFILES.length ** 2).toBe(121);
   });
 
-  /** The three transports are victims by design — they carry, they do not fight. */
-  const VICTIMS: ReadonlyArray<CombatProfile> = ['landTransport', 'airTransport', 'cargo'];
-
   it.each(couples)('%s against %s is neither a wipe nor a free hit', (attacker, defender) => {
     const fight = duel(attacker, defender);
     const shareLost = fight.lostByDefender / fight.nominalDefender;
     const shareTaken = fight.lostByAttacker / fight.nominalAttacker;
 
-    if (!VICTIMS.includes(defender)) {
+    if (!TRANSPORT_PROFILES.includes(defender)) {
       expect(
         shareLost >= 0.95 && shareTaken <= 0.05,
         `${attacker} → ${defender} wipes for nothing`,

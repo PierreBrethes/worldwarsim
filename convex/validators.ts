@@ -204,6 +204,24 @@ export const NOTICE = v.union(
     kind: v.literal('seasonClosed'),
   }),
   /**
+   * **Une capitulation, et la main qu'elle passe** (`players.surrender`). Publiques toutes les
+   * deux, et déposées chez tout le monde : qui ne joue plus change la table, et qui commande la
+   * partie décide de sa fin — aucun des deux n'est un secret que le brouillard aurait à garder.
+   *
+   * `nation` porte le drapeau du joueur, ou son pseudonyme quand il n'en a pas pris : c'est la
+   * même paire que `warEntries` sert, et le journal n'a pas d'autre nom à donner à un siège.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('playerSurrendered'),
+    nation: v.string(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('commandTransferred'),
+    nation: v.string(),
+  }),
+  /**
    * **The one event of the game that used to leave no trace at all.** An attack or a raid that
    * walks onto empty ground files no engagement — there was no pass — so without this row the
    * player reads "rien à signaler" after the longest march of his season.

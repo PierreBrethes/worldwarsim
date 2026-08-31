@@ -8,16 +8,19 @@ import {
   LISTENING_STATION_RADIUS_KM,
   OUTPOST_REACH_KM,
   SCOUT_RADIUS_KM,
+  SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard } from '@/map/ControlsCard';
 import { WorldMap } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
+import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
+import { surveyWash } from '@/domain/control';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, World } from '@/domain/world';
@@ -52,8 +55,7 @@ import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
-import { TroopsWidget } from './-plateau/TroopsWidget';
-import { MobilizationCard } from './-plateau/MobilizationCard';
+import { NextActions } from './-plateau/NextActions';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
 
@@ -122,8 +124,22 @@ const SettingsWindow = lazy(() =>
 const TelegraphWindow = lazy(() =>
   import('./-plateau/TelegraphWindow').then((module) => ({ default: module.TelegraphWindow })),
 );
+const GunneryWindow = lazy(() =>
+  import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
+);
 
-const WINDOWS = ['journal', 'telegraph', 'production', 'economy', 'nation', 'settings'] as const;
+const WINDOWS = [
+  'journal',
+  'telegraph',
+  'production',
+  'economy',
+  'nation',
+  'settings',
+  /** L'abaque de tir n'a pas d'entrée de rail : il s'ouvre du recrutement et de la popin de
+   *  troupe (`GunneryButton`). Il est ici parce qu'il est une fenêtre comme les autres — même
+   *  pile, même Échap, même URL partageable. */
+  'gunnery',
+] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
 
@@ -281,11 +297,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
-  // Two sources for one accent: when the pointer leaves the map to enter a card, the render
-  // loop announces "nothing under the pointer" on the next frame. A single variable and
-  // that echo would erase the hover the card just lit.
+  // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
+  // label. They are separate because the render loop announces "nothing under the pointer" on
+  // the frame after the pointer slides from one to the other, and a single variable would let
+  // that echo erase the accent the other just lit.
   const [hoveredArc, setHoveredArc] = useState<string | null>(null);
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   /**
    * **The whole movement flow, in three states and one direction.** A garrison is opened, a
@@ -305,7 +321,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    */
   const [posted, setPosted] = useState<PostedForce | null>(null);
   const [foundError, setFoundError] = useState<string | null>(null);
-  const [focus, setFocus] = useState<{ ids: ReadonlyArray<string>; nonce: number } | null>(null);
+  const [focus, setFocus] = useState<{
+    readonly ids: ReadonlyArray<string>;
+    readonly places?: ReadonlyArray<LonLat>;
+    readonly nonce: number;
+  } | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
    * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
@@ -315,7 +335,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [mobilized, setMobilized] = useState<BuildingKey | null>(null);
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
-  const hoveredMovement = hoveredCard ?? hoveredLabel ?? hoveredArc;
+  const hoveredMovement = hoveredLabel ?? hoveredArc;
 
   /**
    * **Le repère des panneaux est le plateau, jamais la fenêtre.** Ils sont posés en absolu dans
@@ -358,6 +378,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       setOrder(null);
       setPosted(null);
       setGarrison({ station, preselect, ...at });
+      const marker = markerOfStation(view, station);
+      if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
+    },
+    [view],
+  );
+
+  /**
+   * **Recentrer, jamais commander.** La fiche de nation nomme une adresse, le plateau est ce qui
+   * s'y rend : une station qui a un marqueur est cadrée par lui, une pile posée par son point.
+   */
+  const locateStation = useCallback(
+    (station: TroopStation) => {
       const marker = markerOfStation(view, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
     },
@@ -551,8 +583,36 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * marche. Le temps que la première réponse arrive, la carte est simplement sans teinte.
    */
   const heldRaw = useQuery(api.control.held, { token });
+  /**
+   * **L'ancienneté d'un relevé se voit sur la carte, pas au survol** (ADR 0020 §5) : une région à
+   * jour est franche, un relevé ancien est délavé. Le battement est à la minute — `surveyWash`
+   * rend une valeur crantée, donc la géométrie ne se refond qu'au changement de cran, et
+   * `showHeld` ignore une liste identique.
+   */
+  const surveyClock = useClock(60_000);
   const held = useMemo(
-    () => (heldRaw ?? []).map(({ ink, regionIds }) => ({ ink, regionIds })),
+    () =>
+      (heldRaw ?? []).map(({ ink, regions }) => ({
+        ink,
+        regions: regions.map((region) => ({
+          id: region.id,
+          wash:
+            region.state === 'current'
+              ? 1
+              : surveyWash(surveyClock - region.seenAt, SURVEY_FADED_HOURS * 3_600_000),
+        })),
+      })),
+    [heldRaw, surveyClock],
+  );
+
+  /** Ce que le survol lit pour dater une région — la même réponse, indexée. */
+  const knownRegionById = useMemo(
+    () =>
+      new Map(
+        (heldRaw ?? []).flatMap((claim) =>
+          claim.regions.map((region) => [region.id, region] as const),
+        ),
+      ),
     [heldRaw],
   );
 
@@ -688,6 +748,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const closeWindow = useCallback(
     (name: BoardWindow) => {
       void navigate({ search: (previous) => withoutWindow(previous, name) });
+    },
+    [navigate],
+  );
+
+  const openWindow = useCallback(
+    (name: BoardWindow) => {
+      void navigate({ search: (previous) => withWindow(previous, name) });
     },
     [navigate],
   );
@@ -846,6 +913,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             nation={view.me.nation}
             troops={posted.troops}
             at={posted}
+            onOpenGunnery={() => openWindow('gunnery')}
             onClose={releasePosted}
           />
         )}
@@ -866,15 +934,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             }}
           />
         )}
-        {/* Haut-gauche, une colonne : l'ordre de mobilisation tient tant que la saison doit des
-            poses. **Plus rien n'y dit la visée** — le cartouche la porte (décision du 30/08). */}
-        <div className="pointer-events-none absolute top-4 left-4 z-10 flex flex-col items-start gap-3 [&>*]:pointer-events-auto">
-          {foundError !== null && (
-            <div className="hud border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
-              {foundError}
-            </div>
-          )}
-          <MobilizationCard
+        {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
+            cartouche la porte (décision du 30/08). */}
+        {foundError !== null && (
+          <div className="hud absolute top-4 left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
+            {foundError}
+          </div>
+        )}
+        {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
+            remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là. */}
+        <div className="absolute bottom-4 left-4 z-10">
+          <NextActions
             view={view}
             placements={foundation}
             armed={armed}
@@ -883,26 +953,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               setMobilizeError(null);
               setMobilized(key);
             }}
+            onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
+            onOpenSurface={openWindow}
           />
         </div>
-        <TroopsWidget
-          view={view}
-          hoveredMovement={hoveredMovement}
-          // What the widget's card should read as pressed: the garrison panel's own subject
-          // while it is open, then the column it armed for as long as an aim is still live, and
-          // nothing for neither — one selection, wherever the flow currently stands (13a).
-          selectedStation={stationKeyOf((garrison ?? column)?.station ?? { kind: 'home' })}
-          onHover={setHoveredCard}
-          onOpenGarrison={(station, preselect) =>
-            openGarrison(station, preselect, { x: 24, y: 92 })
-          }
-          onFollow={(arcId) => setFocus({ ids: [arcId], nonce: Date.now() })}
-        />
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
           <GroundPanel
             selected={country ?? null}
             hoveredCountry={hoveredCountry}
             hoveredRegion={hoveredRegion}
+            survey={hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)}
             view={view}
           />
           <ControlsCard />
@@ -930,6 +990,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                   view={view}
                   token={token}
                   focused={focused ?? null}
+                  onOpenGunnery={() => openWindow('gunnery')}
                   {...windowProps}
                 />
               );
@@ -944,7 +1005,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 />
               );
             case 'nation':
-              return <NationWindow key={name} view={view} {...windowProps} />;
+              return (
+                <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />
+              );
+            case 'gunnery':
+              return <GunneryWindow key={name} {...windowProps} />;
             case 'settings':
               return (
                 <SettingsWindow

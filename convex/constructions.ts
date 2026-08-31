@@ -7,6 +7,7 @@ import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { nearestOutpostKm } from '../src/domain/outposts';
 import { buildingAt, cappedByHq, playerBuildings } from './buildings';
 import {
+  LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
   OUTPOST_REACH_KM,
   unlockLevel,
@@ -19,6 +20,7 @@ import { foundationOwed, regionFacts } from './regions';
 import { pointOf } from './movement/forces';
 import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit } from './resources';
+import { fileSurvey } from './surveys';
 import { playerByToken, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY } from './validators';
 
@@ -49,7 +51,7 @@ export const start = mutation({
   args: { token: v.string(), building: BUILDING_KEY, regionId: v.string() },
   handler: async (ctx, { token, building, regionId }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     /**
      * **The queue is unbounded and paid in advance** (decision of 25/08). The objection the
@@ -121,7 +123,7 @@ export const cancel = mutation({
   args: { token: v.string(), constructionId: v.id('constructions') },
   handler: async (ctx, { token, constructionId }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
     const entry = await ctx.db.get(constructionId);
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');
     if (entry.finishesAt !== null) fail('CONSTRUCTION_ALREADY_STARTED');
@@ -159,6 +161,20 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
+    /** **Une station qui vient d'ouvrir relève le sol qu'elle écoute** (ADR 0020 §5) : c'est une
+     *  portée de plus, et une portée neuve n'a rien relevé tant qu'un événement ne le lui a pas
+     *  demandé — il n'y a pas d'horloge pour le faire à sa place. */
+    if (construction.building === 'listening') {
+      const facts = regionFacts(construction.regionId);
+      if (facts !== null) {
+        await fileSurvey(
+          ctx,
+          construction.playerId,
+          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM }],
+          Date.now(),
+        );
+      }
+    }
     /** The one channel that says a site is standing: nothing else on the board announces it,
      *  and a player who was away sees only the finished building, never the moment. */
     await ctx.db.insert('notices', {

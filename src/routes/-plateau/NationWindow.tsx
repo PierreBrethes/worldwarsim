@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react';
-import { fr, nationLabel, stackLabel } from '@/i18n/fr';
+import { useMemo, type ReactNode } from 'react';
+import { fr, nationLabel, roleLabel, stackLabel } from '@/i18n/fr';
 import { DEPOSITS } from '@/domain/ids';
-import type { PlayerView } from '@/domain/player-view';
+import type { PlayerView, TroopStation } from '@/domain/player-view';
+import { marchingTroopIds, stationGroups, type StationGroup } from '@/domain/troops';
+import { stationNames } from '@/domain/station-name';
 import { Flag } from '@/emblems/Flag';
+import { UnitSprite } from '@/emblems/UnitSprite';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
@@ -14,16 +17,28 @@ import { FloatingWindow, type WindowProps } from './Window';
  * the button, and this sheet stopped managing anything (`ordre-de-mobilisation-et-fenetre-
  * economie.md` §2).
  *
- * **It carries no handler.** Not a disabled one, not a hidden one: what a player reads here he
- * acts on somewhere else, and the surest way to hold that is for the file to import no mutation
- * at all. Occupation and revanchism (design sheet 11 §4.5) will land here for the same reason —
- * they are states, not verbs.
+ * **It commands nothing.** The one handler it carries points the camera: the complete list of
+ * troops landed here when the troops widget died (décision Pierre, 30/08) — the sheet already
+ * said what the army weighs, it was missing where it stands — and a line that recentres the map
+ * designates, it does not act. The file still imports no mutation, which is what holds the rule.
+ * Occupation and revanchism (design sheet 11 §4.5) will land here for the same reason — they are
+ * states, not verbs.
  */
 export function NationWindow({
   view,
   onClose,
+  onLocate,
   ...windowProps
-}: WindowProps & { view: PlayerView }) {
+}: WindowProps & {
+  view: PlayerView;
+  /** Where the camera is sent when a line is clicked — the sheet names an address, the board
+   *  is what goes there. */
+  onLocate: (station: TroopStation) => void;
+}) {
+  const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
+  const standing = useMemo(() => stationGroups(view.me, marching), [view.me, marching]);
+  const names = useMemo(() => stationNames(view), [view]);
+
   return (
     <FloatingWindow name="nation" onClose={onClose} {...windowProps} alignment="top" width={420}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
@@ -69,6 +84,24 @@ export function NationWindow({
             </div>
           </Entry>
 
+          <Entry header={fr.nationSheet.standingHeader}>
+            {standing.length === 0 ? (
+              <p className="text-[12.5px] text-[var(--ink-soft)]">{fr.nationSheet.standingNone}</p>
+            ) : (
+              <div className="flex flex-col">
+                {standing.map((group) => (
+                  <StandingRow
+                    key={group.key}
+                    group={group}
+                    nation={view.me.nation}
+                    station={names.full(group.station)}
+                    onLocate={() => onLocate(group.station)}
+                  />
+                ))}
+              </div>
+            )}
+          </Entry>
+
           <Entry header={fr.nationSheet.restHeader}>
             <p className="font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
               {view.me.restWindow}
@@ -87,6 +120,40 @@ export function NationWindow({
         </div>
       </div>
     </FloatingWindow>
+  );
+}
+
+/** One address of the army. Grouped by role, like the widget's cards were: the ceiling is 24
+ *  troops and "Fantassins · 6" is what one looks for, never six identical rows. */
+function StandingRow({
+  group,
+  nation,
+  station,
+  onLocate,
+}: {
+  group: StationGroup;
+  nation: string;
+  station: string;
+  onLocate: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onLocate}
+      title={fr.nationSheet.locate(station)}
+      className="flex cursor-pointer items-center gap-[9px] border-b border-[rgba(42,33,24,.18)] py-[6px] text-left last:border-b-0 hover:bg-[rgba(42,33,24,.07)]"
+    >
+      <UnitSprite nation={nation} role={group.role} height={22} width={32} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-semibold text-[var(--ink)]">
+          {roleLabel(group.role, group.count)} · {group.count}
+        </span>
+        <span className="block truncate font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+          {station} · {fr.troops.strength(group.strength, group.nominalStrength)}
+        </span>
+      </span>
+      <span className="shrink-0 text-[12px] text-[var(--interaction)]">›</span>
+    </button>
   );
 }
 

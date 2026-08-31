@@ -1,4 +1,5 @@
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
 import type { RegionIdentity } from '@/domain/world';
@@ -22,16 +23,23 @@ import { Row, Panel } from './Panel';
  *
  * A region the player does not hold carries no line of its own: `me.regions` is his ground and
  * nothing else, so absence is the fog rather than a display test (ADR 0005).
+ *
+ * **`survey` est ce que le joueur sait du sol survolé** (ADR 0020 §5) : à jour, il n'a rien à
+ * dire — la teinte franche est déjà l'annonce ; relevé, il donne la date en clair. Vierge, il
+ * est `null` et la carte n'a rien à en dire non plus.
  */
 export function GroundPanel({
   selected,
   hoveredCountry,
   hoveredRegion,
+  survey,
   view,
 }: {
   selected: string | null;
   hoveredCountry: string | null;
   hoveredRegion: RegionIdentity | null;
+  survey:
+    { readonly state: 'current' } | { readonly state: 'surveyed'; readonly seenAt: number } | null;
   view: PlayerView;
 }) {
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
@@ -98,6 +106,11 @@ export function GroundPanel({
                 </p>
               )}
             </>
+          )}
+          {survey?.state === 'surveyed' && (
+            <p className="text-[11px] text-[var(--ink-quiet)] italic">
+              {fr.board.regionSurveyed(asPressDate(survey.seenAt))}
+            </p>
           )}
         </div>
       )}

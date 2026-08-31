@@ -117,7 +117,7 @@ export const recruit = mutation({
   },
   handler: async (ctx, { token, buildingId, role, tier }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     const building = await ctx.db.get(buildingId);
     if (!building || building.playerId !== player._id) fail('UNKNOWN_BUILDING');
@@ -180,7 +180,7 @@ export const cancel = mutation({
   args: { token: v.string(), recruitmentId: v.id('recruitments') },
   handler: async (ctx, { token, recruitmentId }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
     const batch = await ctx.db.get(recruitmentId);
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
     if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
@@ -325,7 +325,7 @@ async function queueOf(
   return batches.sort(byRank);
 }
 
-async function recruitmentsOf(
+export async function recruitmentsOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
 ): Promise<Array<Doc<'recruitments'>>> {

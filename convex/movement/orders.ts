@@ -26,6 +26,7 @@ import { MAX_HQ_LEVEL, OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER, routeMinutes } 
 import { fail } from '../errors';
 import { regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
+import { surveyFromPoint } from '../surveys';
 import { fileSightings, scheduleInterception } from './detection';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
@@ -301,6 +302,9 @@ export async function march(
   const filed = (await ctx.db.get(movementId))!;
   await scheduleInterception(ctx, filed);
   await fileSightings(ctx, filed);
+  /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
+   *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
+  await surveyFromPoint(ctx, playerId, departure.point, now);
   return { movementId, minutes, arrivesAt };
 }
 

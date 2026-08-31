@@ -29,16 +29,25 @@ export async function playerByToken(ctx: QueryCtx, token: string) {
 }
 
 /**
- * **What a season has to be for an order to be given on it.** A concluded season answers with a
- * code of its own rather than "not launched": it *was* launched, somebody won it, and telling a
- * player his season never started is the kind of message that sends him looking for a bug.
+ * **What a season has to be for an order to be given on it, and who may give one.** A concluded
+ * season answers with a code of its own rather than "not launched": it *was* launched, somebody
+ * won it, and telling a player his season never started is the kind of message that sends him
+ * looking for a bug.
  *
  * It stays readable — the board and the journal serve a concluded season (`view.ts`), because
  * the wipe is manual and one reads the game back before erasing it.
+ *
+ * **The player travels with the season because a surrender is the same refusal** (decision of
+ * 31/08): whoever laid down his arms observes, he does not order. Every game mutation already
+ * came through here — construction, industry, recruitment, foundation, movement, entry into war
+ * — so the door is widened rather than a check being scattered over a dozen handlers, and the
+ * next mutation gets it by construction. **The telegraph deliberately does not read it**
+ * (`messages.ts` never asked for a playable season): an observer still talks.
  */
-export function requirePlayable(season: Doc<'seasons'>): void {
+export function requirePlayable(player: Doc<'players'>, season: Doc<'seasons'>): void {
   if (season.status === 'concluded') fail('SEASON_CONCLUDED');
   requireStarted(season);
+  if (player.defeated === true) fail('PLAYER_DEFEATED');
 }
 
 /**
@@ -400,7 +409,7 @@ export const enterWar = mutation({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
     /** Twice-clicked is not an error: the second call finds a belligerent and hands out
      *  nothing. Answering with a refusal would be telling him his own entry failed. */
     if (isAtWar(player, season)) return;
@@ -515,6 +524,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'movements'
       | 'outposts'
       | 'sightings'
+      | 'regionSightings'
       | 'notices'
       | 'messages',
   ) =>
@@ -533,6 +543,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('movements')),
     ...(await byPlayer('outposts')),
     ...(await byPlayer('sightings')),
+    ...(await byPlayer('regionSightings')),
     ...(await byPlayer('notices')),
     ...(await byPlayer('messages')),
     ...(await ctx.db

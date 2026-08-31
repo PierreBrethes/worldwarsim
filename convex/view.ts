@@ -28,7 +28,7 @@ import { isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { isAtWar, playerByToken, requireStarted, warEntryOf } from './seasons';
-import { troopsOf } from './troops';
+import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 
 export const playerView = query({
@@ -69,6 +69,7 @@ export const playerView = query({
     }
 
     const troops = await troopsOf(ctx, player._id);
+    const recruiting = await recruitmentsOf(ctx, player._id);
     const outposts = await outpostsOf(ctx, player._id);
     const sealed = await Promise.all(
       outposts.map(async (outpost) => ({
@@ -374,6 +375,13 @@ export const playerView = query({
          * own — the list below is complete, so its length is the count.
          */
         troopCap: troopCap(totalLevelOf(buildings, 'billets')),
+        /**
+         * **Les bâtiments de projection qui forment quelque chose**, et rien de la file
+         * elle-même : c'est la seule question qu'une carte « à faire maintenant » pose, et la
+         * file complète a déjà sa fenêtre (`troops.workshop`). Servi plutôt que déduit des
+         * troupes — une caserne qui vient de livrer n'est pas une caserne occupée.
+         */
+        recruiting: [...new Set(recruiting.map((batch) => batch.buildingId as string))],
         troops: troops.map((troop) => ({
           id: troop._id,
           role: troop.role,

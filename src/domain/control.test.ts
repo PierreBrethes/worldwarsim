@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { heldRegions, seatInk, SEAT_INKS, type ControlledRegion } from './control';
+import {
+  coveredRegions,
+  FADED_WASH,
+  heldRegions,
+  knownRegions,
+  seatInk,
+  SEAT_INKS,
+  surveyStops,
+  surveyWash,
+  type ControlledRegion,
+  type Survey,
+} from './control';
 import type { LonLat } from './geo';
 
 const REACH_KM = 400;
@@ -111,5 +122,138 @@ describe('the seat inks', () => {
     expect(seatInk(0)).toBe(SEAT_INKS[0]);
     expect(seatInk(7)).toBe(SEAT_INKS[7]);
     expect(seatInk(8)).toBe(SEAT_INKS[0]);
+  });
+});
+
+describe('what a set of ranges covers', () => {
+  const world = [region('here', 0), region('near', 1), region('far', 10)];
+
+  it('takes the regions inside a range and none beyond it', () => {
+    const covered = coveredRegions(world, [{ point: at(0), radiusKm: 200 }]);
+    expect([...covered]).toEqual(['here', 'near']);
+  });
+
+  it('covers nothing at all without a single range', () => {
+    expect(coveredRegions(world, []).size).toBe(0);
+  });
+
+  it('unions the ranges rather than intersecting them', () => {
+    const covered = coveredRegions(world, [
+      { point: at(0), radiusKm: 50 },
+      { point: at(10), radiusKm: 50 },
+    ]);
+    expect([...covered].sort()).toEqual(['far', 'here']);
+  });
+
+  /** La bande de latitude est un filtre, jamais une règle : une région à la bonne latitude et à
+   *  l'autre bout du monde doit rester dehors. */
+  it('keeps the latitude band from letting a far meridian through', () => {
+    const covered = coveredRegions(
+      [{ id: 'antipode', country: 'ROU', point: [179, 0] }],
+      [{ point: at(0), radiusKm: 400 }],
+    );
+    expect(covered.size).toBe(0);
+  });
+});
+
+describe('the stops a route surveys from', () => {
+  const line = (count: number): ReadonlyArray<LonLat> =>
+    Array.from({ length: count }, (_, step) => [step * 0.05, 0] as LonLat);
+
+  it('keeps the first and the last, whatever the spacing', () => {
+    const stops = surveyStops(line(100), 60);
+    expect(stops[0]).toEqual([0, 0]);
+    expect(stops.at(-1)).toEqual([99 * 0.05, 0]);
+  });
+
+  /** Une maille de grille tous les cinq kilomètres ne vaut pas une halte : sans ce pas, un
+   *  trajet transcontinental testerait ses centaines de sommets contre 4 589 régions. */
+  it('thins a dense polyline to a handful of stops', () => {
+    const points = line(100);
+    const stops = surveyStops(points, 60);
+    expect(stops.length).toBeLessThan(points.length / 4);
+    expect(stops.length).toBeGreaterThan(1);
+  });
+
+  it('answers a single stop for a single point, and nothing for none', () => {
+    expect(surveyStops([[3, 4]], 60)).toEqual([[3, 4]]);
+    expect(surveyStops([], 60)).toEqual([]);
+  });
+});
+
+describe('what a player knows of a region', () => {
+  const survey = (regionId: string, owner: string | null, seenAt = 1_000): Survey => ({
+    regionId,
+    owner,
+    seenAt,
+  });
+
+  it('holds its own ground up to date, and never dates it', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: ['paris'] },
+      covered: new Set(),
+      surveys: [],
+    });
+    expect(known).toEqual([{ regionId: 'paris', owner: 'pierre', state: 'current' }]);
+  });
+
+  /** Une nation n'est jamais annexée (ADR 0004) : un relevé qui la dirait à quelqu'un d'autre
+   *  est une ligne périmée, jamais une vérité à afficher. */
+  it('lets no survey overrule the caller’s own ground', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: ['paris'] },
+      covered: new Set(),
+      surveys: [survey('paris', 'lea')],
+    });
+    expect(known).toEqual([{ regionId: 'paris', owner: 'pierre', state: 'current' }]);
+  });
+
+  it('dates a survey outside its ranges and leaves the covered one franche', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: [] },
+      covered: new Set(['watched']),
+      surveys: [survey('watched', 'lea', 500), survey('remembered', 'lea', 500)],
+    });
+    expect(known).toEqual([
+      { regionId: 'watched', owner: 'lea', state: 'current' },
+      { regionId: 'remembered', owner: 'lea', state: 'surveyed', seenAt: 500 },
+    ]);
+  });
+
+  /** Vierge et « vue tenue par personne » se ressemblent à l'écran, et c'est voulu : ni l'une ni
+   *  l'autre n'a de couleur. */
+  it('returns nothing for ground seen held by nobody', () => {
+    const known = knownRegions({
+      home: { owner: 'pierre', regionIds: [] },
+      covered: new Set(),
+      surveys: [survey('empty', null)],
+    });
+    expect(known).toEqual([]);
+  });
+});
+
+describe('a survey fades with its age', () => {
+  const DAY = 24 * 3_600_000;
+
+  it('is franche the instant it is taken', () => {
+    expect(surveyWash(0, DAY)).toBe(1);
+  });
+
+  it('never goes below the floor, however old', () => {
+    expect(surveyWash(DAY, DAY)).toBe(FADED_WASH);
+    expect(surveyWash(DAY * 30, DAY)).toBe(FADED_WASH);
+  });
+
+  /** Cranté, sinon la géométrie fusionnée se referait à chaque battement pour un pixel. */
+  it('answers in steps rather than a continuum', () => {
+    const washes = new Set(
+      Array.from({ length: 200 }, (_, step) => surveyWash((step * DAY) / 200, DAY)),
+    );
+    expect(washes.size).toBeLessThanOrEqual(5);
+  });
+
+  it('fades monotonically', () => {
+    expect(surveyWash(DAY / 4, DAY)).toBeGreaterThan(surveyWash(DAY / 2, DAY));
+    expect(surveyWash(DAY / 2, DAY)).toBeGreaterThan(surveyWash(DAY, DAY) - 0.0001);
   });
 });

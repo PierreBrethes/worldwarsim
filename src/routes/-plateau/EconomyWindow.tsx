@@ -26,7 +26,7 @@ import type { Building, ChainView, PlayerView, QueuedWork, SiteRef } from '@/dom
 import { sameSite } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
-import { conditionText } from './MobilizationCard';
+import { conditionText } from './FoundationRows';
 import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';

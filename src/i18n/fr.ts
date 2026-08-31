@@ -10,8 +10,11 @@ import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
+import { tierLabel } from '../domain/troops';
 import type { UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
+import type { CombatProfile } from '../domain/combat';
+import { PROFILE_UNITS } from '../domain/gunnery';
 import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -536,6 +539,13 @@ export const fr = {
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
     regionCoastal: 'côtière — port possible',
+    /**
+     * **La date du relevé, en clair** (ADR 0020 §5). Elle ne dit pas l'ancienneté — le délavage
+     * de la teinte la porte déjà, en permanence — elle dit *quand*, ce qu'aucune nuance de
+     * couleur ne saura jamais dire. Une région à jour n'a pas de ligne : sa couleur franche est
+     * l'annonce.
+     */
+    regionSurveyed: (date: string) => `relevé du ${date} — peut avoir changé de main depuis`,
   },
 
   banner: {
@@ -811,24 +821,12 @@ export const fr = {
   },
 
   /**
-   * **Le widget de troupes** — la seule maison de la liste depuis la décision 13a. Deux
-   * sections, deux pouvoirs : les stationnaires se dirigent, les mouvements en vol
-   * s'observent, et le vocabulaire de chaque section doit rendre cette différence lisible
-   * sans qu'on ait à lire une phrase.
+   * **Ce qu'on dit d'une troupe, et plus jamais d'un inventaire.** Le widget de troupes est
+   * mort avec la couche permanente (décision Pierre, 30/08) : ce qui a une position se lit sur
+   * la carte, et ce qui reste ici est ce qu'on écrit *à côté* d'une troupe — son adresse, son
+   * effectif, ce qu'elle mange, et le cartouche qui la désigne.
    */
   troops: {
-    header: 'troupes',
-    collapsed: 'replié',
-    expand: 'déplier le widget de troupes',
-    collapse: 'replier le widget de troupes',
-    cap: (standing: number, cap: number) =>
-      `${standing} troupe${plural(standing, '', 's')} sur ${cap}`,
-    slots: (used: number, total: number) => `${used} slot${plural(used, '', 's')} sur ${total}`,
-    stationary: 'stationnaires',
-    stationaryPower: 'dirigeables',
-    moving: 'en mouvement',
-    movingPower: 'observables',
-    none: 'aucune troupe en service',
     atHome: 'à domicile',
     /** The host arrives as an `adm0_a3`; the naming happens here so that no caller can print
      *  a code by forgetting to ask for a name. */
@@ -836,6 +834,9 @@ export const fr = {
     /** A column left standing on the map (ADR 0019 §3), named the same way. */
     postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
     postedAtSea: 'en campagne — en mer',
+    /** Le lieu seul, pour une ligne qui dit déjà de quoi elle parle : « 1 troupe sans ordre —
+     *  en mer », où « en campagne — en mer » dirait deux fois la même chose. */
+    atSea: 'en mer',
     strength: (current: number, nominal: number) => `effectif ${current} / ${nominal}`,
     /**
      * **Ce que la troupe mange, lu sur la troupe** (ADR 0019 §4). Le bandeau sert un débit net
@@ -845,44 +846,12 @@ export const fr = {
     upkeepRate: (perHour: number) => `entretien ${tenths(perHour)} nourriture / h`,
     upkeepRaised: (perHour: number, factor: number) =>
       `entretien ${tenths(perHour)} nourriture / h — hors ravitaillement ×${factor}`,
-    open: (station: string) => `voir ${station} et composer un mouvement`,
-    remaining: (duration: string) => `${duration} restant`,
-    arrivalAt: (time: string) => `arrivée ${time}`,
-    restMark: (time: string) => `arrive en repos — libre à ${time}`,
-    observe: (route: string) => `suivre ${route}`,
-    foldedQuiet: 'rien en vol',
-    foldedFlight: (count: number, next: string) =>
-      `${count} mouvement${plural(count, '', 's')} en vol — prochaine arrivée dans ${next}`,
-    foldedStanding: (count: number) => `${count} stationnaire${plural(count, '', 's')}`,
     /**
      * **La punition doit se voir là où le joueur regarde la troupe** (ADR 0019 §4). Un surcoût
      * qu'on ne lit que sur un écran de comptabilité est une punition invisible, exactement ce
      * que D3 refusait pour l'attrition.
      */
     unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
-    /**
-     * **Le renseignement, troisième section** — ce qu'une troupe posée a vu passer (ADR 0019 §5,
-     * fiche 04). Elle ne perce rien : ni type, ni composition, ni nation. Le fil, le cap, un
-     * horaire estimé, et c'est tout.
-     */
-    intel: 'renseignement',
-    intelPower: 'non identifié',
-    intelNone: 'rien de repéré',
-    /**
-     * **La règle temporelle, en une ligne.** Le relevé se calcule au départ du mouvement adverse
-     * et jamais après : une troupe posée ensuite ne verra pas ce qui vole déjà. Sans cette
-     * phrase, ce sera lu comme une panne le premier jour — c'est un pari sur ce qui passera, pas
-     * une réaction à ce qui passe.
-     */
-    intelRule: 'une sentinelle ne voit que ce qui part après elle',
-    intelBearing: (cardinal: string) => `cap ${cardinal}`,
-    /** **Par quoi**, sous le cap : sans elle, huit relevés se lisent pareil et rien ne dit
-     *  laquelle des quatre choses payées a servi. */
-    intelBy: (detector: string) => `relevé par ${detector}`,
-    intelByStation: (region: string) => `relevé par la station de ${region}`,
-    intelAtMe: 'cap sur vous',
-    intelEstimate: (duration: string) => `arrivée estimée ~ ${duration}`,
-    intelLost: (duration: string) => `perdu de vue il y a ${duration}`,
     /**
      * **Le cartouche d'une troupe seule** (décision du 29/08). Sélectionner une troupe n'ouvre plus
      * la fenêtre de garnison : elle dit ce que la vue du joueur sait déjà — le rôle, l'effectif,
@@ -902,6 +871,32 @@ export const fr = {
     badgeAiming: 'choisissez la destination — clic droit sur la carte',
     badgeDisarm: 'échap — désarme',
     supplied: 'ravitaillée',
+  },
+
+  /**
+   * **« À faire maintenant » — la carte qui a remplacé l'inventaire** (décision Pierre, 30/08).
+   * Une ligne par chose qui attend le joueur, jamais une ligne par chose qu'il possède. Le
+   * vocabulaire est celui d'une dépêche : ce qui manque, où, et rien d'autre — la ligne mène au
+   * geste, elle ne l'explique pas.
+   */
+  nextActions: {
+    header: 'à faire maintenant',
+    count: (count: number) => `${count} en attente`,
+    toMap: 'carte',
+    toEconomy: 'économie',
+    toProduction: 'production',
+    foundation: (count: number) =>
+      `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
+    idleSite: 'chantier libre — rien en file',
+    idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
+    troopWithoutOrder: (count: number, place: string) =>
+      `${count} troupe${plural(count, '', 's')} sans ordre — ${place}`,
+    unsupplied: (count: number, place: string) =>
+      `${count} troupe${plural(count, '', 's')} hors ravitaillement — ${place}`,
+    freeSlot: (count: number) =>
+      `${count} slot${plural(count, '', 's')} de mouvement libre${plural(count, '', 's')}`,
+    unfold: 'déplier',
+    fold: 'replier',
   },
 
   /**
@@ -1007,6 +1002,48 @@ export const fr = {
       'rien à vous ne regarde ce sol. Un sol reconnu ne serait pas plus sûr : une troupe posée ne se voit pas.',
     submit: 'envoyer — irréversible',
     cancel: 'annuler',
+  },
+
+  /**
+   * **L'abaque de tir** (ADR 0018 §4) — la table de chiffrage, enfin imprimée. Elle existait,
+   * unique et testée, et le joueur recrutait sans l'avoir jamais vue.
+   *
+   * Le vocabulaire est celui d'un manuel de 1940 : une *pièce* tire, un *contre* est franc, une
+   * *frappe* est faible. Jamais « DPS », jamais « ratio » — et jamais « tour de combat » : ce
+   * que la case chiffre est une **passe de résolution** (`WWS/CONTEXT.md`).
+   */
+  gunnery: {
+    header: 'abaque de tir',
+    /** Le bouton qui l'ouvre, là où l'information sert : au recrutement, et sur la popin de
+     *  troupe. Pas d'entrée de rail — il en a déjà trop (audit du 25/08 §3). */
+    open: 'abaque de tir — qui bat qui',
+    /** Le garde-fou du projet, imprimé : c'est ce que la table garantit, et c'est ce qu'un
+     *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
+    guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
+    lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
+    before: (defenderBonus: number, dryFactor: number) =>
+      `Avant modificateurs : la riposte du défenseur porte ×${tenths(defenderBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+    firesOn: 'tire sur',
+    piece: 'la pièce',
+    /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
+     *  dire vaut mieux qu'une colonne muette qui a l'air d'une panne. */
+    transports: (names: string) =>
+      `${names} : victimes par conception — ils portent, ils ne combattent pas.`,
+    outOfReach: '—',
+    /** L'avion de transport se recrute et ne tire sur rien : sa ligne le dit, parce qu'une ligne
+     *  absente et une ligne de onze tirets se liraient toutes deux comme une panne. */
+    firesNothing: 'ne tire sur rien — il porte, il ne combat pas.',
+    bands: {
+      strong: 'contre franc',
+      even: 'échange',
+      weak: 'frappe faible',
+      none: 'hors de portée',
+    } satisfies Record<'strong' | 'even' | 'weak' | 'none', string>,
+    reading: 'lecture',
+    share: (value: number) => value.toFixed(2).replace('.', ','),
+    shot: (attacker: string, defender: string, share: string) =>
+      `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,
+    noShot: (attacker: string, defender: string) => `${attacker} n’atteint pas ${defender}`,
   },
 
   production: {
@@ -1262,15 +1299,12 @@ export const fr = {
   },
 
   /**
-   * **L'ordre de mobilisation** — la dette du format, rendue visible. Le jeu répond toujours à
-   * « et maintenant ? » sans tutoriel : la carte se retire d'elle-même quand la fondation est
-   * soldée, et ne revient jamais.
+   * **La fondation** — la dette du format, rendue visible. Le jeu répond toujours à « et
+   * maintenant ? » sans tutoriel : la ligne se retire d'elle-même quand la fondation est
+   * soldée, et ne revient jamais. Son en-tête est passé à `nextActions`, qui la porte
+   * désormais ; ce qui reste ici est ce qu'on lit **dans** le dépli.
    */
   mobilization: {
-    header: 'ordre de mobilisation',
-    foundation: 'Fondation',
-    owed: (count: number) =>
-      `${count} pose${plural(count, '', 's')} offerte${plural(count, '', 's')} restante${plural(count, '', 's')}`,
     pick: 'Choisissez une clé, puis sa région.',
     eligible: (count: number) =>
       `${count} région${plural(count, '', 's')} éligible${plural(count, '', 's')}`,
@@ -1330,6 +1364,14 @@ export const fr = {
     armyHeader: 'armée',
     present: 'présente',
     inTransit: 'en transit',
+    /**
+     * **La liste des troupes a atterri ici** avec la mort du widget (décision Pierre, 30/08) :
+     * la fiche disait déjà ce que l'armée pèse, il lui manquait de dire où elle est. Cliquer une
+     * ligne recentre la carte — la fiche ne commande toujours rien, elle désigne.
+     */
+    standingHeader: 'où elle se tient',
+    standingNone: 'Aucune troupe posée : tout est en route ou rien n’est formé.',
+    locate: (station: string) => `recentrer la carte sur ${station}`,
     restHeader: 'plage de repos déclarée',
     restNote:
       'Publique : vos adversaires la voient. Un mouvement qui arriverait pendant est immobilisé à la frontière jusqu’à sa fin.',
@@ -1672,6 +1714,22 @@ export function stackLabel(stack: Partial<Record<UnitRole, number>>): string {
 
 export function roleLabel(role: UnitRole, count: number): string {
   return count > 1 ? fr.roles[role].many : fr.roles[role].one;
+}
+
+/**
+ * **Un profil de tir, nommé** — le rôle, et la marque seulement quand le rôle en a deux
+ * (`PROFILE_UNITS`). « Cargo MK1 » opposerait le cargo à un cargo MK2 qui n'existe pas.
+ */
+export function profileLabel(profile: CombatProfile): string {
+  const { role, tier, marked } = PROFILE_UNITS[profile];
+  return marked ? `${roleLabel(role, 1)} ${tierLabel(tier)}` : roleLabel(role, 1);
+}
+
+/** La même chose en trois lettres, pour une en-tête de colonne : une grille de onze colonnes
+ *  n'a pas la largeur d'un nom propre. */
+export function profileAbbreviation(profile: CombatProfile): string {
+  const { role, tier, marked } = PROFILE_UNITS[profile];
+  return marked ? `${fr.roleAbbreviations[role]}${tier}` : fr.roleAbbreviations[role];
 }
 
 /** The eight points of the compass, which is all a bearing is read at on a card: a heading in

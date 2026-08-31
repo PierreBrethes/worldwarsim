@@ -94,6 +94,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
+      /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
+       *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
+      recruiting: server.me.recruiting ?? [],
       upkeep: {
         troops: server.me.upkeep?.troops ?? 0,
         unsupplied: server.me.upkeep?.unsupplied ?? 0,

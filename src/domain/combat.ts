@@ -47,6 +47,19 @@ export type DamageTable = Readonly<
   Record<CombatProfile, Readonly<Partial<Record<CombatProfile, number>>>>
 >;
 
+/**
+ * **Les trois transports, victimes par conception** (fiche 08 §9) : ils portent, ils ne
+ * combattent pas, et c'est la seule exception au garde-fou « aucun couple n'est un contre
+ * absolu ». Nommés une fois ici plutôt que deux — le garde-fou les exempte
+ * (`combat.test.ts`), l'abaque les annonce (`domain/gunnery.ts`) — parce que deux listes
+ * finissent par diverger sur exactement le genre de règle que personne ne relit.
+ */
+export const TRANSPORT_PROFILES: ReadonlyArray<CombatProfile> = [
+  'landTransport',
+  'airTransport',
+  'cargo',
+];
+
 export type CombatRules = {
   readonly damage: DamageTable;
   readonly defenderBonus: number;

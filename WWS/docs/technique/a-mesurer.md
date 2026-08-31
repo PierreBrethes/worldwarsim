@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4126551 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 89c4e49 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-16 valeurs marquées dans `convex/` et `src/domain/`.
+18 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -29,6 +29,8 @@ déclare placeholders en bloc. Le registre sert les valeurs que rien ne mesure e
 | `OUTPOST_REACH_KM` | `400` | `convex/constants.ts:619` | sized against what it covers on a map, never against a game it changed |
 | `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:633` | shaped so the relay reads as a decision rather than a rounding |
 | `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:659` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
+| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:686` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:699` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:76` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:49` | assumed against the troop ceiling alone — two cargos lift half an army |
 | `LIFT_COST` | `{ infantry: 1, armor: 2, landTransport: 1 }` | `src/domain/troops.ts:55` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |

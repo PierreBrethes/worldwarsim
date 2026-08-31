@@ -37,6 +37,7 @@ import {
   troopsAmong,
 } from './movement/orders';
 import { homeCountryOf, nearestRegion } from './regions';
+import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import {
@@ -67,7 +68,7 @@ export const foundOutpostHere = mutation({
   },
   handler: async (ctx, { token, point, specialization, troopIds }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
      *  enough: a column that left it is on the road. */
@@ -107,6 +108,9 @@ export const foundOutpostHere = mutation({
       immuneUntil: null,
     });
     for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
+    /** **La fondation est un point d'échantillonnage** (ADR 0020 §5) : le sol autour vient de
+     *  changer de main, et le relevé de chacun de ceux qui regardent ce sol-là bouge avec lui. */
+    await surveyFoundation(ctx, season._id, pointOf(point), Date.now());
     await ctx.db.insert('notices', {
       playerId: player._id,
       at: Date.now(),
@@ -139,7 +143,7 @@ export const respecialize = mutation({
   },
   handler: async (ctx, { token, outpostId, specialization }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     const outpost = await ctx.db.get(outpostId);
     if (!outpost || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST', { outpostId });
@@ -162,7 +166,7 @@ export const marchTo = mutation({
   },
   handler: async (ctx, { token, origin, troopIds, point }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     return march(ctx, {
       playerId: player._id,
@@ -184,7 +188,7 @@ export const attack = mutation({
   },
   handler: async (ctx, { token, origin, troopIds, target }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     return march(ctx, {
       playerId: player._id,
@@ -208,7 +212,7 @@ export const raid = mutation({
   },
   handler: async (ctx, { token, origin, troopIds, outpostId }) => {
     const { player, season } = await playerByToken(ctx, token);
-    requirePlayable(season);
+    requirePlayable(player, season);
 
     return march(ctx, {
       playerId: player._id,
@@ -328,6 +332,9 @@ export const arrive = internalMutation({
       });
     }
 
+    /** **Le couloir se relève à l'arrivée**, avant que le mouvement ne s'efface : c'est là que
+     *  la colonne a vu ce qu'elle a traversé, et il n'y a plus de polyligne à lire ensuite. */
+    await surveyAlongRoute(ctx, movement, now);
     await forgetMovement(ctx, movementId);
   },
 });

@@ -585,6 +585,13 @@ export type PlayerView = {
     /** How many troops may stand at once, carried by the billets. `troops` holds the count. */
     readonly troopCap: number;
     readonly troops: ReadonlyArray<TroopView>;
+    /**
+     * **Les bâtiments de projection qui ont un lot en main** — leurs identifiants, jamais leur
+     * file : « à faire maintenant » demande si une caserne tourne, pas ce qu'elle forme, et la
+     * file complète a sa propre query (`troops.workshop`). Servi plutôt que déduit ici, parce
+     * qu'une caserne qui vient de livrer n'est pas une caserne occupée.
+     */
+    readonly recruiting: ReadonlyArray<string>;
     readonly outposts: ReadonlyArray<OutpostView>;
     readonly upkeep: UpkeepView;
     /**

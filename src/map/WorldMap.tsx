@@ -72,11 +72,16 @@ type Props = {
   designatedRegions?: ReadonlyArray<string>;
   onDesignateRegion?: (regionId: string | null) => void;
   /**
-   * What the camera is asked to fly to, by label id. The nonce is what makes a second request
-   * on the same target land: asking twice for the same building is an ordinary gesture, and an
+   * What the camera is asked to fly to: label ids, plus the plain places that carry no marker —
+   * a column left on open ground is one. The nonce is what makes a second request on the same
+   * target land: asking twice for the same building is an ordinary gesture, and an
    * identity-compared prop would swallow the second one.
    */
-  focus?: { readonly ids: ReadonlyArray<string>; readonly nonce: number } | null;
+  focus?: {
+    readonly ids: ReadonlyArray<string>;
+    readonly places?: ReadonlyArray<LonLat>;
+    readonly nonce: number;
+  } | null;
 };
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
@@ -302,7 +307,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (focus === null) return;
-    readyEngine?.journeyTo(focus.ids);
+    readyEngine?.journeyTo(focus.ids, focus.places ?? []);
   }, [readyEngine, focus]);
 
   useEffect(() => {

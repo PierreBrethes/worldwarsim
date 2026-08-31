@@ -4,12 +4,14 @@ import { representativeRole, tierLabel } from '@/domain/troops';
 import type { Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Draggable, DragHandle } from './Draggable';
+import { GunneryButton } from './GunneryButton';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
- * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucune action** : les ordres se
- * prennent au clic droit **ailleurs**, sur la destination, où la rose des vents ne propose que ce
- * que le serveur accepterait. Cliquer sur un sprite ne propose rien — ça désigne.
+ * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucun ordre** : ils se prennent au
+ * clic droit **ailleurs**, sur la destination, où la rose des vents ne propose que ce que le
+ * serveur accepterait. Cliquer sur un sprite ne propose rien — ça désigne. Le renvoi vers
+ * l'abaque de tir n'y déroge pas : il ouvre une lecture, il ne commande rien.
  *
  * **Il porte l'état de la visée**, et c'est ce qui a fait disparaître la fenêtre « visée armée »
  * du coin haut-gauche : le seul fait qu'elle disait — combien de troupes partent ensemble — se lit
@@ -25,12 +27,16 @@ export function TroopBadge({
   nation,
   troops,
   at,
+  onOpenGunnery,
   onClose,
 }: {
   nation: string;
   /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
   troops: ReadonlyArray<TroopView>;
   at: { x: number; y: number };
+  /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
+   *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
+  onOpenGunnery: () => void;
   onClose: () => void;
 }) {
   const fromRight = at.x > window.innerWidth / 2;
@@ -61,6 +67,7 @@ export function TroopBadge({
           <span className="text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
             {fr.troops.badgeKicker}
           </span>
+          <GunneryButton onOpen={onOpenGunnery} />
           <button
             type="button"
             onClick={onClose}
@@ -104,7 +111,7 @@ export function TroopBadge({
         </p>
 
         {/* **Désigner arme**, donc le cartouche est toujours en visée : il nomme le geste qui
-            reste et la sortie, et il ne porte aucun bouton — la carte agit, la popin lit. */}
+            reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin lit. */}
         <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
           {fr.troops.badgeAiming}
         </p>

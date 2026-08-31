@@ -29,8 +29,9 @@ import {
  * indexed range on `bySeason` instead, one function per table.
  *
  * The tables read `byPlayer` alone — `resources`, `recruitments`, `constructions`, `orders`,
- * `notices`, `sightings` — do **not** carry it: a player belongs to exactly one season, so his own
- * index already partitions them, and a second key would be a second thing to keep true.
+ * `notices`, `sightings`, `regionSightings` — do **not** carry it: a player belongs to exactly one
+ * season, so his own index already partitions them, and a second key would be a second thing to
+ * keep true.
  */
 
 export default defineSchema({
@@ -85,6 +86,20 @@ export default defineSchema({
      */
     doctrine: v.optional(v.union(v.string(), v.null())),
     ready: v.boolean(),
+    /**
+     * **Il a déposé les armes.** Absent vaut « en jeu » — même tolérance que les champs posés
+     * après coup (leçon du 27/08 sur `buildings.seasonId`), et ici les deux se confondent : un
+     * siège écrit avant la capitulation n'a jamais capitulé.
+     *
+     * C'est un **fait**, jamais un état dérivé : un joueur réduit n'est pas défait (il
+     * reconstruit et sort du compte), et un joueur sans troupe non plus. Rien ne le remet à
+     * faux — la capitulation est irréversible (`players.surrender`).
+     *
+     * Ce qu'il ne dit pas : que ses troupes ont disparu. Elles tiennent, elles ripostent, ses
+     * avant-postes paient leur entretien et gardent son encre. Capituler, c'est cesser
+     * d'ordonner, pas s'évaporer.
+     */
+    defeated: v.optional(v.boolean()),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour
@@ -488,4 +503,36 @@ export default defineSchema({
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
+
+  /**
+   * **La carte que ce joueur-là a relevée, et la date de son relevé** (ADR 0020 §5). Le jumeau au
+   * sol de `sightings` : là où l'un se souvient d'un fil qui est passé, celui-ci se souvient de
+   * qui tenait la terre.
+   *
+   * Il existe pour la même raison, et il faut la relire avant d'y toucher : une requête « les
+   * régions que je connais » qui filtrerait la vérité dépendrait de la table des avant-postes, et
+   * se recalculerait pour **tous** les joueurs à chaque fondation
+   * (`WWS/docs/technique/brouillard-et-fanout.md`). Une ligne appartient à un observateur, et il
+   * lit son propre index — la vérité n'entre jamais dans la lecture.
+   *
+   * Une ligne par couple observateur × région, écrasée à chaque nouvelle observation : c'est un
+   * **dernier** relevé, pas un journal. Ce qui l'écrit sont les événements et rien d'autre — pose
+   * d'une troupe, fondation d'un avant-poste, départ et arrivée d'un mouvement (`convex/surveys.ts`)
+   * — parce qu'il n'existe aucune horloge périodique dans ce jeu et qu'on n'en invente pas une ici.
+   *
+   * `ownerId` à `null` est une observation qui a vu que **personne** ne tenait : c'est ce qui
+   * corrige une couleur périmée, et c'est pour ça qu'elle s'écrit au lieu d'être omise. L'absence
+   * de ligne, elle, est le troisième état — *vierge*, jamais observée, qui n'est pas *neutre*.
+   */
+  regionSightings: defineTable({
+    /** L'observateur, jamais le tenant de ce qui a été vu. */
+    playerId: v.id('players'),
+    regionId: v.string(),
+    ownerId: v.union(v.id('players'), v.null()),
+    seenAt: v.number(),
+  })
+    .index('byPlayer', ['playerId'])
+    /** L'écriture relit sa propre ligne avant de décider s'il y a quelque chose à écrire : sans
+     *  cet index elle balaierait tout le relevé du joueur par région observée. */
+    .index('byPlayerRegion', ['playerId', 'regionId']),
 });

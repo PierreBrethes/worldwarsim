@@ -120,3 +120,162 @@ export const SEAT_INKS: ReadonlyArray<string> = [
 /** L'encre d'un siège, par son rang d'entrée. Le modulo n'a pas d'usage — le salon plafonne à
  *  huit joueurs — mais une neuvième entrée doit sortir une couleur, pas `undefined`. */
 export const seatInk = (rank: number): string => SEAT_INKS[rank % SEAT_INKS.length]!;
+
+/**
+ * **Le relevé, et sa péremption** (ADR 0020 §5). Ce qui précède calcule *la vérité* — qui tient
+ * quoi, au moment où on le demande. Ce qui suit calcule *la connaissance* : ce que ce joueur-là
+ * a vu la dernière fois qu'il a regardé, avec sa date.
+ *
+ * Trois états d'une région, et le premier n'est pas une couleur : **vierge** (jamais observée,
+ * absente de la réponse), **relevée** (observée à une date, possiblement fausse depuis),
+ * **à jour** (couverte à l'instant par une portée du joueur, ou son propre sol).
+ */
+
+/** Un détecteur posé, tel que le relevé le lit : un point et une portée, jamais ce qu'il est.
+ *  Une troupe, une station, un avant-poste ne se distinguent en rien ici — ils regardent. */
+export type Observer = {
+  readonly point: LonLat;
+  readonly radiusKm: number;
+};
+
+/**
+ * **Ce qu'un jeu de portées couvre**, et rien de ce qui s'y trouve : la couverture dit où l'on
+ * voit, jamais ce qu'on y voit. Les deux se croisent chez l'appelant, qui est le seul à avoir le
+ * droit de tenir la vérité en main.
+ *
+ * Le tri par latitude n'est pas une optimisation gratuite : un relevé de trajet porte plusieurs
+ * dizaines de portées contre les 4 589 régions cuites, et une bande de latitude retire d'un coup
+ * ce qu'aucun rayon terrestre ne peut atteindre. Elle est seule à filtrer — un encadrement en
+ * longitude devrait franchir l'antiméridien, et un mauvais enroulement se lirait comme un trou
+ * dans la carte plutôt que comme un bug.
+ */
+export function coveredRegions(
+  regions: ReadonlyArray<ControlledRegion>,
+  observers: ReadonlyArray<Observer>,
+): ReadonlySet<string> {
+  const covered = new Set<string>();
+  if (observers.length === 0) return covered;
+
+  const degrees = (km: number) => km / 111.32;
+  const south = Math.min(...observers.map(({ point, radiusKm }) => point[1] - degrees(radiusKm)));
+  const north = Math.max(...observers.map(({ point, radiusKm }) => point[1] + degrees(radiusKm)));
+
+  for (const region of regions) {
+    const latitude = region.point[1];
+    if (latitude < south || latitude > north) continue;
+    for (const observer of observers) {
+      if (distanceKm(observer.point, region.point) > observer.radiusKm) continue;
+      covered.add(region.id);
+      break;
+    }
+  }
+  return covered;
+}
+
+/**
+ * **Les points où un trajet relève.** Une colonne voit le couloir qu'elle a marché, pas les
+ * sommets que Dijkstra a retenus : la polyligne est donc réechantillonnée au **demi-rayon**, ce
+ * qui couvre le couloir sans trou et borne le nombre de cercles à tester — une route
+ * transcontinentale vaut quelques dizaines de haltes, jamais ses centaines de mailles de grille.
+ */
+export function surveyStops(
+  points: ReadonlyArray<LonLat>,
+  radiusKm: number,
+): ReadonlyArray<LonLat> {
+  const first = points[0];
+  if (first === undefined) return [];
+  const stops: Array<LonLat> = [first];
+  let last = first;
+  for (const point of points.slice(1)) {
+    if (distanceKm(last, point) < radiusKm / 2) continue;
+    stops.push(point);
+    last = point;
+  }
+  const end = points.at(-1)!;
+  if (end !== last) stops.push(end);
+  return stops;
+}
+
+/** Une ligne de relevé, telle qu'elle est stockée par observateur. `owner` à `null` est une
+ *  observation qui a **vu que personne ne tenait** — elle corrige une couleur périmée, elle
+ *  n'est pas l'absence de relevé. */
+export type Survey = {
+  readonly regionId: string;
+  readonly owner: string | null;
+  readonly seenAt: number;
+};
+
+/**
+ * Ce qu'un joueur sait d'une région, et dans quel état il le sait. Une union discriminée plutôt
+ * qu'un `seenAt` nullable : une région à jour n'a **pas** de date de relevé à afficher, et le
+ * compilateur est le bon endroit pour le dire (CONVENTIONS §8).
+ */
+export type KnownRegion = {
+  readonly regionId: string;
+  readonly owner: string;
+} & ({ readonly state: 'current' } | { readonly state: 'surveyed'; readonly seenAt: number });
+
+/**
+ * **La carte d'un joueur**, assemblée dans cet ordre exact :
+ *
+ * - **son sol** passe avant tout et n'est jamais daté — une nation n'est jamais annexée
+ *   (ADR 0004), donc il n'y a rien à y relever et rien qui puisse s'y périmer ;
+ * - **ce qu'une de ses portées couvre à l'instant** est à jour : il est sur place, la date
+ *   n'apprendrait rien ;
+ * - **le reste est son dernier relevé**, avec sa date, et il peut être faux.
+ *
+ * Les régions vierges n'y sont pas, et une région relevée tenue par personne non plus : les
+ * deux n'ont pas de couleur, et une ligne vide serait une couleur de plus dans la légende.
+ */
+export function knownRegions({
+  home,
+  covered,
+  surveys,
+}: {
+  readonly home: { readonly owner: string; readonly regionIds: ReadonlyArray<string> };
+  readonly covered: ReadonlySet<string>;
+  readonly surveys: ReadonlyArray<Survey>;
+}): ReadonlyArray<KnownRegion> {
+  const known = new Map<string, KnownRegion>();
+  for (const regionId of home.regionIds) {
+    known.set(regionId, { regionId, owner: home.owner, state: 'current' });
+  }
+  for (const survey of surveys) {
+    if (survey.owner === null || known.has(survey.regionId)) continue;
+    known.set(
+      survey.regionId,
+      covered.has(survey.regionId)
+        ? { regionId: survey.regionId, owner: survey.owner, state: 'current' }
+        : {
+            regionId: survey.regionId,
+            owner: survey.owner,
+            state: 'surveyed',
+            seenAt: survey.seenAt,
+          },
+    );
+  }
+  return [...known.values()];
+}
+
+/**
+ * **Le délavage d'un relevé** — l'ancienneté se voit en permanence, jamais au survol seul
+ * (ADR 0020 §5). Sans ce signal, un joueur qui décide sur une information périmée lira un bug
+ * plutôt qu'une règle, et il aura raison de se plaindre.
+ *
+ * Le résultat est **cranté**, et c'est ce qui le rend utilisable : la teinte est un maillage
+ * fusionné par couleur, donc une valeur continue referait la géométrie à chaque minute pour un
+ * pixel de différence. Cinq crans se voient et ne coûtent rien.
+ *
+ * Il ne descend jamais à zéro : un relevé vieux d'une semaine reste une chose qu'on a vue, et
+ * l'effacer le rendrait indistinguable d'une région vierge.
+ */
+export const FADED_WASH = 0.35;
+
+const WASH_STEPS = 4;
+
+export function surveyWash(ageMs: number, fadedAfterMs: number): number {
+  const aged = Math.min(1, Math.max(0, ageMs / fadedAfterMs));
+  /** Le cran se prend sur l'âge et pas sur la teinte : arrondir la teinte raterait le plancher,
+   *  qui n'est pas un multiple du pas. */
+  return 1 - (Math.round(aged * WASH_STEPS) / WASH_STEPS) * (1 - FADED_WASH);
+}

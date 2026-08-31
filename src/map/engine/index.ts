@@ -314,11 +314,17 @@ export class MapEngine {
    * Bring the orbit target onto one or several anchors. A clustered indicator frames its
    * group: the view widens just enough to contain it, and never tightens — a click that
    * zoomed in unasked would lose the thread of the map.
+   *
+   * `places` are lon/lat rather than anchors, for what has no marker to aim at: a troop left on
+   * open ground is a place before it is a datum, and « à faire maintenant » names it that way.
    */
-  journeyTo(ids: ReadonlyArray<string>): void {
-    const points = ids
-      .map((id) => this.labels.position(id, this.arcs.headPositions))
-      .filter((point): point is Vector3 => point !== undefined);
+  journeyTo(ids: ReadonlyArray<string>, places: ReadonlyArray<LonLat> = []): void {
+    const points = [
+      ...ids
+        .map((id) => this.labels.position(id, this.arcs.headPositions))
+        .filter((point): point is Vector3 => point !== undefined),
+      ...places.map((place) => this.frame.projectLonLat(place)),
+    ];
     if (points.length === 0) return;
 
     const arrival = points

@@ -33,3 +33,12 @@ export const asDayAndTime = (instant: number) =>
     hour: '2-digit',
     minute: '2-digit',
   });
+
+/**
+ * **Une date de presse, pas une ancienneté.** Le relevé d'une région se lit « relevé du 12 août »
+ * et jamais « il y a 17 h » : la carte est un document d'état-major de 1940, et un document porte
+ * la date à laquelle il a été dressé. L'ancienneté, elle, se voit déjà — c'est le délavage de la
+ * teinte (ADR 0020 §5), en permanence et sans survol.
+ */
+export const asPressDate = (instant: number) =>
+  new Date(instant).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });

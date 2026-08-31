@@ -16,8 +16,8 @@ git config core.hooksPath .githooks   # une fois par clone : active le pre-push
 ## Ce qui existe
 
 Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
-journal d'événements, et **le flux de mouvement en carte** — widget de troupes, panneau de
-garnison, visée, rose des vents de mouvement, aperçu d'arc et envoi. Les données
+journal d'événements, et **le flux de mouvement en carte** — panneau de garnison, visée, rose
+des vents de mouvement, aperçu d'arc et envoi. Les données
 viennent **uniquement** du backend Convex, par le jeton de partie (accueil → salon → saison
 réelle, carte vierge) ; sans jeton, `/plateau` affiche « aucune partie en cours » et renvoie à
 l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le hors-saison et
@@ -36,18 +36,33 @@ raid gagné **désactive** l'avant-poste, jamais ne le prend. Chaque engagement 
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
 sur ce compte rendu, sans re-résoudre.
 
+**Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
+dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — soixante-quinze
+couples, une ligne par profil, l'encre dit la bande avant que le chiffre soit lu, le survol donne la
+valeur. En lecture seule, sans entrée de rail : on l'ouvre du recrutement et de la popin de troupe,
+aux deux endroits où « qui bat qui » se demande.
+
 **Le mouvement s'ordonne depuis la carte, et de nulle part ailleurs** (décisions 12a et 13a,
 `WWS/docs/design/propositions/flux-mouvement-en-carte.md`). La fenêtre Troupes, la modale
-« Envoi d'un mouvement » et le widget des trajets sont **supprimés**. À leur place : un **widget
-de troupes** repliable (`src/routes/-plateau/TroopsWidget.tsx`) à deux sections aux pouvoirs
-délibérément différents — *stationnaires* dirigeables, *en mouvement* observables et **sans
-aucun gestionnaire d'action** ; un **panneau de garnison** qui compose la pile (le clic sur le mât
-d'un bâtiment de projection et la carte du widget ouvrent le même, un seul état de sélection) ;
-puis la **visée** : clic droit sur la cible, rose des vents contextuelle, aperçu d'arc et
-confirmation « envoyer — irréversible » au bout de l'arc. Les types proposés par la rose et ceux
-que le serveur accepte sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien
-n'est grisé, jamais (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
+« Envoi d'un mouvement » et le widget des trajets sont **supprimés**. À leur place : un
+**panneau de garnison** qui compose la pile (le clic sur le mât d'un bâtiment de projection et
+celui sur la pile posée ouvrent le même, un seul état de sélection) ; puis la **visée** : clic
+droit sur la cible, rose des vents contextuelle, aperçu d'arc et confirmation « envoyer —
+irréversible » au bout de l'arc. Les types proposés par la rose et ceux que le serveur accepte
+sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien n'est grisé, jamais
+(ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
 réelle et l'heure d'arrivée, seul le serveur date un mouvement.
+
+**Ce qui a une position ne vit pas dans un panneau** (décision Pierre, 30/08, couche permanente) :
+le widget de troupes est **supprimé** et remplacé, bas-gauche, par la carte **« à faire
+maintenant »** (`src/routes/-plateau/NextActions.tsx`, règle pure dans
+`src/domain/next-actions.ts`). Une ligne par chose qui attend le joueur — poses de fondation
+offertes, chantier sans tête de file, bâtiment de projection sans lot, troupe posée sans ordre,
+troupe hors ravitaillement, slot de mouvement libre — et chaque ligne recentre la carte ou ouvre
+la surface. **Vide, la carte n'existe pas** : il n'y a pas d'état fermé, son absence est l'état
+fermé. L'ordre de mobilisation en est devenu la première ligne, dépliable
+(`FoundationRows.tsx`) ; la liste complète des troupes est passée dans la fenêtre Nation, où
+chaque ligne recentre.
 
 **Une seule détection existe, et c'est une troupe posée** (ADR 0019 §5) : elle révèle à son
 propriétaire les mouvements adverses qui passent dans `SCOUT_RADIUS_KM` (60 km) — un fil, un cap,
@@ -55,9 +70,9 @@ un horaire estimé, un domaine, **jamais le type ni la composition, jamais la na
 se calcule **au départ du mouvement, une seule fois**, et se dénormalise dans la table
 `sightings` (`observateur, mouvement, tDébut, tFin`) : chaque joueur lit son propre index, jamais
 un filtre sur la table des mouvements (`WWS/docs/technique/brouillard-et-fanout.md`). Conséquence
-assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le bloc
-« Renseignement » du widget de troupes sert ce relevé et rien d'autre ; la station d'écoute,
-l'agent dormant et la sonde n'existent toujours pas.
+assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le relevé
+se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches ; la station
+d'écoute, l'agent dormant et la sonde n'existent toujours pas.
 
 **La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
 remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
@@ -189,10 +204,24 @@ par la nation dont elle est le sol d'origine, que rien ne lui prend. La règle e
 (`src/domain/control.ts`, litige au plus proche, égalité exacte à personne), servie par une
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
-d'une colonne. Rien n'est stocké. La teinte est **celle du siège**, pas de la nation, et elle
-reste au loin quand les frontières de région s'effacent. Sa signature est déjà « ce que ce joueur
-connaît » : elle rend la vérité entière le temps que le relevé et sa péremption arrivent
-(ADR 0020 §5). Pas encore de score, pas de production reliée, pas de décoloration au raid.
+d'une colonne. La teinte est **celle du siège**, pas de la nation, et elle reste au loin quand les
+frontières de région s'effacent. Pas encore de score, pas de production reliée, pas de
+décoloration au raid.
+
+**Un joueur voit son dernier relevé, pas la vérité** (ADR 0020 §5). Trois états d'une région :
+*vierge* — jamais observée, aucune couleur, inconnue et non pas neutre ; *relevée* — vue à une
+date, avec le tenant vu ce jour-là, possiblement faux depuis ; *à jour* — couverte à l'instant par
+une de ses portées, ou son propre sol. Le relevé se dénormalise par observateur dans
+`regionSightings`, jumeau au sol de `sightings` : **`control.held` ne lit que les lignes du
+joueur**, jamais la table des avant-postes — une requête qui filtrerait la vérité se recalculerait
+pour tous à chaque fondation (`WWS/docs/technique/brouillard-et-fanout.md`). Ce qui écrit, ce sont
+les **événements** et rien d'autre (`convex/surveys.ts`) : pose d'une troupe, fondation d'un
+avant-poste, départ d'un mouvement, et le couloir relevé **à l'arrivée**, jamais au départ — il
+n'y a pas d'horloge dans ce jeu et on n'en invente pas une ici. Les écritures sont bornées : même
+tenant et ligne de moins d'une heure, rien n'est réécrit ; le sol de personne et son propre sol ne
+fondent aucune ligne. L'ancienneté se voit **en permanence** — un relevé ancien est délavé
+(`surveyWash`, cranté pour que la géométrie fusionnée ne se refonde pas à chaque minute) — et le
+survol donne la date en clair, « relevé du 12 août ».
 
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière ; la **destruction** après
