@@ -1,6 +1,5 @@
 import { Link, useSearch } from '@tanstack/react-router';
-import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
-import type { Doctrine } from '@/domain/player-view';
+import { fr, nationLabel } from '@/i18n/fr';
 import { FlagWatermark } from '@/emblems/Flag';
 import { withWindow, type BoardSearch } from '@/routes/plateau';
 
@@ -17,15 +16,7 @@ import { withWindow, type BoardSearch } from '@/routes/plateau';
  */
 const AIR_AFTER_WATERMARK = 6;
 
-export function NationCartouche({
-  nation,
-  doctrine,
-  height,
-}: {
-  nation: string | null;
-  doctrine: Doctrine;
-  height: number;
-}) {
+export function NationCartouche({ nation, height }: { nation: string | null; height: number }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   return (
     <Link
@@ -36,19 +27,19 @@ export function NationCartouche({
       style={{ height }}
     >
       <FlagWatermark nation={nation} />
+      {/* Une seule ligne depuis que la doctrine est partie (ADR 0020 §9), et elle reprend les
+          19 px qu'elle tenait quand elle était seule : à 17 px, le pays flottait au milieu d'un
+          bandeau taillé pour deux lignes. */}
       <div
-        className="relative flex flex-col justify-center gap-[3px]"
+        className="relative flex items-center"
         style={{
           paddingLeft: Math.round(height * 1.5 * 0.8) + AIR_AFTER_WATERMARK,
           textShadow: '0 1px 3px rgba(23,18,8,.9)',
         }}
       >
-        <span className="font-(family-name:--font-display) text-[17px] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
+        <span className="font-(family-name:--font-display) text-[19px] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
           {nationLabel(nation)}
         </span>
-        {/* La doctrine ne se nomme pas : posée sous le pays, en surtitre, elle ne peut être
-            que ça — le mot « doctrine » ne servait qu'à la ligne unique d'avant. */}
-        <span className="eyebrow-dark leading-none">{doctrineLabel(doctrine) ?? doctrine}</span>
       </div>
     </Link>
   );

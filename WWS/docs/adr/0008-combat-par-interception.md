@@ -1,6 +1,12 @@
 # ADR 0008 — Combat par interception et rejeu, plutôt que tour par tour interactif
 
-**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md)
+**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) — **révisée le 31/08/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)**
+
+> ⚠️ **Révision (31/08/2026).** Le contact ne se calcule plus à un rayon fixe unique
+> (`INTERCEPTION_RADIUS_KM`, placeholder jamais mesuré) ni une seule fois au départ : il se produit
+> au **croisement des portées de détection** et se **réévalue en route**, notamment au retour.
+> S'y ajoutent trois postures de mouvement et une salve d'allonge. Le déterminisme, l'absence
+> d'aléa et le refus du tour par tour sont intacts.
 
 > Précision (14/08/2026) : le combat reste automatique, avec interception et rejeu.
 > Seule la formule interne change — résolution séquentielle à l'initiative de

@@ -17,7 +17,6 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Mouvement** | Un envoi de troupes d'un point A à un point B. Irréversible. Représenté par un arc. |
 | **Slot de mouvement** | La ressource la plus rare du jeu. Limite le nombre de mouvements simultanés. |
 | **À flot** | Une pile dont le point de départ est en haute mer — aucun pays ne l'héberge. La porte navale ne se lit pas sur elle : le port a été payé à l'embarquement, au premier départ. Se calcule au départ, jamais stocké. *(ADR 0019 §2, révision 27/08)* |
-| **Doctrine** | La condition de victoire choisie par un joueur. Secrète jusqu'à 25 % de progression. |
 | **Arc** | La représentation visuelle d'un mouvement. Visible seulement si détecté. |
 | **Journal d'événements** | L'écran « qu'est-ce qui a changé depuis ma dernière visite ». |
 | **Télégraphe** | Le chat de la partie : **un seul canal général**, ouvert dès le salon, fermé à la conclusion. Le mot est imposé — ni « chat » ni « dépêches », qui appartiennent au journal. *(décision du 29/08)* |

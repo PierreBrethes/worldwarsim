@@ -142,10 +142,9 @@ export const playerView = query({
     /**
      * **The board of the test victory, public and named** (`convex/victory.ts`). It is the one
      * place `PlayerView` deliberately hands over something about everybody rather than about
-     * me — and it is a departure from design sheet 05, not an oversight: without a secret
-     * doctrine there is nothing for a secret to protect, and a first skirmish between friends
-     * wants the ribbing. It leaks nothing the fog is for: a capacity is neither a position, nor
-     * a composition, nor a heading.
+     * me, and that is the point: the condition is unique, so it is read out loud (ADR 0020 §4),
+     * and a first skirmish between friends wants the ribbing. It leaks nothing the fog is for:
+     * a capacity is neither a position, nor a composition, nor a heading.
      *
      * Read at the instant, every time: a player who rebuilds over the bar leaves the count of
      * the man who put him under it.
@@ -166,7 +165,8 @@ export const playerView = query({
     // Placeholders, listed so they are not mistaken for served data. Each one waits on a
     // schema slice that is not written (see `CLAUDE.md`, "ce qui reste"):
     //   `number: 1`      — a season is unique and never renumbered; a season history would.
-    //   `progress: 0`    — victory progress belongs to the doctrines, surface 4.8.
+    //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
+    //                      surface 4.8.
     //   `journal`        — the dispatches are built on the client from `reports` below.
     //   `lastIntel`      — intelligence is surface 4.9.
     // `travelMinutesPer1000km: 14` is different: it is a measured value (simulation report),
@@ -183,7 +183,8 @@ export const playerView = query({
         players: others.length + 1,
         playableRegion: season.playableRegion ?? 'world',
         travelMinutesPer1000km: 14,
-        /** Test scaffolding — it goes whole with the doctrines of design sheet 05. */
+        /** Test scaffolding — it goes whole the day the share of the map replaces it
+         *  (ADR 0020). */
         reduction: {
           target: reductionTarget(standings.length),
           concludedAt: season.concludedAt ?? null,
@@ -203,7 +204,6 @@ export const playerView = query({
          *  (`seasons.conclude`). Rien d'autre n'en dépend. */
         creator: player.creator,
         ink: nationInk(player.nation),
-        doctrine: player.doctrine ?? 'domination',
         progress: 0,
         restWindow: player.restWindow,
         resources: snapshotAll(economy),

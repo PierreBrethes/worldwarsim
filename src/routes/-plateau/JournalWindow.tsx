@@ -1,7 +1,7 @@
 import { useMutation } from 'convex/react';
 import { useCallback } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { fr, doctrineLabel, nationLabel } from '@/i18n/fr';
+import { fr, nationLabel } from '@/i18n/fr';
 import { isAlarm } from '@/domain/journal';
 import { Stamp } from '@/shell/Stamp';
 import type {
@@ -85,12 +85,7 @@ export function JournalWindow({
             {view.season.reduction.concludedAt !== null && <Stamp label={fr.stamps.seasonClosed} />}
           </div>
           <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
-            <span>
-              {fr.journal.nationLine(
-                nationLabel(view.me.nation),
-                doctrineLabel(view.me.doctrine) ?? view.me.doctrine,
-              )}
-            </span>
+            <span>{nationLabel(view.me.nation)}</span>
             <span className="text-[#9d8f78]">·</span>
             <span>{fr.journal.dispatches(dispatches.length)}</span>
             <span className="text-[#9d8f78]">·</span>
@@ -217,10 +212,10 @@ export function JournalWindow({
 }
 
 /**
- * **Le tableau de la victoire de test — public et nominatif, et c'est voulu.** La fiche 05 tient
- * la doctrine secrète ; ici il n'y a pas de doctrine, donc rien à protéger, et un test entre amis
- * veut qu'on se chambre (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour
- * où les trois doctrines arrivent — il ne se transforme pas en barre de progression.
+ * **Le tableau de la victoire de test — public et nominatif, et c'est voulu.** La condition est
+ * unique (ADR 0020 §9), donc rien à protéger, et un test entre amis veut qu'on se chambre
+ * (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour où la part de carte
+ * arrive — il ne se transforme pas en barre de progression.
  */
 function ReductionTable({ board }: { board: ReductionBoard }) {
   if (board.standings.length === 0) return null;

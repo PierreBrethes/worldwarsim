@@ -53,12 +53,6 @@ export const RESOURCE_KEY = v.union(
   v.literal('bandages'),
 );
 
-export const DOCTRINE = v.union(
-  v.literal('domination'),
-  v.literal('hegemony'),
-  v.literal('influence'),
-);
-
 /**
  * `concluded` is a season somebody won — read on, never played on. The wipe stays manual: one
  * reads the game back before erasing it (`seasons.destroy`), so a concluded season is a normal

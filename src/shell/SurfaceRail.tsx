@@ -82,7 +82,7 @@ export function SurfaceRail({
 
   /**
    * **Le rail ne montre que ce qui marche.** Trois entrées grisées y annonçaient le rejeu, la
-   * doctrine et l'espionnage : un invité qui les voit compte trois écrans qui n'existent pas, et
+   * progression et l'espionnage : un invité qui les voit compte trois écrans qui n'existent pas, et
    * un « bientôt » est une promesse qu'on ne tient pas à la minute où il la lit. Elles
    * reviendront avec leur fonction, pas avant.
    */

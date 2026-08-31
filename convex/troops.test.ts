@@ -40,10 +40,8 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   });
   const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
   await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'hegemony' });
   await t.mutation(api.players.declareReady, { token, ready: true });
   await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'domination' });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   await t.mutation(api.seasons.launch, { token });
   await disbandTheGift(t, token);

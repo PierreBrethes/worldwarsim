@@ -191,7 +191,6 @@ export const create = mutation({
       nickname: nickname.trim(),
       creator: true,
       nation: null,
-      doctrine: null,
       ready: false,
       restWindow: DEFAULT_REST_WINDOW,
       enteredWarAt: null,
@@ -257,7 +256,6 @@ export const join = mutation({
       nickname: nickname.trim(),
       creator: false,
       nation: null,
-      doctrine: null,
       ready: false,
       restWindow: DEFAULT_REST_WINDOW,
       enteredWarAt: null,
@@ -315,7 +313,6 @@ async function previewOf(ctx: QueryCtx, token: string) {
     nickname: player.nickname,
     creator: player.creator,
     nation: player.nation,
-    doctrine: player.doctrine,
     /** A seat on a running season whose owner has not entered the war goes back to the lobby,
      *  not to the board: he holds no nation, and the board could not draw him. */
     atWar: isAtWar(player, season),
@@ -345,7 +342,6 @@ export const lobby = query({
         nickname: player.nickname,
         creator: player.creator,
         nation: player.nation,
-        doctrine: player.doctrine,
         ready: player.ready,
         restWindow: player.restWindow,
         /** What tells the lobby which of its two faces to wear: the one before the launch, or
@@ -405,7 +401,7 @@ export const launch = mutation({
  * from a real case, not from a number invented here.
  *
  * No "ready" and no relaunch: the launch happened, the season is running, and nobody waits for
- * him. What he has to have is what a seat needs to become a nation — a free flag and a doctrine.
+ * him. What he has to have is what a seat needs to become a nation — a free flag.
  */
 export const enterWar = mutation({
   args: { token: v.string() },
@@ -415,7 +411,7 @@ export const enterWar = mutation({
     /** Twice-clicked is not an error: the second call finds a belligerent and hands out
      *  nothing. Answering with a refusal would be telling him his own entry failed. */
     if (isAtWar(player, season)) return;
-    if (player.nation === null || player.doctrine === null) fail('NATION_AND_DOCTRINE_REQUIRED');
+    if (player.nation === null) fail('NATION_REQUIRED');
 
     const present = await ctx.db
       .query('players')

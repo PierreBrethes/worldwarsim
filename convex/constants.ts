@@ -694,9 +694,9 @@ export const MIN_PLAYERS_TO_LAUNCH = 2;
 
 /**
  * **The bar of the test victory** (`src/domain/victory.ts`). A placeholder, and it goes with the
- * scaffold it serves the day the doctrines of design sheet 05 land.
+ * scaffold it serves the day the share of the map replaces it (ADR 0020).
  *
- * @a-mesurer the bar of a scaffold, measured by nothing — it leaves with the doctrines
+ * @a-mesurer the bar of a scaffold, measured by nothing — it leaves with the scaffold
  */
 export const REDUCTION_FACTOR = 0.5;
 

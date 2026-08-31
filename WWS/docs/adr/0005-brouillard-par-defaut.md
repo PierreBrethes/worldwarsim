@@ -1,6 +1,14 @@
 # ADR 0005 — Brouillard de guerre par défaut
 
-**Statut :** acceptée
+**Statut :** acceptée — **révisée le 31/08/2026 par l'[ADR 0020](0020-domination-par-couleur.md)**
+
+> ⚠️ **Révision (31/08/2026).** Le secret change d'objet : la **couleur des territoires devient
+> publique** — on sait où sont les nations et jusqu'où elles portent. Ce qui reste caché, et ce
+> qui s'achète, c'est **ce qui bouge** : colonnes, composition, intentions, vues par les portées
+> de détection ([ADR 0021](0021-portee-de-detection-et-postures.md)). Le motif : à 2-4 joueurs le
+> brouillard ne rendait pas l'information *chère*, il la rendait *absente* (audit du 25/08).
+> Ce qui ne change pas : le client ne reçoit jamais ce qu'il n'a pas le droit de voir, et le
+> filtrage reste serveur. Le *convoi leurre* cité plus bas n'existe plus (retiré le 29/08).
 
 ## Contexte
 

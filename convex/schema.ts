@@ -4,7 +4,6 @@ import {
   BUILDING_KEY,
   COMBAT_SIDE,
   DETECTOR,
-  DOCTRINE,
   LON_LAT,
   MOVEMENT_TARGET,
   ROUTE_LEG,
@@ -75,7 +74,15 @@ export default defineSchema({
     nickname: v.string(),
     creator: v.boolean(),
     nation: v.union(v.string(), v.null()),
-    doctrine: v.union(DOCTRINE, v.null()),
+    /**
+     * **Legacy — plus jamais écrite ni lue.** Les trois doctrines de la fiche 05 sont
+     * abandonnées et la domination est le mode unique (ADR 0020 §9). Le champ reste au schéma
+     * parce que les sièges déjà déposés le portent, et qu'un champ retiré d'une table déjà
+     * écrite fait refuser la poussée (leçon du 27/08 sur `buildings.seasonId`). `v.string()`
+     * plutôt que l'union d'origine : plus rien ne contraint une valeur que personne ne relit.
+     * Il part au prochain wipe, avec la saison qui l'a écrite (ADR 0001).
+     */
+    doctrine: v.optional(v.union(v.string(), v.null())),
     ready: v.boolean(),
     restWindow: REST_WINDOW,
     /**

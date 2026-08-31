@@ -38,7 +38,6 @@ async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
   }
   for (const [seat, seated] of tokens.entries()) {
     await t.mutation(api.players.reserveNation, { token: seated, nation: NATIONS[seat]! });
-    await t.mutation(api.players.chooseDoctrine, { token: seated, doctrine: 'domination' });
     await t.mutation(api.players.declareReady, { token: seated, ready: true });
   }
   await t.mutation(api.seasons.launch, { token });
@@ -216,7 +215,6 @@ describe('the simplified Domination', () => {
     expect(await targetNow()).toBe(1);
 
     await t.mutation(api.players.reserveNation, { token: late, nation: 'japan' });
-    await t.mutation(api.players.chooseDoctrine, { token: late, doctrine: 'domination' });
     await t.mutation(api.seasons.enterWar, { token: late });
     expect(await targetNow()).toBe(2);
   });

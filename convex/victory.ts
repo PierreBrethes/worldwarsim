@@ -7,8 +7,8 @@ import { concludeSeason, isAtWar } from './seasons';
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
  * testable without a database — and its header says the important part: this whole thing is
- * scaffolding for the first real skirmish, to be **replaced** by the doctrines of design sheet
- * 05 rather than amended.
+ * scaffolding for the first real skirmish, to be **replaced** by the share of the map (ADR
+ * 0020) rather than amended.
  *
  * Nothing here is stored except what happened: the capacity is read off the troops every time it
  * is asked for, and the tally is read off the engagements. A season carries a winner and an hour
@@ -66,11 +66,10 @@ async function executionerOf(
 }
 
 /**
- * **The board of the season, public and named.** That is a deliberate departure from design
- * sheet 05, where the doctrine is secret until 25 %: without a secret doctrine there is nothing
- * for the secret to protect, and a test between friends wants the ribbing. It is also the reason
- * this leaks nothing the fog cares about — a capacity is not a position, a composition or a
- * heading.
+ * **The board of the season, public and named.** There is one condition and everybody plays
+ * it (ADR 0020 §9), so nothing is left to keep secret and a test between friends wants the
+ * ribbing. It is also the reason this leaks nothing the fog cares about — a capacity is not a
+ * position, a composition or a heading.
  *
  * Read at the instant, always: a player who rebuilds over the bar leaves the count of the man
  * who put him under it.

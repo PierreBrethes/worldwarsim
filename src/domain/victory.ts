@@ -1,19 +1,18 @@
 /**
  * **Test scaffolding — this module is meant to be replaced, never amended.**
  *
- * The game aims at three secret doctrines in a triangle (design sheet 05: Domination,
- * Hegemony, Influence, each with its own subtraction tool). None of it exists, and the first
- * skirmish between friends cannot wait for it. So: **one condition, public, the same for
- * everybody** — a simplified Domination, indexed on `n` as the sheet requires.
+ * Domination is the only mode there is (ADR 0020 §9), and what it will really count is the
+ * **share of the map**: the regions a player holds over the regions somebody holds. None of
+ * that exists yet, and the first skirmish between friends cannot wait for it. So: capacity
+ * against nominal, one bar, indexed on `n`.
  *
- * The day the triangle lands, this file goes whole. Nothing here is a design decision, nothing
- * here should make the triangle harder to build, and **no name here prepares one**: there is no
- * doctrine key, no progress bar, no secret to reveal. A scaffold that quietly grows a doctrine
- * shape is a scaffold that gets kept.
+ * The day the share of the map lands, this file goes whole. Nothing here is a design decision,
+ * nothing here should make that count harder to build, and **no name here prepares one**: no
+ * territory, no colour, no held region. A scaffold that quietly grows the shape of its
+ * successor is a scaffold that gets kept.
  *
- * What is deliberately different from sheet 05, and it is the point: **the progress is public
- * and named**. Without a secret doctrine the secret protects nothing, and a test between friends
- * wants the ribbing.
+ * The progress is **public and named**, and it stays that way: with a single condition there is
+ * nothing left for a secret to protect, and a test between friends wants the ribbing.
  */
 
 /** A troop as the rule weighs it: hit points against the nominal it was formed at (ADR 0014). */

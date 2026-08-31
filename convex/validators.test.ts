@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, DEPOSITS, DOCTRINES, NATIONS, RESOURCES } from '../src/domain/ids';
-import { BUILDING_KEY, DOCTRINE, RESOURCE_KEY } from './validators';
+import { BUILDINGS, DEPOSITS, NATIONS, RESOURCES } from '../src/domain/ids';
+import { BUILDING_KEY, RESOURCE_KEY } from './validators';
 
 /**
  * `ids.ts` is the vocabulary TypeScript checks; `validators.ts` is the one Convex checks at
@@ -15,7 +15,6 @@ describe('ids and validators', () => {
   it('declare exactly the same keys', () => {
     expect(literals(RESOURCE_KEY)).toEqual([...RESOURCES]);
     expect(literals(BUILDING_KEY)).toEqual([...BUILDINGS]);
-    expect(literals(DOCTRINE)).toEqual([...DOCTRINES]);
   });
 
   /** The playable nations and the map deposits have no validator — nothing writes them into a

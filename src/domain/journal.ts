@@ -46,10 +46,9 @@ export function journalDispatches(
         ];
 
   /**
-   * **"X a réduit Y", named and read by everyone.** The test victory is public where design
-   * sheet 05 keeps a doctrine secret, and that is the whole intent (`domain/victory.ts`): a
-   * skirmish between friends wants the ribbing, and a secret with nothing behind it protects
-   * nothing.
+   * **"X a réduit Y", named and read by everyone.** The test victory is public on purpose
+   * (`domain/victory.ts`): the condition is unique, so it is read out loud, and a skirmish
+   * between friends wants the ribbing.
    */
   const reductions: ReadonlyArray<Written> = reports.flatMap((report) =>
     report.reduced === null

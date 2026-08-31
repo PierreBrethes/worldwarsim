@@ -3,7 +3,6 @@ import type {
   BuildingKey,
   DepositKey,
   Detector,
-  Doctrine,
   MovementType,
   ResourceKey,
   SeasonFormat,
@@ -14,7 +13,7 @@ import type {
 import type { ChainState } from './economy';
 import type { ComputedRoute } from './routing';
 
-export type { ChainState, Doctrine, MovementType, UnitRole };
+export type { ChainState, MovementType, UnitRole };
 
 export type Stack = Partial<Record<UnitRole, number>>;
 
@@ -312,13 +311,8 @@ export type RegionView = {
 
 export type OpponentBar =
   | { readonly state: 'anonymous'; readonly progress: number }
-  | { readonly state: 'attributed'; readonly progress: number; readonly doctrine: Doctrine }
-  | {
-      readonly state: 'exposed';
-      readonly progress: number;
-      readonly doctrine: Doctrine;
-      readonly frozenUntil: string;
-    };
+  | { readonly state: 'attributed'; readonly progress: number }
+  | { readonly state: 'exposed'; readonly progress: number; readonly frozenUntil: string };
 
 export type Opponent = {
   readonly nation: string;
@@ -484,10 +478,10 @@ export type JournalDispatch = {
 };
 
 /**
- * **The board of the test victory — scaffolding, to be replaced whole** by the three doctrines
- * of design sheet 05 (`domain/victory.ts` says why). It is the one place this type hands over
- * something about everybody: the simplified Domination is public and named, deliberately, and
- * a capacity is neither a position nor a composition — the fog loses nothing.
+ * **The board of the test victory — scaffolding, to be replaced whole** by the share of the map
+ * (ADR 0020; `domain/victory.ts` says why). It is the one place this type hands over something
+ * about everybody: the condition is unique, public and named, deliberately, and a capacity is
+ * neither a position nor a composition — the fog loses nothing.
  */
 export type ReductionBoard = {
   /** How many distinct players one has to hold under the bar, `⌈(n−1)/2⌉`. */
@@ -527,7 +521,6 @@ export type PlayerView = {
     readonly homePosition: LonLat;
     readonly ink: string;
     readonly power: string;
-    readonly doctrine: Doctrine;
     readonly progress: number;
     readonly restWindow: string;
     readonly resources: Readonly<Record<ResourceKey, Resource>>;

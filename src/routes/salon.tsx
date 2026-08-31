@@ -5,7 +5,7 @@ import { api } from '../../convex/_generated/api';
 import { fr, clockLabel, nationLabel } from '@/i18n/fr';
 import { ThickRule, ThickRuleInverse, Newspaper, usePageTurn } from '@/shell/Newspaper';
 import { Wordmark } from '@/shell/Masthead';
-import { DOCTRINES, NATIONS } from '@/domain/nations';
+import { NATIONS } from '@/domain/nations';
 import type { PlayableRegion } from '@/domain/ids';
 import { FlagBanner, Flag } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
@@ -31,7 +31,6 @@ function LobbyError({ error, reset }: { error: unknown; reset: () => void }) {
 }
 
 const WIDTH = 760;
-const NUMERALS = ['I', 'II', 'III'] as const;
 
 function Lobby() {
   const token = useToken();
@@ -44,7 +43,6 @@ function ConnectedLobby({ token }: { token: string }) {
   const { turning, turn } = usePageTurn();
   const lobby = useQuery(api.seasons.lobby, { token });
   const reserve = useMutation(api.players.reserveNation);
-  const chooseDoctrine = useMutation(api.players.chooseDoctrine);
   const declareReady = useMutation(api.players.declareReady);
   const launch = useMutation(api.seasons.launch);
   const enterWar = useMutation(api.seasons.enterWar);
@@ -71,9 +69,9 @@ function ConnectedLobby({ token }: { token: string }) {
   const pace = clockLabel(lobby.durationHours);
   /**
    * **The two faces of this screen.** A season already running and a player who has not entered
-   * it is a latecomer: he picks a flag and a doctrine on a board that is being fought over, then
-   * enters — no "ready", nobody to wait for, no relaunch (`seasons.enterWar`). Once he is a
-   * belligerent the same launched status means the opposite: walk onto the board.
+   * it is a latecomer: he picks a flag on a board that is being fought over, then enters — no
+   * "ready", nobody to wait for, no relaunch (`seasons.enterWar`). Once he is a belligerent the
+   * same launched status means the opposite: walk onto the board.
    */
   const entering = lobby.status === 'launched' && !lobby.me.atWar;
   const launching = lobby.status === 'launched' && lobby.me.atWar;
@@ -82,7 +80,6 @@ function ConnectedLobby({ token }: { token: string }) {
 
   const checks = [
     { label: fr.lobby.checkNation, done: lobby.me.nation !== null },
-    { label: fr.lobby.checkDoctrine, done: lobby.me.doctrine !== null },
     ...(entering ? [] : [{ label: fr.lobby.checkAllReady, done: allReady }]),
   ];
   const missing = checks.filter((check) => !check.done).length;
@@ -291,34 +288,6 @@ function ConnectedLobby({ token }: { token: string }) {
                     </li>
                   ))}
                 </ul>
-
-                <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
-                  {fr.lobby.doctrineHeader}
-                </div>
-                <div className="mt-[10px] flex gap-[6px]">
-                  {DOCTRINES.map((doctrine, rank) => (
-                    <button
-                      key={doctrine}
-                      type="button"
-                      onClick={() => act(() => chooseDoctrine({ token, doctrine }))}
-                      className={`flex-1 cursor-pointer border border-[var(--ink)] px-2 py-[9px] text-center ${
-                        lobby.me.doctrine === doctrine
-                          ? 'bg-[var(--ink)] text-[var(--paper)]'
-                          : 'hover:bg-[rgba(42,33,24,.08)]'
-                      }`}
-                    >
-                      <span className="block font-(family-name:--font-mono) text-[9px] opacity-60">
-                        {NUMERALS[rank]}
-                      </span>
-                      <span className="mt-[3px] block text-[11px] tracking-[.08em] uppercase">
-                        {fr.doctrines[doctrine]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
-                  {fr.lobby.doctrineNote}
-                </p>
 
                 <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
                   {fr.lobby.restHeader}

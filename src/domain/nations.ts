@@ -1,7 +1,7 @@
 import { NATIONS, type Nation } from './ids';
 
-export { NATIONS, DOCTRINES } from './ids';
-export type { Nation, Doctrine } from './ids';
+export { NATIONS } from './ids';
+export type { Nation } from './ids';
 
 export const INK_BY_NATION: Readonly<Record<Nation, string>> = {
   france: '#3f5a7d',

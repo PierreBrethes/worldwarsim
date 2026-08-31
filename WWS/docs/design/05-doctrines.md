@@ -1,5 +1,32 @@
 # 05 — Doctrines et conditions de victoire
 
+> ## ⚠️ Révision du 31/08/2026 — la fiche est abandonnée, la domination est le mode unique
+>
+> Décision de Pierre le 31/08/2026, gravée dans l'[ADR 0020](../adr/0020-domination-par-couleur.md)
+> §9 : **il n'y a plus de choix de condition de victoire**. Les trois doctrines — Domination,
+> Hégémonie, Influence — ont été écrites ici, jamais jouées, et le mode unique leur retire toute
+> place. Le triangle ne sera pas construit.
+>
+> Ce que l'abandon emporte, dans le code : le champ `doctrine` du schéma (laissé en legacy, plus
+> jamais écrit ni lu, le temps d'un wipe), la mutation `chooseDoctrine`, le validateur `DOCTRINE`,
+> le bloc de choix du salon, le surtitre du cartouche, la fiche de nation et la ligne du journal —
+> et l'exigence d'une doctrine pour être prêt, qui redevient l'exigence d'une nation.
+>
+> Ce qui prend la place : **la part de carte** (ADR 0020). Le territoire tenu devient le score, il
+> est public et il se prend à l'adversaire ; la Domination simplifiée
+> (`src/domain/victory.ts`) reste l'échafaudage en attendant, et c'est la part de carte qui la
+> remplacera — plus une doctrine.
+>
+> Ce que l'abandon laisse ouvert, et qui est nommé ici pour qu'on ne le redécouvre pas : le
+> **problème que le triangle résolvait**. Une condition unique fait qu'une stratégie est optimale
+> et que les autres sont des pièges (§ « Pourquoi des conditions de victoire différentes »). L'ADR
+> 0020 y répond par la géographie — la densité administrative réelle fabrique les points chauds —
+> et non par des objectifs distincts. Si la première saison montre une seule ouverture jouable,
+> c'est **cette section-là** qui se relit.
+>
+> Le reste de la fiche est conservé tel quel : c'est le dossier de la décision, pas son état.
+> Ce qui suit décrit un système que le jeu n'aura pas.
+
 ## Pourquoi des conditions de victoire différentes
 
 Si tout le monde partage le même objectif, une stratégie est optimale et toutes les autres sont des

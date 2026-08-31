@@ -64,14 +64,6 @@ export function GroundPanel({
             label={fr.selectedCountry.progression}
             value={`${Math.round(opponent.bar.progress * 100)} %`}
           />
-          <Row
-            label={fr.selectedCountry.doctrine}
-            value={
-              opponent.bar.state === 'attributed'
-                ? fr.doctrines[opponent.bar.doctrine]
-                : fr.selectedCountry.unknown
-            }
-          />
           <Row label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
           <Row label={fr.selectedCountry.lastIntel} value={opponent.lastIntel} />
         </>

@@ -197,8 +197,10 @@ capacité tombe sous la moitié de son nominal ; le premier qui en tient `⌈(n�
 **au moment où sa passe la leur fait franchir** prend la saison, qui passe en `concluded` — elle
 se relit, elle ne se joue plus, et le wipe reste manuel. **Réduit n'est pas éliminé** : la
 capacité se calcule depuis les troupes à l'instant, jamais stockée, donc un joueur qui reconstruit
-sort du compte de son bourreau. Ce module a vocation à être **remplacé** par les trois doctrines
-secrètes de la fiche 05, pas amendé — aucun champ n'y prépare une doctrine.
+sort du compte de son bourreau. **La domination est le mode unique** (ADR 0020 §9) : il n'y a plus
+de choix de condition de victoire, la fiche 05 est abandonnée et `doctrine` ne survit au schéma
+qu'en legacy, jamais écrite ni lue. Ce module a vocation à être **remplacé** par la part de carte
+(ADR 0020), pas amendé — aucun champ n'y prépare un territoire.
 
 **Ni terrain, ni tenaille, ni soin.** Le modificateur de terrain attend l'ADR qui autorise une
 règle à lire `RegionType` ; la tenaille attend une définition de la convergence ; une troupe

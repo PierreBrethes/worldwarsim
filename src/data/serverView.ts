@@ -47,7 +47,6 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       homePosition,
       ink: server.me.ink,
       power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',
-      doctrine: server.me.doctrine,
       progress: server.me.progress,
       restWindow: formatWindow(server.me.restWindow),
       resources: server.me.resources,

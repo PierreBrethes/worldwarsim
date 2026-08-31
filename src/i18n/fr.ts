@@ -18,7 +18,6 @@ import type {
   BuildingKey,
   DepositKey,
   Detector,
-  Doctrine,
   Medium,
   MovementType,
   Nation,
@@ -64,12 +63,6 @@ export const fr = {
     italy: 'Reconnaissance aérienne — voit la composition des piles détectées',
     china: 'Masse — pas de plafond d’effectifs, entretien croissant en ravitaillement',
   } satisfies Record<Nation, string>,
-
-  doctrines: {
-    domination: 'domination',
-    hegemony: 'hégémonie',
-    influence: 'influence',
-  } satisfies Record<Doctrine, string>,
 
   roles: {
     infantry: { one: 'infanterie', many: 'infanterie' },
@@ -258,7 +251,7 @@ export const fr = {
     NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,
-    NATION_AND_DOCTRINE_REQUIRED: () => 'être prêt exige une nation et une doctrine',
+    NATION_REQUIRED: () => 'être prêt exige une nation',
     CREATOR_ONLY: () => 'seul le fondateur lance la saison',
     NOT_ENOUGH_PLAYERS: (d) => `il faut au moins ${num(d.minimum)} joueurs`,
     PLAYERS_NOT_READY: (d) =>
@@ -474,17 +467,14 @@ export const fr = {
     ready: 'prêt',
     waiting: 'en attente',
     freeSeat: 'place libre',
-    doctrineHeader: 'ma doctrine — secrète',
-    doctrineNote: 'Personne d’autre ne voit ce choix, seulement « prêt / pas prêt ».',
     restHeader: 'ma plage de repos — publique',
     restFrom: 'à partir de',
     restUntil: (end: string) => `jusqu’à ${end}`,
     restNote:
-      'Sept heures par nuit, durée fixe : vous choisissez quand vous dormez, pas combien de temps. Vos adversaires la voient, et aucun mouvement ne peut arriver pendant — il attend à la frontière. Elle se scelle au lancement, comme la nation et la doctrine.',
+      'Sept heures par nuit, durée fixe : vous choisissez quand vous dormez, pas combien de temps. Vos adversaires la voient, et aucun mouvement ne peut arriver pendant — il attend à la frontière. Elle se scelle au lancement, comme la nation.',
     restDeclare: 'déclarer',
     restDeclared: 'déclarée ✓',
     checkNation: 'une nation réservée',
-    checkDoctrine: 'une doctrine scellée',
     checkAllReady: 'tous les joueurs déclarés prêts',
     declareReady: 'me déclarer prêt',
     declareNotReady: 'je ne suis plus prêt',
@@ -506,7 +496,7 @@ export const fr = {
       'La saison a été lancée sans vous. Vous entrez avec la dotation de départ, sans compensation pour les heures écoulées : les autres ont bâti pendant ce temps-là.',
     enterWar: 'entrer en guerre — irréversible',
     enterWarMissing: (count: number) =>
-      `il manque ${count} condition${plural(count, '', 's')} — nation et doctrine`,
+      `il manque ${count} condition${plural(count, '', 's')} — une nation`,
     enterWarSeedNote: 'votre nation apparaît au journal de tous les belligérants',
     enterWarNationsHeader: 'nations encore libres',
     belligerents: 'belligérants',
@@ -558,7 +548,6 @@ export const fr = {
     counter: (label: string, stock: number, cap: number, rate: number) =>
       `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
-    doctrine: (doctrine: string) => `doctrine ${doctrine}`,
     site: 'chantier',
     siteTitle: (name: string, region: string) => `${name} — ${region}`,
   },
@@ -680,14 +669,14 @@ export const fr = {
   },
 
   /**
-   * **La victoire de test — un échafaudage, pas une décision de design.** Une seule condition,
-   * publique et nominative, en attendant les trois doctrines secrètes de la fiche 05
-   * (`src/domain/victory.ts`). Le vocabulaire suit : on *réduit* un joueur, on ne l'élimine
-   * jamais — il rejoue, il reconstruit, et il sort alors du compte de son bourreau.
+   * **La victoire de test — un échafaudage, pas une décision de design.** La domination est
+   * le mode unique (ADR 0020) ; cette barre-là tient en attendant la part de carte qui la
+   * remplacera (`src/domain/victory.ts`). Le vocabulaire suit : on *réduit* un joueur, on ne
+   * l'élimine jamais — il rejoue, il reconstruit, et il sort alors du compte de son bourreau.
    */
   victory: {
     kicker: 'domination — victoire de test',
-    scaffold: 'condition unique et publique, en attendant les doctrines',
+    scaffold: 'condition unique et publique, en attendant la part de carte',
     dispatch: (by: string, whom: string) => `${by} a réduit ${whom}`,
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     tally: (reduced: number, target: number) => `${reduced} réduits sur ${target}`,
@@ -742,7 +731,6 @@ export const fr = {
       `saison ${season} — jour ${day} sur ${total}`,
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
     masthead: 'LE JOURNAL DES OPÉRATIONS',
-    nationLine: (nation: string, doctrine: string) => `${nation} — doctrine ${doctrine}`,
     dispatches: (count: number) => `${count} dépêche${plural(count, '', 's')}`,
     severities: { critical: 'critique', notable: 'notable', routine: 'routine' },
     effectRunning: 'L’effet court encore ',
@@ -1314,7 +1302,6 @@ export const fr = {
    */
   nationSheet: {
     kicker: 'fiche de nation',
-    doctrineHeader: 'doctrine choisie',
     readOnly:
       'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans Économie.',
     powerHeader: 'pouvoir national',
@@ -1442,8 +1429,6 @@ export const fr = {
     marker: 'sélection',
     hoverMarker: 'survol',
     progression: 'progression',
-    doctrine: 'doctrine',
-    unknown: 'inconnue',
     restWindow: 'plage de repos',
     lastIntel: 'dernier renseignement',
     outpost: 'avant-poste',
@@ -1703,12 +1688,6 @@ export function countryLabel(adm0: string): string {
 export function clockLabel(durationHours: number | null): string {
   if (durationHours === null) return fr.lobby.paceNone;
   return durationHours === 48 ? fr.lobby.pace48 : fr.lobby.pace168;
-}
-
-export function doctrineLabel(doctrine: string | null): string | null {
-  return doctrine !== null && doctrine in fr.doctrines
-    ? fr.doctrines[doctrine as Doctrine]
-    : doctrine;
 }
 
 /**

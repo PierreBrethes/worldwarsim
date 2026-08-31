@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fr, doctrineLabel, nationLabel, stackLabel } from '@/i18n/fr';
+import { fr, nationLabel, stackLabel } from '@/i18n/fr';
 import { DEPOSITS } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
@@ -51,12 +51,6 @@ export function NationWindow({
           </Entry>
 
           <NationalGap regions={view.me.regions} />
-
-          <Entry header={fr.nationSheet.doctrineHeader}>
-            <p className="text-[15.5px] font-semibold text-[var(--ink)]">
-              {doctrineLabel(view.me.doctrine) ?? view.me.doctrine}
-            </p>
-          </Entry>
 
           <Entry header={fr.nationSheet.armyHeader}>
             <div className="flex flex-col gap-[5px] text-[12.5px]">

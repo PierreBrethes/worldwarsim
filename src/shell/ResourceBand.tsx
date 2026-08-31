@@ -21,6 +21,17 @@ const PLATE = 20;
 const FOLDED_PLATE = 14;
 
 /**
+ * **Le bandeau se lit en colonnes, pas en mots.** Unboxed, the eight plates are all the same
+ * height and it is their width that runs from the oil drum to the heap of coal (0,62 to 1,78
+ * of the height). Each is seated in the same slot, cut for the widest, and each figure gets
+ * the same column of mono digits: the pairs then fall one under the other from one glance to
+ * the next, and a stock crossing a thousand no longer shifts the whole line.
+ */
+const SLOT_RATIO = 1.8;
+const FIGURE_WIDTH = 46;
+const FOLDED_FIGURE_WIDTH = 40;
+
+/**
  * **Une information, une fois, au bon endroit** (décision du 30/08). What is scarce and bounds
  * the action lives on one permanent line under the masthead, stock-ticker fashion: an icon and a
  * figure, and nothing else. The name, the ceiling, the rate and the source appear on hover and
@@ -48,6 +59,7 @@ export function ResourceBand({ view }: { view: PlayerView }) {
       now={now}
       mark={marks[resource]}
       plate={collapsed ? FOLDED_PLATE : PLATE}
+      figureWidth={collapsed ? FOLDED_FIGURE_WIDTH : FIGURE_WIDTH}
       onHover={setHovered}
     />
   );
@@ -110,6 +122,7 @@ function Figure({
   now,
   mark,
   plate,
+  figureWidth,
   onHover,
 }: {
   resource: ResourceKey;
@@ -117,6 +130,7 @@ function Figure({
   now: number;
   mark: Mark | null;
   plate: number;
+  figureWidth: number;
   onHover: (hover: Hover) => void;
 }) {
   const stock = currentStock(view.me.resources[resource], view.loadedAt, now);
@@ -126,19 +140,31 @@ function Figure({
 
   return (
     <span className="flex items-center gap-[5px]">
-      {mark !== null && (
-        <span
-          onMouseEnter={(event) => onHover({ resource, on: 'mark', left: anchor(event) })}
-          className="flex h-[7px] w-[7px] shrink-0 cursor-help bg-[var(--critical)]"
-        />
-      )}
+      {/* The pavé's gutter is held open whether or not it is inked: a mark that pushed its
+          own figure seven pixels aside would break the column it is meant to be read in. */}
+      <span
+        onMouseEnter={
+          mark === null
+            ? undefined
+            : (event) => onHover({ resource, on: 'mark', left: anchor(event) })
+        }
+        className={`flex h-[7px] w-[7px] shrink-0 ${mark === null ? '' : 'cursor-help bg-[var(--critical)]'}`}
+      />
       <span
         onMouseEnter={(event) => onHover({ resource, on: 'figure', left: anchor(event) })}
         className="flex cursor-help items-center gap-[5px]"
         style={{ color: mark === null ? 'var(--paper)' : 'var(--critical)' }}
       >
-        <ResourcePlate resource={resource} height={plate} onDark />
-        <span className="font-(family-name:--font-mono) text-[12px] leading-none font-medium">
+        <span
+          className="flex shrink-0 items-end justify-center"
+          style={{ width: Math.round(plate * SLOT_RATIO), height: plate }}
+        >
+          <ResourcePlate resource={resource} height={plate} onDark boxed={false} />
+        </span>
+        <span
+          className="font-(family-name:--font-mono) text-[12px] leading-none font-medium tabular-nums"
+          style={{ width: figureWidth }}
+        >
           {stock.toLocaleString('fr-FR')}
         </span>
       </span>

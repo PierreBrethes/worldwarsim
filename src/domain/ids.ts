@@ -17,10 +17,6 @@ export const NATIONS = [
 
 export type Nation = (typeof NATIONS)[number];
 
-export const DOCTRINES = ['domination', 'hegemony', 'influence'] as const;
-
-export type Doctrine = (typeof DOCTRINES)[number];
-
 export type UnitRole =
   | 'infantry'
   | 'armor'

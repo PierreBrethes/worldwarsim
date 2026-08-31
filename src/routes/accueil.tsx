@@ -3,7 +3,7 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
-import { fr, clockLabel, doctrineLabel, nationLabel } from '@/i18n/fr';
+import { fr, clockLabel, nationLabel } from '@/i18n/fr';
 import type { PlayableRegion, SeasonFormat } from '@/domain/ids';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
@@ -322,7 +322,6 @@ function GameRow({
         >
           <span className="block text-[12px] tracking-[.22em] text-[var(--paper)] uppercase">
             {nationLabel(seat.nation)}
-            {seat.doctrine ? ` · ${fr.banner.doctrine(doctrineLabel(seat.doctrine) ?? '')}` : ''}
           </span>
           <span className="mt-1 flex flex-wrap gap-x-4 text-[11.5px] text-[var(--paper-dim-2)]">
             <span>

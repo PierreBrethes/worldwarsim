@@ -4,12 +4,11 @@ import type { Doc } from './_generated/dataModel';
 import { NATIONS, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { isAtWar, playerByToken } from './seasons';
-import { DOCTRINE } from './validators';
 
 /**
  * **The choices of the lobby seal at the player's own entry into war**, not at the season's
  * launch. For everybody present at the launch the two hours are the same one; for a latecomer
- * they are not, and he has a nation and a doctrine to pick on a season already running
+ * they are not, and he has a nation to pick on a season already running
  * (`seasons.enterWar`).
  *
  * A concluded season answers with its own code: it is not "already launched", it is over.
@@ -41,30 +40,19 @@ export const reserveNation = mutation({
   },
 });
 
-export const chooseDoctrine = mutation({
-  args: { token: v.string(), doctrine: DOCTRINE },
-  handler: async (ctx, { token, doctrine }) => {
-    const { player, season } = await playerByToken(ctx, token);
-    requireStillChoosing(player, season);
-    await ctx.db.patch(player._id, { doctrine });
-  },
-});
-
 export const declareReady = mutation({
   args: { token: v.string(), ready: v.boolean() },
   handler: async (ctx, { token, ready }) => {
     const { player, season } = await playerByToken(ctx, token);
     requireStillChoosing(player, season);
-    if (ready && (player.nation === null || player.doctrine === null)) {
-      fail('NATION_AND_DOCTRINE_REQUIRED');
-    }
+    if (ready && player.nation === null) fail('NATION_REQUIRED');
     await ctx.db.patch(player._id, { ready });
   },
 });
 
 /**
- * The rest window is declared before entering the war and frozen there, like the nation and the
- * doctrine. Left open mid-season it becomes a shield one slides: the window is public, so a
+ * The rest window is declared before entering the war and frozen there, like the nation. Left
+ * open mid-season it becomes a shield one slides: the window is public, so a
  * player who sees a movement heading his way could move his hours over its arrival and buy
  * himself a stall at the border. Being able to promise "I sleep at these hours" only means
  * something if the promise cannot move once the shooting starts.

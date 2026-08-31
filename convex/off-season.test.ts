@@ -42,10 +42,8 @@ async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
 async function readyToLaunch(t: ReturnType<typeof boot>) {
   const { code, creator, guest } = await seasonWithTwoPlayers(t);
   await t.mutation(api.players.reserveNation, { token: creator, nation: 'france' });
-  await t.mutation(api.players.chooseDoctrine, { token: creator, doctrine: 'hegemony' });
   await t.mutation(api.players.declareReady, { token: creator, ready: true });
   await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'domination' });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   return { code, creator, guest };
 }
@@ -95,11 +93,10 @@ describe('joining a running season', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  /** Nation and doctrine picked on a season already running — everything the door asks for. */
+  /** A free flag reserved on a season already running — everything the door asks for. */
   async function enlist(t: ReturnType<typeof boot>, code: string, nation: string) {
     const { token } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
     await t.mutation(api.players.reserveNation, { token, nation });
-    await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'influence' });
     return token;
   }
 
@@ -146,7 +143,7 @@ describe('joining a running season', () => {
   });
 
   /** The choices seal at his own entry, not at a launch he was not there for. */
-  it('seals nation, doctrine and rest window at the entry into war', async () => {
+  it('seals nation and rest window at the entry into war', async () => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
@@ -175,7 +172,6 @@ describe('joining a running season', () => {
     }
     for (const [seat, token] of seated.entries()) {
       await t.mutation(api.players.reserveNation, { token, nation: NATIONS[seat]! });
-      await t.mutation(api.players.chooseDoctrine, { token, doctrine: 'domination' });
       await t.mutation(api.players.declareReady, { token, ready: true });
     }
     await t.mutation(api.seasons.launch, { token: creator });
@@ -232,23 +228,30 @@ describe('nation reservation', () => {
     await t.mutation(api.players.reserveNation, { token: guest, nation: 'france' });
   });
 
-  it('never reveals the others’ doctrine in the lobby', async () => {
+  /**
+   * **A lobby row says what a seat shows, never what arms it.** The reservation is public — it
+   * is the whole point of the flag list — but the token authenticates every mutation, and
+   * `doctrine` is a legacy column no reader may serve again (ADR 0020 §9).
+   */
+  it('shows the seats without handing out what arms them', async () => {
     const t = boot();
     const { creator, guest } = await seasonWithTwoPlayers(t);
-    await t.mutation(api.players.chooseDoctrine, { token: guest, doctrine: 'influence' });
+    await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
     const lobby = await t.query(api.seasons.lobby, { token: creator });
+    expect(lobby.players).toHaveLength(2);
     for (const player of lobby.players) {
+      expect(player).not.toHaveProperty('token');
       expect(player).not.toHaveProperty('doctrine');
     }
-    expect(lobby.me.doctrine).toBeNull();
+    expect(lobby.me).not.toHaveProperty('doctrine');
   });
 
-  it('requires nation and doctrine to be ready', async () => {
+  it('requires a nation to be ready', async () => {
     const t = boot();
     const { creator } = await seasonWithTwoPlayers(t);
     await expect(
       t.mutation(api.players.declareReady, { token: creator, ready: true }),
-    ).rejects.toThrow('NATION_AND_DOCTRINE_REQUIRED');
+    ).rejects.toThrow('NATION_REQUIRED');
   });
 });
 
@@ -339,7 +342,6 @@ describe('launching', () => {
     await t.mutation(api.seasons.launch, { token: creator });
     const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
     await t.mutation(api.players.reserveNation, { token: late, nation: 'germany' });
-    await t.mutation(api.players.chooseDoctrine, { token: late, doctrine: 'influence' });
     await t.mutation(api.seasons.enterWar, { token: late });
 
     const view = await t.query(api.view.playerView, { token: late });
@@ -494,7 +496,7 @@ describe('rest window', () => {
 
   /**
    * The window is public: left editable it becomes a shield one slides over an arrival one
-   * has seen coming. It freezes at launch, like the nation and the doctrine.
+   * has seen coming. It freezes at launch, like the nation.
    */
   it('freezes at launch', async () => {
     const t = boot();
