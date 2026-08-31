@@ -2,9 +2,12 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import { withinReach, type OutpostPoint } from '../src/domain/outposts';
+import { emptyStocks } from '../src/domain/economy';
+import type { ResourceKey } from '../src/domain/ids';
 import {
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
   OUTPOST_REACH_KM,
+  OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
 import { homeCountryOf, regionFacts } from './regions';
@@ -48,10 +51,19 @@ export type Upkeep = {
   readonly troops: number;
   /** How many of them stand outside every anchor of their own, hence at the raised rate. */
   readonly unsupplied: number;
-  /** Food an hour, the multiplier already applied. */
+  /** Food an hour the army takes, the multiplier already applied. */
   readonly foodPerHour: number;
   /** The troops that pay the raised rate, so the screen can mark them where the player looks. */
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
+  /** How many outposts stand, and the sum of their levels — what the bill below is read off. */
+  readonly outposts: number;
+  readonly outpostLevels: number;
+  /**
+   * **What the empire costs an hour**, food and coal together (ADR 0020 §10). It is the brake on
+   * expansion, in place of the global ceiling that punished it: a player who loses points sees
+   * his bill fall, and an over-extended one is fragile in war rather than forbidden.
+   */
+  readonly outpostPerHour: Readonly<Record<ResourceKey, number>>;
 };
 
 /**
@@ -73,14 +85,28 @@ export async function upkeepOf(
   const player = await ctx.db.get(playerId);
   const home = homeCountryOf(player?.nation ?? null);
 
-  const supplying = (
-    await ctx.db
-      .query('outposts')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  )
+  const outposts = await ctx.db
+    .query('outposts')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+
+  const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
     .map((outpost) => ({ point: [outpost.point.lon, outpost.point.lat] as LonLat }));
+
+  /**
+   * **A point out of service still has to be held.** The deactivation takes away what the point
+   * *gives* — its supply above, its colour and, when the production is wired, its output
+   * (ADR 0020 §6, §7); it does not hand its owner a rebate. Every outpost is billed, and the
+   * bill follows the level, so raising a point is a decision that shows up on the strip.
+   */
+  const outpostLevels = outposts.reduce((sum, outpost) => sum + outpost.level, 0);
+  const outpostPerHour = emptyStocks();
+  for (const [key, perLevel] of Object.entries(OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL) as ReadonlyArray<
+    [ResourceKey, number]
+  >) {
+    outpostPerHour[key] = perLevel * outpostLevels;
+  }
 
   const troops = await ctx.db
     .query('troops')
@@ -104,6 +130,9 @@ export async function upkeepOf(
       FOOD_UPKEEP_PER_TROOP_PER_HOUR *
       (plain + unsuppliedTroopIds.length * UPKEEP_UNSUPPLIED_MULTIPLIER),
     unsuppliedTroopIds,
+    outposts: outposts.length,
+    outpostLevels,
+    outpostPerHour,
   };
 }
 

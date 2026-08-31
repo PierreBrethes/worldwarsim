@@ -16,8 +16,9 @@ const site = (overrides: Partial<Site> = {}): Site => ({
   deposit: null,
   coastal: false,
   standing: null,
-  standingCount: 2,
-  cap: 5,
+  site: { outpostId: null },
+  taken: 2,
+  slots: 5,
   hqLevel: 1,
   stocks: RICH,
   constructionHere: false,
@@ -43,7 +44,7 @@ describe('the rest of the catalogue', () => {
       { hqLevel: 0 },
       { standing: 'farm' as const },
       { constructionHere: true },
-      { standingCount: 5, cap: 5 },
+      { taken: 5, slots: 5 },
     ]) {
       const offered = keysOn(overrides);
       const blocked = blockedKeys(overrides);
@@ -54,7 +55,7 @@ describe('the rest of the catalogue', () => {
   // A ceiling and an empty warehouse are holds, not facts about the ground: they must not
   // move a single line onto the shelf, or the panel would teach the region wrong.
   it('leaves a held line in the offer rather than on the shelf', () => {
-    expect(blockedKeys({ standingCount: 5, cap: 5 })).toEqual(blockedKeys());
+    expect(blockedKeys({ taken: 5, slots: 5 })).toEqual(blockedKeys());
     expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
   });
 
@@ -164,9 +165,9 @@ describe('what a region can carry', () => {
 
 describe('what merely holds a line back', () => {
   it('keeps the lines when the ceiling is reached, and names the hold', () => {
-    const options = buildableOn(site({ standingCount: 5, cap: 5 }), CATALOG);
+    const options = buildableOn(site({ taken: 5, slots: 5 }), CATALOG);
     expect(options.length).toBeGreaterThan(0);
-    expect(options.every((option) => option.hold === 'buildingCap')).toBe(true);
+    expect(options.every((option) => option.hold === 'siteSlots')).toBe(true);
   });
 
   it('holds only what the stocks cannot pay for', () => {
@@ -205,12 +206,12 @@ describe('a placement the foundation owes, beside a queue', () => {
    * are still held: the debt outranks the ambition, the ambition waits for the headquarters.
    */
   it('lets an offered line through at the building ceiling, and holds the paid ones', () => {
-    const options = buildableOn(site({ foundation: OWED, standingCount: 5, cap: 5 }), CATALOG);
+    const options = buildableOn(site({ foundation: OWED, taken: 5, slots: 5 }), CATALOG);
     const free = options.filter((option) => option.free);
     expect(free.map((option) => option.key)).toEqual(expect.arrayContaining([...OWED]));
     expect(free.every((option) => option.hold === null)).toBe(true);
     expect(
-      options.filter((option) => !option.free).every((option) => option.hold === 'buildingCap'),
+      options.filter((option) => !option.free).every((option) => option.hold === 'siteSlots'),
     ).toBe(true);
   });
 
@@ -349,7 +350,8 @@ describe('placement over the whole estate', () => {
     ({
       me: {
         hqLevel: overrides.hqLevel ?? 1,
-        buildingCap: overrides.cap ?? 5,
+        siteSlots: [{ site: { outpostId: null }, taken: 0, total: overrides.cap ?? 5 }],
+        homeSlotRelief: null,
         foundation: overrides.foundation ?? [],
         construction: overrides.construction ?? null,
         constructionQueue: overrides.queue ?? [],
@@ -369,6 +371,7 @@ describe('placement over the whole estate', () => {
     coastal: false,
     point: [0, 0],
     buildings: [],
+    site: { outpostId: null },
     ...extra,
   });
 
@@ -397,7 +400,7 @@ describe('placement over the whole estate', () => {
   it('separates a ceiling from a ground that is simply taken', () => {
     const carriable = [region('a'), region('b')];
     expect(placementOf(estate({ regions: carriable, cap: 0 }), 'billets').condition).toEqual({
-      kind: 'cap',
+      kind: 'siteFull',
     });
     expect(
       placementOf(
@@ -444,7 +447,7 @@ describe('placement over the whole estate', () => {
     expect(placementOf(view, 'billets').regionIds).toEqual(['b']);
 
     const full = estate({ regions: [region('a'), region('b')], queue: queued, cap: 1 });
-    expect(placementOf(full, 'billets').condition).toEqual({ kind: 'cap' });
+    expect(placementOf(full, 'billets').condition).toEqual({ kind: 'siteFull' });
   });
 
   it('marks a key the foundation still owes as free', () => {
@@ -469,8 +472,9 @@ describe('placement over the whole estate', () => {
                 deposit: candidate.deposit,
                 coastal: candidate.coastal,
                 standing: candidate.buildings[0]?.key ?? null,
-                standingCount: view.me.buildings.length,
-                cap: view.me.buildingCap,
+                site: { outpostId: null },
+                taken: view.me.buildings.length,
+                slots: view.me.siteSlots[0]!.total,
                 hqLevel: view.me.hqLevel,
                 foundation: view.me.foundation,
               }),

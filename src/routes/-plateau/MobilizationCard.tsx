@@ -206,8 +206,8 @@ export function conditionText(condition: PlacementCondition): string {
       return said.deposit(condition.deposits.map((deposit) => fr.deposits[deposit]));
     case 'coastal':
       return said.coastal;
-    case 'cap':
-      return said.cap;
+    case 'siteFull':
+      return said.siteFull;
     case 'regionsTaken':
       return said.regionsTaken;
   }

@@ -11,16 +11,16 @@ import { followDrag, scaleOf, type Grab } from './dragging';
 import {
   blockedOn,
   buildableOn,
-  pledgedCount,
   siteOf,
   type BlockedOption,
   type BlockedReason,
   type BuildOption,
   type BuildReason,
+  type Site,
 } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import { RESOURCES, type BuildingKey } from '@/domain/ids';
-import type { Cost, PlayerView } from '@/domain/player-view';
+import type { Cost, PlayerView, SiteRef } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
 
@@ -170,17 +170,17 @@ export function ConstructionPanel({
 
         {/* A deliberate echo of the nation sheet's bar: a datum reappears elsewhere when it is
             the subject of the decision taken there, and choosing where to build is that
-            decision. The count is the list — `buildings.length` — never a third served number. */}
-        <p className="mt-2 shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-          {fr.construction.budget(
-            view.me.buildings.length + pledgedCount(view),
-            view.me.buildingCap,
-          )}
-        </p>
+            decision. **The site's budget, never a national total** (ADR 0020 §10) — the panel
+            is opened on one region, and one region hangs from exactly one site. */}
+        {site.site !== null && (
+          <p className="mt-2 shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+            {fr.construction.budget(siteName(site.site), site.taken, site.slots)}
+          </p>
+        )}
 
         <FoundationNotice owed={view.me.foundation} />
 
-        <HeldNotice view={view} options={options} />
+        <HeldNotice view={view} site={site} options={options} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
           {fr.construction.offerHeader}
@@ -257,9 +257,19 @@ function FoundationNotice({ owed }: { owed: ReadonlyArray<BuildingKey> }) {
  * wall this rule exists to prevent; one line at the head of the panel says it better, and says
  * it with the deadline or the remedy the player actually needs.
  */
-function HeldNotice({ view, options }: { view: PlayerView; options: ReadonlyArray<BuildOption> }) {
-  const held = options.some((option) => option.hold === 'buildingCap')
-    ? fr.construction.heldByCap(view.me.buildingCap, view.me.capRelief)
+function HeldNotice({
+  view,
+  site,
+  options,
+}: {
+  view: PlayerView;
+  site: Site;
+  options: ReadonlyArray<BuildOption>;
+}) {
+  const held = options.some((option) => option.hold === 'siteSlots')
+    ? site.site?.outpostId != null
+      ? fr.construction.heldByOutpostSite(site.slots)
+      : fr.construction.heldBySite(fr.construction.siteHome, site.slots, view.me.homeSlotRelief)
     : options.some((option) => option.hold === 'materials')
       ? fr.construction.heldByMaterials
       : null;
@@ -371,6 +381,8 @@ const blockedText = (reason: BlockedReason): string => {
   switch (reason.kind) {
     case 'constructionHere':
       return said.constructionHere;
+    case 'outOfReach':
+      return said.outOfReach;
     case 'standing':
       return said.standing;
     case 'regionTaken':
@@ -419,3 +431,8 @@ function CostLine({ cost, lacking }: { cost: Cost; lacking: boolean }) {
     </span>
   );
 }
+
+/** The site a region hangs from, named. Ground no living site reaches prints no budget at all
+ *  rather than "0 sur 0" — there is nothing there to spend. */
+const siteName = (site: SiteRef): string =>
+  site.outpostId === null ? fr.construction.siteHome : fr.construction.siteOutpost;

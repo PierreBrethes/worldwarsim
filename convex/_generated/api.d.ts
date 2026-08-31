@@ -28,6 +28,7 @@ import type * as regions from "../regions.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
 import type * as seasons from "../seasons.js";
+import type * as sites from "../sites.js";
 import type * as troops from "../troops.js";
 import type * as upkeep from "../upkeep.js";
 import type * as validators from "../validators.js";
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   resources: typeof resources;
   routes: typeof routes;
   seasons: typeof seasons;
+  sites: typeof sites;
   troops: typeof troops;
   upkeep: typeof upkeep;
   validators: typeof validators;

@@ -154,8 +154,8 @@ export type Economy = {
   readonly chains: ReadonlyArray<ChainReport>;
   /** The standing lots, advanced to `now` like the stocks — never as stored. */
   readonly orders: ReadonlyArray<SettledOrder>;
-  /** What the army eats, already netted out of `ratePerHour.food` above. It travels whole
-   *  because the screen owes the player the two halves of a rate he reads as one number. */
+  /** What the army and the outposts eat, already netted out of `ratePerHour` above. It travels
+   *  whole because the screen owes the player the halves of a rate he reads as one number. */
   readonly upkeep: Upkeep;
   /**
    * **The army has nothing left to eat.** Nothing dies of it (`consommation-continue.md` D3) —
@@ -214,6 +214,9 @@ export async function economyOf(
   const upkeep = await upkeepOf(ctx, playerId, now);
   const ratePerHour = extractionRates(buildings);
   ratePerHour.food -= upkeep.foodPerHour;
+  /** The outposts eat beside the army, and in the same term of the rate (ADR 0020 §10): the
+   *  brake on expansion is a continuous cost, so it has to be part of the one arbitration. */
+  for (const key of RESOURCES) ratePerHour[key] -= upkeep.outpostPerHour[key];
   const cap = storageCaps(buildings);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({

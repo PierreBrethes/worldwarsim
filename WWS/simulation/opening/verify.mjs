@@ -140,12 +140,20 @@ function startingLine() {
   scalar('DEFAULT_DURATION_HOURS', held.defaultDurationHours);
   scalar('HQ_LEVEL_AT_LAUNCH', held.hqLevelAtLaunch);
   scalar('MAX_HQ_LEVEL', held.maxHqLevel);
-  scalar('BUILDING_CAP_BASE', held.buildingCapBase);
-  scalar('BUILDING_CAP_PER_HQ_LEVEL', held.buildingCapPerHqLevel);
   scalar('STARTING_ALLOY', held.startingAlloy);
   scalar('STARTING_OIL', held.startingOil);
   scalar('STARTING_AMMUNITION', held.startingAmmunition);
   unverified.push('SEASON_FORMATS.skirmish (scénario du miroir — le jeu n’a plus de format)');
+  /**
+   * **Le plafond global de bâtiments n'existe plus dans le jeu** (ADR 0020 §10) : les
+   * emplacements sont portés par chaque site, et le moteur du miroir ne modélise ni avant-poste
+   * ni entretien. `buildingCapBase` / `buildingCapPerHqLevel` y restent donc un paramètre de
+   * l'instrument, comme l'escarmouche — plus rien à comparer, et le dire vaut mieux que de
+   * comparer un nombre à un vide.
+   */
+  unverified.push(
+    'SEASON_FORMATS.*.buildingCap* (plafond global du miroir — le jeu compte par site)',
+  );
 }
 
 /**
@@ -188,6 +196,8 @@ scalar('MAX_QUEUED_BATCHES', mirror.MAX_QUEUED_BATCHES);
 scalar('STRENGTH_PER_ROUND', mirror.STRENGTH_PER_ROUND);
 scalar('DRY_AMMUNITION_FACTOR', mirror.DRY_AMMUNITION_FACTOR);
 scalar('OUTPOST_REACH_KM', mirror.OUTPOST_REACH_KM);
+scalar('PLACEMENTS_PER_HQ_LEVEL', mirror.PLACEMENTS_PER_HQ_LEVEL);
+flatTable('OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL', mirror.OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL);
 scalar('MINUTES_PER_1000_KM_ON_LAND', mirror.MINUTES_PER_1000_KM_ON_LAND);
 scalar('REDUCTION_FACTOR', mirror.REDUCTION_FACTOR);
 

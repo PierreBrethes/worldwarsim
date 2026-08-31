@@ -152,6 +152,15 @@ export const startingStock = (format) => ({
  * longer a number. `verify.mjs` reads scalars as text and cannot watch a formula drift — see
  * the README.
  */
+/**
+ * **Les emplacements suivent le niveau du site** (ADR 0020 §10) : deux par niveau de QG sur le
+ * sol national, son niveau pour un avant-poste, et l'entretien remplace le plafond global comme
+ * frein d'expansion. Le moteur ci-dessous ne modélise ni avant-poste ni entretien — ces valeurs
+ * sont miroitées pour surveiller leur dérive, pas encore lues par un scénario.
+ */
+export const PLACEMENTS_PER_HQ_LEVEL = 2;
+export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL = { food: 2, coal: 1 };
+
 export const OUTPOST_REACH_KM = 400;
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
 

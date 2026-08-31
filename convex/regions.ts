@@ -118,6 +118,11 @@ export const homeDepositsOf = (nation: string | null): ReadonlySet<DepositKey> =
   return (country === null ? undefined : DEPOSITS_BY_COUNTRY.get(country)) ?? NOTHING;
 };
 
+/** The whole foundation of a nation, owed or already standing — what `foundationOwed` counts
+ *  down from, and what a placement budget leaves out of its count (ADR 0020 §10). */
+export const foundationOf = (nation: string | null): ReadonlyArray<BuildingKey> =>
+  foundationFor(homeDepositsOf(nation));
+
 /**
  * **What the season still owes this nation, in placement order.** The join of the two halves:
  * the rule is `foundationFor` in `constants.ts`, the ground is the map above.
@@ -133,7 +138,7 @@ export function foundationOwed(
   nation: string | null,
   standing: ReadonlyArray<BuildingKey>,
 ): ReadonlyArray<BuildingKey> {
-  const owed = [...foundationFor(homeDepositsOf(nation))];
+  const owed = [...foundationOf(nation)];
   for (const key of standing) {
     const rank = owed.indexOf(key);
     if (rank >= 0) owed.splice(rank, 1);

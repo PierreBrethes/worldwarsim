@@ -220,6 +220,29 @@ export type UpkeepView = {
   /** How many of them stand outside every anchor of their own, at the raised rate. */
   readonly unsupplied: number;
   readonly foodPerHour: number;
+  /** What the empire costs an hour, beside what the army costs (ADR 0020 §10). It is the brake
+   *  on expansion, and the player has to be able to read it as its own line. */
+  readonly outposts: number;
+  readonly outpostFoodPerHour: number;
+  readonly outpostCoalPerHour: number;
+};
+
+/**
+ * **Which site a placement hangs from** — `null` in `outpostId` is national soil, an id is an
+ * outpost (ADR 0020 §10). The two forms are exclusive in a single field, so nothing here needs
+ * a tag: a site is an outpost or it is home, and there is no third answer.
+ */
+export type SiteRef = { readonly outpostId: string | null };
+
+export const sameSite = (one: SiteRef, other: SiteRef): boolean =>
+  one.outpostId === other.outpostId;
+
+/** What one site carries and what stands on it. `taken` is what **stands**: the prepaid queue
+ *  is added by whoever reads it, so the two cannot be served twice and disagree. */
+type SiteSlots = {
+  readonly site: SiteRef;
+  readonly taken: number;
+  readonly total: number;
 };
 
 export type Resource = {
@@ -306,6 +329,9 @@ export type RegionView = {
    *  centroid the map draws its polygon around, which is a different point. */
   readonly point: LonLat;
   readonly buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly level: number }>;
+  /** Whose placements a building here would spend — `null` when no living site of the player
+   *  reaches it any more, which is a region nothing can go up on. */
+  readonly site: SiteRef | null;
 };
 
 export type OpponentBar =
@@ -323,11 +349,11 @@ export type Opponent = {
 };
 
 /**
- * What the next headquarters level would carry — `null` at the top of the format's ladder. It
- * is what turns "plafond atteint" from a wall into a plan, and it is **served** so the sentence
- * and the refusal that raised it read the same `buildingCap`.
+ * What the next headquarters level would carry **at home** — `null` at the top of the ladder. It
+ * is what turns "plus un emplacement libre" from a wall into a plan, and it is **served** so the
+ * sentence and the refusal that raised it read the same `homeSlots`.
  */
-export type CapRelief = { readonly nextHqLevel: number; readonly nextCap: number } | null;
+export type HomeSlotRelief = { readonly nextHqLevel: number; readonly nextSlots: number } | null;
 
 export type RunningWork = {
   readonly id: string;
@@ -526,13 +552,14 @@ export type PlayerView = {
     /** Zero until the headquarters is built — and until then nothing else can be. */
     readonly hqLevel: number;
     /**
-     * How many buildings may stand at once, carried by the headquarters (ADR 0015). The count
-     * standing against it is `buildings.length`: the list is complete, so it holds the count.
+     * **The placements, site by site** (ADR 0020 §10) — national soil first, then one line per
+     * outpost. There is no national total any more: a full home ground holds nothing back at an
+     * outpost, which is what makes expanding worth its upkeep.
      */
-    readonly buildingCap: number;
-    /** What the next headquarters level would carry — `null` at the top of the format's ladder.
-     *  It is what turns "plafond atteint" from a wall into a plan. */
-    readonly capRelief: CapRelief;
+    readonly siteSlots: ReadonlyArray<SiteSlots>;
+    /** What the next headquarters level would carry at home — `null` at the top of the ladder.
+     *  It is what turns "plus un emplacement libre" from a wall into a plan. */
+    readonly homeSlotRelief: HomeSlotRelief;
     /** The headquarters level that opens mark 2 in this format — served, never derived here. */
     readonly tier2HqLevel: number;
     /**

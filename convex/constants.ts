@@ -132,32 +132,24 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
 export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
 
 /**
- * ADR 0015: no game quantity is ever counted in regions, so the ceiling on standing buildings is
- * carried by the headquarters. Natural Earth cuts the United Kingdom into 232 districts and
- * Germany into 16 Länder — anything indexed on a region count would let a cartography vendor
- * balance a season.
+ * **Placements are carried by each site, never by the nation** (ADR 0020 §10). National soil
+ * carries two per headquarters level; an outpost carries **its own level**, which is why an
+ * outpost is worth raising and why a level-3 one is a ranked target — putting it out of service
+ * freezes three buildings.
  *
- * The ceiling must stay strictly under the region count of the smallest playable nation, or the
- * one-per-region rule would cap Germany and nobody else — `economy.test.ts` asserts it.
+ * The global ceiling `buildingCap(hqLevel)` it replaces refused for a reason nobody could read:
+ * at the launch the national foundation ate the whole of it — zero free placement, and *fewer*
+ * the richer the ground, since the debt follows the deposits. That inverted the distribution
+ * guard rails of ADR 0015, and it punished the expansion ADR 0020 exists to ask for. The brake
+ * on expansion is the upkeep now (`OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL`), not a count.
  *
- * **The base is 5 and not 3 since 31/08.** At the headquarters the single season plants — one —
- * three plus two left a ceiling of five, and the national foundation ate all of it: zero free
- * placement at the launch, and *fewer* the richer the ground, since the debt follows the
- * deposits. That inverts the distribution guard rails of ADR 0015, which exist so a wealthy
- * ground is not simply a better one. A provisional setting: the ADR 0020 §10 replaces this
- * global ceiling with placements held per outpost.
- *
- * **A global ceiling is on its way out** for that very reason — a global count punishes the
- * expansion that ADR asks for. What is here is what the single format leaves behind, kept until
- * the local placements land.
- *
- * @a-mesurer the pair a single format leaves behind, never simulated — ADR 0020 §10 replaces it
+ * ADR 0015 still holds: no game quantity is counted in regions. Two per level is a count of
+ * *levels*, and the reach of an outpost stays a radius in kilometres.
  */
-export const BUILDING_CAP_BASE = 5;
-export const BUILDING_CAP_PER_HQ_LEVEL = 2;
+export const PLACEMENTS_PER_HQ_LEVEL = 2;
 
-export const buildingCap = (hqLevel: number): number =>
-  BUILDING_CAP_BASE + BUILDING_CAP_PER_HQ_LEVEL * hqLevel;
+/** What national soil carries. An outpost carries its level and needs no function for it. */
+export const homeSlots = (hqLevel: number): number => PLACEMENTS_PER_HQ_LEVEL * hqLevel;
 
 /**
  * **Une seule ligne de départ** (ADR 0020 §11). L'escarmouche et la campagne ont disparu le
@@ -599,6 +591,23 @@ export const UPKEEP_UNSUPPLIED_MULTIPLIER = 2;
  */
 export const OUTPOST_DISABLED_HOURS = 6;
 export const OUTPOST_IMMUNITY_HOURS = 3;
+
+/**
+ * **What one outpost costs to hold, per level and per hour** (ADR 0020 §10). It is the brake on
+ * expansion, deliberately put here rather than on the founding bill: a rising founding cost
+ * punishes once, at the purchase, and is then forgotten; an upkeep weighs for as long as the
+ * empire stands. An over-extended player is structurally fragile in war, and one who loses
+ * points sees his bill fall — "a crushed player stays a nuisance", applied to the economy.
+ *
+ * Nothing dies when the reserve runs dry (`consommation-continue.md` D3): the stock dives, and
+ * that is all.
+ *
+ * **Assumed values, never measured** — same standing and same paragraph as
+ * `UPKEEP_UNSUPPLIED_MULTIPLIER` above.
+ *
+ * @a-mesurer assumed; nothing measures what an outpost should cost to hold against a farm's yield
+ */
+export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL: Costs = { food: 2, coal: 1 };
 
 /**
  * **How far an outpost opens the ground around it** (ADR 0015). A radius rather than a count of

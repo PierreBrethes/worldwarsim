@@ -13,14 +13,14 @@ import {
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
-  buildingCap,
   isCommanded,
   unlockLevel,
   troopCap,
   type Costs,
 } from './constants';
 import { engagementsOf } from './combat';
-import { capReliefOf, queueOf } from './constructions';
+import { homeSlotReliefOf, queueOf } from './constructions';
+import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationServed } from './movement/forces';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
@@ -44,6 +44,9 @@ export const playerView = query({
     const economy = await economyOf(ctx, player._id, now);
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
+    /** Every site of his and what is left on it, read by the one function both doors of the
+     *  placement rule read (`convex/sites.ts`). */
+    const sites = await sitesOf(ctx, player);
     const queue = await queueOf(ctx, player._id);
     /** The head of the queue is the only entry a `finishesAt` ever dates, so it is the only one
      *  the banner and the map can put a crane on — the rest is a list waiting its turn. */
@@ -247,23 +250,29 @@ export const playerView = query({
         // rises above the headquarters (`cappedByHq`).
         hqLevel,
         /**
-         * The global ceiling on standing buildings. Without it the construction screen cannot
-         * tell what it may offer, and would propose a building the server then refuses — worse
-         * than a greyed-out line, because the refusal only lands after the click.
+         * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
+         * per outpost. Without them the construction screen cannot tell what it may offer, and
+         * would propose a building the server then refuses — worse than a greyed-out line,
+         * because the refusal only lands after the click.
          *
-         * The count of standing buildings is not served beside it: `buildings` below is the
-         * whole list, so its length *is* the count. Two numbers for one fact would diverge.
+         * `taken` counts what **stands**; the prepaid queue is added by the screen, which holds
+         * it in `constructionQueue`. Two servings of one count would diverge, and the exemption
+         * of the foundation is the server's own reading of its own debt.
          */
-        buildingCap: buildingCap(hqLevel),
+        siteSlots: sites.budgets.map((budget) => ({
+          site: siteRef(budget.site)!,
+          taken: budget.taken,
+          total: budget.total,
+        })),
         /**
-         * **What the next headquarters level would carry**, `null` at the top of the ladder.
-         * Served rather than derived on the client for the reason the ceiling itself is: the
-         * line that says "un quartier général niveau 2 le porte à 8" and the refusal that
-         * raised it have to be the same two numbers, and a client-side copy of `buildingCap`
-         * is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché sans sa
-         * condition, et une condition qui se chiffre est un plan).
+         * **What the next headquarters level would carry at home**, `null` at the top of the
+         * ladder. Served rather than derived on the client for the reason the placements
+         * themselves are: the line that says "un quartier général niveau 2 les porte à 4" and
+         * the refusal that raised it have to be the same two numbers, and a client-side copy of
+         * `homeSlots` is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché
+         * sans sa condition, et une condition qui se chiffre est un plan).
          */
-        capRelief: capReliefOf(hqLevel),
+        homeSlotRelief: homeSlotReliefOf(hqLevel),
         /**
          * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
          * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the
@@ -306,6 +315,14 @@ export const playerView = query({
           buildings: buildings
             .filter((building) => building.regionId === facts.id)
             .map((building) => ({ key: building.key, level: building.level })),
+          /**
+           * **Whose placements a building here would spend** — `null` is national soil, an id
+           * is the outpost that reaches it, and an absent site is ground no point of his covers
+           * any more (a destroyed outpost). Served rather than re-derived: the anchor is a
+           * radius the server owns, and a client copy of it would offer a site that is not
+           * there.
+           */
+          site: siteRef(sites.siteAt(facts.id)),
         })),
         // The region and the key travel with it because the map plants the crane on the
         // ground: a region name is a caption, not an anchor.
@@ -344,6 +361,11 @@ export const playerView = query({
           troops: economy.upkeep.troops,
           unsupplied: economy.upkeep.unsupplied,
           foodPerHour: economy.upkeep.foodPerHour,
+          /** The other half of the drain since ADR 0020 §10: the empire, priced by level. It
+           *  is served split from the army's because the two are repaired by opposite moves. */
+          outposts: economy.upkeep.outposts,
+          outpostFoodPerHour: economy.upkeep.outpostPerHour.food,
+          outpostCoalPerHour: economy.upkeep.outpostPerHour.coal,
         },
         starving: economy.starving,
         /**
@@ -670,3 +692,12 @@ async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promi
   const building = await ctx.db.get(sighting.detectorId as Id<'buildings'>);
   return building === null ? null : (regionFacts(building.regionId)?.name ?? null);
 }
+
+/**
+ * A site as the client reads it: `null` for the ground no living point of his reaches,
+ * `{ outpostId: null }` for national soil, an id for an outpost. The two forms of a site are
+ * already exclusive in one field, so a discriminated union here would only add a tag the
+ * `null` carries by itself.
+ */
+const siteRef = (site: Site | null): { readonly outpostId: Id<'outposts'> | null } | null =>
+  site === null ? null : { outpostId: site.kind === 'home' ? null : site.outpostId };

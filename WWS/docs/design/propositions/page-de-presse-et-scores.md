@@ -3,6 +3,16 @@
 **Décision de Pierre (29/08)** : pour soi, un score détaillé par catégorie ; pour les autres,
 **un seul score général**, qui donne l'ordre de grandeur, jamais le détail.
 
+> **Note du 31/08/2026 — tranché par Pierre, la proposition tient et s'ajuste.** La cadence de
+> publication est fixée : **une édition toutes les 2 heures** (job planifié serveur, fréquence
+> paramétrable) — jamais en direct, comme le §1 l'exigeait. S'y ajoute une quatrième catégorie,
+> née de l'ADR 0020 : le **territoire** (part de carte), qui est *public, exact et permanent pour
+> tous* (ADR 0020 §4) — c'est le seul chiffre hors tranche, parce que c'est le but du jeu, et la
+> carte n'en révèle pas le détail (le relevé se périme, §5). Industrie et puissance militaire
+> restent en tranches pour les autres ; les faits d'armes restent publics et exacts. **La victoire
+> ne change pas de nature** : elle reste territoriale (seuil tenu) — le classement raconte, il ne
+> couronne pas. La fenêtre : une liste ordonnée, le premier en haut, habillage presse.
+
 ## Le principe
 
 Un classement ne perce pas le brouillard (ADR 0005) : il le résume. Trois catégories calculées

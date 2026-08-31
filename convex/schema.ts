@@ -141,6 +141,24 @@ export default defineSchema({
     key: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
+    /**
+     * **Which site carries this building's placement** (ADR 0020 §10): `null` is national soil,
+     * an id is the outpost the placement was anchored to. Written **at the placement and never
+     * recomputed** — a building put up abroad hangs from the founder's nearest outpost whose
+     * reach covers the region, and it keeps hanging from it whatever is founded afterwards.
+     * Otherwise a new point would silently move an old building's placement from one budget to
+     * another, and a site the player never touched would fill up on its own.
+     *
+     * `v.optional` rather than required: rows written before this landed carry no field at all,
+     * and a required one would make the deployment refuse them (the lesson of 27/08 on
+     * `buildings.seasonId`). **Absent is not `null`** — it is a row read back by geography once,
+     * national soil when its region is at home. Same tolerance as `seasons.format`, and it goes
+     * with the next wipe.
+     *
+     * A destroyed outpost leaves its buildings standing and their anchor dead: nothing is
+     * re-hung anywhere, and nothing more can be placed there.
+     */
+    outpostId: v.optional(v.union(v.id('outposts'), v.null())),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),

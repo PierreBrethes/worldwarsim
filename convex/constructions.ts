@@ -5,26 +5,22 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { nearestOutpostKm } from '../src/domain/outposts';
-import { buildingAt, cappedByHq, levelOf, playerBuildings } from './buildings';
+import { buildingAt, cappedByHq, playerBuildings } from './buildings';
 import {
   MAX_HQ_LEVEL,
   OUTPOST_REACH_KM,
   unlockLevel,
   buildCost,
   buildMinutes,
-  buildingCap,
+  homeSlots,
 } from './constants';
-import { outpostsOf, pointOf } from './movement/forces';
 import { fail, type ErrorCode } from './errors';
-import { foundationOwed, homeCountryOf, regionFacts } from './regions';
+import { foundationOwed, regionFacts } from './regions';
+import { pointOf } from './movement/forces';
+import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit } from './resources';
 import { playerByToken, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY } from './validators';
-
-/** An outpost row, as the reach reads it: a point and nothing else. */
-const reachSource = (outpost: { point: { lon: number; lat: number } }) => ({
-  point: pointOf(outpost.point),
-});
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -91,6 +87,7 @@ export const start = mutation({
         key: building,
         regionId,
         level: 1,
+        ...anchored(await anchorAt(ctx, player, regionId)),
       });
       return { finishesAt: now, cost: {}, level, rank: null };
     }
@@ -149,12 +146,16 @@ export const finish = internalMutation({
     if (standing) {
       await ctx.db.patch(standing._id, { level: construction.level });
     } else {
+      /** The anchor is decided **here**, at the placement, and never read again: whatever is
+       *  founded later leaves this building on the site that carried it (`schema.ts`). */
+      const player = await ctx.db.get(construction.playerId);
       await ctx.db.insert('buildings', {
         seasonId: season._id,
         playerId: construction.playerId,
         key: construction.building,
         regionId: construction.regionId,
         level: construction.level,
+        ...(player === null ? {} : anchored(await anchorAt(ctx, player, construction.regionId))),
       });
     }
     await ctx.db.delete(constructionId);
@@ -235,6 +236,8 @@ async function refusalFor(
   const region = regionFacts(regionId);
   if (!region) return { code: 'UNKNOWN_REGION', details: { regionId } };
 
+  const sites = await sitesOf(ctx, player);
+
   /**
    * **Home, or within reach of one of the player's outposts** (ADR 0015). The reach is a
    * radius in kilometres, never a count of regions — Natural Earth cuts the United Kingdom
@@ -242,26 +245,26 @@ async function refusalFor(
    * cartography vendor balance the season. How many regions it covers therefore varies by
    * country: that is the geography speaking.
    *
-   * Nothing else moves. A well in Arabia is a building like any other — it wants its
-   * deposit, it takes the single site of its region, it counts against the ceiling the
-   * headquarters carries, and it will be lootable the day looting exists.
+   * The very same radius names the **site** the placement will hang from (`siteFor`): where
+   * one may build and whose placements one spends are one question, asked once.
    */
-  if (region.country !== homeCountryOf(player.nation)) {
-    const outposts = await outpostsOf(ctx, player._id);
-    const nearest = nearestOutpostKm(region.point, outposts.map(reachSource));
-    if (nearest === null || nearest > OUTPOST_REACH_KM) {
-      return {
-        code: 'OUT_OF_OUTPOST_REACH',
-        details: {
-          regionId,
-          reachKm: OUTPOST_REACH_KM,
-          nearestKm: nearest === null ? null : Math.round(nearest),
-        },
-      };
-    }
+  const site = sites.siteAt(regionId);
+  if (site === null) {
+    const nearest = nearestOutpostKm(
+      region.point,
+      sites.outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
+    );
+    return {
+      code: 'OUT_OF_OUTPOST_REACH',
+      details: {
+        regionId,
+        reachKm: OUTPOST_REACH_KM,
+        nearestKm: nearest === null ? null : Math.round(nearest),
+      },
+    };
   }
 
-  const buildings = await playerBuildings(ctx, player._id);
+  const { buildings, hqLevel } = sites;
   if (
     building === 'hq' &&
     buildings.some((held) => held.key === 'hq' && held.regionId !== regionId)
@@ -281,41 +284,56 @@ async function refusalFor(
   }
 
   const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
-  const hqLevel = levelOf(buildings, 'hq');
-  const cap = buildingCap(hqLevel);
+  const budget = sites.budgetOf(site);
+  const slots = budget?.total ?? 0;
   const requiredLevel = unlockLevel(building);
-  // A pledge on a bare region is a building coming; a pledge on a region that already carries
-  // one is a raise, and a raise moves neither the count nor the ceiling.
-  const standing =
-    buildings.length +
-    pledged.filter((entry) => !buildings.some((held) => held.regionId === entry.regionId)).length;
+  /**
+   * **The placements of this site, standing plus pledged** — never a national total (ADR 0020
+   * §10). A pledge on a bare region is a building coming; a pledge on a region that already
+   * carries one is a raise, and a raise moves neither the count nor the site's budget. Only
+   * the pledges aimed at **this** site count: a queue filling an outpost holds nothing back at
+   * home, which is the whole point of the local budget.
+   */
+  const taken =
+    (budget?.taken ?? 0) +
+    pledged.filter(
+      (entry) =>
+        !buildings.some((held) => held.regionId === entry.regionId) &&
+        anchorOfRegion(sites, entry.regionId, site),
+    ).length;
 
   /**
-   * **A key the season owes is never refused by the ceiling** (decision of 25/08). It was, and
-   * it made a debt of the season unpayable by a rule of the season: the headquarters is planted
-   * at 1, which carries five buildings, and an American ground is owed five extractors — the
-   * fifth was refused `BUILDING_CAP_REACHED` on an empty map.
+   * **A key the season owes is never refused by the placements** (decision of 25/08). It was,
+   * and it made a debt of the season unpayable by a rule of the season: the headquarters is
+   * planted at 1, which carries two placements, and an American ground is owed five extractors.
    *
-   * The ceiling therefore bites the **paying road only**, the same gesture and the same reason
-   * as the construction lock before it (`fondation-hors-chantier.md`). It comes back the moment
-   * the building stands: the count includes it like any other, so a nation may sit *above* its
-   * ceiling for as long as its debt says — the season's debt outranks the player's ambition,
-   * and the ambition waits for the headquarters.
+   * Since ADR 0020 §10 the foundation is out of the count altogether (`sitesOf`), so this only
+   * covers the moment of the placement itself — the debt outranks a site already full, and what
+   * it puts down never fills one.
    */
   const owed = owedFreely(player.nation, buildings, building, regionId);
 
   const refusal = placementRefusal(
     building,
     region,
-    { onRegion, standing, cap: owed ? Number.POSITIVE_INFINITY : cap, hqLevel },
+    { onRegion, taken, slots: owed ? Number.POSITIVE_INFINITY : slots, hqLevel },
     requiredLevel,
   );
   if (refusal === 'REGION_TAKEN')
     return { code: refusal, details: { regionId, standing: onRegion } };
-  // The refusal names its remedy with the figure it would buy: "montez le QG" is advice,
-  // "un quartier général niveau 2 le porte à 8" is a plan (ADR 0015, révision du 24/08).
-  if (refusal === 'BUILDING_CAP_REACHED') {
-    return { code: refusal, details: { cap, hqLevel, ...relief(hqLevel) } };
+  /**
+   * **The refusal names the site that is full, never a national total.** "Sol national : 2
+   * emplacements sur 2" and "avant-poste : 1 sur 1" call for opposite moves — raise the
+   * headquarters, or raise that point — and a single figure could name neither.
+   */
+  if (refusal === 'SITE_SLOTS_FULL') {
+    return {
+      code: refusal,
+      details:
+        site.kind === 'home'
+          ? { site: 'home', taken, slots, hqLevel, ...homeRelief(hqLevel) }
+          : { site: 'outpost', taken, slots },
+    };
   }
   // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
   // a wall — and the tier is the one refusal a player can always act on.
@@ -338,18 +356,25 @@ async function refusalFor(
   return null;
 }
 
-/**
- * What the next headquarters level would carry, `null` at the top of the ladder. Two numbers
- * rather than a sentence (ADR 0016), and both out of `buildingCap` — the screen that says "un
- * quartier général niveau 2 le porte à 8" and the refusal that raised it must be reading the
- * same ladder, never two copies of it.
- */
-export const capReliefOf = (
-  hqLevel: number,
-): { readonly nextHqLevel: number; readonly nextCap: number } | null =>
-  hqLevel >= MAX_HQ_LEVEL ? null : { nextHqLevel: hqLevel + 1, nextCap: buildingCap(hqLevel + 1) };
+/** Whether a queued entry aims at the very site being measured. A region no site of the
+ *  player's reaches any more belongs to none, so it holds nothing back anywhere. */
+function anchorOfRegion(sites: Sites, regionId: string, site: Site): boolean {
+  const aimed = sites.siteAt(regionId);
+  return aimed !== null && sameSite(aimed, site);
+}
 
-const relief = (hqLevel: number) => capReliefOf(hqLevel) ?? {};
+/**
+ * What the next headquarters level would carry **on national soil**, `null` at the top of the
+ * ladder. Two numbers rather than a sentence (ADR 0016), and both out of `homeSlots` — the
+ * screen that says "un quartier général niveau 2 les porte à 4" and the refusal that raised it
+ * must be reading the same ladder, never two copies of it.
+ */
+export const homeSlotReliefOf = (
+  hqLevel: number,
+): { readonly nextHqLevel: number; readonly nextSlots: number } | null =>
+  hqLevel >= MAX_HQ_LEVEL ? null : { nextHqLevel: hqLevel + 1, nextSlots: homeSlots(hqLevel + 1) };
+
+const homeRelief = (hqLevel: number) => homeSlotReliefOf(hqLevel) ?? {};
 
 /** Everything a player has pledged to build, head first. */
 export async function queueOf(

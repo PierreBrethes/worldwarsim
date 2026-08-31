@@ -124,6 +124,9 @@ async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Prom
     key: 'hq',
     regionId: capitalRegionOf(player.nation),
     level: HQ_LEVEL_AT_LAUNCH,
+    /** The capital is national soil by definition, and the one building that eats no placement
+     *  of it (ADR 0020 §10) — a nation has a headquarters, it does not build one. */
+    outpostId: null,
   });
 
   /**

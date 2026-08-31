@@ -38,26 +38,32 @@ export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<Res
  * button the server still takes, or the reverse.
  */
 export type PlacementRefusal =
-  'REGION_TAKEN' | 'BUILDING_CAP_REACHED' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';
+  'REGION_TAKEN' | 'SITE_SLOTS_FULL' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';
 
 /**
- * What the player already holds, as placement reads it. `onRegion` is the building standing on
- * the very region aimed at, if any: when it is the one being ordered, this is a **level being
- * raised**, not a second building — neither the one-per-region rule nor the ceiling applies,
- * since neither the count of buildings nor the count of occupied regions moves.
+ * What the player already holds **on the site he is aiming at**, as placement reads it.
+ * `onRegion` is the building standing on the very region aimed at, if any: when it is the one
+ * being ordered, this is a **level being raised**, not a second building — neither the
+ * one-per-region rule nor the site's placements apply, since neither the count of buildings nor
+ * the count of occupied regions moves.
+ *
+ * `taken` and `slots` are a **site**, never a nation (ADR 0020 §10): national soil carries two
+ * per headquarters level, an outpost carries its own level, and a nation that has filled one is
+ * free on the next. A global ceiling counted here refused for an unreadable reason and punished
+ * the very expansion the game asks for.
  */
 export type Holdings = {
   readonly onRegion: BuildingKey | null;
-  readonly standing: number;
-  readonly cap: number;
+  readonly taken: number;
+  readonly slots: number;
   /** What the headquarters stands at, which is what opens the catalogue by tier. */
   readonly hqLevel: number;
 };
 
 /**
  * Refusals are ordered from the most local to the most general, because that is the order in
- * which they are actionable: a taken region names another region to aim at, a reached ceiling
- * names the headquarters to raise.
+ * which they are actionable: a taken region names another region to aim at, a full site names
+ * the site to raise — the headquarters at home, the outpost abroad.
  *
  * `unlockedAtHqLevel` comes in as a number rather than being read from a table here: the tiers
  * are balance figures and live with the other ones (`convex/constants.ts`, `UNLOCKED_AT`),
@@ -72,7 +78,7 @@ export function placementRefusal(
 ): PlacementRefusal | null {
   const raising = holdings.onRegion === key;
   if (holdings.onRegion !== null && !raising) return 'REGION_TAKEN';
-  if (!raising && holdings.standing >= holdings.cap) return 'BUILDING_CAP_REACHED';
+  if (!raising && holdings.taken >= holdings.slots) return 'SITE_SLOTS_FULL';
   // The headquarters gates every other key and never itself: at level 0 it is what the player
   // is missing, not what he is refused, and a season plants it anyway (ADR 0015).
   if (key !== 'hq' && holdings.hqLevel < unlockedAtHqLevel) return 'BUILDING_LOCKED';

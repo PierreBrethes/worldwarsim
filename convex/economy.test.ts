@@ -21,10 +21,12 @@ import {
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
   STARTING_KIT,
+  OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
+  PLACEMENTS_PER_HQ_LEVEL,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
   buildMinutes,
-  buildingCap,
+  homeSlots,
   unlockLevel,
 } from './constants';
 import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
@@ -60,7 +62,11 @@ async function launchedSeason(
   const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
   await t.mutation(api.players.reserveNation, { token, nation });
   await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
+  // Two seats, two flags: the guest takes anything but the one under test.
+  await t.mutation(api.players.reserveNation, {
+    token: guest,
+    nation: nation === 'ussr' ? 'japan' : 'ussr',
+  });
   await t.mutation(api.players.declareReady, { token: guest, ready: true });
   await t.mutation(api.seasons.launch, { token });
   await disbandTheGift(t, token);
@@ -715,8 +721,8 @@ describe('the foundation the season owes', () => {
           region,
           {
             onRegion: null,
-            standing: 0,
-            cap: Number.POSITIVE_INFINITY,
+            taken: 0,
+            slots: Number.POSITIVE_INFINITY,
             hqLevel: HQ_LEVEL_AT_LAUNCH,
           },
           unlockLevel(key),
@@ -730,7 +736,8 @@ describe('the foundation the season owes', () => {
   /** Places what the season **still** owes, one key at a time, and hands back what it cost. */
   async function placeFoundation(t: ReturnType<typeof boot>, token: string) {
     const bills: Array<Record<string, number>> = [];
-    for (let guard = 0; guard < FRENCH_FOUNDATION.length; guard += 1) {
+    // The widest ground of the eight is owed five, and the loop is a guard, not a count.
+    for (let guard = 0; guard < 8; guard += 1) {
       const view = await t.query(api.view.playerView, { token });
       const key = view.me.foundation[0];
       if (key === undefined) break;
@@ -881,31 +888,48 @@ describe('the foundation the season owes', () => {
   });
 
   /**
-   * The guard rail behind the test above, said as a number: the headquarters has to carry the
-   * foundation, itself, **and** at least one building the player chose. Without that margin, a
-   * single first move would strand the foundation behind a ceiling.
+   * **What the season offers is not paid for in freedom** (ADR 0020 §10). The old global
+   * ceiling made the launch open with *zero* free placement, and with fewer the richer the
+   * ground was — the exact inversion of the distribution guard rails of ADR 0015. The
+   * foundation and the headquarters are outside the count now, so the free placements at the
+   * launch are `2 × 1`, whatever the deposits the nation was dealt.
    */
-  it('leaves room for the foundation, the headquarters and one free choice', () => {
-    // The widest ground of the eight, since the debt follows the nation.
-    const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
-    expect(buildingCap(MAX_HQ_LEVEL)).toBeGreaterThanOrEqual(widest + 2);
+  it('opens on exactly two free placements at home, whatever the ground is worth', async () => {
+    for (const nation of NATIONS) {
+      const t = boot();
+      const token = await launchedSeason(t, 168, nation);
+      await placeFoundation(t, token);
+
+      const view = await t.query(api.view.playerView, { token });
+      expect(view.me.foundation).toEqual([]);
+      const home = view.me.siteSlots.find((budget) => budget.site.outpostId === null)!;
+      expect(home.total - home.taken).toBe(homeSlots(HQ_LEVEL_AT_LAUNCH));
+      expect(home.taken).toBe(0);
+    }
   });
 
   /**
-   * **The number that describes the season is not the ceiling, it is what is left of it.** The
-   * foundation and the headquarters are standing before the player chooses anything, so the
-   * free placements are the whole width of the decision — the season used to open with **none**
-   * of them, which is what raised `BUILDING_CAP_BASE` to five on 31/08.
+   * **The guard rail, executable, in its new form.** No game quantity is counted in regions
+   * (ADR 0015), and the one-per-region rule is what would break it: let what a nation can put
+   * on its own soil reach the region count of the smallest playable nation and Natural Earth's
+   * cutting starts balancing the season — Germany capped at 16 Länder where the United Kingdom
+   * has 232.
+   *
+   * The headquarters, the widest foundation (5) and `2 × MAX_HQ_LEVEL` (10) make **exactly**
+   * sixteen. It passes at zero margin: a `MAX_HQ_LEVEL` of 6, or a `PLACEMENTS_PER_HQ_LEVEL`
+   * of 3, would bring it down — and for Germany alone, which is the whole reason it is written.
    */
-  it('leaves the free placements the season asks for, on French ground', () => {
-    // France is the reading nation of every figure in this file — four extractors owed, the
-    // common case. A ground owed five (the United States, oil included) has one fewer.
-    const owed = foundationOwed('france', []).length;
-    expect(owed).toBe(4);
-    const free = (hqLevel: number) => buildingCap(hqLevel) - (owed + 1);
+  it('keeps a full national ground inside the region count of the smallest nation', () => {
+    const countries = Object.values(regionIndex.country);
+    const counts = NATIONS.map(
+      (nation) => countries.filter((country) => country === ADM0_BY_NATION[nation]).length,
+    );
+    const smallest = Math.min(...counts);
+    expect(smallest).toBe(16); // Germany, counted in Länder
 
-    expect(free(HQ_LEVEL_AT_LAUNCH)).toBe(2);
-    expect(free(MAX_HQ_LEVEL)).toBe(10);
+    const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
+    expect(1 + widest + homeSlots(MAX_HQ_LEVEL)).toBeLessThanOrEqual(smallest);
+    expect(PLACEMENTS_PER_HQ_LEVEL * MAX_HQ_LEVEL).toBe(10);
   });
 });
 
@@ -1033,20 +1057,20 @@ describe('the construction queue', () => {
     ).rejects.toThrow('REGION_TAKEN');
   });
 
-  /** The queue counts against the ceiling the headquarters carries, or it is where a nation
+  /** The queue counts against the placements of the site it aims at, or it is where a nation
    *  keeps the buildings it is not allowed to hold. */
-  it('counts what is queued against the building ceiling', async () => {
+  it('counts what is queued against the placements of the site', async () => {
     const t = boot();
     const token = await launchedSeason(t);
     await promoteHq(t, token, 2);
     await fill(t, token, 'alloy', 100_000);
     await fill(t, token, 'food', 100_000);
-    const cap = buildingCap(2);
+    const slots = homeSlots(2);
 
     const view = await t.query(api.view.playerView, { token });
     const free = view.me.regions.filter((region) => region.buildings.length === 0);
-    // The headquarters stands, so the queue may take the rest of the ceiling and not one more.
-    for (const region of free.slice(0, cap - 1)) {
+    // The headquarters eats no placement, so the queue may take them all and not one more.
+    for (const region of free.slice(0, slots)) {
       await t.mutation(api.constructions.start, {
         token,
         building: 'billets',
@@ -1057,9 +1081,9 @@ describe('the construction queue', () => {
       t.mutation(api.constructions.start, {
         token,
         building: 'billets',
-        regionId: free[cap - 1]!.id,
+        regionId: free[slots]!.id,
       }),
-    ).rejects.toThrow('BUILDING_CAP_REACHED');
+    ).rejects.toThrow('SITE_SLOTS_FULL');
   });
 
   /**
@@ -1078,14 +1102,14 @@ describe('the construction queue', () => {
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
     await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
 
-    // The ceiling comes down under the queue: the buildings below are put up without paying,
-    // and what is under test is what the *start* of the follower does about it.
-    const cap = buildingCap(2);
+    // The placements go under the queue: the buildings below are put up without paying, and
+    // what is under test is what the *start* of the follower does about it.
     const view = await t.query(api.view.playerView, { token });
     const spare = view.me.regions.filter(
       (region) => region.buildings.length === 0 && region.id !== ARDENNES && region.id !== JURA,
     );
-    for (const region of spare.slice(0, cap - 2)) await raise(t, token, 'depot', region.id);
+    for (const region of spare.slice(0, homeSlots(2) - 1))
+      await raise(t, token, 'depot', region.id);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -1241,65 +1265,76 @@ describe('one building per region, and a global ceiling', () => {
   });
 
   /**
-   * The ceiling refuses a **paid** placement, and it names the level that would widen it — the
-   * billets below, which nothing owes to anybody.
+   * A full national ground refuses a **paid** placement, and it names the level that would
+   * widen it — the billets below, which nothing owes to anybody.
    */
-  it('refuses a paid placement past the ceiling, and says what would lift it', async () => {
+  it('refuses a paid placement on a full national ground, and says what would lift it', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    await promoteHq(t, token, unlockLevel('billets'));
-    const cap = buildingCap(unlockLevel('billets'));
-    expect(cap).toBe(9);
+    const hqLevel = unlockLevel('billets');
+    await promoteHq(t, token, hqLevel);
+    const slots = homeSlots(hqLevel);
+    expect(slots).toBe(4);
 
-    // The headquarters makes one; the rest fill the ceiling of a headquarters at 2, on the
-    // regions of the home country the view carries.
+    // The headquarters eats none of them: the placements below are the whole of the budget.
     const view = await t.query(api.view.playerView, { token });
     const free = view.me.regions
-      .filter((region) => region.buildings.length === 0)
-      .slice(0, cap - 1);
-    expect(free.length).toBe(cap - 1);
+      .filter((region) => region.buildings.length === 0 && region.id !== JURA)
+      .slice(0, slots);
+    expect(free.length).toBe(slots);
     for (const region of free) await raise(t, token, 'depot', region.id);
 
     const refused: Record<string, unknown> = await t
       .mutation(api.constructions.start, { token, building: 'billets', regionId: JURA })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
-    const next = unlockLevel('billets') + 1;
+    const next = hqLevel + 1;
     expect(refused).toMatchObject({
-      code: 'BUILDING_CAP_REACHED',
-      cap,
-      hqLevel: unlockLevel('billets'),
-      // The remedy, in figures the screen never recomputes — both out of `buildingCap`.
+      code: 'SITE_SLOTS_FULL',
+      // The site that is full, named: the remedy of a home ground is not the remedy of a point.
+      site: 'home',
+      taken: slots,
+      slots,
+      hqLevel,
+      // The remedy, in figures the screen never recomputes — both out of `homeSlots`.
       nextHqLevel: next,
-      nextCap: buildingCap(next),
+      nextSlots: homeSlots(next),
     });
 
-    // The same order goes through once the headquarters carries a wider one.
+    // The same order goes through once the headquarters carries a wider ground.
     await promoteHq(t, token, MAX_HQ_LEVEL);
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA });
   });
 
   /**
-   * **A key the season owes is never refused by the ceiling** (decision of 25/08). The measured
+   * **A key the season owes is never refused by a full site** (decision of 25/08). The measured
    * case: a headquarters at 1 carried five buildings and the American ground is owed five
    * extractors, so the fifth was refused on an empty map — a debt of the season made unpayable
-   * by a rule of the season. The base is 5 since 31/08 and the empty map no longer reproduces
-   * it, so the ceiling is filled here on purpose: the rule is what is under test, not the
-   * arithmetic that once exposed it.
+   * by a rule of the season. The foundation is out of the count altogether since ADR 0020 §10,
+   * so the ground is filled here on purpose: the rule is what is under test, not the arithmetic
+   * that once exposed it.
    */
-  it('places every owed key at a ceiling already full', async () => {
+  it('places every owed key on a national ground already full', async () => {
     const t = boot();
     const token = await launchedSeason(t, 168, 'usa');
 
     const owed = foundationOwed('usa', []);
     expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
-    const cap = buildingCap(HQ_LEVEL_AT_LAUNCH);
-    // Stood on French ground, where no American debt will ever look for a region: what fills
-    // the ceiling has to be the count, never the deposits the foundation still needs.
-    const elsewhere = [MARNE, MOSELLE, MEURTHE, PAS_DE_CALAIS, ARDENNES, JURA, PARIS];
-    for (const regionId of elsewhere.slice(0, cap - 1)) await raise(t, token, 'depot', regionId);
+    const slots = homeSlots(HQ_LEVEL_AT_LAUNCH);
+
+    // Filled on bare American regions: a deposit region would starve the debt of ground, and
+    // what has to be full here is the *count*, never the map.
+    const opening = await t.query(api.view.playerView, { token });
+    const bare = opening.me.regions
+      .filter((region) => region.deposit === null && region.buildings.length === 0)
+      .slice(0, slots);
+    expect(bare.length).toBe(slots);
+    for (const region of bare) await raise(t, token, 'depot', region.id);
+
     const full = await t.query(api.view.playerView, { token });
-    expect(full.me.buildings).toHaveLength(cap);
+    const budget = (view: typeof full) =>
+      view.me.siteSlots.find((held) => held.site.outpostId === null)!;
+    expect(budget(full).taken).toBe(slots);
 
     for (let placed = 0; placed < owed.length; placed += 1) {
       const view = await t.query(api.view.playerView, { token });
@@ -1312,8 +1347,8 @@ describe('one building per region, and a global ceiling', () => {
             region,
             {
               onRegion: null,
-              standing: 0,
-              cap: Number.POSITIVE_INFINITY,
+              taken: 0,
+              slots: Number.POSITIVE_INFINITY,
               hqLevel: view.me.hqLevel,
             },
             unlockLevel(key),
@@ -1330,26 +1365,176 @@ describe('one building per region, and a global ceiling', () => {
 
     const done = await t.query(api.view.playerView, { token });
     expect(done.me.foundation).toEqual([]);
-    // Above the ceiling, and deliberately: what stands counts like anything else, so the next
-    // paid placement waits for the headquarters.
-    expect(done.me.buildings).toHaveLength(cap + owed.length);
-    expect(done.me.buildings.length).toBeGreaterThan(done.me.buildingCap);
+    /**
+     * **The foundation costs nothing in freedom either.** It stands, and the budget has not
+     * moved: what the season offers is outside the count, for good — the whole correction of
+     * ADR 0020 §10.
+     */
+    expect(done.me.buildings).toHaveLength(1 + slots + owed.length);
+    expect(budget(done).taken).toBe(slots);
+    expect(budget(done).total).toBe(slots);
+  });
+});
+
+/**
+ * **Un site, ce n'est plus la nation** (ADR 0020 §10) : le sol national porte deux emplacements
+ * par niveau de QG, un avant-poste porte le sien, et remplir l'un ne ferme pas l'autre.
+ */
+describe('the placements a site carries', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Puts an outpost of the player on the map, at a point, at the level asked. */
+  async function found(
+    t: ReturnType<typeof boot>,
+    token: string,
+    point: { lon: number; lat: number },
+    level = 1,
+  ): Promise<Id<'outposts'>> {
+    return t.run(async (ctx) => {
+      const player = await ctx.db
+        .query('players')
+        .withIndex('byToken', (q) => q.eq('token', token))
+        .unique();
+      if (!player) throw new Error('player not found');
+      return ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point,
+        hostCountry: 'DZA',
+        level,
+        specialization: 'relay',
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+  }
+
+  /** Ghardaïa, in the Algerian Sahara: five regions inside `OUTPOST_REACH_KM` and no French
+   *  ground anywhere near, so what the point carries is its own and the home budget never
+   *  lends it a placement. */
+  const GHARDAIA = { lon: 3.08, lat: 31.49 };
+  const NEAR_GHARDAIA = 'DZA-2192'; // Ghardaïa itself
+  const ALSO_NEAR = 'DZA-2190'; // El Bayadh, 205 km away
+
+  const budgetOf = (
+    view: {
+      me: {
+        siteSlots: ReadonlyArray<{
+          site: { outpostId: string | null };
+          taken: number;
+          total: number;
+        }>;
+      };
+    },
+    outpostId: string | null,
+  ) => view.me.siteSlots.find((held) => held.site.outpostId === outpostId);
+
+  it('carries its own level at an outpost, and two per headquarters level at home', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const one = await found(t, token, GHARDAIA, 1);
+    const three = await found(t, token, { lon: 45, lat: 25 }, 3);
+
+    const view = await t.query(api.view.playerView, { token });
+    expect(budgetOf(view, null)?.total).toBe(homeSlots(HQ_LEVEL_AT_LAUNCH));
+    expect(budgetOf(view, one)?.total).toBe(1);
+    expect(budgetOf(view, three)?.total).toBe(3);
+  });
+
+  /** The whole point of a local budget: a nation whose home ground is full is not a nation
+   *  that has stopped building — it is a nation that has to go out. */
+  it('refuses on the site that is full and accepts on the next one', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const outpostId = await found(t, token, GHARDAIA, 1);
+    await fill(t, token, 'alloy', 100_000);
+    await fill(t, token, 'food', 100_000);
+
+    const opening = await t.query(api.view.playerView, { token });
+    const home = opening.me.regions
+      .filter((region) => region.buildings.length === 0)
+      .slice(0, homeSlots(HQ_LEVEL_AT_LAUNCH));
+    for (const region of home) await raise(t, token, 'depot', region.id);
+
+    const filled = await t.query(api.view.playerView, { token });
+    const spare = filled.me.regions.find((region) => region.buildings.length === 0)!;
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'depot', regionId: spare.id }),
+    ).rejects.toThrow('SITE_SLOTS_FULL');
+
+    // The Saharan point carries one placement of its own, and the full home ground is no part
+    // of that reading.
+    await t.mutation(api.constructions.start, {
+      token,
+      building: 'depot',
+      regionId: NEAR_GHARDAIA,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const after = await t.query(api.view.playerView, { token });
+    expect(budgetOf(after, outpostId)?.taken).toBe(1);
+    // And that point is full in its turn: one level, one placement.
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'depot', regionId: ALSO_NEAR }),
+    ).rejects.toThrow('SITE_SLOTS_FULL');
   });
 
   /**
-   * **The guard rail, executable.** No game quantity is counted in regions (ADR 0015), and the
-   * ceiling is what makes that true: let it reach the region count of the smallest playable
-   * nation and Natural Earth's cutting starts balancing the season — Germany capped at 16
-   * where the United Kingdom is capped at 232.
+   * **An outpost destroyed leaves its buildings standing and its anchor dead** (ADR 0020 §10).
+   * Nothing is re-hung anywhere — that would move an old placement into a budget its owner
+   * never spent — and nothing more goes up on the ground it used to cover.
    */
-  it('stays strictly under the region count of the smallest playable nation', () => {
-    const countries = Object.values(regionIndex.country);
-    const counts = NATIONS.map(
-      (nation) => countries.filter((country) => country === ADM0_BY_NATION[nation]).length,
+  it('accepts no placement once the outpost that carried the ground is gone', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const outpostId = await found(t, token, GHARDAIA, 3);
+    await fill(t, token, 'alloy', 100_000);
+    await fill(t, token, 'food', 100_000);
+    await t.mutation(api.constructions.start, {
+      token,
+      building: 'depot',
+      regionId: NEAR_GHARDAIA,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    await t.run(async (ctx) => ctx.db.delete(outpostId));
+
+    const after = await t.query(api.view.playerView, { token });
+    expect(after.me.buildings.some((building) => building.regionId === NEAR_GHARDAIA)).toBe(true);
+    expect(after.me.siteSlots.map((held) => held.site.outpostId)).toEqual([null]);
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'depot', regionId: ALSO_NEAR }),
+    ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+  });
+
+  /**
+   * **Le frein de l'expansion est l'entretien, pas un plafond** (ADR 0020 §10) : chaque point
+   * débite au fil de l'heure, à proportion de son niveau, et un joueur qui perd des points voit
+   * sa facture baisser.
+   */
+  it('debits the national stock by the level of every outpost held', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    const before = await t.query(api.view.playerView, { token });
+    expect(before.me.upkeep.outposts).toBe(0);
+
+    await found(t, token, GHARDAIA, 3);
+    const after = await t.query(api.view.playerView, { token });
+    expect(after.me.upkeep.outposts).toBe(1);
+    expect(after.me.upkeep.outpostFoodPerHour).toBe(
+      3 * (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.food ?? 0),
     );
-    const smallest = Math.min(...counts);
-    expect(smallest).toBe(16); // Germany, counted in Länder
-    expect(buildingCap(MAX_HQ_LEVEL)).toBeLessThan(smallest);
+    expect(after.me.upkeep.outpostCoalPerHour).toBe(
+      3 * (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.coal ?? 0),
+    );
+
+    // The bill lands in the rate the stocks are settled with, and nowhere else: it is a
+    // negative term of the accrual, exactly like the army's (`economyOf`).
+    expect(after.me.resources.coal.ratePerHour).toBe(
+      before.me.resources.coal.ratePerHour - (after.me.upkeep.outpostCoalPerHour ?? 0),
+    );
   });
 });
 

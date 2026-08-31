@@ -95,6 +95,14 @@ Sans cette issue, l'interception est une punition sans contre-jeu.
 §9 :** il n'y a plus de doctrine à garder secrète, la domination est le mode unique et son score est
 public par décision (§4). Ce qui reste caché, et ce qui s'achète, c'est ce qui bouge.
 
+**~~Le plafond de bâtiments.~~ Tranchée par l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
+§10 (31/08 au soir) :** les emplacements sont portés par **chaque site** — `2 × niveau de QG` sur le
+sol national, son niveau pour un avant-poste — la fondation est hors compte, et le frein
+d'expansion devient l'**entretien** d'avant-poste et non un plafond. Le plafond global
+`buildingCap(hqLevel)` refusait sans raison lisible : au lancement il était entièrement consommé
+par la fondation nationale, et d'autant plus que la nation était riche — l'inverse exact des
+garde-fous de distribution de l'ADR 0015.
+
 **La granularité de l'occupation.**
 Binaire (occupé / libre) ou progressive (pourcentage du territoire) ? La version progressive est plus
 riche mais demande un découpage interne du pays, ce que l'ADR 0004 a justement voulu éviter.

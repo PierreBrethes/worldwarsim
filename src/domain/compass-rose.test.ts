@@ -18,19 +18,28 @@ const view = {
       },
     ],
     hqLevel: 1,
-    buildingCap: 5,
+    siteSlots: [{ site: { outpostId: null }, taken: 0, total: 2 }],
+    homeSlotRelief: null,
     foundation: [],
     buildings: [],
     // Only home ground travels in the view: a region absent from it is a region the player
     // has no business building on, which is what the enemy-region test leans on.
     regions: [
-      { id: 'FRA-5333', name: 'Paris', deposit: null, coastal: false, buildings: [] },
+      {
+        id: 'FRA-5333',
+        name: 'Paris',
+        deposit: null,
+        coastal: false,
+        buildings: [],
+        site: { outpostId: null },
+      },
       {
         id: 'FRA-9999',
         name: 'Nord',
         deposit: 'coal',
         coastal: true,
         buildings: [{ key: 'mine', level: 1 }],
+        site: { outpostId: null },
       },
     ],
     construction: null,

@@ -48,10 +48,12 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       resources: server.me.resources,
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
-      buildingCap: server.me.buildingCap,
+      /** A deployment one version behind serves no site at all: no budget, hence nothing
+       *  offered — never a placement the server would then refuse after the click. */
+      siteSlots: server.me.siteSlots ?? [],
       // A deployment ahead of the client answers without the field: no relief served, no
-      // sentence — the ceiling then says what it always said, and nothing breaks.
-      capRelief: server.me.capRelief ?? null,
+      // sentence — the site then says what it always said, and nothing breaks.
+      homeSlotRelief: server.me.homeSlotRelief ?? null,
       tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
       foundation: server.me.foundation ?? [],
       buildings: server.me.buildings.map((building) => ({
@@ -60,7 +62,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
       chains: server.me.chains,
       extraction: server.me.extraction,
-      regions: server.me.regions,
+      /** A region served by a deployment one version behind carries no site: it reads as ground
+       *  nothing reaches, which offers nothing rather than offering what the server refuses. */
+      regions: server.me.regions.map((region) => ({ ...region, site: region.site ?? null })),
       // A deployment ahead of the client returns an object without this field. The adapter is
       // the only boundary: a version gap gets absorbed here, not in the panels, where an
       // `undefined` takes down the whole board.
@@ -90,7 +94,14 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
-      upkeep: server.me.upkeep ?? { troops: 0, unsupplied: 0, foodPerHour: 0 },
+      upkeep: {
+        troops: server.me.upkeep?.troops ?? 0,
+        unsupplied: server.me.upkeep?.unsupplied ?? 0,
+        foodPerHour: server.me.upkeep?.foodPerHour ?? 0,
+        outposts: server.me.upkeep?.outposts ?? 0,
+        outpostFoodPerHour: server.me.upkeep?.outpostFoodPerHour ?? 0,
+        outpostCoalPerHour: server.me.upkeep?.outpostCoalPerHour ?? 0,
+      },
       starving: server.me.starving ?? false,
       // A deployment one version behind knows nothing of a raid, and an outpost without the
       // field is an outpost that is standing — the adapter is where that gap is absorbed.

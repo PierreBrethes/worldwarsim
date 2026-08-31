@@ -201,6 +201,18 @@ plusieurs raids attend le pillage, et rien ne les compte. Il ouvre un rayon de
 **héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient
 garnison, et cette garnison est ce qu'une attaque trouve debout.
 
+**Les emplacements suivent le niveau du site** (ADR 0020 §10, `convex/sites.ts`) : le sol
+national en porte `2 × niveau de QG`, un avant-poste en porte **son niveau**, et il n'y a plus
+aucun total national — `buildingCap` a disparu. La **fondation est hors compte** : pour chaque
+clé due par la nation, le premier exemplaire posé chez soi ne coûte pas un emplacement, ce qui
+corrige le lancement à zéro placement libre. Le rattachement est écrit **à la pose**
+(`buildings.outpostId`, `null` = sol national) et jamais recalculé ; les lignes d'avant se
+relisent par la géographie. Un avant-poste détruit laisse ses bâtiments debout et son ancre
+morte — on ne peut plus rien y poser. Le frein d'expansion n'est plus un plafond mais
+l'**entretien** : `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` (nourriture et charbon, placeholder
+assumé) débite le stock national par niveau et par heure, dans le même terme du taux que
+l'entretien des troupes. À sec, rien ne meurt.
+
 **La saison se gagne, par un échafaudage assumé.** Une seule condition, publique et nominative :
 la **Domination simplifiée** (`src/domain/victory.ts` pour la règle, `convex/victory.ts` pour le
 branchement, `REDUCTION_FACTOR` dans `convex/constants.ts`). Un joueur est *réduit* quand sa

@@ -20,9 +20,10 @@ import {
   type ResourceKey,
 } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
-import { pledgedCount, placementOf, type Placement } from '@/domain/construction';
+import { pledgedOn, placementOf, slotsOn, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
-import type { Building, ChainView, PlayerView, QueuedWork } from '@/domain/player-view';
+import type { Building, ChainView, PlayerView, QueuedWork, SiteRef } from '@/domain/player-view';
+import { sameSite } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { conditionText } from './MobilizationCard';
@@ -137,7 +138,19 @@ export function EconomyWindow({
             />
           ))}
 
-          <Header note={<BuildingBudget view={view} />}>{fr.economy.worksHeader}</Header>
+          <Header
+            note={
+              <SiteBudget
+                view={view}
+                site={HOME_SITE}
+                label={fr.economy.budgetHome}
+                relief={true}
+              />
+            }
+          >
+            {fr.economy.worksHeader}
+          </Header>
+          <OutpostBudgets view={view} />
           <Headquarters view={view} token={token} now={now} focused={focused} />
           {WORK_KEYS.map((key) => (
             <EstateRows
@@ -905,6 +918,13 @@ function Headquarters({
       </p>
       <ul className="mt-[2px] flex flex-wrap gap-x-4 gap-y-[2px] text-[12px] text-[var(--ink-soft)]">
         <li>{fr.economy.hqSlots(view.me.slots.total)}</li>
+        {/* Ce que le niveau porte vraiment depuis l'ADR 0020 §10 : les emplacements du sol
+            national, et non un plafond de bâtiments. Le nombre est servi, jamais recalculé. */}
+        <li>
+          {fr.economy.hqPlacements(
+            view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
+          )}
+        </li>
         <li>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
         <li>
           {level >= view.me.tier2HqLevel
@@ -917,43 +937,59 @@ function Headquarters({
 }
 
 /**
- * The budget, as a reading rather than a figure. A bar and not "9 / 13": this is the most
- * structuring trade of a season, and a fraction has to be parsed before it is understood.
+ * The budget of **one site**, as a reading rather than a figure. A bar and not "9 / 13": this is
+ * the most structuring trade of a season, and a fraction has to be parsed before it is
+ * understood.
  *
- * The count comes from the lists themselves — the buildings standing, plus what the prepaid
- * queue has already claimed — because the view deliberately serves neither a second time
- * (`view.ts`): two numbers for one fact can disagree. What the *next* headquarters level would
- * carry is served, on the other hand, and for the opposite reason: it is a reading of
- * `buildingCap`, and the client must not own a second copy of that ladder.
+ * There is no national total any more (ADR 0020 §10): a full home ground holds nothing back at
+ * an outpost, and one bar for both would say the opposite of the rule. The count comes served
+ * for what stands and is completed by the prepaid queue (`slotsOn`) — the view deliberately
+ * serves the standing half only, because two servings of one fact disagree.
  */
-function BuildingBudget({ view }: { view: PlayerView }) {
-  const pledged = pledgedCount(view);
-  const taken = view.me.buildings.length + pledged;
-  const cap = view.me.buildingCap;
-  const filled = cap === 0 ? 0 : Math.min(1, taken / cap);
-  const free = cap - taken;
+function SiteBudget({
+  view,
+  site,
+  label,
+  relief,
+}: {
+  view: PlayerView;
+  site: SiteRef;
+  label: string;
+  relief: boolean;
+}) {
+  const held = view.me.siteSlots.find((budget) => sameSite(budget.site, site));
+  const total = held?.total ?? 0;
+  const taken = slotsOn(view, site).taken;
+  const pledged = pledgedOn(view, site);
+  const filled = total === 0 ? 0 : Math.min(1, taken / total);
+  const free = total - taken;
 
   /**
-   * **Le plafond dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé —
-   * pas avant : une ligne permanente sur la décision la plus structurante de la saison redevient
+   * **Le site plein dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé
+   * — pas avant : une ligne permanente sur la décision la plus structurante de la saison redevient
    * du bruit de fond, et c'est la faute que le chantier en tête a déjà coûtée une fois.
    *
-   * Les deux nombres arrivent servis (`me.capRelief`) : `buildingCap` est lu une fois, côté
-   * serveur, par la phrase et par le refus qui la motive.
+   * Les deux nombres arrivent servis (`me.homeSlotRelief`) : `homeSlots` est lu une fois, côté
+   * serveur, par la phrase et par le refus qui la motive. Un avant-poste n'en a pas — ce qui
+   * l'élargit est son propre niveau, et rien ne le monte encore.
    */
-  const relief = view.me.capRelief;
   const said =
     free > 0 && pledged === 0
       ? null
-      : relief === null
-        ? fr.economy.budgetAtCeiling
-        : fr.economy.budgetRelief(relief);
+      : !relief
+        ? fr.economy.budgetRaiseOutpost
+        : view.me.homeSlotRelief === null
+          ? fr.economy.budgetAtCeiling
+          : fr.economy.budgetRelief(view.me.homeSlotRelief);
 
   return (
     <span className="flex min-w-[220px] flex-col items-end gap-[2px]">
       <span className="flex items-center gap-2">
+        <span className="text-[10px] tracking-[.14em] text-[var(--ink-quiet)] uppercase">
+          {label}
+        </span>
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink)]">
-          {fr.economy.budgetTaken(taken, cap)}
+          {fr.economy.budgetTaken(taken, total)}
         </span>
         <span className="h-[8px] w-[70px] border border-[var(--ink)]">
           <span
@@ -978,6 +1014,28 @@ function BuildingBudget({ view }: { view: PlayerView }) {
   );
 }
 
+/** One line per outpost, under the works header. A point is a site like the home ground, and
+ *  what it carries is its level — which is what makes raising one a legible decision. */
+function OutpostBudgets({ view }: { view: PlayerView }) {
+  if (view.me.outposts.length === 0) return null;
+  return (
+    <div className="flex flex-col items-end gap-[2px] border-b border-[rgba(42,33,24,.16)] px-4 py-[7px]">
+      {view.me.outposts.map((outpost, rank) => (
+        <SiteBudget
+          key={outpost.id}
+          view={view}
+          site={{ outpostId: outpost.id }}
+          label={fr.economy.budgetOutpost(rank + 1, outpost.level)}
+          relief={false}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** National soil, as the view names it: the one site nobody founds. */
+const HOME_SITE: SiteRef = { outpostId: null };
+
 const regionName = (view: PlayerView, regionId: string): string =>
   view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
 
@@ -997,11 +1055,24 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
  * halves of a number the player otherwise reads as one and cannot explain.
  */
 function UpkeepRow({ view }: { view: PlayerView }) {
-  const { troops, unsupplied, foodPerHour } = view.me.upkeep;
-  if (troops === 0) return null;
+  const { troops, unsupplied, foodPerHour, outposts, outpostFoodPerHour, outpostCoalPerHour } =
+    view.me.upkeep;
+  if (troops === 0 && outposts === 0) return null;
 
   return (
     <div className="flex flex-col gap-[3px] border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+      {/* **Deux lignes, deux remèdes opposés** : l'armée se nourrit ou rentre, l'empire se
+          replie. Un seul chiffre ne dirait ni l'un ni l'autre (ADR 0020 §10). */}
+      {outposts > 0 && (
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[12.5px] text-[var(--ink)]">
+            {fr.economy.upkeepOutposts(outposts)}
+          </span>
+          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
+            {fr.economy.upkeepOutpostDrain(outpostFoodPerHour, outpostCoalPerHour)}
+          </span>
+        </div>
+      )}
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12.5px] text-[var(--ink)]">{fr.economy.upkeepTroops(troops)}</span>
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
