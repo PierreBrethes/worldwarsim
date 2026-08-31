@@ -7,6 +7,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { LonLat } from '@/domain/geo';
 import type { ComputedRoute, Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { PALETTE } from './palette';
 
 /**
  * The taut thread. **Two heights, not three**: land and sea share the surface, just above
@@ -66,6 +67,23 @@ const MAX_DRIFT_STEP_S = 0.1;
  * fat lines over the one-pixel stroke they replace.
  */
 const SHADOW_THICKNESS = 1;
+
+/**
+ * The thread's backing, in pixels of bleed on either side. A dashed remainder laid over a
+ * loaded sheet — a region's tint, a forest's props, another thread — loses its gaps in the
+ * noise, and the route one is about to order is precisely the one that must read. The casing
+ * runs continuous under dash *and* gap: the line gets a ground of its own, the dashes stay
+ * dashes, and the desk's ink is used rather than a fifth thread colour.
+ */
+const CASING_BLEED = 2.2;
+const CASING_SHARE = 0.8;
+
+/**
+ * Every casing under every thread, in one band of its own. Ranking it just below its own
+ * medium would let a sea backing pass over a land stroke at a crossing — a backing is never
+ * allowed to cover a thread, whichever it is.
+ */
+const CASING_RANK = 9;
 const TETHER_THICKNESS = 1;
 const MARK_THICKNESS = 1.8;
 
@@ -191,6 +209,11 @@ export function buildThread(
     opacity: opacities.trace * 0.9,
     dashed: true,
   });
+  const casingMaterial = makeMaterial({
+    color: PALETTE.desk,
+    thickness: thickness + CASING_BLEED,
+    opacity: opacities.trace * CASING_SHARE,
+  });
   const markMaterial = makeMaterial({
     color: colors.progress,
     thickness: MARK_THICKNESS,
@@ -204,6 +227,7 @@ export function buildThread(
   for (const leg of legs) {
     const rank = RENDER_RANK[leg.medium];
     for (const strand of leg.strands) {
+      object.add(threadOf(strand.vertices, casingMaterial, CASING_RANK));
       const stroke = cutStrokeOf(strand, coveredMaterial, remainingMaterial, rank);
       object.add(stroke.covered.line, stroke.remaining.line);
       targets.push(stroke.covered.line, stroke.remaining.line);
