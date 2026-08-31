@@ -377,6 +377,14 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       setColumn(null);
       setOrder(null);
       setPosted(null);
+      /** **Un observateur ne compose plus de pile.** Le panneau de garnison n'est fait que pour
+       *  ça — sa seule sortie est « préparer » — et l'ouvrir vide serait promettre l'ordre que
+       *  `requirePlayable` refuse. Le clic recadre quand même : la carte reste sa carte. */
+      if (view.me.defeated) {
+        const seen = markerOfStation(view, station);
+        if (seen !== null) setFocus({ ids: [seen], nonce: Date.now() });
+        return;
+      }
       setGarrison({ station, preselect, ...at });
       const marker = markerOfStation(view, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
@@ -423,9 +431,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   /**
    * **La troisième porte de la même garnison** : la pile posée sur la carte. Rien de coché
    * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
+   *
+   * Il rend vrai quand le clic a **désigné** une troupe : la carte ouvre alors sa rose sur le
+   * sprite, en même temps que le cartouche (`WorldMap`). La règle qui sépare les deux réponses
+   * reste ici, parce que c'est ici qu'on sait ce qui se tient là.
    */
   const openStack = useCallback(
-    (station: TroopStation, clientX: number, clientY: number) => {
+    (station: TroopStation, clientX: number, clientY: number): boolean => {
       const at = boardPoint(clientX, clientY);
       /**
        * **Une seule troupe ne compose rien** (décision Pierre, 29/08) : elle se désigne, et la
@@ -436,19 +448,20 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const alone = held.length === 1 ? held[0] : undefined;
       if (alone === undefined || station.kind !== 'point') {
         openGarrison(station, [], at);
-        return;
+        return false;
       }
       /**
-       * **Désigner une troupe, c'est l'armer** — et c'est tout ce que le geste fait. Le clic sur
-       * un sprite ne propose rien : il dit *celle-ci*, le cartouche la lit, et les ordres se
-       * prennent au clic droit **ailleurs**, sur la destination (décision Pierre, 30/08). Une
-       * rose ouverte sur le sprite mettait un menu là où le joueur venait seulement de désigner.
+       * **Désigner ne vise plus** (décision Pierre, 30/08) : le clic gauche ouvre le cartouche
+       * *et* la rose de la troupe, et c'est « Envoyer » — une branche de cette rose — qui arme la
+       * colonne. Armer au seul contact du sprite mettait le plateau en visée sans que personne
+       * l'ait demandé, et le cartouche l'annonçait pour un joueur qui voulait seulement lire.
        */
       setGarrison(null);
       setFoundError(null);
       setOrder(null);
+      setColumn(null);
       setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
-      setColumn(armedColumn(view, station, [alone.id]));
+      return true;
     },
     [openGarrison, boardPoint, view, marching],
   );
@@ -478,6 +491,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
           return;
         /**
+         * **La rose arme, la carte vise** (décision Pierre, 30/08). C'est le seul ordre qui ne
+         * part pas d'ici : il pose la colonne et rend la main au plateau, dont le curseur passe
+         * en croix et dont le cartouche dit la destination qui manque. Rien ne se ferme — le
+         * cartouche décrit précisément la pile qu'on vient d'armer.
+         */
+        case 'send':
+          setOrder(null);
+          setColumn(armedColumn(view, action.station, action.troopIds));
+          return;
+        /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
          * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
          * d'un formulaire — c'est le panneau du point, une fois planté, qui rattrape ce choix
@@ -499,7 +522,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           );
       }
     },
-    [select, foundHere, token],
+    [select, foundHere, token, view],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -913,6 +936,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             nation={view.me.nation}
             troops={posted.troops}
             at={posted}
+            aiming={column !== null}
             onOpenGunnery={() => openWindow('gunnery')}
             onClose={releasePosted}
           />
@@ -1016,6 +1040,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                   key={name}
                   token={token}
                   founder={view.me.creator}
+                  defeated={view.me.defeated}
                   onShowBriefing={() => setBriefing(true)}
                   {...windowProps}
                 />

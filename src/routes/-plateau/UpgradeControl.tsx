@@ -38,6 +38,14 @@ export function UpgradeControl({
   const start = useMutation(api.constructions.start);
   const [error, setError] = useState<string | null>(null);
   const hold = upgradeHold(building, view, now);
+  /**
+   * **L'exception à « jamais absent, seulement empêché »** : un observateur n'est pas empêché,
+   * il ne décide plus (décision du 31/08). Un bouton grisé lui promettrait qu'une matière ou un
+   * chantier libre le rouvrirait un jour ; rien ne le rouvrira. Une ligne qu'il lit sans y agir
+   * est la lecture qu'on lui doit, et c'est le seul appel de `constructions.start` du plateau —
+   * le retrait tient les trois surfaces d'un coup.
+   */
+  if (view.me.defeated) return null;
   const next = building.level + 1;
 
   const held = hold === null ? null : upgradeHoldText(hold);

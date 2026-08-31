@@ -146,6 +146,19 @@ describe('what waits for the player', () => {
     expect(kinds(marching)).toEqual([]);
   });
 
+  /** Rien n'attend un observateur : la carte n'a pas d'état fermé, son absence est cet état. */
+  it('disparaît pour un joueur qui a déposé les armes', () => {
+    const owing = {
+      foundation: ['mine' as const],
+      construction: null,
+      recruiting: [],
+      slots: { total: 2, used: 1 },
+      troops: [troop({ stationedAt: posted('ITA', [7.7, 45]), supplied: false })],
+    };
+    expect(kinds(board(owing)).length).toBeGreaterThan(0);
+    expect(kinds(board({ ...owing, defeated: true }))).toEqual([]);
+  });
+
   it('holds the reading order: what is owed, then what produces, then what stands', () => {
     const busy = board({
       foundation: ['mine'],

@@ -200,6 +200,10 @@ export const playerView = query({
         /** Le seul pouvoir que le plateau réserve au fondateur : clore une saison sans horloge
          *  (`seasons.conclude`). Rien d'autre n'en dépend. */
         creator: player.creator,
+        /** **Il observe.** Le plateau se lit entier — c'est bien sa vue, portée par ses
+         *  détecteurs restants — et les surfaces d'action se présentent sans leurs boutons :
+         *  l'interface ne promet pas ce que `requirePlayable` refuse déjà (audit du 25/08). */
+        defeated: player.defeated ?? false,
         ink: nationInk(player.nation),
         progress: 0,
         restWindow: player.restWindow,

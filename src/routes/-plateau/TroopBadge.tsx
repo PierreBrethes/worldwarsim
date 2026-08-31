@@ -8,16 +8,16 @@ import { GunneryButton } from './GunneryButton';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
- * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucun ordre** : ils se prennent au
- * clic droit **ailleurs**, sur la destination, où la rose des vents ne propose que ce que le
- * serveur accepterait. Cliquer sur un sprite ne propose rien — ça désigne. Le renvoi vers
- * l'abaque de tir n'y déroge pas : il ouvre une lecture, il ne commande rien.
+ * joueur sait déjà — le rôle, l'effectif, l'état — et **ne porte aucun ordre** : ceux-ci passent
+ * par la rose des vents, qui s'ouvre sur le sprite en même temps que lui et ne propose que ce que
+ * le serveur accepterait. Le renvoi vers l'abaque de tir n'y déroge pas : il ouvre une lecture,
+ * il ne commande rien.
  *
  * **Il porte l'état de la visée**, et c'est ce qui a fait disparaître la fenêtre « visée armée »
  * du coin haut-gauche : le seul fait qu'elle disait — combien de troupes partent ensemble — se lit
- * ici, à côté de la pile qu'il décrit, plutôt qu'à l'autre bout de l'écran. Désigner une troupe
- * l'arme, donc il est toujours en visée : il nomme la destination qui manque et la touche qui
- * défait, jamais une action à cliquer.
+ * ici, à côté de la pile qu'il décrit, plutôt qu'à l'autre bout de l'écran. Son pied est donc le
+ * mode : au repos il renvoie aux ordres, en visée il nomme la destination qui manque et la touche
+ * qui défait — jamais une action à cliquer.
  *
  * Ce qui l'accompagne se lit sur la carte plutôt qu'ici : la planche prend l'encre du joueur, et
  * le cercle de détection s'ouvre autour d'elle. La fenêtre de garnison reste pour *composer* une
@@ -27,6 +27,7 @@ export function TroopBadge({
   nation,
   troops,
   at,
+  aiming,
   onOpenGunnery,
   onClose,
 }: {
@@ -34,6 +35,9 @@ export function TroopBadge({
   /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
   troops: ReadonlyArray<TroopView>;
   at: { x: number; y: number };
+  /** Une colonne est armée : le pied cesse de renvoyer aux ordres et nomme le geste qui reste.
+   *  C'est « Envoyer », dans la rose ouverte sur le sprite, qui fait passer d'un état à l'autre. */
+  aiming: boolean;
   /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
    *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
   onOpenGunnery: () => void;
@@ -56,8 +60,8 @@ export function TroopBadge({
     <Draggable
       className="absolute z-20"
       style={{
-        left: fromRight ? undefined : at.x + 14,
-        right: fromRight ? `calc(100% - ${at.x - 14}px)` : undefined,
+        left: fromRight ? undefined : at.x + ANCHOR_GAP,
+        right: fromRight ? `calc(100% - ${at.x - ANCHOR_GAP}px)` : undefined,
         top: fromBottom ? undefined : at.y + 14,
         bottom: fromBottom ? `calc(100% - ${at.y - 14}px)` : undefined,
       }}
@@ -110,18 +114,32 @@ export function TroopBadge({
           {fr.troops.badgeScouting(SCOUT_RADIUS_KM)}
         </p>
 
-        {/* **Désigner arme**, donc le cartouche est toujours en visée : il nomme le geste qui
-            reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin lit. */}
-        <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
-          {fr.troops.badgeAiming}
-        </p>
-        <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-          {fr.troops.badgeDisarm}
-        </p>
+        {/* **Le pied est le mode, et il ne porte aucun bouton d'ordre** — la carte agit, la popin
+            lit. Au repos il dit par où passent les ordres ; en visée il nomme ce qui manque et la
+            sortie, parce qu'un mode qu'on ne sait pas quitter est un piège. */}
+        {aiming ? (
+          <>
+            <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
+              {fr.troops.badgeAiming}
+            </p>
+            <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
+              {fr.troops.badgeDisarm}
+            </p>
+          </>
+        ) : (
+          <p className="mt-[6px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
+            {fr.troops.badgeOrders}
+          </p>
+        )}
       </div>
     </Draggable>
   );
 }
+
+/** **La place que la rose occupe sur le sprite.** Le cartouche s'ouvre avec elle depuis le
+ *  30/08, et les deux sont ancrés au même point : sous les quatorze pixels d'avant, la popin
+ *  passait sous les médaillons qu'elle vient de faire apparaître. */
+const ANCHOR_GAP = 64;
 
 /** Le visage de la pile est celui de son rôle majoritaire — la règle du pion d'un mouvement et
  *  de la planche posée sur la carte, pour qu'une colonne ne change pas de visage en s'ouvrant. */

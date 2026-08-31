@@ -46,9 +46,17 @@ aux deux endroits où « qui bat qui » se demande.
 `WWS/docs/design/propositions/flux-mouvement-en-carte.md`). La fenêtre Troupes, la modale
 « Envoi d'un mouvement » et le widget des trajets sont **supprimés**. À leur place : un
 **panneau de garnison** qui compose la pile (le clic sur le mât d'un bâtiment de projection et
-celui sur la pile posée ouvrent le même, un seul état de sélection) ; puis la **visée** : clic
-droit sur la cible, rose des vents contextuelle, aperçu d'arc et confirmation « envoyer —
-irréversible » au bout de l'arc. Les types proposés par la rose et ceux que le serveur accepte
+celui sur une pile qui porte plusieurs troupes ouvrent le même, un seul état de sélection) ; puis
+la **visée** : clic droit sur la cible, rose des vents contextuelle, aperçu d'arc et confirmation
+« envoyer — irréversible » au bout de l'arc.
+
+**La carte au clic droit agit, la popin lit** (décision Pierre, 30/08). Le clic gauche sur une
+troupe seule ouvre **les deux à la fois** — le cartouche (`TroopBadge.tsx`, qui ne porte aucun
+ordre) et la rose de cette troupe, posée sur le sprite ; le clic droit sur le sprite ouvre la
+même. « Envoyer » y est la seule branche qui ne commande rien : elle arme la colonne et rend la
+main à la carte, où la destination se nomme. Deux cibles, jamais un menu mixte : le sprite rend
+la rose de la troupe, la région celle du bâti. Il n'y a plus de fenêtre « visée armée » — le
+cartouche porte l'état, et son pied est le mode. Les types proposés par la rose et ceux que le serveur accepte
 sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien n'est grisé, jamais
 (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
 réelle et l'heure d'arrivée, seul le serveur date un mouvement.
@@ -253,6 +261,22 @@ sort du compte de son bourreau. **La domination est le mode unique** (ADR 0020 �
 de choix de condition de victoire, la fiche 05 est abandonnée et `doctrine` ne survit au schéma
 qu'en legacy, jamais écrite ni lue. Ce module a vocation à être **remplacé** par la part de carte
 (ADR 0020), pas amendé — aucun champ n'y prépare un territoire.
+
+**On capitule, et on observe** (décision de Pierre, 31/08 ; `convex/players.ts`, `surrender`).
+Un joueur dépose les armes : `players.defeated` passe à vrai, irréversible, et **une seule porte
+le lit** — `requirePlayable(player, season)`, par où passait déjà chaque mutation de jeu. Le
+télégraphe, lui, ne l'a jamais demandée : un observateur parle. Ce que la capitulation
+**n'éteint pas** est l'essentiel — ses troupes posées tiennent et ripostent (une garnison n'a pas
+besoin d'ordre, ADR 0019), ses avant-postes paient leur entretien et gardent son encre, son stock
+s'épuise, et il reste pillable. **Sa vue reste la sienne** (décision 47a) : `PlayerView` se
+calcule comme avant, portée par ses détecteurs restants et figée à mesure qu'ils tombent — lever
+le brouillard ferait de la reddition un acte de renseignement au profit d'un survivant ami. La
+capitulation est aussi l'événement qui manquait au **transfert du commandement** : le titre de
+fondateur passe au plus ancien joueur non défait, et s'il ne reste qu'un belligérant debout la
+saison se conclut par la sortie commune, à son nom — une victoire, pas une clôture
+administrative. Au front : « Défaite : observer » à l'accueil, un cachet au bandeau, la rose
+réduite à « voir », la carte « à faire maintenant » absente, les boutons d'action retirés plutôt
+que grisés, et le bouton « déposer les armes » rangé dans Réglages à côté de « clore la saison ».
 
 **Ni terrain, ni tenaille, ni soin.** Le modificateur de terrain attend l'ADR qui autorise une
 règle à lire `RegionType` ; la tenaille attend une définition de la convergence ; une troupe

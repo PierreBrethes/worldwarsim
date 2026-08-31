@@ -18,13 +18,20 @@ import { FloatingWindow, type WindowProps } from './Window';
 export function SettingsWindow({
   token,
   founder,
+  defeated,
   onClose,
   onShowBriefing,
   ...windowProps
-}: WindowProps & { token: string; founder: boolean; onShowBriefing: () => void }) {
+}: WindowProps & {
+  token: string;
+  founder: boolean;
+  defeated: boolean;
+  onShowBriefing: () => void;
+}) {
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
   const conclude = useMutation(api.seasons.conclude);
+  const surrender = useMutation(api.players.surrender);
 
   const set = (value: number) => {
     const clamped = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, value));
@@ -128,7 +135,7 @@ export function SettingsWindow({
           {/* **Le seul pouvoir de fondateur du plateau**, et il est rangé ici parce qu'une saison
               sans horloge n'a pas d'autre fin. Deux clics, comme la suppression d'une partie :
               c'est la même famille de geste, sauf que rien n'est effacé. */}
-          {founder && (
+          {founder && !defeated && (
             <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
               <div className="text-[13.5px] text-[var(--ink)]">
                 {fr.settingsWindow.concludeLabel}
@@ -144,6 +151,33 @@ export function SettingsWindow({
               />
             </div>
           )}
+
+          {/* **Capituler vit à côté de clore**, et pour la même raison : ce sont les deux seules
+              sorties d'une saison qu'un joueur décide, et elles prennent le même double clic.
+              Une fois le geste fait il n'y a plus de bouton — la capitulation est irréversible,
+              et un bouton qui ne rendrait rien serait un bouton qui ment. */}
+          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="text-[13.5px] text-[var(--ink)]">
+              {fr.settingsWindow.surrenderLabel}
+            </div>
+            {defeated ? (
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.surrendered}
+              </p>
+            ) : (
+              <>
+                <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                  {fr.settingsWindow.surrenderNote}
+                </p>
+                <DestroyButton
+                  label={fr.settingsWindow.surrender}
+                  confirm={fr.settingsWindow.surrenderConfirm}
+                  note={fr.settingsWindow.surrenderWarning}
+                  onDestroy={() => void surrender({ token }).catch(() => undefined)}
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
     </FloatingWindow>

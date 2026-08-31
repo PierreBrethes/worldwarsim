@@ -12,7 +12,6 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
-import type { TroopStation } from '@/domain/player-view';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
@@ -74,7 +73,9 @@ export function MapLabels({
    * — et une pile à composer ouvre la garnison. **Aucune rose ne s'ouvre ici** : cliquer sur un
    * sprite ne propose rien, les ordres se prennent au clic droit ailleurs (décision du 30/08).
    */
-  onOpenStack: (station: TroopStation, clientX: number, clientY: number) => void;
+  /** L'étiquette entière, et non sa seule adresse : la carte en tire aussi la cible de la rose,
+   *  qui s'ouvre avec le cartouche (décision du 30/08). */
+  onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
@@ -258,7 +259,7 @@ export function MapLabels({
               if (label.buildingId !== null) {
                 onOpenBuilding(label.buildingId, event.clientX, event.clientY);
               } else if (label.station !== null) {
-                onOpenStack(label.station, event.clientX, event.clientY);
+                onOpenStack(label, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onContextMenu={(event) => {

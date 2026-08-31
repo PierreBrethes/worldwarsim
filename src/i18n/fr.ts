@@ -255,6 +255,8 @@ export const fr = {
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,
     NATION_REQUIRED: () => 'être prêt exige une nation',
     CREATOR_ONLY: () => 'seul le fondateur lance la saison',
+    PLAYER_DEFEATED: () =>
+      'vous avez déposé les armes — vous observez la saison, vous ne l’ordonnez plus',
     NOT_ENOUGH_PLAYERS: (d) => `il faut au moins ${num(d.minimum)} joueurs`,
     PLAYERS_NOT_READY: (d) =>
       `pas prêts : ${(d.nicknames as string[] | undefined)?.join(', ') ?? '—'}`,
@@ -393,6 +395,9 @@ export const fr = {
     resume: 'reprendre',
     resumeLobby: (code: string) => `salon ${code}`,
     resumeSeason: 'saison en cours',
+    /** L'entrée d'un défait : elle ouvre le même plateau, en l'état. Ce n'est pas une
+     *  partie qu'on reprend, c'est une guerre qu'on regarde finir. */
+    resumeDefeated: 'défaite : observer',
     statusLabel: 'statut',
     endsIn: 'fin dans',
     open: 'ouvert',
@@ -718,6 +723,8 @@ export const fr = {
       sighting: 'relevé',
       firedDry: 'tir à sec',
       foundNothing: 'bredouille',
+      surrender: 'capitulation',
+      command: 'commandement',
     } satisfies Record<DispatchKind, string>,
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
@@ -726,6 +733,9 @@ export const fr = {
     unidentified: 'non identifié',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
     seasonClosed: 'saison close',
+    /** Au bandeau, pour celui qui a déposé les armes. À l'encre du support et non au rouge : la
+     *  défaite est grave mais acquise, et le rouge est réservé à ce qui exige un geste. */
+    defeated: 'défaite',
   },
 
   journal: {
@@ -765,6 +775,9 @@ export const fr = {
     notices: {
       seasonClosed:
         'LA SAISON EST CLOSE — son fondateur y a mis fin. Elle se relit, elle ne se joue plus.',
+      playerSurrendered: (nation: string) =>
+        `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
+      commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
       constructionFinished: (building: string, region: string, level: number) =>
         level <= 1
           ? `${building} en ${region} entre en service.`
@@ -870,6 +883,9 @@ export const fr = {
      */
     badgeAiming: 'choisissez la destination — clic droit sur la carte',
     badgeDisarm: 'échap — désarme',
+    /** Au repos, le pied nomme la porte des ordres et non une action : le cartouche lit, la
+     *  carte agit, et la rose est déjà ouverte sur le sprite au moment où il paraît. */
+    badgeOrders: 'clic droit — ordres',
     supplied: 'ravitaillée',
   },
 
@@ -1416,6 +1432,18 @@ export const fr = {
     concludeConfirm: 'confirmer — plus aucun ordre',
     concludeWarning:
       'la saison s’arrête pour tous les joueurs, sans vainqueur désigné. Il n’y a pas de retour.',
+    /** **La capitulation, rangée à côté de la clôture** : même famille de geste, même double
+     *  clic. La note dit ce qui survit, parce que « défaite » se lit comme « disparition » et
+     *  que ce n'en est pas une — les positions tiennent, elles ne bougent plus. */
+    surrenderLabel: 'Déposer les armes',
+    surrenderNote:
+      'Vous cessez de commander et vous observez la saison. Vos positions tiennent et se défendent, vos avant-postes gardent votre encre, et le télégraphe vous reste ouvert.',
+    surrender: 'déposer les armes',
+    surrenderConfirm: 'confirmer — plus aucun ordre',
+    surrenderWarning:
+      'irréversible. Si vous avez fondé la partie, le commandement passe au plus ancien joueur encore debout.',
+    /** L'état, une fois le geste fait : le bouton a disparu, il ne reste qu'à le constater. */
+    surrendered: 'Armes déposées — vous observez cette saison.',
   },
 
   /**
@@ -1530,6 +1558,14 @@ export const fr = {
     fallbackForce: 'force',
     build: 'Bâtir ici',
     buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
+    /**
+     * **La branche qui arme la colonne**, et la seule qui ne commande rien : elle ferme la rose
+     * et rend la main à la carte, où la destination se nomme au clic droit. Sa conséquence dit
+     * donc le geste suivant, pas un effet — c'est le seul endroit de la plate où la phrase
+     * annonce une question plutôt qu'une réponse.
+     */
+    send: 'Envoyer',
+    sendConsequence: 'Choisissez la destination : la rose y trace l’arc réel et propose l’envoi.',
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
      *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
     found: 'Fonder un avant-poste',

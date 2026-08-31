@@ -129,6 +129,32 @@ describe('the journal', () => {
     expect(nothing!.text).toContain('personne');
     expect(nothing!.severity).toBe('notable');
   });
+
+  /**
+   * **Une capitulation se lit comme une entrée en guerre, par l'autre bout** : la table change,
+   * et le journal est le seul canal qui l'annonce. Le passage de commandement, lui, reste
+   * routinier — le titre a changé de main, la guerre n'a pas bougé.
+   */
+  it('words a surrender loudly and the command it passes soberly', () => {
+    const [surrendered, transferred] = journalDispatches(
+      [],
+      null,
+      [],
+      [
+        { kind: 'playerSurrendered', at: NOON, nation: 'ussr' },
+        { kind: 'commandTransferred', at: NOON - HOUR, nation: 'germany' },
+      ],
+    );
+
+    expect(surrendered!.text).toContain('CAPITULE');
+    expect(surrendered!.text).toContain(fr.nations.ussr.toUpperCase());
+    expect(surrendered!.severity).toBe('critical');
+    expect(isAlarm(surrendered!.kind)).toBe(false);
+
+    expect(transferred!.text).toContain(fr.nations.germany);
+    expect(transferred!.text).toContain('direction de la partie');
+    expect(transferred!.severity).toBe('routine');
+  });
 });
 
 /**

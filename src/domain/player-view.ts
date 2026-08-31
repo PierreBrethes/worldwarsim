@@ -398,7 +398,9 @@ export type DispatchKind =
   | 'outpostDisabled'
   | 'sighting'
   | 'firedDry'
-  | 'foundNothing';
+  | 'foundNothing'
+  | 'surrender'
+  | 'command';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -485,7 +487,11 @@ export type Notice =
     }
   /** La fin d'une saison sans horloge : son fondateur l'a close. Aucun vainqueur ne
    *  l'accompagne, et le journal n'en désigne donc aucun (`seasons.conclude`). */
-  | { readonly kind: 'seasonClosed'; readonly at: number };
+  | { readonly kind: 'seasonClosed'; readonly at: number }
+  /** Une capitulation, et la main qu'elle passe (`convex/players.ts`, `surrender`). Publiques
+   *  toutes les deux : elles changent la table, elles ne relèvent d'aucun brouillard. */
+  | { readonly kind: 'playerSurrendered'; readonly at: number; readonly nation: string }
+  | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string };
 
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
@@ -542,6 +548,10 @@ export type PlayerView = {
     /** Le fondateur, et lui seul, clôt une saison sans horloge (`seasons.conclude`). C'est le
      *  seul pouvoir que le plateau réserve à un joueur plutôt qu'à une nation. */
     readonly creator: boolean;
+    /** **Il a déposé les armes : il observe.** Le seul champ que l'interface lit pour retirer
+     *  ses boutons — la vue elle-même est inchangée, portée par ses détecteurs restants
+     *  (décision 47a). Rien ici ne se déduit d'une capacité : réduit n'est pas défait. */
+    readonly defeated: boolean;
     readonly homePosition: LonLat;
     readonly ink: string;
     readonly power: string;

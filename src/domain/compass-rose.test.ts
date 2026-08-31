@@ -382,6 +382,69 @@ describe('aiming at a point', () => {
 });
 
 /**
+ * **La rose de la troupe est celle du clic gauche aussi** (décision Pierre, 30/08) : le sprite
+ * cliqué ouvre le cartouche *et* cette rose, et « Envoyer » est la seule branche qui ne commande
+ * rien — elle arme la colonne et rend la main à la carte, qui vise.
+ */
+describe('the fan on a posted troop', () => {
+  const camp = {
+    kind: 'force',
+    id: 'stack-point:12.0000,20.0000',
+    country: 'LBY',
+    name: '1 INF',
+    headcount: 1,
+    station: { kind: 'point', lonLat: [12, 20], country: 'LBY' },
+    regionId: 'LBY-001',
+  } as const;
+
+  const standing = {
+    ...view,
+    me: {
+      ...view.me,
+      troops: [
+        {
+          id: 'T-0',
+          role: 'infantry',
+          stationedAt: { kind: 'point', lonLat: [12, 20], country: 'LBY' },
+        },
+      ],
+    },
+  } as unknown as PlayerView;
+
+  it('opens on "envoyer", which carries the address and the whole pile standing there', () => {
+    const compass = compassOf(camp, standing);
+    expect(compass?.actions[0]).toMatchObject({
+      key: 'send',
+      pictogram: 'arrow',
+      label: 'Envoyer',
+      station: { kind: 'point', lonLat: [12, 20] },
+      troopIds: ['T-0'],
+    });
+  });
+
+  /** Aucune destination n'est encore nommée, donc aucun slot n'est encore dû : annoncer un prix
+   *  ici le ferait lire deux fois, la seconde sur la carte d'aperçu qui le débite vraiment. */
+  it('prices nothing — a slot is paid at the sending, never at the aiming', () => {
+    expect(compassOf(camp, standing)?.actions[0]?.cost).toBeNull();
+  });
+
+  /** Une pile en route n'est plus posée : il n'y a plus rien à envoyer d'ici. */
+  it('withdraws it while the column is walking', () => {
+    const compass = compassOf(camp, {
+      ...standing,
+      arcs: [{ state: 'mine', troopIds: ['T-0'] }],
+    } as unknown as PlayerView);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
+  });
+
+  /** Un mouvement observé n'a pas d'adresse : il n'y a rien à armer sous un pion en vol. */
+  it('offers nothing to send on a movement in flight', () => {
+    const compass = compassOf({ ...camp, station: null }, standing);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
+  });
+});
+
+/**
  * **Fonder est passé au clic droit** (décision Pierre, 29/08) : le geste a quitté la fenêtre de
  * garnison, qui sert à composer une pile et non à donner un ordre. La branche vit sur la pile
  * elle-même, parce qu'on fonde où l'on se tient (ADR 0019 §1).
@@ -412,8 +475,8 @@ describe('founding from the map', () => {
 
   it('offers the founding on a posted column, carrying its point and its manifest', () => {
     const compass = compassOf(camp, posted(['infantry', 'infantry']));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['found', 'view']);
-    expect(compass?.actions[0]).toMatchObject({
+    expect(compass?.actions.map((action) => action.key)).toEqual(['send', 'found', 'view']);
+    expect(compass?.actions[1]).toMatchObject({
       pictogram: 'post',
       point: [12, 20],
       troopIds: ['T-0', 'T-1'],
@@ -423,7 +486,7 @@ describe('founding from the map', () => {
   /** La même fonction que le serveur refuse avec (`foundingRefusal`) : un char ne plante rien. */
   it('withdraws it from a column no infantry stands in', () => {
     const compass = compassOf(camp, posted(['armor']));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['send', 'view']);
   });
 
   /** Un avant-poste porte un chantier hors de chez soi (ADR 0004) : sur son propre sol, il
@@ -434,7 +497,7 @@ describe('founding from the map', () => {
       ...home,
       me: { ...home.me, buildings: [{ regionId: 'FRA-9999' }] },
     } as unknown as PlayerView);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['send', 'view']);
   });
 
   /**
@@ -451,7 +514,36 @@ describe('founding from the map', () => {
       afloat: false,
     };
     const compass = compassOf(camp, posted(['infantry']), armed, true);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['found', 'view']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['send', 'found', 'view']);
+  });
+
+  /**
+   * **Un observateur regarde, il ne vise plus** (31/08). Le serveur refuse déjà tout le reste
+   * (`requirePlayable`) : une rose qui garderait « fonder » ou « bâtir » promettrait au défait
+   * l'ordre qu'il ne peut plus obtenir — et rien n'est grisé, jamais (ADR 0015).
+   */
+  it('leaves an observer nothing but looking', () => {
+    const armed = {
+      roles: ['infantry' as const],
+      myRegionIds: new Set<string>(),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(),
+      afloat: false,
+    };
+    const standing = posted(['infantry']);
+    const observing = {
+      ...standing,
+      me: { ...standing.me, defeated: true },
+    } as unknown as PlayerView;
+    expect(compassOf(camp, observing, armed, true)?.actions.map((action) => action.key)).toEqual([
+      'view',
+    ]);
+    expect(
+      compassOf(
+        { kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' },
+        observing,
+      )?.actions.map((action) => action.key),
+    ).toEqual(['view']);
   });
 
   /** Une pile en route n'est plus posée : son manifeste est vide, il n'y a rien à planter. */

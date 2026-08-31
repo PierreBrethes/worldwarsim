@@ -319,6 +319,9 @@ async function previewOf(ctx: QueryCtx, token: string) {
     /** A seat on a running season whose owner has not entered the war goes back to the lobby,
      *  not to the board: he holds no nation, and the board could not draw him. */
     atWar: isAtWar(player, season),
+    /** **« Défaite : observer »**, et c'est tout ce que la ligne d'accueil change : elle ouvre
+     *  le même plateau, en l'état. Un observateur n'est pas sorti de sa saison — il la regarde. */
+    defeated: player.defeated ?? false,
     /** Enough for the home screen to say who took the season without opening the board — the
      *  only end screen the test victory gets, with the journal's headline. */
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),

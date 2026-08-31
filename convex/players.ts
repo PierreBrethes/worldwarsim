@@ -3,7 +3,7 @@ import { mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { NATIONS, restWindowFrom } from './constants';
 import { fail } from './errors';
-import { isAtWar, playerByToken } from './seasons';
+import { concludeSeason, isAtWar, playerByToken, requirePlayable } from './seasons';
 
 /**
  * **The choices of the lobby seal at the player's own entry into war**, not at the season's
@@ -68,5 +68,96 @@ export const setRestWindow = mutation({
       fail('INVALID_REST_WINDOW');
     }
     await ctx.db.patch(player._id, { restWindow: restWindowFrom(startMinutes) });
+  },
+});
+
+/**
+ * **Déposer les armes** (décision de Pierre, 31/08). Un joueur qui ne veut plus jouer n'avait
+ * jusqu'ici qu'une sortie : fermer l'onglet. Personne ne *quittait* jamais une saison, ce qui est
+ * exactement pourquoi le titre de fondateur n'avait nulle part où se transmettre — la
+ * capitulation est l'événement qui manquait, et elle referme les deux trous d'un coup.
+ *
+ * **Irréversible, et lancée seulement.** `requirePlayable` dit les deux : une saison en cours, et
+ * un joueur qui n'a pas déjà capitulé — le second appel se refuse au lieu de rejouer les
+ * dépêches. Le salon n'a rien à capituler, une saison conclue non plus.
+ *
+ * **Ce qui ne change pas.** Ses troupes posées restent et défendent : une garnison n'a pas besoin
+ * d'ordre (ADR 0019), et rien ici ne touche à une ligne de `troops`. Ses avant-postes tiennent,
+ * paient leur entretien et gardent son encre tant qu'ils existent ; son stock s'épuise, et à sec
+ * rien ne meurt. Le défait reste pillable — capituler n'est pas s'évaporer, sinon la reddition
+ * serait la meilleure défense du jeu.
+ *
+ * **Sa vue non plus ne change pas** (décision 47a) : `playerView` se calcule comme avant, portée
+ * par ses détecteurs restants, et se fige à mesure qu'ils tombent. Lever le brouillard pour un
+ * observateur ferait de la capitulation un acte de renseignement au profit d'un survivant ami —
+ * il n'y a donc rien à débloquer, seulement rien à ajouter.
+ */
+export const surrender = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(player, season);
+    /** On ne capitule que d'une guerre où l'on est entré : un siège qui choisit encore son
+     *  drapeau n'a pas d'armes à déposer, et il ne compte dans aucune fin de saison. */
+    if (!isAtWar(player, season)) fail('NOT_AT_WAR');
+
+    const now = Date.now();
+    await ctx.db.patch(player._id, { defeated: true });
+
+    const present = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect();
+    const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
+
+    /**
+     * **Le commandement passe au plus ancien joueur encore debout.** Le rang d'entrée plutôt
+     * qu'un vote : entre amis, celui qui est là depuis le début est celui qui saura clore, et
+     * une élection à deux joueurs n'est pas une élection.
+     *
+     * Le titre n'est retiré que s'il y a une main pour le prendre : le dernier fondateur d'une
+     * saison où plus personne n'est debout le garde, ce qui tient l'invariant — un `creator` par
+     * saison, jamais zéro.
+     */
+    const successor = player.creator
+      ? ([...standing].sort((left, right) => left._creationTime - right._creationTime)[0] ?? null)
+      : null;
+    if (successor !== null) {
+      await ctx.db.patch(player._id, { creator: false });
+      await ctx.db.patch(successor._id, { creator: true });
+    }
+
+    /** Deux nouvelles publiques, déposées chez tout le monde : qui ne joue plus change la table,
+     *  et qui commande la partie décide de sa fin. Ni l'une ni l'autre n'est un secret. */
+    const nameOf = (seat: Doc<'players'>) => seat.nation ?? seat.nickname;
+    for (const seat of present) {
+      await ctx.db.insert('notices', {
+        playerId: seat._id,
+        at: now,
+        kind: 'playerSurrendered',
+        nation: nameOf(player),
+      });
+      if (successor !== null) {
+        await ctx.db.insert('notices', {
+          playerId: seat._id,
+          at: now,
+          kind: 'commandTransferred',
+          nation: nameOf(successor),
+        });
+      }
+    }
+
+    /**
+     * **La capitulation générale est une victoire, pas une clôture administrative.** Le dernier
+     * belligérant debout prend la saison par la sortie commune (`concludeSeason`), avec son nom
+     * dessus — le journal et l'accueil le lisent comme n'importe quelle autre fin.
+     *
+     * Le compte est celui des **belligérants**, comme partout ailleurs (`victory.standingsOf`) :
+     * un siège pris sur une saison en cours dont le propriétaire choisit encore son drapeau
+     * n'est pas une nation debout, et le laisser compter gèlerait la fin pour toujours.
+     */
+    const belligerents = standing.filter((seat) => isAtWar(seat, season));
+    const survivor = belligerents.length === 1 ? belligerents[0] : undefined;
+    if (survivor !== undefined) await concludeSeason(ctx, season._id, survivor._id, now);
   },
 });

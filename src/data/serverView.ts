@@ -40,6 +40,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     me: {
       nation: server.me.nation,
       creator: server.me.creator ?? false,
+      /** Un déploiement d'une version en retard ne connaît pas la capitulation : personne
+       *  n'a déposé les armes, et le plateau garde tous ses boutons. */
+      defeated: server.me.defeated ?? false,
       homePosition,
       ink: server.me.ink,
       power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',

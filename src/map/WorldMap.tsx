@@ -42,8 +42,15 @@ type Props = {
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
-  /** Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât. */
-  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => void;
+  /**
+   * Un clic sur une pile posée ouvre sa garnison — la porte que le mât n'a pas, faute de mât.
+   *
+   * **Il rend vrai quand le clic a désigné une troupe**, et la rose s'ouvre alors sur le sprite
+   * avec le cartouche : la popin lit, la rose agit (décision Pierre, 30/08). Faux quand c'est la
+   * fenêtre de garnison qui répond — un menu posé par-dessus un panneau ferait deux réponses à un
+   * seul clic. La règle qui sépare les deux reste au plateau, qui seul sait ce qui se tient là.
+   */
+  onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   /**
@@ -244,6 +251,28 @@ export function WorldMap({
     return () => clearTimeout(timer);
   }, [gestureHint]);
 
+  /**
+   * **Le clic gauche sur un sprite de troupe ouvre les deux à la fois** (décision Pierre, 30/08) :
+   * le cartouche en lecture, la rose en action. La cible est celle du clic droit, mot pour mot —
+   * `targetOfLabel`, jamais un éventail parallèle — donc les deux gestes répondent la même chose
+   * sur le même sprite.
+   */
+  const onLabelOpen = useCallback(
+    (label: MapLabel, clientX: number, clientY: number) => {
+      if (label.station === null) return;
+      if (onOpenStack?.(label.station, clientX, clientY) !== true) return;
+      const map = engine.current;
+      const target = targetOfLabel(
+        label,
+        map?.countryAtPoint(clientX, clientY) ?? null,
+        map?.regionAtPoint(clientX, clientY) ?? null,
+      );
+      if (target === null) return;
+      openRose(target, clientX, clientY);
+    },
+    [onOpenStack, openRose],
+  );
+
   const onLabelMenu = useCallback(
     (label: MapLabel, clientX: number, clientY: number) => {
       const map = engine.current;
@@ -363,7 +392,7 @@ export function WorldMap({
         onReachHover={setHoveredReach}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
-        onOpenStack={onOpenStack ?? (() => {})}
+        onOpenStack={onLabelOpen}
         onContextMenu={onLabelMenu}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />

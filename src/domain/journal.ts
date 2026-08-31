@@ -248,6 +248,26 @@ function written(notice: Notice): Written {
         kind: 'seasonConcluded',
         text: said.seasonClosed,
       };
+    /**
+     * **Une capitulation se lit comme une entrée en guerre, par l'autre bout** : c'est l'autre
+     * moitié de la table qui bouge, et le journal est le seul canal qui l'annonce. Critique pour
+     * la même raison — un belligérant de moins change ce que valent tous les autres.
+     */
+    case 'playerSurrendered':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'surrender',
+        text: said.playerSurrendered(nationName(notice.nation)),
+      };
+    /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
+    case 'commandTransferred':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'command',
+        text: said.commandTransferred(nationName(notice.nation)),
+      };
   }
 }
 

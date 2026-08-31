@@ -354,6 +354,9 @@ function standingOf(seat: Seat): string {
   if (seat.status === 'concluded' && seat.winnerNation) {
     return fr.victory.homeConcluded(nationLabel(seat.winnerNation));
   }
+  /** **La ligne dit la défaite avant le code**, et le bouton ouvre le même plateau : capituler
+   *  ne fait pas quitter une saison, il fait changer de siège — de joueur à observateur. */
+  if (seat.defeated) return `${fr.home.resumeDefeated} · ${seat.code}`;
   return `${fr.home.resumeSeason} · ${seat.code}`;
 }
 

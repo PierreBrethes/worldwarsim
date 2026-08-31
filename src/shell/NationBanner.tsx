@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
@@ -7,6 +8,7 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/plateau';
 import { Wordmark } from './Masthead';
 import { NationCartouche } from './NationCartouche';
+import { Stamp } from './Stamp';
 import { Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
@@ -53,6 +55,18 @@ export function NationBanner({ view }: { view: PlayerView }) {
       </div>
 
       <NationCartouche nation={me.nation} height={BANNER_HEIGHT} />
+
+      {/* **Le cachet de la défaite, contre le cartouche.** À l'encre du papier et non au rouge :
+          la règle 3 des tampons réserve le rouge à ce qui exige un geste, et un observateur n'en
+          a plus aucun à faire. La barre est sombre, elle pose donc son encre de cachet. */}
+      {me.defeated && (
+        <span
+          className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3"
+          style={{ '--stamp-ink': 'var(--paper-dim)' } as CSSProperties}
+        >
+          <Stamp label={fr.stamps.defeated} size="small" />
+        </span>
+      )}
 
       {me.construction !== null && <SiteStrip view={view} />}
 

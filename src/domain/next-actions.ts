@@ -47,6 +47,10 @@ const PROJECTION_KEYS: ReadonlySet<string> = new Set(Object.values(PROJECTION_BY
  * alors pas d'état fermé : elle n'existe pas.
  */
 export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
+  /** **Rien n'attend un observateur** (décision du 31/08). La carte n'a pas d'état fermé — son
+   *  absence *est* l'état fermé — et c'est exactement ce qu'on doit à un joueur qui a déposé les
+   *  armes : pas une liste grisée de ce qu'il ne fera plus. */
+  if (view.me.defeated) return [];
   const names = stationNames(view);
   const marching = marchingTroopIds(view.arcs);
   const standing = view.me.troops.filter((troop) => !marching.has(troop.id));

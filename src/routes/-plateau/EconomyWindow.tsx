@@ -122,7 +122,13 @@ export function EconomyWindow({
           {view.me.chains
             .filter((chain) => chain.commanded && chain.level > 0)
             .map((chain) => (
-              <LotControl key={chain.by} chain={chain} token={token} now={now} />
+              <LotControl
+                key={chain.by}
+                chain={chain}
+                token={token}
+                now={now}
+                observing={view.me.defeated}
+              />
             ))}
 
           <Header>{fr.economy.projectionHeader}</Header>
@@ -239,7 +245,7 @@ function RunningWork({ view, token, now }: { view: PlayerView; token: string; no
           </div>
         </div>
       </div>
-      {queue.length > 0 && <QueuedWorks queue={queue} token={token} />}
+      {queue.length > 0 && <QueuedWorks queue={queue} token={token} observing={view.me.defeated} />}
     </div>
   );
 }
@@ -249,7 +255,16 @@ function RunningWork({ view, token, now }: { view: PlayerView; token: string; no
  * head is dated in the database, precisely so a cancellation re-dates nothing — the rank is
  * what is true, a due time would be invented.
  */
-function QueuedWorks({ queue, token }: { queue: ReadonlyArray<QueuedWork>; token: string }) {
+function QueuedWorks({
+  queue,
+  token,
+  observing,
+}: {
+  queue: ReadonlyArray<QueuedWork>;
+  token: string;
+  /** Un observateur lit sa file — elle continue de se bâtir — et n'en retire plus rien. */
+  observing: boolean;
+}) {
   const cancel = useMutation(api.constructions.cancel);
   const [error, setError] = useState<string | null>(null);
 
@@ -277,19 +292,21 @@ function QueuedWorks({ queue, token }: { queue: ReadonlyArray<QueuedWork>; token
           <span className="shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {fr.economy.queueLevel(entry.level)}
           </span>
-          <button
-            type="button"
-            title={fr.economy.queueCancelTitle}
-            onClick={() => {
-              setError(null);
-              cancel({ token, constructionId: entry.id as Id<'constructions'> }).catch(
-                (problem: unknown) => handleError(problem, setError),
-              );
-            }}
-            className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
-          >
-            {fr.economy.queueCancel}
-          </button>
+          {!observing && (
+            <button
+              type="button"
+              title={fr.economy.queueCancelTitle}
+              onClick={() => {
+                setError(null);
+                cancel({ token, constructionId: entry.id as Id<'constructions'> }).catch(
+                  (problem: unknown) => handleError(problem, setError),
+                );
+              }}
+              className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
+            >
+              {fr.economy.queueCancel}
+            </button>
+          )}
         </div>
       ))}
       {error !== null && <p className="pt-1 text-[11px] text-[var(--critical)]">{error}</p>}
@@ -1108,7 +1125,19 @@ function UpkeepRow({ view }: { view: PlayerView }) {
  * on it would only ever let a player slow his own works down. The quantity is the decision, and
  * the duration is the answer he is actually after: it says whether the lot covers a night.
  */
-function LotControl({ chain, token, now }: { chain: ChainView; token: string; now: number }) {
+function LotControl({
+  chain,
+  token,
+  now,
+  observing,
+}: {
+  chain: ChainView;
+  token: string;
+  now: number;
+  /** Le lot en cours se lit jusqu'à sa livraison — il court tout seul —, il ne s'annule plus et
+   *  il ne s'en commande plus d'autre : le serveur refuse déjà les deux (`requirePlayable`). */
+  observing: boolean;
+}) {
   const place = useMutation(api.industry.order);
   const drop = useMutation(api.industry.cancelOrder);
   const [error, setError] = useState<string | null>(null);
@@ -1168,17 +1197,21 @@ function LotControl({ chain, token, now }: { chain: ChainView; token: string; no
                 {fr.economy.lot.endsAt(asDayAndTime(now + (owed / rate) * 3_600_000))}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => send(drop({ token, chain: chain.by }))}
-              className="ml-auto cursor-pointer border border-[var(--critical)] px-[11px] py-[5px] text-[9px] tracking-[.16em] text-[var(--critical)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
-            >
-              {fr.economy.lot.cancel}
-            </button>
+            {!observing && (
+              <button
+                type="button"
+                onClick={() => send(drop({ token, chain: chain.by }))}
+                className="ml-auto cursor-pointer border border-[var(--critical)] px-[11px] py-[5px] text-[9px] tracking-[.16em] text-[var(--critical)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
+              >
+                {fr.economy.lot.cancel}
+              </button>
+            )}
           </div>
-          <p className="mt-[6px] max-w-[70ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
-            {fr.economy.lot.cancelNote}
-          </p>
+          {!observing && (
+            <p className="mt-[6px] max-w-[70ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
+              {fr.economy.lot.cancelNote}
+            </p>
+          )}
         </>
       ) : sizing ? (
         <>
@@ -1262,7 +1295,7 @@ function LotControl({ chain, token, now }: { chain: ChainView; token: string; no
                 ? fr.economy.lot.doneNote(fr.buildings[chain.by], inputLabel)
                 : fr.economy.lot.keepsAvailable(inputLabel)}
           </span>
-          {maxOrder > 0 ? (
+          {observing ? null : maxOrder > 0 ? (
             <button
               type="button"
               onClick={() => {

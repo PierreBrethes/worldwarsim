@@ -239,7 +239,12 @@ function Workshop({
                           requiredLevel={workshop.requiredHqLevel}
                           hqLevel={workshop.hqLevel}
                           site={site}
-                          onEnqueue={() => site && enqueue(entry.role, site.id)}
+                          /** **Nul, l'ordre n'existe pas** — c'est ainsi que l'observateur lit
+                           *  la fiche sans qu'elle lui promette une compagnie : un bouton grisé
+                           *  se lit comme « pas encore », et ce n'est pas « pas encore ». */
+                          onEnqueue={
+                            view.me.defeated ? null : () => site && enqueue(entry.role, site.id)
+                          }
                         />
                       ))}
                   </div>
@@ -283,7 +288,7 @@ function Workshop({
                         nation={nation}
                         loadedAt={workshop.loadedAt}
                         now={now}
-                        onCancel={() => withdraw(batch.id)}
+                        onCancel={view.me.defeated ? null : () => withdraw(batch.id)}
                       />
                     ))}
                   </section>
@@ -431,7 +436,7 @@ function RoleCard({
   requiredLevel: number;
   hqLevel: number;
   site: Facility | null;
-  onEnqueue: () => void;
+  onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
   // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
@@ -543,23 +548,25 @@ function RoleCard({
         )}
       </div>
 
-      <div className="px-4 pt-3 pb-[14px]">
-        <button
-          type="button"
-          disabled={site === null || roleLocked}
-          onClick={onEnqueue}
-          title={
-            roleLocked
-              ? fr.production.roleLocked(entry.unlockedAtHqLevel)
-              : site === null
-                ? fr.production.noSite(fr.buildings[entry.producedBy])
-                : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
-          }
-          className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-[rgba(42,33,24,.35)] disabled:text-[rgba(42,33,24,.35)] disabled:hover:bg-transparent"
-        >
-          {fr.production.enqueue}
-        </button>
-      </div>
+      {onEnqueue !== null && (
+        <div className="px-4 pt-3 pb-[14px]">
+          <button
+            type="button"
+            disabled={site === null || roleLocked}
+            onClick={onEnqueue}
+            title={
+              roleLocked
+                ? fr.production.roleLocked(entry.unlockedAtHqLevel)
+                : site === null
+                  ? fr.production.noSite(fr.buildings[entry.producedBy])
+                  : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), site.regionName)
+            }
+            className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-[rgba(42,33,24,.35)] disabled:text-[rgba(42,33,24,.35)] disabled:hover:bg-transparent"
+          >
+            {fr.production.enqueue}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -575,7 +582,7 @@ function QueueRow({
   nation: string;
   loadedAt: number;
   now: number;
-  onCancel: () => void;
+  onCancel: (() => void) | null;
 }) {
   return (
     <div className="flex items-center gap-[10px] border-b border-[rgba(42,33,24,.16)] px-4 py-[8px]">
@@ -600,15 +607,17 @@ function QueueRow({
       <span className="shrink-0 font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
         {asDuration(currentMinutes(batch.minutesLeft, loadedAt, now))}
       </span>
-      <button
-        type="button"
-        disabled={batch.started}
-        onClick={onCancel}
-        title={batch.started ? fr.production.cancelStarted : fr.production.cancelRefund}
-        className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[3px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        {fr.production.cancel}
-      </button>
+      {onCancel !== null && (
+        <button
+          type="button"
+          disabled={batch.started}
+          onClick={onCancel}
+          title={batch.started ? fr.production.cancelStarted : fr.production.cancelRefund}
+          className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[3px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          {fr.production.cancel}
+        </button>
+      )}
     </div>
   );
 }
