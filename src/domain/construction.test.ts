@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blockedOn, buildableOn, placementOf, upgradeHold, type Site } from './construction';
-import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey, type SeasonFormat } from './ids';
+import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
 import { unlockLevel } from '../../convex/constants';
 import type { Building, BuildSpec, PlayerView } from './player-view';
 
@@ -128,27 +128,24 @@ describe('what a region can carry', () => {
   });
 
   /**
-   * **A format that never climbs cannot tier its catalogue.** A skirkish's run is one single
-   * headquarters level, so `unlockLevel` puts projection at the launch: the port and the
-   * aerodrome are there from the first minute. A campaign keeps them at 3, four levels of run
-   * away. What paces a skirmish is alloy and time, not the headquarters.
+   * **The real ladder, read off `unlockLevel`.** Projection is the top of it: the port and the
+   * aerodrome wait for a headquarters at 3, two levels above the one the season plants, and the
+   * catalogue offers them the minute it gets there.
    */
-  it('opens projection at the launch of a skirmish and holds it back in a campaign', () => {
-    const catalogOf = (format: SeasonFormat): Record<BuildingKey, BuildSpec> =>
-      Object.fromEntries(
-        BUILDINGS.map((key) => [
-          key,
-          { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key, format) },
-        ]),
-      ) as Record<BuildingKey, BuildSpec>;
+  it('holds projection back until the headquarters reaches its level', () => {
+    const catalog = Object.fromEntries(
+      BUILDINGS.map((key) => [
+        key,
+        { cost: { alloy: 20 }, minutes: 30, unlockedAtHqLevel: unlockLevel(key) },
+      ]),
+    ) as Record<BuildingKey, BuildSpec>;
 
-    const offered = (format: SeasonFormat, hqLevel: number) =>
-      buildableOn(site({ hqLevel, coastal: true }), catalogOf(format)).map((option) => option.key);
+    const offered = (hqLevel: number) =>
+      buildableOn(site({ hqLevel, coastal: true }), catalog).map((option) => option.key);
 
-    expect(offered('skirmish', 2)).toEqual(expect.arrayContaining(['port', 'airfield']));
-    expect(offered('campaign', 2)).not.toContain('port');
-    expect(offered('campaign', 2)).not.toContain('airfield');
-    expect(offered('campaign', 3)).toEqual(expect.arrayContaining(['port', 'airfield']));
+    expect(offered(2)).not.toContain('port');
+    expect(offered(2)).not.toContain('airfield');
+    expect(offered(3)).toEqual(expect.arrayContaining(['port', 'airfield']));
   });
 
   it('offers nothing at all on a region already taken — one building per region', () => {
@@ -203,8 +200,8 @@ describe('a placement the foundation owes, beside a queue', () => {
 
   /**
    * **The ceiling does not hold an owed line either, since 25/08.** It did, and a debt of the
-   * format then became unpayable by a rule of the format — a campaign at headquarters 1 carries
-   * five buildings, and an American ground is owed five extractors. The paid lines behind it
+   * season then became unpayable by a rule of the season — a headquarters at 1 carries five
+   * buildings, and an American ground is owed five extractors. The paid lines behind it
    * are still held: the debt outranks the ambition, the ambition waits for the headquarters.
    */
   it('lets an offered line through at the building ceiling, and holds the paid ones', () => {

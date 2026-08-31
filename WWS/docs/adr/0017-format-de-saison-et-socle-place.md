@@ -2,6 +2,40 @@
 
 **Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
 
+> ⚠️ **Révision (31/08/2026) : le format de saison est retiré, seule l'horloge survit.**
+> Décision de Pierre, gravée dans l'[ADR 0020](0020-domination-par-couleur.md) §11 : **il n'y a
+> plus d'escarmouche ni de campagne**. L'horloge était déjà optionnelle depuis le 27/08 ; ce qui
+> restait au format, c'était un jeu de constantes de départ et le plafond de bâtiments — et
+> l'ADR 0020 §10 vient de retirer ce plafond de ses mains en le rendant local. Ce qui reste ne
+> justifie plus deux tables ni un choix au fondement.
+>
+> **Les valeurs qui survivent sont celles de `campaign`** : quartier général planté à 1, plafond
+> à 5, 500 d'alliage, 40 de pétrole, 80 de munitions, 168 h proposées. Sans horloge, une partie
+> n'a plus de fin programmée : c'est la campagne qui décrit le jeu réel. `SEASON_FORMATS`,
+> `SeasonFormatSpec` et `formatOfSeason` — la porte unique posée le 30/08 — laissent la place à
+> `HQ_LEVEL_AT_LAUNCH`, `MAX_HQ_LEVEL`, `STARTING_ALLOY`, `STARTING_OIL`,
+> `STARTING_AMMUNITION`, `DEFAULT_DURATION_HOURS` et `BUILDING_CAP_BASE` /
+> `BUILDING_CAP_PER_HQ_LEVEL`. `seasons.format` reste au schéma en legacy, plus jamais écrit ni
+> lu, le temps d'un wipe.
+>
+> **`unlockLevel` ne reprojette plus rien** : la reprojection n'existait que pour écraser
+> l'échelle du catalogue sur une course courte. Elle lit `UNLOCKED_AT` tel quel — la nation
+> ouvre le sol au lancement, l'armée et l'oreille à 2, la projection à 3.
+>
+> Ce que la révision emporte de mesuré, et il faut le dire : **le calibrage de `startingAlloy`
+> en escarmouche (1000) part avec le format**. Le 500 qui reste est celui de la campagne, lu sur
+> ses 48 premières heures, et son commentaire de fragilité est conservé mot pour mot — c'est la
+> seule valeur du projet issue d'une mesure. Le § « Deux formats, une seule économie » plus bas
+> décrit un modèle que le jeu n'a plus.
+>
+> **Ce que la révision ne touche pas** : l'horloge optionnelle et `seasons.conclude` (révision du
+> 27/08, juste dessous), le socle placé (§2), et le plafond de stockage (§3).
+>
+> **`WWS/simulation/opening/` garde ses deux formats** : l'escarmouche y devient un *scénario de
+> l'instrument*, plus un mode du jeu. `verify.mjs` compare désormais l'entrée `campaign` du
+> miroir aux constantes que le serveur lit, et déclare l'escarmouche non vérifiée plutôt que de
+> la faire passer pour un miroir.
+
 > ⚠️ **Révision (27/08/2026) : le format se choisit, l'horloge devient optionnelle.**
 > La durée n'est plus la clé du format. `formatOf(durationHours)` a disparu au profit de
 > `formatOfSeason(season)` (`convex/constants.ts`), porte unique qui lit le champ

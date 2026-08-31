@@ -11,7 +11,6 @@ import {
   type DepositKey,
   type Nation,
   type ResourceKey,
-  type SeasonFormat,
 } from '../src/domain/ids';
 import { ADM0_BY_NATION } from '../src/domain/nations';
 import { EXPLOITED_DEPOSITS, PRODUCER_OF, placementRefusal } from '../src/domain/economy';
@@ -19,12 +18,13 @@ import {
   BASE_CAP,
   CHAINS,
   EXTRACTION_PER_HOUR,
-  SEASON_FORMATS,
+  HQ_LEVEL_AT_LAUNCH,
+  MAX_HQ_LEVEL,
+  STARTING_KIT,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
   buildMinutes,
   buildingCap,
-  startingStock,
   unlockLevel,
 } from './constants';
 import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
@@ -35,15 +35,7 @@ import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
 
-/** Every test here launches a 48-hour season: the skirmish kit is the one it hands out. */
-const KIT = startingStock('skirmish');
-
-/** The formats, keyed — `Object.entries` widens the key to `string` and every caller needs it
- *  back as a `SeasonFormat`. */
-const formats = () =>
-  (Object.keys(SEASON_FORMATS) as ReadonlyArray<SeasonFormat>).map(
-    (format) => [format, SEASON_FORMATS[format]] as const,
-  );
+const KIT = STARTING_KIT;
 
 /** French regions, straight out of `deposits.json` and `region-index.json`. */
 const MARNE = 'FRA-5323'; //  food
@@ -62,7 +54,6 @@ async function launchedSeason(
 ) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: durationHours === 48 ? 'skirmish' : 'campaign',
     durationHours,
     compensation: 0.5,
   });
@@ -202,8 +193,8 @@ describe('transformation', () => {
    * No order, no queue: the foundry converts on its own and stops on the input that runs out
    * first — here the ore of the starting kit, twenty units, two per alloy.
    *
-   * The alloy is emptied first, and that is not a convenience: the skirmish kit opens above
-   * what a nation without a warehouse can store, so a foundry read at the launch reports
+   * The alloy is emptied first, and that is not a convenience: the kit opens above what a
+   * nation without a warehouse can store, so a foundry read at the launch reports
    * `overflowing` and casts nothing. What is under test here is the input that runs out.
    */
   it('converts on its own and stops when an input runs out', async () => {
@@ -364,6 +355,7 @@ describe('what the industry window reads', () => {
     await raise(t, token, 'foundry', MOSELLE);
     await raise(t, token, 'mine', MEURTHE);
     await fill(t, token, 'alloy', 100);
+    await promoteHq(t, token, unlockLevel('billets'));
     vi.advanceTimersByTime(20 * 3_600_000);
     // The billets, not the farm: the farm belongs to the foundation, and a free placement
     // spends nothing — so it would reset no window.
@@ -443,8 +435,8 @@ describe('what a ceiling bounds', () => {
   it('leaves a stock above its ceiling alone, reading after reading', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    // The skirmish kit opens at 1000 alloy for a nation whose ceiling is 400: the difference is
-    // the player's until he spends it.
+    // The kit opens above the ceiling of a nation without a warehouse: the difference is the
+    // player's until he spends it.
     expect(KIT.alloy).toBeGreaterThan(BASE_CAP);
 
     vi.advanceTimersByTime(10 * 3_600_000);
@@ -510,8 +502,7 @@ describe('placement', () => {
   it('refuses a port away from the coast and takes it on the shore', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    // A skirkish's run is one step, so projection is open from the launch (`unlockLevel`).
-    await promoteHq(t, token, unlockLevel('port', 'skirmish'));
+    await promoteHq(t, token, unlockLevel('port'));
     await expect(
       t.mutation(api.constructions.start, { token, building: 'port', regionId: MOSELLE }),
     ).rejects.toThrow('NOT_COASTAL');
@@ -529,9 +520,7 @@ describe('placement', () => {
    */
   it('refuses a key above the headquarters tier, and names the level it wants', async () => {
     const t = boot();
-    // A campaign, because it is the format that still has a run to tier: a skirmish opens its
-    // whole catalogue at the launch, which is the point of `unlockLevel`.
-    const token = await launchedSeason(t, 168);
+    const token = await launchedSeason(t);
     const refused: Record<string, unknown> = await t
       .mutation(api.constructions.start, { token, building: 'airfield', regionId: ARDENNES })
       .then(() => ({}))
@@ -540,11 +529,11 @@ describe('placement', () => {
     expect(refused).toMatchObject({
       code: 'BUILDING_LOCKED',
       building: 'airfield',
-      requiredLevel: unlockLevel('airfield', 'campaign'),
-      hqLevel: SEASON_FORMATS.campaign.hqLevelAtLaunch,
+      requiredLevel: unlockLevel('airfield'),
+      hqLevel: HQ_LEVEL_AT_LAUNCH,
     });
 
-    await promoteHq(t, token, unlockLevel('airfield', 'campaign'));
+    await promoteHq(t, token, unlockLevel('airfield'));
     const started = await t.mutation(api.constructions.start, {
       token,
       building: 'airfield',
@@ -553,14 +542,13 @@ describe('placement', () => {
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
-  /**
-   * The listening post is the second tier and a skirmish launches on it: the same key is a
-   * refusal in a campaign's first hour and a placement in a skirmish's.
-   */
+  /** The refusal above, taken back: the very key the tier locked is placed the minute the
+   *  headquarters reaches it, and nothing else changes. */
   it('opens a tier as soon as the headquarters reaches it', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    expect(unlockLevel('listening', 'skirmish')).toBe(SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    expect(unlockLevel('listening')).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
+    await promoteHq(t, token, unlockLevel('listening'));
     const started = await t.mutation(api.constructions.start, {
       token,
       building: 'listening',
@@ -570,17 +558,15 @@ describe('placement', () => {
   });
 
   /**
-   * **No format may owe what it cannot open, to any nation.** The foundation is placed by the
+   * **A season may not owe what it cannot open, to any nation.** The foundation is placed by the
    * player under every other rule, the tier included, so a key above the launch level would be
    * a debt the season is born unable to pay — silently, since nothing would ever offer it. It
-   * is read over the eight grounds now, because the debt is national since 25/08.
+   * is read over the eight grounds, because the debt is national since 25/08.
    */
-  it('never owes a foundation key above the headquarters its format plants', () => {
-    for (const [format, spec] of formats()) {
-      for (const nation of NATIONS) {
-        for (const key of foundationOwed(nation, [])) {
-          expect(unlockLevel(key, format)).toBeLessThanOrEqual(spec.hqLevelAtLaunch);
-        }
+  it('never owes a foundation key above the headquarters it plants', () => {
+    for (const nation of NATIONS) {
+      for (const key of foundationOwed(nation, [])) {
+        expect(unlockLevel(key)).toBeLessThanOrEqual(HQ_LEVEL_AT_LAUNCH);
       }
     }
   });
@@ -591,7 +577,7 @@ describe('placement', () => {
     const token = await launchedSeason(t);
     const view = await t.query(api.view.playerView, { token });
     for (const key of BUILDINGS) {
-      expect(view.buildCatalog[key].unlockedAtHqLevel).toBe(unlockLevel(key, 'skirmish'));
+      expect(view.buildCatalog[key].unlockedAtHqLevel).toBe(unlockLevel(key));
     }
   });
 
@@ -731,9 +717,9 @@ describe('the foundation the season owes', () => {
             onRegion: null,
             standing: 0,
             cap: Number.POSITIVE_INFINITY,
-            hqLevel: SEASON_FORMATS.skirmish.hqLevelAtLaunch,
+            hqLevel: HQ_LEVEL_AT_LAUNCH,
           },
-          unlockLevel(key, 'skirmish'),
+          unlockLevel(key),
         ) === null,
     )?.id ?? null;
 
@@ -790,6 +776,7 @@ describe('the foundation the season owes', () => {
   it('places what the season owes while a paid construction runs', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, unlockLevel('barracks'));
     const paid = await t.mutation(api.constructions.start, {
       token,
       building: 'barracks',
@@ -821,6 +808,7 @@ describe('the foundation the season owes', () => {
   it('refuses an offered placement on the region a construction is rising on', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, unlockLevel('barracks'));
     await t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES });
     await expect(
       t.mutation(api.constructions.start, { token, building: 'foundry', regionId: ARDENNES }),
@@ -834,6 +822,7 @@ describe('the foundation the season owes', () => {
   it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, unlockLevel('billets'));
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
     await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
 
@@ -882,7 +871,7 @@ describe('the foundation the season owes', () => {
       // so the placements below wait for it exactly as a player would.
       vi.advanceTimersByTime(24 * 3_600_000);
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      await promoteHq(t, token, SEASON_FORMATS.skirmish.maxHqLevel);
+      await promoteHq(t, token, MAX_HQ_LEVEL);
 
       const bills = await placeFoundation(t, token);
       expect(bills.every((bill) => Object.keys(bill).length === 0)).toBe(true);
@@ -892,44 +881,39 @@ describe('the foundation the season owes', () => {
   });
 
   /**
-   * The guard rail behind the test above, said as a number: the headquarters of a format has
-   * to carry its foundation, itself, **and** at least one building the player chose. Without
-   * that margin, a single first move would strand the foundation behind a ceiling.
+   * The guard rail behind the test above, said as a number: the headquarters has to carry the
+   * foundation, itself, **and** at least one building the player chose. Without that margin, a
+   * single first move would strand the foundation behind a ceiling.
    */
-  it('leaves every format room for its foundation, its headquarters and one free choice', () => {
-    for (const [format, spec] of formats()) {
-      // The widest ground of the eight, since the debt follows the nation and not the format.
-      const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
-      expect(buildingCap(format, spec.maxHqLevel)).toBeGreaterThanOrEqual(widest + 2);
-    }
+  it('leaves room for the foundation, the headquarters and one free choice', () => {
+    // The widest ground of the eight, since the debt follows the nation.
+    const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
+    expect(buildingCap(MAX_HQ_LEVEL)).toBeGreaterThanOrEqual(widest + 2);
   });
 
   /**
    * **The number that describes the season is not the ceiling, it is what is left of it.** The
    * foundation and the headquarters are standing before the player chooses anything, so the
-   * free placements are the whole width of the decision — and a skirmish used to open with
-   * *none* and end the season with one, which is the defect ADR 0017 said to come back to.
+   * free placements are the whole width of the decision — and the season opens with **none**,
+   * which is exactly what ADR 0020 §10 sends the global ceiling away for.
    */
-  it('leaves each format the free placements its length asks for, on French ground', () => {
+  it('leaves the free placements the season asks for, on French ground', () => {
     // France is the reading nation of every figure in this file — four extractors owed, the
     // common case. A ground owed five (the United States, oil included) has one fewer.
     const owed = foundationOwed('france', []).length;
     expect(owed).toBe(4);
-    const free = (format: SeasonFormat, hqLevel: number) =>
-      buildingCap(format, hqLevel) - (owed + 1);
+    const free = (hqLevel: number) => buildingCap(hqLevel) - (owed + 1);
 
-    expect(free('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch)).toBe(6);
-    expect(free('skirmish', SEASON_FORMATS.skirmish.maxHqLevel)).toBe(9);
-    expect(free('campaign', SEASON_FORMATS.campaign.hqLevelAtLaunch)).toBe(0);
-    expect(free('campaign', SEASON_FORMATS.campaign.maxHqLevel)).toBe(8);
+    expect(free(HQ_LEVEL_AT_LAUNCH)).toBe(0);
+    expect(free(MAX_HQ_LEVEL)).toBe(8);
   });
 });
 
 describe('the headquarters at launch', () => {
-  it('stands on the capital at the level its format plants it, and nothing else stands', async () => {
+  it('stands on the capital at the level the season plants it, and nothing else stands', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    const level = SEASON_FORMATS.skirmish.hqLevelAtLaunch;
+    const level = HQ_LEVEL_AT_LAUNCH;
 
     const view = await t.query(api.view.playerView, { token });
     expect(view.me.buildings).toEqual([
@@ -976,7 +960,8 @@ describe('the construction queue', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses. */
+  /** Paid keys with no deposit and no coast to ask for: three sites the ground never refuses.
+   *  Two of them open one level above the launch, so every test here promotes first. */
   const SITES = [
     { building: 'billets' as const, regionId: ARDENNES },
     { building: 'depot' as const, regionId: JURA },
@@ -989,6 +974,7 @@ describe('the construction queue', () => {
   it('bills every entry at the enqueue and runs them one at a time, in order', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     const opening = await alloyOf(t, token);
 
     for (const site of SITES) await t.mutation(api.constructions.start, { token, ...site });
@@ -1034,6 +1020,7 @@ describe('the construction queue', () => {
   it('refuses a second entry on a region the queue already aims at', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
     await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
 
@@ -1051,9 +1038,10 @@ describe('the construction queue', () => {
   it('counts what is queued against the building ceiling', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     await fill(t, token, 'alloy', 100_000);
     await fill(t, token, 'food', 100_000);
-    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    const cap = buildingCap(2);
 
     const view = await t.query(api.view.playerView, { token });
     const free = view.me.regions.filter((region) => region.buildings.length === 0);
@@ -1085,13 +1073,14 @@ describe('the construction queue', () => {
   it('cancels a head whose right has gone, refunds it whole and files a notice', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     const opening = await alloyOf(t, token);
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
     await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
 
     // The ceiling comes down under the queue: the buildings below are put up without paying,
     // and what is under test is what the *start* of the follower does about it.
-    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    const cap = buildingCap(2);
     const view = await t.query(api.view.playerView, { token });
     const spare = view.me.regions.filter(
       (region) => region.buildings.length === 0 && region.id !== ARDENNES && region.id !== JURA,
@@ -1125,6 +1114,7 @@ describe('the construction queue', () => {
   it('refunds a follower in full and refuses to cancel the head', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
     await t.mutation(api.constructions.start, { token, building: 'depot', regionId: JURA });
 
@@ -1161,6 +1151,7 @@ describe('the construction queue', () => {
   it('debits and refunds exactly as the recruitment queue does', async () => {
     const t = boot();
     const token = await launchedSeason(t);
+    await promoteHq(t, token, 2);
     await fill(t, token, 'alloy', 100_000);
     await fill(t, token, 'ammunition', 100_000);
     await fill(t, token, 'food', 100_000);
@@ -1256,8 +1247,9 @@ describe('one building per region, and a global ceiling', () => {
   it('refuses a paid placement past the ceiling, and says what would lift it', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
-    expect(cap).toBe(11);
+    await promoteHq(t, token, unlockLevel('billets'));
+    const cap = buildingCap(unlockLevel('billets'));
+    expect(cap).toBe(7);
 
     // The headquarters makes one; the rest fill the ceiling of a headquarters at 2, on the
     // regions of the home country the view carries.
@@ -1272,26 +1264,26 @@ describe('one building per region, and a global ceiling', () => {
       .mutation(api.constructions.start, { token, building: 'billets', regionId: JURA })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
-    const next = SEASON_FORMATS.skirmish.hqLevelAtLaunch + 1;
+    const next = unlockLevel('billets') + 1;
     expect(refused).toMatchObject({
       code: 'BUILDING_CAP_REACHED',
       cap,
-      hqLevel: SEASON_FORMATS.skirmish.hqLevelAtLaunch,
+      hqLevel: unlockLevel('billets'),
       // The remedy, in figures the screen never recomputes — both out of `buildingCap`.
       nextHqLevel: next,
-      nextCap: buildingCap('skirmish', next),
+      nextCap: buildingCap(next),
     });
 
     // The same order goes through once the headquarters carries a wider one.
-    await promoteHq(t, token, SEASON_FORMATS.skirmish.maxHqLevel);
+    await promoteHq(t, token, MAX_HQ_LEVEL);
     await t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA });
   });
 
   /**
    * **A key the season owes is never refused by the ceiling** (decision of 25/08). The measured
-   * case: a campaign plants its headquarters at 1, which carries five buildings, and the
-   * American ground is owed five extractors — the fifth used to be refused on an empty map, a
-   * debt of the format made unpayable by a rule of the format.
+   * case: the headquarters is planted at 1, which carries five buildings, and the American
+   * ground is owed five extractors — the fifth used to be refused on an empty map, a debt of
+   * the season made unpayable by a rule of the season.
    */
   it('places every owed key at a ceiling the foundation alone fills', async () => {
     const t = boot();
@@ -1299,7 +1291,7 @@ describe('one building per region, and a global ceiling', () => {
 
     const owed = foundationOwed('usa', []);
     expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
-    const cap = buildingCap('campaign', SEASON_FORMATS.campaign.hqLevelAtLaunch);
+    const cap = buildingCap(HQ_LEVEL_AT_LAUNCH);
     expect(cap).toBe(5);
     // The headquarters already stands, so the debt alone runs the ceiling over.
     expect(owed.length + 1).toBeGreaterThan(cap);
@@ -1319,7 +1311,7 @@ describe('one building per region, and a global ceiling', () => {
               cap: Number.POSITIVE_INFINITY,
               hqLevel: view.me.hqLevel,
             },
-            unlockLevel(key, 'campaign'),
+            unlockLevel(key),
           ) === null,
       )?.id;
       if (regionId === undefined) throw new Error(`nowhere to place ${key}`);
@@ -1345,16 +1337,14 @@ describe('one building per region, and a global ceiling', () => {
    * nation and Natural Earth's cutting starts balancing the season — Germany capped at 16
    * where the United Kingdom is capped at 232.
    */
-  it('stays strictly under the region count of the smallest playable nation, in every format', () => {
+  it('stays strictly under the region count of the smallest playable nation', () => {
     const countries = Object.values(regionIndex.country);
     const counts = NATIONS.map(
       (nation) => countries.filter((country) => country === ADM0_BY_NATION[nation]).length,
     );
     const smallest = Math.min(...counts);
     expect(smallest).toBe(16); // Germany, counted in Länder
-    for (const [format, spec] of formats()) {
-      expect(buildingCap(format, spec.maxHqLevel)).toBeLessThan(smallest);
-    }
+    expect(buildingCap(MAX_HQ_LEVEL)).toBeLessThan(smallest);
   });
 });
 

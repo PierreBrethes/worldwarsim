@@ -34,7 +34,7 @@ personnel.
 | Sprites d'unités | **France** (10 WebP, 240 Ko) et **États-Unis** (11 WebP, 224 Ko, planche complète) branchés ; Royaume-Uni détouré mais pas branché ; cinq nations à générer — pipeline dans `sprites/README.md` |
 | Schéma de données | hors-saison et état de nation (ADR 0010) ; schéma de jeu écrit jusqu'au combat (`troops`, `recruitments`, `movements`, `outposts`, `engagements`) |
 | Code de jeu serveur | accueil/salon/lancement, ressources, production, **mouvements terrestres et passe de combat** servis par Convex ; naval, aérien, agent, pillage : rien. **Le leurre a été codé puis retiré le 29/08/2026** — révision documentée en tête de la fiche 04 |
-| Condition de victoire | **échafaudage de test** : Domination simplifiée, publique et nominative (`src/domain/victory.ts`, `convex/victory.ts`, étape 5 du plan de progression). Le triangle de la fiche 05 reste la cible ; ce module se **remplace**, il ne s'amende pas |
+| Condition de victoire | **échafaudage de test** : Domination simplifiée, publique et nominative (`src/domain/victory.ts`, `convex/victory.ts`, étape 5 du plan de progression). La domination est le **mode unique** depuis le 31/08 (ADR 0020 §9) — la fiche 05 est abandonnée, et c'est la **part de carte** qui remplacera ce module ; il ne s'amende pas |
 
 **Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
 nation sont gravés (fiche 12, ADR 0009-0010) : leur schéma existe. Le schéma de **jeu** — mouvements,

@@ -5,7 +5,6 @@ import type {
   Detector,
   MovementType,
   ResourceKey,
-  SeasonFormat,
   Specialization,
   UnitRole,
   UnitTier,
@@ -503,7 +502,6 @@ export type ReductionStanding = {
 export type PlayerView = {
   readonly season: {
     readonly number: number;
-    readonly format: SeasonFormat;
     /** `null` = sans horloge : aucun écran n'affiche alors de compte à rebours, et la saison se
      *  clôt à la main (révision du 27/08 de l'ADR 0017). */
     readonly durationHours: number | null;

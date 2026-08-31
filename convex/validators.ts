@@ -64,13 +64,6 @@ export const SEASON_STATUS = v.union(
   v.literal('concluded'),
 );
 
-/**
- * **Le format se choisit, il ne se déduit plus de l'horloge** (révision du 27/08 de l'ADR 0017).
- * `v.optional` au schéma : une saison ouverte avant ce choix n'en porte pas, et `formatOfSeason`
- * la retrouve par sa durée le temps d'un wipe.
- */
-export const SEASON_FORMAT = v.union(v.literal('skirmish'), v.literal('campaign'));
-
 /** L'horloge d'une saison, `null` quand elle n'en a pas : on la clôt à la main
  *  (`seasons.conclude`). Aucun écran n'affiche alors de compte à rebours. */
 export const SEASON_CLOCK_HOURS = v.union(v.literal(48), v.literal(168), v.null());

@@ -11,7 +11,6 @@ import {
   NOTICE,
   REST_WINDOW,
   RESOURCE_KEY,
-  SEASON_FORMAT,
   SEASON_STATUS,
   SPECIALIZATION,
   TROOP_STATE,
@@ -39,12 +38,14 @@ export default defineSchema({
     code: v.string(),
     status: SEASON_STATUS,
     /**
-     * **Le format ne se déduit plus de l'horloge** (révision du 27/08 de l'ADR 0017) : il se
-     * choisit au fondement, et l'horloge peut ne pas exister. `v.optional` pour la raison qui
-     * vaut pour `winnerId` juste dessous — une saison ouverte avant ce champ n'en porte pas, et
-     * `formatOfSeason` la retrouve par sa durée le temps du même wipe.
+     * **Legacy — plus jamais écrit ni lu.** L'escarmouche et la campagne ont disparu le 31/08
+     * (ADR 0020 §11) : il n'y a plus qu'une ligne de départ. Le champ reste au schéma parce que
+     * les saisons déjà ouvertes le portent, et qu'un champ retiré d'une table déjà écrite fait
+     * refuser la poussée (leçon du 27/08 sur `buildings.seasonId`). `v.string()` plutôt que
+     * l'union : plus rien ne contraint une valeur que personne ne relit. Il part au prochain
+     * wipe (ADR 0001).
      */
-    format: v.optional(SEASON_FORMAT),
+    format: v.optional(v.string()),
     /** `null` = sans horloge : la saison se clôt à la main (`seasons.conclude`). */
     durationHours: v.union(v.number(), v.null()),
     compensation: v.number(),

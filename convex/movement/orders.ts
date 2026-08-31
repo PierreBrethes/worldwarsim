@@ -22,13 +22,7 @@ import {
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
-import {
-  OUTPOST_REACH_KM,
-  RELAY_SPEED_MULTIPLIER,
-  routeMinutes,
-  SEASON_FORMATS,
-  formatOfSeason,
-} from '../constants';
+import { MAX_HQ_LEVEL, OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER, routeMinutes } from '../constants';
 import { fail } from '../errors';
 import { regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
@@ -205,8 +199,8 @@ export async function columnOf(
 
 /** Same shape and reason as `capReliefOf`: "montez le QG" is advice, "un quartier général niveau
  *  3 les porte à 4" is a plan. Both numbers come out of `movementSlots`, never recopied. */
-const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
-  hqLevel >= SEASON_FORMATS[formatOfSeason(season)].maxHqLevel
+const slotRelief = (hqLevel: number) =>
+  hqLevel >= MAX_HQ_LEVEL
     ? {}
     : { nextHqLevel: hqLevel + 1, nextSlots: movementSlots(hqLevel + 1) };
 
@@ -216,18 +210,14 @@ const slotRelief = (season: Doc<'seasons'>, hqLevel: number) =>
  * constant once capped this door at one while the banner promised `1 + hqLevel`. **A return does
  * not count**: holding a slot hostage while a beaten column walks back punishes one defeat twice.
  */
-export async function claimSlot(
-  ctx: MutationCtx,
-  playerId: Id<'players'>,
-  season: Doc<'seasons'>,
-): Promise<void> {
+export async function claimSlot(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
   const hqLevel = await buildingLevel(ctx, playerId, 'hq');
   const maximum = movementSlots(hqLevel);
   const flying = (await movementsOf(ctx, playerId)).filter(
     (movement) => movement.type !== 'return',
   );
   if (flying.length >= maximum) {
-    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(season, hqLevel) });
+    fail('MOVEMENT_IN_FLIGHT', { maximum, hqLevel, ...slotRelief(hqLevel) });
   }
 }
 
@@ -242,8 +232,7 @@ export async function march(
     aim,
   }: {
     playerId: Id<'players'>;
-    /** Read for the format alone — the ladder a headquarters climbs, which is what the refusal
-     *  needs to name the level that would buy the next slot. */
+    /** Read for its id alone: a movement is filed under the season it flies in. */
     season: Doc<'seasons'>;
     type: 'march' | 'attack' | 'raid';
     origin: MarchOrigin;
@@ -251,7 +240,7 @@ export async function march(
     aim: Aimed;
   },
 ) {
-  await claimSlot(ctx, playerId, season);
+  await claimSlot(ctx, playerId);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the
    *  address the troops hang from, so a garrison abroad is not ordered out of a barracks. */

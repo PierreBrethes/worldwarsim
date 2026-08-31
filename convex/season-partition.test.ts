@@ -39,7 +39,6 @@ const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 async function launchedSeason(t: ReturnType<typeof boot>, host: string, visitor: string) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: host,
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

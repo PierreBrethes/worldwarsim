@@ -10,12 +10,11 @@ import { levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
+  TIER_2_HQ_LEVEL,
   chainSpeed,
-  formatOfSeason,
   nominalStrength,
   recruitmentCost,
   roleHqLevel,
-  tier2HqLevel,
   troopCap,
 } from './constants';
 import { fail } from './errors';
@@ -50,8 +49,6 @@ export const workshop = query({
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    const format = formatOfSeason(season);
-    const tier2 = tier2HqLevel(format);
     const troops = await troopsOf(ctx, player._id);
     const waiting = await recruitmentsOf(ctx, player._id);
     const economy = await economyOf(ctx, player._id, now);
@@ -80,10 +77,10 @@ export const workshop = query({
       nation: player.nation ?? '?',
       hqLevel,
       speed: chainSpeed(hqLevel),
-      // The threshold of the format, never the constant: the case the screen greys out and the
-      // recruitment the server refuses read the same number, computed once (ADR 0017).
-      tier2Unlocked: hqLevel >= tier2,
-      requiredHqLevel: tier2,
+      // Served rather than left to the client: the case the screen greys out and the
+      // recruitment the server refuses read the same number (ADR 0017).
+      tier2Unlocked: hqLevel >= TIER_2_HQ_LEVEL,
+      requiredHqLevel: TIER_2_HQ_LEVEL,
       maxQueue: MAX_QUEUED_BATCHES,
       // Standing troops and queued batches share one ceiling, otherwise the queue is where a
       // nation stores the army it is not allowed to have.
@@ -103,7 +100,7 @@ export const workshop = query({
          * threshold above, so the line the screen greys and the recruitment the server refuses
          * are the same number.
          */
-        unlockedAtHqLevel: roleHqLevel(role, format),
+        unlockedAtHqLevel: roleHqLevel(role),
         unit: priced(role, 1, hqLevel),
         unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
       })),
@@ -131,13 +128,11 @@ export const recruit = mutation({
 
     const buildings = await playerBuildings(ctx, player._id);
     const hqLevel = levelOf(buildings, 'hq');
-    const format = formatOfSeason(season);
-    const tier2 = tier2HqLevel(format);
-    if (tier === 2 && hqLevel < tier2) {
-      fail('TIER_2_LOCKED', { requiredLevel: tier2 });
+    if (tier === 2 && hqLevel < TIER_2_HQ_LEVEL) {
+      fail('TIER_2_LOCKED', { requiredLevel: TIER_2_HQ_LEVEL });
     }
     // The tank waits for the level that arms its counter, whatever tier is asked for.
-    const roleLevel = roleHqLevel(role, format);
+    const roleLevel = roleHqLevel(role);
     if (hqLevel < roleLevel) fail('ROLE_LOCKED', { role, requiredLevel: roleLevel });
 
     /**
@@ -272,7 +267,7 @@ export async function troopsOf(
  * **Every troop of one season, and of no other.** What a contact sweeps when the question is
  * "who stands here" rather than "what is mine": the camps a departing column can walk into, the
  * defence that answers a point. The season filter lives here alone — a sweep without it lets a
- * garrison of a test game defend ground in the skirmish.
+ * garrison of a test game defend ground on the board.
  */
 export async function seasonTroops(
   ctx: QueryCtx,

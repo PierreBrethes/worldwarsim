@@ -10,12 +10,11 @@ import { movementSlots } from '../src/domain/movement-orders';
 import type { TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
+  TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
   buildingCap,
-  formatOfSeason,
   isCommanded,
-  tier2HqLevel,
   unlockLevel,
   troopCap,
   type Costs,
@@ -117,8 +116,6 @@ export const playerView = query({
       armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
     }
 
-    const format = formatOfSeason(season);
-
     const buildCatalog = Object.fromEntries(
       BUILDINGS.map((key) => [
         key,
@@ -126,7 +123,7 @@ export const playerView = query({
           cost: buildCost(key, 1),
           minutes: buildMinutes(key, 1),
           // The tier travels with the price so the panel offers exactly what the server takes.
-          unlockedAtHqLevel: unlockLevel(key, format),
+          unlockedAtHqLevel: unlockLevel(key),
         },
       ]),
     ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
@@ -174,10 +171,6 @@ export const playerView = query({
     return {
       season: {
         number: 1,
-        // The format is what the screens read to know how high a headquarters may climb and
-        // what the season still owes: one table in `constants.ts`, no second copy in the
-        // bundle.
-        format,
         durationHours: season.durationHours,
         elapsedHours: season.launchedAt === null ? 0 : (now - season.launchedAt) / 3_600_000,
         players: others.length + 1,
@@ -261,7 +254,7 @@ export const playerView = query({
          * The count of standing buildings is not served beside it: `buildings` below is the
          * whole list, so its length *is* the count. Two numbers for one fact would diverge.
          */
-        buildingCap: buildingCap(format, hqLevel),
+        buildingCap: buildingCap(hqLevel),
         /**
          * **What the next headquarters level would carry**, `null` at the top of the ladder.
          * Served rather than derived on the client for the reason the ceiling itself is: the
@@ -270,18 +263,18 @@ export const playerView = query({
          * is how they stop being one (ADR 0015, révision du 24/08 — rien d'affiché sans sa
          * condition, et une condition qui se chiffre est un plan).
          */
-        capRelief: capReliefOf(format, hqLevel),
+        capRelief: capReliefOf(hqLevel),
         /**
-         * The headquarters level that opens mark 2 **in this format** (ADR 0017). Served rather
-         * than read off a constant by the screen: the line that says "verrouillé jusqu'au QG 3"
-         * and the recruitment that refuses tier 2 have to be the same number, and a client-side
-         * copy of the rule is how they stop being one.
+         * The headquarters level that opens mark 2 (ADR 0017). Served rather than read off a
+         * constant by the screen: the line that says "verrouillé jusqu'au QG 3" and the
+         * recruitment that refuses tier 2 have to be the same number, and a client-side copy of
+         * the rule is how they stop being one.
          */
-        tier2HqLevel: tier2HqLevel(format),
+        tier2HqLevel: TIER_2_HQ_LEVEL,
         /**
          * What the season still owes, in placement order — free and immediate wherever the
-         * player decides to put it. Served rather than derived on the client: the format lives
-         * in one table, and a season whose foundation is not placed is a state the screen has
+         * player decides to put it. Served rather than derived on the client: the debt is read
+         * off the ground, and a season whose foundation is not placed is a state the screen has
          * to be able to say out loud.
          */
         foundation: foundationOwed(

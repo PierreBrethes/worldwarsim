@@ -3,8 +3,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import {
+  MAX_HQ_LEVEL,
   REST_WINDOW_MINUTES,
-  SEASON_FORMATS,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
   chainSpeed,
 } from '../../../convex/constants';
@@ -894,7 +894,7 @@ function Headquarters({
         <BuildingPlate building="hq" height={36} />
         <span className="text-[13px] font-semibold text-[var(--ink)]">{fr.buildings.hq}</span>
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-          {fr.economy.hqLevelLine(level, SEASON_FORMATS[view.season.format].maxHqLevel)}
+          {fr.economy.hqLevelLine(level, MAX_HQ_LEVEL)}
         </span>
         <span className="ml-auto">
           <UpgradeControl building={hq} view={view} token={token} now={now} />

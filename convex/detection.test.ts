@@ -55,7 +55,6 @@ const nearestApproach = (points: ReadonlyArray<LonLat>, to: LonLat): number => {
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

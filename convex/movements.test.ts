@@ -39,7 +39,6 @@ const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });
@@ -493,12 +492,12 @@ describe('an outpost opens a radius to build in', () => {
    * **The two rules stack, they do not stand in for one another.** The reach says *where* a
    * building may go up, the catalogue tier says *whether the season has reached it* — so a
    * region an outpost has opened still refuses an airfield until the headquarters reaches the
-   * level this format opens projection at (`unlockLevel`, one step for a skirmish).
+   * level the catalogue opens projection at (`unlockLevel`).
    */
   it('stacks the tier of the catalogue on top of the reach', async () => {
     const t = boot();
     const token = await withOutpostAtPrahova(t);
-    const opensAt = unlockLevel('airfield', 'skirmish');
+    const opensAt = unlockLevel('airfield');
     await setHqLevel(t, token, opensAt - 1);
 
     await expect(
@@ -523,6 +522,7 @@ describe('an outpost opens a radius to build in', () => {
   it('keeps home free of any reach', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
+    await setHqLevel(t, token, unlockLevel('billets'));
     const started = await t.mutation(api.constructions.start, {
       token,
       building: 'billets',

@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fr } from './fr';
-import { SEASON_FORMATS, buildingCap } from '../../convex/constants';
+import { HQ_LEVEL_AT_LAUNCH, MAX_HQ_LEVEL, buildingCap } from '../../convex/constants';
 import { capReliefOf } from '../../convex/constructions';
-import type { SeasonFormat } from '@/domain/ids';
 
 /**
  * **Le plafond dit son remède, chiffré** (décision du 25/08). « Montez le quartier général »
@@ -12,42 +11,34 @@ import type { SeasonFormat } from '@/domain/ids';
  *
  * Ce qui est sous test ici n'est pas la phrase mais **d'où viennent ses nombres** : de
  * `buildingCap`, une seule fois, servis au client. Un chiffre recopié dans `fr.ts` mentirait le
- * jour où l'échelle d'un format bouge, et c'est exactement ce que ce fichier attrape.
+ * jour où l'échelle bouge, et c'est exactement ce que ce fichier attrape.
  */
-const formats = () => Object.keys(SEASON_FORMATS) as ReadonlyArray<SeasonFormat>;
-
 describe('the ceiling names its remedy', () => {
   it('reads the ladder of buildingCap, never a copy of it', () => {
-    for (const format of formats()) {
-      const spec = SEASON_FORMATS[format];
-      for (let hqLevel = 0; hqLevel < spec.maxHqLevel; hqLevel += 1) {
-        const relief = capReliefOf(format, hqLevel);
-        expect(relief).toEqual({
-          nextHqLevel: hqLevel + 1,
-          nextCap: buildingCap(format, hqLevel + 1),
-        });
-      }
+    for (let hqLevel = 0; hqLevel < MAX_HQ_LEVEL; hqLevel += 1) {
+      expect(capReliefOf(hqLevel)).toEqual({
+        nextHqLevel: hqLevel + 1,
+        nextCap: buildingCap(hqLevel + 1),
+      });
     }
   });
 
-  /** At the top of a format's ladder there is nothing left to raise, and a sentence promising
+  /** At the top of the ladder there is nothing left to raise, and a sentence promising
    *  otherwise would send the player climbing a step that does not exist. */
   it('offers no remedy at the top of the ladder', () => {
-    for (const format of formats()) {
-      expect(capReliefOf(format, SEASON_FORMATS[format].maxHqLevel)).toBeNull();
-    }
+    expect(capReliefOf(MAX_HQ_LEVEL)).toBeNull();
   });
 
   /** The two sentences a player can meet — the refusal after a click and the line in the
    *  window — carry the same two numbers, because they read the same served relief. */
   it('says the same figures in the refusal and in the budget line', () => {
-    const relief = capReliefOf('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch)!;
-    const cap = buildingCap('skirmish', SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    const relief = capReliefOf(HQ_LEVEL_AT_LAUNCH)!;
+    const cap = buildingCap(HQ_LEVEL_AT_LAUNCH);
 
     const refused = fr.errors.BUILDING_CAP_REACHED({
       code: 'BUILDING_CAP_REACHED',
       cap,
-      hqLevel: SEASON_FORMATS.skirmish.hqLevelAtLaunch,
+      hqLevel: HQ_LEVEL_AT_LAUNCH,
       ...relief,
     });
     expect(refused).toContain(String(cap));

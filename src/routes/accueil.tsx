@@ -3,8 +3,9 @@ import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../convex/_generated/api';
+import { DEFAULT_DURATION_HOURS } from '../../convex/constants';
 import { fr, clockLabel, nationLabel } from '@/i18n/fr';
-import type { PlayableRegion, SeasonFormat } from '@/domain/ids';
+import type { PlayableRegion } from '@/domain/ids';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
@@ -75,10 +76,7 @@ function ConnectedHome() {
   const destroy = useMutation(api.seasons.destroy);
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
-  const [format, setFormat] = useState<SeasonFormat>('skirmish');
-  /** L'horloge suit le format tant que le fondateur ne l'a pas touchée : le format *propose* une
-   *  durée, il ne la définit plus (révision du 27/08 de l'ADR 0017). */
-  const [clock, setClock] = useState<Clock>(FORMATS[0].clock);
+  const [clock, setClock] = useState<Clock>(DEFAULT_DURATION_HOURS);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<Seat | null>(null);
   const tokens = useTokens();
@@ -112,12 +110,7 @@ function ConnectedHome() {
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const { token } = await create({
-        nickname,
-        format,
-        durationHours: clock,
-        compensation: 0.5,
-      });
+      const { token } = await create({ nickname, durationHours: clock, compensation: 0.5 });
       keepToken(token);
       toLobby();
     } catch (problem) {
@@ -182,22 +175,6 @@ function ConnectedHome() {
           <form onSubmit={submitCreate} className="flex-1 pt-4 pr-[26px] pb-1">
             <Title numeral="I" title={fr.home.foundTitle} />
             <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.foundNote}</p>
-
-            <div className="eyebrow mt-[14px]">{fr.home.formatLabel}</div>
-            <div className="mt-[6px] flex gap-2">
-              {FORMATS.map((entry) => (
-                <Choice
-                  key={entry.key}
-                  name={fr.home.formats[entry.key].name}
-                  note={fr.home.formats[entry.key].note}
-                  chosen={format === entry.key}
-                  onChoose={() => {
-                    setFormat(entry.key);
-                    setClock(entry.clock);
-                  }}
-                />
-              ))}
-            </div>
 
             <div className="eyebrow mt-[14px]">{fr.home.clockLabel}</div>
             <div className="mt-[6px] flex gap-2">
@@ -394,7 +371,7 @@ function Title({ numeral, title }: { numeral: string; title: string }) {
   );
 }
 
-/** Un choix parmi deux ou trois, du fondement : le format et l'horloge se prennent au même
+/** Un choix parmi deux ou trois, du fondement : l'horloge et le théâtre se prennent au même
  *  geste et se lisent de la même façon. */
 function Choice({
   name,
@@ -461,13 +438,8 @@ function NoBackend() {
   );
 }
 
-/** `null` = sans horloge. Le format ne fait que **proposer** la sienne. */
+/** `null` = sans horloge (révision du 27/08 de l'ADR 0017). */
 type Clock = 48 | 168 | null;
-
-const FORMATS = [
-  { key: 'skirmish', clock: 48 },
-  { key: 'campaign', clock: 168 },
-] as const satisfies ReadonlyArray<{ key: SeasonFormat; clock: Clock }>;
 
 const CLOCKS = [
   { hours: 48, name: fr.home.clocks.fast.name, note: fr.home.clocks.fast.note },

@@ -24,7 +24,6 @@ import type {
   PlayableRegion,
   RegionType,
   ResourceKey,
-  SeasonFormat,
   Specialization,
   UnitRole,
 } from '../domain/ids';
@@ -395,17 +394,11 @@ export const fr = {
     nicknameNote: 'pas de compte — le pseudo suffit, il meurt avec la saison',
     nicknamePlaceholder: 'votre nom de guerre',
     foundTitle: 'Fonder une saison',
-    foundNote: 'Vous choisissez le format et l’horloge. Un code est tiré, vous le partagez.',
+    foundNote: 'Vous choisissez l’horloge. Un code est tiré, vous le partagez.',
     /**
-     * **Deux choix, plus un seul.** Le format dit où l'on entre dans la courbe — dotation,
-     * paliers, plafonds ; l'horloge dit combien de temps on y reste, et elle peut ne pas
-     * exister. Les mots sont ceux du glossaire (`WWS/CONTEXT.md`), jamais « blitz ».
+     * **Un seul choix depuis le 31/08** (ADR 0020 §11) : l'horloge, et elle peut ne pas exister.
+     * Les mots sont ceux du glossaire (`WWS/CONTEXT.md`), jamais « blitz ».
      */
-    formatLabel: 'format',
-    formats: {
-      skirmish: { name: 'Escarmouche', note: 'départ haut, course courte' },
-      campaign: { name: 'Campagne', note: 'départ bas, longue montée' },
-    } satisfies Record<SeasonFormat, { name: string; note: string }>,
     clockLabel: 'horloge',
     clocks: {
       fast: { name: '48 heures', note: 'cadence rapide' },

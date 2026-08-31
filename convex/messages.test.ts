@@ -23,7 +23,6 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 async function lobby(t: ReturnType<typeof boot>, host: string, visitor: string) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: host,
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

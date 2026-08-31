@@ -125,21 +125,27 @@ function roleTable(name, mirrored) {
   }
 }
 
-/** The two formats: the numbers each. The foundation left the table on 25/08 — it is read off
- *  the nation's ground now, and `foundation()` below watches the two tables that decide it. */
-function formats() {
-  const body = bodyOf('SEASON_FORMATS');
-  if (body === null) return unverified.push('SEASON_FORMATS (bloc introuvable)');
-  for (const key of Object.keys(mirror.SEASON_FORMATS)) {
-    const block = body.match(new RegExp(`${key}\\s*:\\s*\\{([\\s\\S]*?)\\n  \\}`));
-    if (!block) { unverified.push(`SEASON_FORMATS.${key}`); continue; }
-    const held = mirror.SEASON_FORMATS[key];
-    for (const field of ['defaultDurationHours', 'hqLevelAtLaunch', 'maxHqLevel', 'buildingCapBase', 'buildingCapPerHqLevel', 'startingAlloy', 'startingOil', 'startingAmmunition']) {
-      const found = block[1].match(new RegExp(`${field}:\\s*(\\d+)`));
-      if (!found) { unverified.push(`SEASON_FORMATS.${key}.${field}`); continue; }
-      report(`SEASON_FORMATS.${key}.${field}`, found[1], held[field]);
-    }
-  }
+/**
+ * **La ligne de départ, en huit nombres.** Le format de saison a disparu du jeu le 31/08 (ADR
+ * 0020 §11) : ce sont les valeurs de la campagne qui ont survécu, éclatées en constantes
+ * simples. Le miroir garde sa table à deux entrées — l'escarmouche y reste un *scénario de
+ * l'instrument*, plus un mode du jeu — et c'est `campaign` qui se compare, clé par clé, aux
+ * constantes que le serveur lit vraiment.
+ *
+ * La foundation a quitté la table le 25/08 : elle se lit sur le sol de la nation, et
+ * `foundation()` plus bas surveille les deux listes qui la décident.
+ */
+function startingLine() {
+  const held = mirror.SEASON_FORMATS.campaign;
+  scalar('DEFAULT_DURATION_HOURS', held.defaultDurationHours);
+  scalar('HQ_LEVEL_AT_LAUNCH', held.hqLevelAtLaunch);
+  scalar('MAX_HQ_LEVEL', held.maxHqLevel);
+  scalar('BUILDING_CAP_BASE', held.buildingCapBase);
+  scalar('BUILDING_CAP_PER_HQ_LEVEL', held.buildingCapPerHqLevel);
+  scalar('STARTING_ALLOY', held.startingAlloy);
+  scalar('STARTING_OIL', held.startingOil);
+  scalar('STARTING_AMMUNITION', held.startingAmmunition);
+  unverified.push('SEASON_FORMATS.skirmish (scénario du miroir — le jeu n’a plus de format)');
 }
 
 /**
@@ -200,7 +206,7 @@ flatTable('UNLOCKED_AT', mirror.UNLOCKED_AT);
 flatTable('STARTING_STOCK', mirror.STARTING_STOCK);
 specTable('BUILDING_SPEC', mirror.BUILDING_SPEC);
 roleTable('COST_BY_ROLE', mirror.COST_BY_ROLE);
-formats();
+startingLine();
 foundation();
 
 /**

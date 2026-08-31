@@ -1,20 +1,18 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import type { SeasonFormat } from '../src/domain/ids';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { nearestOutpostKm } from '../src/domain/outposts';
 import { buildingAt, cappedByHq, levelOf, playerBuildings } from './buildings';
 import {
+  MAX_HQ_LEVEL,
   OUTPOST_REACH_KM,
-  SEASON_FORMATS,
   unlockLevel,
   buildCost,
   buildMinutes,
   buildingCap,
-  formatOfSeason,
 } from './constants';
 import { outpostsOf, pointOf } from './movement/forces';
 import { fail, type ErrorCode } from './errors';
@@ -37,7 +35,7 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
  * refusal, where a due key escapes the building ceiling, and the bill, where it costs nothing —
  * so it is asked once and answered here.
  *
- * A first level only: raising a building is never a debt of the format.
+ * A first level only: raising a building is never a debt the season owes.
  */
 const owedFreely = (
   nation: string | null,
@@ -68,7 +66,7 @@ export const start = mutation({
      * allowed to have.
      */
     const queue = await queueOf(ctx, player._id);
-    const refusal = await refusalFor(ctx, player, season, building, regionId, queue);
+    const refusal = await refusalFor(ctx, player, building, regionId, queue);
     if (refusal) fail(refusal.code, refusal.details);
 
     const buildings = await playerBuildings(ctx, player._id);
@@ -78,7 +76,7 @@ export const start = mutation({
     /**
      * **The foundation is placed, never offered.** Choosing the region is the one gesture of
      * the opening that is a decision; the price and the wait on what is not one are what the
-     * format takes back. So as long as a key of the foundation is still owed, its first
+     * season takes back. So as long as a key of the foundation is still owed, its first
      * placement costs nothing and stands at once — every other rule above having already had
      * its say: deposit, one building per region, home country.
      *
@@ -195,7 +193,7 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 
     // The head is measured against what stands, and against nothing queued: everything else in
     // the queue is behind it and has not happened.
-    const refusal = await refusalFor(ctx, player, season, head.building, head.regionId, []);
+    const refusal = await refusalFor(ctx, player, head.building, head.regionId, []);
     if (refusal) {
       await credit(ctx, playerId, buildCost(head.building, head.level), now);
       await ctx.db.insert('notices', {
@@ -230,7 +228,6 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 async function refusalFor(
   ctx: QueryCtx,
   player: Doc<'players'>,
-  season: Doc<'seasons'>,
   building: Doc<'constructions'>['building'],
   regionId: string,
   pledged: ReadonlyArray<Doc<'constructions'>>,
@@ -284,10 +281,9 @@ async function refusalFor(
   }
 
   const onRegion = buildings.find((held) => held.regionId === regionId)?.key ?? null;
-  const format = formatOfSeason(season);
   const hqLevel = levelOf(buildings, 'hq');
-  const cap = buildingCap(format, hqLevel);
-  const requiredLevel = unlockLevel(building, format);
+  const cap = buildingCap(hqLevel);
+  const requiredLevel = unlockLevel(building);
   // A pledge on a bare region is a building coming; a pledge on a region that already carries
   // one is a raise, and a raise moves neither the count nor the ceiling.
   const standing =
@@ -296,14 +292,14 @@ async function refusalFor(
 
   /**
    * **A key the season owes is never refused by the ceiling** (decision of 25/08). It was, and
-   * it made a debt of the format unpayable by a rule of the format: a campaign plants its
-   * headquarters at 1, which carries five buildings, and an American ground is owed five
-   * extractors — the fifth was refused `BUILDING_CAP_REACHED` on an empty map.
+   * it made a debt of the season unpayable by a rule of the season: the headquarters is planted
+   * at 1, which carries five buildings, and an American ground is owed five extractors — the
+   * fifth was refused `BUILDING_CAP_REACHED` on an empty map.
    *
    * The ceiling therefore bites the **paying road only**, the same gesture and the same reason
    * as the construction lock before it (`fondation-hors-chantier.md`). It comes back the moment
    * the building stands: the count includes it like any other, so a nation may sit *above* its
-   * ceiling for as long as its debt says — the format's debt outranks the player's ambition,
+   * ceiling for as long as its debt says — the season's debt outranks the player's ambition,
    * and the ambition waits for the headquarters.
    */
   const owed = owedFreely(player.nation, buildings, building, regionId);
@@ -319,7 +315,7 @@ async function refusalFor(
   // The refusal names its remedy with the figure it would buy: "montez le QG" is advice,
   // "un quartier général niveau 2 le porte à 8" is a plan (ADR 0015, révision du 24/08).
   if (refusal === 'BUILDING_CAP_REACHED') {
-    return { code: refusal, details: { cap, hqLevel, ...relief(format, hqLevel) } };
+    return { code: refusal, details: { cap, hqLevel, ...relief(hqLevel) } };
   }
   // The refusal names its threshold: "demande un QG de niveau 3" is a plan, "impossible" is
   // a wall — and the tier is the one refusal a player can always act on.
@@ -334,7 +330,7 @@ async function refusalFor(
   }
   if (refusal === 'NOT_COASTAL') return { code: refusal, details: { regionId } };
 
-  const maximum = SEASON_FORMATS[format].maxHqLevel;
+  const maximum = MAX_HQ_LEVEL;
   const level = (buildingAt(buildings, building, regionId)?.level ?? 0) + 1;
   if (building === 'hq' && level > maximum)
     return { code: 'MAX_LEVEL_REACHED', details: { maximum } };
@@ -343,20 +339,17 @@ async function refusalFor(
 }
 
 /**
- * What the next headquarters level would carry, `null` at the top of the format's ladder. Two
- * numbers rather than a sentence (ADR 0016), and both out of `buildingCap` — the screen that
- * says "un quartier général niveau 2 le porte à 8" and the refusal that raised it must be
- * reading the same ladder, never two copies of it.
+ * What the next headquarters level would carry, `null` at the top of the ladder. Two numbers
+ * rather than a sentence (ADR 0016), and both out of `buildingCap` — the screen that says "un
+ * quartier général niveau 2 le porte à 8" and the refusal that raised it must be reading the
+ * same ladder, never two copies of it.
  */
 export const capReliefOf = (
-  format: SeasonFormat,
   hqLevel: number,
 ): { readonly nextHqLevel: number; readonly nextCap: number } | null =>
-  hqLevel >= SEASON_FORMATS[format].maxHqLevel
-    ? null
-    : { nextHqLevel: hqLevel + 1, nextCap: buildingCap(format, hqLevel + 1) };
+  hqLevel >= MAX_HQ_LEVEL ? null : { nextHqLevel: hqLevel + 1, nextCap: buildingCap(hqLevel + 1) };
 
-const relief = (format: SeasonFormat, hqLevel: number) => capReliefOf(format, hqLevel) ?? {};
+const relief = (hqLevel: number) => capReliefOf(hqLevel) ?? {};
 
 /** Everything a player has pledged to build, head first. */
 export async function queueOf(

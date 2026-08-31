@@ -6,14 +6,15 @@ import { TIERS_BY_ROLE } from '../src/domain/troops';
 import type { UnitRole } from '../src/domain/ids';
 import {
   BILLETS_LEVELS_TO_CAP,
+  HQ_LEVEL_AT_LAUNCH,
+  MAX_HQ_LEVEL,
   NOMINAL_STRENGTH,
-  SEASON_FORMATS,
-  startingStock,
+  STARTING_KIT,
+  TIER_2_HQ_LEVEL,
   TROOP_CAP_BASE,
   TROOP_CAP_TARGET,
   recruitmentCost,
   roleHqLevel,
-  tier2HqLevel,
   troopCap,
 } from './constants';
 import schema from './schema';
@@ -21,8 +22,7 @@ import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
 
-/** Every test here launches a 48-hour season: the skirmish kit is the one it hands out. */
-const KIT = startingStock('skirmish');
+const KIT = STARTING_KIT;
 
 /** French regions, straight out of `region-index.json`. */
 const MARNE = 'FRA-5323';
@@ -34,7 +34,6 @@ const PAS_DE_CALAIS = 'FRA-5334'; // coastal, for the port
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });
@@ -141,8 +140,8 @@ describe('a queue per projection building', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    // The tank opens at the level that arms its counter, one above what a skirmish plants.
-    await setHqLevel(t, token, roleHqLevel('armor', 'skirmish'));
+    // The tank opens at the level that arms its counter, one above what the season plants.
+    await setHqLevel(t, token, roleHqLevel('armor'));
     const barracks = await raise(t, token, 'barracks', MARNE);
 
     await t.mutation(api.troops.recruit, {
@@ -198,7 +197,7 @@ describe('a queue per projection building', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    await setHqLevel(t, token, roleHqLevel('armor', 'skirmish'));
+    await setHqLevel(t, token, roleHqLevel('armor'));
     const barracks = await raise(t, token, 'barracks', MARNE);
     await t.mutation(api.troops.recruit, {
       token,
@@ -392,28 +391,24 @@ describe('the troop ceiling', () => {
 
 describe('tiers', () => {
   /**
-   * **The threshold is counted above the launch of the format** (ADR 0017), so a skirmish opens
-   * mark 2 at 3 and the headquarters it is planted with — 2 — is exactly one short. The step
-   * exists again in the short format, which is the whole point of the rule.
+   * **The threshold is counted above the launch, never in the absolute** (ADR 0017): written as
+   * an absolute it would open mark 2 wherever the headquarters happens to be planted, and a
+   * step that does not exist is not a step.
    */
-  it('counts the tier-2 gate above the headquarters its format plants', () => {
-    expect(tier2HqLevel('skirmish')).toBe(3);
-    expect(tier2HqLevel('campaign')).toBe(2);
-    for (const [format, spec] of Object.entries(SEASON_FORMATS)) {
-      const threshold = tier2HqLevel(format as keyof typeof SEASON_FORMATS);
-      expect(threshold).toBeGreaterThan(spec.hqLevelAtLaunch);
-      expect(threshold).toBeLessThanOrEqual(spec.maxHqLevel);
-    }
+  it('counts the tier-2 gate above the headquarters the season plants', () => {
+    expect(TIER_2_HQ_LEVEL).toBe(2);
+    expect(TIER_2_HQ_LEVEL).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
+    expect(TIER_2_HQ_LEVEL).toBeLessThanOrEqual(MAX_HQ_LEVEL);
   });
 
-  it('serves the threshold of the format to the workshop, rather than a constant', async () => {
+  it('serves the threshold to the workshop, rather than leaving it to a constant', async () => {
     const t = boot();
     const token = await launchedSeason(t);
 
     const shop = await t.query(api.troops.workshop, { token });
-    expect(shop.requiredHqLevel).toBe(tier2HqLevel('skirmish'));
-    // The headquarters a skirmish plants is one short of it: locked at the first minute.
-    expect(shop.hqLevel).toBe(SEASON_FORMATS.skirmish.hqLevelAtLaunch);
+    expect(shop.requiredHqLevel).toBe(TIER_2_HQ_LEVEL);
+    // The headquarters the season plants is one short of it: locked at the first minute.
+    expect(shop.hqLevel).toBe(HQ_LEVEL_AT_LAUNCH);
     expect(shop.tier2Unlocked).toBe(false);
   });
 
@@ -421,7 +416,7 @@ describe('tiers', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    await setHqLevel(t, token, tier2HqLevel('skirmish') - 1);
+    await setHqLevel(t, token, TIER_2_HQ_LEVEL - 1);
     const barracks = await raise(t, token, 'barracks', MARNE);
     const port = await raise(t, token, 'port', PAS_DE_CALAIS);
 
@@ -434,9 +429,9 @@ describe('tiers', () => {
   });
 
   /**
-   * **The weapon and its counter arrive together.** The tank leaves the launch of a skirmish
-   * for the level that opens mark-2 infantry, its answer in the damage table: a season no
-   * longer spends its first thirty hours with armor nobody can reply to.
+   * **The weapon and its counter arrive together.** The tank leaves the launch headquarters for
+   * the level that opens mark-2 infantry, its answer in the damage table: a season no longer
+   * spends its first thirty hours with armor nobody can reply to.
    */
   it('holds the tank at the level that opens its counter, and lets the infantry through', async () => {
     const t = boot();
@@ -459,10 +454,10 @@ describe('tiers', () => {
     expect(refused).toMatchObject({
       code: 'ROLE_LOCKED',
       role: 'armor',
-      requiredLevel: tier2HqLevel('skirmish'),
+      requiredLevel: TIER_2_HQ_LEVEL,
     });
 
-    await setHqLevel(t, token, tier2HqLevel('skirmish'));
+    await setHqLevel(t, token, TIER_2_HQ_LEVEL);
     const { rank } = await t.mutation(api.troops.recruit, {
       token,
       buildingId: barracks,
@@ -477,10 +472,10 @@ describe('tiers', () => {
     const token = await launchedSeason(t);
     const shop = await t.query(api.troops.workshop, { token });
     for (const entry of shop.grid) {
-      expect(entry.unlockedAtHqLevel).toBe(roleHqLevel(entry.role, 'skirmish'));
+      expect(entry.unlockedAtHqLevel).toBe(roleHqLevel(entry.role));
     }
     expect(shop.grid.find((entry) => entry.role === 'armor')?.unlockedAtHqLevel).toBe(
-      tier2HqLevel('skirmish'),
+      TIER_2_HQ_LEVEL,
     );
     expect(shop.grid.find((entry) => entry.role === 'infantry')?.unlockedAtHqLevel).toBe(0);
   });

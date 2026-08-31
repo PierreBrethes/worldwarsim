@@ -1,6 +1,6 @@
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
-import { formatOfSeason, tier2HqLevel } from '../../convex/constants';
+import { TIER_2_HQ_LEVEL } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
@@ -26,12 +26,8 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
   if (!homePosition) throw new Error(`nation without a position: ${server.me.nation}`);
 
   return {
-    // Same absorption as `construction` below: a deployment one version behind answers without
-    // a format, and every screen that reads the format table would then index it with
-    // `undefined` — a crash on opening a window, half an hour from its cause.
     season: {
       ...server.season,
-      format: formatOfSeason(server.season),
       // A deployment one version behind knows no test victory: an empty board rather than an
       // `undefined` the journal would then index into.
       reduction: server.season.reduction ?? {
@@ -56,7 +52,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       // A deployment ahead of the client answers without the field: no relief served, no
       // sentence — the ceiling then says what it always said, and nothing breaks.
       capRelief: server.me.capRelief ?? null,
-      tier2HqLevel: server.me.tier2HqLevel ?? tier2HqLevel(formatOfSeason(server.season)),
+      tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
       foundation: server.me.foundation ?? [],
       buildings: server.me.buildings.map((building) => ({
         ...building,

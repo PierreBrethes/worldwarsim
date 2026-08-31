@@ -52,13 +52,6 @@ export type UnitTier = 1 | 2;
 export type MovementType = 'march' | 'attack' | 'raid' | 'outpost' | 'recall' | 'agent' | 'return';
 
 /**
- * The two season formats. What each one is worth — duration, headquarters at launch, ceiling,
- * foundation, starting alloy — lives in the single table of `convex/constants.ts`; only the
- * name belongs here, beside the rest of the vocabulary.
- */
-export type SeasonFormat = 'skirmish' | 'campaign';
-
-/**
  * The eight resources of the economy v2 (ADR 0015). The five first are extracted from a
  * deposit, the three last are transformed from them — one step of chain, never two.
  */

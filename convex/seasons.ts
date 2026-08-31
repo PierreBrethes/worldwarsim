@@ -3,19 +3,18 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { gameCode, playableRegion } from '../src/domain/off-season';
-import { NATIONS, RESOURCES, type SeasonFormat } from '../src/domain/ids';
+import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
 import { capitalRegionOf } from './regions';
-import { SEASON_CLOCK_HOURS, SEASON_FORMAT } from './validators';
+import { SEASON_CLOCK_HOURS } from './validators';
 import {
   DEFAULT_REST_WINDOW,
+  HQ_LEVEL_AT_LAUNCH,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
-  SEASON_FORMATS,
-  formatOfSeason,
+  STARTING_KIT,
   nominalStrength,
-  startingStock,
 } from './constants';
 
 export async function playerByToken(ctx: QueryCtx, token: string) {
@@ -99,7 +98,7 @@ export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean
  * whoever arrives afterwards. One writing of the endowment, so a change to it cannot reach one
  * road and miss the other.
  *
- * The headquarters goes on the region of the 1940 capital (ADR 0015), at the level its format
+ * The headquarters goes on the region of the 1940 capital (ADR 0015), at the level the season
  * plants it. Everything else is put up or does not exist — but the HQ caps every other building,
  * so leaving it at zero made the first construction of a season forcibly the HQ, without a rule
  * saying so.
@@ -108,14 +107,9 @@ export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean
  * foundation is still owed is a normal state, and the free placements wait for him to choose
  * his regions (`constructions.start`).
  */
-async function endow(
-  ctx: MutationCtx,
-  player: Doc<'players'>,
-  format: SeasonFormat,
-  at: number,
-): Promise<void> {
+async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Promise<void> {
   if (!isNation(player.nation)) fail('UNKNOWN_NATION', { nickname: player.nickname });
-  const kit = startingStock(format);
+  const kit = STARTING_KIT;
   for (const key of RESOURCES) {
     await ctx.db.insert('resources', {
       playerId: player._id,
@@ -129,7 +123,7 @@ async function endow(
     playerId: player._id,
     key: 'hq',
     regionId: capitalRegionOf(player.nation),
-    level: SEASON_FORMATS[format].hqLevelAtLaunch,
+    level: HQ_LEVEL_AT_LAUNCH,
   });
 
   /**
@@ -158,24 +152,21 @@ async function endow(
 }
 
 /**
- * **Deux choix, plus un seul** (révision du 27/08 de l'ADR 0017) : le format dit où l'on entre
- * dans la courbe, l'horloge dit combien de temps on y reste — et elle peut ne pas exister. Aucune
- * combinaison n'est refusée : une campagne en 48 h est un mauvais choix, pas un choix illégal, et
- * une règle de plus ici serait une règle à défendre pour rien.
+ * **Un seul choix** (ADR 0020 §11) : l'horloge, et elle peut ne pas exister. Le format est parti
+ * le 31/08 — il ne restait de lui qu'une ligne de départ, et une seule saison n'en demande pas
+ * deux.
  */
 export const create = mutation({
   args: {
     nickname: v.string(),
-    format: SEASON_FORMAT,
     durationHours: SEASON_CLOCK_HOURS,
     compensation: v.number(),
   },
-  handler: async (ctx, { nickname, format, durationHours, compensation }) => {
+  handler: async (ctx, { nickname, durationHours, compensation }) => {
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
       code,
       status: 'lobby',
-      format,
       durationHours,
       compensation: Math.max(0, Math.min(1, compensation)),
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -389,8 +380,7 @@ export const launch = mutation({
       launchedAt: now,
       playableRegion: playableRegion(present.length),
     });
-    const format = formatOfSeason(season);
-    for (const entry of present) await endow(ctx, entry, format, now);
+    for (const entry of present) await endow(ctx, entry, now);
   },
 });
 
@@ -422,7 +412,7 @@ export const enterWar = mutation({
     );
     if (holder) fail('NATION_TAKEN', { nation: player.nation, nickname: holder.nickname });
 
-    await endow(ctx, player, formatOfSeason(season), Date.now());
+    await endow(ctx, player, Date.now());
   },
 });
 

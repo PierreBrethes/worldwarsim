@@ -27,8 +27,10 @@ suppose une cible qui vaille le trajet, le troisième arrive après que la parti
 
 ### 1. La couleur suit l'avant-poste, elle ne prend pas la région
 
-Un avant-poste colore les régions dont le centre tombe dans `CONTROL_RADIUS_KM` autour de son
-point. La nation d'origine colore son propre pays. **Aucune région ne change de propriétaire au
+Un avant-poste colore les régions dont le point tombe dans **`OUTPOST_REACH_KM`** (400) autour du
+sien — le rayon où il donne déjà le droit de bâtir (ADR 0015). Pas de nouvelle constante : *là où
+je peux bâtir est là où je tiens*. Une règle au lieu de deux, et un joueur qui a compris la portée
+de construction a compris la couleur. La nation d'origine colore son propre pays. **Aucune région ne change de propriétaire au
 sens de l'ADR 0004** : elle n'est pas annexée, elle est *tenue* tant qu'un avant-poste vivant la
 couvre. Retirer l'avant-poste retire la couleur, sans transfert.
 
@@ -53,26 +55,56 @@ un théâtre artificiel : l'Europe de l'Ouest vaut cher, les grands vides ne rap
 les joueurs convergent, donc ils se touchent. Au kilomètre carré, l'effet s'inverse exactement :
 le vide devient rentable et chacun s'évite poliment.
 
-### 4. Le score est public, permanent, et affiché en clair
+### 4. Le score est public, la carte ne l'est pas
 
 La part de carte de chaque joueur est visible en permanence, nominativement, sans être noyée dans
 un indicateur composite. Un score qu'on ne lit pas ne produit aucun comportement — et l'audit
 reproche déjà au jeu de « montrer tout ce qu'il sait et rien de ce qu'il attend ».
 
-### 5. La couleur est publique ; le brouillard se déplace sur ce qui bouge
+**Mais un chiffre public n'est pas une carte publique** (§5) : on sait *qui* mène, jamais *où* il
+tient. Savoir que l'URSS pèse 34 % du théâtre ne dit pas quelle frontière est mince. C'est la
+tension recherchée : le classement pousse à agir, le brouillard oblige à aller voir avant.
 
-**Révision de l'ADR 0005.** Le brouillard cessait de fonctionner à 2-4 joueurs : il ne rendait pas
-l'information *chère*, il la rendait *absente*. La couleur des territoires devient publique — on
-sait où sont les nations et jusqu'où elles portent. Ce qui reste caché, et ce qui s'achète, c'est
-**ce qui bouge** : les colonnes, leur composition, leurs intentions, vues par les portées de
-détection ([ADR 0021](0021-portee-de-detection-et-postures.md)).
+### 5. La couleur n'est pas publique : elle est **connue**, et elle se périme
 
-L'espionnage ne perd pas sa colonne vertébrale, il change de sujet : de *où es-tu* vers *avec
-quoi, et pour aller où*.
+**Révision de l'ADR 0005, dans son esprit et non contre lui.** Une première rédaction du 31/08
+disait « la couleur est publique ». Elle est remplacée le même jour par une règle plus juste et
+plus riche.
 
-**La brume affiche `PlayerView`, elle ne le décore pas.** Le voile porté par la carte 3D doit
-correspondre exactement à ce que le serveur refuse d'envoyer. Un masque cosmétique posé au-dessus
-de données déjà transmises se lit dans l'onglet réseau, et ce serait un faux brouillard.
+Il y a **deux états d'une région**, et le second est celui qu'on affiche :
+
+- **la vérité** — qui la tient réellement, calculée depuis les avant-postes, connue du seul
+  serveur ;
+- **le relevé** — ce que *ce joueur-là* a vu la dernière fois qu'il a observé cette région, avec sa
+  date.
+
+Un joueur voit son propre territoire à jour, en permanence. Partout ailleurs, il voit **son
+dernier relevé**. Une région qu'il n'a jamais observée n'a aucune couleur pour lui — elle est
+vierge, pas neutre.
+
+Le relevé se met à jour quand une de ses portées de détection couvre la région
+([ADR 0021](0021-portee-de-detection-et-postures.md)). Entre deux passages, la couleur qu'il voit
+peut être fausse : s'il a relevé une région tenue par l'URSS, qu'elle est prise par les États-Unis
+pendant son absence, il continue de la voir soviétique **jusqu'à ce qu'il y retourne**.
+
+C'est la carte d'état-major de 1940 : on ne savait pas qu'une région avait changé de mains sans y
+envoyer quelqu'un. C'est aussi ce que l'ADR 0005 exigeait déjà sans que ce soit codé — « il faut
+une UI pour l'information périmée : un arc détecté puis perdu de vue doit rester affiché comme
+**dernière position connue**, pas disparaître ». La couleur applique cette règle au sol.
+
+**L'ancienneté doit se voir, en permanence, pas au survol.** Une couleur fraîche est franche ; un
+relevé ancien est délavé, et se date. Sans ça, un joueur qui décide sur une information périmée
+lira un bug plutôt qu'une règle — et il aura raison de se plaindre.
+
+**Ce que ça donne au jeu, et qui manquait :** le renseignement cesse d'être une couche annexe pour
+devenir la condition de toute décision territoriale. Aller voir devient un ordre qui se justifie
+seul. Et la carte cesse d'être un décor donné : c'est un objet que le joueur construit, région par
+région.
+
+**Le brouillard reste un problème serveur** (`technique/brouillard-et-fanout.md`). Le relevé se
+dénormalise par observateur, comme `sightings` : chaque joueur lit ses propres lignes, jamais un
+filtre sur la vérité. Une requête « les régions que je connais » qui dépendrait de la table des
+avant-postes se recalculerait pour tous à chaque fondation.
 
 ### 6. Un bâtiment ne produit que relié
 
@@ -142,13 +174,61 @@ doctrine à sceller au lobby. La domination n'est plus une option parmi trois, c
   où l'on aura mesuré que la carte ne se fige pas.
 - **L'expansion gratuite vers le vide** comme stratégie dominante — c'était le but.
 
+## Décisions du même jour, ajoutées le 31/08 au soir
+
+### 10. Les emplacements suivent le niveau du site (Q4 tranchée, précisée le 31/08 au soir)
+
+Le plafond global `buildingCap(hqLevel)` disparaît. Les emplacements de construction sont portés
+par **chaque site**, et leur nombre est **le niveau du site** :
+
+| Site | Emplacements |
+|---|---|
+| Sol national | `2 × niveau de QG` |
+| Avant-poste | son **niveau** (1 → 3) |
+
+**La fondation ne compte pas.** Ce qui est offert au lancement ne se paie pas en liberté : les
+extracteurs dus par `foundationOwed` sont hors compte. C'est ce qui corrige le défaut mesuré le
+31/08 (zéro placement libre au lancement, et d'autant moins que la nation est riche — l'inverse
+des garde-fous de distribution de l'ADR 0015).
+
+**Le niveau plutôt que la richesse de la région** : le niveau est une décision du joueur, la
+richesse est un fait de la carte qui paie déjà par ses gisements. Améliorer un avant-poste devient
+un choix lisible (« ce qui est joli s'achète »), `outposts.level` existe déjà au schéma, et un
+avant-poste de niveau 3 devient une **cible hiérarchisée** : le désactiver gèle trois bâtiments.
+
+Le palier de QG ne borne plus le nombre, il débloque les **types**. Le verrou « le QG unique
+étranglement » tient, autrement : sans monter, un joueur ne peut que dupliquer ce qu'il a déjà,
+jamais faire quelque chose de nouveau.
+
+**Le frein d'expansion est l'entretien, pas un plafond** : chaque avant-poste consomme au fil de
+l'heure (nourriture, charbon), croissant avec son niveau — le prolongement direct de l'entretien
+par ancrage des troupes. Un coût de fondation croissant punirait une fois, à l'achat, puis serait
+oublié ; l'entretien pèse tant que l'empire existe : le joueur surétendu est structurellement
+fragile en guerre, et celui qui perd des avant-postes voit son entretien baisser — « un joueur
+écrasé reste nuisible », appliqué à l'économie.
+
+Le spam « un bâtiment par région partout » reste borné par quatre règles déjà en place : un
+bâtiment par région, le rayon de pose (`OUTPOST_REACH_KM`), la production reliée (§6), et le coût
+de fondation (une infanterie qui marche, un slot, du temps).
+
+### 11. Le format de saison disparaît
+
+`skirmish` et `campaign` sont retirés. Il n'y a plus qu'un jeu de valeurs de départ.
+
+L'horloge était déjà optionnelle depuis le 27/08 ; ce qui restait au format, c'était un jeu de
+constantes (`hqLevelAtLaunch`, `maxHqLevel`, `startingAlloy`, `startingOil`,
+`startingAmmunition`) et le plafond de bâtiments — que la décision 10 vient de retirer de ses
+mains. Ce qui reste ne justifie plus deux tables ni un choix au lobby.
+
+⚠️ **Le choix des valeurs survivantes n'est pas neutre** : `startingAlloy` est la seule valeur du
+projet issue d'une mesure (`WWS/simulation/opening/run.mjs --sweep`). Sans horloge, une partie n'a
+plus de fin programmée : ce sont les valeurs de **campagne** qui décrivent le jeu réel, et c'est
+celles-là qui restent.
+
 ## Questions ouvertes
 
-- **Q4, le plafond de bâtiments**, redevient bloquante : un plafond global (`1 + niveau QG`)
-  punit exactement l'expansion que cette ADR demande. Piste non tranchée : emplacements **par
-  avant-poste**, variables selon la richesse de la région, le palier de QG débloquant les **types**
-  et non le nombre — le QG resterait l'étranglement.
-- **Le frein à la prolifération d'avant-postes** : coût croissant par avant-poste plutôt que
-  plafond dur. Non tranché.
-- `CONTROL_RADIUS_KM` est un placeholder de plus, non simulé, à regarder à la main dès la première
-  saison — comme `INTERCEPTION_RADIUS_KM` avant lui.
+- Les valeurs d'entretien d'avant-poste : aucune n'est mesurée, même statut que
+  `UPKEEP_UNSUPPLIED_MULTIPLIER`.
+- **Le rendu de la couleur au loin** : les régions n'apparaissent aujourd'hui qu'au rapproché
+  (< 65 unités). Une couleur qui est le score doit se lire à toute distance — à trancher entre
+  peindre le pays entier au loin ou rendre les régions tenues visibles quel que soit le zoom.

@@ -32,7 +32,6 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });

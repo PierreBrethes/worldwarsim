@@ -6,13 +6,7 @@
  * worth more than the ore it eats. Nothing more was measured.
  */
 
-import type {
-  BuildingKey,
-  DepositKey,
-  ResourceKey,
-  SeasonFormat,
-  UnitRole,
-} from '../src/domain/ids';
+import type { BuildingKey, DepositKey, ResourceKey, UnitRole } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
 import type { Conversion } from '../src/domain/economy';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
@@ -127,22 +121,15 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
- * **`unlockLevel` is a width, `tier2HqLevel` is a depth: they must never be merged.** A short
- * format has to open its catalogue *early*, or the steps it never climbs are lines it never
- * sees; and it has to keep its mark-2 step *ahead*, or raising the headquarters rewards nothing.
- * Somebody will try to unify them; this paragraph is why not.
+ * **`unlockLevel` is a width, `tier2HqLevel` is a depth: they must never be merged.** The
+ * catalogue has to open across the whole run, and the mark-2 step has to stay *ahead* of where
+ * the player already stands, or raising the headquarters rewards nothing. Somebody will try to
+ * unify them; this paragraph is why not.
  *
- * `UNLOCKED_AT` holds the campaign's levels and every other format reprojects them onto its own
- * run as a fraction of the way through. A skirmish's run is one single step, so everything lands
- * on its launch — what paces a skirmish is alloy and time, never the headquarters.
+ * It reads the ladder straight since the season has one single run (ADR 0020 §11): the
+ * reprojection it used to do existed only to squeeze that ladder onto a shorter format.
  */
-export function unlockLevel(key: BuildingKey, format: SeasonFormat): number {
-  const reference = SEASON_FORMATS.campaign;
-  const spec = SEASON_FORMATS[format];
-  const referenceRun = reference.maxHqLevel - reference.hqLevelAtLaunch;
-  const advance = (UNLOCKED_AT[key] - reference.hqLevelAtLaunch) / referenceRun;
-  return spec.hqLevelAtLaunch + Math.floor(advance * (spec.maxHqLevel - spec.hqLevelAtLaunch));
-}
+export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
 
 /**
  * ADR 0015: no game quantity is ever counted in regions, so the ceiling on standing buildings is
@@ -150,112 +137,67 @@ export function unlockLevel(key: BuildingKey, format: SeasonFormat): number {
  * Germany into 16 Länder — anything indexed on a region count would let a cartography vendor
  * balance a season.
  *
- * **The ladder belongs to the format**: written globally it read the same at a headquarters of 2
- * whether that was a skirmish's launch or a campaign's second step, and a skirmish came out with
- * zero free placement at launch (ADR 0017 had set the appointment).
- *
  * The ceiling must stay strictly under the region count of the smallest playable nation, or the
  * one-per-region rule would cap Germany and nobody else — `economy.test.ts` asserts it.
- */
-export const buildingCap = (format: SeasonFormat, hqLevel: number): number => {
-  const spec = SEASON_FORMATS[format];
-  return spec.buildingCapBase + spec.buildingCapPerHqLevel * hqLevel;
-};
-
-export type SeasonFormatSpec = {
-  /** **What the home screen offers, never what defines the format** (révision du 27/08 de l'ADR
-   *  0017) : une saison peut n'avoir aucune horloge, et le format se choisit à part. */
-  readonly defaultDurationHours: number;
-  /** Where the headquarters stands from the first minute (ADR 0015). */
-  readonly hqLevelAtLaunch: number;
-  readonly maxHqLevel: number;
-  /** What these two describe is not the ceiling but **the free placements left once the
-   *  foundation and the headquarters are standing**. The foundation is national since 25/08, so
-   *  the widest one owed is five extractors and the ladder has to leave room above it. */
-  readonly buildingCapBase: number;
-  readonly buildingCapPerHqLevel: number;
-  /**
-   * **Measured, not chosen** (`node WWS/simulation/opening/run.mjs --sweep`, assiduous player).
-   * Over 48 hours: 800 gives 24 actions, 1000 gives 30, 1300 gives 34 and 1800 gives 34 too —
-   * past 1300 the troop ceiling answers, not the kit. The campaign is measured on the same
-   * yardstick, where 500 is where the empty connections stop falling. **Fragile, and knowingly
-   * so**: the curve is not monotonic (26 actions at 350, 28 at 800) because there the order of
-   * the clicks weighs more than the parameters. That is a symptom, never a knob.
-   */
-  readonly startingAlloy: number;
-  /**
-   * **The fuse.** Oil is the one resource a nation can be born unable to make, so this reserve
-   * pays the *first journey towards* oil and the fact that it runs out is the engine of the
-   * nations that lack it. Short-lived as a *quantity*: the day `consommation-continue.md` makes
-   * the motorised drink it becomes a dated fuse, **sized in journeys, never in litres**.
-   *
-   * No table per nation, deliberately: the asymmetry comes from the map, and eight hand-written
-   * values would be eight more numbers to balance for an effect geography gives away free.
-   */
-  readonly startingOil: number;
-  /**
-   * **How many passes a nation can fight before its arsenal has to exist.** A full company of
-   * infantry draws ten rounds per engagement (`STRENGTH_PER_ROUND`), so a hundred and forty is
-   * fourteen company-passes. The campaign takes eighty: it enters the curve at half the alloy
-   * and its arsenal has six more days to arrive.
-   *
-   * **Its old justification is void, and the two numbers survive it unchanged** (question 18,
-   * 25/08): they were sized against a recruitment bill that no longer exists, and the
-   * measurement behind them tested a removed rule. Nothing here is calibrated any more, and the
-   * simulator cannot help — it does not model combat at all.
-   */
-  readonly startingAmmunition: number;
-};
-
-/**
- * **Two formats, one economy**: a format changes *where a player enters the curve*, never its
- * slope — stretching the season does not stretch the night, and the seven-hour rest window
- * (design sheet 07) would turn absurd if a longer format ran a faster economy. Everything that
- * differs is in this table; a second extraction rate beside a format key is the wrong road.
- */
-export const SEASON_FORMATS: Readonly<Record<SeasonFormat, SeasonFormatSpec>> = {
-  skirmish: {
-    defaultDurationHours: 48,
-    hqLevelAtLaunch: 2,
-    maxHqLevel: 3,
-    buildingCapBase: 5,
-    buildingCapPerHqLevel: 3,
-    startingAlloy: 1000,
-    startingOil: 60,
-    startingAmmunition: 140,
-  },
-  campaign: {
-    defaultDurationHours: 168,
-    hqLevelAtLaunch: 1,
-    maxHqLevel: 5,
-    buildingCapBase: 3,
-    buildingCapPerHqLevel: 2,
-    startingAlloy: 500,
-    startingOil: 40,
-    startingAmmunition: 80,
-  },
-};
-
-/**
- * **The one door onto a season's format.** It is a field now, chosen at the founding, because a
- * season can run with no clock at all (révision du 27/08 de l'ADR 0017) and a duration of `null`
- * says nothing about how high a headquarters climbs.
  *
- * A row written before that choice existed carries no `format`, and its duration is still the
- * only thing that knew: the derivation stays here as a fallback for those rows alone, and it
- * goes with the wipe (ADR 0001).
+ * **A global ceiling is on its way out**: the ADR 0020 §10 makes the placements local, held per
+ * outpost, precisely because a global count punishes the expansion that ADR asks for. What is
+ * here is the surviving pair of the single format, kept until that lands.
+ *
+ * @a-mesurer the pair a single format leaves behind, never simulated — ADR 0020 §10 replaces it
  */
-export function formatOfSeason(season: {
-  readonly format?: SeasonFormat | null;
-  readonly durationHours: number | null;
-}): SeasonFormat {
-  if (season.format != null) return season.format;
-  const found = (Object.keys(SEASON_FORMATS) as ReadonlyArray<SeasonFormat>).find(
-    (key) => SEASON_FORMATS[key].defaultDurationHours === season.durationHours,
-  );
-  if (found === undefined) throw new Error(`no season format lasting ${season.durationHours} h`);
-  return found;
-}
+export const BUILDING_CAP_BASE = 3;
+export const BUILDING_CAP_PER_HQ_LEVEL = 2;
+
+export const buildingCap = (hqLevel: number): number =>
+  BUILDING_CAP_BASE + BUILDING_CAP_PER_HQ_LEVEL * hqLevel;
+
+/**
+ * **Une seule ligne de départ** (ADR 0020 §11). L'escarmouche et la campagne ont disparu le
+ * 31/08 : sans horloge, une partie n'a plus de fin programmée, et ce sont les valeurs de la
+ * campagne qui décrivent le jeu réel. Ce qui reste, ce sont ces quelques nombres — jamais une
+ * table, jamais une clé de format posée à côté d'un taux d'extraction.
+ */
+
+/** Where the headquarters stands from the first minute (ADR 0015). */
+export const HQ_LEVEL_AT_LAUNCH = 1;
+export const MAX_HQ_LEVEL = 5;
+
+/** **What the home screen offers, never what a season is** (révision du 27/08 de l'ADR 0017) :
+ *  une saison peut n'avoir aucune horloge. */
+export const DEFAULT_DURATION_HOURS = 168;
+
+/**
+ * **Measured, not chosen** (`node WWS/simulation/opening/run.mjs --sweep`, assiduous player).
+ * The 500 is read on the campaign's first 48 hours, at the point where the empty connections
+ * stop falling. **Fragile, and knowingly so**: over the whole season the sweep is not monotonic
+ * (35 actions at 420, 28 at 800), because there the order of the clicks weighs more than the
+ * parameter. That is a symptom, never a knob.
+ */
+export const STARTING_ALLOY = 500;
+
+/**
+ * **The fuse.** Oil is the one resource a nation can be born unable to make, so this reserve
+ * pays the *first journey towards* oil and the fact that it runs out is the engine of the
+ * nations that lack it. Short-lived as a *quantity*: the day `consommation-continue.md` makes
+ * the motorised drink it becomes a dated fuse, **sized in journeys, never in litres**.
+ *
+ * No table per nation, deliberately: the asymmetry comes from the map, and eight hand-written
+ * values would be eight more numbers to balance for an effect geography gives away free.
+ */
+export const STARTING_OIL = 40;
+
+/**
+ * **How many passes a nation can fight before its arsenal has to exist.** A full company of
+ * infantry draws ten rounds per engagement (`STRENGTH_PER_ROUND`), so eighty is eight
+ * company-passes, and the arsenal has the whole season to arrive.
+ *
+ * **Its old justification is void, and the number survives it unchanged** (question 18, 25/08):
+ * it was sized against a recruitment bill that no longer exists, and the measurement behind it
+ * tested a removed rule. Nothing here is calibrated any more, and the simulator cannot help —
+ * it does not model combat at all.
+ */
+export const STARTING_AMMUNITION = 80;
 
 /**
  * **The foundation is read off the ground, never off a list** (decision of 25/08): one extractor
@@ -306,8 +248,8 @@ export function buildMinutes(key: BuildingKey, level: number): number {
 /**
  * Enough to **deploy**, not to settle (fiche 02). The headquarters is not in the list — it stands
  * from the launch (ADR 0015). **The alloy, the oil and the ammunition are missing on purpose**:
- * they are the three figures a format sets, and everything else is shared. Never a figure per
- * nation — the asymmetry comes from the map.
+ * they are the three figures of the starting line, each named on its own above, and everything
+ * else is shared. Never a figure per nation — the asymmetry comes from the map.
  */
 export const STARTING_STOCK: Readonly<
   Record<Exclude<ResourceKey, 'alloy' | 'oil' | 'ammunition'>, number>
@@ -319,12 +261,14 @@ export const STARTING_STOCK: Readonly<
   bandages: 0,
 };
 
-export const startingStock = (format: SeasonFormat): Readonly<Record<ResourceKey, number>> => ({
+/** The whole endowment, the three figures of the starting line included — what `endow` hands
+ *  out and what a test reads to say what a player opens with. */
+export const STARTING_KIT: Readonly<Record<ResourceKey, number>> = {
   ...STARTING_STOCK,
-  alloy: SEASON_FORMATS[format].startingAlloy,
-  oil: SEASON_FORMATS[format].startingOil,
-  ammunition: SEASON_FORMATS[format].startingAmmunition,
-});
+  alloy: STARTING_ALLOY,
+  oil: STARTING_OIL,
+  ammunition: STARTING_AMMUNITION,
+};
 
 /**
  * ADR 0014 and `chiffrage-combat.md` §1, copied: 50 soldiers, 12 tanks, 6 ships. The carrier
@@ -380,16 +324,15 @@ export const TIER_2_FACTOR = 1.6;
 
 /**
  * ADR 0015: research lives at the headquarters, not on the projection buildings. **The gate is
- * counted above the launch, never in the absolute** (ADR 0017) — written as an absolute 2 it
- * opened mark 2 in the first minute of a skirmish, whose headquarters starts there, and a step
- * that does not exist is not a step.
+ * counted above the launch, never in the absolute** (ADR 0017) — written as an absolute it
+ * would open mark 2 wherever the headquarters happens to be planted, and a step that does not
+ * exist is not a step.
  *
  * **This is a depth and `unlockLevel` is a width — do not merge them**; see the paragraph there.
  */
 export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
 
-export const tier2HqLevel = (format: SeasonFormat): number =>
-  SEASON_FORMATS[format].hqLevelAtLaunch + TIER_2_LEVELS_ABOVE_LAUNCH;
+export const TIER_2_HQ_LEVEL = HQ_LEVEL_AT_LAUNCH + TIER_2_LEVELS_ABOVE_LAUNCH;
 
 /**
  * **The weapon and its counter arrive together** (`plan-progression-v1.md`, question 6c): the
@@ -397,8 +340,7 @@ export const tier2HqLevel = (format: SeasonFormat): number =>
  * the tank first would hand out thirty-three hours of unanswerable armor. It reads the mark-2
  * threshold rather than holding a table of its own. Zero means "nothing above the building".
  */
-export const roleHqLevel = (role: UnitRole, format: SeasonFormat): number =>
-  role === 'armor' ? tier2HqLevel(format) : 0;
+export const roleHqLevel = (role: UnitRole): number => (role === 'armor' ? TIER_2_HQ_LEVEL : 0);
 
 /** Nearly inert since a batch became a single troop — the troop ceiling below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob. */

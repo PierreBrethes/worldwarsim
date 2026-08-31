@@ -93,13 +93,18 @@ export const TIER_2_LEVELS_ABOVE_LAUNCH = 1;
 export const MAX_QUEUED_BATCHES = 12;
 
 /**
- * The two formats, mirrored key for key. Only the entry point into the curve changes: the
- * headquarters at launch, its ceiling, and the alloy of the kit. Rates, chains and bills are
- * shared, and a second copy of one under a format key would be exactly the mistake the table
- * exists to prevent.
+ * **Le jeu n'a plus de format** (31/08, ADR 0020 §11) : il ne reste qu'une ligne de départ, et ce
+ * sont les valeurs de `campaign` — éclatées en `HQ_LEVEL_AT_LAUNCH`, `MAX_HQ_LEVEL`,
+ * `STARTING_ALLOY`… dans `convex/constants.ts` — que `verify.mjs` compare, clé par clé.
+ * L'escarmouche survit ici comme **scénario de l'instrument** : une ouverture courte qu'on
+ * mesure, plus un mode qu'on joue. Rien ne la lit dans le jeu, et `verify.mjs` la déclare non
+ * vérifiée plutôt que de la faire passer pour un miroir.
  *
- * **The foundation is no longer here** (25/08): it is read off the nation's ground, not the
- * format — see `FOUNDATION_EXTRACTORS` below.
+ * Only the entry point into the curve changes: the headquarters at launch, its ceiling, and the
+ * alloy of the kit. Rates, chains and bills are shared.
+ *
+ * **The foundation is no longer here** (25/08): it is read off the nation's ground — see
+ * `FOUNDATION_EXTRACTORS` below.
  */
 export const SEASON_FORMATS = {
   skirmish: {
@@ -263,7 +268,8 @@ export const buildCost = (key, level, tuning) => {
 export const buildMinutes = (key, level, tuning) =>
   Math.round(BUILDING_SPEC[key].minutes * tuning.levelCostFactor ** (level - 1));
 
-/** Mirrors `unlockLevel` in `convex/constants.ts`: `UNLOCKED_AT` holds the campaign's levels,
+/** L'ancienne reprojection de `unlockLevel`, gardée pour le scénario d'escarmouche du miroir : le
+ *  jeu lit `UNLOCKED_AT` tel quel depuis le 31/08. `UNLOCKED_AT` holds the campaign's levels,
  *  every other format reprojects them onto its own run. A skirmish's run is one step, so its
  *  whole catalogue opens at the launch. */
 export const unlockLevel = (key, format) => {

@@ -4,14 +4,14 @@ import { api } from './_generated/api';
 import type { Id, TableNames } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
+  HQ_LEVEL_AT_LAUNCH,
   NATIONS,
   SCOUT_RADIUS_KM,
-  SEASON_FORMATS,
+  STARTING_AMMUNITION,
+  STARTING_KIT,
   STRENGTH_PER_ROUND,
   buildCost,
-  formatOfSeason,
   nominalStrength,
-  startingStock,
 } from './constants';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
@@ -20,8 +20,7 @@ import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
 
-/** Every test here launches a 48-hour season: the skirmish kit is the one it hands out. */
-const KIT = startingStock('skirmish');
+const KIT = STARTING_KIT;
 
 /** Moselle: French, inland, and a coal deposit — enough to build anything the tests raise. */
 const MOSELLE = 'FRA-5328';
@@ -31,7 +30,6 @@ const PARIS = 'FRA-5333';
 async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
     nickname: 'Pierre',
-    format: 'skirmish',
     durationHours: 48,
     compensation: 0.5,
   });
@@ -53,7 +51,6 @@ describe('creating and joining', () => {
     const t = boot();
     const { code, token } = await t.mutation(api.seasons.create, {
       nickname: 'Pierre',
-      format: 'campaign',
       durationHours: 168,
       compensation: 0,
     });
@@ -115,8 +112,8 @@ describe('joining a running season', () => {
     );
   });
 
-  /** The kit as it is, the headquarters at the level of the format, the foundation still owed:
-   *  the very endowment of the launch, because it is the very same function. */
+  /** The kit as it is, the headquarters at the level the season plants, the foundation still
+   *  owed: the very endowment of the launch, because it is the very same function. */
   it('endows the latecomer exactly as the launch endowed the others', async () => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
@@ -133,7 +130,7 @@ describe('joining a running season', () => {
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
     expect(view.me.resources.food.stock).toBe(KIT.food);
     expect(view.me.buildings).toEqual([
-      expect.objectContaining({ key: 'hq', level: SEASON_FORMATS.skirmish.hqLevelAtLaunch }),
+      expect.objectContaining({ key: 'hq', level: HQ_LEVEL_AT_LAUNCH }),
     ]);
     // Germany holds coal, ore, bread and cloth, and no oil: four extractors, no well.
     expect(view.me.foundation).toEqual(['mine', 'mine', 'farm', 'mill']);
@@ -273,8 +270,8 @@ describe('launching', () => {
     expect(view.me.nation).toBe('france');
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
     // One building and one only: the headquarters on the capital (ADR 0015), at the level the
-    // format plants it — the foundation is owed, never raised for the player.
-    const hqLevel = SEASON_FORMATS.skirmish.hqLevelAtLaunch;
+    // season plants it — the foundation is owed, never raised for the player.
+    const hqLevel = HQ_LEVEL_AT_LAUNCH;
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', regionId: PARIS, level: hqLevel }),
     ]);
@@ -316,23 +313,19 @@ describe('launching', () => {
   /**
    * **Le kit de munitions** (décision du 25/08). Since question 18 the rounds are billed at the
    * pass and nowhere else, so what this endowment buys is *engagements*, not companies. The
-   * figure is a format's, never a nation's, like the alloy and the oil beside it.
+   * figure belongs to the starting line, never to a nation, like the alloy and the oil beside it.
    */
-  it('hands out the ammunition its format sets, not a shared figure', async () => {
+  it('hands out the ammunition of the starting line, not a nation’s own figure', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
 
     const view = await t.query(api.view.playerView, { token: creator });
-    expect(view.me.resources.ammunition.stock).toBe(SEASON_FORMATS.skirmish.startingAmmunition);
+    expect(view.me.resources.ammunition.stock).toBe(STARTING_AMMUNITION);
     // Enough for the given company to fight several passes: an endowment that covered one
     // engagement would be a nation disarmed by its first contact.
     const onePass = Math.ceil(nominalStrength('infantry', 1) / STRENGTH_PER_ROUND);
     expect(view.me.resources.ammunition.stock).toBeGreaterThan(onePass * 3);
-    // And the two formats do not read the same number.
-    expect(SEASON_FORMATS.campaign.startingAmmunition).not.toBe(
-      SEASON_FORMATS.skirmish.startingAmmunition,
-    );
   });
 
   /** Same endowment on the other road into a board: a latecomer is not a poorer player. */
@@ -350,7 +343,7 @@ describe('launching', () => {
     expect(view.me.troops[0]).toMatchObject({ role: 'infantry', tier: 1 });
     expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
     // The kit too, ammunition included: one endowment, written once, read by both roads.
-    expect(view.me.resources.ammunition.stock).toBe(SEASON_FORMATS.skirmish.startingAmmunition);
+    expect(view.me.resources.ammunition.stock).toBe(STARTING_AMMUNITION);
   });
 });
 
@@ -384,7 +377,7 @@ describe('constructions', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  /** The billets, not the mine: the mine belongs to the foundation, and what a foundation
+  /** The warehouse, not the mine: the mine belongs to the foundation, and what a foundation
    *  placement costs and waits is nothing at all. */
   it('debits the materials and raises the building in time', async () => {
     const t = boot();
@@ -394,21 +387,21 @@ describe('constructions', () => {
     const opening = await t.query(api.view.playerView, { token: creator });
     await t.mutation(api.constructions.start, {
       token: creator,
-      building: 'billets',
+      building: 'warehouse',
       regionId: MOSELLE,
     });
 
     const before = await t.query(api.view.playerView, { token: creator });
-    expect(before.me.construction?.name).toBe('billets');
+    expect(before.me.construction?.name).toBe('warehouse');
     expect(before.me.resources.alloy.stock).toBe(
-      opening.me.resources.alloy.stock - (buildCost('billets', 1).alloy ?? 0),
+      opening.me.resources.alloy.stock - (buildCost('warehouse', 1).alloy ?? 0),
     );
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const after = await t.query(api.view.playerView, { token: creator });
     expect(after.me.construction).toBeNull();
     expect(after.me.buildings).toContainEqual(
-      expect.objectContaining({ key: 'billets', regionId: MOSELLE, level: 1 }),
+      expect.objectContaining({ key: 'warehouse', regionId: MOSELLE, level: 1 }),
     );
   });
 
@@ -438,12 +431,12 @@ describe('constructions', () => {
 
   /** Nothing rises above the headquarters. The rule used to make the HQ the first building of
    *  a season; now that it stands from the launch, what it governs is how high the rest goes —
-   *  in skirmish, the level of the headquarters the format plants, and not one more. */
+   *  the level of the headquarters the season plants, and not one more. */
   it('refuses to raise a building above the headquarters', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
-    for (let level = 1; level <= SEASON_FORMATS.skirmish.hqLevelAtLaunch; level += 1) {
+    for (let level = 1; level <= HQ_LEVEL_AT_LAUNCH; level += 1) {
       await t.mutation(api.constructions.start, {
         token: creator,
         building: 'mine',
@@ -687,26 +680,16 @@ describe('a concluded season', () => {
 });
 
 /**
- * **Le format se choisit, l'horloge devient optionnelle** (révision du 27/08 de l'ADR 0017). Deux
- * choses se vérifient ici et nulle part ailleurs : que la porte unique du format lit le champ
- * quand il est là et la durée quand il ne l'est pas, et que la seule fin d'une saison sans
- * horloge — la main de son fondateur — refuse tout le monde d'autre.
+ * **L'horloge est optionnelle** (révision du 27/08 de l'ADR 0017), et depuis le 31/08 elle est le
+ * seul choix du fondement (ADR 0020 §11). Ce qui se vérifie ici et nulle part ailleurs : qu'une
+ * saison peut naître sans horloge, et que la seule fin qu'elle a alors — la main de son
+ * fondateur — refuse tout le monde d'autre.
  */
 describe('a season without a clock', () => {
-  it('reads its format off the field, and off the duration for a row written before it', () => {
-    expect(formatOfSeason({ format: 'campaign', durationHours: null })).toBe('campaign');
-    // Aucune combinaison n'est interdite : le champ l'emporte sur l'horloge, toujours.
-    expect(formatOfSeason({ format: 'campaign', durationHours: 48 })).toBe('campaign');
-    // La ligne d'avant ce changement n'a que sa durée, et c'est encore ce qui savait.
-    expect(formatOfSeason({ durationHours: 48 })).toBe('skirmish');
-    expect(formatOfSeason({ durationHours: 168 })).toBe('campaign');
-  });
-
   it('is founded with no clock at all', async () => {
     const t = boot();
     const { token } = await t.mutation(api.seasons.create, {
       nickname: 'Pierre',
-      format: 'skirmish',
       durationHours: null,
       compensation: 0.5,
     });
