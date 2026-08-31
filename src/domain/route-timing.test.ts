@@ -125,26 +125,27 @@ describe('the motorized share', () => {
  */
 describe('what a logistics relay does to a road', () => {
   /** A degree of longitude on the equator is some 111 km, so a road along it is a ruler: a
-   *  reach of 400 km spans a little over three and a half degrees either side. */
+   *  reach of 400 km spans a little over three and a half degrees either side. **Le rayon est
+   *  celui du fixture** — il suit le niveau du point en jeu (`outpostReachKm`), et le figer ici
+   *  garde ces cas sur la règle plutôt que sur la valeur d'équilibrage du jour. */
+  const watching = (lon: number, lat: number) => ({ point: [lon, lat] as const, reachKm: 400 });
   const straight = (fromLon: number, toLon: number): ComputedRoute =>
     directRoute([fromLon, 0], [toLon, 0], 'land', toLon - fromLon);
 
   it('leaves a road no relay watches exactly as it was', () => {
     const road = straight(0, 10);
-    const relays: ReadonlyArray<[number, number]> = [[0, 40]];
+    const relays = [watching(0, 40)];
 
-    expect(relayedShare({ points: road.points, relays, reachKm: 400 })).toBe(0);
-    expect(relayedCostUnits({ route: road, relays, reachKm: 400, multiplier: 1.5 })).toBe(
-      road.costUnits,
-    );
+    expect(relayedShare({ points: road.points, relays })).toBe(0);
+    expect(relayedCostUnits({ route: road, relays, multiplier: 1.5 })).toBe(road.costUnits);
   });
 
   it('walks a road entirely under a relay at the multiplier, and nothing else', () => {
     const road = straight(0, 2);
-    const relays: ReadonlyArray<[number, number]> = [[1, 0]];
+    const relays = [watching(1, 0)];
 
-    expect(relayedShare({ points: road.points, relays, reachKm: 400 })).toBe(1);
-    expect(relayedCostUnits({ route: road, relays, reachKm: 400, multiplier: 1.5 })).toBeCloseTo(
+    expect(relayedShare({ points: road.points, relays })).toBe(1);
+    expect(relayedCostUnits({ route: road, relays, multiplier: 1.5 })).toBeCloseTo(
       road.costUnits / 1.5,
       6,
     );
@@ -152,13 +153,13 @@ describe('what a logistics relay does to a road', () => {
 
   it('speeds up only the stretch inside the reach', () => {
     const road = straight(0, 10);
-    const relays: ReadonlyArray<[number, number]> = [[0, 0]];
-    const share = relayedShare({ points: road.points, relays, reachKm: 400 });
+    const relays = [watching(0, 0)];
+    const share = relayedShare({ points: road.points, relays });
 
     // 400 km of a 1 110 km road: a bit over a third of it, and the rest at the ordinary pace.
     expect(share).toBeGreaterThan(0.3);
     expect(share).toBeLessThan(0.4);
-    expect(relayedCostUnits({ route: road, relays, reachKm: 400, multiplier: 1.5 })).toBeCloseTo(
+    expect(relayedCostUnits({ route: road, relays, multiplier: 1.5 })).toBeCloseTo(
       road.costUnits * (1 - share + share / 1.5),
       6,
     );
@@ -168,11 +169,11 @@ describe('what a logistics relay does to a road', () => {
    *  colonne sur une coque ; le relais ravitaille la route, pas le port. */
   it('never touches the transfers, even when it covers the whole crossing', () => {
     const road = combined(10, 20, 5);
-    const relays: ReadonlyArray<[number, number]> = [[1.5, 0]];
+    const relays = [watching(1.5, 0)];
     const legs = 15 * COST_BY_MEDIUM.land + 20 * COST_BY_MEDIUM.sea;
 
-    expect(relayedShare({ points: road.points, relays, reachKm: 400 })).toBe(1);
-    expect(relayedCostUnits({ route: road, relays, reachKm: 400, multiplier: 1.5 })).toBeCloseTo(
+    expect(relayedShare({ points: road.points, relays })).toBe(1);
+    expect(relayedCostUnits({ route: road, relays, multiplier: 1.5 })).toBeCloseTo(
       legs / 1.5 + 2 * TRANSFER_COST,
       6,
     );

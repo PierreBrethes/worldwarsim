@@ -22,7 +22,7 @@ import {
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
-import { MAX_HQ_LEVEL, OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER, routeMinutes } from '../constants';
+import { MAX_HQ_LEVEL, RELAY_SPEED_MULTIPLIER, outpostReachKm, routeMinutes } from '../constants';
 import { fail } from '../errors';
 import { regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
@@ -327,14 +327,10 @@ export async function pacedMinutes(
   )
     .filter((outpost) => outpost.specialization === 'relay')
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
-    .map((outpost) => pointOf(outpost.point));
+    .map((outpost) => ({
+      point: pointOf(outpost.point),
+      reachKm: outpostReachKm(outpost.level),
+    }));
 
-  return routeMinutes(
-    relayedCostUnits({
-      route,
-      relays,
-      reachKm: OUTPOST_REACH_KM,
-      multiplier: RELAY_SPEED_MULTIPLIER,
-    }),
-  );
+  return routeMinutes(relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER }));
 }

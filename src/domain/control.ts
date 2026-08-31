@@ -5,9 +5,11 @@ import { distanceKm, type LonLat } from './geo';
  * (ADR 0004) — par le joueur dont un avant-poste vivant la couvre, ou par la nation dont elle
  * est le sol d'origine.
  *
- * **Le rayon de contrôle est le rayon de construction**, `OUTPOST_REACH_KM`, et il arrive en
- * paramètre : *là où je peux bâtir est là où je tiens*. Une seconde constante serait une
- * deuxième règle à apprendre pour le même geste, et l'ADR l'interdit nommément.
+ * **Le rayon de contrôle est le rayon de construction** (`outpostReachKm`), et il arrive porté
+ * par chaque point : *là où je peux bâtir est là où je tiens*. Une seconde constante serait une
+ * deuxième règle à apprendre pour le même geste, et l'ADR l'interdit nommément. Il suit le
+ * niveau depuis le 31/08, donc il ne peut plus être un paramètre unique : deux points de niveaux
+ * différents ne couvrent pas le même cercle.
  *
  * Rien n'est stocké de tout cela, jamais : la couleur se recalcule depuis les avant-postes
  * debout à l'instant où on la demande — même contrat que la capacité militaire
@@ -26,6 +28,8 @@ export type ControlOutpost = {
   /** L'identité du propriétaire, telle que l'appelant la nomme — le domaine n'en sait rien. */
   readonly owner: string;
   readonly point: LonLat;
+  /** Ce que ce point-là porte, lu sur son niveau par l'appelant (`outpostReachKm`). */
+  readonly reachKm: number;
 };
 
 /** Le sol d'origine d'une nation en jeu : son pays, et le joueur qui la porte. */
@@ -53,12 +57,10 @@ export function heldRegions({
   regions,
   outposts,
   homeGrounds,
-  reachKm,
 }: {
   readonly regions: ReadonlyArray<ControlledRegion>;
   readonly outposts: ReadonlyArray<ControlOutpost>;
   readonly homeGrounds: ReadonlyArray<HomeGround>;
-  readonly reachKm: number;
 }): ReadonlyMap<string, string> {
   const homeOwner = new Map(homeGrounds.map(({ country, owner }) => [country, owner]));
   const held = new Map<string, string>();
@@ -68,7 +70,7 @@ export function heldRegions({
       held.set(region.id, home);
       continue;
     }
-    const holder = nearestHolder(region.point, outposts, reachKm);
+    const holder = nearestHolder(region.point, outposts);
     if (holder !== null) held.set(region.id, holder);
   }
   return held;
@@ -76,16 +78,12 @@ export function heldRegions({
 
 /** Le plus proche propriétaire à portée, `null` s'il n'y en a aucun **ou** si deux se disputent
  *  la région à la même distance au kilomètre près. */
-function nearestHolder(
-  point: LonLat,
-  outposts: ReadonlyArray<ControlOutpost>,
-  reachKm: number,
-): string | null {
+function nearestHolder(point: LonLat, outposts: ReadonlyArray<ControlOutpost>): string | null {
   let best: { owner: string; km: number } | null = null;
   let disputed = false;
   for (const outpost of outposts) {
     const km = distanceKm(outpost.point, point);
-    if (km > reachKm) continue;
+    if (km > outpost.reachKm) continue;
     if (best === null || km < best.km) {
       best = { owner: outpost.owner, km };
       disputed = false;
@@ -103,18 +101,25 @@ function nearestHolder(
  * à l'autre alors que la couleur doit rester celle d'un joueur.
  *
  * Huit encres imprimées, distinctes **à la découpe** : bleu, rouge, vert, ocre, prune, sarcelle,
- * vieux rose, sépia. Rien de saturé — le plateau est de l'encre sur papier (fiche 10), et une
- * couleur d'écran posée sur la mer gravée casserait le budget de contraste que la carte tient.
+ * vieux rose, sépia. Rien de fluorescent — le plateau est de l'encre sur papier (fiche 10), et
+ * une couleur d'écran posée sur la mer gravée casserait le budget de contraste que la carte
+ * tient.
+ *
+ * **Elles ont été montées d'un cran le 31/08** (contrôle visuel de Pierre) : au premier lavis
+ * réel, `#2f5d7c` se lisait gris plutôt que bleu, et sa propre couleur est la seule chose qu'un
+ * joueur doit reconnaître sans y penser. Le sépia a été assombri du même coup — il tombait entre
+ * le rouge et l'ocre, et c'est le seul écart que la saturation avait resserré au lieu de
+ * l'ouvrir.
  */
 export const SEAT_INKS: ReadonlyArray<string> = [
-  '#2f5d7c',
-  '#9c4536',
-  '#5c7040',
-  '#b08a34',
-  '#6d4568',
-  '#3d7a76',
-  '#a86570',
-  '#7a5232',
+  '#276893',
+  '#b2432f',
+  '#66833c',
+  '#c09533',
+  '#7e4377',
+  '#37908a',
+  '#b96472',
+  '#77492a',
 ];
 
 /** L'encre d'un siège, par son rang d'entrée. Le modulo n'a pas d'usage — le salon plafonne à

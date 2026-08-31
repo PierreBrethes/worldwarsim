@@ -115,7 +115,7 @@ L'entretien est donc **multiplié selon l'ancrage** :
 | Où se tient la troupe | Entretien |
 |---|---|
 | Sur son territoire national | ×1 |
-| Dans le rayon d'un de **ses** avant-postes (`OUTPOST_REACH_KM`) | ×1 |
+| Dans le rayon d'un de **ses** avant-postes (`outpostReachKm`, suivant leur niveau) | ×1 |
 | Partout ailleurs | `UPKEEP_UNSUPPLIED_MULTIPLIER` |
 
 Une constante et un multiplicateur : D1 tient, aucune table de neuf nombres. Rien ne meurt : D3
@@ -137,7 +137,8 @@ qu'à ×2 le surcoût se noie dans une économie où l'alliage est le goulot et 
 abondante ; si la mesure le confirme, la valeur monte, la règle ne change pas.
 
 **`SCOUT_RADIUS_KM` vaut 60.** Choisi pour le réalisme d'une infanterie, et franchement plus court
-que `INTERCEPTION_RADIUS_KM` (200) et que `OUTPOST_REACH_KM` (400) — sans quoi une sentinelle
+que `INTERCEPTION_RADIUS_KM` (200) et que la portée d'un avant-poste (120 à 240 suivant son
+niveau depuis le 31/08) — sans quoi une sentinelle
 verrait aussi loin qu'on intercepte et rendrait la station d'écoute et l'agent dormant
 décoratifs. **Destinée à devenir une statistique de rôle** : un appareil de reconnaissance ne voit
 pas ce que voit un fantassin. Elle reste une constante unique tant que rien ne lit une seconde

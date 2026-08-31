@@ -7,7 +7,7 @@ import {
   ARRIVAL_RADIUS_KM,
   nominalStrength,
   OUTPOST_DISABLED_HOURS,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   REST_WINDOW_MINUTES,
   SCOUT_RADIUS_KM,
   unlockLevel,
@@ -27,6 +27,10 @@ import { pointOf } from './movement/forces';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
+
+/** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
+ *  tous un avant-poste de niveau 1. */
+const REACH_KM = outpostReachKm(1);
 
 const boot = () => convexTest(schema, modules);
 
@@ -484,8 +488,8 @@ describe('an outpost opens a radius to build in', () => {
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
-    expect(refused).toMatchObject({ code: 'OUT_OF_OUTPOST_REACH', reachKm: OUTPOST_REACH_KM });
-    expect(refused.nearestKm).toBeGreaterThan(OUTPOST_REACH_KM);
+    expect(refused).toMatchObject({ code: 'OUT_OF_OUTPOST_REACH', reachKm: REACH_KM });
+    expect(refused.nearestKm).toBeGreaterThan(REACH_KM);
   });
 
   /**

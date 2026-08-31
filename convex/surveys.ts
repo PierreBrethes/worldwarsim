@@ -17,9 +17,9 @@ import type { LonLat } from '../src/domain/geo';
 import { playerBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
-  OUTPOST_REACH_KM,
   SCOUT_RADIUS_KM,
   SURVEY_REFRESH_HOURS,
+  outpostReachKm,
 } from './constants';
 import { movementsOf, outpostsOf, pointOf, seasonOutposts } from './movement/forces';
 import { allRegions, homeCountryOf, regionFacts, type RegionFacts } from './regions';
@@ -44,7 +44,7 @@ export async function standingObserversOf(
   const observers: Array<Observer> = [];
 
   for (const outpost of await outpostsOf(ctx, playerId)) {
-    observers.push({ point: pointOf(outpost.point), radiusKm: OUTPOST_REACH_KM });
+    observers.push({ point: pointOf(outpost.point), radiusKm: outpostReachKm(outpost.level) });
   }
 
   for (const building of await playerBuildings(ctx, playerId)) {
@@ -109,9 +109,9 @@ export async function fileSurvey(
     outposts: (await seasonOutposts(ctx, player.seasonId)).map((outpost) => ({
       owner: outpost.playerId as string,
       point: pointOf(outpost.point),
+      reachKm: outpostReachKm(outpost.level),
     })),
     homeGrounds: await homeGroundsOf(ctx, player.seasonId),
-    reachKm: OUTPOST_REACH_KM,
   });
 
   const home = homeCountryOf(player.nation);
@@ -194,15 +194,17 @@ export const surveyAlongRoute = (
  * il verrait le drapeau se planter.
  *
  * Le balayage est borné des deux côtés : huit sièges au plus, et les seules régions que le
- * nouveau point peut avoir touchées.
+ * nouveau point peut avoir touchées — `reachKm` est le rayon **de ce point-là**, lu sur son
+ * niveau par l'appelant qui vient de le planter.
  */
 export async function surveyFoundation(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   point: LonLat,
+  reachKm: number,
   at: number,
 ): Promise<number> {
-  const reached = coveredRegions(allRegions(), [{ point, radiusKm: OUTPOST_REACH_KM }]);
+  const reached = coveredRegions(allRegions(), [{ point, radiusKm: reachKm }]);
   const touched = allRegions().filter((region) => reached.has(region.id));
   if (touched.length === 0) return 0;
 

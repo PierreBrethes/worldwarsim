@@ -1,13 +1,13 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
-import { withinReach, type OutpostPoint } from '../src/domain/outposts';
+import { withinReach, type OutpostReach } from '../src/domain/outposts';
 import { emptyStocks } from '../src/domain/economy';
 import type { ResourceKey } from '../src/domain/ids';
 import {
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-  OUTPOST_REACH_KM,
   OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
+  outpostReachKm,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
 import { homeCountryOf, regionFacts } from './regions';
@@ -40,11 +40,18 @@ import { hostAtPoint } from './routes';
 export function isAnchored(
   point: LonLat,
   homeCountry: string | null,
-  anchors: ReadonlyArray<OutpostPoint>,
+  anchors: ReadonlyArray<OutpostReach>,
 ): boolean {
   if (homeCountry !== null && hostAtPoint(point) === homeCountry) return true;
-  return withinReach(point, anchors, OUTPOST_REACH_KM);
+  return withinReach(point, anchors);
 }
+
+/** L'ancre telle que la portée la lit : chaque point porte son rayon, qui suit son niveau
+ *  (`outpostReachKm`, 31/08) — un rayon commun dirait que tous couvrent la même chose. */
+export const anchorOf = (outpost: Doc<'outposts'>): OutpostReach => ({
+  point: [outpost.point.lon, outpost.point.lat],
+  reachKm: outpostReachKm(outpost.level),
+});
 
 export type Upkeep = {
   /** Every troop of the player, standing or garrisoning — a queued batch is not a troop yet. */
@@ -92,7 +99,7 @@ export async function upkeepOf(
 
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
-    .map((outpost) => ({ point: [outpost.point.lon, outpost.point.lat] as LonLat }));
+    .map(anchorOf);
 
   /**
    * **A point out of service still has to be held.** The deactivation takes away what the point

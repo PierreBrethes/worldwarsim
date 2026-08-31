@@ -23,7 +23,7 @@ import {
   ARRIVAL_RADIUS_KM,
   INTERCEPTION_RADIUS_KM,
   LISTENING_STATION_RADIUS_KM,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   SCOUT_RADIUS_KM,
 } from '../constants';
 import { homeCountryOf, regionFacts } from '../regions';
@@ -264,7 +264,7 @@ async function watchersAgainst(
     watchers.push({
       id: `outpost:${outpost._id}`,
       point: pointOf(outpost.point),
-      radiusKm: OUTPOST_REACH_KM,
+      radiusKm: outpostReachKm(outpost.level),
       playerId: outpost.playerId,
       detector: 'outpost',
       detectorId: outpost._id,

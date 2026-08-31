@@ -86,7 +86,8 @@ sans migration, c'est tout ce qu'on leur doit aujourd'hui.
 > « avant-poste-heures d'extraction ». Il devra se recompter en **bâtiment-heures à l'étranger**.
 > Les doctrines ne sont pas codées — cet amendement attend qu'elles le soient (fiche 05).
 
-**Le rayon se mesure en kilomètres, jamais en nombre de régions** (`OUTPOST_REACH_KM`) : Natural
+**Le rayon se mesure en kilomètres, jamais en nombre de régions** (`outpostReachKm`, 120 à
+240 km suivant le niveau du point depuis le 31/08) : Natural
 Earth découpe le Royaume-Uni en 232 districts et l'Allemagne en 16 Länder, un rayon compté en
 régions ferait de la cartographie l'équilibreur du jeu. L'effet reste « quelques régions autour » ;
 leur nombre varie selon le pays, et c'est la géographie qui parle.

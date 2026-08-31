@@ -212,8 +212,9 @@ grisées. La §4.5 de la fiche 11 est **périmée** : le flux de mouvement en ca
 dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
 
 **La carte se colore** (ADR 0020 §1) : une région est *tenue* par le joueur dont un avant-poste
-la couvre dans `OUTPOST_REACH_KM` — le rayon de construction, jamais une seconde constante — ou
-par la nation dont elle est le sol d'origine, que rien ne lui prend. La règle est pure
+la couvre dans **son** rayon (`outpostReachKm` — 120 / 180 / 240 km aux niveaux 1 / 2 / 3, le
+rayon de construction et jamais une seconde constante) ou par la nation dont elle est le sol
+d'origine, que rien ne lui prend. La règle est pure
 (`src/domain/control.ts`, litige au plus proche, égalité exacte à personne), servie par une
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
@@ -238,8 +239,9 @@ survol donne la date en clair, « relevé du 12 août ».
 
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière ; la **destruction** après
-plusieurs raids attend le pillage, et rien ne les compte. Il ouvre un rayon de
-`OUTPOST_REACH_KM` autour de son point, où l'on bâtit comme chez soi (le puits en Arabie), et
+plusieurs raids attend le pillage, et rien ne les compte. Il ouvre autour de son point un rayon qui
+**suit son niveau** (`outpostReachKm`, révision du 31/08), où l'on bâtit comme chez soi (le puits
+en Arabie), et
 **héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient
 garnison, et cette garnison est ce qu'une attaque trouve debout.
 

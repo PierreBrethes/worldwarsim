@@ -3,7 +3,6 @@ import { query } from './_generated/server';
 import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import type { LonLat } from '../src/domain/geo';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
@@ -24,7 +23,7 @@ import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationServed } from './movement/forces';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
-import { isAnchored } from './upkeep';
+import { anchorOf, isAnchored } from './upkeep';
 import { hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { isAtWar, playerByToken, requireStarted, warEntryOf } from './seasons';
@@ -654,9 +653,7 @@ async function detectedArcs(
   outposts: ReadonlyArray<Doc<'outposts'>>,
   now: number,
 ) {
-  const anchors = outposts.map((outpost) => ({
-    point: [outpost.point.lon, outpost.point.lat] as LonLat,
-  }));
+  const anchors = outposts.map(anchorOf);
   const home = homeCountryOf(player.nation);
 
   const sightings = await ctx.db

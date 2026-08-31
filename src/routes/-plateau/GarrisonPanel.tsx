@@ -4,7 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import {
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   RELAY_SPEED_MULTIPLIER,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../../convex/constants';
@@ -358,8 +358,11 @@ export function GarrisonPanel({
                 rayon est la seule donnée qui dise ce que le point rapporte. */}
             <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
               {outpost.specialization === 'relay'
-                ? fr.specializationEffects.relay(OUTPOST_REACH_KM, RELAY_SPEED_MULTIPLIER)
-                : fr.specializationEffects.listening(OUTPOST_REACH_KM)}
+                ? fr.specializationEffects.relay(
+                    outpostReachKm(outpost.level),
+                    RELAY_SPEED_MULTIPLIER,
+                  )
+                : fr.specializationEffects.listening(outpostReachKm(outpost.level))}
             </p>
             {outpost.specializationLocked && (
               <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">

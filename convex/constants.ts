@@ -528,8 +528,9 @@ export const ARRIVAL_RADIUS_KM = 25;
  * **How far a posted troop sees what moves** (ADR 0019 §5, design sheet 04's fourth detector).
  *
  * **Sixty kilometres** is the realism of an infantry company, and frankly shorter than
- * `INTERCEPTION_RADIUS_KM` (200) and `OUTPOST_REACH_KM` (400) on purpose: a sentry that saw as far
- * as one intercepts would make the listening station and the sleeping agent decorative.
+ * `INTERCEPTION_RADIUS_KM` (200) and an outpost's reach (120 to 240 by level) on purpose: a
+ * sentry that saw as far as one intercepts would make the listening station and the sleeping
+ * agent decorative.
  *
  * **It is meant to become a role statistic**, and stays one constant until something reads a
  * second value — laying a table of nine before a second consumer exists is the mistake D1 of
@@ -610,13 +611,29 @@ export const OUTPOST_IMMUNITY_HOURS = 3;
 export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL: Costs = { food: 2, coal: 1 };
 
 /**
- * **How far an outpost opens the ground around it** (ADR 0015). A radius rather than a count of
- * regions, which is the only shape the rule may take. Four hundred kilometres is a handful of
- * Romanian counties, one Australian state and no French department at all.
+ * **Ce qu'un avant-poste ouvre autour de lui, et qui monte avec son niveau** (ADR 0020 §1,
+ * révision du 31/08). Un rayon, jamais un compte de régions — c'est la seule forme que la règle
+ * peut prendre (ADR 0015).
  *
- * @a-mesurer sized against what it covers on a map, never against a game it changed
+ * Quatre cents kilomètres, la valeur d'avant, couvraient **le quart de la France** pour un seul
+ * point posé : au premier contrôle visuel la tache d'un avant-poste de niveau 1 se lisait comme
+ * une conquête. Cent vingt kilomètres est une poignée de départements, et le reste s'achète —
+ * *là où je peux bâtir est là où je tiens* ne bouge pas, les deux montent ensemble.
+ *
+ * @a-mesurer placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée
  */
-export const OUTPOST_REACH_KM = 400;
+export const OUTPOST_REACH_KM_BY_LEVEL: Readonly<Record<number, number>> = {
+  1: 120,
+  2: 180,
+  3: 240,
+};
+
+const MAX_REACH_LEVEL = Object.keys(OUTPOST_REACH_KM_BY_LEVEL).length;
+
+/** Le rayon d'un point, par son niveau. Un niveau au-delà de la table garde le dernier rayon :
+ *  une amélioration future ne doit pas rendre un point aveugle en attendant sa ligne. */
+export const outpostReachKm = (level: number): number =>
+  OUTPOST_REACH_KM_BY_LEVEL[Math.min(Math.max(Math.trunc(level), 1), MAX_REACH_LEVEL)]!;
 
 /**
  * **What a logistics relay does to the stretch of road that passes it** (design sheet 03) — the

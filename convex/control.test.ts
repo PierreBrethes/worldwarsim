@@ -4,11 +4,15 @@ import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { SEAT_INKS } from '../src/domain/control';
-import { OUTPOST_REACH_KM } from './constants';
+import { outpostReachKm } from './constants';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { surveyFoundation, surveyFromPoint } from './surveys';
 import { modules } from './test.setup';
+
+/** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
+ *  tous un avant-poste de niveau 1. */
+const REACH_KM = outpostReachKm(1);
 
 const boot = () => convexTest(schema, modules);
 
@@ -64,7 +68,7 @@ async function plant(t: ReturnType<typeof boot>, token: string, point: LonLat) {
       disabledUntil: null,
       immuneUntil: null,
     });
-    await surveyFoundation(ctx, player.seasonId, point, Date.now());
+    await surveyFoundation(ctx, player.seasonId, point, outpostReachKm(1), Date.now());
     return outpostId;
   });
 }
@@ -198,8 +202,8 @@ describe('an outpost colours what it reaches', () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
-    await plant(t, token, eastOf(prahova, OUTPOST_REACH_KM / 2));
-    await plant(t, guest, eastOf(prahova, -OUTPOST_REACH_KM / 4));
+    await plant(t, token, eastOf(prahova, REACH_KM / 2));
+    await plant(t, guest, eastOf(prahova, -REACH_KM / 4));
 
     // Les deux points regardent la même région : chacun y lit le même tenant, le plus proche.
     expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
@@ -214,7 +218,7 @@ describe('a survey is a memory, and it goes stale', () => {
     const prahova = regionFacts(PRAHOVA)!.point;
 
     // B tient la Valachie, A va la relever, puis s'en va.
-    const russian = await plant(t, guest, eastOf(prahova, -OUTPOST_REACH_KM / 4));
+    const russian = await plant(t, guest, eastOf(prahova, -REACH_KM / 4));
     const sentry = await post(t, token, prahova);
     expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
     await leave(t, sentry);

@@ -9,11 +9,11 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { homeCountryOf, regionFacts } from '../regions';
-import { ARRIVAL_RADIUS_KM, OUTPOST_REACH_KM } from '../constants';
+import { ARRIVAL_RADIUS_KM, outpostReachKm } from '../constants';
 import { seasonBuildings } from '../buildings';
 import { troopsStationedAt } from '../combat';
 import { seasonTroops } from '../troops';
-import { isAnchored } from '../upkeep';
+import { anchorOf, isAnchored } from '../upkeep';
 
 export async function movementsOf(
   ctx: QueryCtx,
@@ -303,11 +303,7 @@ export async function recognises(
   const outposts = await outpostsOf(ctx, player._id);
   /** **Every** point of his, deactivated ones included: a raid burns the depot, it does not
    *  blind the relay. `upkeep.ts` reads the same notion from standing points only. */
-  return isAnchored(
-    point,
-    homeCountryOf(player.nation),
-    outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
-  );
+  return isAnchored(point, homeCountryOf(player.nation), outposts.map(anchorOf));
 }
 
 /**
@@ -320,7 +316,7 @@ export async function recognises(
  * La portée est le critère plutôt que le simple fait qu'un mouvement soit parti : un départ à
  * l'autre bout du monde n'a rien lu de ce point-là, et sceller sur lui scellerait chaque
  * avant-poste dans la minute suivant sa fondation. Les sommets de la polyligne suffisent —
- * contre `OUTPOST_REACH_KM`, une maille de grille est un détail.
+ * contre la portée du point, une maille de grille est un détail.
  */
 export async function specializationServed(
   ctx: QueryCtx,
@@ -330,6 +326,8 @@ export async function specializationServed(
   return (await seasonMovements(ctx, outpost.seasonId)).some(
     (movement) =>
       movement.departedAt >= outpost.foundedAt &&
-      movement.points.some((point) => distanceKm(pointOf(point), here) <= OUTPOST_REACH_KM),
+      movement.points.some(
+        (point) => distanceKm(pointOf(point), here) <= outpostReachKm(outpost.level),
+      ),
   );
 }

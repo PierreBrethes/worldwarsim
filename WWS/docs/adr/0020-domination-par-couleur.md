@@ -27,8 +27,14 @@ suppose une cible qui vaille le trajet, le troisième arrive après que la parti
 
 ### 1. La couleur suit l'avant-poste, elle ne prend pas la région
 
-Un avant-poste colore les régions dont le point tombe dans **`OUTPOST_REACH_KM`** (400) autour du
-sien — le rayon où il donne déjà le droit de bâtir (ADR 0015). Pas de nouvelle constante : *là où
+Un avant-poste colore les régions dont le point tombe dans **son rayon** (`outpostReachKm`)
+autour du sien — le rayon où il donne déjà le droit de bâtir (ADR 0015).
+
+> **Révision du 31/08/2026.** Le rayon suit désormais le **niveau** du point : 120 / 180 / 240 km
+> aux niveaux 1 / 2 / 3, au lieu d'un `OUTPOST_REACH_KM` unique de 400 km — au premier contrôle
+> visuel en production, un seul avant-poste de niveau 1 peignait le quart de la France. La règle
+> ne bouge pas, les deux montent ensemble ; les bâtiments déjà posés gardent leur ancrage
+> (`buildings.outpostId`, écrit à la pose) et restent debout hors du nouveau rayon. Pas de nouvelle constante : *là où
 je peux bâtir est là où je tiens*. Une règle au lieu de deux, et un joueur qui a compris la portée
 de construction a compris la couleur. La nation d'origine colore son propre pays. **Aucune région ne change de propriétaire au
 sens de l'ADR 0004** : elle n'est pas annexée, elle est *tenue* tant qu'un avant-poste vivant la
@@ -208,7 +214,7 @@ fragile en guerre, et celui qui perd des avant-postes voit son entretien baisser
 écrasé reste nuisible », appliqué à l'économie.
 
 Le spam « un bâtiment par région partout » reste borné par quatre règles déjà en place : un
-bâtiment par région, le rayon de pose (`OUTPOST_REACH_KM`), la production reliée (§6), et le coût
+bâtiment par région, le rayon de pose (`outpostReachKm`), la production reliée (§6), et le coût
 de fondation (une infanterie qui marche, un slot, du temps).
 
 ### 11. Le format de saison disparaît

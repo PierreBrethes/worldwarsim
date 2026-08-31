@@ -6,7 +6,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import {
   ARRIVAL_RADIUS_KM,
   LISTENING_STATION_RADIUS_KM,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   SCOUT_RADIUS_KM,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
@@ -617,12 +617,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [heldRaw, surveyClock],
   );
 
-  /** Ce que le survol lit pour dater une région — la même réponse, indexée. */
+  /**
+   * **Ce que le survol lit du tenant d'une région — la même réponse que la carte peint**, indexée.
+   * La nation vient de la revendication, jamais des avant-postes de la vue : `me.outposts` ne dit
+   * que ce que le joueur a planté *dans ce pays-ci*, et une région tenue depuis le pays voisin s'y
+   * lisait « avant-poste : aucun » pendant que la carte la peignait (correctif du 31/08).
+   */
   const knownRegionById = useMemo(
     () =>
       new Map(
         (heldRaw ?? []).flatMap((claim) =>
-          claim.regions.map((region) => [region.id, region] as const),
+          claim.regions.map((region) => [region.id, { ...region, nation: claim.nation }] as const),
         ),
       ),
     [heldRaw],
@@ -678,7 +683,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
        *  change, et la carte n'a pas de trait pour dire une vitesse. */
       reach:
         outpost.specialization === 'listening'
-          ? { lonLat: outpost.lonLat, km: OUTPOST_REACH_KM }
+          ? { lonLat: outpost.lonLat, km: outpostReachKm(outpost.level) }
           : null,
       ink: view.me.ink,
     }));
@@ -975,7 +980,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             selected={country ?? null}
             hoveredCountry={hoveredCountry}
             hoveredRegion={hoveredRegion}
-            survey={hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)}
+            holding={
+              hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
+            }
             view={view}
           />
           <ControlsCard />

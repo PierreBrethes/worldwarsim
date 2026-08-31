@@ -1411,12 +1411,13 @@ describe('the placements a site carries', () => {
     });
   }
 
-  /** Ghardaïa, in the Algerian Sahara: five regions inside `OUTPOST_REACH_KM` and no French
-   *  ground anywhere near, so what the point carries is its own and the home budget never
-   *  lends it a placement. */
-  const GHARDAIA = { lon: 3.08, lat: 31.49 };
-  const NEAR_GHARDAIA = 'DZA-2192'; // Ghardaïa itself
-  const ALSO_NEAR = 'DZA-2190'; // El Bayadh, 205 km away
+  /** El Tarf, on the Algerian coast: two regions inside the reach of a **level-one** point —
+   *  120 km depuis la révision du 31/08, contre 400 avant elle — et pas un pouce de sol français
+   *  alentour, donc ce que le point porte est à lui et le budget national ne lui prête rien.
+   *  Ghardaïa, dans le Sahara, n'avait plus qu'elle-même à moins de cent vingt kilomètres. */
+  const EL_TARF = { lon: 8.15, lat: 36.72 };
+  const NEAR_EL_TARF = 'DZA-2164'; // El Tarf itself
+  const ALSO_NEAR = 'DZA-2163'; // Annaba, 57 km away
 
   const budgetOf = (
     view: {
@@ -1434,7 +1435,7 @@ describe('the placements a site carries', () => {
   it('carries its own level at an outpost, and two per headquarters level at home', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    const one = await found(t, token, GHARDAIA, 1);
+    const one = await found(t, token, EL_TARF, 1);
     const three = await found(t, token, { lon: 45, lat: 25 }, 3);
 
     const view = await t.query(api.view.playerView, { token });
@@ -1448,7 +1449,7 @@ describe('the placements a site carries', () => {
   it('refuses on the site that is full and accepts on the next one', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    const outpostId = await found(t, token, GHARDAIA, 1);
+    const outpostId = await found(t, token, EL_TARF, 1);
     await fill(t, token, 'alloy', 100_000);
     await fill(t, token, 'food', 100_000);
 
@@ -1464,12 +1465,12 @@ describe('the placements a site carries', () => {
       t.mutation(api.constructions.start, { token, building: 'depot', regionId: spare.id }),
     ).rejects.toThrow('SITE_SLOTS_FULL');
 
-    // The Saharan point carries one placement of its own, and the full home ground is no part
+    // The Algerian point carries one placement of its own, and the full home ground is no part
     // of that reading.
     await t.mutation(api.constructions.start, {
       token,
       building: 'depot',
-      regionId: NEAR_GHARDAIA,
+      regionId: NEAR_EL_TARF,
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -1489,20 +1490,20 @@ describe('the placements a site carries', () => {
   it('accepts no placement once the outpost that carried the ground is gone', async () => {
     const t = boot();
     const token = await launchedSeason(t);
-    const outpostId = await found(t, token, GHARDAIA, 3);
+    const outpostId = await found(t, token, EL_TARF, 3);
     await fill(t, token, 'alloy', 100_000);
     await fill(t, token, 'food', 100_000);
     await t.mutation(api.constructions.start, {
       token,
       building: 'depot',
-      regionId: NEAR_GHARDAIA,
+      regionId: NEAR_EL_TARF,
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     await t.run(async (ctx) => ctx.db.delete(outpostId));
 
     const after = await t.query(api.view.playerView, { token });
-    expect(after.me.buildings.some((building) => building.regionId === NEAR_GHARDAIA)).toBe(true);
+    expect(after.me.buildings.some((building) => building.regionId === NEAR_EL_TARF)).toBe(true);
     expect(after.me.siteSlots.map((held) => held.site.outpostId)).toEqual([null]);
     await expect(
       t.mutation(api.constructions.start, { token, building: 'depot', regionId: ALSO_NEAR }),
@@ -1520,7 +1521,7 @@ describe('the placements a site carries', () => {
     const before = await t.query(api.view.playerView, { token });
     expect(before.me.upkeep.outposts).toBe(0);
 
-    await found(t, token, GHARDAIA, 3);
+    await found(t, token, EL_TARF, 3);
     const after = await t.query(api.view.playerView, { token });
     expect(after.me.upkeep.outposts).toBe(1);
     expect(after.me.upkeep.outpostFoodPerHour).toBe(

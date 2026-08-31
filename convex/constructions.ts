@@ -4,12 +4,12 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
-import { nearestOutpostKm } from '../src/domain/outposts';
+import { nearestOutpost } from '../src/domain/outposts';
 import { buildingAt, cappedByHq, playerBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   unlockLevel,
   buildCost,
   buildMinutes,
@@ -17,8 +17,7 @@ import {
 } from './constants';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwed, regionFacts } from './regions';
-import { pointOf } from './movement/forces';
-import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
+import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit } from './resources';
 import { fileSurvey } from './surveys';
 import { playerByToken, playingSeason, requirePlayable } from './seasons';
@@ -266,16 +265,16 @@ async function refusalFor(
    */
   const site = sites.siteAt(regionId);
   if (site === null) {
-    const nearest = nearestOutpostKm(
-      region.point,
-      sites.outposts.map((outpost) => ({ point: pointOf(outpost.point) })),
-    );
+    /** **Le rayon nommé est celui du point le plus proche**, puisque c'est lui qui vient de ne pas
+     *  y arriver : un chiffre commun n'existe plus depuis que la portée suit le niveau. Sans aucun
+     *  point, c'est ce qu'ouvrirait le premier — la phrase dit alors ce qu'il faudrait. */
+    const nearest = nearestOutpost(region.point, sites.outposts.map(reachOf));
     return {
       code: 'OUT_OF_OUTPOST_REACH',
       details: {
         regionId,
-        reachKm: OUTPOST_REACH_KM,
-        nearestKm: nearest === null ? null : Math.round(nearest),
+        reachKm: nearest === null ? outpostReachKm(1) : nearest.nearest.reachKm,
+        nearestKm: nearest === null ? null : Math.round(nearest.km),
       },
     };
   }

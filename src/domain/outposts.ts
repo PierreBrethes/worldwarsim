@@ -15,6 +15,13 @@ import { distanceKm, type LonLat } from './geo';
 export type OutpostPoint = { readonly point: LonLat };
 
 /**
+ * **Un point et ce qu'il porte.** Le rayon voyage avec l'avant-poste depuis qu'il suit son niveau
+ * (`outpostReachKm`, révision du 31/08) : une portée unique en paramètre dirait que tous les
+ * points couvrent la même chose, ce qui n'est plus vrai depuis qu'on l'achète.
+ */
+export type OutpostReach = OutpostPoint & { readonly reachKm: number };
+
+/**
  * The nearest outpost and how far it is — `null` when the list is empty. It is generic over what
  * is hung on the point so that a caller needing the outpost itself (a rout looking for the
  * anchor it refluxes to, ADR 0019 §3) reads the same distance as one needing only the number.
@@ -37,11 +44,20 @@ export function nearestOutpostKm(
   return nearestOutpost(target, outposts)?.km ?? null;
 }
 
-export function withinReach(
+/**
+ * **Le plus proche des points qui portent jusque-là** — et non le plus proche tout court : deux
+ * avant-postes de niveaux différents ne couvrent pas le même cercle, et le plus près peut très
+ * bien ne pas atteindre ce que le suivant atteint.
+ */
+export function reachingOutpost<T extends OutpostReach>(
   target: LonLat,
-  outposts: ReadonlyArray<OutpostPoint>,
-  reachKm: number,
-): boolean {
-  const nearest = nearestOutpostKm(target, outposts);
-  return nearest !== null && nearest <= reachKm;
+  outposts: ReadonlyArray<T>,
+): { readonly nearest: T; readonly km: number } | null {
+  return nearestOutpost(
+    target,
+    outposts.filter((outpost) => distanceKm(outpost.point, target) <= outpost.reachKm),
+  );
 }
+
+export const withinReach = (target: LonLat, outposts: ReadonlyArray<OutpostReach>): boolean =>
+  reachingOutpost(target, outposts) !== null;

@@ -7,8 +7,8 @@ import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
 import {
   LISTENING_STATION_RADIUS_KM,
-  OUTPOST_REACH_KM,
   RELAY_SPEED_MULTIPLIER,
+  outpostReachKm,
   nominalStrength,
   routeMinutes,
 } from './constants';
@@ -200,8 +200,9 @@ describe('what sees a movement go past', () => {
 
   /**
    * **Ce qu'un avant-poste ravitaille, il l'écoute** : son rayon de détection est son rayon
-   * d'action, quatre cents kilomètres. Et **un détecteur désactivé n'écoute pas** — c'est le
-   * second sens du raid (ADR 0018 §6).
+   * d'action — cent vingt kilomètres pour un point de niveau 1 depuis le 31/08, et non plus
+   * quatre cents. Et **un détecteur désactivé n'écoute pas** — c'est le second sens du raid
+   * (ADR 0018 §6).
    */
   it('files a sighting for a listening outpost the road passes inside of', async () => {
     const t = boot();
@@ -209,10 +210,10 @@ describe('what sees a movement go past', () => {
     const here = pointOf(PRAHOVA);
     await outpost(t, guest, here, 'listening');
 
-    const from = eastOf(northOf(here, 300), -150);
-    const to = eastOf(northOf(here, 300), 150);
+    const from = eastOf(northOf(here, 60), -150);
+    const to = eastOf(northOf(here, 60), 150);
     expect(nearestApproach(routeBetween(from, to, 'land')!.points, here)).toBeLessThan(
-      OUTPOST_REACH_KM,
+      outpostReachKm(1),
     );
 
     const { troopIds, origin } = await column(t, token, from);
@@ -227,8 +228,8 @@ describe('what sees a movement go past', () => {
     const here = pointOf(PRAHOVA);
     await outpost(t, guest, here, 'listening', Date.now() + 6 * 3_600_000);
 
-    const from = eastOf(northOf(here, 300), -150);
-    const to = eastOf(northOf(here, 300), 150);
+    const from = eastOf(northOf(here, 60), -150);
+    const to = eastOf(northOf(here, 60), 150);
 
     const { troopIds, origin } = await column(t, token, from);
     await t.mutation(api.movements.marchTo, { token, origin, troopIds, point: asPoint(to) });

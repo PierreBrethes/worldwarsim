@@ -12,7 +12,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
 | **Pays neutre** | Un pays non joué. Support d'avant-postes, partenaire commercial, source de mercenaires. |
-| **Avant-poste** | Point posé sur un pays neutre. Ouvre un rayon (`OUTPOST_REACH_KM`) où l'on bâtit et où les troupes posées s'entretiennent au tarif domestique. Une spécialisation (relais ou écoute), choisie à la construction. Se désactive ou se détruit, ne se capture jamais. *(révisé 25/08 — l'Extraction a disparu le 18/08, fiche 03)* |
+| **Avant-poste** | Point posé sur un pays neutre. Ouvre un rayon (`outpostReachKm`, 120 à 240 km suivant son niveau) où l'on bâtit et où les troupes posées s'entretiennent au tarif domestique. Une spécialisation (relais ou écoute), choisie à la construction. Se désactive ou se détruit, ne se capture jamais. *(révisé 25/08 — l'Extraction a disparu le 18/08, fiche 03)* |
 | **Mouvement** | Un envoi de troupes d'un point A à un point B. Irréversible. Représenté par un arc. |
 | **Slot de mouvement** | La ressource la plus rare du jeu. Limite le nombre de mouvements simultanés. |
 | **À flot** | Une pile dont le point de départ est en haute mer — aucun pays ne l'héberge. La porte navale ne se lit pas sur elle : le port a été payé à l'embarquement, au premier départ. Se calcule au départ, jamais stocké. *(ADR 0019 §2, révision 27/08)* |

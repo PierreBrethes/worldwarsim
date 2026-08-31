@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { OUTPOST_REACH_KM, SCOUT_RADIUS_KM } from '../../../convex/constants';
+import { SCOUT_RADIUS_KM, outpostReachKm } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -46,7 +46,9 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
           </h1>
 
           <div className="grid grid-cols-1 border-t border-[var(--ink)] sm:grid-cols-3">
-            {fr.briefing.columns(SCOUT_RADIUS_KM, OUTPOST_REACH_KM).map((column) => (
+            {/* Le rayon d'un point neuf : la feuille se lit avant d'en avoir fondé un, et c'est
+                celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
+            {fr.briefing.columns(SCOUT_RADIUS_KM, outpostReachKm(1)).map((column) => (
               <Column key={column.title} title={column.title} lines={column.lines} />
             ))}
           </div>

@@ -6,6 +6,17 @@ import type { RegionIdentity } from '@/domain/world';
 import { Row, Panel } from './Panel';
 
 /**
+ * **Ce que le joueur sait du tenant d'une région**, servi par `control.held` et jamais recalculé
+ * ici — c'est la réponse même que la carte peint, donc les deux ne peuvent pas se contredire.
+ * Une région vierge n'en a pas de ligne : `null`, et rien ne s'affiche (ADR 0020 §5).
+ */
+export type RegionHolding = {
+  /** Le siège qui tient, tel que la revendication le nomme. `null` est un siège sans nation —
+   *  impossible en saison lancée, et `nationLabel` le dit plutôt que de le taire. */
+  readonly nation: string | null;
+} & ({ readonly state: 'current' } | { readonly state: 'surveyed'; readonly seenAt: number });
+
+/**
  * **What the board is looking at, on one card.** The country and the region used to answer in
  * two stacked boxes, and they were reading the same gesture: the pointer lands on a region, the
  * region belongs to a country, and the player was made to assemble the two himself.
@@ -24,22 +35,26 @@ import { Row, Panel } from './Panel';
  * A region the player does not hold carries no line of its own: `me.regions` is his ground and
  * nothing else, so absence is the fog rather than a display test (ADR 0005).
  *
- * **`survey` est ce que le joueur sait du sol survolé** (ADR 0020 §5) : à jour, il n'a rien à
- * dire — la teinte franche est déjà l'annonce ; relevé, il donne la date en clair. Vierge, il
- * est `null` et la carte n'a rien à en dire non plus.
+ * **`holding` est ce que le joueur sait du sol survolé** (ADR 0020 §5) : à jour, le nom franc ;
+ * relevé, le nom et sa date en clair. Vierge, il est `null` et la ligne ne paraît pas — inconnue
+ * n'est pas neutre.
+ *
+ * **Deux questions, deux lignes, et c'est le correctif du 31/08** : « avant-poste » dit ce que ce
+ * *pays* porte, « tenue par » dit qui tient la *région* sous le curseur. Une seule ligne pour les
+ * deux répondait « avant-poste : aucun » sur un sol que la carte peignait depuis un point planté
+ * chez le voisin — deux surfaces qui se contredisent sur la même donnée.
  */
 export function GroundPanel({
   selected,
   hoveredCountry,
   hoveredRegion,
-  survey,
+  holding,
   view,
 }: {
   selected: string | null;
   hoveredCountry: string | null;
   hoveredRegion: RegionIdentity | null;
-  survey:
-    { readonly state: 'current' } | { readonly state: 'surveyed'; readonly seenAt: number } | null;
+  holding: RegionHolding | null;
   view: PlayerView;
 }) {
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
@@ -107,10 +122,18 @@ export function GroundPanel({
               )}
             </>
           )}
-          {survey?.state === 'surveyed' && (
-            <p className="text-[11px] text-[var(--ink-quiet)] italic">
-              {fr.board.regionSurveyed(asPressDate(survey.seenAt))}
-            </p>
+          {holding !== null && (
+            <Row
+              label={fr.selectedCountry.heldBy}
+              value={
+                holding.state === 'current'
+                  ? nationLabel(holding.nation)
+                  : fr.selectedCountry.heldBySurveyed(
+                      nationLabel(holding.nation),
+                      asPressDate(holding.seenAt),
+                    )
+              }
+            />
           )}
         </div>
       )}

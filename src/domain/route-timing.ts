@@ -122,13 +122,17 @@ export function temporalPosition(
   return { kind: 'leg', legIndex: 0, local: 0 };
 }
 
+/** Un relais et ce qu'il couvre : le rayon voyage avec le point depuis qu'il suit son niveau. */
+export type Relay = { readonly point: LonLat; readonly reachKm: number };
+
 /**
  * **What a logistics relay covers of a road, as a share of its length** (design sheet 03).
  *
  * The road is walked the way the interception walks it — the same sampled path against the same
  * point/circle test (`positionAt`, `INTERCEPTION_SAMPLES`). A second geometry for the same
  * question is a second answer waiting to disagree with the first, and the two questions really
- * are one: "what stretch of this march passes within `reachKm` of that point".
+ * are one: "what stretch of this march passes within a relay's own reach of that point" — chaque
+ * relais porte son rayon, qui suit son niveau (`outpostReachKm`, 31/08).
  *
  * **The share is measured on the road, never on the legs**, and that is a deliberate reading of
  * a sheet that says "leg". A `RouteLeg` is a run of one medium — the Dijkstra's own bookkeeping,
@@ -140,12 +144,10 @@ export function temporalPosition(
 export const relayedShare = ({
   points,
   relays,
-  reachKm,
   samples = INTERCEPTION_SAMPLES,
 }: {
   points: ReadonlyArray<LonLat>;
-  relays: ReadonlyArray<LonLat>;
-  reachKm: number;
+  relays: ReadonlyArray<Relay>;
   samples?: number;
 }): number => {
   if (relays.length === 0 || points.length < 2) return 0;
@@ -154,7 +156,7 @@ export const relayedShare = ({
   let covered = 0;
   for (let index = 0; index <= samples; index += 1) {
     const here = positionAt(road, index / samples);
-    if (relays.some((relay) => distanceKm(here, relay) <= reachKm)) covered += 1;
+    if (relays.some((relay) => distanceKm(here, relay.point) <= relay.reachKm)) covered += 1;
   }
   return covered / (samples + 1);
 };
@@ -174,17 +176,15 @@ export const relayedShare = ({
 export function relayedCostUnits({
   route,
   relays,
-  reachKm,
   multiplier,
   samples = INTERCEPTION_SAMPLES,
 }: {
   route: ComputedRoute;
-  relays: ReadonlyArray<LonLat>;
-  reachKm: number;
+  relays: ReadonlyArray<Relay>;
   multiplier: number;
   samples?: number;
 }): number {
-  const share = relayedShare({ points: route.points, relays, reachKm, samples });
+  const share = relayedShare({ points: route.points, relays, samples });
   if (share <= 0 || multiplier <= 0) return route.costUnits;
 
   const legs = route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);

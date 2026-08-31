@@ -544,13 +544,6 @@ export const fr = {
     regionDeposit: (deposit: string) => `gisement de ${deposit}`,
     regionNoDeposit: 'aucun gisement — caserne, aérodrome, baraquements',
     regionCoastal: 'côtière — port possible',
-    /**
-     * **La date du relevé, en clair** (ADR 0020 §5). Elle ne dit pas l'ancienneté — le délavage
-     * de la teinte la porte déjà, en permanence — elle dit *quand*, ce qu'aucune nuance de
-     * couleur ne saura jamais dire. Une région à jour n'a pas de ligne : sa couleur franche est
-     * l'annonce.
-     */
-    regionSurveyed: (date: string) => `relevé du ${date} — peut avoir changé de main depuis`,
   },
 
   banner: {
@@ -1511,10 +1504,24 @@ export const fr = {
     progression: 'progression',
     restWindow: 'plage de repos',
     lastIntel: 'dernier renseignement',
+    /**
+     * **Deux questions, deux lignes** (correctif du 31/08). « Avant-poste » répond de *ce
+     * pays-ci* — ai-je un point planté dedans — et c'est juste ; c'est l'étiquette qui mentait
+     * par omission, puisque la carte peignait une région tenue depuis un point d'à côté sans
+     * qu'aucune ligne ne le dise. « Tenue par » répond de *la région survolée*, et rien d'autre.
+     */
     outpost: 'avant-poste',
     enemyOwner: 'adverse',
     none: 'aucun',
     garrison: 'garnison',
+    heldBy: 'tenue par',
+    /**
+     * **Le tenant tel qu'on l'a vu, et la date en clair** (ADR 0020 §5). La date ne dit pas
+     * l'ancienneté — le délavage de la teinte la porte déjà, en permanence — elle dit *quand*,
+     * ce qu'aucune nuance de couleur ne saura jamais dire. Une région à jour n'en a pas : son
+     * nom franc est l'annonce.
+     */
+    heldBySurveyed: (holder: string, date: string) => `${holder} — relevé du ${date}`,
   },
 
   mapUi: {

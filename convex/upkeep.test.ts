@@ -8,7 +8,7 @@ import {
   EXTRACTION_PER_HOUR,
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
   OUTPOST_DISABLED_HOURS,
-  OUTPOST_REACH_KM,
+  outpostReachKm,
   TROOP_CAP_TARGET,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
   nominalStrength,
@@ -16,6 +16,10 @@ import {
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
+
+/** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
+ *  tous un avant-poste de niveau 1. */
+const REACH_KM = outpostReachKm(1);
 
 /**
  * **What an army costs to hold, and where it costs double** (ADR 0019 §4, `consommation-continue`
@@ -231,7 +235,7 @@ describe('where a troop stands decides what it eats', () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     await plant(t, token, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, OUTPOST_REACH_KM / 2)));
+    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
     const upkeep = await upkeepOf(t, token);
     expect(upkeep.unsupplied).toBe(0);
@@ -242,7 +246,7 @@ describe('where a troop stands decides what it eats', () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     await plant(t, token, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, OUTPOST_REACH_KM + 50)));
+    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM + 50)));
 
     expect((await upkeepOf(t, token)).unsupplied).toBe(1);
   });
@@ -255,7 +259,7 @@ describe('where a troop stands decides what it eats', () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     await plant(t, guest, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, OUTPOST_REACH_KM / 2)));
+    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
     const upkeep = await upkeepOf(t, token);
     expect(upkeep.unsupplied).toBe(1);
@@ -272,7 +276,7 @@ describe('where a troop stands decides what it eats', () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     await plant(t, token, RIYADH, { disabled: true });
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, OUTPOST_REACH_KM / 2)));
+    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
     expect((await upkeepOf(t, token)).unsupplied).toBe(1);
 

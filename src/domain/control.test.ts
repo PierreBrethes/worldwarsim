@@ -13,6 +13,9 @@ import {
 } from './control';
 import type { LonLat } from './geo';
 
+/** **Le rayon du fixture, pas celui du jeu** : la portée suit le niveau du point depuis le
+ *  31/08 (`outpostReachKm`), et ces cas se lisent en degrés d'équateur — les figer ici garde le
+ *  test sur la règle plutôt que sur la valeur d'équilibrage du jour. */
 const REACH_KM = 400;
 
 /** Sur l'équateur, un degré de longitude vaut ~111 km : les distances de ces cas se lisent. */
@@ -26,9 +29,14 @@ const region = (id: string, lon: number, country = 'ROU'): ControlledRegion => (
 
 const held = (
   regions: ReadonlyArray<ControlledRegion>,
-  outposts: ReadonlyArray<{ owner: string; point: LonLat }>,
+  outposts: ReadonlyArray<{ owner: string; point: LonLat; reachKm?: number }>,
   homeGrounds: ReadonlyArray<{ owner: string; country: string }> = [],
-) => heldRegions({ regions, outposts, homeGrounds, reachKm: REACH_KM });
+) =>
+  heldRegions({
+    regions,
+    outposts: outposts.map((outpost) => ({ reachKm: REACH_KM, ...outpost })),
+    homeGrounds,
+  });
 
 describe('the colour follows the outpost', () => {
   it('holds a region whose point falls inside the reach', () => {
@@ -45,6 +53,29 @@ describe('the colour follows the outpost', () => {
 
   it('holds nothing at all without an outpost', () => {
     expect(held([region('anywhere', 0)], []).size).toBe(0);
+  });
+});
+
+/**
+ * **Chaque point porte son rayon** (révision du 31/08) : il suit le niveau, donc deux avant-postes
+ * de la même saison ne couvrent pas le même cercle, et « le plus proche » ne veut plus dire « le
+ * plus proche tout court ».
+ */
+describe('the reach travels with the point', () => {
+  it('holds nothing from a point whose own reach falls short', () => {
+    const map = held([region('near', 1)], [{ owner: 'pierre', point: at(0), reachKm: 60 }]);
+    expect(map.size).toBe(0);
+  });
+
+  it('gives the region to the point that reaches, never to a nearer one that does not', () => {
+    const map = held(
+      [region('between', 1)],
+      [
+        { owner: 'pierre', point: at(0.5), reachKm: 30 },
+        { owner: 'lea', point: at(2), reachKm: 240 },
+      ],
+    );
+    expect(map.get('between')).toBe('lea');
   });
 });
 

@@ -8,7 +8,7 @@ import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
 import { resolveContact } from './combat';
-import { routeMinutes } from './constants';
+import { outpostReachKm, routeMinutes } from './constants';
 import { fail } from './errors';
 import {
   attachHome,
@@ -110,7 +110,7 @@ export const foundOutpostHere = mutation({
     for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
     /** **La fondation est un point d'échantillonnage** (ADR 0020 §5) : le sol autour vient de
      *  changer de main, et le relevé de chacun de ceux qui regardent ce sol-là bouge avec lui. */
-    await surveyFoundation(ctx, season._id, pointOf(point), Date.now());
+    await surveyFoundation(ctx, season._id, pointOf(point), outpostReachKm(1), Date.now());
     await ctx.db.insert('notices', {
       playerId: player._id,
       at: Date.now(),

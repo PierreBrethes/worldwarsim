@@ -1,8 +1,8 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { BuildingKey } from '../src/domain/ids';
-import { nearestOutpost } from '../src/domain/outposts';
-import { OUTPOST_REACH_KM, homeSlots } from './constants';
+import { reachingOutpost } from '../src/domain/outposts';
+import { homeSlots, outpostReachKm } from './constants';
 import { levelOf, playerBuildings } from './buildings';
 import { outpostsOf, pointOf } from './movement/forces';
 import { foundationOf, homeCountryOf, regionFacts, type RegionFacts } from './regions';
@@ -26,9 +26,19 @@ export const sameSite = (one: Site, other: Site): boolean =>
     ? other.kind === 'home'
     : other.kind === 'outpost' && other.outpostId === one.outpostId;
 
+/** Un point tel qu'une portée le lit : son emplacement, son rayon — qui suit son niveau depuis le
+ *  31/08 — et son identité, pour que l'ancrage sache de quel budget il parle. */
+export const reachOf = (outpost: Doc<'outposts'>) => ({
+  point: pointOf(outpost.point),
+  reachKm: outpostReachKm(outpost.level),
+  id: outpost._id,
+});
+
 /**
  * **Where a placement on this region anchors** — national soil at home, otherwise the nearest
- * outpost whose reach covers it, and `null` when none does. It is the very reach the placement
+ * outpost whose reach covers it, and `null` when none does. **Le plus proche qui porte jusque-là,
+ * jamais le plus proche tout court** : deux points de niveaux différents ne couvrent pas le même
+ * cercle depuis que la portée suit le niveau (31/08). It is the very reach the placement
  * rule already refuses with (`OUT_OF_OUTPOST_REACH`), read a second time for a second question:
  * *may I build here* and *whose budget does it eat* have to answer off one radius, or a player
  * would be allowed to place on a site that does not exist.
@@ -42,11 +52,8 @@ export function siteFor(
   outposts: ReadonlyArray<Doc<'outposts'>>,
 ): Site | null {
   if (homeCountry !== null && region.country === homeCountry) return HOME;
-  const nearest = nearestOutpost(
-    region.point,
-    outposts.map((outpost) => ({ point: pointOf(outpost.point), id: outpost._id })),
-  );
-  if (nearest === null || nearest.km > OUTPOST_REACH_KM) return null;
+  const nearest = reachingOutpost(region.point, outposts.map(reachOf));
+  if (nearest === null) return null;
   return { kind: 'outpost', outpostId: nearest.nearest.id };
 }
 
