@@ -121,7 +121,7 @@ export const SEASON_FORMATS = {
     defaultDurationHours: 168,
     hqLevelAtLaunch: 1,
     maxHqLevel: 5,
-    buildingCapBase: 3,
+    buildingCapBase: 5,
     buildingCapPerHqLevel: 2,
     startingAlloy: 500,
     startingOil: 40,

@@ -894,8 +894,8 @@ describe('the foundation the season owes', () => {
   /**
    * **The number that describes the season is not the ceiling, it is what is left of it.** The
    * foundation and the headquarters are standing before the player chooses anything, so the
-   * free placements are the whole width of the decision — and the season opens with **none**,
-   * which is exactly what ADR 0020 §10 sends the global ceiling away for.
+   * free placements are the whole width of the decision — the season used to open with **none**
+   * of them, which is what raised `BUILDING_CAP_BASE` to five on 31/08.
    */
   it('leaves the free placements the season asks for, on French ground', () => {
     // France is the reading nation of every figure in this file — four extractors owed, the
@@ -904,8 +904,8 @@ describe('the foundation the season owes', () => {
     expect(owed).toBe(4);
     const free = (hqLevel: number) => buildingCap(hqLevel) - (owed + 1);
 
-    expect(free(HQ_LEVEL_AT_LAUNCH)).toBe(0);
-    expect(free(MAX_HQ_LEVEL)).toBe(8);
+    expect(free(HQ_LEVEL_AT_LAUNCH)).toBe(2);
+    expect(free(MAX_HQ_LEVEL)).toBe(10);
   });
 });
 
@@ -1249,7 +1249,7 @@ describe('one building per region, and a global ceiling', () => {
     const token = await launchedSeason(t);
     await promoteHq(t, token, unlockLevel('billets'));
     const cap = buildingCap(unlockLevel('billets'));
-    expect(cap).toBe(7);
+    expect(cap).toBe(9);
 
     // The headquarters makes one; the rest fill the ceiling of a headquarters at 2, on the
     // regions of the home country the view carries.
@@ -1281,20 +1281,25 @@ describe('one building per region, and a global ceiling', () => {
 
   /**
    * **A key the season owes is never refused by the ceiling** (decision of 25/08). The measured
-   * case: the headquarters is planted at 1, which carries five buildings, and the American
-   * ground is owed five extractors — the fifth used to be refused on an empty map, a debt of
-   * the season made unpayable by a rule of the season.
+   * case: a headquarters at 1 carried five buildings and the American ground is owed five
+   * extractors, so the fifth was refused on an empty map — a debt of the season made unpayable
+   * by a rule of the season. The base is 5 since 31/08 and the empty map no longer reproduces
+   * it, so the ceiling is filled here on purpose: the rule is what is under test, not the
+   * arithmetic that once exposed it.
    */
-  it('places every owed key at a ceiling the foundation alone fills', async () => {
+  it('places every owed key at a ceiling already full', async () => {
     const t = boot();
     const token = await launchedSeason(t, 168, 'usa');
 
     const owed = foundationOwed('usa', []);
     expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
     const cap = buildingCap(HQ_LEVEL_AT_LAUNCH);
-    expect(cap).toBe(5);
-    // The headquarters already stands, so the debt alone runs the ceiling over.
-    expect(owed.length + 1).toBeGreaterThan(cap);
+    // Stood on French ground, where no American debt will ever look for a region: what fills
+    // the ceiling has to be the count, never the deposits the foundation still needs.
+    const elsewhere = [MARNE, MOSELLE, MEURTHE, PAS_DE_CALAIS, ARDENNES, JURA, PARIS];
+    for (const regionId of elsewhere.slice(0, cap - 1)) await raise(t, token, 'depot', regionId);
+    const full = await t.query(api.view.playerView, { token });
+    expect(full.me.buildings).toHaveLength(cap);
 
     for (let placed = 0; placed < owed.length; placed += 1) {
       const view = await t.query(api.view.playerView, { token });
@@ -1327,7 +1332,7 @@ describe('one building per region, and a global ceiling', () => {
     expect(done.me.foundation).toEqual([]);
     // Above the ceiling, and deliberately: what stands counts like anything else, so the next
     // paid placement waits for the headquarters.
-    expect(done.me.buildings).toHaveLength(owed.length + 1);
+    expect(done.me.buildings).toHaveLength(cap + owed.length);
     expect(done.me.buildings.length).toBeGreaterThan(done.me.buildingCap);
   });
 

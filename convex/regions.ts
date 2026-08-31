@@ -198,6 +198,21 @@ export function capitalRegionOf(nation: Nation, table = CAPITAL_REGION): string 
  * The whole home country is at most two hundred and thirty entries of four short fields, and
  * it is the player's own ground: nothing here is another player's business.
  */
+/**
+ * **Toute la carte, construite une fois et à la demande.** La couleur de possession est la
+ * seule règle qui ait besoin des 4 589 régions d'un coup (`domain/control.ts`) : tout le reste
+ * lit une région par son identifiant, ou le sol d'un pays. Le cache est paresseux pour cette
+ * raison — un isolat qui ne sert que des mouvements ne paie jamais ces objets.
+ */
+let everyRegion: ReadonlyArray<RegionFacts> | null = null;
+
+export function allRegions(): ReadonlyArray<RegionFacts> {
+  everyRegion ??= Object.keys(COUNTRY_OF_REGION)
+    .map((regionId) => regionFacts(regionId))
+    .filter((facts): facts is RegionFacts => facts !== null);
+  return everyRegion;
+}
+
 export function regionsOf(country: string): ReadonlyArray<RegionFacts> {
   const found: Array<RegionFacts> = [];
   for (const regionId of Object.keys(COUNTRY_OF_REGION)) {

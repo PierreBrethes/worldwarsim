@@ -12,6 +12,7 @@ import type * as buildings from "../buildings.js";
 import type * as combat from "../combat.js";
 import type * as constants from "../constants.js";
 import type * as constructions from "../constructions.js";
+import type * as control from "../control.js";
 import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as industry from "../industry.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   combat: typeof combat;
   constants: typeof constants;
   constructions: typeof constructions;
+  control: typeof control;
   dev: typeof dev;
   errors: typeof errors;
   industry: typeof industry;

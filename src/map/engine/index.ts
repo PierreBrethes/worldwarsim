@@ -32,7 +32,7 @@ import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
-import { RegionLayer, REGIONS_GONE_DISTANCE } from './regions';
+import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { WorldFrame } from './frame';
 
 /**
@@ -40,6 +40,8 @@ import { WorldFrame } from './frame';
  * carries no opposing building, so the map has nothing to filter — the fog holds on the shape
  * of the served data, not on a display test (ADR 0005).
  */
+export type { HeldClaim } from './regions';
+
 export type BuiltRegions = {
   readonly regionIds: ReadonlyArray<string>;
   readonly ink: string;
@@ -251,6 +253,7 @@ export class MapEngine {
     );
 
     this.scene.add(this.regions.lines);
+    this.scene.add(this.regions.held);
     this.scene.add(this.regions.built);
     this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
@@ -408,6 +411,14 @@ export class MapEngine {
    */
   showBuiltRegions(built: BuiltRegions): void {
     this.regions.showBuilt(new Set(built.regionIds), built.ink);
+  }
+
+  /**
+   * **Qui tient quelles régions** (ADR 0020 §1). La teinte reste au loin quand les frontières
+   * s'effacent : on lit qui tient quoi sans lire le découpage — voir `RegionLayer.showHeld`.
+   */
+  showHeldRegions(claims: ReadonlyArray<HeldClaim>): void {
+    this.regions.showHeld(claims);
   }
 
   /** The ground an armed key accepts, as the domain computed it — see `RegionLayer.showDesignated`. */

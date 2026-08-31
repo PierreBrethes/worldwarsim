@@ -68,6 +68,12 @@ c'est le point que l'ancien modèle ratait. Ajoute : fondation hors compte · av
 1 emplacement, niveau 3 = 3 · pose refusée sur un site plein mais acceptée sur un autre ·
 l'entretien débite par niveau · un avant-poste détruit n'accepte plus de pose.
 
+⚠️ Garde aussi la contrainte des Länder, sous sa forme nouvelle : sur le sol national, QG +
+fondation la plus large (5) + `2 × MAX_HQ_LEVEL` (10) = 16 bâtiments — **exactement** le nombre de
+régions allemandes, avec la règle un-bâtiment-par-région. Ça passe, à zéro marge : écris
+l'assertion (`≤ 16`) et un commentaire disant qu'un `MAX_HQ_LEVEL` à 6 ou un `PER_HQ_LEVEL` à 3
+la ferait tomber pour la seule Allemagne.
+
 ## Docs
 
 `WWS/docs/QUESTIONS.md` : Q4 se referme, renvoi à l'ADR 0020 §10. Registre `@a-mesurer` régénéré

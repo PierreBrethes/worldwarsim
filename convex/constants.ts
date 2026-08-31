@@ -140,13 +140,20 @@ export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
  * The ceiling must stay strictly under the region count of the smallest playable nation, or the
  * one-per-region rule would cap Germany and nobody else — `economy.test.ts` asserts it.
  *
- * **A global ceiling is on its way out**: the ADR 0020 §10 makes the placements local, held per
- * outpost, precisely because a global count punishes the expansion that ADR asks for. What is
- * here is the surviving pair of the single format, kept until that lands.
+ * **The base is 5 and not 3 since 31/08.** At the headquarters the single season plants — one —
+ * three plus two left a ceiling of five, and the national foundation ate all of it: zero free
+ * placement at the launch, and *fewer* the richer the ground, since the debt follows the
+ * deposits. That inverts the distribution guard rails of ADR 0015, which exist so a wealthy
+ * ground is not simply a better one. A provisional setting: the ADR 0020 §10 replaces this
+ * global ceiling with placements held per outpost.
+ *
+ * **A global ceiling is on its way out** for that very reason — a global count punishes the
+ * expansion that ADR asks for. What is here is what the single format leaves behind, kept until
+ * the local placements land.
  *
  * @a-mesurer the pair a single format leaves behind, never simulated — ADR 0020 §10 replaces it
  */
-export const BUILDING_CAP_BASE = 3;
+export const BUILDING_CAP_BASE = 5;
 export const BUILDING_CAP_PER_HQ_LEVEL = 2;
 
 export const buildingCap = (hqLevel: number): number =>

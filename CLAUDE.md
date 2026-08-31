@@ -183,6 +183,17 @@ Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rai
 grisées. La §4.5 de la fiche 11 est **périmée** : le flux de mouvement en carte l'a remplacée. Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
 dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
 
+**La carte se colore** (ADR 0020 §1) : une région est *tenue* par le joueur dont un avant-poste
+la couvre dans `OUTPOST_REACH_KM` — le rayon de construction, jamais une seconde constante — ou
+par la nation dont elle est le sol d'origine, que rien ne lui prend. La règle est pure
+(`src/domain/control.ts`, litige au plus proche, égalité exacte à personne), servie par une
+**query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
+bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
+d'une colonne. Rien n'est stocké. La teinte est **celle du siège**, pas de la nation, et elle
+reste au loin quand les frontières de région s'effacent. Sa signature est déjà « ce que ce joueur
+connaît » : elle rend la vérité entière le temps que le relevé et sa péremption arrivent
+(ADR 0020 §5). Pas encore de score, pas de production reliée, pas de décoloration au raid.
+
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière ; la **destruction** après
 plusieurs raids attend le pillage, et rien ne les compte. Il ouvre un rayon de

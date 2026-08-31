@@ -32,6 +32,9 @@ const VISIBLE_SHARE = 0.01;
 
 /** Stacking flush with the slab: fill under the strokes, strokes under the hover and the borders. */
 const STROKE_LIFT = 0.003;
+/** Under everything else the layer draws: possession is the ground the rest is laid on, and a
+ *  region that carries a building must still show the denser built ink over its holder's. */
+const HELD_LIFT = 0.0005;
 const BUILT_LIFT = 0.001;
 /** Just above the built fill: a designated region is an answer to a gesture, and it has to
  *  read over the ink of what already stands there. */
@@ -44,6 +47,23 @@ const HOVER_OPACITY = 0.85;
 
 /** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
 const DESIGNATED_OPACITY = 0.62;
+
+/**
+ * **La couleur de possession ne suit pas le fondu du rapproché** (décision de Pierre, 31/08) :
+ * au-delà du seuil les traits de région disparaissent, la teinte reste. On voit qui tient quoi
+ * sans voir le découpage — et c'est l'apparition des frontières intérieures, elle seule, qui
+ * annonce au joueur qu'une région devient survolable.
+ *
+ * L'opacité est donc constante, et modérée : c'est un lavis posé sur l'encre du pays, jamais un
+ * aplat qui remplacerait le sol.
+ */
+const HELD_OPACITY = 0.5;
+
+/** Ce qu'un joueur tient, et de quelle encre — la forme que `control.held` sert. */
+export type HeldClaim = {
+  readonly ink: string;
+  readonly regionIds: ReadonlyArray<string>;
+};
 
 type PreparedRegion = {
   readonly region: DisplayedRegion;
@@ -59,6 +79,10 @@ type PreparedRegion = {
  */
 export class RegionLayer {
   readonly lines: LineSegments;
+  /** **Qui tient quoi** (ADR 0020 §1) — un maillage par encre, jamais un seul teinté au sommet :
+   *  huit joueurs au plus, donc huit matériaux, et la couleur d'un joueur reste une valeur qu'on
+   *  lit dans un débogueur plutôt qu'un attribut de géométrie. */
+  readonly held = new Group();
   readonly built: Mesh;
   /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
   readonly designated: Mesh;
@@ -70,6 +94,10 @@ export class RegionLayer {
   private readonly hoverMaterial: LineBasicMaterial;
   private prepared: PreparedRegion[] = [];
   private hoveredRegion: DisplayedRegion | null = null;
+  private claims: ReadonlyArray<HeldClaim> = [];
+  /** L'encre du tenant, par région : le survol la lit pour teinter le contour d'une région tenue
+   *  à sa couleur plutôt qu'à celle de son terrain. */
+  private inkByRegion = new Map<string, string>();
   private builtIds: ReadonlySet<string> = new Set();
   private designatedIds: ReadonlySet<string> = new Set();
   private birth = 0;
@@ -169,6 +197,22 @@ export class RegionLayer {
   }
 
   /**
+   * **Qui tient quelles régions, et de quelle encre.** La liste arrive calculée (`control.held`,
+   * règle dans `domain/control.ts`) : la carte dessine ce qu'on lui tend, et une seconde lecture
+   * ici colorerait un sol que le serveur ne donne à personne.
+   *
+   * Elle peut arriver avant les régions elles-mêmes — la couche garde la réclamation et la pose
+   * quand les 500 Ko atterrissent, comme pour les bâtiments.
+   */
+  showHeld(claims: ReadonlyArray<HeldClaim>): void {
+    this.claims = claims;
+    this.inkByRegion = new Map(
+      claims.flatMap((claim) => claim.regionIds.map((regionId) => [regionId, claim.ink] as const)),
+    );
+    this.rebuildHeld();
+  }
+
+  /**
    * The regions that carry a building, and the ink of the nation that raised them. **Only the
    * player's own ever arrive here**: `PlayerView` holds no opposing building, so no ownership
    * test guards this call — the fog is a property of the served data, not of the rendering
@@ -192,8 +236,42 @@ export class RegionLayer {
 
   /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
   rebuild(): void {
+    this.rebuildHeld();
     this.fill(this.built, this.builtIds, BUILT_LIFT);
     this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
+  }
+
+  /** Un maillage par tenant, refait entier : la couleur ne bouge qu'à la fondation ou à la perte
+   *  d'un avant-poste, et un diff par région coûterait plus cher que ces huit fusions. */
+  private rebuildHeld(): void {
+    for (const child of this.held.children) {
+      const mesh = child as Mesh;
+      mesh.geometry.dispose();
+      (mesh.material as MeshStandardMaterial).dispose();
+    }
+    this.held.clear();
+    for (const claim of this.claims) {
+      const ids = new Set(claim.regionIds);
+      const parts = this.prepared
+        .filter(({ region }) => ids.has(region.id))
+        .map(({ region }) => this.fillOf(region, HELD_LIFT));
+      if (parts.length === 0) continue;
+      const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
+      if (parts.length > 1) parts.forEach((part) => part.dispose());
+      this.held.add(
+        new Mesh(
+          geometry,
+          new MeshStandardMaterial({
+            color: claim.ink,
+            roughness: 0.97,
+            metalness: 0,
+            transparent: true,
+            opacity: HELD_OPACITY,
+            depthWrite: false,
+          }),
+        ),
+      );
+    }
   }
 
   private fill(mesh: Mesh, ids: ReadonlySet<string>, lift: number): void {
@@ -292,6 +370,13 @@ export class RegionLayer {
   }
 
   dispose(): void {
+    for (const child of this.held.children) {
+      const mesh = child as Mesh;
+      mesh.geometry.dispose();
+      (mesh.material as MeshStandardMaterial).dispose();
+    }
+    this.held.clear();
+    this.held.removeFromParent();
     this.lines.geometry.dispose();
     this.built.geometry.dispose();
     this.designated.geometry.dispose();
@@ -330,8 +415,11 @@ export class RegionLayer {
       return;
     }
 
+    /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
+     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». Les
+     *  accessoires 3D poussent quand même — ils disent le terrain, et le terrain n'a pas changé. */
     const type = regionType(region.name);
-    this.hoverMaterial.color.set(TYPE_TINTS[type]);
+    this.hoverMaterial.color.set(this.inkByRegion.get(region.id) ?? TYPE_TINTS[type]);
     this.sowProps(prepared, type);
 
     const points: number[] = [];

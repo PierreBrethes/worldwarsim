@@ -16,13 +16,18 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type BuiltRegions } from './engine';
+import { MapEngine, type BuiltRegions, type HeldClaim } from './engine';
 
 type Props = {
   world: World;
   arcs: ReadonlyArray<ArcView>;
   labels: ReadonlyArray<MapLabel>;
   inkByCountry: ReadonlyMap<string, string>;
+  /**
+   * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
+   * jamais recalculé ici : la carte dessine ce qu'on lui tend.
+   */
+  held: ReadonlyArray<HeldClaim>;
   /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
@@ -82,6 +87,7 @@ export function WorldMap({
   arcs,
   labels,
   inkByCountry,
+  held,
   built,
   selectedCountry,
   playerNation,
@@ -123,7 +129,8 @@ export function WorldMap({
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
 
-    // Zoom decor only: the board does not wait for these 500 KB, and their failure is mute.
+    // The board does not wait for these 500 KB, and their failure is mute — but the possession
+    // colour hangs on them too since ADR 0020: no regions, no ground to ink.
     let abandoned = false;
     loadRegions()
       .then((data) => {
@@ -313,6 +320,10 @@ export function WorldMap({
   useEffect(() => {
     engine.current?.colorNations(inkByCountry);
   }, [inkByCountry]);
+
+  useEffect(() => {
+    engine.current?.showHeldRegions(held);
+  }, [held]);
 
   useEffect(() => {
     engine.current?.showBuiltRegions(built);

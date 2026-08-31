@@ -84,6 +84,29 @@ capturé au fond du territoire adverse **ne produit rien** tant que la couleur d
 arrivée jusqu'à lui. La capture devient un pari sur l'avancée suivante, pas un gain immédiat — et
 elle n'occupe pas un emplacement du preneur, mais celui de l'avant-poste adverse.
 
+### 6. Seule l'infanterie pille, capture et fonde (décision du 31/08 au soir)
+
+La fondation d'avant-poste était déjà réservée à l'infanterie mk1/mk2 (ADR 0015). Pierre l'étend
+au pillage et à la capture : **chars, avions et bateaux ne capturent rien** — ils détruisent, ils
+escortent, ils portent. L'infanterie est le seul rôle qui *prend*. C'est cohérent, ça donne à
+l'infanterie une identité que sa ligne de dégâts ne lui donnait pas, et ça force les colonnes de
+pillage à embarquer le rôle le plus lent — le trajet de retour reste une cible.
+
+### 7. Le QG frappé — tranché pour le test (décision du 31/08 au soir)
+
+Le 🟠 se referme, en deux temps :
+
+- **Par défaut, un QG se pille** (comme un bâtiment de production), jamais ne se détruit.
+- **Une recherche tardive (palier 4 au moins, chère) débloque la destruction de QG.**
+
+⚠️ **Ceci révise une règle du projet, et le dit** : « un joueur écrasé reste nuisible, jamais
+éliminé ». Un QG détruit, c'est l'élimination de fait — plus de recherche, plus d'emplacements
+nationaux, plus de stockage. Position de Pierre, assumée pour le test : « tant pis si tu as perdu,
+tu avais qu'à défendre ». Le garde-fou est le **palier** : l'élimination n'existe qu'en fin de
+partie, quand elle abrège au lieu de vider — c'est la fonction que la frappe terminale visait,
+obtenue sans bombe. À regarder au premier test : ce que vit le joueur dont le QG tombe, et
+combien de temps il reste à la partie après.
+
 ## ⚠️ Le point qui se contredit : entrepôt et dépôt
 
 Décision de la même session : « stock global, capacité de stockage améliorable sur le QG, entrepôt

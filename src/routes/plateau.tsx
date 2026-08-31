@@ -544,6 +544,18 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
 
   // Nothing filters here: `me.buildings` is the player's own list and there is no other, so
   // the map cannot ink a region an opponent built on (ADR 0005).
+  /**
+   * **La couleur du sol, servie par sa propre query** (ADR 0020 §1) : elle ne bouge qu'à la
+   * fondation ou à la perte d'un avant-poste, là où `PlayerView` se réinvalide au moindre pas
+   * d'une colonne. Les coudre ensemble ferait recalculer 4 589 régions pour une troupe qui
+   * marche. Le temps que la première réponse arrive, la carte est simplement sans teinte.
+   */
+  const heldRaw = useQuery(api.control.held, { token });
+  const held = useMemo(
+    () => (heldRaw ?? []).map(({ ink, regionIds }) => ({ ink, regionIds })),
+    [heldRaw],
+  );
+
   const built = useMemo(
     () => ({
       regionIds: view.me.buildings.map(({ regionId }) => regionId),
@@ -754,6 +766,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           arcs={arcs}
           labels={labels}
           inkByCountry={inkByCountry}
+          held={held}
           built={built}
           selectedCountry={country ?? null}
           playerNation={view.me.nation}
