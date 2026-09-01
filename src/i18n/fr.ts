@@ -572,7 +572,9 @@ export const fr = {
   },
 
   rail: {
-    production: { title: 'Production — recrutement d’unités', label: 'prod.' },
+    /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
+     *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
+    gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
     economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
@@ -881,7 +883,7 @@ export const fr = {
     count: (count: number) => `${count} en attente`,
     toMap: 'carte',
     toEconomy: 'économie',
-    toProduction: 'production',
+    toSite: 'au site',
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
     idleSite: 'chantier libre — rien en file',
@@ -1037,6 +1039,12 @@ export const fr = {
       none: 'hors de portée',
     } satisfies Record<'strong' | 'even' | 'weak' | 'none', string>,
     reading: 'lecture',
+    /** Le pli est la seule chose que l'abaque ait jamais demandé d'apprendre : il faut le dire. */
+    foldHint: 'pliez une ligne pour la fiche du rôle',
+    strengthLabel: 'effectif',
+    /** La condition se dit en toutes lettres, jamais en grisé (contrat 06) — et elle se dit même
+     *  quand le bâtiment n'existe pas, c'est tout l'objet du déménagement (60b). */
+    formsIn: (building: string) => `se forme dans ${building}`,
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,
@@ -1045,18 +1053,17 @@ export const fr = {
 
   production: {
     header: 'production',
-    opening: 'Ouverture de l’atelier…',
+    opening: 'Ouverture du site…',
     domains: { land: 'terre', air: 'air', sea: 'mer' },
-    site: 'site',
-    siteOption: (region: string, level: number) => `${region} — niveau ${level}`,
-    // The single limiting factor, never the list of conditions (brief §5).
-    blockedBy: (none: string) => `bloqué : ${none}`,
-    noSite: (building: string) =>
-      `Aucun bâtiment de ce type. Bâtissez ${building} pour former ce domaine.`,
     queueHeader: 'files de production',
+    /** La modale ne parle que d'un site : le nom du bâtiment, sa région et son niveau sont son
+     *  kicker, et le bandeau de garnison compte ce qui s'y tient. */
+    siteLevel: (level: number) => `niveau ${level}`,
     queueOf: (region: string, count: number, max: number) =>
       `${region} — ${count} lot${plural(count, '', 's')} en file sur ${max}`,
-    queueEmpty: 'Aucune troupe en chaîne. Choisissez un site et enfilez un rôle.',
+    /** La seconde phrase envoyait vers le sélecteur de site, mort avec l'onglet (59a) : dans une
+     *  modale de site il n'y a plus qu'un site, et les rôles sont juste au-dessus. */
+    queueEmpty: 'Aucune troupe en chaîne. Enfilez un rôle ci-dessus.',
     atWaking: 'au réveil',
     wakingNote:
       'Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle. Une troupe déjà commencée ne s’annule plus ; les suivantes sont remboursées intégralement.',

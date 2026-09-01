@@ -17,7 +17,9 @@ import { stationNames, type StationNames } from './station-name';
 export type NextActionKind =
   'foundation' | 'idleSite' | 'idleBarracks' | 'troopWithoutOrder' | 'unsupplied' | 'freeSlot';
 
-export type NextActionSurface = 'economy' | 'production';
+/** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
+ *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
+export type NextActionSurface = 'economy';
 
 /**
  * Où la ligne mène. `unfold` est la fondation et elle seule : elle ne mène nulle part parce que
@@ -28,6 +30,10 @@ export type NextActionSurface = 'economy' | 'production';
 export type NextActionTarget =
   | { readonly kind: 'map'; readonly point: LonLat }
   | { readonly kind: 'surface'; readonly surface: NextActionSurface }
+  /** Un site de production : la carte se recentre sur son mât **et** sa modale s'ouvre — une
+   *  seule destination, celle du clic gauche (59a, 61a). Le point n'est pas porté ici : le
+   *  plateau sait cadrer un bâtiment par son marqueur, et un second point diverge. */
+  | { readonly kind: 'site'; readonly buildingId: string }
   | { readonly kind: 'unfold' };
 
 export type NextAction = {
@@ -107,7 +113,7 @@ function idleProjectionLines(view: PlayerView): ReadonlyArray<NextAction> {
         fr.buildings[building.key],
         regions.get(building.regionId) ?? building.name,
       ),
-      target: { kind: 'surface' as const, surface: 'production' as const },
+      target: { kind: 'site' as const, buildingId: building.id },
     }));
 }
 

@@ -29,6 +29,7 @@ export function NextActions({
   onArm,
   onGoToMap,
   onOpenSurface,
+  onOpenSite,
 }: {
   view: PlayerView;
   placements: ReadonlyArray<Placement>;
@@ -37,6 +38,8 @@ export function NextActions({
   onArm: (key: BuildingKey | null) => void;
   onGoToMap: (point: LonLat) => void;
   onOpenSurface: (surface: NextActionSurface) => void;
+  /** Recentrer **et** ouvrir : une caserne au repos se lève sur la carte, pas dans un onglet. */
+  onOpenSite: (buildingId: string) => void;
 }) {
   /** Ouvert d'entrée : la fondation est la première chose à faire d'une saison, et la replier
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
@@ -89,6 +92,7 @@ export function NextActions({
               const target = action.target;
               if (target.kind === 'map') onGoToMap(target.point);
               else if (target.kind === 'surface') onOpenSurface(target.surface);
+              else if (target.kind === 'site') onOpenSite(target.buildingId);
             }}
           />
         ),
@@ -99,7 +103,6 @@ export function NextActions({
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
   economy: fr.nextActions.toEconomy,
-  production: fr.nextActions.toProduction,
 };
 
 /** Où la ligne mène, dit à droite et en petit : le joueur choisit de cliquer en sachant s'il
@@ -109,7 +112,9 @@ const destinationWord = (target: NextActionTarget): string =>
     ? fr.nextActions.toMap
     : target.kind === 'surface'
       ? SURFACE_WORD[target.surface]
-      : '';
+      : target.kind === 'site'
+        ? fr.nextActions.toSite
+        : '';
 
 /** Une ligne, une attente, une destination. Le chevron est la promesse que le clic mène quelque
  *  part — la carte ne coche rien et ne range rien, donc il n'y a rien d'autre à presser. */

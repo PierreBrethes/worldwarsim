@@ -27,10 +27,10 @@ describe('the board’s search state', () => {
     expect(withoutWindow(focused, 'journal').building).toBe('k17abc');
   });
 
-  it('lets the rail toggle a surface off, focus included', () => {
-    const focused = { ...withWindow({}, 'production'), building: 'k17abc' };
-    const toggled = toggleWindow(focused, 'production');
-    expect(windowOpen(toggled, 'production')).toBe(false);
+  it('lets a focused surface toggle off, focus included', () => {
+    const focused = { ...withWindow({}, 'site'), building: 'k17abc' };
+    const toggled = toggleWindow(focused, 'site');
+    expect(windowOpen(toggled, 'site')).toBe(false);
     expect(toggled.building).toBeUndefined();
   });
 });

@@ -39,8 +39,12 @@ sur ce compte rendu, sans re-résoudre.
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
 dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — soixante-quinze
 couples, une ligne par profil, l'encre dit la bande avant que le chiffre soit lu, le survol donne la
-valeur. En lecture seule, sans entrée de rail : on l'ouvre du recrutement et de la popin de troupe,
-aux deux endroits où « qui bat qui » se demande.
+valeur. Depuis la décision 60b il est aussi le **catalogue** : au pli d'une ligne, sprite national,
+équipement, coût alliage par marque, formation, effectif nominal, « en service » servi par
+`workshop.roster`, fort / faible contre et **la condition en toutes lettres** — « se forme dans une
+caserne », « quartier général niveau 2 requis ». C'est ce qui remplace les sections « bloqué :
+aucun aérodrome » de l'ancienne fenêtre Production : tout le matériel du jeu se lit **sans rien
+posséder**. En lecture seule, et il tient l'entrée de rail que l'onglet « prod. » a libérée.
 
 **Le mouvement s'ordonne depuis la carte, et de nulle part ailleurs** (décisions 12a et 13a,
 `WWS/docs/design/propositions/flux-mouvement-en-carte.md`). La fenêtre Troupes, la modale
@@ -87,10 +91,20 @@ assumée et affichée : une troupe posée **après** un départ ne verra jamais 
 se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches ; la station
 d'écoute, l'agent dormant et la sonde n'existent toujours pas.
 
-**La surface 4.6, Production, existe aussi** — file de recrutement séquentielle, annulation
-remboursée d'un lot non commencé, paliers MK1/MK2 déverrouillés par le complexe industriel.
-Elle a demandé la **première tranche du schéma de jeu** (`unites`, `recrutements`), écrite
-avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLAUDE.md`, pas un
+**Le recrutement se fait dans la modale d'un site, et de nulle part ailleurs** (décisions 59a,
+60b, 61a du 01/09). La fenêtre Production générale et son onglet « prod. » sont **morts** : le
+clic gauche sur une caserne, un aérodrome ou un port ouvre `src/routes/-plateau/SiteModal.tsx`,
+qui ne parle que de **ce bâtiment-là** — en-tête (bâtiment, région, niveau, son élévation), les
+cartes du **seul domaine du site**, la rangée de cases du plafond (global, `workshop.troopCap`),
+la file de ce site seul, et la **garnison**, que la modale absorbe (61a) : composer et armer une
+pile s'y fait, le mât n'a plus qu'une destination. `troops.workshop` n'a pas bougé — la modale la
+filtre par bâtiment. Il n'y a **aucune section de domaine sans bâtiment** et aucun grisé : la
+découverte vit dans l'abaque. Un lot commencé ne porte plus de bouton d'annulation, il porte la
+phrase qui dit pourquoi. La composition elle-même est une seule pièce (`GarrisonStack.tsx`),
+partagée avec le panneau de garnison d'un avant-poste ou d'une pile posée — deux cadres, un flux.
+
+Cette surface a demandé la **première tranche du schéma de jeu** (`unites`, `recrutements`),
+écrite avant la fermeture du 🔴 : c'est une entorse assumée à la règle de `WWS/CLAUDE.md`, pas un
 oubli — elle est gravée dans l'ADR 0011. Les coûts et durées de `convex/constants.ts` sont
 **arbitraires**, jamais simulés.
 
@@ -208,7 +222,8 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 ## Ce qui reste
 
 Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
-grisées. La §4.5 de la fiche 11 est **périmée** : le flux de mouvement en carte l'a remplacée. Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
+grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mouvement en carte a
+remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
 dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
 
 **La carte se colore** (ADR 0020 §1) : une région est *tenue* par le joueur dont un avant-poste

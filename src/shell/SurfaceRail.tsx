@@ -6,6 +6,7 @@ import { CATEGORIES, type IndicatorCategory } from '@/domain/indicators';
 import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
 import type { BoardWindow, BoardSearch } from '@/routes/plateau';
 import { toggleWindow, windowOpen } from '@/routes/plateau';
+import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { Glyph } from './Glyph';
 import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
@@ -58,11 +59,11 @@ export function SurfaceRail({
       unread: telegraphUnread,
     },
     {
-      title: fr.rail.production.title,
-      label: fr.rail.production.label,
-      icon: <Pictogram pictogram="production" weight={20} size={19} />,
-      target: toggled('production'),
-      active: windowOpen(search, 'production'),
+      title: fr.rail.gunnery.title,
+      label: fr.rail.gunnery.label,
+      icon: <AbacusMark size={19} />,
+      target: toggled('gunnery'),
+      active: windowOpen(search, 'gunnery'),
     },
     {
       title: fr.rail.economy.title,

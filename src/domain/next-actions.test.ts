@@ -72,7 +72,7 @@ describe('what waits for the player', () => {
     const idle = nextActionsOf(board({ recruiting: [] }))[0];
     expect(idle?.kind).toBe('idleBarracks');
     expect(idle?.label).toBe('Caserne sans recrutement — Rhône');
-    expect(idle?.target).toEqual({ kind: 'surface', surface: 'production' });
+    expect(idle?.target).toMatchObject({ kind: 'site' });
 
     expect(kinds(board())).not.toContain('idleBarracks');
   });

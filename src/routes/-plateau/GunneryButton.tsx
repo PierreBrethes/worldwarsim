@@ -1,10 +1,10 @@
 import { fr } from '@/i18n/fr';
 
 /**
- * **La porte de l'abaque de tir, là où la question se pose** — au recrutement, quand on choisit
- * quoi former, et sur la popin de troupe, quand on regarde ce qu'on a. Deux appelants, donc il
- * vit ici plutôt que dans l'un des deux (CONVENTIONS §1) ; **pas d'entrée de rail**, qui en a
- * déjà trop (audit du 25/08 §3).
+ * **La porte de l'abaque de tir, là où la question se pose** — dans la modale d'un site, quand on
+ * choisit quoi former, et sur la popin de troupe, quand on regarde ce qu'on a. Le rail en porte
+ * une troisième depuis que l'onglet « prod. » est mort (59a) : sans elle, un joueur sans caserne
+ * ni troupe n'aurait plus aucun chemin vers le catalogue, ce que le contrat 06 interdit.
  *
  * Un pictogramme et rien d'autre : c'est un renvoi vers du détail, pas une action de jeu, et un
  * libellé le mettrait au même rang que « recruter ». Le nom complet est dans l'infobulle et dans
@@ -28,10 +28,13 @@ export function GunneryButton({ onOpen }: { onOpen: () => void }) {
  * L'abaque lui-même, en neuf cases : trois pleines, trois grises, trois vides — c'est la grille
  * qu'on ouvre, et ses trois encres de lecture. Le tracé prend `currentColor` pour que le survol
  * l'inverse avec le cadre.
+ *
+ * Exporté depuis que le rail le porte (59a) : l'onglet « prod. » est mort et l'abaque a pris sa
+ * place, parce qu'il est la seule lecture des unités qui ne demande de posséder rien.
  */
-function AbacusMark() {
+export function AbacusMark({ size = 12 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden focusable="false">
+    <svg viewBox="0 0 12 12" width={size} height={size} aria-hidden focusable="false">
       <g fill="currentColor">
         <rect x="0.5" y="0.5" width="3" height="3" />
         <rect x="4.5" y="4.5" width="3" height="3" />

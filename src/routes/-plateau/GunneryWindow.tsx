@@ -1,28 +1,43 @@
+import { useQuery } from 'convex/react';
+import { Fragment, useState } from 'react';
+import { api } from '../../../convex/_generated/api';
 import { DAMAGE_TABLE, DEFENDER_BONUS, DRY_AMMUNITION_FACTOR } from '../../../convex/constants';
-import { fr, profileAbbreviation, profileLabel } from '@/i18n/fr';
+import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
 import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
-import { gunneryRows, type Band, type GunneryShot } from '@/domain/gunnery';
+import { gunneryRows, PROFILE_UNITS, type Band, type GunneryShot } from '@/domain/gunnery';
+import { DOMAIN_BY_ROLE, tierLabel } from '@/domain/troops';
+import type { UnitTier } from '@/domain/troops';
+import type { UnitRole } from '@/domain/ids';
+import { asDuration } from '@/domain/duration';
+import { UnitSprite } from '@/emblems/UnitSprite';
+import { equipmentLabel } from '@/emblems/units/equipment';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
 /**
- * **L'abaque de tir : la table de chiffrage, en lecture seule** (ADR 0018 §4, décision de Pierre
- * du 31/08). Soixante-quinze couples existaient, testés, et le joueur recrutait à l'aveugle.
+ * **L'abaque de tir, et le catalogue au pli** (ADR 0018 §4, décisions du 31/08 et 60b du 01/09).
+ * Soixante-quinze couples existaient, testés, et le joueur recrutait à l'aveugle ; la grille a
+ * réglé « qui bat qui ». Le pli règle le reste — ce que ça coûte, ce que ça vaut, et **ce qu'il
+ * faut bâtir pour l'avoir**, qui vivait dans les sections « bloqué : aucun aérodrome » de la
+ * fenêtre Production morte avec l'onglet (59a).
  *
  * **`DAMAGE_TABLE` est importée, jamais recopiée.** C'est la leçon de `verif-chiffrage.mjs`, qui
  * validait le chiffrage sur une copie : deux tables finissent par diverger, et le jour où elles
- * divergent l'écran ment sur des chiffres que le jeu ne joue plus.
+ * divergent l'écran ment sur des chiffres que le jeu ne joue plus. Le catalogue suit la même
+ * règle : `workshop.grid` est servi **sans condition de bâtiment**, donc la fiche se lit sans
+ * rien posséder — c'est tout l'objet du déménagement.
  *
- * **Du détail au clic** (maquette de la couche permanente, 30/08) : rien ici n'est permanent,
- * rien n'y est actionnable, et le rail n'y gagne aucune entrée — on l'ouvre depuis le
- * recrutement et depuis la popin de troupe, aux deux endroits où la question se pose.
+ * **Aucune action, aucun stock.** On ne forme pas depuis l'abaque : un coût nu suffit, et un
+ * « 18 / 320 » y serait la réserve imprimée une fois de plus (contrat 06 P3).
  */
-export function GunneryWindow({ onClose, ...windowProps }: WindowProps) {
+export function GunneryWindow({ token, onClose, ...windowProps }: WindowProps & { token: string }) {
   const rows = gunneryRows(DAMAGE_TABLE);
   const columns = COMBAT_PROFILES;
+  const workshop = useQuery(api.troops.workshop, { token });
+  const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (
-    <FloatingWindow name="gunnery" onClose={onClose} {...windowProps} alignment="top" width={980}>
+    <FloatingWindow name="gunnery" onClose={onClose} {...windowProps} alignment="top" width={1180}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.gunnery.header}</span>
@@ -72,34 +87,61 @@ export function GunneryWindow({ onClose, ...windowProps }: WindowProps) {
                     {profileAbbreviation(defender)}
                   </th>
                 ))}
+                <th
+                  scope="col"
+                  className="sticky top-0 z-10 w-[26px] border-b border-[var(--ink)] bg-[var(--paper)]"
+                />
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.attacker} className="border-b border-[rgba(42,33,24,.18)]">
-                  <th
-                    scope="row"
-                    className="sticky left-0 z-10 bg-[var(--paper)] px-3 py-[5px] text-left text-[12px] font-normal whitespace-nowrap text-[var(--ink)]"
-                  >
-                    {profileLabel(row.attacker)}
-                  </th>
-                  {row.fires ? (
-                    row.shots.map((shot) => (
-                      <Cell key={shot.defender} attacker={row.attacker} shot={shot} />
-                    ))
-                  ) : (
-                    /* Il se recrute et ne tire sur rien : la ligne le dit, plutôt que de
-                       disparaître ou de s'aligner en onze tirets — les deux se liraient comme
-                       une panne au lieu d'une règle. */
-                    <td
-                      colSpan={columns.length}
-                      className="border-l border-[rgba(42,33,24,.14)] px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
+              {rows.map((row) => {
+                const unfolded = open === row.attacker;
+                return (
+                  <Fragment key={row.attacker}>
+                    <tr
+                      onClick={() => setOpen(unfolded ? null : row.attacker)}
+                      className={`cursor-pointer border-b border-[rgba(42,33,24,.18)] ${
+                        unfolded ? 'bg-[rgba(255,255,255,.3)]' : ''
+                      }`}
                     >
-                      {fr.gunnery.firesNothing}
-                    </td>
-                  )}
-                </tr>
-              ))}
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 bg-[var(--paper)] px-3 py-[5px] text-left text-[12px] font-normal whitespace-nowrap text-[var(--ink)]"
+                      >
+                        {profileLabel(row.attacker)}
+                      </th>
+                      {row.fires ? (
+                        row.shots.map((shot) => (
+                          <Cell key={shot.defender} attacker={row.attacker} shot={shot} />
+                        ))
+                      ) : (
+                        /* Il se recrute et ne tire sur rien : la ligne le dit, plutôt que de
+                           disparaître ou de s'aligner en onze tirets — les deux se liraient comme
+                           une panne au lieu d'une règle. */
+                        <td
+                          colSpan={columns.length}
+                          className="border-l border-[rgba(42,33,24,.14)] px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
+                        >
+                          {fr.gunnery.firesNothing}
+                        </td>
+                      )}
+                      <td className="px-[6px] py-[5px] text-center text-[12px] text-[var(--ink-soft)]">
+                        {unfolded ? '▴' : '▾'}
+                      </td>
+                    </tr>
+                    {unfolded && (
+                      <tr>
+                        <td
+                          colSpan={columns.length + 2}
+                          className="border-t border-dashed border-[rgba(42,33,24,.45)] border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
+                        >
+                          <Sheet profile={row.attacker} workshop={workshop} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -113,6 +155,205 @@ export function GunneryWindow({ onClose, ...windowProps }: WindowProps) {
         </p>
       </div>
     </FloatingWindow>
+  );
+}
+
+type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
+
+/**
+ * **La fiche du rôle, au pli de sa ligne** (contrat 06 P2). Elle dit le matériel, ce qu'il coûte,
+ * ce qu'il vaut et — la raison d'être du déménagement — **ce qu'il faut bâtir pour l'avoir**, en
+ * toutes lettres. Un bâtiment absent n'y grise rien : il y a une phrase à sa place, et la fiche
+ * se lit identique qu'on possède la caserne ou non.
+ *
+ * Les deux marques d'un rôle se lisent **côte à côte** : la comparaison est la question qu'on
+ * vient poser, et la faire payer un second pli l'aurait tuée.
+ */
+function Sheet({
+  profile,
+  workshop,
+}: {
+  profile: CombatProfile;
+  workshop: WorkshopView | undefined;
+}) {
+  const { role, tier, marked } = PROFILE_UNITS[profile];
+  const sheet = fr.unitSheets[role];
+  const entry = workshop?.grid.find((candidate) => candidate.role === role) ?? null;
+  const nation = workshop?.nation ?? null;
+  const marks: ReadonlyArray<UnitTier> = marked ? [1, 2] : [1];
+
+  return (
+    <div className="flex items-stretch">
+      <div
+        className="flex w-[190px] shrink-0 flex-col items-center justify-center gap-[9px] border-r border-[rgba(42,33,24,.22)] px-4 py-[14px]"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(90deg, rgba(42,33,24,.05) 0 1px, transparent 1px 6px)',
+        }}
+      >
+        <UnitSprite nation={nation} role={role} tier={tier} height={104} width={150} />
+        {equipmentLabel(nation, role, tier) && (
+          <span className="text-center text-[13.5px] leading-[1.2] text-[var(--ink)] italic">
+            {equipmentLabel(nation, role, tier)}
+          </span>
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-[11px] px-[18px] py-[14px]">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="font-(family-name:--font-display) text-[20px] leading-none font-extrabold text-[var(--ink)]">
+            {roleLabel(role, 1)}
+          </span>
+          <span className="eyebrow">{fr.production.domains[DOMAIN_BY_ROLE[role]]}</span>
+        </div>
+
+        {entry !== null && (
+          <div className="flex flex-wrap gap-x-[34px] gap-y-3">
+            {marks.map((mark, rank) => (
+              <Mark
+                key={mark}
+                mark={mark}
+                marked={marked}
+                cost={mark === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit}
+                role={role}
+                roster={
+                  workshop?.roster.find((row) => row.role === role && row.tier === mark)?.count ?? 0
+                }
+                locked={mark === 2 && !(workshop?.tier2Unlocked ?? false)}
+                requiredLevel={workshop?.requiredHqLevel ?? 0}
+                first={rank === 0}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-x-[32px] gap-y-2 border-t border-[rgba(42,33,24,.22)] pt-[10px]">
+          {sheet.kind === 'combat' ? (
+            <>
+              <span className="flex min-w-0 flex-col gap-[1px]">
+                <span className="text-[9.5px] tracking-[.2em] text-[var(--interaction)] uppercase">
+                  {fr.production.strongAgainst}
+                </span>
+                <span className="text-[13.5px] text-[var(--ink)]">
+                  {sheet.strongAgainst.join(', ')}
+                </span>
+              </span>
+              <span className="flex min-w-0 flex-col gap-[1px]">
+                <span className="text-[9.5px] tracking-[.2em] text-[var(--critical)] uppercase">
+                  {fr.production.weakAgainst}
+                </span>
+                <span className="text-[13.5px] text-[var(--ink)]">
+                  {sheet.weakAgainst.join(', ')}
+                </span>
+              </span>
+            </>
+          ) : (
+            <span className="flex max-w-[52ch] flex-col gap-[2px]">
+              <span className="text-[13.5px] text-[var(--ink)]">{sheet.contribution}</span>
+              <span className="text-[12.5px] text-[var(--ink-quiet)] italic">
+                {fr.production.supportNote}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* **La condition, en toutes lettres** (contrat 06) : c'est ce que remplaçaient les
+            sections « bloqué » de la fenêtre morte, et c'est la seule marque que l'abaque porte. */}
+        {entry !== null && (
+          <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
+            <span aria-hidden className="h-[7px] w-[7px] shrink-0 bg-[var(--ink)]" />
+            <span className="text-[13.5px] text-[var(--ink)]">
+              {fr.gunnery.formsIn(aBuilding(entry.producedBy))}
+            </span>
+            {entry.unlockedAtHqLevel > 0 && (
+              <>
+                <span aria-hidden className="h-[14px] w-px bg-[rgba(42,33,24,.4)]" />
+                <span className="text-[13.5px] text-[var(--ink)]">
+                  {fr.production.tier2Locked(entry.unlockedAtHqLevel)}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Une marque et ce qu'elle demande : le coût est **le** chiffre, les trois autres lignes le
+ *  qualifient. Le zéro de « en service » s'imprime — une fiche sans la ligne se lirait comme un
+ *  oubli plutôt que comme une absence. */
+function Mark({
+  mark,
+  marked,
+  cost,
+  role,
+  roster,
+  locked,
+  requiredLevel,
+  first,
+}: {
+  mark: UnitTier;
+  marked: boolean;
+  cost: { alloy: number; minutes: number; strength: number };
+  role: UnitRole;
+  roster: number;
+  locked: boolean;
+  requiredLevel: number;
+  first: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-[5px] ${
+        first ? '' : 'border-l border-[rgba(42,33,24,.22)] pl-[22px]'
+      }`}
+    >
+      {marked && (
+        <span className="font-(family-name:--font-mono) text-[11px] tracking-[.12em] text-[var(--ink-soft)]">
+          {tierLabel(mark)}
+        </span>
+      )}
+      <span className="flex items-center gap-[7px]">
+        <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
+          {cost.alloy}
+        </span>
+        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.resources.alloy}
+        </span>
+      </span>
+      <span className="flex items-baseline gap-2">
+        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.production.trainingLabel}
+        </span>
+        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+          {asDuration(cost.minutes)}
+        </span>
+      </span>
+      <span className="flex items-baseline gap-2">
+        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.gunnery.strengthLabel}
+        </span>
+        <span className="text-[13.5px] font-semibold text-[var(--ink)]">
+          {cost.strength} {fr.strengthUnits[role]}
+        </span>
+      </span>
+      <span className="flex items-baseline gap-2 border-t border-[rgba(42,33,24,.22)] pt-[5px]">
+        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+          {fr.production.inService}
+        </span>
+        <span
+          className="font-(family-name:--font-mono) text-[12.5px]"
+          style={{ color: roster > 0 ? 'var(--ink)' : 'var(--ink-faint)' }}
+        >
+          {roster}
+        </span>
+      </span>
+      {locked && (
+        <span className="max-w-[24ch] text-[11.5px] leading-[1.35] text-[var(--ink-soft)]">
+          {fr.production.tier2Locked(requiredLevel)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -179,6 +420,8 @@ function Legend() {
         </span>
         <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.gunnery.bands.none}</span>
       </span>
+      <span className="flex-1" />
+      <span className="eyebrow">{fr.gunnery.foldHint}</span>
     </div>
   );
 }

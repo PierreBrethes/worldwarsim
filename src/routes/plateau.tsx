@@ -109,8 +109,8 @@ const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = Object.values(PROJECTION_BY_
 const JournalWindow = lazy(() =>
   import('./-plateau/JournalWindow').then((module) => ({ default: module.JournalWindow })),
 );
-const ProductionWindow = lazy(() =>
-  import('./-plateau/ProductionWindow').then((module) => ({ default: module.ProductionWindow })),
+const SiteModal = lazy(() =>
+  import('./-plateau/SiteModal').then((module) => ({ default: module.SiteModal })),
 );
 const EconomyWindow = lazy(() =>
   import('./-plateau/EconomyWindow').then((module) => ({ default: module.EconomyWindow })),
@@ -131,13 +131,15 @@ const GunneryWindow = lazy(() =>
 const WINDOWS = [
   'journal',
   'telegraph',
-  'production',
+  /** **Pas d'entrée de rail** : la modale d'un site s'ouvre au clic gauche sur son mât, et de
+   *  nulle part ailleurs (59a). Elle est ici parce qu'elle est une fenêtre comme les autres —
+   *  même pile, même Échap, même URL partageable — et le bâtiment qu'elle sert est `building`. */
+  'site',
   'economy',
   'nation',
   'settings',
-  /** L'abaque de tir n'a pas d'entrée de rail : il s'ouvre du recrutement et de la popin de
-   *  troupe (`GunneryButton`). Il est ici parce qu'il est une fenêtre comme les autres — même
-   *  pile, même Échap, même URL partageable. */
+  /** L'abaque de tir a pris l'entrée de rail que l'onglet « prod. » a libérée (59a, contrat 06) :
+   *  il faut pouvoir le lire sans posséder un seul bâtiment de projection. */
   'gunnery',
 ] as const;
 
@@ -179,16 +181,18 @@ const WINDOW_OF_BUILDING: Readonly<Record<BuildingKey, BoardWindow>> = {
   warehouse: 'economy',
   depot: 'economy',
   listening: 'economy',
-  barracks: 'production',
-  airfield: 'production',
-  port: 'production',
-  billets: 'production',
+  barracks: 'site',
+  airfield: 'site',
+  port: 'site',
+  /** Les baraquements ne forment rien : ils portent le plafond, et leur ligne vit au recensement
+   *  de la projection avec les trois autres (fenêtre Économie). */
+  billets: 'economy',
 };
 
 /** The two surfaces a focus can live in. Closing one of them lets it go — there is a single
  *  `building` in the URL, so a focus that outlived its window would resurface unasked. The
  *  nation sheet left the list with its census: it names no building any more. */
-const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['economy', 'production'];
+const FOCUSED_WINDOWS: ReadonlyArray<BoardWindow> = ['economy', 'site'];
 
 export function withWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
   const others = (search.windows ?? []).filter((open) => open !== name);
@@ -405,18 +409,23 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   );
 
   /**
-   * A click on a mast opens what that building *is used for*. For a projection building that is
-   * its garrison — the column leaves from there (ADR 0013), and that is the same door the widget
-   * opens. Everything else keeps opening the surface where the building's line lives; the key is
-   * read off the view rather than carried in the URL, so a razed instance simply finds none.
+   * **Un clic sur un mât ouvre ce à quoi ce bâtiment sert**, et il n'y a plus qu'une réponse par
+   * bâtiment (61a). Pour un site de projection c'est sa modale — ce qu'il forme et ce qu'il tient
+   * debout, composition de pile comprise ; pour les autres, la surface où vit leur ligne. La clé
+   * se lit dans la vue plutôt que dans l'URL, donc une instance rasée n'en trouve simplement
+   * aucune.
    */
   const openBuilding = useCallback(
-    (buildingId: string, clientX: number, clientY: number) => {
+    (buildingId: string) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
       if (standing === undefined) return;
+      /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       if (PROJECTION_KEYS.includes(standing.key)) {
-        openGarrison({ kind: 'building', buildingId }, [], boardPoint(clientX, clientY));
-        return;
+        setGarrison(null);
+        setColumn(null);
+        setOrder(null);
+        setPosted(null);
+        setFocus({ ids: [`building-${standing.regionId}-${standing.key}`], nonce: Date.now() });
       }
       void navigate({
         search: (previous) => ({
@@ -425,7 +434,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me.buildings],
+    [navigate, view.me.buildings],
   );
 
   /**
@@ -447,7 +456,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const held = troopsAt(view.me, stationKeyOf(station), marching);
       const alone = held.length === 1 ? held[0] : undefined;
       if (alone === undefined || station.kind !== 'point') {
-        openGarrison(station, [], at);
+        /** **Le mât n'a qu'une destination** (61a) : une pile posée sur un site de projection
+         *  ouvre sa modale, exactement comme le clic sur le mât — deux réponses pour un lieu
+         *  seraient les deux états de sélection que le flux a passé une révision à éviter. */
+        if (station.kind === 'building') openBuilding(station.buildingId);
+        else openGarrison(station, [], at);
         return false;
       }
       /**
@@ -465,7 +478,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       if (!view.me.defeated) setColumn(armedColumn(view, station, [alone.id]));
       return true;
     },
-    [openGarrison, boardPoint, view, marching],
+    [openGarrison, openBuilding, boardPoint, view, marching],
   );
 
   /**
@@ -776,6 +789,43 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [navigate],
   );
 
+  /**
+   * **Une pile composée, armée** — depuis le panneau d'une garnison posée ou depuis la modale
+   * d'un site, qui porte la même composition depuis la décision 61a. Un seul chemin, parce
+   * qu'il n'y a qu'un flux : composer, armer, viser sur la carte.
+   */
+  const prepareColumn = useCallback(
+    (station: TroopStation, troopIds: ReadonlyArray<string>) => {
+      /** `home` is the one address no column leaves from — the panel offers nothing there, so
+       *  this branch only guards the type. */
+      if (station.kind === 'home') return;
+      const from = garrison;
+      setGarrison(null);
+      /** La modale s'efface avec la pile qu'elle vient d'armer : la destination se nomme sur la
+       *  carte, et une fenêtre de 1180 pixels par-dessus cacherait la cible. */
+      if (station.kind === 'building') closeWindow('site');
+      setColumn(armedColumn(view, station, troopIds));
+      /**
+       * **Le cartouche porte l'état, et il n'y a plus de fenêtre pour le porter à sa place.**
+       * Une pile armée depuis une garnison posée sur la carte s'y montre — « pile de 3 »,
+       * « choisissez la destination », « échap — désarme ». Depuis un mât ou un avant-poste il
+       * n'y a pas d'étiquette de pile à désigner : la visée se lit sur la carte, comme avant.
+       */
+      if (station.kind !== 'point' || from === null) return;
+      setPosted({
+        station,
+        troops: troopIds.flatMap((troopId) => {
+          const troop = view.me.troops.find((candidate) => candidate.id === troopId);
+          return troop ? [troop] : [];
+        }),
+        labelId: `stack-${stationKeyOf(station)}`,
+        x: from.x,
+        y: from.y,
+      });
+    },
+    [view, garrison, closeWindow],
+  );
+
   const bringForward = useCallback(
     (name: BoardWindow) => {
       void navigate({ search: (previous) => withWindow(previous, name), replace: true });
@@ -897,31 +947,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             at={garrison}
             preselect={garrison.preselect}
             onClose={() => setGarrison(null)}
-            onPrepare={(station, troopIds) => {
-              /** `home` is the one address no column leaves from — the panel offers nothing
-               *  there, so this branch only guards the type. */
-              if (station.kind === 'home') return;
-              setGarrison(null);
-              setColumn(armedColumn(view, station, troopIds));
-              /**
-               * **Le cartouche porte l'état, et il n'y a plus de fenêtre pour le porter à sa
-               * place.** Une pile armée depuis une garnison posée sur la carte s'y montre — « pile
-               * de 3 », « choisissez la destination », « échap — désarme ». Depuis un mât ou un
-               * avant-poste il n'y a pas d'étiquette de pile à désigner : la garnison se referme
-               * et la visée se lit sur la carte, comme avant.
-               */
-              if (station.kind !== 'point') return;
-              setPosted({
-                station,
-                troops: troopIds.flatMap((troopId) => {
-                  const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-                  return troop ? [troop] : [];
-                }),
-                labelId: `stack-${stationKeyOf(station)}`,
-                x: garrison.x,
-                y: garrison.y,
-              });
-            }}
+            onPrepare={prepareColumn}
           />
         )}
         {posted && (
@@ -973,6 +999,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             }}
             onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
             onOpenSurface={openWindow}
+            onOpenSite={openBuilding}
           />
         </div>
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
@@ -1003,14 +1030,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               return (
                 <TelegraphWindow key={name} telegraph={telegraph} token={token} {...windowProps} />
               );
-            case 'production':
-              return (
-                <ProductionWindow
+            case 'site':
+              /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
+               *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
+              return focused === undefined ? null : (
+                <SiteModal
                   key={name}
                   view={view}
                   token={token}
-                  focused={focused ?? null}
+                  buildingId={focused}
                   onOpenGunnery={() => openWindow('gunnery')}
+                  onPrepare={prepareColumn}
                   {...windowProps}
                 />
               );
@@ -1029,7 +1059,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />
               );
             case 'gunnery':
-              return <GunneryWindow key={name} {...windowProps} />;
+              return <GunneryWindow key={name} token={token} {...windowProps} />;
             case 'settings':
               return (
                 <SettingsWindow
