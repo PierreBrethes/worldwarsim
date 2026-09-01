@@ -135,6 +135,10 @@ brief flux-mouvement).
 
 ## À coller à Claude design — Sélection sur la carte
 
+> **Toutes les chaînes et tous les chiffres viennent de l'annexe
+> `05-carte-selection-donnees.md`, jointe — n'écris rien, ne calcule rien, ne crée aucun
+> état ; s'il te manque une donnée, demande-la. Valide sur les chaînes les plus longues de
+> l'annexe.**
 > Maquette les trois lectures du clic gauche ; aucune ne porte d'ordre (la carte agit, la
 > popin lit). 1) Sol : le pays en vedette, la région au survol ; un tampon de qualification
 > (nation adverse / pays neutre) ; lignes : « tenue par » — le tenant tel que relevé (nom

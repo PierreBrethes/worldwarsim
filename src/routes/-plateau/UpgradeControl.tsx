@@ -52,7 +52,7 @@ export function UpgradeControl({
 
   return (
     <div className="flex shrink-0 flex-col items-end gap-[3px]">
-      <div className="flex items-center gap-[10px]">
+      <div className="flex flex-wrap items-center justify-end gap-x-[10px] gap-y-[4px]">
         <CostLine cost={building.nextLevelCost} lacking={hold?.kind === 'materials'} />
         <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {asDuration(building.nextLevelMinutes)}

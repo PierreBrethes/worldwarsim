@@ -47,6 +47,12 @@ import { FloatingWindow, type WindowProps } from './Window';
  * and replaces the rule here: *rien de caché ne se débloque, rien d'affiché sans sa condition*.
  * A missing link is drawn dotted **with the sentence that would open it** — and that sentence
  * is `placementOf`, the very refusal the server would raise, never a text written twice.
+ *
+ * **The plate reads as a page, not as a stack of sections** (planches du 01/09) : the masthead
+ * carries the one budget that governs the season, the works band carries the one countdown,
+ * the chart runs the eight filières side by side, and the headquarters — the thing every
+ * ceiling of this window points back to — stands in its own column on the right rather than
+ * buried a scroll below the chart it explains.
  */
 export function EconomyWindow({
   view,
@@ -67,16 +73,19 @@ export function EconomyWindow({
   const columns = useMemo(() => supplyColumns(view), [view]);
 
   return (
-    <FloatingWindow name="economy" onClose={onClose} {...windowProps} alignment="top" width={920}>
+    <FloatingWindow name="economy" onClose={onClose} {...windowProps} alignment="top" width={1280}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
-        <DragHandle className="flex shrink-0 flex-wrap items-baseline gap-x-4 gap-y-2 border-b-2 border-[var(--ink)] px-4 py-[10px]">
-          <h2 className="font-(family-name:--font-display) text-[19px] leading-none font-extrabold tracking-[.04em] text-[var(--ink)] uppercase">
+        <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b-2 border-[var(--ink)] px-4 py-[10px]">
+          <h2 className="font-(family-name:--font-display) text-[24px] leading-none font-extrabold tracking-[.04em] text-[var(--ink)] uppercase">
             {fr.economy.header}
           </h2>
           <span className="text-[10.5px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
             {fr.economy.subtitle(nationLabel(view.me.nation), view.season.number)}
           </span>
           <span className="flex-1" />
+          {/* L'arbitrage le plus structurant de la saison (ADR 0020 §10) monte au bandeau-titre :
+              plus bas, il se lisait après la décision qu'il gouverne. */}
+          <SiteBudget view={view} site={HOME_SITE} label={fr.economy.budgetHome} relief={true} />
           <button
             type="button"
             onClick={onClose}
@@ -88,90 +97,72 @@ export function EconomyWindow({
 
         <RunningWork view={view} token={token} now={now} />
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          <p className="shrink-0 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
-            {fr.economy.lead}
-          </p>
+        <div className="flex min-h-0 flex-1 items-stretch">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+            <p className="shrink-0 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
+              {fr.economy.lead}
+            </p>
 
-          <Header note={<ChartLegend />}>{fr.economy.chartHeader}</Header>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-5 px-4 py-4 @2xl:grid-cols-3 @4xl:grid-cols-5">
-            {columns.map((column) => (
-              <SupplyColumn
-                key={column.id}
-                column={column}
-                view={view}
-                placements={placements}
-                now={now}
-              />
-            ))}
+            <Header note={<ChartLegend />}>{fr.economy.chartHeader}</Header>
+            <div className="grid shrink-0 grid-cols-2 gap-x-[7px] gap-y-5 px-4 py-4 @xl:grid-cols-4 @5xl:grid-cols-8">
+              {columns.map((column) => (
+                <SupplyColumn
+                  key={column.id}
+                  column={column}
+                  view={view}
+                  placements={placements}
+                  now={now}
+                />
+              ))}
+            </div>
+
+            {view.me.chains
+              .filter((chain) => chain.commanded && chain.level > 0)
+              .map((chain) => (
+                <LotControl
+                  key={chain.by}
+                  chain={chain}
+                  token={token}
+                  now={now}
+                  observing={view.me.defeated}
+                />
+              ))}
+
+            <CensusSection
+              title={fr.economy.sitesHeader}
+              keys={CHAIN_KEYS}
+              view={view}
+              token={token}
+              now={now}
+              focused={focused}
+            />
+            <CensusSection
+              title={fr.economy.projectionHeader}
+              keys={PROJECTION_KEYS}
+              view={view}
+              token={token}
+              now={now}
+              focused={focused}
+            />
+            <CensusSection
+              title={fr.economy.worksHeader}
+              keys={WORK_KEYS}
+              view={view}
+              token={token}
+              now={now}
+              focused={focused}
+            />
+
+            <AbsentKeys view={view} placements={placements} />
+
+            <p className="px-4 pt-1 pb-4 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
+              {fr.economy.listeningTemporary}
+            </p>
+
+            <UpkeepFoot view={view} />
           </div>
 
-          <Header>{fr.economy.sitesHeader}</Header>
-          <UpkeepRow view={view} />
-          {CHAIN_KEYS.map((key) => (
-            <EstateRows
-              key={key}
-              building={key}
-              view={view}
-              token={token}
-              now={now}
-              focused={focused}
-              placement={placements[key]}
-            />
-          ))}
-          {view.me.chains
-            .filter((chain) => chain.commanded && chain.level > 0)
-            .map((chain) => (
-              <LotControl
-                key={chain.by}
-                chain={chain}
-                token={token}
-                now={now}
-                observing={view.me.defeated}
-              />
-            ))}
-
-          <Header>{fr.economy.projectionHeader}</Header>
-          {PROJECTION_KEYS.map((key) => (
-            <EstateRows
-              key={key}
-              building={key}
-              view={view}
-              token={token}
-              now={now}
-              focused={focused}
-              placement={placements[key]}
-            />
-          ))}
-
-          <Header
-            note={
-              <SiteBudget
-                view={view}
-                site={HOME_SITE}
-                label={fr.economy.budgetHome}
-                relief={true}
-              />
-            }
-          >
-            {fr.economy.worksHeader}
-          </Header>
-          <OutpostBudgets view={view} />
-          <Headquarters view={view} token={token} now={now} focused={focused} />
-          {WORK_KEYS.map((key) => (
-            <EstateRows
-              key={key}
-              building={key}
-              view={view}
-              token={token}
-              now={now}
-              focused={focused}
-              placement={placements[key]}
-            />
-          ))}
-          <p className="px-4 pt-2 pb-5 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
-            {fr.economy.listeningTemporary}
-          </p>
+          <HeadquartersColumn view={view} token={token} now={now} focused={focused} />
         </div>
       </div>
     </FloatingWindow>
@@ -195,6 +186,9 @@ const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = ['barracks', 'billets', 'air
 /** The rest of the census — command, storage, and the listening post until Espionage exists. */
 const WORK_KEYS: ReadonlyArray<BuildingKey> = ['warehouse', 'depot', 'listening'];
 
+/** The census in reading order, which is also the order the absent keys are gathered in. */
+const CENSUS_KEYS: ReadonlyArray<BuildingKey> = [...CHAIN_KEYS, ...PROJECTION_KEYS, ...WORK_KEYS];
+
 const placementsOf = (view: PlayerView): Readonly<Record<BuildingKey, Placement>> =>
   Object.fromEntries(BUILDINGS.map((key) => [key, placementOf(view, key)])) as Record<
     BuildingKey,
@@ -202,10 +196,14 @@ const placementsOf = (view: PlayerView): Readonly<Record<BuildingKey, Placement>
   >;
 
 /**
- * **The construction, at the head and once for the whole window** — then the queue behind it.
+ * **The construction, at the head and once for the whole window** — then the queue beside it.
  * Written under every line it turned inert, the same twelve words appeared four times over and
  * the most important datum of the surface became background noise. The banner keeps its watching
  * version; this is the acting one — what, where, how much is left, and what comes after.
+ *
+ * **The queue sits to its right, not under it.** The countdown is the P1 of the surface and a
+ * list stacked below it pushed it up into the masthead's shadow; side by side, the one figure
+ * that is dated and the ranks that are not read as two different things, which they are.
  *
  * **The head has no cancel button, the queue has one per line.** That is the rule itself, not a
  * choice of layout: a site that started has consumed the queue's time, and giving it back would
@@ -226,32 +224,38 @@ function RunningWork({ view, token, now }: { view: PlayerView; token: string; no
   const left = currentMinutes(running.minutesLeft, view.loadedAt, now);
 
   return (
-    <div className="shrink-0 border-b border-[var(--ink)] bg-[rgba(42,33,24,.05)]">
-      <div className="flex items-center gap-[14px] px-4 py-3">
-        <span className="w-[58px] shrink-0 text-[9.5px] leading-[1.3] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-          {fr.economy.constructionHeader}
-        </span>
-        <BuildingPlate building={running.key} height={30} />
+    <div className="flex shrink-0 flex-wrap items-stretch border-b-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)]">
+      <div className="flex min-w-[380px] flex-1 items-center gap-[14px] px-4 py-3">
+        <BuildingPlate building={running.key} height={38} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-[10px]">
-            <span className="text-[16px] font-semibold text-[var(--ink)]">{running.name}</span>
-            <span className="text-[13px] text-[var(--ink-soft)]">{running.regionName}</span>
-          </div>
-          {/* No progress bar: the view serves what is *left*, never how long the site was given,
-              and a bar drawn from the first would start empty at every reload. The countdown is
-              the whole of what is actually known. */}
-          <div className="mt-[4px] font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
-            {fr.economy.constructionRemaining(asDuration(left))}
+          <span className="eyebrow block">{fr.economy.constructionHeader}</span>
+          <div className="mt-[3px] flex flex-wrap items-baseline gap-x-[10px]">
+            <span className="font-(family-name:--font-display) text-[20px] leading-tight font-extrabold text-[var(--ink)]">
+              {running.name}
+            </span>
+            <span className="text-[13px] text-[var(--ink-soft)]">
+              {fr.economy.inRegion(running.regionName)}
+            </span>
           </div>
         </div>
+        {/* No progress bar: the view serves what is *left*, never how long the site was given,
+            and a bar drawn from the first would start empty at every reload. The countdown is
+            the whole of what is actually known — and it is the one figure this surface owes. */}
+        <span className="shrink-0 font-(family-name:--font-display) text-[28px] leading-none font-extrabold whitespace-nowrap text-[var(--ink)]">
+          {fr.economy.constructionRemaining(asDuration(left))}
+        </span>
       </div>
-      {queue.length > 0 && <QueuedWorks queue={queue} token={token} observing={view.me.defeated} />}
+      {queue.length > 0 && (
+        <div className="min-w-[300px] flex-1 border-l border-[rgba(42,33,24,.35)]">
+          <QueuedWorks queue={queue} token={token} observing={view.me.defeated} />
+        </div>
+      )}
     </div>
   );
 }
 
 /**
- * The queue, under the head and sober. **No countdown on a waiting line**: nothing behind the
+ * The queue, beside the head and sober. **No countdown on a waiting line**: nothing behind the
  * head is dated in the database, precisely so a cancellation re-dates nothing — the rank is
  * what is true, a due time would be invented.
  */
@@ -269,11 +273,9 @@ function QueuedWorks({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="border-t border-[rgba(42,33,24,.28)] px-4 pt-[6px] pb-2">
+    <div className="px-4 pt-[8px] pb-2">
       <div className="flex items-baseline gap-2">
-        <span className="text-[9.5px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-          {fr.economy.queueHeader(queue.length)}
-        </span>
+        <span className="eyebrow">{fr.economy.queueHeader(queue.length)}</span>
         <span className="text-[10px] text-[var(--ink-quiet)] italic">{fr.economy.queuePaid}</span>
       </div>
       {queue.map((entry, index) => (
@@ -338,11 +340,34 @@ type Source =
   | { readonly kind: 'deposit'; readonly deposit: DepositKey; readonly held: number }
   | { readonly kind: 'chain'; readonly resource: ResourceKey; readonly by: BuildingKey };
 
+/**
+ * **Every deposit is a filière of its own, converted or not.** The ore a foundry eats is still
+ * ore the nation pulls out and spends on its buildings: folding its column into the alloy's
+ * hid the only place the mine's real rate was ever printed. The ground first, in the domain's
+ * own order, then the three transformations — the page reads left to right from what is dug
+ * to what is made.
+ */
 function supplyColumns(view: PlayerView): ReadonlyArray<Column> {
   const heldDeposits = (deposit: DepositKey) =>
     view.me.regions.filter((region) => region.deposit === deposit).length;
   const isDeposit = (resource: ResourceKey): resource is DepositKey =>
     (DEPOSITS as ReadonlyArray<string>).includes(resource);
+
+  const raw = DEPOSITS.map(
+    (deposit) =>
+      ({
+        id: deposit,
+        sources: [{ kind: 'deposit', deposit, held: heldDeposits(deposit) }],
+        extraction: [PRODUCER_OF[deposit]],
+        conversion: null,
+        output: {
+          resource: deposit,
+          perHour: view.me.extraction
+            .filter((site) => site.deposit === deposit)
+            .reduce((total, site) => total + site.perHour, 0),
+        },
+      }) satisfies Column,
+  );
 
   const chains = view.me.chains.map((chain) => {
     const sources = chain.inputs.map<Source>((input) =>
@@ -365,26 +390,7 @@ function supplyColumns(view: PlayerView): ReadonlyArray<Column> {
     } satisfies Column;
   });
 
-  /** A deposit nothing converts is a filière all the same — it is what the food and the oil of
-   *  a nation actually are, and leaving them out would make the chart say the ground is idle. */
-  const converted = new Set(view.me.chains.flatMap((chain) => chain.inputs.map((i) => i.resource)));
-  const raw = DEPOSITS.filter((deposit) => !converted.has(deposit)).map(
-    (deposit) =>
-      ({
-        id: deposit,
-        sources: [{ kind: 'deposit', deposit, held: heldDeposits(deposit) }],
-        extraction: [PRODUCER_OF[deposit]],
-        conversion: null,
-        output: {
-          resource: deposit,
-          perHour: view.me.extraction
-            .filter((site) => site.deposit === deposit)
-            .reduce((total, site) => total + site.perHour, 0),
-        },
-      }) satisfies Column,
-  );
-
-  return [...chains, ...raw];
+  return [...raw, ...chains];
 }
 
 function SupplyColumn({
@@ -404,6 +410,7 @@ function SupplyColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
+      <ColumnHead column={column} />
       {column.sources.map((source, rank) => (
         <SourceBox
           key={source.kind === 'deposit' ? source.deposit : source.resource}
@@ -433,6 +440,34 @@ function SupplyColumn({
       )}
       <Connector dotted />
       <OutputBox column={column} />
+    </div>
+  );
+}
+
+/**
+ * The head of a filière: the one badge and the one figure the surface promises at a glance
+ * (contrat 02, P1). **A raw column carries no badge** — `chains[].state` exists for the three
+ * conversions and nowhere else, and stamping "tourne" on a mine would invent a settlement the
+ * server never ran. The name of the resource is not repeated here: the sortie box at the foot
+ * of the column is where the filière ends, and the plate identifies the head well enough.
+ */
+function ColumnHead({ column }: { column: Column }) {
+  const dry = column.output.perHour <= 0;
+  return (
+    <div className="mb-[7px] border-b border-[var(--ink)] pb-[5px]">
+      {/* Le libellé sur sa propre ligne : à huit colonnes, l'intitulé et le chiffre côte à côte
+          se disputent cent pixels et c'est l'intitulé qui se fait couper. */}
+      <span className="eyebrow block">{fr.economy.realRate}</span>
+      <div className="mt-[3px] flex min-w-0 items-center gap-[5px]">
+        <ResourcePlate resource={column.output.resource} height={17} />
+        <span
+          className="ml-auto shrink-0 font-(family-name:--font-mono) text-[15px] leading-none"
+          style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
+        >
+          {fr.economy.perHour(column.output.perHour)}
+        </span>
+      </div>
+      {column.conversion !== null && <ChainVerdict chain={column.conversion} />}
     </div>
   );
 }
@@ -528,7 +563,7 @@ function Connector({ dotted = false }: { dotted?: boolean }) {
   return (
     <span
       aria-hidden
-      className="mx-auto h-[14px] w-px"
+      className="mx-auto h-[12px] w-px"
       style={{
         background: dotted
           ? 'repeating-linear-gradient(180deg, var(--ink) 0 3px, transparent 3px 6px)'
@@ -540,7 +575,7 @@ function Connector({ dotted = false }: { dotted?: boolean }) {
 
 function BoxLabel({ children, ink = 'var(--ink-soft)' }: { children: string; ink?: string }) {
   return (
-    <span className="block text-[9px] tracking-[.18em] uppercase" style={{ color: ink }}>
+    <span className="block text-[9px] tracking-[.14em] uppercase" style={{ color: ink }}>
       {children}
     </span>
   );
@@ -556,14 +591,14 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
     return (
       <>
         {!first && <Connector />}
-        <div className="border border-[var(--ink)] bg-[rgba(42,33,24,.06)] px-[10px] py-[7px]">
+        <div className="border border-[var(--ink)] bg-[rgba(42,33,24,.06)] px-[8px] py-[6px]">
           <BoxLabel>{fr.economy.roleUpstream}</BoxLabel>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="flex items-center gap-[5px] text-[14px] font-semibold text-[var(--ink)]">
-              <ResourcePlate resource={source.resource} height={18} />
-              {fr.resources[source.resource]}
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
+            <span className="flex min-w-0 items-center gap-[5px] text-[13px] font-semibold text-[var(--ink)]">
+              <ResourcePlate resource={source.resource} height={17} />
+              <span className="min-w-0 leading-[1.25]">{fr.resources[source.resource]}</span>
             </span>
-            <span className="text-[11px] text-[var(--ink-soft)]">
+            <span className="text-[10.5px] text-[var(--ink-soft)]">
               {fr.economy.fromChain(fr.buildings[source.by])}
             </span>
           </div>
@@ -580,15 +615,15 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
       <div
         className={
           none
-            ? 'border border-dashed border-[var(--critical)] bg-[rgba(157,70,56,.08)] px-[10px] py-[7px]'
-            : 'border border-[var(--ink)] bg-[var(--ink)] px-[10px] py-[7px]'
+            ? 'border border-dashed border-[var(--critical)] bg-[rgba(157,70,56,.08)] px-[8px] py-[6px]'
+            : 'border border-[var(--ink)] bg-[var(--ink)] px-[8px] py-[6px]'
         }
       >
         <BoxLabel ink={none ? 'var(--critical)' : 'var(--paper-dim-2)'}>
           {none ? fr.economy.roleDepositNone : fr.economy.roleDeposit}
         </BoxLabel>
         <span
-          className="block text-[14px] font-semibold"
+          className="block text-[13px] font-semibold"
           style={{ color: none ? 'var(--ink)' : 'var(--paper)' }}
         >
           {fr.deposits[source.deposit]}
@@ -596,12 +631,12 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
         {/* Under the name rather than beside it: the count says a whole sentence now, and a
             sentence in a right-hand column crushes the name it belongs to. */}
         {!none && (
-          <p className="mt-[2px] font-(family-name:--font-mono) text-[11px] text-[var(--notable)]">
+          <p className="mt-[2px] font-(family-name:--font-mono) text-[10.5px] leading-[1.35] text-[var(--notable)]">
             {fr.economy.depositHeld(source.held)}
           </p>
         )}
         {none && (
-          <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-soft)]">
+          <p className="mt-[2px] text-[10.5px] leading-[1.35] text-[var(--ink-soft)]">
             {fr.economy.depositNoneHeld(fr.deposits[source.deposit])}
           </p>
         )}
@@ -627,17 +662,17 @@ function StepBox({
   rate: number;
 }) {
   return (
-    <div className={`${SKIN[state.kind]} px-[10px] py-[7px]`}>
+    <div className={`${SKIN[state.kind]} px-[8px] py-[6px]`}>
       <BoxLabel>{fr.economy.roleExtraction}</BoxLabel>
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
         <span
-          className="text-[14px] font-semibold"
+          className="min-w-0 text-[13px] leading-[1.25] font-semibold"
           style={{ color: state.kind === 'missing' ? 'var(--ink-soft)' : 'var(--ink)' }}
         >
           {fr.buildings[building]}
         </span>
         {state.kind !== 'missing' && (
-          <span className="shrink-0 font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+          <span className="shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
             {noteOn(state, view, now, rate)}
           </span>
         )}
@@ -677,24 +712,23 @@ function ConversionBox({
   return (
     <>
       <Connector dotted={state.kind !== 'built'} />
-      <div className={`${SKIN[state.kind]} px-[10px] py-[7px]`}>
+      <div className={`${SKIN[state.kind]} px-[8px] py-[6px]`}>
         <BoxLabel ink={state.kind === 'missing' ? 'var(--critical)' : 'var(--ink-soft)'}>
           {role}
         </BoxLabel>
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
           <span
-            className="text-[14px] font-semibold"
+            className="min-w-0 text-[13px] leading-[1.25] font-semibold"
             style={{ color: state.kind === 'missing' ? 'var(--ink-soft)' : 'var(--ink)' }}
           >
             {fr.buildings[chain.by]}
           </span>
           {state.kind !== 'missing' && (
-            <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+            <span className="shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
               {noteOn(state, view, now, chain.perHour)}
             </span>
           )}
         </div>
-        {state.kind === 'built' && <ChainVerdict chain={chain} />}
         {state.kind === 'missing' && <ConditionLine placement={placement} />}
       </div>
     </>
@@ -722,7 +756,7 @@ function ChainVerdict({ chain }: { chain: ChainView }) {
 
   return (
     <span
-      className="mt-[4px] inline-block border px-[6px] py-[1px] text-[9.5px] tracking-[.14em] uppercase"
+      className="mt-[5px] inline-block border px-[5px] py-[1px] text-[9px] tracking-[.1em] uppercase"
       style={{ color: STATE_INK[chain.state], borderColor: STATE_INK[chain.state] }}
     >
       {badge}
@@ -733,18 +767,18 @@ function ChainVerdict({ chain }: { chain: ChainView }) {
 function OutputBox({ column }: { column: Column }) {
   const dry = column.output.perHour <= 0;
   return (
-    <div className="border border-dashed border-[rgba(42,33,24,.5)] px-[10px] py-[7px]">
+    <div className="border border-dashed border-[rgba(42,33,24,.5)] px-[8px] py-[6px]">
       <BoxLabel>{fr.economy.roleOutput}</BoxLabel>
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
         <span
-          className="flex items-center gap-[5px] text-[14px] font-semibold"
+          className="flex min-w-0 items-center gap-[5px] text-[13px] font-semibold"
           style={{ color: dry ? 'var(--ink-soft)' : 'var(--ink)' }}
         >
-          <ResourcePlate resource={column.output.resource} height={18} />
-          {fr.resources[column.output.resource]}
+          <ResourcePlate resource={column.output.resource} height={17} />
+          <span className="min-w-0 leading-[1.25]">{fr.resources[column.output.resource]}</span>
         </span>
         <span
-          className="font-(family-name:--font-mono) text-[12px]"
+          className="shrink-0 font-(family-name:--font-mono) text-[11.5px]"
           style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
         >
           {dry ? fr.economy.noRate : fr.economy.perHour(column.output.perHour)}
@@ -772,7 +806,7 @@ function ConditionLine({ placement }: { placement: Placement }) {
 
   return (
     <p
-      className="mt-[2px] text-[11px] leading-[1.4]"
+      className="mt-[2px] text-[10.5px] leading-[1.35] hyphens-auto"
       style={{ color: placement.free ? 'var(--notable-paper)' : 'var(--ink-soft)' }}
     >
       {said}
@@ -785,42 +819,34 @@ function ConditionLine({ placement }: { placement: Placement }) {
 // ---------------------------------------------------------------------------------------
 
 /**
- * One key of the census: every instance standing, each with the ground it stands on and the
- * button that raises it — or, when nothing stands, the single line that says what would open
- * it. **The same sentence as the chart above**, from the same function: a census that refused
- * for one reason while the chart named another would be two rules for one refusal.
+ * One section of the census: its rule, then every instance standing under it. **A section
+ * nothing fills prints nothing at all** — a heading over a void is the surface promising a
+ * list it does not have, and the keys it would have named are gathered in the box below with
+ * the sentence that would open them.
  */
-function EstateRows({
-  building,
+function CensusSection({
+  title,
+  keys,
   view,
   token,
   now,
   focused,
-  placement,
 }: {
-  building: BuildingKey;
+  title: string;
+  keys: ReadonlyArray<BuildingKey>;
   view: PlayerView;
   token: string;
   now: number;
   focused: string | null;
-  placement: Placement;
 }) {
-  const standing = view.me.buildings.filter((candidate) => candidate.key === building);
-  if (standing.length === 0) {
-    return (
-      <div className="flex items-baseline gap-3 border-b border-[rgba(42,33,24,.16)] px-4 py-[7px] opacity-70">
-        <span className="w-[132px] shrink-0 text-[13px] font-semibold text-[var(--ink-soft)]">
-          {fr.buildings[building]}
-        </span>
-        <span className="min-w-0 flex-1 border-b border-dashed border-[rgba(42,33,24,.5)] pb-[2px] text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {conditionOf(placement)}
-        </span>
-      </div>
-    );
-  }
+  const standing = keys.flatMap((key) =>
+    view.me.buildings.filter((candidate) => candidate.key === key),
+  );
+  if (standing.length === 0) return null;
 
   return (
     <>
+      <Header>{title}</Header>
       {standing.map((instance) => (
         <EstateRow
           key={instance.id}
@@ -860,16 +886,18 @@ function EstateRow({
       }`}
     >
       <BuildingPlate building={building.key} height={28} />
-      <span className="w-[122px] shrink-0 truncate text-[13px] font-semibold text-[var(--ink)]">
+      <span className="w-[126px] shrink-0 truncate text-[13px] font-semibold text-[var(--ink)]">
         {fr.buildings[building.key]}
       </span>
-      <span className="w-[100px] shrink-0 truncate text-[11.5px] text-[var(--ink-soft)]">
+      {/* Assez large pour « en Alpes-de-Haute-Provence » : un département tronqué en son milieu
+          ne désigne plus la région où l'on va cliquer. */}
+      <span className="w-[176px] shrink-0 truncate text-[11.5px] text-[var(--ink-soft)]">
         {fr.economy.inRegion(region)}
       </span>
-      <span className="w-[68px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
+      <span className="w-[62px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
         {fr.economy.level(building.level)}
       </span>
-      <span className="min-w-[160px] flex-1 truncate text-[11.5px] text-[var(--ink-soft)]">
+      <span className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
         {building.key === 'listening'
           ? fr.economy.listeningUnfigured
           : fr.buildingEffects[building.key]}
@@ -885,12 +913,55 @@ function EstateRow({
 }
 
 /**
- * The headquarters and what it carries. It left the nation sheet with the rest of the census,
- * for the same reason and with its button: the sheet reads, this window acts. Nothing here is a
- * second implementation of a rule — the ceiling and the slots arrive served, the chain speed and
- * the tier-2 gate are read from `constants.ts` itself.
+ * **What is not there, in one place.** The same sentence as the chart above and from the same
+ * function: a census that refused for one reason while the chart named another would be two
+ * rules for one refusal. Gathered rather than scattered, the list is also the shortest reading
+ * of what the season still owes — the offered foundations sit at the top of it in notable ink.
  */
-function Headquarters({
+function AbsentKeys({
+  view,
+  placements,
+}: {
+  view: PlayerView;
+  placements: Readonly<Record<BuildingKey, Placement>>;
+}) {
+  const absent = CENSUS_KEYS.filter(
+    (key) => !view.me.buildings.some((building) => building.key === key),
+  );
+  if (absent.length === 0) return null;
+
+  return (
+    <div className="mx-4 mt-3 border border-dashed border-[rgba(42,33,24,.5)] px-3 py-[9px]">
+      <span className="eyebrow">{fr.economy.absentKeys}</span>
+      <div className="mt-[5px] grid gap-x-7 gap-y-[5px] @3xl:grid-cols-2">
+        {absent.map((key) => (
+          <div key={key} className="flex min-w-0 items-baseline gap-2">
+            <span className="w-[118px] shrink-0 truncate text-[12.5px] font-semibold text-[var(--ink-soft)]">
+              {fr.buildings[key]}
+            </span>
+            <span
+              className="min-w-0 flex-1 text-[11px] leading-[1.4]"
+              style={{
+                color: placements[key].free ? 'var(--notable-paper)' : 'var(--ink-soft)',
+              }}
+            >
+              {conditionOf(placements[key])}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * **The headquarters in its own column.** Every ceiling this window names points back to it —
+ * the placements of the home ground, the chain speed, the tier-2 gate — and it spent the last
+ * revision buried under the census it explains. Nothing here is a second implementation of a
+ * rule: the ceiling and the slots arrive served, the chain speed and the tier-2 gate are read
+ * from `constants.ts` itself.
+ */
+function HeadquartersColumn({
   view,
   token,
   now,
@@ -905,50 +976,61 @@ function Headquarters({
   const block = useFocusRow<HTMLDivElement>(hq !== null && focused === hq.id);
   const level = view.me.hqLevel;
 
-  if (hq === null) {
-    return (
-      <p className="border-b border-[rgba(42,33,24,.16)] px-4 py-[9px] text-[12.5px] leading-[1.5] text-[var(--critical)]">
-        {fr.economy.hqMissing}
-      </p>
-    );
-  }
-
   return (
-    <div
-      ref={block}
-      className={`border-b border-[rgba(42,33,24,.16)] px-4 py-[9px] ${
-        hq.id === focused ? `${FOCUS_MARK} pl-2` : ''
-      }`}
-    >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <BuildingPlate building="hq" height={36} />
-        <span className="text-[13px] font-semibold text-[var(--ink)]">{fr.buildings.hq}</span>
-        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-          {fr.economy.hqLevelLine(level, MAX_HQ_LEVEL)}
-        </span>
-        <span className="ml-auto">
-          <UpgradeControl building={hq} view={view} token={token} now={now} />
-        </span>
+    <div className="flex w-[302px] shrink-0 flex-col overflow-auto border-l border-[var(--ink)] bg-[rgba(42,33,24,.03)]">
+      <div className="sticky top-0 z-10 border-b border-[rgba(42,33,24,.35)] bg-[var(--paper)] px-4 py-[5px]">
+        <span className="eyebrow">{fr.buildings.hq}</span>
       </div>
-      <p className="mt-[6px] text-[10px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
-        {fr.economy.hqCarriesHeader}
-      </p>
-      <ul className="mt-[2px] flex flex-wrap gap-x-4 gap-y-[2px] text-[12px] text-[var(--ink-soft)]">
-        <li>{fr.economy.hqSlots(view.me.slots.total)}</li>
-        {/* Ce que le niveau porte vraiment depuis l'ADR 0020 §10 : les emplacements du sol
-            national, et non un plafond de bâtiments. Le nombre est servi, jamais recalculé. */}
-        <li>
-          {fr.economy.hqPlacements(
-            view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
+
+      {hq === null ? (
+        <p className="px-4 py-[9px] text-[12.5px] leading-[1.5] text-[var(--critical)]">
+          {fr.economy.hqMissing}
+        </p>
+      ) : (
+        <div
+          ref={block}
+          className={`px-4 py-[10px] ${hq.id === focused ? `${FOCUS_MARK} pl-2` : ''}`}
+        >
+          <div className="flex items-center gap-3">
+            <BuildingPlate building="hq" height={44} />
+            <span className="font-(family-name:--font-display) text-[17px] leading-tight font-extrabold text-[var(--ink)]">
+              {fr.economy.hqLevelLine(level, MAX_HQ_LEVEL)}
+            </span>
+          </div>
+
+          <p className="mt-[10px] text-[10px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
+            {fr.economy.hqCarriesHeader}
+          </p>
+          <ul className="mt-[3px] flex flex-col gap-[3px] text-[12px] leading-[1.4] text-[var(--ink-soft)]">
+            <li>{fr.economy.hqSlots(view.me.slots.total)}</li>
+            {/* Ce que le niveau porte vraiment depuis l'ADR 0020 §10 : les emplacements du sol
+                national, et non un plafond de bâtiments. Le nombre est servi, jamais recalculé. */}
+            <li>
+              {fr.economy.hqPlacements(
+                view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
+              )}
+            </li>
+            <li>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
+            <li>
+              {level >= view.me.tier2HqLevel
+                ? fr.economy.hqTier2
+                : fr.economy.hqTier2Locked(view.me.tier2HqLevel)}
+            </li>
+          </ul>
+
+          {!view.me.defeated && (
+            <div className="mt-[10px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
+              <UpgradeControl building={hq} view={view} token={token} now={now} />
+            </div>
           )}
-        </li>
-        <li>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</li>
-        <li>
-          {level >= view.me.tier2HqLevel
-            ? fr.economy.hqTier2
-            : fr.economy.hqTier2Locked(view.me.tier2HqLevel)}
-        </li>
-      </ul>
+        </div>
+      )}
+
+      <OutpostBudgets view={view} />
+
+      {/* La place réservée à la **production reliée** (ADR 0020 §6) : aucun champ ne dit
+          aujourd'hui qu'un site est relié ou coupé, donc rien ne s'affiche ici — la colonne
+          garde son pied libre pour le jour où le serveur le sert. */}
     </div>
   );
 }
@@ -1000,7 +1082,7 @@ function SiteBudget({
           : fr.economy.budgetRelief(view.me.homeSlotRelief);
 
   return (
-    <span className="flex min-w-[220px] flex-col items-end gap-[2px]">
+    <span className="flex min-w-[230px] flex-col items-end gap-[2px]">
       <span className="flex items-center gap-2">
         <span className="text-[10px] tracking-[.14em] text-[var(--ink-quiet)] uppercase">
           {label}
@@ -1025,18 +1107,20 @@ function SiteBudget({
         </span>
       </span>
       {said !== null && (
-        <span className="text-[10px] normal-case text-[var(--ink-quiet)]">{said}</span>
+        <span className="max-w-[34ch] text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)]">
+          {said}
+        </span>
       )}
     </span>
   );
 }
 
-/** One line per outpost, under the works header. A point is a site like the home ground, and
+/** One line per outpost, in the headquarters column. A point is a site like the home ground, and
  *  what it carries is its level — which is what makes raising one a legible decision. */
 function OutpostBudgets({ view }: { view: PlayerView }) {
   if (view.me.outposts.length === 0) return null;
   return (
-    <div className="flex flex-col items-end gap-[2px] border-b border-[rgba(42,33,24,.16)] px-4 py-[7px]">
+    <div className="flex flex-col items-end gap-[4px] border-t border-[rgba(42,33,24,.35)] px-4 py-[9px]">
       {view.me.outposts.map((outpost, rank) => (
         <SiteBudget
           key={outpost.id}
@@ -1066,18 +1150,24 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
 }
 
 /**
- * **What the army eats, beside what the nation makes.** The food rate served on the strip is
- * already net of it (`economyOf`), so this row adds no figure of its own: it says how many
- * troops, how much they take, and how many of them stand where nobody feeds them — the three
- * halves of a number the player otherwise reads as one and cannot explain.
+ * **What the army eats, beside what the nation makes** — at the foot of the page, where a
+ * running total belongs. The food rate served on the strip is already net of it (`economyOf`),
+ * so this block adds no figure of its own: it says how many troops, how much they take, and how
+ * many of them stand where nobody feeds them — the three halves of a number the player
+ * otherwise reads as one and cannot explain.
+ *
+ * **The balance closes it, in its own line.** Critical when it runs backwards, and in a body
+ * that stays a body: it is the second most important figure of the surface, and printed large
+ * it would fight the one countdown that has to win.
  */
-function UpkeepRow({ view }: { view: PlayerView }) {
+function UpkeepFoot({ view }: { view: PlayerView }) {
   const { troops, unsupplied, foodPerHour, outposts, outpostFoodPerHour, outpostCoalPerHour } =
     view.me.upkeep;
   if (troops === 0 && outposts === 0) return null;
+  const balance = view.me.resources.food.ratePerHour;
 
   return (
-    <div className="flex flex-col gap-[3px] border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+    <div className="mt-auto flex shrink-0 flex-col gap-[3px] border-t-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)] px-4 py-[9px]">
       {/* **Deux lignes, deux remèdes opposés** : l'armée se nourrit ou rentre, l'empire se
           replie. Un seul chiffre ne dirait ni l'un ni l'autre (ADR 0020 §10). */}
       {outposts > 0 && (
@@ -1102,8 +1192,13 @@ function UpkeepRow({ view }: { view: PlayerView }) {
             ? fr.economy.upkeepAllSupplied
             : fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </span>
-        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-          {fr.economy.upkeepBalance(view.me.resources.food.ratePerHour)}
+      </div>
+      <div className="mt-[3px] flex items-baseline justify-end border-t border-[rgba(42,33,24,.28)] pt-[5px]">
+        <span
+          className="font-(family-name:--font-mono) text-[14px]"
+          style={{ color: balance < 0 ? 'var(--critical)' : 'var(--ink)' }}
+        >
+          {fr.economy.upkeepBalance(balance)}
         </span>
       </div>
       {view.me.starving ? (
@@ -1176,7 +1271,7 @@ function LotControl({
   };
 
   return (
-    <div className="border-b border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.035)] px-4 py-[10px]">
+    <div className="shrink-0 border-y border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.035)] px-4 py-[10px]">
       <p className="mb-[6px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
         {fr.buildings[chain.by]} — {fr.economy.lot.commandsItself}
       </p>
@@ -1208,7 +1303,7 @@ function LotControl({
             )}
           </div>
           {!observing && (
-            <p className="mt-[6px] max-w-[70ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
+            <p className="mt-[6px] max-w-[80ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.economy.lot.cancelNote}
             </p>
           )}
@@ -1271,7 +1366,7 @@ function LotControl({
             >
               {fr.economy.lot.close}
             </button>
-            <span className="max-w-[46ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
+            <span className="max-w-[52ch] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.economy.lot.once}
             </span>
           </div>
@@ -1288,28 +1383,38 @@ function LotControl({
               </span>
             </>
           )}
-          <span className="text-[12px] text-[var(--ink-soft)]">
-            {maxOrder <= 0
-              ? fr.economy.lot.impossible(inputLabel)
-              : delivered
-                ? fr.economy.lot.doneNote(fr.buildings[chain.by], inputLabel)
-                : fr.economy.lot.keepsAvailable(inputLabel)}
-          </span>
-          {observing ? null : maxOrder > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setSizing(true);
-              }}
-              className="ml-auto cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase"
-            >
-              {fr.economy.lot.order}
-            </button>
+          {/* Les deux repos sont exclusifs : une réserve vide nomme son goulot et ne porte
+              aucun bouton — offrir « commander un lot » là où le serveur refuserait serait la
+              seule promesse fausse de la fenêtre. */}
+          {maxOrder <= 0 ? (
+            <>
+              <span className="text-[12px] text-[var(--critical)]">
+                {fr.economy.lot.impossible(inputLabel)}
+              </span>
+              <span className="ml-auto max-w-[52ch] text-right text-[11px] leading-[1.45] text-[var(--critical)]">
+                {fr.economy.lot.bottleneck(aBuilding(PRODUCER_OF[input.resource]), inputLabel)}
+              </span>
+            </>
           ) : (
-            <span className="ml-auto max-w-[46ch] text-right text-[11px] leading-[1.45] text-[var(--critical)]">
-              {fr.economy.lot.bottleneck(aBuilding(PRODUCER_OF[input.resource]), inputLabel)}
-            </span>
+            <>
+              <span className="text-[12px] text-[var(--ink-soft)]">
+                {delivered
+                  ? fr.economy.lot.doneNote(fr.buildings[chain.by], inputLabel)
+                  : fr.economy.lot.keepsAvailable(inputLabel)}
+              </span>
+              {!observing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setSizing(true);
+                  }}
+                  className="ml-auto cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase"
+                >
+                  {fr.economy.lot.order}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

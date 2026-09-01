@@ -36,6 +36,9 @@ const plural = (count: number, one: string, many: string): string => (count > 1 
 /** Building names are capitalised as titles; mid-sentence they are common nouns again. */
 const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + label.slice(1);
 
+/** L'élision devant une voyelle — `l’alliage` et jamais `le alliage`. */
+const startsWithVowel = (word: string): boolean => 'aeiouyâàéèêîôû'.includes(word.charAt(0));
+
 /** One decimal at most, and never a trailing `.0`: rates come out of a settlement, not a table. */
 const tenths = (value: number): string => String(Math.round(value * 10) / 10);
 
@@ -1151,6 +1154,8 @@ export const fr = {
     roleConversionUnderway: 'conversion — en chantier',
     roleConversionQueued: 'conversion — en file',
     roleOutput: 'sortie',
+    /** L'intitulé de la tête de colonne : le seul chiffre que la filière promet (P1). */
+    realRate: 'débit réel',
     depositHeld: (count: number) =>
       `${count} gisement${plural(count, '', 's')} sur votre territoire`,
     depositNoneHeld: (deposit: string) =>
@@ -1174,6 +1179,9 @@ export const fr = {
     },
 
     sitesHeader: 'les sites de la filière',
+    /** Les clés que rien ne porte, regroupées : une condition par ligne, jamais un vide
+     *  intercalé entre deux bâtisses debout. */
+    absentKeys: 'clés absentes',
     /** La projection, en bas : la section de ce qui arme. Deux sections, pas trois onglets. */
     projectionHeader: 'la projection — ce qui arme',
     worksHeader: 'commandement et ouvrages',
@@ -1195,7 +1203,7 @@ export const fr = {
       awaitingNote: 'rien n’est consommé',
       nothingOrdered: 'aucune commande en cours',
       keepsAvailable: (resource: string) =>
-        `Le ${resource} reste disponible pour les bâtiments et les troupes.`,
+        `${startsWithVowel(resource) ? 'L’' : 'Le '}${resource} reste disponible pour les bâtiments et les troupes.`,
       commandsItself: 'se commande',
       order: 'commander un lot',
       launch: 'lancer le lot',
@@ -1713,7 +1721,7 @@ export const noBuilding = (key: BuildingKey): string =>
  *  a sentence that tells the player which one to go and raise. */
 export const theBuilding = (key: BuildingKey): string => {
   const name = lowerFirst(fr.buildings[key]);
-  return 'aeiouyâàéèêîôû'.includes(name.charAt(0))
+  return startsWithVowel(name)
     ? `l’${name}`
     : `${fr.buildingGender[key] === 'f' ? 'la' : 'le'} ${name}`;
 };

@@ -55,18 +55,31 @@ change pas son état : un maillon debout dont le niveau suivant se bâtit reste 
 
 ## États de chaîne (tampons — pour la planche d'états)
 
-« `éteinte` » / « `en attente d'ordre` » / « `tourne` » / « `à sec — alliage` »
-(`starvedOn`) / « `débordée` ». Encres : `off` discret, `idle` discret (**pas** une panne),
-`running` valide, `starved` critique, `overflowing` notable.
+**Un état de chaîne n'existe que sur les trois conversions** (`chains[].state` : fonderie,
+arsenal, intendance) — jamais sur une colonne brute : minerais, charbon, nourriture, tissus
+et pétrole n'ont **aucun tampon**, leur débit dit tout. Les cinq états, montrés sur de
+vraies chaînes : « `éteinte` » → alliage (fonderie absente) ; « `en attente d'ordre` » →
+munitions (arsenal au repos) ; « `tourne` » → alliage (fonderie en marche) ;
+« `à sec — alliage` » (`starvedOn`) → munitions ; « `débordée` » → bandages. Encres : `off`
+discret, `idle` discret (**pas** une panne), `running` valide, `starved` critique,
+`overflowing` notable.
+
+**Gisement vs entrée** : les intrants bruts d'une conversion sont des boîtes **gisement**
+avec leur compte (colonne alliage : minerais « 3 gisements… » + charbon « 2 gisements… » ;
+colonne bandages : tissus « 2 gisements… »). « `entrée` » est réservé au seul intrant
+produit par une autre filière : l'alliage de l'arsenal (« `de fonderie` »).
 
 ## Le lot de l'arsenal (planche « milieu de partie », arsenal bâti niveau 1)
 
 - En-tête : « `Arsenal — se commande` ». Nominal 3 / h par niveau.
-- Au repos : « `Le alliage reste disponible pour les bâtiments et les troupes.` » + bouton
-  « `commander un lot` ». Lot impossible : « `lot impossible : aucun alliage en réserve` » +
-  « `Le goulot nommé : bâtissez une fonderie, elle seule fait de l'alliage.` »
+- Au repos, **deux états exclusifs** — jamais les deux sur une carte : réserve > 0 →
+  « `Le alliage reste disponible pour les bâtiments et les troupes.` » + bouton
+  « `commander un lot` » ; réserve vide → « `lot impossible : aucun alliage en réserve` » +
+  « `Le goulot nommé : bâtissez une fonderie, elle seule fait de l'alliage.` », **sans
+  bouton**.
 - Dimensionnement (curseur) : lecture en quatre cases « `coûte` / `durée` / `fin` / `couvre la
-  nuit` » — ex. lot de `40` munitions : « `40 alliage` », « `13 h 20` », fin (heure locale),
+  nuit` », et le bouton de validation est « `lancer le lot` » (jamais « commander un lot »,
+  qui est le bouton d'ouverture) — ex. lot de `40` munitions : « `40 alliage` », « `13 h 20` », fin (heure locale),
   « `oui, et au-delà` » ; « `max 320 — le stock d'alliage` » (1 alliage par munition, réserve 320) ; « `Une fois, exactement cette
   quantité. La chaîne s'arrête ensuite.` »
 - En cours : jauge + « `12 sur 40 munitions` » · « `reste 9 h 20` » · « `fin …` » + bouton
@@ -103,7 +116,11 @@ change pas son état : un maillon debout dont le niveau suivant se bâtit reste 
   `alliage 72 / 320` + `nourriture 54 / 114`, `1 h 12` ; Baraquements → 2 (en file) : ligne
   retenue « `un chantier vise déjà cette région — annulez-le ou attendez son tour` ».
 - Recensement : une ligne par instance (vignette, nom, « `en <département>` », « `niveau n` »,
-  effet `fr.buildingEffects`, élévation) ; clé absente : la ligne dit sa condition (mêmes
+  effet, élévation). Les effets existent (`fr.buildingEffects`) : Mine — « `exploite un
+  gisement de charbon ou de minerais, selon la région` » ; Caserne — « `ouvre le domaine
+  terrestre et forme l'infanterie et les véhicules` » ; Baraquements — « `relève le nombre de
+  troupes que l'armée peut aligner` » ; QG — « `unique et chez soi — plafonne les autres,
+  porte les slots de mouvement et la recherche` » ; clé absente : la ligne dit sa condition (mêmes
   phrases que le graphe). « `plafonné par le QG` » : aucun cas dans ce scénario (tout est au
   niveau 1) — le tampon existe, ne pas l'inventer ici.
 
@@ -114,9 +131,18 @@ Le chapeau d'en-tête · « `Aucun chantier. La file est illimitée…` » · la
 la note d'annulation du lot · la variante affamée · « `quartier général au maximum — le sol
 national ne s'élargira plus` » (état au niveau 5).
 
+## Observateur (planche 4)
+
+Le bloc « élever le quartier général » disparaît **entier** — coûts et retenue compris, pas
+seulement le bouton (décision du 31/08, codée : `UpgradeControl` rend null pour un défait).
+Idem pour la colonne d'élévation des lignes de recensement. Partent aussi : « annuler » sur
+la file, « commander un lot ». La lecture reste entière.
+
 ## Interdits (rappel du contrat 02)
 
 Aucun stock nu (le bandeau les porte ; ici un stock n'existe que collé à un coût) · aucune
 date sur la file · aucune barre de progression de chantier · pas de tampon « production
-reliée » chiffré (ADR 0020 §6, pas codé — réserver la place au plus) · toute chaîne ou tout
-chiffre absent de ce fichier.
+reliée » chiffré (ADR 0020 §6, pas codé — réserver la place au plus) · aucun tampon d'état
+sur une colonne brute (l'état de chaîne n'existe que sur les trois conversions) · toute
+chaîne ou tout chiffre absent de ce fichier. Intitulés de grille tolérés (« débit réel »,
+« gisement », « extracteur »…) : ⚠ clés fr à créer au branchement.
