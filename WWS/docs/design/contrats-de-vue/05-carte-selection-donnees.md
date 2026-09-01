@@ -27,7 +27,12 @@ En-têtes : « `Pays neutre` » / « `Nation adverse` » ; marqueur « `sélecti
 - **Interdits (rien n'est servi)** : « progression », « dernier renseignement » — aucune
   ligne, même vide.
 
-**Section région (au survol, zoom rapproché) — « `Région` » :**
+**Section région (au survol, zoom rapproché) — « `Région` » :** ⚠ **la région doit
+appartenir au pays en tête** (`GroundPanel` : elle ne s'affiche pas sinon) — les exemples
+français (Moselle, Ardennes, Pas-de-Calais) vont sous une carte **France**, jamais sous la
+Belgique ou le Royaume-Uni ; sous la Belgique : une province belge (ex. « `Hainaut` »,
+« `Namur` » — noms réels de `region-index.json`) relevée ou vierge. ⚠ Le titre de la carte de **mon propre pays** manque au
+code (« Pays neutre » s'affiche aujourd'hui — vrai manque, nouvelle clé fr au branchement).
 - Ma région : « `Moselle` » · « `gisement de charbon` » ; ou « `Ardennes` » ·
   « `aucun gisement — caserne, aérodrome, baraquements` » ; côtière : « `Pas-de-Calais` » ·
   « `gisement de charbon` » · « `côtière — port possible` »
@@ -50,8 +55,11 @@ En-têtes : « `Pays neutre` » / « `Nation adverse` » ; marqueur « `sélecti
   - relais : « `accélère de ×1.5 la part de vos routes qui passe à moins de 120 km` »
   - écoute : « `relève les mouvements adverses qui passent à moins de 120 km` »
 - Emplacements du site : « `0 emplacements sur 1` » (le total est son niveau)
-- Métier : modifiable tant qu'aucune passe ne l'a lu (`specializationLocked` faux) ; scellé :
-  « `une passe s'est déjà servie de cet avant-poste — sa spécialisation ne change plus` »
+- Métier : tant qu'aucune passe ne l'a lu (`specializationLocked` faux), le **sélecteur**
+  des deux métiers s'affiche — « `relais logistique` » / « `écoute` » (`fr.specializations`),
+  chacun avec son effet ; scellé : « `une passe s'est déjà servie de cet avant-poste — sa
+  spécialisation ne change plus` ». ⚠ Les intitulés « avant réactivation » et l'éventuelle
+  ligne « métier modifiable » sont des clés fr à créer au branchement.
 - **Un avant-poste adverse n'a pas de panneau** — rien n'est servi.
 
 ## C · Cartouche de troupe / pile (clic gauche sur un sprite)
@@ -60,8 +68,9 @@ En-têtes : « `Pays neutre` » / « `Nation adverse` » ; marqueur « `sélecti
   « `abaque de tir — qui bat qui` ») ; « `fermer` »
 - Sprite en grand ; une troupe : « `infanterie · MK1` » ; une pile : le résumé `stackLabel`
   — « `2 infanterie · 1 transport terrestre` » — et « `pile de 3` »
-- **LE chiffre : « `effectif 32 / 50` »** (somme de la pile ; `fr.troops.strength`, sans
-  unité)
+- **LE chiffre** (`fr.troops.strength`, sans unité) : troupe seule « `effectif 32 / 50` » ;
+  la pile **somme** courant et nominal — la pile de 3 du scénario (32/50 + 50/50 + 24/24)
+  lit « `effectif 106 / 124` », jamais le chiffre d'une seule troupe
 - **UN tampon : « `ravitaillée` »** ou « `hors ravitaillement — entretien ×2` » (une seule
   troupe hors suffit à tamponner la pile)
 - Portée, en une phrase : « `relève à 60 km` » (`SCOUT_RADIUS_KM`)

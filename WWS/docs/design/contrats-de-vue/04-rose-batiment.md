@@ -88,6 +88,9 @@ rose des mouvements ne change pas.
 
 ## À coller à Claude design — Rose sur bâtiment
 
+> **Toutes les chaînes et tous les chiffres viennent de l'annexe
+> `04-rose-batiment-donnees.md`, jointe — n'écris rien, ne calcule rien, ne crée aucun
+> état ; demande ce qui manque. Valide sur les chaînes les plus longues de l'annexe.**
 > Maquette la rose des vents ouverte au **clic droit** sur un bâtiment de la carte
 > (décisions 54a et 56a — même objet radial que la rose des troupes, mêmes pictogrammes
 > muets, libellé au survol). Kicker : nom
