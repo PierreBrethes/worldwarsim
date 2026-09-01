@@ -1,0 +1,18 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Modale de site — nominal", "x": 0, "y": 0, "w": 1240, "h": 960 },
+    { "file": "FileVide.dc.html", "title": "Variante — file vide", "x": 1360, "y": 0, "w": 1240, "h": 960 },
+    { "file": "GarnisonVide.dc.html", "title": "Variante — garnison vide", "x": 0, "y": 1120, "w": 1240, "h": 860 },
+    { "file": "Observateur.dc.html", "title": "Variante — observateur", "x": 1360, "y": 1120, "w": 1240, "h": 900 }
+  ],
+  "annotations": [
+    {
+      "id": "questions-ouvertes",
+      "x": 2720,
+      "y": 0,
+      "w": 380,
+      "text": "Quatre chaînes à trancher — l'annexe et fr.ts ne disent pas la même chose, rien n'a été inventé ici :\n\n1. Effectif d'une troupe de garnison. Annexe : « 32 / 50 soldats ». fr.ts : fr.troops.strength = « effectif 32 / 50 », sans unité. Dessiné : « effectif 32 / 50 soldats » — les deux chaînes accolées, comme la carte de rôle accole déjà effectif et fr.strengthUnits.\n\n2. Allure. Annexe : « motorisé » / « à pied ». fr.ts : fr.garrison.paces = « colonne motorisée » / « colonne à pied ». Dessiné : fr.ts.\n\n3. Renvoi abaque. GunneryButton est muet par décision — le libellé est l'infobulle. Dessiné : le picto, la phrase à côté, hors du bouton.\n\n4. « Aucune troupe en chaîne. Choisissez un site et enfilez un rôle. » — le sélecteur de site est mort avec l'onglet (59a) : la seconde phrase envoie vers un geste qui n'existe plus."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

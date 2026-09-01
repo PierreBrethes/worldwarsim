@@ -16,6 +16,7 @@ ne se débloque* — tout le matériel du jeu se lit ici, avec sa condition.
 | La grille de tir : part détruite par passe, bandes | `gunneryRows(DAMAGE_TABLE)` (`src/domain/gunnery.ts` — la table arrive de `constants.ts`, jamais recopiée) |
 | Garantie et modificateurs (riposte ×1,15, à sec ×0,6) | `fr.gunnery.guarantee`, `.before` (`DEFENDER_BONUS`, `DRY_AMMUNITION_FACTOR`) |
 | Par rôle : coût alliage + minutes (MK1/MK2), effectif, bâtiment qui forme, QG requis | `workshop.grid[]` (`unit`, `unitTier2`, `producedBy`, `unlockedAtHqLevel`) — servi même sans aucun bâtiment |
+| En service par rôle et par marque — toutes adresses confondues, file exclue | `workshop.roster[]` (`{role, tier, count}`) |
 | MK2 ouvert / seuil | `workshop.tier2Unlocked`, `requiredHqLevel` |
 | Équipement national, sprites | plaques (`equipmentLabel`) |
 | Fort / faible contre (résumé éditorial) | `fr.unitSheets` |
@@ -32,7 +33,9 @@ ne se débloque* — tout le matériel du jeu se lit ici, avec sa condition.
 
 - **Au survol d'une case** : la phrase de lecture (`fr.gunnery.shot` / `.noShot`).
 - **Au pli sur une ligne (nouveau — le catalogue, 60b)** : sprite, équipement national,
-  coût alliage (MK1/MK2), durée de formation, effectif nominal, fort / faible contre, et
+  coût alliage (MK1/MK2), durée de formation, effectif nominal, **« en service » par marque**
+  (`workshop.roster` — toutes adresses confondues, la file non ; ajout du 01/09),
+  fort / faible contre, et
   **la condition** : « se forme dans une caserne » / « … un aérodrome » / « … un port »
   (+ « quartier général niveau n requis » quand le rôle l'exige). Le bâtiment absent est la
   condition dite, jamais un grisé.

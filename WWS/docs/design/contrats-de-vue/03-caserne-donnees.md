@@ -39,12 +39,17 @@ baraquements « `alliage 45 / 320` + `nourriture 72 / 114` ».
 
 Troupes stationnées à la caserne de Normandie, cochables :
 
-- `infanterie` `MK1` — « `32 / 50 soldats` » (entamée) — ravitaillée
-- `infanterie` `MK1` — « `50 / 50 soldats` » — ravitaillée
-- `transport terrestre` `MK1` — « `24 / 24 camions` » — ravitaillé
+- `infanterie` `MK1` — « `effectif 32 / 50` » (entamée) — « `ravitaillée` »
+- `infanterie` `MK1` — « `effectif 50 / 50` » — « `ravitaillée` »
+- `transport terrestre` `MK1` — « `effectif 24 / 24` » — « `ravitaillé` »
 
-Deux cochées (1 infanterie + 1 VTC) : **allure « `motorisé` »** (1 fantassin ≤ 2 sièges par
-VTC, `LAND_SEATS_PER_TRANSPORT`). L'infanterie seule : « `à pied` ». **Pas de compteur de
+L'effectif est `fr.troops.strength`, **sans unité** (tranché 01/09) : l'unité vit sur la
+carte de rôle, pas sur la ligne de garnison.
+
+Deux cochées (1 infanterie + 1 VTC) : **allure « `colonne motorisée` »** (`fr.garrison.paces`
+— tranché 01/09 ; « motorisé / à pied » est le mot de la visée, `fr.aim.paces`, pas celui de
+la garnison ; 1 fantassin ≤ 2 sièges par VTC, `LAND_SEATS_PER_TRANSPORT`). L'infanterie
+seule : « `colonne à pied` ». **Pas de compteur de
 places d'emport dans une pile pure terre** : l'emport (`LIFT_CAPACITY`) ne concerne que la
 traversée mer / air — cargo `6` places, transport aérien `2` — il ne se montre donc que
 dans les modales de port et d'aérodrome. Hors ravitaillement (variante) : « `hors
@@ -91,12 +96,26 @@ Chaînes d'accompagnement, verbatim :
   chantiers. Chaque bâtiment tient sa propre file : une seconde caserne forme en parallèle.
   Une troupe déjà commencée ne s'annule plus ; les suivantes sont remboursées
   intégralement.` »
-- File vide (autre état à maquetter) : « `Aucune troupe en chaîne. Choisissez un site et
-  enfilez un rôle.` »
+- File vide (autre état à maquetter) : ⚠ la chaîne actuelle (« Choisissez un site et
+  enfilez un rôle ») envoie vers un geste mort depuis 59a — **nouvelle clé fr au prompt
+  code**, proposition : « `Aucune troupe en chaîne. Enfilez un rôle ci-dessus.` »
+- Lot commencé : **pas de bouton annuler** (retiré, pas grisé) ; la phrase
+  « `une troupe commencée ne s'annule plus` » s'imprime à sa place — écart assumé au code
+  actuel (qui grise), à répercuter au prompt code. *(validé 01/09)*
+
+## Fiche abaque (contrat 06) — en service par marque
+
+Sous chaque colonne de marque de la fiche dépliée : « `en service` » + le compte
+(`workshop.roster`, toutes adresses confondues, file exclue). Scénario : `infanterie` MK1
+`3` ; toutes les autres lignes `0` — le zéro s'imprime, une fiche sans la ligne se lirait
+comme un oubli.
 
 ## Renvoi abaque
 
-Bouton : « `abaque de tir — qui bat qui` » — ouvre une lecture, ne commande rien.
+Bouton **muet** (pictogramme seul, décision du code : un libellé le mettrait au même rang
+que recruter) ; « `abaque de tir — qui bat qui` » est son **infobulle**, rien d'imprimé à
+côté. Ouvre une lecture, ne commande rien. *(tranché 01/09 — le prompt v2 disait à tort
+d'imprimer la phrase.)*
 
 ## Chaînes les plus longues (la maquette doit les tenir sans casser)
 
