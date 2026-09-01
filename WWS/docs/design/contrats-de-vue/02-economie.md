@@ -108,6 +108,9 @@ nouvelle fenêtre :
 
 ## À coller à Claude design — Économie
 
+> **Toutes les chaînes et tous les chiffres viennent de l'annexe `02-economie-donnees.md`,
+> jointe — n'écris aucun texte, ne calcule aucun nombre ; s'il te manque une donnée,
+> demande-la. Valide la mise en page sur les chaînes les plus longues de l'annexe.**
 > Maquette la fenêtre Économie. Elle répond « pourquoi ça produit ou pas, et qu'est-ce que
 > j'élève ensuite » — jamais « combien j'ai » : aucun stock nu, un stock n'apparaît que collé
 > à un coût (« 40 / 120 »). P1 : le chantier en tête (vignette, nom, région, minutes

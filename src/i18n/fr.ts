@@ -736,12 +736,10 @@ export const fr = {
      *  « 3 dépêches », qui laisserait croire que la manchette n'en est pas une. */
     others: (count: number) => `${count} autre${plural(count, '', 's')}`,
     severities: { critical: 'critique', notable: 'notable', routine: 'routine' },
-    effectRunning: 'L’effet court encore ',
     atWaking: 'au réveil',
     stalledResolution: '. Résolution à ',
     noneStalled: 'Aucun mouvement immobilisé par une plage de repos.',
     slotsEngaged: 'slots engagés',
-    remaining: (time: string) => `restant ${time}`,
     resolutionAt: (time: string) => `résolution à ${time}`,
     historyLabel: 'historique de la saison',
     keepNote: 'les dépêches lues restent consultables',

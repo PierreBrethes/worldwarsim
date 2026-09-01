@@ -82,43 +82,45 @@ export function JournalWindow({
 
         {/* **Le compte de non-lues est un chiffre, pas une phrase.** C'est la seule chose que le
             joueur cherche en ouvrant : posé en gros, à l'encre rouge, il se lit avant le titre.
-            Les deux joues de la grille tiennent la manchette centrée même quand l'une est vide. */}
+            Les deux joues de la grille tiennent la manchette centrée même quand l'une est vide —
+            le cachet à gauche, le compte à droite, là où l'œil retombe après le titre. */}
         <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px]">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-[18px]">
-            <div className="flex items-baseline gap-[8px]">
+            {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
+                relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
+            <div className="justify-self-start">
+              {view.season.reduction.concludedAt !== null && (
+                <Stamp label={fr.stamps.seasonClosed} />
+              )}
+            </div>
+            <h2 className="font-(family-name:--font-display) text-[clamp(24px,5cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
+              {fr.journal.masthead}
+            </h2>
+            <div className="flex items-end justify-end gap-[8px]">
               {unread.length > 0 && (
                 <>
-                  <span className="font-(family-name:--font-display) text-[clamp(28px,4.6cqi,46px)] leading-[.82] font-extrabold text-[var(--critical)]">
+                  <span className="font-(family-name:--font-display) text-[clamp(28px,4.6cqi,46px)] leading-[.8] font-extrabold text-[var(--critical)]">
                     {unread.length}
                   </span>
-                  <span className="text-[10px] font-bold tracking-[.2em] text-[var(--critical)] uppercase">
+                  <span className="max-w-[52px] pb-[3px] text-[9px] leading-[1.25] tracking-[.18em] text-[var(--critical)] uppercase">
                     {fr.journal.unreadLabel(unread.length)}
                   </span>
                 </>
               )}
             </div>
-            <h2 className="font-(family-name:--font-display) text-[clamp(24px,5cqi,52px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
-              {fr.journal.masthead}
-            </h2>
-            {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
-                relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
-            <div className="justify-self-end">
-              {view.season.reduction.concludedAt !== null && (
-                <Stamp label={fr.stamps.seasonClosed} />
-              )}
-            </div>
           </div>
-          <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
-            <span>{nationLabel(view.me.nation)}</span>
-            <span className="text-[#9d8f78]">·</span>
-            <span>{fr.journal.dispatches(dispatches.length)}</span>
-            {unread.length === 0 && (
-              <>
-                <span className="text-[#9d8f78]">·</span>
-                <span>{fr.journal.allRead}</span>
-              </>
-            )}
-          </div>
+        </div>
+
+        <div className="mt-[9px] flex shrink-0 flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          <span>{nationLabel(view.me.nation)}</span>
+          <span className="text-[#9d8f78]">·</span>
+          <span>{fr.journal.dispatches(dispatches.length)}</span>
+          {unread.length === 0 && (
+            <>
+              <span className="text-[#9d8f78]">·</span>
+              <span>{fr.journal.allRead}</span>
+            </>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
@@ -143,19 +145,17 @@ export function JournalWindow({
                     size="small"
                   />
                 </div>
-                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(21px,3.4cqi,34px)] leading-[1.04] font-extrabold break-words text-[var(--ink)]">
+                {/* **La manchette ne porte que sa phrase.** Une heure de résolution sous le titre
+                    la redirait deux fois : si la manchette est immobilisée, l'encart du réveil
+                    la reprend juste à côté, avec son heure. */}
+                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(21px,3.4cqi,34px)] leading-[1.15] font-bold text-pretty break-words text-[var(--ink)]">
                   {lead.text}
                 </h3>
-                {lead.resolutionAt && (
-                  <p className="mt-[7px] font-(family-name:--font-display) text-[15px] leading-[1.35] text-[var(--ink-quiet)] italic">
-                    {fr.journal.resolutionAt(lead.resolutionAt)}
-                  </p>
-                )}
               </div>
 
               {/* **L'encart du réveil, à droite de la manchette** : ce qui se résoudra sans qu'on
                   y touche, et le seul compteur qui décide de la visite — les slots engagés. */}
-              <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[236px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-5">
+              <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:border-[var(--ink)] @3xl:pt-0 @3xl:pl-5">
                 <h4 className="border-b border-[var(--ink)] pb-[6px] text-[10px] font-bold tracking-[.2em] text-[var(--ink)] uppercase">
                   {fr.journal.atWaking}
                 </h4>
@@ -164,7 +164,7 @@ export function JournalWindow({
                     {stalled.map((entry) => (
                       <p
                         key={`${entry.t}-${entry.text}`}
-                        className="text-[13px] leading-[1.45] break-words text-[var(--ink)]"
+                        className="font-(family-name:--font-display) text-[14px] leading-[1.5] break-words text-[var(--ink)]"
                       >
                         {entry.text}
                         {fr.journal.stalledResolution}
@@ -174,11 +174,11 @@ export function JournalWindow({
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink-soft)]">
+                  <p className="mt-[9px] font-(family-name:--font-display) text-[14px] leading-[1.5] text-[var(--ink-soft)]">
                     {fr.journal.noneStalled}
                   </p>
                 )}
-                <div className="mt-3 flex justify-between border-t border-[rgba(42,33,24,.28)] pt-[7px] text-[12.5px]">
+                <div className="mt-3 flex justify-between text-[12.5px]">
                   <span className="text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
                   <span className="font-(family-name:--font-mono) text-[var(--ink)]">
                     {view.me.slots.used} / {view.me.slots.total}
@@ -188,9 +188,9 @@ export function JournalWindow({
             </div>
           )}
 
-          {/* Les trois colonnes tiennent dans un même cadre : c'est le corps du journal, et une
-              colonne isolée sur le papier se lirait comme un troisième encart. */}
-          <div className="mt-[14px] flex flex-col border border-[rgba(42,33,24,.3)] bg-[rgba(207,192,158,.36)] px-[14px] py-[12px] @3xl:flex-row @3xl:items-stretch">
+          {/* Trois colonnes sans cadre : le filet vertical suffit à les tenir, et une boîte teintée
+              autour d'elles ferait du corps du journal un encart de plus. */}
+          <div className="flex flex-col pt-[14px] @3xl:flex-row @3xl:items-stretch">
             {COLUMNS.map((severity) => {
               const entries = dispatches.filter(
                 (dispatch) => dispatch.severity === severity && dispatch !== lead,
@@ -199,7 +199,7 @@ export function JournalWindow({
               return (
                 <section
                   key={severity}
-                  className="min-w-0 flex-1 border-t border-[rgba(42,33,24,.3)] pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:px-[16px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
+                  className="min-w-0 flex-1 border-t border-[rgba(42,33,24,.3)] pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:border-l-[rgba(42,33,24,.3)] @3xl:px-[18px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
                 >
                   <div className="flex items-center gap-2 border-b border-[var(--ink)] pb-[6px]">
                     <span
@@ -227,11 +227,11 @@ export function JournalWindow({
           <ReductionLine board={view.season.reduction} />
         </div>
 
-        <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
+        <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
           <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             {fr.journal.historyLabel}
           </span>
-          <span className="font-(family-name:--font-display) text-[12.5px] text-[var(--ink-quiet)] italic">
+          <span className="font-(family-name:--font-display) text-[13px] text-[var(--ink-quiet)] italic">
             {fr.journal.keepNote}
           </span>
           <button
@@ -253,26 +253,28 @@ export function JournalWindow({
  * (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour où la part de carte
  * arrive — il ne se transforme pas en barre de progression.
  *
- * **Il tient sur une ligne, en pied du fil et au défilement** — jamais posé à demeure sous les
- * colonnes : c'est un état de table qu'on longe du regard en sortant, et une bande permanente en
- * ferait un P1 qui disputerait la manchette. Sur une ligne, le carré porte le verdict et le
- * compte porte la marche ; le mot ne paraît que pour un réduit — huit « debout » alignés ne
- * disent rien que les carrés creux ne disent déjà — et la phrase entière reste à l'infobulle.
+ * **Il tient en pied du fil et au défilement** — jamais posé à demeure sous les colonnes : c'est
+ * un état de table qu'on longe du regard en sortant, et une bande permanente en ferait un P1 qui
+ * disputerait la manchette. Le titre porte l'aveu de l'échafaudage sur sa propre ligne, et les
+ * nations coulent en dessous : à huit joueurs elles passent à la ligne au lieu de pousser un
+ * défilement latéral que personne ne va chercher.
  */
 function ReductionLine({ board }: { board: ReductionBoard }) {
   if (board.standings.length === 0) return null;
   return (
-    <section className="mt-[14px] flex items-baseline gap-x-4 border-t border-[var(--ink)] pt-[9px]">
-      <span className="shrink-0 text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
-        {fr.victory.kicker}
-      </span>
-      <div className="flex min-w-0 flex-1 items-baseline gap-x-[18px] overflow-x-auto">
+    <section className="mt-4 border-t border-[var(--ink)] pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
+          {fr.victory.kicker}
+        </span>
+        <span className="font-(family-name:--font-display) text-[13px] text-[var(--ink-quiet)] italic">
+          {fr.victory.scaffold}
+        </span>
+      </div>
+      <div className="mt-[7px] flex flex-wrap gap-x-5 gap-y-[6px]">
         {board.standings.map((standing) => (
           <span
             key={standing.nickname}
-            title={`${fr.victory.tally(standing.reduced, board.target)} — ${
-              standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark
-            }`}
             className="flex items-baseline gap-[7px] text-[13px] whitespace-nowrap"
           >
             <span
@@ -286,13 +288,11 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
               {standing.nation === null ? standing.nickname : nationLabel(standing.nation)}
             </span>
             <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-              {standing.reduced} / {board.target}
+              {fr.victory.tally(standing.reduced, board.target)}
             </span>
-            {standing.isReduced && (
-              <span className="text-[10px] tracking-[.16em] text-[var(--critical)] uppercase">
-                {fr.victory.reducedMark}
-              </span>
-            )}
+            <span className="text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+              {standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark}
+            </span>
           </span>
         ))}
       </div>
@@ -323,7 +323,7 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
           size="small"
         />
       </div>
-      <div className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.18] font-semibold break-words text-[var(--ink)]">
+      <div className="mt-[3px] font-(family-name:--font-display) text-[16.5px] leading-[1.35] font-semibold text-pretty break-words text-[var(--ink)]">
         {entry.text}
       </div>
       {entry.resolutionAt && (

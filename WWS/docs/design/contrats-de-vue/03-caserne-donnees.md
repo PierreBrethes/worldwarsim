@@ -7,8 +7,12 @@ l'écrire soi-même. (C'est la leçon de la v1 du journal : toponymes et distanc
 
 ## Scénario
 
+> **Correctif du 01/09 (v3)** : les régions françaises du jeu sont des **départements**
+> (`public/region-index.json`) — « Normandie » n'existe pas. Une région ne porte qu'une
+> bâtisse : caserne (Ardennes) et baraquements (Meuse) sont deux départements distincts.
+
 France, quartier général **niveau 1** (début de partie — le cas le plus fréquent) :
-une caserne (Normandie, niveau 1), des baraquements (niveau 1), **ni aérodrome ni port**.
+une caserne (Ardennes, niveau 1), des baraquements (Meuse, niveau 1), **ni aérodrome ni port**.
 `chainSpeed(1) = 1.00` → les durées sont les durées de base.
 
 Stocks du scénario (pour tous les « x / y » — un stock n'apparaît jamais ailleurs) :
@@ -22,12 +26,12 @@ baraquements « `alliage 45 / 320` + `nourriture 72 / 114` ».
 - Note italique (longue — elle doit tenir) : « `Les hommes ne sont pas une ressource : une
   troupe coûte des matières, et l'armée est bornée en nombre de troupes par les baraquements.
   La file compte dans le plafond.` »
-- Ligne baraquements : « `Baraquements` · `en Normandie` · `niveau 1` » + élévation
+- Ligne baraquements : « `Baraquements` · `en Meuse` · `niveau 1` » + élévation
   (coût niveau 2 : `alliage 45` + `nourriture 72`, `54 min` — `buildCost('billets', 2)`).
 
 ## En-tête de la modale (59a — plus de sections de domaine)
 
-- « `Caserne` » · « `en Normandie` » · « `niveau 1` » + élévation (voir ligne baraquements
+- « `Caserne` » · « `en Ardennes` » · « `niveau 1` » + élévation (voir ligne baraquements
   pour le modèle de ligne d'élévation ; coût caserne niveau 2 : `alliage 72` +
   `nourriture 54`, `1 h 12`).
 - Les bandeaux « `bloqué : aucun aérodrome` » / « `aucun port` » **ne sont plus dans cette
@@ -37,7 +41,7 @@ baraquements « `alliage 45 / 320` + `nourriture 72 / 114` ».
 
 ## Garnison du site (61 — données du scénario)
 
-Troupes stationnées à la caserne de Normandie, cochables :
+Troupes stationnées à la caserne des Ardennes, cochables :
 
 - `infanterie` `MK1` — « `effectif 32 / 50` » (entamée) — « `ravitaillée` »
 - `infanterie` `MK1` — « `effectif 50 / 50` » — « `ravitaillée` »
@@ -87,7 +91,7 @@ Chaînes d'accompagnement, verbatim :
 ## File de production (colonne latérale)
 
 - En-tête : « `files de production` »
-- Site : « `Normandie — 2 lots en file sur 12` »
+- Site : « `Ardennes — 2 lots en file sur 12` »
 - Lot 1 : `infanterie` `MK1 — 50 soldats` · « `en chaîne` » · `12 min` restantes (pas de
   bouton annuler : « `une troupe commencée ne s'annule plus` »)
 - Lot 2 : `infanterie` `MK1 — 50 soldats` · « `en attente` » · `20 min` (bouton
