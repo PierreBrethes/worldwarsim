@@ -732,19 +732,23 @@ export const fr = {
     seasonDayNoClock: (season: number, day: number) => `saison ${season} — jour ${day}`,
     masthead: 'LE JOURNAL DES OPÉRATIONS',
     dispatches: (count: number) => `${count} dépêche${plural(count, '', 's')}`,
+    /** La colonne qui porte la manchette compte ce qui lui reste : « 3 autres » et non
+     *  « 3 dépêches », qui laisserait croire que la manchette n'en est pas une. */
+    others: (count: number) => `${count} autre${plural(count, '', 's')}`,
     severities: { critical: 'critique', notable: 'notable', routine: 'routine' },
     effectRunning: 'L’effet court encore ',
     atWaking: 'au réveil',
     stalledResolution: '. Résolution à ',
     noneStalled: 'Aucun mouvement immobilisé par une plage de repos.',
-    embargoLeft: 'embargo restant',
     slotsEngaged: 'slots engagés',
     remaining: (time: string) => `restant ${time}`,
     resolutionAt: (time: string) => `résolution à ${time}`,
     historyLabel: 'historique de la saison',
     keepNote: 'les dépêches lues restent consultables',
     backToBoard: 'retour au plateau',
-    unread: (count: number) => `${count} non lue${plural(count, '', 's')}`,
+    /** **Le chiffre est rendu à part, en gros** : la manchette du journal pose le compte de
+     *  non-lues en numéral et ne garde ici que le mot qui l'accorde. */
+    unreadLabel: (count: number) => `non lue${plural(count, '', 's')}`,
     allRead: 'tout est lu',
     /**
      * **Une phrase entière par sorte, à la manière presse.** Le relevé ne nomme jamais la nation

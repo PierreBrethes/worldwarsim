@@ -13,11 +13,15 @@ import type {
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
-const COLUMNS: ReadonlyArray<{ severity: DispatchSeverity; ink: string }> = [
-  { severity: 'critical', ink: 'var(--critical)' },
-  { severity: 'notable', ink: 'var(--notable)' },
-  { severity: 'routine', ink: 'var(--routine)' },
-];
+/** L'ordre des colonnes est celui de la gravité, jamais celui des dépêches : ce qui range la
+ *  page est la sorte, et le journal sert déjà chaque liste dans son ordre d'heure. */
+const COLUMNS: ReadonlyArray<DispatchSeverity> = ['critical', 'notable', 'routine'];
+
+const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
+  critical: 'var(--critical)',
+  notable: 'var(--notable-paper)',
+  routine: 'var(--routine)',
+};
 
 export function JournalWindow({
   view,
@@ -47,8 +51,9 @@ export function JournalWindow({
     dispatches.find((dispatch) => dispatch.severity === 'critical') ??
     dispatches[0] ??
     null;
-  const stalled = dispatches.find((dispatch) => dispatch.resolutionAt !== null);
-  const embargo = dispatches.find((dispatch) => dispatch.remaining !== null);
+  /** **« Au réveil » ne trie rien** : il retient les dépêches que le serveur a datées d'une heure
+   *  à venir (`resolutionAt`), dans l'ordre où le journal les sert. */
+  const stalled = dispatches.filter((dispatch) => dispatch.resolutionAt !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   /** Sans horloge il n'y a pas de « sur n » : le jour se compte encore, la fin ne se promet pas. */
   const totalDays =
@@ -75,23 +80,44 @@ export function JournalWindow({
           </button>
         </DragHandle>
 
-        <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px] text-center">
-          <div className="flex items-center justify-center gap-[18px]">
-            <h2 className="font-(family-name:--font-display) text-[clamp(26px,5.4cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
+        {/* **Le compte de non-lues est un chiffre, pas une phrase.** C'est la seule chose que le
+            joueur cherche en ouvrant : posé en gros, à l'encre rouge, il se lit avant le titre.
+            Les deux joues de la grille tiennent la manchette centrée même quand l'une est vide. */}
+        <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px]">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-[18px]">
+            <div className="flex items-baseline gap-[8px]">
+              {unread.length > 0 && (
+                <>
+                  <span className="font-(family-name:--font-display) text-[clamp(28px,4.6cqi,46px)] leading-[.82] font-extrabold text-[var(--critical)]">
+                    {unread.length}
+                  </span>
+                  <span className="text-[10px] font-bold tracking-[.2em] text-[var(--critical)] uppercase">
+                    {fr.journal.unreadLabel(unread.length)}
+                  </span>
+                </>
+              )}
+            </div>
+            <h2 className="font-(family-name:--font-display) text-[clamp(24px,5cqi,52px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
               {fr.journal.masthead}
             </h2>
             {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
                 relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
-            {view.season.reduction.concludedAt !== null && <Stamp label={fr.stamps.seasonClosed} />}
+            <div className="justify-self-end">
+              {view.season.reduction.concludedAt !== null && (
+                <Stamp label={fr.stamps.seasonClosed} />
+              )}
+            </div>
           </div>
           <div className="mt-[9px] flex flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
             <span>{nationLabel(view.me.nation)}</span>
             <span className="text-[#9d8f78]">·</span>
             <span>{fr.journal.dispatches(dispatches.length)}</span>
-            <span className="text-[#9d8f78]">·</span>
-            <span style={{ color: unread.length > 0 ? 'var(--critical)' : undefined }}>
-              {unread.length > 0 ? fr.journal.unread(unread.length) : fr.journal.allRead}
-            </span>
+            {unread.length === 0 && (
+              <>
+                <span className="text-[#9d8f78]">·</span>
+                <span>{fr.journal.allRead}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -100,8 +126,14 @@ export function JournalWindow({
             <div className="flex flex-col gap-4 border-b border-[var(--ink)] pt-4 pb-[18px] @3xl:flex-row @3xl:items-stretch @3xl:gap-[22px]">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-[9px]">
-                  <span className="h-[9px] w-[9px]" style={{ background: 'var(--critical)' }} />
-                  <span className="text-[10px] font-bold tracking-[.22em] text-[var(--critical)] uppercase">
+                  <span
+                    className="h-[9px] w-[9px] shrink-0"
+                    style={{ background: SEVERITY_INK[lead.severity] }}
+                  />
+                  <span
+                    className="text-[10px] font-bold tracking-[.22em] uppercase"
+                    style={{ color: SEVERITY_INK[lead.severity] }}
+                  >
                     {fr.journal.severities[lead.severity]} — {lead.t}
                   </span>
                   <span className="flex-1" />
@@ -111,73 +143,77 @@ export function JournalWindow({
                     size="small"
                   />
                 </div>
-                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(22px,3.7cqi,38px)] leading-[1.02] font-extrabold text-[var(--ink)]">
+                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(21px,3.4cqi,34px)] leading-[1.04] font-extrabold break-words text-[var(--ink)]">
                   {lead.text}
                 </h3>
-                {lead.remaining && (
-                  <p className="mt-[7px] font-(family-name:--font-display) text-[16px] leading-[1.35] text-[var(--ink-quiet)] italic">
-                    {fr.journal.effectRunning}
-                    <span className="font-(family-name:--font-mono) not-italic">
-                      {lead.remaining}
-                    </span>
-                    .
+                {lead.resolutionAt && (
+                  <p className="mt-[7px] font-(family-name:--font-display) text-[15px] leading-[1.35] text-[var(--ink-quiet)] italic">
+                    {fr.journal.resolutionAt(lead.resolutionAt)}
                   </p>
                 )}
               </div>
 
-              <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-5">
+              {/* **L'encart du réveil, à droite de la manchette** : ce qui se résoudra sans qu'on
+                  y touche, et le seul compteur qui décide de la visite — les slots engagés. */}
+              <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[236px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-5">
                 <h4 className="border-b border-[var(--ink)] pb-[6px] text-[10px] font-bold tracking-[.2em] text-[var(--ink)] uppercase">
                   {fr.journal.atWaking}
                 </h4>
-                {stalled ? (
-                  <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink)]">
-                    {stalled.text}
-                    {fr.journal.stalledResolution}
-                    <span className="font-(family-name:--font-mono)">{stalled.resolutionAt}</span>.
-                  </p>
+                {stalled.length > 0 ? (
+                  <div className="mt-[9px] flex flex-col gap-[7px]">
+                    {stalled.map((entry) => (
+                      <p
+                        key={`${entry.t}-${entry.text}`}
+                        className="text-[13px] leading-[1.45] break-words text-[var(--ink)]"
+                      >
+                        {entry.text}
+                        {fr.journal.stalledResolution}
+                        <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>
+                        .
+                      </p>
+                    ))}
+                  </div>
                 ) : (
                   <p className="mt-[9px] text-[13px] leading-[1.5] text-[var(--ink-soft)]">
                     {fr.journal.noneStalled}
                   </p>
                 )}
-                <div className="mt-3 flex flex-col gap-[5px] text-[12.5px]">
-                  {embargo && (
-                    <span className="flex justify-between">
-                      <span className="text-[var(--ink-soft)]">{fr.journal.embargoLeft}</span>
-                      <span className="font-(family-name:--font-mono) text-[var(--ink)]">
-                        {embargo.remaining}
-                      </span>
-                    </span>
-                  )}
-                  <span className="flex justify-between">
-                    <span className="text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
-                    <span className="text-[var(--ink)]">
-                      {view.me.slots.used} / {view.me.slots.total}
-                    </span>
+                <div className="mt-3 flex justify-between border-t border-[rgba(42,33,24,.28)] pt-[7px] text-[12.5px]">
+                  <span className="text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
+                  <span className="font-(family-name:--font-mono) text-[var(--ink)]">
+                    {view.me.slots.used} / {view.me.slots.total}
                   </span>
                 </div>
               </aside>
             </div>
           )}
 
-          <div className="flex flex-col pt-[14px] @3xl:flex-row @3xl:items-stretch">
-            {COLUMNS.map((column) => {
+          {/* Les trois colonnes tiennent dans un même cadre : c'est le corps du journal, et une
+              colonne isolée sur le papier se lirait comme un troisième encart. */}
+          <div className="mt-[14px] flex flex-col border border-[rgba(42,33,24,.3)] bg-[rgba(207,192,158,.36)] px-[14px] py-[12px] @3xl:flex-row @3xl:items-stretch">
+            {COLUMNS.map((severity) => {
               const entries = dispatches.filter(
-                (dispatch) => dispatch.severity === column.severity && dispatch !== lead,
+                (dispatch) => dispatch.severity === severity && dispatch !== lead,
               );
+              const holdsLead = lead !== null && lead.severity === severity;
               return (
                 <section
-                  key={column.severity}
-                  className="min-w-0 flex-1 border-t border-[rgba(42,33,24,.3)] pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:px-[18px] @3xl:pt-0 @3xl:first:border-l-0"
+                  key={severity}
+                  className="min-w-0 flex-1 border-t border-[rgba(42,33,24,.3)] pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:px-[16px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
                 >
                   <div className="flex items-center gap-2 border-b border-[var(--ink)] pb-[6px]">
-                    <span className="h-2 w-2" style={{ background: column.ink }} />
+                    <span
+                      className="h-2 w-2 shrink-0"
+                      style={{ background: SEVERITY_INK[severity] }}
+                    />
                     <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
-                      {fr.journal.severities[column.severity]}
+                      {fr.journal.severities[severity]}
                     </span>
                     <span className="flex-1" />
-                    <span className="text-[11px] text-[var(--ink-soft)]">
-                      {fr.journal.dispatches(entries.length)}
+                    <span className="text-[11px] whitespace-nowrap text-[var(--ink-soft)]">
+                      {holdsLead
+                        ? fr.journal.others(entries.length)
+                        : fr.journal.dispatches(entries.length)}
                     </span>
                   </div>
                   {entries.map((entry) => (
@@ -188,10 +224,10 @@ export function JournalWindow({
             })}
           </div>
 
-          <ReductionTable board={view.season.reduction} />
+          <ReductionLine board={view.season.reduction} />
         </div>
 
-        <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
+        <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
           <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             {fr.journal.historyLabel}
           </span>
@@ -216,22 +252,29 @@ export function JournalWindow({
  * unique (ADR 0020 §9), donc rien à protéger, et un test entre amis veut qu'on se chambre
  * (`src/domain/victory.ts`). Ce bloc disparaît avec l'échafaudage le jour où la part de carte
  * arrive — il ne se transforme pas en barre de progression.
+ *
+ * **Il tient sur une ligne, en pied du fil et au défilement** — jamais posé à demeure sous les
+ * colonnes : c'est un état de table qu'on longe du regard en sortant, et une bande permanente en
+ * ferait un P1 qui disputerait la manchette. Sur une ligne, le carré porte le verdict et le
+ * compte porte la marche ; le mot ne paraît que pour un réduit — huit « debout » alignés ne
+ * disent rien que les carrés creux ne disent déjà — et la phrase entière reste à l'infobulle.
  */
-function ReductionTable({ board }: { board: ReductionBoard }) {
+function ReductionLine({ board }: { board: ReductionBoard }) {
   if (board.standings.length === 0) return null;
   return (
-    <section className="mt-4 border-t border-[var(--ink)] pt-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
-          {fr.victory.kicker}
-        </span>
-        <span className="font-(family-name:--font-display) text-[12.5px] text-[var(--ink-quiet)] italic">
-          {fr.victory.scaffold}
-        </span>
-      </div>
-      <div className="mt-[7px] flex flex-wrap gap-x-5 gap-y-[6px]">
+    <section className="mt-[14px] flex items-baseline gap-x-4 border-t border-[var(--ink)] pt-[9px]">
+      <span className="shrink-0 text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
+        {fr.victory.kicker}
+      </span>
+      <div className="flex min-w-0 flex-1 items-baseline gap-x-[18px] overflow-x-auto">
         {board.standings.map((standing) => (
-          <span key={standing.nickname} className="flex items-baseline gap-[7px] text-[13px]">
+          <span
+            key={standing.nickname}
+            title={`${fr.victory.tally(standing.reduced, board.target)} — ${
+              standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark
+            }`}
+            className="flex items-baseline gap-[7px] text-[13px] whitespace-nowrap"
+          >
             <span
               className="h-2 w-2 shrink-0 self-center"
               style={{
@@ -243,11 +286,13 @@ function ReductionTable({ board }: { board: ReductionBoard }) {
               {standing.nation === null ? standing.nickname : nationLabel(standing.nation)}
             </span>
             <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-              {fr.victory.tally(standing.reduced, board.target)}
+              {standing.reduced} / {board.target}
             </span>
-            <span className="text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
-              {standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark}
-            </span>
+            {standing.isReduced && (
+              <span className="text-[10px] tracking-[.16em] text-[var(--critical)] uppercase">
+                {fr.victory.reducedMark}
+              </span>
+            )}
           </span>
         ))}
       </div>
@@ -278,14 +323,12 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
           size="small"
         />
       </div>
-      <div className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.15] font-semibold text-[var(--ink)]">
+      <div className="mt-[3px] font-(family-name:--font-display) text-[16px] leading-[1.18] font-semibold break-words text-[var(--ink)]">
         {entry.text}
       </div>
-      {(entry.remaining || entry.resolutionAt) && (
-        <div className="mt-[3px] text-[12px] leading-[1.4] text-[var(--ink-soft)]">
-          {entry.remaining
-            ? fr.journal.remaining(entry.remaining)
-            : fr.journal.resolutionAt(entry.resolutionAt ?? '')}
+      {entry.resolutionAt && (
+        <div className="mt-[3px] text-[12px] leading-[1.4] break-words text-[var(--ink-soft)]">
+          {fr.journal.resolutionAt(entry.resolutionAt)}
         </div>
       )}
     </div>
