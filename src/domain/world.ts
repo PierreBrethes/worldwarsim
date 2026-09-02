@@ -1,5 +1,6 @@
+import depositsAsset from '../../public/deposits.json';
 import type { LonLat } from './geo';
-import type { RegionType } from './ids';
+import type { DepositKey, RegionType } from './ids';
 
 export type ProjectedCountry = {
   /** English, as Natural Earth writes it: a key for the map, never a label for a screen. */
@@ -40,6 +41,51 @@ export type RegionsData = {
   readonly lines: ReadonlyArray<RegionLine>;
   readonly regions: ReadonlyArray<DisplayedRegion>;
 };
+
+/**
+ * **La géologie est publique** (décision 65a du 01/09) : ce que le sol tient est fixe, identique
+ * pour tout le monde et ne dit rien de ce que font les joueurs. Le brouillard couvre les
+ * positions, les mouvements et les tenants — jamais la carte des ressources, qu'un atlas de 1940
+ * donnait déjà. L'asset est le même que celui du serveur (`convex/regions.ts`), donc les deux
+ * surfaces ne peuvent pas se contredire, et il pèse 4 ko : il est importé, pas récupéré.
+ *
+ * Il est **creux** : une région sans gisement n'y figure pas, et aucune n'en tient deux.
+ */
+const DEPOSIT_OF_REGION = depositsAsset as Readonly<Record<string, DepositKey | undefined>>;
+
+export const depositOfRegion = (regionId: string): DepositKey | null =>
+  DEPOSIT_OF_REGION[regionId] ?? null;
+
+/** Les 229 régions à gisement, dans l'ordre de l'asset — ce que la bascule « gisements » pose
+ *  sur la carte, sans qu'aucune donnée de joueur n'entre dans le compte. */
+export const DEPOSIT_REGIONS: ReadonlyArray<readonly [regionId: string, deposit: DepositKey]> =
+  Object.entries(DEPOSIT_OF_REGION).flatMap(([regionId, deposit]) =>
+    deposit === undefined ? [] : [[regionId, deposit] as const],
+  );
+
+/**
+ * **La côte est publique elle aussi, mais elle ne se bundle pas** : elle vit dans
+ * `region-index.json`, 312 ko pour quatre faits dont un seul intéresse un écran. Elle se lit au
+ * zoom où les régions se dessinent, et celles-ci pèsent déjà dix fois plus — un fetch de plus,
+ * après le plateau, plutôt qu'un index entier dans le bundle de démarrage.
+ *
+ * Un échec est muet et non mémorisé : la ligne « côtière » manque, rien d'autre ne bouge.
+ */
+let coastal: Promise<ReadonlySet<string>> | null = null;
+
+export function loadCoastalRegions(url = '/region-index.json'): Promise<ReadonlySet<string>> {
+  coastal ??= fetch(url)
+    .then((response) => {
+      if (!response.ok) throw new Error(`region index not found: ${url}`);
+      return response.json() as Promise<{ coastal: ReadonlyArray<string> }>;
+    })
+    .then((raw): ReadonlySet<string> => new Set(raw.coastal))
+    .catch((): ReadonlySet<string> => {
+      coastal = null;
+      return new Set();
+    });
+  return coastal;
+}
 
 /**
  * The admin-1 regions are a separate file: several times the weight of the world, purely

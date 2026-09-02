@@ -23,7 +23,7 @@ import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/natio
 import { surveyWash } from '@/domain/control';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
-import type { RegionIdentity, World } from '@/domain/world';
+import { DEPOSIT_REGIONS, type RegionIdentity, type World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import { knownObjectiveAt } from '@/domain/objectives';
 import { placementOf } from '@/domain/construction';
@@ -658,22 +658,23 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
   // wait for 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
-    // Same rule as the buildings above and for the same reason: `me.regions` is the ground the
-    // player may build on and there is no other, so an opponent's deposit cannot reach the map
-    // — there is nothing to filter on nationality (ADR 0005).
+    /**
+     * **Toute la géologie, pas seulement la sienne** (décision 65a du 01/09). La bascule dessinait
+     * `me.regions` au nom de l'ADR 0005 : contresens, elle protège les *joueurs* — positions,
+     * mouvements, tenants — et le sol n'est ni l'un ni l'autre. Un gisement est fixe, identique
+     * pour tout le monde et connu d'un atlas ; le cacher n'apprenait rien à personne sur
+     * l'adversaire et laissait le joueur ignorer où le pétrole se prend. La source est l'asset
+     * (`DEPOSIT_REGIONS`), donc aucune donnée de joueur n'entre ici — les marqueurs n'ont ni
+     * encre ni ligne, et ils suivent la couche des régions comme avant (`withRegionLayer`) :
+     * au dézoom, rien ne pleut sur la carte.
+     */
     const deposits: ReadonlyArray<MapMarker> = toggles.deposits
-      ? view.me.regions.flatMap((region) =>
-          region.deposit === null
-            ? []
-            : [
-                {
-                  kind: 'deposit' as const,
-                  id: `deposit-${region.id}`,
-                  regionId: region.id,
-                  deposit: region.deposit,
-                },
-              ],
-        )
+      ? DEPOSIT_REGIONS.map(([regionId, deposit]) => ({
+          kind: 'deposit' as const,
+          id: `deposit-${regionId}`,
+          regionId,
+          deposit,
+        }))
       : [];
 
     /**

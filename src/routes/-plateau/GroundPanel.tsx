@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
 import { asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
-import type { RegionIdentity } from '@/domain/world';
+import { depositOfRegion, loadCoastalRegions, type RegionIdentity } from '@/domain/world';
 import { Row, Panel } from './Panel';
 
 /**
@@ -32,8 +33,11 @@ export type RegionHolding = {
  * belongs to the country in the head — the two arrive by different roads, and a card is not the
  * place to discover they disagree.
  *
- * A region the player does not hold carries no line of its own: `me.regions` is his ground and
- * nothing else, so absence is the fog rather than a display test (ADR 0005).
+ * **La géologie répond partout, le relevé non** (décision 65a du 01/09). Le gisement et la côte
+ * se lisent sur l'asset : ils sont fixes, identiques pour tout le monde, et ne disent rien de ce
+ * qu'un joueur fait — une région roumaine survolée dit son pétrole sans qu'on possède rien.
+ * « Tenue par », elle, reste du brouillard : elle vient de `control.held`, elle date, et une
+ * région vierge n'en a pas de ligne (ADR 0020 §5).
  *
  * **`holding` est ce que le joueur sait du sol survolé** (ADR 0020 §5) : à jour, le nom franc ;
  * relevé, le nom et sa date en clair. Vierge, il est `null` et la ligne ne paraît pas — inconnue
@@ -57,18 +61,18 @@ export function GroundPanel({
   holding: RegionHolding | null;
   view: PlayerView;
 }) {
+  const coastal = useCoastalRegions();
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
   if (country === null) return null;
   const hovered = hoveredRegion?.country === country ? hoveredRegion : null;
 
   const outpost = view.me.outposts.find((candidate) => candidate.hostCountry === country);
+  const deposit = hovered === null ? null : depositOfRegion(hovered.id);
   // The map designates a country by its `adm0_a3`, opponents by their nation id: the mapping
   // is the seam — comparing the two raw strings never matches (that was a real bug).
   const nation = NATION_BY_ADM0.get(country);
   const opponent =
     nation === undefined ? undefined : view.opponents.find((other) => other.nation === nation);
-  const region =
-    hovered === null ? undefined : view.me.regions.find((one) => one.id === hovered.id);
 
   return (
     <Panel
@@ -108,19 +112,13 @@ export function GroundPanel({
         <div className="mt-[10px] border-t border-[var(--ink)] pt-[9px]">
           <span className="eyebrow block">{fr.board.regionLabel}</span>
           <p className="mt-1 text-[13px] text-[var(--ink)]">{hovered.name}</p>
-          {region && (
-            <>
-              <p className="text-[11.5px] text-[var(--ink-soft)]">
-                {region.deposit === null
-                  ? fr.board.regionNoDeposit
-                  : fr.board.regionDeposit(fr.deposits[region.deposit])}
-              </p>
-              {region.coastal && (
-                <p className="text-[11px] text-[var(--ink-quiet)] italic">
-                  {fr.board.regionCoastal}
-                </p>
-              )}
-            </>
+          <p className="text-[11.5px] text-[var(--ink-soft)]">
+            {deposit === null
+              ? fr.board.regionNoDeposit
+              : fr.board.regionDeposit(fr.deposits[deposit])}
+          </p>
+          {coastal.has(hovered.id) && (
+            <p className="text-[11px] text-[var(--ink-quiet)] italic">{fr.board.regionCoastal}</p>
           )}
           {holding !== null && (
             <Row
@@ -139,4 +137,26 @@ export function GroundPanel({
       )}
     </Panel>
   );
+}
+
+/**
+ * **Le littoral arrive après le plateau** : il vit dans `region-index.json`, 312 ko dont un seul
+ * fait intéresse cet écran, et il n'a rien à faire dans le bundle de démarrage. La promesse est
+ * partagée par le module, donc rouvrir le panneau ne relance rien. Tant qu'elle n'a pas répondu,
+ * la ligne « côtière » manque et rien d'autre ne bouge.
+ */
+const NO_COAST: ReadonlySet<string> = new Set();
+
+function useCoastalRegions(): ReadonlySet<string> {
+  const [coastal, setCoastal] = useState<ReadonlySet<string>>(NO_COAST);
+  useEffect(() => {
+    let abandoned = false;
+    void loadCoastalRegions().then((regions) => {
+      if (!abandoned) setCoastal(regions);
+    });
+    return () => {
+      abandoned = true;
+    };
+  }, []);
+  return coastal;
 }

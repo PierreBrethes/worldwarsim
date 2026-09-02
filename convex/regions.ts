@@ -3,13 +3,15 @@ import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
 import { foundationFor } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
-import depositsAsset from '../public/deposits.json';
+import { DEPOSIT_REGIONS, depositOfRegion } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
 import { fail } from './errors';
 
 /**
  * The map, as a rule reads it. Two baked assets and no geometry: `deposits.json` says what a
- * region holds, `region-index.json` names it, says which country it belongs to, whether it
+ * region holds — read through `src/domain/world.ts`, which serves the same table to the board
+ * since decision 65a: the ground is public, and one file says it to both ends —
+ * `region-index.json` names it, says which country it belongs to, whether it
  * touches the sea, and **where it stands** — one lon/lat point per region, the pole of
  * inaccessibility of its largest ring. `regions.json` itself never comes near the server — it
  * weighs 2.5 MB of polygons drawn for the screen, and no placement rule needs a polygon to
@@ -32,7 +34,6 @@ const NAME_OF_REGION = indexAsset.name as Readonly<Record<string, string | undef
 const COUNTRY_OF_REGION = indexAsset.country as Readonly<Record<string, string | undefined>>;
 const COASTAL = new Set<string>(indexAsset.coastal);
 const POINT_OF_REGION = indexAsset.point as unknown as Readonly<Record<string, LonLat | undefined>>;
-const DEPOSIT_OF_REGION = depositsAsset as Readonly<Record<string, DepositKey | undefined>>;
 
 export type RegionFacts = {
   readonly id: string;
@@ -58,7 +59,7 @@ export function regionFacts(regionId: string): RegionFacts | null {
     country,
     coastal: COASTAL.has(regionId),
     point,
-    deposit: DEPOSIT_OF_REGION[regionId] ?? null,
+    deposit: depositOfRegion(regionId),
   };
 }
 
@@ -99,9 +100,9 @@ export const homeCountryOf = (nation: string | null): string | null =>
  */
 const DEPOSITS_BY_COUNTRY: ReadonlyMap<string, ReadonlySet<DepositKey>> = (() => {
   const held = new Map<string, Set<DepositKey>>();
-  for (const [regionId, deposit] of Object.entries(DEPOSIT_OF_REGION)) {
+  for (const [regionId, deposit] of DEPOSIT_REGIONS) {
     const country = COUNTRY_OF_REGION[regionId];
-    if (country === undefined || deposit === undefined) continue;
+    if (country === undefined) continue;
     const seen = held.get(country) ?? new Set<DepositKey>();
     seen.add(deposit);
     held.set(country, seen);
