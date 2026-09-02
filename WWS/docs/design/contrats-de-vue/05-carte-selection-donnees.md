@@ -43,8 +43,9 @@ code (« Pays neutre » s'affiche aujourd'hui — vrai manque, nouvelle clé fr 
     permanence, la date dit *quand* au survol
   - **vierge** (jamais observée) : **aucune ligne** — inconnue n'est pas neutre, rien ne
     s'affiche
-- Le gisement et la côte ne se disent que sur **mes** régions (`me.regions`) — une région
-  adverse ou neutre n'a ni gisement ni « côtière » affichés (le brouillard est structurel).
+- Gisement et côte : **publics** (décision 65a, 01/09 — la géologie est un fait de la
+  carte). La ligne se lit sur toute région survolée, neutre ou adverse ; ce que le
+  brouillard cache reste ce que font les joueurs (tenant, troupes, points).
 
 ## B · Panneau d'avant-poste (le mien)
 
@@ -90,7 +91,6 @@ ne change plus` » · « `aucun gisement — caserne, aérodrome, baraquements` 
 ## Interdits (rappel du contrat 05)
 
 « progression » et « dernier renseignement » d'un adversaire (échafaudage client, rien de
-servi) · type de terrain dans le panneau · gisement / côte d'une région qui n'est pas la
-mienne · tout panneau sur un avant-poste ou une troupe adverses · tampon de posture
+servi) · type de terrain dans le panneau ·  tout panneau sur un avant-poste ou une troupe adverses · tampon de posture
 (ADR 0021, pas codé — pas même la place) · aucun ordre dans les trois lectures (la popin
 lit, la carte agit) · toute chaîne ou tout chiffre absent de ce fichier.

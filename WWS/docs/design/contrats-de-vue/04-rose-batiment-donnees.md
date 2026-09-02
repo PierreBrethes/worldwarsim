@@ -26,16 +26,23 @@ l'éventail (nord puis horaire).
   peut se poser en Meurthe-et-Moselle.` » — présente car la fondation restante (ferme,
   filature) laisse des poses possibles.
 
-## Planche 2 — les trois états retenus (un seul à la fois, ordre du contrat)
+## Planche 2 — les trois états retenus (un seul à la fois — formes gravées le 01/09, v2)
+
+États 1 et 2 : **la branche disparaît** (règle générale ADR 0015) et la rose s'ouvre en
+mode motif — en tête « `aucun ordre ici` » (`fr.compass.refused`, réutilisée telle quelle,
+tranché 01/09), puis la phrase :
 
 1. **Chantier déjà en file ici** — Baraquements · Meuse (niveau 2 en file) :
    « `un chantier vise déjà cette région — annulez-le ou attendez son tour` »
 2. **Plafonné par le QG** — Baraquements · Meuse au niveau 1 sous un QG 1 :
    « `plafonné par le QG — montez le quartier général d'abord` »
-3. **Matière manquante** — Quartier général (→ niveau 2) : branche **grisée avec sa
-   raison** (l'exception assumée au « rien de grisé », 54a) : « `il faut 72 de charbon
-   (20 disponibles)` » + « `disponible dans 5 h 12` » (`fr.upgrade.availableIn`) ; coût au
-   survol « `alliage 108 / 320` + `charbon 72 / 20` », « `1 h 21` ».
+
+État 3 : **la seule branche grisée du jeu** (l'exception assumée 54a) :
+
+3. **Matière manquante** — Quartier général (→ niveau 2) : branche grisée avec sa raison :
+   « `il faut 72 de charbon (20 disponibles)` » + « `disponible dans 5 h 12` »
+   (`fr.upgrade.availableIn`) ; coût au survol « `alliage 108 / 320` + `charbon 72 / 20` »,
+   « `1 h 21` », coût à plat « `108 · 72` ».
 
 ## Planche 3 — observateur
 
@@ -49,8 +56,12 @@ l'éventail (nord puis horaire).
   fiche complète reste à l'Économie.
 - La branche « rejoindre la garnison » (64b) n'est **pas** dans cette vue : elle
   appartient à la rose **en visée**, chantier ultérieur — ne pas la dessiner ici.
-- Pictogramme de la branche « améliorer » : à proposer (la plate n'en a pas — `crane` est
-  pris par « Bâtir ici »).
+- Pictogramme « améliorer » : **tranché (01/09)** — le chevron sur assises (proposition A
+  de la v1), lisible à 15 px ; la grue reste à « Bâtir ici ».
+- Kicker de la cible : **tranché (01/09)** — « bâtiment · niveau n » (⚠ nouvelle clé
+  `fr.compass.building(level)`) ; la région se lit sur la carte sous le réticule.
+- **Pas d'index de branche** (« 1 / 2 ») en coin de carte : aucune donnée ne le porte, la
+  rose se lit spatialement — retiré (v2).
 
 ## Chaînes les plus longues
 
@@ -58,3 +69,13 @@ l'éventail (nord puis horaire).
 « `plafonné par le QG — montez le quartier général d'abord` » · « `il faut 72 de charbon
 (20 disponibles)` » · « `Ouvre ce qui peut se poser en Meurthe-et-Moselle.` » ·
 « `Alpes-de-Haute-Provence` » (le nom de région le plus long).
+
+## Post-scriptum de livraison (01/09 — commit 61c82bb)
+
+Deux écarts au gabarit, **validés** au branchement : les durées s'affichent au format
+horloge du dépôt (`asDuration` réécrit — « `00:54:00` », « `05:12:00` »), et la facture
+suit l'ordre de `RESOURCES` (« `72 · 108` », charbon avant alliage — le même ordre que
+`CostLine` partout). Les annexes de la refonte, écrites avant, portent l'ancien format
+« 54 min » : le code fait foi. Nouvelles clés : `fr.compass.building`,
+`fr.compass.upgradeBill` ; `foundError` renommé `orderError` (le bandeau porte aussi
+l'échec d'une élévation).

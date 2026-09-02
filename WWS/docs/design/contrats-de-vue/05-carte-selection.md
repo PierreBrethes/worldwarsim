@@ -37,7 +37,10 @@ brief flux-mouvement).
 - **« avant-poste »** : ce que *ce pays* porte — le mien (nation + spécialisation +
   garnison) ou « adverse — … » ; « aucun » sinon. Deux questions, deux lignes (correctif du
   31/08) : le pays et la région ne se répondent pas l'un pour l'autre.
-- **Ma région seulement** : gisement (ou « aucun gisement »), côtière.
+- **Gisement et côte** : publics depuis la décision 65a (01/09) — la géologie est un fait
+  de la carte, pas un secret de joueur ; la ligne se lit sur toute région survolée
+  (l'asset `deposits.json` est client). ⚠ pas-codé : aujourd'hui seul `me.regions` les
+  porte — prompt `gisements-publics`.
 - **Nation adverse** : plage de repos (`opponents[].restWindow`).
 
 ### P3
