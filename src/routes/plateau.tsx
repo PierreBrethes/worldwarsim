@@ -349,8 +349,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * ressources, et un cartouche qui ne tombe pas sur son sprite ne désigne plus rien.
    */
   const board = useRef<HTMLDivElement>(null);
-  const boardPoint = useCallback((clientX: number, clientY: number) => {
+  /** Le point du plateau où poser un panneau. Sans pointeur — une ligne de la carte « à faire
+   *  maintenant » ouvre la même porte au clavier comme à la souris — il se pose au centre plutôt
+   *  que dans le coin haut-gauche, où il masquerait le bandeau. */
+  const boardPoint = useCallback((clientX?: number, clientY?: number) => {
     const rect = board.current?.getBoundingClientRect();
+    if (clientX === undefined || clientY === undefined)
+      return { x: (rect?.width ?? 0) / 2, y: (rect?.height ?? 0) / 2 };
     return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }, []);
 
@@ -414,9 +419,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * debout, composition de pile comprise ; pour les autres, la surface où vit leur ligne. La clé
    * se lit dans la vue plutôt que dans l'URL, donc une instance rasée n'en trouve simplement
    * aucune.
+   *
+   * **Sauf quand une colonne s'y tient : ce à quoi le bâtiment sert, c'est alors elle.** Un
+   * bâtiment sans modale de site — le quartier général au premier chef — n'a pas de cadre qui
+   * porte une garnison, et la troupe offerte au lancement y stationne (`seasons.endow`). Elle se
+   * lisait sur la fiche de nation et ne se manœuvrait nulle part : depuis la disparition du
+   * widget de troupes (30/08), plus aucune porte n'ouvrait sa pile. Le mât garde donc **une**
+   * destination — il n'y a jamais deux réponses au même clic, l'une exclut l'autre — mais elle
+   * suit ce qui se tient là : une garnison quand il y en a une, la ligne du bâtiment sinon.
    */
   const openBuilding = useCallback(
-    (buildingId: string) => {
+    (buildingId: string, clientX?: number, clientY?: number) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
       if (standing === undefined) return;
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
@@ -426,6 +439,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         setOrder(null);
         setPosted(null);
         setFocus({ ids: [`building-${standing.regionId}-${standing.key}`], nonce: Date.now() });
+      } else if (!view.me.defeated) {
+        /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
+         *  garnison n'a qu'une sortie — « préparer » — et l'ouvrir à un défait promettrait
+         *  l'ordre que `requirePlayable` refuse. Son mât continue donc d'ouvrir la ligne du
+         *  bâtiment, et ses troupes se lisent où elles se lisent déjà pour tous — la fenêtre
+         *  Nation, une ligne par station (`stationGroups`). */
+        const station: TroopStation = { kind: 'building', buildingId };
+        if (troopsAt(view.me, stationKeyOf(station), marching).length > 0) {
+          openGarrison(station, [], boardPoint(clientX, clientY));
+          return;
+        }
       }
       void navigate({
         search: (previous) => ({
@@ -434,7 +458,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         }),
       });
     },
-    [navigate, view.me.buildings],
+    [navigate, openGarrison, boardPoint, view.me, marching],
   );
 
   /**
@@ -456,11 +480,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       const held = troopsAt(view.me, stationKeyOf(station), marching);
       const alone = held.length === 1 ? held[0] : undefined;
       if (alone === undefined || station.kind !== 'point') {
-        /** **Le mât n'a qu'une destination** (61a) : une pile posée sur un site de projection
-         *  ouvre sa modale, exactement comme le clic sur le mât — deux réponses pour un lieu
-         *  seraient les deux états de sélection que le flux a passé une révision à éviter. */
-        if (station.kind === 'building') openBuilding(station.buildingId);
-        else openGarrison(station, [], at);
+        openGarrison(station, [], at);
         return false;
       }
       /**
@@ -478,7 +498,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       if (!view.me.defeated) setColumn(armedColumn(view, station, [alone.id]));
       return true;
     },
-    [openGarrison, openBuilding, boardPoint, view, marching],
+    [openGarrison, boardPoint, view, marching],
   );
 
   /**
