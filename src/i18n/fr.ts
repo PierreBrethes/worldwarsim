@@ -1569,6 +1569,16 @@ export const fr = {
     foundConsequence:
       'Plante un avant-poste ici : la colonne y devient garnison, et la spécialisation se règle sur son panneau.',
     region: (country: string) => `région · ${country}`,
+    /**
+     * **La cible est l'instance, et sa qualification décisionnelle est son niveau** (tranché le
+     * 01/09) — calqué sur « région · France » : la sorte, puis ce qui la qualifie. La région, elle,
+     * se lit déjà sur la carte sous le réticule, et la redire ici prendrait la place du niveau.
+     */
+    building: (level: number) => `bâtiment · niveau ${level}`,
+    /** La facture de l'élévation, matière par matière : le dû, puis ce qu'il en reste en
+     *  réserve. Le stock à côté du prix est ce qui transforme un chiffre en décision. */
+    upgradeBill: (resource: string, needed: number, held: number) =>
+      `${resource} ${needed} / ${held}`,
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',

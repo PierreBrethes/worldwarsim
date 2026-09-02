@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { CompassAction, CompassPictogram, Compass } from '@/domain/compass-rose';
 import { fr } from '@/i18n/fr';
 
@@ -90,19 +90,19 @@ export function CompassRose({
       >
         <div className="rose-menu">
           <svg className="rose-plot" viewBox="0 0 240 240" width={FRAME} height={FRAME} aria-hidden>
-            {compass.actions.map((_, rank) => {
+            {compass.actions.map((candidate, rank) => {
               const angle = angleOf(rank, compass.actions.length);
               const [x1, y1] = point(11, angle);
               const [x2, y2] = point(MEDALLION_RADIUS - 14, angle);
               return (
                 <line
                   key={rank}
-                  className="rose-spoke"
+                  className={`rose-spoke${isHeld(candidate) ? ' rose-spoke--held' : ''}`}
                   x1={x1}
                   y1={y1}
                   x2={x2}
                   y2={y2}
-                  opacity={hovered === rank ? 0.85 : 0.4}
+                  opacity={isHeld(candidate) ? 0.5 : hovered === rank ? 0.85 : 0.4}
                 />
               );
             })}
@@ -113,24 +113,47 @@ export function CompassRose({
           </svg>
 
           {compass.actions.map((candidate, rank) => {
-            const [left, top] = point(MEDALLION_RADIUS, angleOf(rank, compass.actions.length));
+            const angle = angleOf(rank, compass.actions.length);
+            const [left, top] = point(MEDALLION_RADIUS, angle);
+            const held = isHeld(candidate);
             return (
-              <button
-                key={rank}
-                type="button"
-                aria-label={candidate.label}
-                className={`rose-medallion${hovered === rank ? ' rose-medallion--wet' : ''}`}
-                style={{ left, top }}
-                onPointerEnter={() => setHovered(rank)}
-                onPointerLeave={() => setHovered((previous) => (previous === rank ? -1 : previous))}
-                onFocus={() => setHovered(rank)}
-                onBlur={() => setHovered((previous) => (previous === rank ? -1 : previous))}
-                onClick={() => onAction(candidate)}
-              >
-                <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden>
-                  {PICTOGRAM_PATHS[candidate.pictogram]}
-                </svg>
-              </button>
+              <Fragment key={rank}>
+                {/* **Le seul chiffre à plat de la rose** (décision 54a) : le coût d'une élévation
+                    est ce qui décide du clic, et le faire attendre le survol ferait ouvrir la
+                    rose pour lire un prix. Il est posé hors du médaillon, sur le rayon, pour ne
+                    rien prendre au pictogramme. */}
+                {candidate.key === 'upgrade' && (
+                  <div
+                    className={`rose-figure${held ? ' rose-figure--held' : ''}`}
+                    style={figureAt(angle)}
+                  >
+                    {candidate.figure}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-label={candidate.label}
+                  aria-disabled={held}
+                  className={`rose-medallion${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  style={{ left, top }}
+                  onPointerEnter={() => setHovered(rank)}
+                  onPointerLeave={() =>
+                    setHovered((previous) => (previous === rank ? -1 : previous))
+                  }
+                  onFocus={() => setHovered(rank)}
+                  onBlur={() => setHovered((previous) => (previous === rank ? -1 : previous))}
+                  /** Retenue, elle se survole et se lit — elle ne part pas. Le bouton reste
+                   *  actif plutôt que `disabled` : un bouton désactivé n'émet plus de survol,
+                   *  et la raison du grisé est précisément ce qu'il faut pouvoir lire. */
+                  onClick={() => {
+                    if (!held) onAction(candidate);
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden>
+                    {PICTOGRAM_PATHS[candidate.pictogram]}
+                  </svg>
+                </button>
+              </Fragment>
             );
           })}
 
@@ -143,13 +166,11 @@ export function CompassRose({
                 style={{ left: placement.x, top: placement.y }}
               >
                 <div className="rose-bubble-frame">
+                  {/* Pas d'index de branche : aucune donnée ne le porte, et une rose se lit
+                      spatialement — le rang « 1 / 2 » comptait des médaillons qu'on voit
+                      (retiré le 01/09, v2 du contrat 04). */}
                   <div className="rose-bubble-header">
                     <span>{compass.kicker}</span>
-                    {action !== null && (
-                      <span className="rose-bubble-rank">
-                        {hovered + 1} / {compass.actions.length}
-                      </span>
-                    )}
                   </div>
                   <div className="rose-bubble-name">{compass.name}</div>
                   <div className="rose-bubble-rule" />
@@ -160,6 +181,8 @@ export function CompassRose({
                       </div>
                       <div className="rose-bubble-consequence">{refusal}</div>
                     </>
+                  ) : action.key === 'upgrade' ? (
+                    <Upgrade action={action} />
                   ) : (
                     <>
                       <div className="rose-bubble-label">{action.label}</div>
@@ -179,11 +202,60 @@ export function CompassRose({
   );
 }
 
+/**
+ * **Le détail d'une élévation** — coût matière par matière avec le stock en regard, durée, puis
+ * la conséquence. Trois lignes plutôt qu'un `cost` d'un seul tenant : le stock à côté du prix est
+ * ce qui transforme un chiffre en décision, et la matière qui manque doit se voir sans se lire.
+ *
+ * Retenue, la bulle finit par la raison du serveur et son échéance, sous un filet : c'est
+ * l'unique grisé du jeu (décision 54a), et un grisé sans sa raison serait exactement ce que
+ * l'ADR 0015 interdit.
+ */
+function Upgrade({ action }: { action: Extract<CompassAction, { key: 'upgrade' }> }) {
+  const held = action.hold;
+  return (
+    <>
+      <div className={`rose-bubble-label${held === null ? '' : ' rose-bubble-label--held'}`}>
+        {action.label}
+      </div>
+      {action.bill.map((line) => (
+        <div
+          key={line.text}
+          className={`rose-bubble-cost${held === null ? '' : ' rose-bubble-cost--held'}${
+            line.lacking ? ' rose-bubble-cost--lacking' : ''
+          }`}
+        >
+          {line.text}
+        </div>
+      ))}
+      <div className="rose-bubble-cost rose-bubble-cost--held">{action.duration}</div>
+      {held === null ? (
+        <div className="rose-bubble-consequence">{action.consequence}</div>
+      ) : (
+        <>
+          <div className="rose-bubble-consequence rose-bubble-consequence--refused">
+            {held.reason}
+          </div>
+          {held.availability !== null && (
+            <div className="rose-bubble-when">{held.availability}</div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** La seule branche que le jeu grise, et la règle tient en une ligne pour qu'aucune autre ne
+ *  puisse le devenir par distraction (ADR 0015, exception 54a). */
+const isHeld = (action: CompassAction): boolean => action.key === 'upgrade' && action.hold !== null;
+
 const FRAME = 240;
 const CENTER = 120;
 const MEDALLION_RADIUS = 36;
 /** The radius the tooltip moors to: the medallion plus its breathing margin. */
 const MOORING_RADIUS = 56;
+/** Ce qui sépare le chiffre à plat du bord du médaillon, sur le rayon. */
+const FIGURE_OFFSET = 24;
 const BUBBLE_WIDTH = 214;
 const BUBBLE_HEIGHT = 170;
 const BUBBLE_GAP = 16;
@@ -194,6 +266,13 @@ const angleOf = (rank: number, total: number): number => (rank * 360) / total;
 function point(radius: number, angle: number): readonly [number, number] {
   const radians = (angle * Math.PI) / 180;
   return [CENTER + radius * Math.sin(radians), CENTER - radius * Math.cos(radians)];
+}
+
+/** Le chiffre se pose sur le rayon, au-delà du médaillon : dans l'axe de la branche, il ne
+ *  peut pas se confondre avec celui d'une voisine. */
+function figureAt(angle: number): { readonly left: number; readonly top: number } {
+  const [left, top] = point(MEDALLION_RADIUS + FIGURE_OFFSET, angle);
+  return { left, top };
 }
 
 const clamp = (value: number, low: number, high: number): number =>
@@ -240,6 +319,11 @@ function placeBubble(
  */
 const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   cabin: <path d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z" />,
+  /** L'élévation : le chevron sur ses deux assises — « un étage de plus » à quinze pixels, sans
+   *  reprendre un trait de la grue, qui reste à « Bâtir ici » (tranché le 01/09). */
+  chevron: (
+    <path d="M10 1.4 L17.4 8.8 H13.2 V12.4 H6.8 V8.8 H2.6 Z M4.4 14.4 H15.6 V16.4 H4.4 Z M4.4 17.6 H15.6 V19.6 H4.4 Z" />
+  ),
   /** La fondation : la hutte de la marche, plantée — un mât, un fanion, et le sol sous elle.
    *  C'est là que la colonne s'arrête d'être une colonne. */
   post: (

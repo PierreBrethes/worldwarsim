@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compassOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
-import type { BuildSpec, PlayerView } from './player-view';
+import type { BuildSpec, Cost, PlayerView } from './player-view';
 
 const view = {
   me: {
@@ -472,5 +472,153 @@ describe('founding from the map', () => {
       arcs: [{ state: 'mine', troopIds: ['T-0'] }],
     } as unknown as PlayerView);
     expect(compass).toBeNull();
+  });
+});
+
+/**
+ * **L'élévation rendue à la carte** (décisions 54a, 56a, 57a) : le clic droit sur un mât ouvre la
+ * même rose, avec une branche de plus. Les états sont ceux d'`upgradeHold` et d'aucune autre
+ * table — un seul dit à la fois, dans l'ordre du contrat 04 : file, plafond, matière.
+ */
+describe('raising a level from the map', () => {
+  const mine = {
+    id: 'B-01',
+    key: 'mine' as const,
+    name: 'Mine',
+    regionId: 'FRA-9999',
+    level: 1,
+    nextLevelCost: { alloy: 54 } as Cost,
+    nextLevelMinutes: 54,
+    cappedByHq: false,
+  };
+
+  const standing = (building: Partial<typeof mine>, me: Record<string, unknown> = {}): PlayerView =>
+    ({
+      ...view,
+      me: { ...view.me, buildings: [{ ...mine, ...building }], ...me },
+    }) as unknown as PlayerView;
+
+  const mast = {
+    kind: 'building',
+    id: 'B-01',
+    key: 'mine',
+    level: 1,
+    regionId: 'FRA-9999',
+  } as const;
+
+  it('offers the raise, its flat figure and its bill against the stock', () => {
+    const compass = compassOf(mast, standing({}));
+    expect(compass?.kicker).toBe('bâtiment · niveau 1');
+    expect(compass?.name).toBe('Mine');
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade']);
+    expect(compass?.actions[0]).toMatchObject({
+      pictogram: 'chevron',
+      label: 'améliorer',
+      buildingKey: 'mine',
+      regionId: 'FRA-9999',
+      figure: '54',
+      bill: [{ text: 'alliage 54 / 1000', lacking: false }],
+      duration: '00:54:00',
+      consequence: 'passer Mine au niveau 2',
+      hold: null,
+    });
+    expect(compass?.refusal).toBeNull();
+  });
+
+  /** Le sol ne disparaît pas sous le mât : la région garde la branche qu'elle offrirait seule. */
+  it('keeps the crane of the region the building stands on', () => {
+    const empty = standing({ regionId: 'FRA-5333' });
+    const compass = compassOf({ ...mast, regionId: 'FRA-5333' }, empty);
+    expect(compass?.actions.map((action) => action.label)).toEqual(['améliorer', 'Bâtir ici']);
+    expect(compass?.actions[1]).toMatchObject({ pictogram: 'crane', regionId: 'FRA-5333' });
+  });
+
+  /**
+   * File et plafond : **la branche disparaît** et la rose parle par son motif — règle générale de
+   * l'ADR 0015, rien de grisé. La phrase est celle du serveur, jamais une paraphrase.
+   */
+  it('withdraws the branch when a work already stands in that region, and says so', () => {
+    const compass = compassOf(
+      mast,
+      standing({}, { construction: { regionId: 'FRA-9999', key: 'mine', minutesLeft: 10 } }),
+    );
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe(
+      'un chantier vise déjà cette région — annulez-le ou attendez son tour',
+    );
+  });
+
+  it('withdraws it under the headquarters ceiling, with the ceiling’s own sentence', () => {
+    const compass = compassOf(mast, standing({ cappedByHq: true }));
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe('plafonné par le QG — montez le quartier général d’abord');
+  });
+
+  /**
+   * **La seule branche grisée du jeu** (exception assumée 54a) : une matière qui manque est
+   * transitoire et se date, quand un ordre illégal ne se rattrape jamais. Elle reste donc, avec
+   * sa raison et son échéance — et le motif de la rose ne parle pas par-dessus elle.
+   */
+  it('greys the branch for a missing matter, with the reason and the date', () => {
+    const short = standing(
+      { nextLevelCost: { alloy: 108, coal: 72 } },
+      {
+        resources: {
+          ...(view.me.resources as Record<string, unknown>),
+          coal: { stock: 20, ratePerHour: 10, cap: 1000 },
+        },
+      },
+    );
+    const compass = compassOf(mast, short);
+    expect(compass?.refusal).toBeNull();
+    /** L'ordre est celui de `RESOURCES`, comme la ligne d'élévation des fenêtres facture déjà
+     *  (`CostLine`) : le même prix lu à deux endroits ne doit pas s'écrire dans deux ordres. */
+    expect(compass?.actions[0]).toMatchObject({
+      figure: '72 · 108',
+      bill: [
+        { text: 'charbon 72 / 20', lacking: true },
+        { text: 'alliage 108 / 1000', lacking: false },
+      ],
+      hold: {
+        reason: 'il faut 72 de charbon (20 disponibles)',
+        availability: 'disponible dans 05:12:00',
+      },
+    });
+  });
+
+  /** Rien ne produit la matière : un compte à rebours mentirait, la phrase nomme ce qu'il faut
+   *  bâtir — la même que la ligne d'élévation des fenêtres. */
+  it('names the building to raise when nothing produces the matter at all', () => {
+    const never = standing(
+      { nextLevelCost: { alloy: 108 } },
+      {
+        resources: {
+          ...(view.me.resources as Record<string, unknown>),
+          alloy: { stock: 0, ratePerHour: 0, cap: 1000 },
+        },
+      },
+    );
+    expect(compassOf(mast, never)?.actions[0]).toMatchObject({
+      hold: { availability: 'jamais : aucune fonderie' },
+    });
+  });
+
+  /** **La visée ne change pas d'un signe** : une colonne armée marche sur un lieu, et améliorer
+   *  n'est pas une destination — le picking rend le sol, jamais le mât (`targetOfLabel`). */
+  it('is not an aim: an armed column reads nothing on a building target', () => {
+    const armed = {
+      roles: ['infantry' as const],
+      myRegionIds: new Set(['FRA-9999']),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(['barracks']),
+      afloat: false,
+    };
+    expect(compassOf(mast, standing({}), armed, true)).toBeNull();
+  });
+
+  /** Le clic droit reste inerte pour un défait, sur un bâtiment comme partout ailleurs. */
+  it('opens nothing for an observer', () => {
+    const observing = standing({}, { defeated: true });
+    expect(compassOf(mast, observing)).toBeNull();
   });
 });

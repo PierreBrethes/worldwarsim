@@ -1,5 +1,8 @@
-import { countryLabel, fr } from '@/i18n/fr';
-import { buildOptionsAt } from './construction';
+import { countryLabel, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
+import { availabilityOf, buildOptionsAt, upgradeHold, type UpgradeHold } from './construction';
+import { asDuration } from './duration';
+import { PRODUCER_OF } from './economy';
+import { DEPOSITS, RESOURCES } from './ids';
 import {
   foundingRefusal,
   legalMovementTypes,
@@ -13,8 +16,8 @@ import {
 import { NATION_BY_ADM0 } from './nations';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 import type { LonLat } from './geo';
-import type { MovementType } from './ids';
-import type { PlayerView, TroopStation } from './player-view';
+import type { BuildingKey, MovementType } from './ids';
+import { currentStock, type Building, type PlayerView, type TroopStation } from './player-view';
 
 /**
  * What the right click touched. A discriminated union rather than an object with optional
@@ -45,6 +48,20 @@ export type CompassTarget =
       readonly id: string;
       readonly hostCountry: string;
       readonly name: string;
+    }
+  /**
+   * **Un bâtiment à soi, désigné par son mât** (décisions 54a et 56a). C'est la seule cible qui
+   * soit une *instance* et non un lieu : trois casernes font trois cibles, et l'élévation
+   * s'adresse à celle-ci. L'identité voyage entière — clé, niveau, région — parce que la rose
+   * facture une marche d'escalier, pas un endroit ; le reste (coût, durée, plafond) se relit
+   * dans la vue, jamais recopié ici.
+   */
+  | {
+      readonly kind: 'building';
+      readonly id: string;
+      readonly key: BuildingKey;
+      readonly level: number;
+      readonly regionId: string;
     }
   /**
    * The map itself, wherever it carries nothing clickable — the open sea, and every scale above
@@ -89,7 +106,18 @@ export type CompassTarget =
  * creux de la plate, et il ne désignait plus rien.
  */
 export type CompassPictogram =
-  'cabin' | 'crane' | 'anchor' | 'helmet' | 'propeller' | 'rifles' | 'pennant' | 'post';
+  | 'cabin'
+  | 'crane'
+  | 'anchor'
+  | 'helmet'
+  | 'propeller'
+  | 'rifles'
+  | 'pennant'
+  | 'post'
+  /** L'élévation : le chevron sur ses deux assises — « un étage de plus », lisible à quinze
+   *  pixels (tranché le 01/09). Le mât de la grue reste à « Bâtir ici » : poser et monter sont
+   *  deux verbes, et deux dessins. */
+  | 'chevron';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -134,6 +162,36 @@ export type CompassAction =
       readonly consequence: string;
       readonly point: LonLat;
       readonly troopIds: ReadonlyArray<string>;
+    }
+  /**
+   * **Monter d'un niveau, depuis la carte** (décision 54a). La seule branche qui porte un chiffre
+   * à même la plate : le coût est ce qui décide du clic, et le faire attendre le survol ferait
+   * ouvrir la rose pour lire un prix.
+   *
+   * Elle est aussi **la seule branche que le jeu grise** (exception assumée, 54a). Une matière
+   * qui manque est transitoire et le remède se chiffre : une branche qui disparaît cinq minutes
+   * se lit comme un bug. Les deux autres retenues d'`upgradeHold` — file, plafond — retirent la
+   * branche et parlent par le motif de la rose, règle générale de l'ADR 0015.
+   */
+  | {
+      readonly key: 'upgrade';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      /** `null` : la facture est détaillée matière par matière, `bill` la porte. */
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly buildingKey: BuildingKey;
+      readonly regionId: string;
+      /** Le coût à plat, dans la rose : « 54 », multi-matières « 108 · 72 ». */
+      readonly figure: string;
+      /** Une ligne par matière due, avec le stock en regard — celle qui manque se marque. */
+      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly duration: string;
+      /** Grisée quand elle est là : la raison du serveur, et l'échéance quand elle se date. */
+      readonly hold: {
+        readonly reason: string;
+        readonly availability: string | null;
+      } | null;
     };
 
 type Fan = {
@@ -141,20 +199,20 @@ type Fan = {
   readonly kicker: string;
   readonly name: string;
   readonly actions: ReadonlyArray<CompassAction>;
-};
-
-export type Compass = Fan & {
   /**
-   * Why the fan is empty, when it is — **and only while aiming**. A column whose domain door is
-   * shut has no legal type, and returning nothing there would give back, one notch further, the
-   * very silence ADR 0019 was written against. Unarmed, an empty fan is not a refusal: there is
-   * simply nothing to do on that ground, and the right click stays inert as it always did.
+   * Why the fan is empty, when it is. A column whose domain door is shut has no legal type, and
+   * returning nothing there would give back, one notch further, the very silence ADR 0019 was
+   * written against. A building whose raise is queued or capped is the same case on land: the
+   * branch goes, the reason stays.
    *
    * ADR 0015 forbids **offering a dead choice**, not **explaining an absence**: the rose in
-   * refusal draws no branch one could click.
+   * refusal draws no branch one could click. Elsewhere — a plain country, open water — an empty
+   * fan is not a refusal at all: there is nothing to do there, and the right click stays inert.
    */
   readonly refusal: string | null;
 };
+
+export type Compass = Fan;
 
 type Allegiance = 'mine' | 'enemy' | 'neutral';
 
@@ -215,14 +273,14 @@ const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassA
  * lines and names the remedy. A crane vanishing five minutes after it was there reads as a
  * bug, not as a rule.
  */
-const buildOn = (target: Extract<CompassTarget, { kind: 'region' }>): CompassAction => ({
+const buildOn = (regionId: string, regionName: string): CompassAction => ({
   key: 'build',
   pictogram: 'crane',
   label: fr.compass.build,
   cost: null,
-  consequence: fr.compass.buildConsequence(target.name),
-  regionId: target.id,
-  regionName: target.name,
+  consequence: fr.compass.buildConsequence(regionName),
+  regionId,
+  regionName,
 });
 
 /**
@@ -257,7 +315,9 @@ export function compassOf(
    */
   if (column !== null && target.kind !== 'force') return aim(target, view, column, objectiveKnown);
   const fan = build(target, view);
-  return fan.actions.length === 0 ? null : { ...fan, refusal: null };
+  /** Un motif sans branche reste une rose : c'est ce qui sépare « rien à faire ici » — le clic
+   *  droit inerte — de « pas maintenant, et voilà pourquoi ». */
+  return fan.actions.length === 0 && fan.refusal === null ? null : fan;
 }
 
 /**
@@ -390,7 +450,8 @@ function build(target: CompassTarget, view: PlayerView): Fan {
       return {
         kicker: fr.compass.region(country.name),
         name: target.name,
-        actions: [...(buildable ? [buildOn(target)] : []), ...country.actions],
+        actions: [...(buildable ? [buildOn(target.id, target.name)] : []), ...country.actions],
+        refusal: null,
       };
     }
     /**
@@ -414,6 +475,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
               : fr.compass.enemyNation,
         name: countryLabel(target.country),
         actions: [],
+        refusal: null,
       };
     }
     case 'outpost':
@@ -421,7 +483,33 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         kicker: fr.compass.outpostAt(countryLabel(target.hostCountry)),
         name: target.name,
         actions: [],
+        refusal: null,
       };
+    /**
+     * **Le bâtiment porte l'élévation, et le sol sous lui garde la sienne** (décisions 54a et
+     * 56a). Deux branches au plus : monter ce mât-ci, et bâtir dans la région qu'il occupe —
+     * la seconde est celle de la région, mot pour mot, parce qu'un mât ne cache pas son sol.
+     *
+     * L'instance se relit dans la vue au lieu de voyager sur la cible : le coût, la durée et le
+     * plafond du niveau suivant sont servis (`me.buildings`), et une rose qui les recopierait au
+     * picking les afficherait périmés dès la première livraison.
+     */
+    case 'building': {
+      const standing = view.me.buildings.find((candidate) => candidate.id === target.id) ?? null;
+      const raise = standing === null ? null : upgradeBranch(standing, view);
+      const region = view.me.regions.find((candidate) => candidate.id === target.regionId) ?? null;
+      const buildable =
+        region !== null && buildOptionsAt(view, target.regionId, view.loadedAt).length > 0;
+      return {
+        kicker: fr.compass.building(target.level),
+        name: standing?.name ?? fr.buildings[target.key],
+        actions: [
+          ...(raise?.action == null ? [] : [raise.action]),
+          ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
+        ],
+        refusal: raise?.refusal ?? null,
+      };
+    }
     /**
      * **La rose d'une troupe ne dit que ce qui se fait sur place** (décision Pierre, 31/08). Il
      * n'y a pas de branche « envoyer » : désigner une troupe l'arme, et la destination se nomme
@@ -438,6 +526,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
         actions: foundHere(target, view),
+        refusal: null,
       };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
@@ -446,7 +535,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
      */
     case 'point':
       return target.country === null
-        ? { kicker: fr.compass.openWater, name: target.name, actions: [] }
+        ? { kicker: fr.compass.openWater, name: target.name, actions: [], refusal: null }
         : build({ kind: 'country', country: target.country }, view);
   }
 }
@@ -501,4 +590,76 @@ function foundHere(
       troopIds: held.map((troop) => troop.id),
     },
   ];
+}
+
+/**
+ * **La branche « améliorer », ou le motif qui la remplace** — et `upgradeHold` est l'arbitre,
+ * jamais une seconde table (même principe que `legalMovementTypes`, ADR 0015). Trois retenues,
+ * une seule dite à la fois, dans l'ordre du contrat 04 :
+ *
+ * - un chantier déjà en file sur cette région, ou le plafond du quartier général : la branche
+ *   **n'existe pas** et la rose s'ouvre sur son motif — règle générale, rien de grisé ;
+ * - une matière qui manque : la branche **reste, grisée, avec sa raison** et son échéance.
+ *   C'est l'exception assumée de la décision 54a, et la seule du jeu : un manque de matière est
+ *   transitoire, se chiffre et se date, quand un ordre illégal ne se rattrape jamais.
+ *
+ * Les phrases sont celles du serveur (`upgradeHoldText`), jamais des paraphrases : le joueur ne
+ * doit pas lire une chose avant le clic et une autre après.
+ */
+function upgradeBranch(
+  building: Building,
+  view: PlayerView,
+): { readonly action: CompassAction | null; readonly refusal: string | null } {
+  const hold = upgradeHold(building, view, view.loadedAt);
+  if (hold !== null && hold.kind !== 'materials')
+    return { action: null, refusal: upgradeHoldText(hold) };
+
+  const due = RESOURCES.filter((resource) => (building.nextLevelCost[resource] ?? 0) > 0);
+  return {
+    action: {
+      key: 'upgrade',
+      pictogram: 'chevron',
+      label: fr.upgrade.action,
+      cost: null,
+      consequence: fr.upgrade.title(building.name, building.level + 1),
+      buildingKey: building.key,
+      regionId: building.regionId,
+      figure: due.map((resource) => String(building.nextLevelCost[resource])).join(' · '),
+      bill: due.map((resource) => ({
+        text: fr.compass.upgradeBill(
+          fr.resources[resource],
+          building.nextLevelCost[resource] ?? 0,
+          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
+        ),
+        lacking: hold?.resource === resource,
+      })),
+      duration: asDuration(building.nextLevelMinutes),
+      hold:
+        hold === null
+          ? null
+          : { reason: upgradeHoldText(hold), availability: whenAffordable(hold, view) },
+    },
+    refusal: null,
+  };
+}
+
+/**
+ * **Un refus qui compte est un mur, un refus qui se date est un plan** — la même phrase que la
+ * ligne d'élévation des fenêtres (`UpgradeControl`), et pour la même raison. `never` nomme le
+ * bâtiment à monter plutôt que de promettre une attente : rien ne produit la matière, donc
+ * aucun compte à rebours n'est vrai.
+ */
+function whenAffordable(
+  hold: Extract<UpgradeHold, { kind: 'materials' }>,
+  view: PlayerView,
+): string | null {
+  const held = view.me.resources[hold.resource];
+  const when = availabilityOf(hold.needed, held, currentStock(held, view.loadedAt, view.loadedAt));
+  if (when.kind === 'now') return null;
+  if (when.kind === 'inMinutes') return fr.upgrade.availableIn(asDuration(when.minutes));
+  const none = noBuilding(PRODUCER_OF[hold.resource]);
+  const deposit = DEPOSITS.find((key) => key === hold.resource);
+  return deposit === undefined
+    ? fr.upgrade.never(none)
+    : fr.upgrade.neverOnDeposit(none, fr.deposits[deposit]);
 }

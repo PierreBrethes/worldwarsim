@@ -4,10 +4,12 @@
 que pour les troupes, avec la branche **« Améliorer »** — le geste d'élévation rendu à la
 carte (décision 54a).
 
-**Statut : décidé, ⚠ pas-codé.** Aujourd'hui la rose ne s'ouvre que sur région (bâtir),
-pile posée (fonder) et visée (`src/domain/compass-rose.ts`) ; aucun `CompassTarget` de sorte
-« bâtiment » n'existe. Ce contrat spécifie la cible à coder — toutes les données citées sont
-déjà servies.
+**Statut : codé (02/09).** La cible `building` existe (`src/domain/compass-rose.ts`), le mât la
+rend au clic droit (`targetOfLabel`, `src/map/WorldMap.tsx`), la branche `upgrade` porte son coût
+à plat et son grisé (`src/map/CompassRose.tsx`), et le clic appelle `constructions.start` — la
+mutation d'`UpgradeControl`, doublon assumé (57a). Deux écarts au gabarit, tenus par le code
+existant : la durée s'écrit avec `asDuration` (« 00:54:00 »), et la facture suit l'ordre de
+`RESOURCES` comme `CostLine` — le même prix lu à deux endroits ne s'écrit pas dans deux ordres.
 
 ## Ce que le serveur sert (source de chaque champ)
 
@@ -76,9 +78,10 @@ rose des mouvements ne change pas.
 
 ## Manque côté serveur (futurs prompts code)
 
-- Rien : toutes les données sont servies. Le manque est **client** — la sorte de cible
-  « bâtiment » dans `CompassTarget`, le picking du bâtiment sur la carte, et la branche
-  `upgrade` dans `CompassAction`. C'est le prompt code à écrire pour Claude code.
+- Rien : toutes les données sont servies, et le client est écrit. **En visée, la grammaire ne
+  change pas** : un mât rend le sol sous lui, parce qu'une colonne armée marche sur un lieu et
+  qu'« améliorer » n'est pas une destination. La branche « rejoindre la garnison » (64b)
+  appartient à cette rose-là et reste à faire.
 - **Tranché (56a, 01/09)** : la rose s'ouvre au **clic droit** sur le bâtiment — cohérent
   avec la couche permanente « le clic droit agit, la popin lit » ; le clic gauche garde une
   lecture.

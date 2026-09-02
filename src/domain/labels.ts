@@ -1,6 +1,6 @@
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
-import type { DepositKey, MovementType, Specialization, UnitRole } from './ids';
+import type { BuildingKey, DepositKey, MovementType, Specialization, UnitRole } from './ids';
 import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
 
 /**
@@ -66,6 +66,9 @@ export type MapMarker =
        * nation holding three barracks has three lines, and only one of them is this mast.
        */
       readonly buildingId: string | null;
+      /** The family, which the instance alone does not say — what an order names
+       *  (`constructions.start`) and what the compass rose raises a level of. */
+      readonly key: BuildingKey;
       readonly regionId: string;
       readonly hostCountry: string | null;
       readonly name: string;
@@ -148,6 +151,14 @@ export type LabelAnchor =
   /** Resolved by the region layer, the only holder of a region's interior point. */
   | { readonly kind: 'region'; readonly regionId: string };
 
+/** A standing building, as a label hands it to whoever acts on it. */
+export type BuildingHandle = {
+  readonly id: string;
+  readonly key: BuildingKey;
+  readonly regionId: string;
+  readonly level: number;
+};
+
 export type MapLabel = {
   readonly id: string;
   readonly type: LabelType;
@@ -184,11 +195,17 @@ export type MapLabel = {
   /** The country a click selects; `null` when the label is not clickable. */
   readonly hostCountry: string | null;
   /**
-   * The building a click opens the surface of. It takes precedence over `hostCountry`: a click
+   * The building this mast stands for — the surface a left click opens, and the target a right
+   * click raises a level of (decision 56a). It takes precedence over `hostCountry`: a click
    * that opened a window *and* moved the country selection would do two things for one gesture,
    * and only one of them was asked for.
+   *
+   * The whole handle rather than an id: the compass rose has to name a **family and a level**
+   * to bill a raise, and reading them back off a label's own sentences would be reading the
+   * screen instead of the view. `null` while the first level is under the crane — nothing
+   * stands there yet to be opened or raised.
    */
-  readonly buildingId: string | null;
+  readonly building: BuildingHandle | null;
   /**
    * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
    * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
@@ -259,7 +276,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     identified: false,
     offensive: false,
     idle: false,
-    buildingId: null,
+    building: null,
     station: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
@@ -313,7 +330,15 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'building',
         priority: PRIORITY.building,
-        buildingId: marker.buildingId,
+        building:
+          marker.buildingId === null || marker.level === null
+            ? null
+            : {
+                id: marker.buildingId,
+                key: marker.key,
+                regionId: marker.regionId,
+                level: marker.level,
+              },
         // Under the crane the portrait is wrong twice over: a first level has nothing to
         // show, and an upgraded building is not the one standing there tonight.
         pictogram: marker.finishesAt === null ? null : 'construction',
@@ -373,7 +398,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       offensive: false,
       idle: false,
       hostCountry: null,
-      buildingId: null,
+      building: null,
       station: null,
       lines: [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }],
     };
@@ -412,7 +437,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
     idle: false,
     hostCountry: null,
-    buildingId: null,
+    building: null,
     station: null,
     lines: [...schedule, second],
   };

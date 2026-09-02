@@ -291,6 +291,10 @@ export function WorldMap({
        * non** (`compassOf`, décision du 30/08). Rendre le sol sous elle faisait exactement le
        * menu mixte que la décision interdit : le clic tombait sur une troupe et répondait un
        * terrain. Deux cibles, séparées par ce qui est sous le curseur.
+       *
+       * **Un bâtiment, lui, rend son sol en visée** : une colonne armée marche sur un lieu, et
+       * « améliorer » n'est pas une destination. La grammaire de la visée ne change pas d'un
+       * signe (décision 54a) — l'élévation est une action de la rose au repos, et d'elle seule.
        */
       const aimed =
         aiming && target?.kind !== 'outpost' && target?.kind !== 'force' && map !== null
@@ -486,6 +490,15 @@ function targetOfLabel(
       hostCountry: label.hostCountry,
       name: lineText(label, 'nature') ?? fr.compass.fallbackOutpost,
     };
+  }
+  /**
+   * **Le mât d'un bâtiment est une cible** (décisions 54a, 56a) : le clic droit y ouvre la rose
+   * qui monte un niveau. La poignée est celle du label — clé, niveau, région — et non le sol
+   * relevé sous le curseur : un mât plein cadre déborde sa région dessinée, et la rose doit
+   * facturer l'élévation de ce bâtiment-ci, pas de ce qu'il recouvre.
+   */
+  if (label.type === 'building' && label.building !== null) {
+    return { kind: 'building', ...label.building };
   }
   if (label.type === 'stack') {
     return {

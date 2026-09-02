@@ -256,8 +256,8 @@ export function MapLabels({
             onClick={(event) => {
               // A building's mast opens its surface and nothing else: opening a window *and*
               // moving the country selection would be two answers to one click.
-              if (label.buildingId !== null) {
-                onOpenBuilding(label.buildingId, event.clientX, event.clientY);
+              if (label.building !== null) {
+                onOpenBuilding(label.building.id, event.clientX, event.clientY);
               } else if (label.station !== null) {
                 onOpenStack(label, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
@@ -342,7 +342,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
     selected ? 'label--selected' : '',
-    label.hostCountry === null && label.buildingId === null && label.station === null
+    label.hostCountry === null && label.building === null && label.station === null
       ? ''
       : 'label--clickable',
   ]

@@ -33,6 +33,11 @@
   --spoke-ink: #2c5063;
   --radial-paper: rgb(232 223 200 / 94%);
   --bubble-paper: #e8dfc8;
+  /* L'encre de la retenue : la seule branche grisée du jeu (décision 54a) et sa raison. Sépia
+     éteint plutôt que gris — la plate est sur du papier, pas sur une interface. */
+  --held-ink: #7d7259;
+  --figure-ink: #7a3a1c;
+  --lacking-ink: #8c2f16;
 }
 
 /* The translation rides the same property as the scale: separating them would send the menu
@@ -58,6 +63,29 @@
 .rose-spoke {
   stroke: var(--spoke-ink);
   stroke-width: 0.9;
+}
+
+.rose-spoke--held {
+  stroke: var(--held-ink);
+}
+
+/* Le coût à plat de l'élévation, hors du médaillon et dans l'axe de sa branche. Un fond de
+   papier sous le chiffre : il tombe sur la carte, pas sur la plate. */
+.rose-figure {
+  position: absolute;
+  padding: 1px 5px;
+  background: var(--radial-paper);
+  color: var(--figure-ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.rose-figure--held {
+  background: rgb(232 223 200 / 80%);
+  color: #8a7658;
 }
 
 /* The clicked point's mark: a crosshair, not a cartouche. It is the only place in the menu
@@ -111,6 +139,16 @@
   outline: 2px solid rgb(34 71 90 / 22%);
 }
 
+/* La branche retenue faute de matière : présente, lisible, et qui ne part pas au clic. Elle ne
+   se mouille pas au survol — ce serait promettre un départ — mais elle garde son curseur de
+   lecture, parce que sa raison ne se lit qu'en la survolant. */
+.rose-medallion--held {
+  border-color: var(--held-ink);
+  background: rgb(232 223 200 / 70%);
+  color: var(--held-ink);
+  cursor: help;
+}
+
 .rose-tie {
   position: absolute;
   height: 1px;
@@ -155,14 +193,6 @@
   color: #5c7a87;
 }
 
-/* The rank never wraps: "1 / 2" broken across two lines reads as two numbers. */
-.rose-bubble-rank {
-  font-family: var(--font-mono);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  color: #8a7658;
-}
-
 .rose-bubble-name {
   margin-top: 2px;
   font-family: var(--font-display);
@@ -198,7 +228,27 @@
   margin-top: 5px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: #7a3a1c;
+  line-height: 1.5;
+  color: var(--figure-ink);
+}
+
+/* Une facture détaillée est une pile de lignes, pas une pile de paragraphes : seule la première
+   prend la marge, les suivantes se suivent. */
+.rose-bubble-cost + .rose-bubble-cost {
+  margin-top: 0;
+}
+
+.rose-bubble-cost--held {
+  color: #8a7658;
+}
+
+/* La matière qui manque, dans sa propre encre : c'est le chiffre qui explique le grisé. */
+.rose-bubble-cost--lacking {
+  color: var(--lacking-ink);
+}
+
+.rose-bubble-label--held {
+  color: var(--held-ink);
 }
 
 .rose-bubble-consequence {
@@ -208,4 +258,21 @@
   font-style: italic;
   line-height: 1.35;
   color: #4a6470;
+}
+
+/* La raison d'une retenue prend la place de la conséquence, sous un filet : ce qui se passerait
+   n'a plus à être dit, puisque rien ne se passera. */
+.rose-bubble-consequence--refused {
+  margin-top: 8px;
+  border-top: 1px solid rgb(44 80 99 / 30%);
+  padding-top: 7px;
+  color: var(--lacking-ink);
+}
+
+/* L'échéance : un refus qui se date est un plan, et il se lit en chiffres, pas en italique. */
+.rose-bubble-when {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #8a7658;
 }

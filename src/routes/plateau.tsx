@@ -324,7 +324,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * s'ouvre, et le cartouche dit le reste.
    */
   const [posted, setPosted] = useState<PostedForce | null>(null);
-  const [foundError, setFoundError] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
     readonly places?: ReadonlyArray<LonLat>;
@@ -470,7 +470,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
        * un cran à un état déjà pris.
        */
       setGarrison(null);
-      setFoundError(null);
+      setOrderError(null);
       setOrder(null);
       setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
       /** Le cartouche d'un observateur se lit — encre, effectif, abaque de tir — mais désigner
@@ -492,12 +492,29 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   );
 
   const foundHere = useMutation(api.movements.foundOutpostHere);
+  const startConstruction = useMutation(api.constructions.start);
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       switch (action.key) {
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
+          return;
+        /**
+         * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
+         * (décisions 54a et 57a). Le doublon est assumé — monter un niveau se fait ici et dans
+         * les fenêtres — mais il n'y a toujours qu'un seul appelant de `constructions.start` par
+         * surface, et c'est la même fonction que le serveur refuse. Le refus a déjà été lu par
+         * `upgradeHold` avant l'ouverture ; ce qui reste est la course — deux clics dans la même
+         * seconde — et elle se dit au bandeau d'erreur du plateau, comme un refus de fondation.
+         */
+        case 'upgrade':
+          setOrderError(null);
+          startConstruction({
+            token,
+            building: action.buildingKey,
+            regionId: action.regionId,
+          }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         case 'aim':
           setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
@@ -509,7 +526,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
          * tant qu'aucune passe ne l'a lu (`movements.respecialize`).
          */
         case 'found':
-          setFoundError(null);
+          setOrderError(null);
           foundHere({
             token,
             point: { lon: action.point[0], lat: action.point[1] },
@@ -520,11 +537,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               setPosted(null);
               setColumn(null);
             },
-            (problem: unknown) => handleError(problem, setFoundError),
+            (problem: unknown) => handleError(problem, setOrderError),
           );
       }
     },
-    [foundHere, token],
+    [foundHere, startConstruction, token],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -720,6 +737,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       kind: 'building' as const,
       id: `building-${building.regionId}-${building.key}`,
       buildingId: building.id,
+      key: building.key,
       regionId: building.regionId,
       hostCountry: host,
       name: building.name,
@@ -750,6 +768,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               id: `building-${work.regionId}-${work.key}`,
               // A first level under the crane opens nothing: no line stands for it yet.
               buildingId: null,
+              key: work.key,
               regionId: work.regionId,
               hostCountry: host,
               name: work.name,
@@ -981,9 +1000,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )}
         {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
             cartouche la porte (décision du 30/08). */}
-        {foundError !== null && (
+        {orderError !== null && (
           <div className="hud absolute top-4 left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
-            {foundError}
+            {orderError}
           </div>
         )}
         {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a

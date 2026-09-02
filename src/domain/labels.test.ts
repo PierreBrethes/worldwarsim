@@ -184,6 +184,7 @@ describe('buildLabels', () => {
         kind: 'building',
         id: 'building-FR-60-mine',
         buildingId: 'b-1',
+        key: 'mine',
         regionId: 'FR-60',
         hostCountry: 'France',
         name: 'Mine',
