@@ -300,6 +300,8 @@ export const fr = {
     BUILDING_LOCKED: (d) =>
       `${buildingName(d.building)} demande un quartier général de niveau ${num(d.requiredLevel)} (vous en êtes au ${num(d.hqLevel)})`,
     ROLE_LOCKED: (d) => `ce rôle demande un quartier général de niveau ${num(d.requiredLevel)}`,
+    SITE_LEVEL_LOCKED: (d) =>
+      `ce rôle demande ${aBuildingName(d.building)} de niveau ${num(d.requiredLevel)}`,
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
@@ -1033,18 +1035,15 @@ export const fr = {
      *  absente et une ligne de onze tirets se liraient toutes deux comme une panne. */
     firesNothing: 'ne tire sur rien — il porte, il ne combat pas.',
     bands: {
-      strong: 'contre franc',
+      strong: 'fort contre',
       even: 'échange',
-      weak: 'frappe faible',
+      weak: 'faible contre',
       none: 'hors de portée',
     } satisfies Record<'strong' | 'even' | 'weak' | 'none', string>,
     reading: 'lecture',
     /** Le pli est la seule chose que l'abaque ait jamais demandé d'apprendre : il faut le dire. */
     foldHint: 'pliez une ligne pour la fiche du rôle',
     strengthLabel: 'effectif',
-    /** La condition se dit en toutes lettres, jamais en grisé (contrat 06) — et elle se dit même
-     *  quand le bâtiment n'existe pas, c'est tout l'objet du déménagement (60b). */
-    formsIn: (building: string) => `se forme dans ${building}`,
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,
@@ -1087,6 +1086,12 @@ export const fr = {
     tier2Locked: (level: number) => `quartier général niveau ${level} requis`,
     /** The tank waits for the level that arms its counter — said before the click, not after. */
     roleLocked: (level: number) => `verrouillé — quartier général niveau ${level} requis`,
+    /** **La condition en toutes lettres, et la même dans les deux cadres** (contrats 03 et 06) :
+     *  l'abaque la dit sans rien posséder, la modale de site la dit sur la carte qu'elle laisse
+     *  affichée. Le niveau ne s'imprime qu'à partir de 2 — « de niveau 1 » se lirait comme une
+     *  condition alors que c'est le bâtiment nu (67b). */
+    formsIn: (building: string, level: number) =>
+      level > 1 ? `se forme dans ${building} de niveau ${level}` : `se forme dans ${building}`,
     tierLabel: (tier: number) => `palier ${tier}`,
     enqueueTitle: (role: string, tier: string, site: string) => `enfiler ${role} ${tier} — ${site}`,
     enqueue: '+ 1 troupe',
@@ -1839,6 +1844,10 @@ const resourceName = (value: unknown): string =>
   typeof value === 'string' && value in fr.resources
     ? fr.resources[value as ResourceKey]
     : str(value);
+/** `une caserne` depuis une charge utile d'erreur — le pendant de `buildingName`, qui compte
+ *  le bâtiment là où celui-ci le désigne dans une phrase. */
+const aBuildingName = (value: unknown): string =>
+  typeof value === 'string' && value in fr.buildings ? aBuilding(value as BuildingKey) : str(value);
 const buildingName = (value: unknown): string =>
   typeof value === 'string' && value in fr.buildings
     ? fr.buildings[value as BuildingKey]

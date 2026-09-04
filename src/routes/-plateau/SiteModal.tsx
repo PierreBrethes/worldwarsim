@@ -2,7 +2,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { fr, roleLabel } from '@/i18n/fr';
+import { aBuilding, fr, roleLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { handleError } from '@/data/errors';
 import { ResourceIcon, resourceColor, type ResourceKey } from '@/emblems/ResourceIcon';
@@ -203,6 +203,7 @@ function Site({
                       tier2Unlocked={workshop.tier2Unlocked}
                       requiredLevel={workshop.requiredHqLevel}
                       hqLevel={workshop.hqLevel}
+                      siteLevel={facility.level}
                       siteName={facility.regionName}
                       /** **Nul, l'ordre n'existe pas** — c'est ainsi que l'observateur lit la
                        *  fiche sans qu'elle lui promette une compagnie : un bouton grisé se lit
@@ -358,6 +359,7 @@ function RoleCard({
   tier2Unlocked,
   requiredLevel,
   hqLevel,
+  siteLevel,
   siteName,
   onEnqueue,
 }: {
@@ -369,12 +371,19 @@ function RoleCard({
   tier2Unlocked: boolean;
   requiredLevel: number;
   hqLevel: number;
+  siteLevel: number;
   siteName: string;
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
   // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
   const roleLocked = hqLevel < (entry.unlockedAtHqLevel ?? 0);
+  /**
+   * **La carte reste, la condition se dit, le bouton s'en va** (67b) : le porte-avions se lit
+   * sur un port de niveau 1 — rien de caché ne se débloque (60b) — et un bouton grisé se lirait
+   * « pas encore » là où il faut lire « montez le port ».
+   */
+  const siteLocked = siteLevel < entry.unlockedAtSiteLevel;
   const cost = tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit;
   const sheet = fr.unitSheets[role];
   const equipment = equipmentLabel(nation, role, tier);
@@ -433,6 +442,11 @@ function RoleCard({
             {fr.production.roleLocked(entry.unlockedAtHqLevel)}
           </div>
         )}
+        {siteLocked && (
+          <div className="mt-[3px] text-[11.5px] text-[var(--critical)]">
+            {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+          </div>
+        )}
       </div>
 
       {/* The bill and the wait, side by side and ruled apart — the two questions a recruitment
@@ -482,7 +496,7 @@ function RoleCard({
         )}
       </div>
 
-      {onEnqueue !== null && (
+      {onEnqueue !== null && !siteLocked && (
         <div className="px-4 pt-3 pb-[14px]">
           <button
             type="button"

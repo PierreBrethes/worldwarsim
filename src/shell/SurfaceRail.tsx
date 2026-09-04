@@ -37,33 +37,25 @@ export function SurfaceRail({
   // the stack, and the bare state (map alone) needs no "board" entry.
   const toggled = (name: BoardWindow): BoardSearch => toggleWindow(search, name);
 
-  const surfaces: ReadonlyArray<{
-    title: string;
-    label: string;
-    icon: ReactNode;
-    target: BoardSearch;
-    active: boolean;
-    /** Ce qui attend derrière l'entrée, `0` quand rien n'attend. Une seule surface en porte
-     *  aujourd'hui — le journal compte au bandeau, où il vit. */
-    unread?: number;
-  }> = [
+  const telegraph: Surface = {
+    title:
+      telegraphUnread > 0
+        ? `${fr.rail.telegraph.title} — ${fr.rail.telegraphUnread(telegraphUnread)}`
+        : fr.rail.telegraph.title,
+    label: fr.rail.telegraph.label,
+    icon: <TelegraphIcon />,
+    target: toggled('telegraph'),
+    active: windowOpen(search, 'telegraph'),
+    unread: telegraphUnread,
+  };
+
+  const surfaces: ReadonlyArray<Surface> = [
     {
-      title:
-        telegraphUnread > 0
-          ? `${fr.rail.telegraph.title} — ${fr.rail.telegraphUnread(telegraphUnread)}`
-          : fr.rail.telegraph.title,
-      label: fr.rail.telegraph.label,
-      icon: <TelegraphIcon />,
-      target: toggled('telegraph'),
-      active: windowOpen(search, 'telegraph'),
-      unread: telegraphUnread,
-    },
-    {
-      title: fr.rail.gunnery.title,
-      label: fr.rail.gunnery.label,
-      icon: <AbacusMark size={19} />,
-      target: toggled('gunnery'),
-      active: windowOpen(search, 'gunnery'),
+      title: fr.rail.nation.title,
+      label: fr.rail.nation.label,
+      icon: <Pictogram pictogram="nation" weight={20} size={19} />,
+      target: toggled('nation'),
+      active: windowOpen(search, 'nation'),
     },
     {
       title: fr.rail.economy.title,
@@ -73,11 +65,11 @@ export function SurfaceRail({
       active: windowOpen(search, 'economy'),
     },
     {
-      title: fr.rail.nation.title,
-      label: fr.rail.nation.label,
-      icon: <Pictogram pictogram="nation" weight={20} size={19} />,
-      target: toggled('nation'),
-      active: windowOpen(search, 'nation'),
+      title: fr.rail.gunnery.title,
+      label: fr.rail.gunnery.label,
+      icon: <AbacusMark size={19} />,
+      target: toggled('gunnery'),
+      active: windowOpen(search, 'gunnery'),
     },
   ];
 
@@ -94,32 +86,16 @@ export function SurfaceRail({
         <ul>
           {surfaces.map((surface) => (
             <li key={surface.label}>
-              <Link
-                to="/plateau"
-                search={surface.target}
-                title={surface.title}
-                className={
-                  surface.active
-                    ? 'relative flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
-                    : 'relative flex h-[46px] flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
-                }
-              >
-                {surface.icon}
-                <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
-                {/* Un carré à l'encre critique, pas une pastille : le rail est composé, pas
-                    notifié. Il compte depuis la dernière fermeture de la fenêtre. */}
-                {surface.unread ? (
-                  <span className="absolute top-[5px] right-[5px] flex h-[13px] min-w-[13px] items-center justify-center bg-[var(--critical)] px-[3px] font-(family-name:--font-mono) text-[8px] leading-none text-[var(--paper)]">
-                    {surface.unread > 99 ? '99+' : surface.unread}
-                  </span>
-                ) : null}
-              </Link>
+              <SurfaceLink surface={surface} />
             </li>
           ))}
         </ul>
         <EdgeToggles playerInk={playerInk} />
       </div>
       <div className="flex flex-col items-center gap-2">
+        {/* Le télégraphe descend au pied du rail, contre les réglages — mais il reste une
+            surface : même gabarit, même compte de non-lus que ceux d'en haut. */}
+        <SurfaceLink surface={telegraph} />
         <Link
           to="/plateau"
           search={toggled('settings')}
@@ -148,6 +124,42 @@ export function SurfaceRail({
         </div>
       </div>
     </nav>
+  );
+}
+
+type Surface = {
+  title: string;
+  label: string;
+  icon: ReactNode;
+  target: BoardSearch;
+  active: boolean;
+  /** Ce qui attend derrière l'entrée, `0` quand rien n'attend. Une seule surface en porte
+   *  aujourd'hui — le journal compte au bandeau, où il vit. */
+  unread?: number;
+};
+
+function SurfaceLink({ surface }: { surface: Surface }) {
+  return (
+    <Link
+      to="/plateau"
+      search={surface.target}
+      title={surface.title}
+      className={
+        surface.active
+          ? 'relative flex h-[46px] w-full flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
+          : 'relative flex h-[46px] w-full flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
+      }
+    >
+      {surface.icon}
+      <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
+      {/* Un carré à l'encre critique, pas une pastille : le rail est composé, pas
+          notifié. Il compte depuis la dernière fermeture de la fenêtre. */}
+      {surface.unread ? (
+        <span className="absolute top-[5px] right-[5px] flex h-[13px] min-w-[13px] items-center justify-center bg-[var(--critical)] px-[3px] font-(family-name:--font-mono) text-[8px] leading-none text-[var(--paper)]">
+          {surface.unread > 99 ? '99+' : surface.unread}
+        </span>
+      ) : null}
+    </Link>
   );
 }
 

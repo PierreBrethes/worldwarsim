@@ -15,6 +15,7 @@ import {
   nominalStrength,
   recruitmentCost,
   roleHqLevel,
+  roleSiteLevel,
   troopCap,
 } from './constants';
 import { fail } from './errors';
@@ -101,6 +102,10 @@ export const workshop = query({
          * are the same number.
          */
         unlockedAtHqLevel: roleHqLevel(role),
+        /** L'autre verrou, local : le niveau que le bâtiment qui forme doit atteindre (67b).
+         *  Servi comme le précédent — l'abaque le dit en toutes lettres sans rien posséder,
+         *  et la modale de site le compare au niveau de *son* bâtiment. */
+        unlockedAtSiteLevel: roleSiteLevel(role),
         unit: priced(role, 1, hqLevel),
         unitTier2: TIERS_BY_ROLE[role] === 2 ? priced(role, 2, hqLevel) : null,
       })),
@@ -134,6 +139,10 @@ export const recruit = mutation({
     // The tank waits for the level that arms its counter, whatever tier is asked for.
     const roleLevel = roleHqLevel(role);
     if (hqLevel < roleLevel) fail('ROLE_LOCKED', { role, requiredLevel: roleLevel });
+    // And the local one: the site itself has to have been raised to the role (67b).
+    const siteLevel = roleSiteLevel(role);
+    if (building.level < siteLevel)
+      fail('SITE_LEVEL_LOCKED', { building: building.key, requiredLevel: siteLevel });
 
     /**
      * The queue counts against the ceiling. Leaving it out would make the queue a way of

@@ -129,9 +129,9 @@ describe('what a region can carry', () => {
   });
 
   /**
-   * **The real ladder, read off `unlockLevel`.** Projection is the top of it: the port and the
-   * aerodrome wait for a headquarters at 3, two levels above the one the season plants, and the
-   * catalogue offers them the minute it gets there.
+   * **The real ladder, read off `unlockLevel`.** Projection travels with the age of the army
+   * since the 04/09 (66a): the port and the airfield open one level above the one the season
+   * plants, and the catalogue offers them the minute it gets there.
    */
   it('holds projection back until the headquarters reaches its level', () => {
     const catalog = Object.fromEntries(
@@ -144,9 +144,9 @@ describe('what a region can carry', () => {
     const offered = (hqLevel: number) =>
       buildableOn(site({ hqLevel, coastal: true }), catalog).map((option) => option.key);
 
-    expect(offered(2)).not.toContain('port');
-    expect(offered(2)).not.toContain('airfield');
-    expect(offered(3)).toEqual(expect.arrayContaining(['port', 'airfield']));
+    expect(offered(1)).not.toContain('port');
+    expect(offered(1)).not.toContain('airfield');
+    expect(offered(unlockLevel('port'))).toEqual(expect.arrayContaining(['port', 'airfield']));
   });
 
   it('offers nothing at all on a region already taken — one building per region', () => {

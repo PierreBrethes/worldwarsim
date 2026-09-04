@@ -10,11 +10,13 @@ import {
   MAX_HQ_LEVEL,
   NOMINAL_STRENGTH,
   STARTING_KIT,
+  ROLE_SITE_LEVEL,
   TIER_2_HQ_LEVEL,
   TROOP_CAP_BASE,
   TROOP_CAP_TARGET,
   recruitmentCost,
   roleHqLevel,
+  roleSiteLevel,
   troopCap,
 } from './constants';
 import schema from './schema';
@@ -140,9 +142,10 @@ describe('a queue per projection building', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    // The tank opens at the level that arms its counter, one above what the season plants.
-    await setHqLevel(t, token, roleHqLevel('armor'));
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    // The tank opens at the level that arms its counter, one above what the season plants —
+    // and, since 67b, on a barracks raised to its own level.
+    await setHqLevel(t, token, ROLE_SITE_LEVEL.armor);
+    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
 
     await t.mutation(api.troops.recruit, {
       token,
@@ -197,8 +200,8 @@ describe('a queue per projection building', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    await setHqLevel(t, token, roleHqLevel('armor'));
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    await setHqLevel(t, token, ROLE_SITE_LEVEL.armor);
+    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
     await t.mutation(api.troops.recruit, {
       token,
       buildingId: barracks,
@@ -437,7 +440,7 @@ describe('tiers', () => {
     const t = boot();
     const token = await launchedSeason(t);
     await credit(t, token, 4000);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
 
     // Mark-1 infantry is the age of the barracks: recruitable the minute one stands.
     await t.mutation(api.troops.recruit, {
@@ -467,12 +470,53 @@ describe('tiers', () => {
     expect(rank).toBe(1);
   });
 
+  /**
+   * **Le second verrou est local, et il ne remplace pas le premier** (67b) : le transport
+   * terrestre attend une caserne, le blindé attend la caserne *et* le quartier général. Un
+   * seul test les tient ensemble — c'est le seul endroit où l'on voit qu'ils ne se confondent
+   * pas.
+   */
+  it('holds a role until the site that forms it is raised to its level', async () => {
+    const t = boot();
+    const token = await launchedSeason(t);
+    await credit(t, token, 4000);
+    await setHqLevel(t, token, MAX_HQ_LEVEL);
+    const barracks = await raise(t, token, 'barracks', MARNE);
+
+    const refused: Record<string, unknown> = await t
+      .mutation(api.troops.recruit, { token, buildingId: barracks, role: 'landTransport', tier: 1 })
+      .then(() => ({}))
+      .catch((error: { data: Record<string, unknown> }) => error.data);
+    expect(refused).toMatchObject({
+      code: 'SITE_LEVEL_LOCKED',
+      building: 'barracks',
+      requiredLevel: roleSiteLevel('landTransport'),
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(barracks, { level: roleSiteLevel('landTransport') });
+    });
+    const { rank } = await t.mutation(api.troops.recruit, {
+      token,
+      buildingId: barracks,
+      role: 'landTransport',
+      tier: 1,
+    });
+    expect(rank).toBe(0);
+
+    // The headquarters is at its maximum and the barracks is not: the tank still waits.
+    await expect(
+      t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 }),
+    ).rejects.toThrow('SITE_LEVEL_LOCKED');
+  });
+
   it('serves the tank’s threshold to the workshop, and nothing for the roles their building carries', async () => {
     const t = boot();
     const token = await launchedSeason(t);
     const shop = await t.query(api.troops.workshop, { token });
     for (const entry of shop.grid) {
       expect(entry.unlockedAtHqLevel).toBe(roleHqLevel(entry.role));
+      expect(entry.unlockedAtSiteLevel).toBe(roleSiteLevel(entry.role));
     }
     expect(shop.grid.find((entry) => entry.role === 'armor')?.unlockedAtHqLevel).toBe(
       TIER_2_HQ_LEVEL,

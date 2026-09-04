@@ -263,7 +263,7 @@ function Sheet({
           <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
             <span aria-hidden className="h-[7px] w-[7px] shrink-0 bg-[var(--ink)]" />
             <span className="text-[13.5px] text-[var(--ink)]">
-              {fr.gunnery.formsIn(aBuilding(entry.producedBy))}
+              {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
             </span>
             {entry.unlockedAtHqLevel > 0 && (
               <>

@@ -94,8 +94,12 @@ export const BUILDING_SPEC: Readonly<
 };
 
 /**
- * `plan-progression-v1.md`: one headquarters level, one new question — the ground at 1, the army
- * and the ear at 2, projection at 3. ADR 0015 keeps the headquarters as the single prerequisite.
+ * `plan-progression-v1.md`: one headquarters level, one new question — the ground at 1, then the
+ * army at 2. **The age of the army carries the sea and the air with it** (66a, 04/09): the port
+ * and the airfield used to wait for 3, and the test season measured what that cost an island —
+ * 577 alloy for the first projection by sea against 198 by land, on an endowment of 500. A
+ * nation whose only way out is the water cannot have that way out priced two levels above its
+ * neighbour's road. What stays at 3 is the tank and the whole mark-2 step, which is a depth.
  *
  * Exhaustive by type: dropping a key breaks the build rather than quietly unlocking it at zero.
  *
@@ -116,8 +120,8 @@ export const UNLOCKED_AT: Readonly<Record<BuildingKey, number>> = {
   billets: 2,
   arsenal: 2,
   listening: 2,
-  airfield: 3,
-  port: 3,
+  airfield: 2,
+  port: 2,
 };
 
 /**
@@ -340,6 +344,31 @@ export const TIER_2_HQ_LEVEL = HQ_LEVEL_AT_LAUNCH + TIER_2_LEVELS_ABOVE_LAUNCH;
  * threshold rather than holding a table of its own. Zero means "nothing above the building".
  */
 export const roleHqLevel = (role: UnitRole): number => (role === 'armor' ? TIER_2_HQ_LEVEL : 0);
+
+/**
+ * **The level the projection building must reach to form the role** (67b, 04/09). A *width per
+ * site*, never to be confused with `roleHqLevel`, which is a depth at the headquarters: since
+ * `cappedByHq` holds a site under its headquarters, a barracks at 3 already implies a
+ * headquarters at 3, and the tank keeps its counter (mark-2 infantry, opened at the headquarters)
+ * in front of it — `invariants.test.ts` holds that, no reading does.
+ *
+ * It is what gives a projection site a reason to be raised at all: before this the second level
+ * of a barracks bought nothing. Exhaustive by role, and never above `MAX_HQ_LEVEL` — a role
+ * written at 6 would be a role hidden for the whole season.
+ */
+export const ROLE_SITE_LEVEL: Readonly<Record<UnitRole, number>> = {
+  infantry: 1,
+  landTransport: 2,
+  armor: 3,
+  cargo: 1,
+  escort: 2,
+  carrier: 5,
+  fighter: 1,
+  airTransport: 2,
+  bomber: 3,
+};
+
+export const roleSiteLevel = (role: UnitRole): number => ROLE_SITE_LEVEL[role];
 
 /** Nearly inert since a batch became a single troop — the troop ceiling below bites first. Kept
  *  as a guard against an unbounded queue, not as a balance knob. */

@@ -36,6 +36,10 @@ destination. Le mot « atelier » reste rejeté (55b).
   sprite national en grand, nom du rôle + équipement, **UN tampon** (« verrouillé — QG n »
   seulement), **LE chiffre : le coût en alliage**. *Identique à la v1 — les cartes
   survivent telles quelles.*
+- **La condition de niveau du site (67b, 04/09)** : un rôle que ce bâtiment-là n'a pas encore
+  le niveau de former garde sa carte — rien de caché ne se débloque (60b) — dit sa condition en
+  toutes lettres (« se forme dans un port de niveau 5 ») et **perd son bouton** plutôt que de le
+  griser. Le porte-avions se lit donc sur un port de niveau 1.
 - **La rangée de cases du plafond** (en service / en file / libres, « plafond n troupes ») —
   global, répété dans chaque modale : un seul nombre, il borne tout choix de formation.
 

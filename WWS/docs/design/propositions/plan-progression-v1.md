@@ -70,6 +70,13 @@ temps d'attente** (c'est toute la leçon de Subterfuge — la profondeur vient d
 et négocie pendant que les mouvements voyagent). La donner tôt, c'est donner tôt une raison de se
 connecter qui n'est pas une file de production.
 
+> ⚠️ **Révision (04/09/2026, décision 66a) : le port et l'aérodrome descendent au QG 2.** La
+> partie de test au Japon a chiffré le mur : 577 alliage pour la première projection par mer
+> (dont 302 de QG) contre 198 par terre pour la France, sur 500 de dotation. Une île n'a pas
+> d'autre sortie que la mer ; l'âge de l'armée l'inclut. Le QG 3 garde le blindé et le MK2. En
+> plus (67b), chaque rôle se forme à un niveau de site : caserne 1 inf · 2 transport · 3 blindé ;
+> port 1 cargo · 2 escorte · 5 porte-avions ; aérodrome 1 chasseur · 2 transport · 3 bombardier.
+
 ### QG 3 — L'âge de la projection · *fin du skirmish*
 
 | | |

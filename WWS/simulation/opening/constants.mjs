@@ -48,13 +48,14 @@ export const BUILDING_SPEC = {
 
 /**
  * The catalogue by tier: which headquarters level opens each key. One level, one new question
- * (`plan-progression-v1.md`) — the ground at 1, the army and the ear at 2, projection at 3.
+ * (`plan-progression-v1.md`) — the ground at 1, then the army at 2, sea and air included since
+ * the 04/09 (décision 66a: an island has no other way out than the water).
  */
 export const UNLOCKED_AT = {
   hq: 1, farm: 1, mill: 1, mine: 1, oilWell: 1, foundry: 1, quartermaster: 1,
   warehouse: 1, depot: 1,
   barracks: 2, billets: 2, arsenal: 2, listening: 2,
-  airfield: 3, port: 3,
+  airfield: 2, port: 2,
 };
 
 /** Which deposit an exploitation building works. The mine works two. */

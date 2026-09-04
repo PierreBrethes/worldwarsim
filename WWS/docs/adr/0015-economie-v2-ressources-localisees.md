@@ -327,3 +327,16 @@ promettrait ce que la mutation refuse.
 clés, une carte du plateau les nomme, une clé cliquée surligne les régions qui l'acceptent —
 la même fonction, donc la même règle — et la carte se retire d'elle-même quand la fondation est
 soldée. Rien n'est débloqué en secret : ce que l'ordre offre, `constructions.start` le prend.
+
+## Révision du 04/09 — un second verrou, local : le niveau du site
+
+> ⚠️ **Révision (04/09/2026, décision 67b).** « Le QG est le seul prérequis » reste vrai pour
+> le *catalogue des bâtiments* et pour la *marque* (MK2). S'y ajoute un verrou **local** : un
+> rôle se forme à partir d'un niveau du bâtiment qui le forme (`ROLE_SITE_LEVEL`). Il ne
+> contourne pas le QG — `cappedByHq` borne un site à son QG, donc « caserne 3 » implique
+> « QG 3 » — il donne un sens au niveau d'un site de projection, qui n'en achetait aucun. Le
+> garde-fou « l'arme et son contre arrivent ensemble » se tient par un invariant testé, pas par
+> une lecture. Rien de caché ne se débloque : la condition se dit, en toutes lettres, partout.
+>
+> Même jour, décision 66a : port et aérodrome au QG 2 (`UNLOCKED_AT`) — voir
+> `plan-progression-v1.md`.

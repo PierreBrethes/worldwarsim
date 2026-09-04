@@ -85,6 +85,8 @@ Chaînes d'accompagnement, verbatim :
 - Sélecteur de marque : « `MK1` » / « `MK2` » ; MK2 verrouillé au QG 1, infobulle :
   « `quartier général niveau 2 requis` »
 - **Tampon du blindé** (QG 1) : « `verrouillé — quartier général niveau 2 requis` »
+- **Condition de niveau du site** (67b) : « `se forme dans un port de niveau 5` » — la carte
+  reste, le bouton disparaît (`workshop.unlockedAtSiteLevel` contre le niveau du bâtiment)
 - Air et mer : les cartes existent sous l'en-tête bloqué de leur section — la section porte le
   blocage, pas chaque carte.
 

@@ -24,7 +24,7 @@ ne se débloque* — tout le matériel du jeu se lit ici, avec sa condition.
 ## P1 — d'un coup d'œil (liste fermée)
 
 - **La grille d'encre** : une ligne par profil qui tire, une colonne par cible ; la densité
-  d'encre dit la bande (contre franc / échange / frappe faible / hors de portée), la valeur
+  d'encre dit la bande (fort contre / échange / faible contre / hors de portée), la valeur
   reste imprimée dans la case. *Déjà validée (v1 du 31/08) — ne pas la refaire.*
 - **La garantie**, imprimée : « Aucune arme ne bat tout, aucune n'est battue par tout. »
 - *Pas de chiffre unique global : l'abaque est une table, son P1 est le motif.*
@@ -36,9 +36,19 @@ ne se débloque* — tout le matériel du jeu se lit ici, avec sa condition.
   coût alliage (MK1/MK2), durée de formation, effectif nominal, **« en service » par marque**
   (`workshop.roster` — toutes adresses confondues, la file non ; ajout du 01/09),
   fort / faible contre, et
-  **la condition** : « se forme dans une caserne » / « … un aérodrome » / « … un port »
-  (+ « quartier général niveau n requis » quand le rôle l'exige). Le bâtiment absent est la
-  condition dite, jamais un grisé.
+  **la condition** : « se forme dans une caserne de niveau n » / « … un aérodrome … » /
+  « … un port … » (`workshop.unlockedAtSiteLevel`, 67b du 04/09 ; + « quartier général
+  niveau n requis » quand le rôle l'exige). Le bâtiment absent est la condition dite, jamais
+  un grisé.
+- **Pictogrammes de fiche (68a, 04/09)** : un pictogramme muet devant chaque donnée servie de
+  la fiche — alliage (lingot), formation (horloge), effectif (cœur : l'effectif *est* la vie,
+  la part de la table se prend sur lui). **Le libellé ne s'imprime pas** (retour de Pierre sur
+  la planche 68a) : le pictogramme porte la valeur seul, et **au survol du pictogramme une
+  popin** dit le nom de la donnée et son explication (même mécanique que la popin du bandeau
+  des ressources). La ligne « en service », sans pictogramme, garde son libellé imprimé. **Pas d'œil de
+  portée** : la portée n'est pas servie tant que l'ADR 0021 n'est pas branchée — une icône sur
+  une donnée absente est une donnée inventée. Pas d'« explosion » de dégâts : les dégâts sont
+  la case, pas une stat de la pièce.
 - La ligne du transport aérien garde sa phrase (« ne tire sur rien — il porte, il ne
   combat pas ») ; les transports restent des colonnes (« victimes par conception »).
 - Le rappel des modificateurs (`fr.gunnery.before`).
