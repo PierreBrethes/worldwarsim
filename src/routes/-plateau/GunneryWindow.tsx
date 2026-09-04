@@ -1,5 +1,5 @@
 import { useQuery } from 'convex/react';
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { DAMAGE_TABLE, DEFENDER_BONUS, DRY_AMMUNITION_FACTOR } from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
@@ -11,6 +11,8 @@ import type { UnitRole } from '@/domain/ids';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
+import { ClockGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
+import { HoverCard } from '@/shell/HoverCard';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
@@ -282,7 +284,13 @@ function Sheet({
 
 /** Une marque et ce qu'elle demande : le coût est **le** chiffre, les trois autres lignes le
  *  qualifient. Le zéro de « en service » s'imprime — une fiche sans la ligne se lirait comme un
- *  oubli plutôt que comme une absence. */
+ *  oubli plutôt que comme une absence.
+ *
+ *  **Les trois données servies n'ont plus de libellé** (68a) : un pictogramme muet les porte, et
+ *  le nom ne revient qu'au survol de ce pictogramme. Trois mots de moins par marque, deux marques
+ *  côte à côte : c'est la comparaison qu'on vient poser qui gagne la place. « En service » garde
+ *  le sien — c'est un compte de la partie, pas une donnée de la pièce, et lui donner un dessin
+ *  l'aurait rangé avec les trois autres. */
 function Mark({
   mark,
   marked,
@@ -302,9 +310,11 @@ function Mark({
   requiredLevel: number;
   first: boolean;
 }) {
+  const [hovered, setHovered] = useState<StatHover | null>(null);
+
   return (
     <div
-      className={`flex flex-col gap-[5px] ${
+      className={`relative flex flex-col gap-[5px] ${
         first ? '' : 'border-l border-[rgba(42,33,24,.22)] pl-[22px]'
       }`}
     >
@@ -314,25 +324,19 @@ function Mark({
         </span>
       )}
       <span className="flex items-center gap-[7px]">
+        <StatGlyph stat="alloy" onHover={setHovered} />
         <span className="font-(family-name:--font-display) text-[27px] leading-none font-extrabold text-[var(--ink)]">
           {cost.alloy}
         </span>
-        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          {fr.resources.alloy}
-        </span>
       </span>
-      <span className="flex items-baseline gap-2">
-        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          {fr.production.trainingLabel}
-        </span>
+      <span className="flex items-center gap-[7px]">
+        <StatGlyph stat="training" onHover={setHovered} />
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
           {asDuration(cost.minutes)}
         </span>
       </span>
-      <span className="flex items-baseline gap-2">
-        <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          {fr.gunnery.strengthLabel}
-        </span>
+      <span className="flex items-center gap-[7px]">
+        <StatGlyph stat="strength" onHover={setHovered} />
         <span className="text-[13.5px] font-semibold text-[var(--ink)]">
           {cost.strength} {fr.strengthUnits[role]}
         </span>
@@ -353,7 +357,65 @@ function Mark({
           {fr.production.tier2Locked(requiredLevel)}
         </span>
       )}
+      {hovered !== null && (
+        <HoverCard left={hovered.left} top={hovered.top} width={STAT_POPIN_WIDTH}>
+          <span className="block text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+            {fr.gunnery.stats[hovered.stat].name}
+          </span>
+          <span className="mt-[2px] block leading-[1.4] text-[var(--ink)]">
+            {fr.gunnery.stats[hovered.stat].note}
+          </span>
+        </HoverCard>
+      )}
     </div>
+  );
+}
+
+type SheetStat = keyof typeof fr.gunnery.stats;
+
+type StatHover = {
+  readonly stat: SheetStat;
+  readonly left: number;
+  readonly top: number;
+};
+
+/** Une largeur, parce qu'une popin qui explique n'est pas une popin qui chiffre : celle du
+ *  bandeau des ressources tient sur une ligne, celles-ci portent une phrase et doivent la
+ *  replier. Trois lignes pour la plus longue des trois, sans déborder de la fiche. */
+const STAT_POPIN_WIDTH = 232;
+
+const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
+  alloy: IngotGlyph,
+  training: ClockGlyph,
+  strength: HeartGlyph,
+};
+
+/**
+ * Le dessin **est** le libellé : il porte le nom de la donnée pour le lecteur d'écran, et
+ * l'ouvre en clair pour la souris. La popin s'ancre sur lui et se ferme dès qu'on le quitte —
+ * survoler le chiffre à côté n'ouvre rien, c'est la valeur, elle ne s'explique pas elle-même.
+ */
+function StatGlyph({
+  stat,
+  onHover,
+}: {
+  stat: SheetStat;
+  onHover: (hover: StatHover | null) => void;
+}) {
+  const Drawing = STAT_DRAWING[stat];
+  const anchor = (event: MouseEvent<HTMLElement>) => {
+    const glyph = event.currentTarget;
+    onHover({ stat, left: glyph.offsetLeft, top: glyph.offsetTop + glyph.offsetHeight + 4 });
+  };
+
+  return (
+    <span
+      onMouseEnter={anchor}
+      onMouseLeave={() => onHover(null)}
+      className="flex shrink-0 cursor-help text-[var(--ink)]"
+    >
+      <Drawing label={fr.gunnery.stats[stat].name} />
+    </span>
   );
 }
 

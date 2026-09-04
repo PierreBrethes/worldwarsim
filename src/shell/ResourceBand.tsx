@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { fr } from '@/i18n/fr';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
@@ -6,6 +6,7 @@ import { currentStock } from '@/domain/player-view';
 import { BAND_GROUPS, marksOf, sourceOf, type Mark, type Marks } from '@/domain/resource-band';
 import { ResourcePlate } from '@/emblems/Plate';
 import { keepResourceBandCollapsed, readResourceBandCollapsed } from '@/data/settings';
+import { HoverCard } from './HoverCard';
 import { useClock } from './clock';
 
 /** Thirty pixels: a plate at 20 and its mono figure beside it, not one line more — the band
@@ -197,16 +198,16 @@ function Tooltip({
   const mark = marks[hover.resource];
   if (hover.on === 'mark' && mark !== null) {
     return (
-      <Card left={hover.left} ink="var(--critical)">
+      <HoverCard left={hover.left} ink="var(--critical)">
         {mark.diagnosis}
-      </Card>
+      </HoverCard>
     );
   }
 
   const reserve = view.me.resources[hover.resource];
   const source = sourceOf(view, hover.resource);
   return (
-    <Card left={hover.left} ink="var(--ink)">
+    <HoverCard left={hover.left}>
       {fr.resourceBand.tooltip(
         fr.resources[hover.resource],
         currentStock(reserve, view.loadedAt, now),
@@ -214,17 +215,6 @@ function Tooltip({
         reserve.ratePerHour,
       )}
       {source !== null && ` · ${fr.resourceBand.source(fr.buildings[source.by], source.level)}`}
-    </Card>
-  );
-}
-
-function Card({ left, ink, children }: { left: number; ink: string; children: ReactNode }) {
-  return (
-    <div
-      className="paper-grain pointer-events-none absolute top-full mt-[3px] border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] whitespace-nowrap"
-      style={{ left, color: ink }}
-    >
-      {children}
-    </div>
+    </HoverCard>
   );
 }

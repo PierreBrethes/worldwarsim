@@ -1043,7 +1043,29 @@ export const fr = {
     reading: 'lecture',
     /** Le pli est la seule chose que l'abaque ait jamais demandé d'apprendre : il faut le dire. */
     foldHint: 'pliez une ligne pour la fiche du rôle',
-    strengthLabel: 'effectif',
+    /**
+     * **Le pictogramme porte la valeur, la popin porte le nom** (68a, contrat 06 P2). Les trois
+     * libellés de la fiche ne s'impriment plus : un lingot, une horloge, un cœur, et le nom de la
+     * donnée ne revient qu'au survol — avec la phrase qui dit ce que le moteur en fait.
+     *
+     * La phrase de l'effectif est vérifiée contre `resolveEngagement` : la frappe vaut
+     * `part × (effectif engagé / nominal) × modificateur × nominal de la cible`, donc une troupe
+     * entamée tire bien au prorata de ce qui lui reste.
+     */
+    stats: {
+      alloy: {
+        name: 'coût — alliage',
+        note: 'Ce que la troupe coûte à former, prélevé au lancement du lot.',
+      },
+      training: {
+        name: 'formation',
+        note: 'Le temps que la chaîne met à la livrer, à la vitesse de votre quartier général.',
+      },
+      strength: {
+        name: 'effectif nominal',
+        note: 'L’effectif est la vie : la part de l’abaque se prend sur lui, et une troupe à 32 / 50 tire à 32 / 50.',
+      },
+    } satisfies Record<'alloy' | 'training' | 'strength', { name: string; note: string }>,
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,
