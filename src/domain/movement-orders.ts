@@ -19,7 +19,13 @@ import {
  */
 export type MovementAim =
   | { readonly kind: 'region'; readonly regionId: string; readonly country: string }
-  | { readonly kind: 'outpost'; readonly outpostId: string; readonly hostCountry: string }
+  | {
+      readonly kind: 'outpost';
+      readonly outpostId: string;
+      readonly hostCountry: string;
+      /** @see the note on the point's own `coastal`. */
+      readonly coastal: boolean;
+    }
   /**
    * **A place, not a thing** (ADR 0019 §1). It answers everywhere the other two cannot: on the
    * open sea, and above the regions' fade-in threshold where the map draws no region to click.
@@ -29,7 +35,19 @@ export type MovementAim =
    * ground — the fan would leak what the fog exists to hide (ADR 0005). What stands there is
    * discovered by the arrival, like everything else.
    */
-  | { readonly kind: 'point'; readonly lon: number; readonly lat: number }
+  | {
+      readonly kind: 'point';
+      readonly lon: number;
+      readonly lat: number;
+      /**
+       * **Whether a hull can reach this exact spot** — `isCoastCell` on the routing grid and
+       * nothing else: a coastline read off another source would say "coast" where Dijkstra finds
+       * no water. It travels with the aim rather than being looked up here for the reason
+       * `afloat` does — the rule must answer **without a route** (ADR 0015), and the domain holds
+       * no grid. Both ends fill it from the same function, so the fan and the server agree.
+       */
+      readonly coastal: boolean;
+    }
   /**
    * **A building of one's own, entered as a garrison** (decision 64b, 01/09) — the one aim that
    * is a thing rather than a place, and it is always **mine**: the server resolves nobody else's
@@ -62,6 +80,14 @@ export type Column = {
    * exists to forbid.
    */
   readonly afloat: boolean;
+  /**
+   * **Whether the ground it stands on is a shore a hull sails from** (ADR 0019 §2, revision of
+   * 04/09). A column put ashore by a landing stands on a beach and not at a quay, and asking it
+   * for a port to leave by would strand it exactly where `afloat` used to strand a fleet at sea
+   * — the same **mouvement fantôme**, one medium further in. Read off the departure point with
+   * the routing grid, never stored, like `afloat` beside it.
+   */
+  readonly coastal: boolean;
 };
 
 export type OrderRefusal =
@@ -70,6 +96,7 @@ export type OrderRefusal =
   | 'INFANTRY_ONLY'
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
+  | 'LANDING_NEEDS_A_COAST'
   | 'NOT_ENOUGH_LIFT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
@@ -136,17 +163,17 @@ export function refusalOf(
     case 'march':
       if (aim.kind === 'building') {
         return barredFrom(column.roles, aim.key) === null
-          ? closedGate(column)
+          ? closedGate(aim, column)
           : 'NOT_A_GARRISON_FOR';
       }
-      return aim.kind === 'point' ? closedGate(column) : 'POINT_TARGET_ONLY';
+      return aim.kind === 'point' ? closedGate(aim, column) : 'POINT_TARGET_ONLY';
     case 'attack':
-      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(column);
+      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(aim, column);
     /** A raid marches at an outpost and at nothing else: it comes to put a point out of
      *  service, and a region has no point to disable. */
     case 'raid':
       if (aim.kind !== 'outpost') return 'OUTPOST_TARGET_ONLY';
-      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(column);
+      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(aim, column);
     default:
       return 'NOT_ORDERABLE';
   }
@@ -234,7 +261,7 @@ const mine = (aim: MovementAim, column: Column): boolean =>
  * `PROJECTION_BY_DOMAIN` answers which building goes with which domain; it is the table that
  * already gates recruitment, and there is no second one.
  */
-const closedGate = (column: Column): OrderRefusal | null => {
+const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (domains.has('air') && !column.departureBuildings.has(PROJECTION_BY_DOMAIN.air)) {
     return 'NO_AIRFIELD_AT_DEPARTURE';
@@ -242,7 +269,7 @@ const closedGate = (column: Column): OrderRefusal | null => {
   if (domains.has('sea') && embarking(column, domains)) {
     if (!column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) return 'NO_PORT_AT_DEPARTURE';
   }
-  return overloaded(column);
+  return overloaded(column) ?? landlocked(aim, column);
 };
 
 /**
@@ -260,9 +287,41 @@ const closedGate = (column: Column): OrderRefusal | null => {
  *
  * The air keeps its own clause because it is the one domain nothing is ever posted in: a wing
  * standing on water is a wing at a station, and its aerodrome is read as it always was.
+ *
+ * **La plage rejoint le large** (décision 72a, 04/09) : depuis qu'un débarquement pose la colonne
+ * sur un point de côte, ce point est un départ comme un autre — elle y est venue par la mer.
+ * Sans ce second cas, la révision du 27/08 aurait rendu par la côte le *mouvement fantôme*
+ * qu'elle chassait du large. L'intérieur des terres, lui, ne fabrique toujours aucun quai.
  */
 const embarking = (column: Column, domains: ReadonlySet<UnitDomain>): boolean =>
-  !column.afloat || domains.has('air');
+  (!column.afloat && !column.coastal) || domains.has('air');
+
+/**
+ * **Une colonne embarquée ne débarque que sur une côte** (décision 72a, 04/09). Le cargo qui
+ * suivait ses passagers sur la jambe terrestre était l'aveu que le débarquement n'existait pas :
+ * la mer n'était qu'un morceau du chemin et la plage se choisissait toute seule. Le refus rend
+ * l'opération à ses deux temps — poser la colonne au bord de l'eau, puis marcher — et il se lit
+ * **sans route**, comme les portes de domaine au-dessus (ADR 0015) : c'est tout le travail du
+ * `coastal` que la cible porte.
+ *
+ * Un port ami passe parce qu'il *est* la côte ; un point et un avant-poste passent là où la
+ * grille de routage trouve de l'eau à côté. Une région ne passe jamais : c'est un centroïde, et
+ * un centroïde n'est le bord de rien.
+ */
+const landlocked = (aim: MovementAim, column: Column): OrderRefusal | null =>
+  routeModeOf(column.roles) === 'combined' && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
+
+const shore = (aim: MovementAim): boolean => {
+  switch (aim.kind) {
+    case 'point':
+    case 'outpost':
+      return aim.coastal;
+    case 'building':
+      return aim.key === PROJECTION_BY_DOMAIN.sea;
+    default:
+      return false;
+  }
+};
 
 /**
  * **Crossing a medium that is not yours is an investment, not a surcharge** (design sheet 09):

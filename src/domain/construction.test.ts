@@ -230,6 +230,7 @@ describe('what holds a raise back', () => {
     key: 'foundry',
     name: 'Fonderie',
     regionId: 'FRA-5328',
+    point: null,
     level: 1,
     nextLevelCost: { alloy: 90, coal: 54 },
     nextLevelMinutes: 90,
@@ -270,6 +271,7 @@ describe('what holds a raise back', () => {
       key: 'mine' as const,
       regionId: 'FRA-5325',
       regionName: 'Meurthe-et-Moselle',
+      point: null,
       minutesLeft: 20,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
@@ -424,6 +426,7 @@ describe('placement over the whole estate', () => {
         key: 'farm',
         regionId: 'a',
         regionName: 'a',
+        point: null,
         minutesLeft: 10,
       },
     });

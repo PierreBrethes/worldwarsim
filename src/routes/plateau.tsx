@@ -12,13 +12,13 @@ import {
 } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard } from '@/map/ControlsCard';
-import { WorldMap } from '@/map/WorldMap';
+import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import type { BuildingKey } from '@/domain/ids';
+import { RESOURCES, type BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -27,9 +27,11 @@ import { DEPOSIT_REGIONS, type RegionIdentity, type World } from '@/domain/world
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import { knownObjectiveAt } from '@/domain/objectives';
 import { placementOf } from '@/domain/construction';
+import { asDuration } from '@/domain/duration';
 import type { Column, MovementAim } from '@/domain/movement-orders';
 import type {
   ArcView,
+  Cost,
   MovementType,
   PlayerView,
   Stack,
@@ -51,6 +53,7 @@ import { loadGame } from '@/data/loadGame';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
+import { notify } from '@/shell/notifications';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
@@ -60,6 +63,10 @@ import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
 
 type BuildingSite = { regionId: string; x: number; y: number };
+
+/** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
+ *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
+type HeldBuilding = PlacingBuilding & { readonly key: BuildingKey };
 
 /** The garrison panel's subject and the point it is anchored to. */
 type OpenGarrison = {
@@ -301,6 +308,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
+  /**
+   * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
+   * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
+   * Échap le lâche, aucune rose ne s'ouvre pendant — et il vit ici parce que c'est un geste de
+   * carte, comme la visée et l'ordre de mobilisation.
+   */
+  const [placing, setPlacing] = useState<HeldBuilding | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
   // the frame after the pointer slides from one to the other, and a single variable would let
@@ -586,6 +600,40 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     return () => document.removeEventListener('keydown', disarm);
   }, [column, posted, releasePosted]);
 
+  /** **Échap rend la carte intacte** : rien n'a été enfilé, il n'y a donc rien à défaire. */
+  useEffect(() => {
+    if (placing === null) return;
+    const drop = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPlacing(null);
+    };
+    document.addEventListener('keydown', drop);
+    return () => document.removeEventListener('keydown', drop);
+  }, [placing]);
+
+  /**
+   * **Le clic sur le rivage commande le chantier**, par la mutation qui commande tous les
+   * autres : le mode de pose n'a rien ajouté au flux, il a seulement retardé l'appel du temps
+   * qu'un point soit nommé. Le refus se lit au bandeau du plateau, comme une fondation refusée.
+   */
+  const placePort = useCallback(
+    (point: LonLat) => {
+      if (placing === null) return;
+      const ordered = placing;
+      setPlacing(null);
+      setOrderError(null);
+      startConstruction({
+        token,
+        building: ordered.key,
+        regionId: ordered.regionId,
+        point: { lon: point[0], lat: point[1] },
+      }).then(
+        () => notify(fr.construction.queued(fr.buildings[ordered.key]), 'info'),
+        (problem: unknown) => handleError(problem, setOrderError),
+      );
+    },
+    [placing, startConstruction, token],
+  );
+
   /**
    * **The keys the season still owes, and the ground each one accepts.** The eligibility is
    * `placementOf` — the placement refusal the server itself raises, read over the player's own
@@ -691,7 +739,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     [view.me.buildings, view.me.ink],
   );
 
-  // Buildings hang from a region id and the map layer resolves it; an outpost carries its own
+  // Buildings hang from a region id and the map layer resolves it — **sauf le port**, qui porte
+  // le point de côte choisi à la pose (ADR 0013, révision du 04/09) ; un outpost carries its own
   // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
   // wait for 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
@@ -759,6 +808,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       buildingId: building.id,
       key: building.key,
       regionId: building.regionId,
+      lonLat: building.point,
       hostCountry: host,
       name: building.name,
       level: building.level,
@@ -790,6 +840,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               buildingId: null,
               key: work.key,
               regionId: work.regionId,
+              lonLat: work.point,
               hostCountry: host,
               name: work.name,
               level: null,
@@ -958,6 +1009,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           compassOf={compassOfTarget}
           onCompassAction={actOnCompass}
           building={buildingSite !== null}
+          placing={placing}
+          onPlacePoint={placePort}
           aiming={column !== null}
           designatedRegions={designated}
           onDesignateRegion={placeFoundation}
@@ -973,6 +1026,19 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             regionId={buildingSite.regionId}
             at={buildingSite}
             onClose={() => setBuildingSite(null)}
+            onPlace={(option) =>
+              setPlacing({
+                regionId: buildingSite.regionId,
+                key: option.key,
+                sprite: buildingSprite(option.key),
+                title: regionName(view, buildingSite.regionId),
+                figures: fr.placing.figures(
+                  fr.buildings[option.key],
+                  priceOf(option.cost),
+                  asDuration(option.minutes),
+                ),
+              })
+            }
           />
         )}
         {garrison && (
@@ -1181,6 +1247,9 @@ function armedColumn(
        *  view already resolved, and the open sea is the one that comes back empty. Nothing is
        *  recomputed here — a second geometry on the client is a second answer. */
       afloat: station.kind === 'point' && station.country === '',
+      /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
+       *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
+      coastal: station.kind === 'point' && station.coastal,
     },
   };
 }
@@ -1301,6 +1370,18 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
   const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
   return building === undefined ? null : `building-${building.regionId}-${building.key}`;
 }
+
+/** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer
+ *  le panneau qui portait ce nom en titre. */
+const regionName = (view: PlayerView, regionId: string): string =>
+  view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;
+
+/** La facture d'une ligne du panneau, en une phrase — la carte de pose n'a pas la place des
+ *  planches illustrées, et elle nomme les mêmes chiffres que la ligne qu'on vient de cliquer. */
+const priceOf = (cost: Cost): string =>
+  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
+    .map((key) => `${cost[key]} ${fr.resources[key]}`)
+    .join(' · ');
 
 /** A station is the one building whose radius is a rule (`LISTENING_STATION_RADIUS_KM`); every
  *  other one covers nothing, and a region the view does not carry has no point to draw around. */

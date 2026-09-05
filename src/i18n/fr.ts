@@ -296,6 +296,16 @@ export const fr = {
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
     NOT_COASTAL: () => 'un port se pose sur une région côtière',
+    /**
+     * **Les trois refus du point de côte** (ADR 0013, révision du 04/09). Les deux premiers
+     * répondent à un client qui a inventé son geste — le joueur ne les voit jamais, et ils se
+     * lisent quand même en français : un code nu dans un bandeau n'apprend rien à personne.
+     * Le troisième est la course entre le fantôme et le sol, et lui se rejoue.
+     */
+    POINT_FOR_PORT_ONLY: (d) =>
+      `${buildingName(d.building)} se pose sur une région, pas sur un point`,
+    PORT_NEEDS_A_COAST_POINT: () => 'un port se pose sur un point de côte — cliquez le rivage',
+    POINT_OUTSIDE_REGION: () => 'ce rivage n’est pas celui de la région désignée',
     REGION_TAKEN: (d) =>
       `la région porte déjà ${buildingName(d.standing)} — une seule bâtisse par région`,
     /**
@@ -348,6 +358,9 @@ export const fr = {
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
+    /** Le débarquement en deux temps (72a) : la phrase dit la plage, pas la règle — marcher vers
+     *  l'intérieur est l'ordre d'après, et le joueur le donnera lui-même. */
+    LANDING_NEEDS_A_COAST: () => 'une colonne embarquée ne débarque que sur une côte',
     /** The stack's footer prints this **before** the aim, not after the refusal: it says how
      *  many berths are short, because "il manque du transport" leaves the player counting. */
     NOT_ENOUGH_LIFT: (d) =>
@@ -1633,6 +1646,20 @@ export const fr = {
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
+  },
+
+  /**
+   * **Le mode de pose** (ADR 0013, révision du 04/09) : le joueur tient un bâtiment et cherche
+   * le point où il le pose. Trois mots — ce qu'on tient, ce qu'on cherche, comment on renonce —
+   * parce que c'est un état sans bouton, et qu'un état sans bouton doit dire sa sortie.
+   */
+  placing: {
+    hint: 'choisissez le point de côte — Échap pour renoncer',
+    /** Ce qu'on tient, son prix et son attente — les chiffres du panneau de construction, que
+     *  le joueur vient de lire sur une ligne et ne doit pas rechercher une fois la ligne
+     *  fermée. Le nom de la région tient la ligne au-dessus : c'est le *où*, pas le *quoi*. */
+    figures: (building: string, cost: string, duration: string) =>
+      `${building} · ${cost} · ${duration}`,
   },
 
   construction: {

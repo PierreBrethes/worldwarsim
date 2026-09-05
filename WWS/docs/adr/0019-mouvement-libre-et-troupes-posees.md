@@ -230,3 +230,15 @@ Réversible en partie seulement. Rétablir une origine contrainte après avoir l
 poser des troupes partout serait vécu comme un retrait, pas comme un correctif — c'est le genre de
 décision qu'on prend avant la première saison test, et cet ADR est écrit pour être relu à ce
 moment-là.
+
+## Révision du 04/09 — les navires ne roulent pas
+
+> ⚠️ **Révision (04/09/2026, décision 72a).** Une colonne embarquée (terre + mer) **ne vise
+> qu'un point de côte, un avant-poste côtier ou un port ami** : sa route finit à la côte, et
+> à l'arrivée coques et passagers sont posés au même point (§1 inchangé — une seule adresse,
+> sinon rien ne se recompose). Le débarquement est une opération : choisir la plage, puis
+> marcher. **§2, la porte de départ, s'assouplit d'un cas** : une coque part d'un port, d'un
+> point en mer, ou d'un point de côte où elle se tient — elle y est arrivée par la mer. Un
+> port ne se fabrique pas ailleurs : une coque posée à l'intérieur des terres reste sans
+> départ. Même jour, 64b codée : entrer en garnison est une marche visant un bâtiment à soi.
+

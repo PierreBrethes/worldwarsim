@@ -22,12 +22,20 @@ const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Col
   myOutpostIds: new Set(),
   departureBuildings: new Set<BuildingKey>(),
   afloat: false,
+  coastal: false,
   ...held,
 });
 
 const region: MovementAim = { kind: 'region', regionId: 'TUN-1', country: 'Tunisia' };
-const outpost: MovementAim = { kind: 'outpost', outpostId: 'op1', hostCountry: 'Libya' };
-const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4 };
+const outpost: MovementAim = {
+  kind: 'outpost',
+  outpostId: 'op1',
+  hostCountry: 'Libya',
+  coastal: false,
+};
+const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4, coastal: false };
+/** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
+const shore: MovementAim = { kind: 'point', lon: 10.3, lat: 36.8, coastal: true };
 
 describe('what a column may ask for', () => {
   it('offers the attack on a foreign region — founding is no longer a march', () => {
@@ -95,8 +103,9 @@ describe('an empty manifest', () => {
     myOutpostIds: new Set(),
     departureBuildings: new Set(),
     afloat: false,
+    coastal: false,
   };
-  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
+  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6, coastal: false };
 
   it('is refused for every orderable type, and for the same reason', () => {
     for (const type of ORDERABLE_TYPES) {
@@ -160,7 +169,7 @@ describe('the doors of the domains', () => {
     const quay = column(['infantry', 'cargo'], {
       departureBuildings: new Set<BuildingKey>(['barracks', 'port']),
     });
-    expect(refusalOf('attack', region, quay)).toBeNull();
+    expect(refusalOf('attack', shore, quay)).toBeNull();
   });
 
   /**
@@ -186,19 +195,89 @@ describe('the doors of the domains', () => {
    */
   it('lets a combined column posted at sea march on towards a coast', () => {
     const posted = column(['infantry', 'cargo'], { afloat: true });
-    expect(refusalOf('march', point, posted)).toBeNull();
-    expect(refusalOf('attack', region, posted)).toBeNull();
+    expect(refusalOf('march', shore, posted)).toBeNull();
+    expect(refusalOf('attack', shore, posted)).toBeNull();
   });
 
-  it('still refuses the same combined column on a coast with no port', () => {
+  it('still refuses the same combined column on a quayless inland point', () => {
     const ashore = column(['infantry', 'cargo']);
-    expect(refusalOf('march', point, ashore)).toBe('NO_PORT_AT_DEPARTURE');
+    expect(refusalOf('march', shore, ashore)).toBe('NO_PORT_AT_DEPARTURE');
     expect(refusalOf('attack', region, ashore)).toBe('NO_PORT_AT_DEPARTURE');
+  });
+
+  /**
+   * **La plage rend son quai** (décision 72a, 04/09). Une colonne débarquée se tient sur un point
+   * de côte : elle y est venue par la mer, et lui réclamer un port l'échouerait là pour la saison
+   * — le *mouvement fantôme* que la révision du 27/08 avait déjà chassé du large. Le point
+   * intérieur, lui, reste refusé : la règle ne fabrique pas de quai.
+   */
+  it('asks no port of a column standing on the beach it landed on', () => {
+    const landed = column(['infantry', 'cargo'], { coastal: true });
+    expect(refusalOf('march', shore, landed)).toBeNull();
+    const inland = column(['cargo']);
+    expect(refusalOf('march', point, inland)).toBe('NO_PORT_AT_DEPARTURE');
   });
 
   it('exempts nothing of the sky: nothing is ever posted there', () => {
     const posted = column(['bomber'], { afloat: true });
     expect(refusalOf('attack', region, posted)).toBe('NO_AIRFIELD_AT_DEPARTURE');
+  });
+});
+
+/**
+ * **Un débarquement se vise, il ne se traverse pas** (décision 72a, 04/09). Une colonne embarquée
+ * ne nomme qu'un bord d'eau ; ce qu'elle fera de l'intérieur des terres est l'ordre d'après, donné
+ * par le joueur depuis la plage. Le refus se lit sur la seule cible, sans route et sans grille —
+ * c'est ce que le `coastal` de la visée porte, et c'est ce qui tient le fan et le serveur ensemble
+ * (ADR 0015).
+ */
+describe('where a landing column may put its boots down', () => {
+  const landing = (held: Partial<Column> = {}) =>
+    column(['infantry', 'cargo'], {
+      departureBuildings: new Set<BuildingKey>(['barracks', 'port']),
+      ...held,
+    });
+
+  it('takes the beach and refuses the ground behind it', () => {
+    expect(refusalOf('march', shore, landing())).toBeNull();
+    expect(refusalOf('march', point, landing())).toBe('LANDING_NEEDS_A_COAST');
+  });
+
+  it('answers the same on the four targets, and closes the fan on three of them', () => {
+    const inlandPost: MovementAim = {
+      kind: 'outpost',
+      outpostId: 'AP-02',
+      hostCountry: 'ITA',
+      coastal: false,
+    };
+    const shorePost: MovementAim = { ...inlandPost, coastal: true };
+    expect(legalMovementTypes(shore, landing())).toEqual(['march', 'attack']);
+    expect(legalMovementTypes(shorePost, landing())).toEqual(['attack', 'raid']);
+    expect(legalMovementTypes(point, landing())).toEqual([]);
+    expect(legalMovementTypes(inlandPost, landing())).toEqual([]);
+    expect(legalMovementTypes(region, landing())).toEqual([]);
+  });
+
+  /** Un port ami *est* la côte : la colonne y entre en garnison, coques et passagers ensemble. */
+  it('takes a port of its own, and no other mast', () => {
+    const port: MovementAim = { kind: 'building', buildingId: 'B-1', key: 'port' };
+    expect(refusalOf('march', port, landing())).toBeNull();
+  });
+
+  /**
+   * **La porte de départ passe avant la plage**, et c'est l'ordre que la rose montre : un joueur
+   * lit sur la carte qu'il vise l'intérieur, il ne lit nulle part que sa pile n'a pas de quai.
+   */
+  it('names the missing quay before the missing coast', () => {
+    expect(refusalOf('march', point, landing({ departureBuildings: new Set<BuildingKey>() }))).toBe(
+      'NO_PORT_AT_DEPARTURE',
+    );
+  });
+
+  /** Une colonne de terre pure ne change en rien : elle vise ce qu'elle visait. */
+  it('leaves a column that only walks exactly where it was', () => {
+    expect(legalMovementTypes(point, column(['infantry']))).toEqual(['march', 'attack']);
+    expect(legalMovementTypes(region, column(['infantry', 'landTransport']))).toEqual(['attack']);
   });
 });
 
@@ -212,14 +291,14 @@ describe('the places aboard', () => {
 
   it('takes six infantry aboard one cargo, and refuses the seventh', () => {
     const six: ReadonlyArray<UnitRole> = Array<UnitRole>(6).fill('infantry');
-    expect(refusalOf('attack', region, quay([...six, 'cargo']))).toBeNull();
+    expect(refusalOf('attack', shore, quay([...six, 'cargo']))).toBeNull();
     expect(refusalOf('attack', region, quay([...six, 'infantry', 'cargo']))).toBe(
       'NOT_ENOUGH_LIFT',
     );
   });
 
   it('charges an armour two places where an infantry costs one', () => {
-    expect(refusalOf('attack', region, quay(['armor', 'armor', 'armor', 'cargo']))).toBeNull();
+    expect(refusalOf('attack', shore, quay(['armor', 'armor', 'armor', 'cargo']))).toBeNull();
     expect(
       refusalOf('attack', region, quay(['armor', 'armor', 'armor', 'infantry', 'cargo'])),
     ).toBe('NOT_ENOUGH_LIFT');
@@ -289,7 +368,7 @@ describe('the terrain a column travels on', () => {
  * the rule can say almost nothing about it — and that silence is the point.
  */
 describe('a point as a destination', () => {
-  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6 };
+  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6, coastal: false };
 
   it('takes a march, at any scale and with no region drawn', () => {
     expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['march', 'attack']);
@@ -307,7 +386,12 @@ describe('a point as a destination', () => {
   });
 
   it('takes no march at an outpost — a march goes to a place', () => {
-    const aimed: MovementAim = { kind: 'outpost', outpostId: 'AP-01', hostCountry: 'ROU' };
+    const aimed: MovementAim = {
+      kind: 'outpost',
+      outpostId: 'AP-01',
+      hostCountry: 'ROU',
+      coastal: false,
+    };
     expect(refusalOf('march', aimed, column(['infantry']))).toBe('POINT_TARGET_ONLY');
   });
 

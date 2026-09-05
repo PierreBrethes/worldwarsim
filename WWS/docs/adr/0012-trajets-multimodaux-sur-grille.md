@@ -63,3 +63,25 @@ Convex l'importe tel quel.
   cellule — mais l'introduire rouvre la fiche 09 (« ni grille, ni terrain ») : ADR requis.
 - Les constantes ×1,6 / +8 devront passer par la simulation d'équilibrage avant toute saison
   réelle.
+
+## Révision du 04/09 — une route combinée finit à la côte
+
+> ⚠️ **Révision (04/09/2026, décision 72a, ADR 0019 §2).** Le parcours combiné ne marche plus
+> après avoir navigué : le seul pas mer → terre qu'une route puisse contenir est son
+> **débarquement**, donc son dernier. Sans cette porte, Dijkstra posait la colonne sur la plage
+> la moins chère et lui faisait finir le chemin à pied — le cargo roulait, et la plage se
+> choisissait toute seule au lieu d'être visée.
+>
+> Deux conséquences sur le coût, toutes deux dans `computeRoute` :
+>
+> - **Le milieu d'un pas se lit sur ses deux bouts** : un pas qui touche l'eau est fait en
+>   bateau. La dernière foulée d'un débarquement appartient donc à la jambe de mer, et une route
+>   combinée ne porte plus jamais de jambe de terre après une jambe de mer.
+> - **Le transfert de +8 se paie au franchissement de la ligne d'eau**, et non plus au changement
+>   de jambe. Les deux coïncidaient tant qu'une jambe de terre suivait la mer ; facturé sur la
+>   jambe, l'embarquement depuis un quai (ADR 0013, révision du 04/09 : le port est sur une
+>   cellule de côte) devenait gratuit et le débarquement disparaissait avec la jambe. Un aller
+>   par la mer coûte toujours ses deux transferts.
+>
+> Ce que cela ferme : un point intérieur n'est plus routable en mode combiné — la visée le
+> refusait déjà (`LANDING_NEEDS_A_COAST`), la grille ne fait que refuser de la contourner.

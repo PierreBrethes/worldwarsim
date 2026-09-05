@@ -22,7 +22,7 @@ import {
   outpostReachKm,
 } from './constants';
 import { movementsOf, outpostsOf, pointOf, seasonOutposts } from './movement/forces';
-import { allRegions, homeCountryOf, regionFacts, type RegionFacts } from './regions';
+import { allRegions, homeCountryOf, pointOfBuilding, type RegionFacts } from './regions';
 
 /**
  * **Les portées qu'un joueur tient debout**, et rien de ce qu'elles voient. Les mêmes détecteurs
@@ -49,9 +49,9 @@ export async function standingObserversOf(
 
   for (const building of await playerBuildings(ctx, playerId)) {
     if (building.key !== 'listening') continue;
-    const facts = regionFacts(building.regionId);
-    if (facts !== null) {
-      observers.push({ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM });
+    const stand = pointOfBuilding(building);
+    if (stand !== null) {
+      observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }
 

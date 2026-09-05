@@ -55,6 +55,7 @@ export function MapLabels({
   onOpenBuilding,
   onOpenStack,
   onContextMenu,
+  muted,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
@@ -77,6 +78,9 @@ export function MapLabels({
    *  qui s'ouvre avec le cartouche (décision du 30/08). */
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
+  /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
+   *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
+  muted: boolean;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
@@ -229,7 +233,7 @@ export function MapLabels({
   }, [engine, apply, degrade, scheduleDegrade]);
 
   return (
-    <div className="map-labels">
+    <div className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
       {labels.map((label) => (
         <div
           key={label.id}

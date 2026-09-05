@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -15,13 +16,14 @@ import {
   buildMinutes,
   homeSlots,
 } from './constants';
+import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwed, regionFacts } from './regions';
 import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit } from './resources';
 import { fileSurvey } from './surveys';
 import { playerByToken, playingSeason, requirePlayable } from './seasons';
-import { BUILDING_KEY } from './validators';
+import { BUILDING_KEY, LON_LAT } from './validators';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -46,9 +48,50 @@ const owedFreely = (
     buildings.map((held) => held.key),
   ).includes(building);
 
+/**
+ * **A point belongs to the port, and to its placement, and to nothing else** (ADR 0013,
+ * revision of 04/09).
+ *
+ * Three refusals, and the third is the only one a legitimate client can meet: it is the race
+ * between the ghost and the ground it snapped onto. The first two answer a client that made up
+ * its own gesture — a mine with a coordinate, a port without one.
+ *
+ * **What is never checked here is that the point falls inside the region**, and it cannot be:
+ * the server holds no admin-1 polygon (`regions.ts` — 2.5 MB drawn for the screen). The client
+ * guarantees it, and the consequence of a twisted one is bounded: it files its port in the
+ * wrong region, it does not gain a second one — `regionId` is what holds "one building per
+ * region", and the placement, the site budget and the coastal rule are all read off it.
+ */
+function pointRefusal(
+  building: Doc<'constructions'>['building'],
+  regionId: string,
+  raising: boolean,
+  point: { readonly lon: number; readonly lat: number } | undefined,
+): Refusal | null {
+  /** A raise never moves what stands: the port keeps the quay it was founded on. */
+  if (building !== 'port' || raising) {
+    return point === undefined ? null : { code: 'POINT_FOR_PORT_ONLY', details: { building } };
+  }
+  if (point === undefined) return { code: 'PORT_NEEDS_A_COAST_POINT', details: { regionId } };
+  const lonLat: LonLat = [point.lon, point.lat];
+  if (!coastAtPoint(lonLat)) return { code: 'PORT_NEEDS_A_COAST_POINT', details: { regionId } };
+  const region = regionFacts(regionId);
+  const host = hostAtPoint(lonLat);
+  if (region !== null && host !== region.country) {
+    return { code: 'POINT_OUTSIDE_REGION', details: { regionId, host } };
+  }
+  return null;
+}
+
 export const start = mutation({
-  args: { token: v.string(), building: BUILDING_KEY, regionId: v.string() },
-  handler: async (ctx, { token, building, regionId }) => {
+  args: {
+    token: v.string(),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    /** **The port's own coast point, and nobody else's** (ADR 0013, revision of 04/09). */
+    point: v.optional(LON_LAT),
+  },
+  handler: async (ctx, { token, building, regionId, point }) => {
     const { player, season } = await playerByToken(ctx, token);
     requirePlayable(player, season);
 
@@ -67,7 +110,10 @@ export const start = mutation({
     if (refusal) fail(refusal.code, refusal.details);
 
     const buildings = await playerBuildings(ctx, player._id);
-    const level = (buildingAt(buildings, building, regionId)?.level ?? 0) + 1;
+    const standing = buildingAt(buildings, building, regionId);
+    const misplaced = pointRefusal(building, regionId, standing !== undefined, point);
+    if (misplaced) fail(misplaced.code, misplaced.details);
+    const level = (standing?.level ?? 0) + 1;
     const now = Date.now();
 
     /**
@@ -105,6 +151,7 @@ export const start = mutation({
       level,
       rank,
       finishesAt: null,
+      ...(point === undefined ? {} : { point }),
     });
     await startHead(ctx, player._id, now);
 
@@ -156,6 +203,10 @@ export const finish = internalMutation({
         key: construction.building,
         regionId: construction.regionId,
         level: construction.level,
+        /** The point chosen at the order, carried whole: `finish` decides nothing about where
+         *  a port stands — the player did, hours earlier, and a second choice here could
+         *  disagree with the mast the queue has been drawing since. */
+        ...(construction.point === undefined ? {} : { point: construction.point }),
         ...(player === null ? {} : anchored(await anchorAt(ctx, player, construction.regionId))),
       });
     }

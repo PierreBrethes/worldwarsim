@@ -26,7 +26,7 @@ import {
   outpostReachKm,
   SCOUT_RADIUS_KM,
 } from '../constants';
-import { homeCountryOf, regionFacts } from '../regions';
+import { homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAmongCountries, hostAtPoint } from '../routes';
 import {
   asPoint,
@@ -242,13 +242,15 @@ async function watchersAgainst(
 
   for (const building of await seasonBuildings(ctx, movement.seasonId)) {
     if (building.key !== 'listening' || building.playerId === movement.playerId) continue;
-    /** A station listens from the point of its region and from nothing else: a second
-     *  coordinate would put the same building in two spots on the same map. */
+    /** A station listens from where it stands, and every rule reads that through one function
+     *  (`pointOfBuilding`): the day a second building carries a point of its own, this line
+     *  does not have to be found again. */
     const facts = regionFacts(building.regionId);
-    if (facts === null) continue;
+    const stand = pointOfBuilding(building);
+    if (facts === null || stand === null) continue;
     watchers.push({
       id: `station:${building._id}`,
-      point: facts.point,
+      point: stand,
       radiusKm: LISTENING_STATION_RADIUS_KM,
       playerId: building.playerId,
       detector: 'station',

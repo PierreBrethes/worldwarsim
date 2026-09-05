@@ -254,15 +254,21 @@ export function computeRoute(
     if (i === 0) continue;
     const previous = path[i - 1]!;
     const length = distanceBetweenCells(grid, previous, cell);
-    const medium: Medium = grid.cells[cell] === SEA ? 'sea' : 'land';
+    const medium = mediumBetween(grid, previous, cell);
     distance += length;
     cost += length * (medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
+    /** **Le transfert se paie au franchissement de la ligne d'eau, pas au changement de
+     *  jambe** — les deux coïncidaient tant qu'une jambe de terre suivait la mer, et la
+     *  révision du 04/09 les a séparés : un débarquement est désormais le dernier pas d'une
+     *  jambe de mer, et une colonne partie d'un quai n'ouvre aucune jambe de terre du tout.
+     *  Facturé sur la jambe, l'embarquement au quai devenait gratuit et le débarquement
+     *  disparaissait — un aller-retour transmanche pour le prix du chemin. */
+    if (grid.cells[previous] !== grid.cells[cell]) cost += TRANSFER_COST;
     const last = legs[legs.length - 1];
     if (last?.medium === medium) {
       legs[legs.length - 1] = { medium, distanceUnits: last.distanceUnits + length };
     } else {
       legs.push({ medium, distanceUnits: length });
-      if (legs.length > 1) cost += TRANSFER_COST;
     }
   }
 
@@ -274,6 +280,20 @@ export function computeRoute(
     legs,
     landCost,
   };
+}
+
+/**
+ * **Un pas qui touche l'eau est un pas fait en bateau** (décision 72a, 04/09). Le milieu se lit
+ * sur les deux bouts du pas et non sur son arrivée seule : la dernière foulée d'un débarquement
+ * part de la mer, et la lire comme une jambe de terre mettait le cargo sur la plage — « les
+ * navires ne roulent pas ». Le pas d'embarquement, lui, se lisait déjà en mer par ce bout-là.
+ *
+ * Rien d'autre ne change de milieu : `land` n'autorise aucune cellule de mer, `naval` aucune
+ * cellule de terre, et l'unique pas mer → terre qu'une route combinée puisse contenir est son
+ * débarquement (`dijkstra`).
+ */
+function mediumBetween(grid: RouteGrid, from: number, to: number): Medium {
+  return grid.cells[to] === SEA || grid.cells[from] === SEA ? 'sea' : 'land';
 }
 
 /**
@@ -304,6 +324,65 @@ function airRoute(grid: RouteGrid, from: LonLat, to: LonLat): ComputedRoute {
     legs: [{ medium: 'air', distanceUnits: distance }],
     landCost: COST_BY_MEDIUM.land,
   };
+}
+
+/**
+ * **A coast, as the routing knows one** — a land cell touching the sea, and nothing else. It is
+ * the only definition that can hold: a port is put up so that a ship leaves from it, and what a
+ * ship knows of geography is this grid. A coastline read off another source would say "coastal"
+ * where Dijkstra finds no water, and the first cargo formed there would leave by road.
+ *
+ * Both ends read it — the client magnets its ghost onto it, the server refuses whatever is not
+ * on it. One function, so never two answers to one click.
+ */
+export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
+  const cell = projectOnGrid(grid, lonLat);
+  if (grid.cells[cell] !== LAND) return false;
+  const around: number[] = [];
+  const count = neighbors(grid, cell, around);
+  for (let i = 0; i < count; i++) {
+    if (grid.cells[around[i]!] === SEA) return true;
+  }
+  return false;
+}
+
+/**
+ * **Every coast cell of a projected box**, which is a region's box and never a region: the grid
+ * knows nothing of admin-1 shapes and does not have to learn them for this — `regions.json`
+ * never crosses over to the server (`convex/regions.ts`), so the caller is the one that says
+ * which of these cells fall inside its polygons.
+ *
+ * The projected coordinate travels beside the lon/lat because the magnet compares distances on
+ * the board: reprojecting every candidate on every frame would cost the hover.
+ */
+export function coastCellsIn(
+  grid: RouteGrid,
+  box: readonly [minX: number, minY: number, maxX: number, maxY: number],
+): ReadonlyArray<{ readonly x: number; readonly y: number; readonly lonLat: LonLat }> {
+  const [minX, minY, maxX, maxY] = box;
+  const firstColumn = Math.max(0, Math.floor((minX - grid.sphere.minX) / grid.step - 0.5));
+  const lastColumn = Math.min(grid.width - 1, Math.ceil((maxX - grid.sphere.minX) / grid.step));
+  const firstRow = Math.max(0, Math.floor((minY - grid.sphere.minY) / grid.step - 0.5));
+  const lastRow = Math.min(grid.height - 1, Math.ceil((maxY - grid.sphere.minY) / grid.step));
+
+  const found: Array<{ x: number; y: number; lonLat: LonLat }> = [];
+  const around: number[] = [];
+  for (let row = firstRow; row <= lastRow; row++) {
+    for (let column = firstColumn; column <= lastColumn; column++) {
+      const cell = row * grid.width + column;
+      if (grid.cells[cell] !== LAND) continue;
+      const count = neighbors(grid, cell, around);
+      let touchesSea = false;
+      for (let i = 0; i < count && !touchesSea; i++) touchesSea = grid.cells[around[i]!] === SEA;
+      if (!touchesSea) continue;
+      found.push({
+        x: grid.sphere.minX + (column + 0.5) * grid.step,
+        y: grid.sphere.minY + (row + 0.5) * grid.step,
+        lonLat: unprojectCell(grid, cell),
+      });
+    }
+  }
+  return found;
 }
 
 /**
@@ -635,8 +714,17 @@ function dijkstra(
       const neighbor = buffer[i]!;
       const type = grid.cells[neighbor]!;
       if (!allowed.includes(type)) continue;
+      /**
+       * **On ne marche pas après avoir navigué** (décision 72a, 04/09) : le seul pas mer → terre
+       * d'une route est son débarquement, donc son dernier. Sans cette porte, Dijkstra posait la
+       * colonne sur la plage la moins chère et lui faisait finir à pied — le cargo roulait, et
+       * le débarquement cessait d'être une opération qu'on choisit. La visée l'exige déjà côté
+       * règle (`LANDING_NEEDS_A_COAST`) : la grille ne fait que refuser de la contourner.
+       */
+      if (type !== SEA && grid.cells[cell] === SEA && neighbor !== goal) continue;
       const length = distanceBetweenCells(grid, cell, neighbor);
-      const multiplier = type === SEA ? COST_BY_MEDIUM.sea : landCost;
+      const multiplier =
+        mediumBetween(grid, cell, neighbor) === 'sea' ? COST_BY_MEDIUM.sea : landCost;
       const transfer = grid.cells[cell] !== type ? TRANSFER_COST : 0;
       const candidate = cost + length * multiplier + transfer;
       if (candidate < costs[neighbor]!) {

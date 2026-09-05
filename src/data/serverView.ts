@@ -59,8 +59,11 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       homeSlotRelief: server.me.homeSlotRelief ?? null,
       tier2HqLevel: server.me.tier2HqLevel ?? TIER_2_HQ_LEVEL,
       foundation: server.me.foundation ?? [],
+      /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
+       *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
       buildings: server.me.buildings.map((building) => ({
         ...building,
+        point: building.point ?? null,
         name: fr.buildings[building.key],
       })),
       chains: server.me.chains,
@@ -80,6 +83,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
             key: server.me.construction.key as BuildingKey,
             regionId: server.me.construction.regionId,
             regionName: server.me.construction.regionName,
+            point: server.me.construction.point ?? null,
             minutesLeft: server.me.construction.minutesLeft,
           }
         : null,

@@ -24,7 +24,7 @@ import { movementsOf, outpostsOf, specializationsServed } from './movement/force
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { hostAtPoint } from './routes';
+import { coastAtPoint, hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
 import { isAtWar, playerByToken, requireStarted, warEntryOf } from './seasons';
 import { recruitmentsOf, troopsOf } from './troops';
@@ -101,6 +101,7 @@ export const playerView = query({
           kind: 'point',
           lonLat: [address.lon, address.lat],
           country: hostAtPoint([address.lon, address.lat]),
+          coastal: coastAtPoint([address.lon, address.lat]),
         };
       }
       if (garrisoned.has(address)) return { kind: 'outpost', outpostId: address };
@@ -307,6 +308,17 @@ export const playerView = query({
           id: building._id,
           key: building.key,
           regionId: building.regionId,
+          /**
+           * **Where it stands, when it does not stand at its region's point** — the port and
+           * nothing else so far (ADR 0013, revision of 04/09). `null` leaves the mast hanging
+           * from the region, which is where the map layer has always planted it: serving the
+           * resolved point for every building would move fifteen masts off the ground they
+           * are drawn on, for one that needed moving.
+           */
+          point:
+            building.point === undefined
+              ? null
+              : ([building.point.lon, building.point.lat] as [number, number]),
           level: building.level,
           nextLevelCost: buildCost(building.key, building.level + 1),
           nextLevelMinutes: buildMinutes(building.key, building.level + 1),
@@ -345,6 +357,12 @@ export const playerView = query({
                 key: construction.building,
                 regionId: construction.regionId,
                 regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
+                /** The crane stands on the quay from the moment the port is enqueued: the point
+                 *  was chosen at the order, and the mast has no reason to wait for `finish`. */
+                point:
+                  construction.point === undefined
+                    ? null
+                    : ([construction.point.lon, construction.point.lat] as [number, number]),
                 minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               }
             : null,

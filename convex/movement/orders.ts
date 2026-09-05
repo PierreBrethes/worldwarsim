@@ -24,8 +24,8 @@ import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
 import { MAX_HQ_LEVEL, RELAY_SPEED_MULTIPLIER, outpostReachKm, routeMinutes } from '../constants';
 import { fail } from '../errors';
-import { regionFacts } from '../regions';
-import { hostAtPoint, routeBetween } from '../routes';
+import { pointOfBuilding, regionFacts } from '../regions';
+import { coastAtPoint, hostAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
 import { fileSightings, scheduleInterception } from './detection';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
@@ -50,6 +50,13 @@ type Departure = {
   /** **Read off the point, once, here** — `hostAtPoint` answers the empty string on the open sea
    *  and nowhere else. A building and an outpost stand on ground by construction. */
   readonly afloat: boolean;
+  /**
+   * **La plage d'où une coque repart** (ADR 0019 §2, révision du 04/09). Une colonne débarquée
+   * se tient sur un point de côte : elle y est arrivée par la mer, et lui réclamer un quai
+   * l'échouerait là pour la saison. Un bâtiment porte déjà sa porte, un avant-poste n'embarque
+   * pas — `false` pour les deux, et ce n'est pas un trou.
+   */
+  readonly coastal: boolean;
 };
 
 export async function departureOf(
@@ -69,6 +76,7 @@ export async function departureOf(
       stationId: outpost._id,
       fromBuildingId: null,
       afloat: false,
+      coastal: false,
     };
   }
   if (origin.kind === 'point') {
@@ -83,19 +91,22 @@ export async function departureOf(
       stationId: origin.point,
       fromBuildingId: null,
       afloat: host === '',
+      coastal: coastAtPoint(point),
     };
   }
   const building = await ctx.db.get(origin.buildingId);
   if (!building || building.playerId !== playerId) return null;
   const region = regionFacts(building.regionId);
-  if (!region) return null;
+  const stand = pointOfBuilding(building);
+  if (!region || stand === null) return null;
   return {
-    point: region.point,
+    point: stand,
     name: region.name,
     regionId: building.regionId,
     stationId: building._id,
     fromBuildingId: building._id,
     afloat: false,
+    coastal: false,
   };
 }
 
@@ -133,7 +144,7 @@ export async function aimOf(
     const point = pointOf(target.point);
     const country = hostAtPoint(point);
     return {
-      aim: { kind: 'point', lon: point[0], lat: point[1] },
+      aim: { kind: 'point', lon: point[0], lat: point[1], coastal: coastAtPoint(point) },
       target: { kind: 'point', point: target.point },
       point,
       name: country,
@@ -143,10 +154,16 @@ export async function aimOf(
   if (target.kind === 'outpost') {
     const outpost = await ctx.db.get(target.outpostId);
     if (!outpost) fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
+    const anchor = pointOf(outpost.point);
     return {
-      aim: { kind: 'outpost', outpostId: outpost._id, hostCountry: outpost.hostCountry },
+      aim: {
+        kind: 'outpost',
+        outpostId: outpost._id,
+        hostCountry: outpost.hostCountry,
+        coastal: coastAtPoint(anchor),
+      },
       target: { kind: 'outpost', outpostId: outpost._id },
-      point: pointOf(outpost.point),
+      point: anchor,
       name: outpost.hostCountry,
       host: outpost.hostCountry,
     };
@@ -161,11 +178,12 @@ export async function aimOf(
     const building = await ctx.db.get(target.buildingId);
     if (!building || building.playerId !== playerId) fail('UNKNOWN_BUILDING');
     const region = regionFacts(building.regionId);
-    if (!region) fail('UNKNOWN_REGION', { regionId: building.regionId });
+    const stand = pointOfBuilding(building);
+    if (!region || stand === null) fail('UNKNOWN_REGION', { regionId: building.regionId });
     return {
       aim: { kind: 'building', buildingId: building._id, key: building.key },
       target: { kind: 'building', buildingId: building._id },
-      point: region.point,
+      point: stand,
       name: region.name,
       host: region.country,
     };
@@ -216,6 +234,7 @@ export async function columnOf(
         .map((building) => building.key),
     ),
     afloat: departure.afloat,
+    coastal: departure.coastal,
   };
 }
 

@@ -138,7 +138,10 @@ describe('radial menu', () => {
 
   it('stays shut on an outpost that is not being marched at', () => {
     expect(
-      compassOf({ kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais' }, view),
+      compassOf(
+        { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais', coastal: false },
+        view,
+      ),
     ).toBeNull();
   });
 });
@@ -150,6 +153,7 @@ describe('in aim', () => {
     myOutpostIds: new Set(['AP-01']),
     departureBuildings: new Set<BuildingKey>(['barracks']),
     afloat: false,
+    coastal: false,
   };
 
   const aragon = {
@@ -159,6 +163,7 @@ describe('in aim', () => {
     regionId: 'ESP-1234',
     country: 'ESP',
     name: 'Aragón',
+    coastal: false,
   } as const;
 
   it('shows the marches and nothing else — no crane, no "view"', () => {
@@ -206,7 +211,7 @@ describe('in aim', () => {
    */
   it('draws no branch on an outpost of mine, and states the motive', () => {
     const outpost = compassOf(
-      { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais' },
+      { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais', coastal: false },
       view,
       column,
       true,
@@ -246,7 +251,15 @@ describe('in aim', () => {
   it('shows the motive that belongs to the column rather than to the target', () => {
     const unferried = { ...column, roles: ['infantry' as const, 'escort' as const] };
     const compass = compassOf(
-      { kind: 'point', lon: -30, lat: 40, regionId: null, country: null, name: 'haute mer' },
+      {
+        kind: 'point',
+        lon: -30,
+        lat: 40,
+        regionId: null,
+        country: null,
+        name: 'haute mer',
+        coastal: false,
+      },
       view,
       { ...unferried, departureBuildings: new Set<BuildingKey>(['port']) },
       true,
@@ -290,11 +303,20 @@ describe('aiming at a point', () => {
     myOutpostIds: new Set(['AP-01']),
     departureBuildings: new Set<BuildingKey>(['barracks']),
     afloat: false,
+    coastal: false,
   };
 
   it('opens a fan with no region under it at all — zoomed out, or at sea', () => {
     const compass = compassOf(
-      { kind: 'point', lon: 25.2, lat: 44.6, regionId: null, country: 'ROU', name: 'Roumanie' },
+      {
+        kind: 'point',
+        lon: 25.2,
+        lat: 44.6,
+        regionId: null,
+        country: 'ROU',
+        name: 'Roumanie',
+        coastal: false,
+      },
       view,
       column,
       true,
@@ -320,6 +342,7 @@ describe('aiming at a point', () => {
         regionId: 'ROU-310',
         country: 'ROU',
         name: 'Prahova',
+        coastal: false,
       },
       view,
       column,
@@ -334,7 +357,15 @@ describe('aiming at a point', () => {
 
   it('still opens over water, where no country answers', () => {
     const compass = compassOf(
-      { kind: 'point', lon: -30, lat: 40, regionId: null, country: null, name: 'haute mer' },
+      {
+        kind: 'point',
+        lon: -30,
+        lat: 40,
+        regionId: null,
+        country: null,
+        name: 'haute mer',
+        coastal: false,
+      },
       view,
       column,
       true,
@@ -349,7 +380,15 @@ describe('aiming at a point', () => {
   it('answers a naval column standing on a portless shore, motive in hand', () => {
     const naval = { ...column, roles: ['cargo' as const] };
     const compass = compassOf(
-      { kind: 'point', lon: 25.2, lat: 44.6, regionId: null, country: 'ROU', name: 'Roumanie' },
+      {
+        kind: 'point',
+        lon: 25.2,
+        lat: 44.6,
+        regionId: null,
+        country: 'ROU',
+        name: 'Roumanie',
+        coastal: false,
+      },
       view,
       naval,
       true,
@@ -375,7 +414,7 @@ describe('founding from the map', () => {
     country: 'LBY',
     name: '2 INF',
     headcount: 2,
-    station: { kind: 'point', lonLat: [12, 20], country: 'LBY' },
+    station: { kind: 'point', lonLat: [12, 20], country: 'LBY', coastal: false },
     regionId: 'LBY-001',
   } as const;
 
@@ -387,7 +426,7 @@ describe('founding from the map', () => {
         troops: roles.map((role, rank) => ({
           id: `T-${rank}`,
           role,
-          stationedAt: { kind: 'point', lonLat: [12, 20], country: 'LBY' },
+          stationedAt: { kind: 'point', lonLat: [12, 20], country: 'LBY', coastal: false },
         })),
       },
     }) as unknown as PlayerView;
@@ -435,6 +474,7 @@ describe('founding from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(),
       afloat: false,
+      coastal: false,
     };
     const compass = compassOf(camp, posted(['infantry']), armed, true);
     expect(compass?.actions.map((action) => action.key)).toEqual(['found']);
@@ -452,6 +492,7 @@ describe('founding from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(),
       afloat: false,
+      coastal: false,
     };
     const standing = posted(['infantry']);
     const observing = {
@@ -615,6 +656,7 @@ describe('raising a level from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(['barracks']),
       afloat: false,
+      coastal: false,
     };
     const compass = compassOf(mast, standing({}), armed, true);
     expect(compass?.kicker).toBe('visée armée · 1 troupe');
@@ -644,6 +686,7 @@ describe('raising a level from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(['barracks']),
       afloat: false,
+      coastal: false,
     };
     const onMine = compassOf(mast, standing({}), armour, true);
     expect(onMine?.actions).toEqual([]);
@@ -665,6 +708,7 @@ describe('raising a level from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(['port']),
       afloat: false,
+      coastal: false,
     };
     const onBarracks = compassOf(
       { ...mast, key: 'barracks' },
@@ -685,6 +729,7 @@ describe('raising a level from the map', () => {
       myOutpostIds: new Set<string>(),
       departureBuildings: new Set<BuildingKey>(),
       afloat: false,
+      coastal: false,
     };
     expect(compassOf({ ...mast, id: 'B-gone' }, standing({}), armed, true)).toBeNull();
   });

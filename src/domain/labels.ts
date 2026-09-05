@@ -56,10 +56,16 @@ export type MapMarker =
       /**
        * A building stands **on a region**, never on a coordinate: the ground its callout drops
        * to is the region's interior point, and only the region layer knows it. Carrying a
-       * `lonLat` here would give the label a second position, free to drift from its own foot.
+       * `lonLat` for all of them would give every label a second position, free to drift from
+       * its own foot.
+       *
+       * **Except a port** (ADR 0013, revision of 04/09): it was placed on a coast point, the
+       * server serves that point, and the mast belongs on the quay rather than thirty
+       * kilometres inland. `null` is every other building and keeps the region anchor.
        */
       readonly kind: 'building';
       readonly id: string;
+      readonly lonLat: LonLat | null;
       /**
        * The row a click opens, `null` while the first level is still under the crane: nothing
        * stands yet, so there is no line to open anywhere. The instance and not the key — a
@@ -263,13 +269,22 @@ export function buildLabels(
 
 const exists = <T>(value: T | null): value is T => value !== null;
 
+/** A port hangs from its quay, a deposit and every other building from their region, and
+ *  everything that carries a coordinate from that coordinate. */
+function anchorOf(marker: MapMarker): LabelAnchor {
+  if (marker.kind === 'deposit') return { kind: 'region', regionId: marker.regionId };
+  if (marker.kind === 'building') {
+    return marker.lonLat === null
+      ? { kind: 'region', regionId: marker.regionId }
+      : { kind: 'ground', lonLat: marker.lonLat };
+  }
+  return { kind: 'ground', lonLat: marker.lonLat };
+}
+
 function markerLabel(marker: MapMarker): MapLabel {
   const common = {
     id: marker.id,
-    anchor:
-      marker.kind === 'building' || marker.kind === 'deposit'
-        ? ({ kind: 'region', regionId: marker.regionId } as const)
-        : ({ kind: 'ground', lonLat: marker.lonLat } as const),
+    anchor: anchorOf(marker),
     ink: marker.kind === 'deposit' ? null : marker.ink,
     plate: null,
     deposit: null,

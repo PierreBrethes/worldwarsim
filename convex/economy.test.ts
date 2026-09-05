@@ -29,7 +29,13 @@ import {
   homeSlots,
   unlockLevel,
 } from './constants';
-import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
+import {
+  capitalRegionOf,
+  foundationOwed,
+  homeDepositsOf,
+  pointOfBuilding,
+  regionFacts,
+} from './regions';
 import { clipToStorage, settle } from './resources';
 import regionIndex from '../public/region-index.json';
 import schema from './schema';
@@ -48,6 +54,13 @@ const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
 const PARIS = 'FRA-5333'; // the capital, where the headquarters already stands
 const RUHR = 'DEU-1572'; // German
+
+/** A shore cell of the Pas-de-Calais, as `isCoastCell` reads the routing grid — land with the
+ *  Channel beside it, and French ground (`hostAtPoint`). */
+const CALAIS_SHORE = { lon: 2.31, lat: 50.63 };
+/** The same, on the other side of the Channel: a legal coast, the wrong country. */
+const ENGLISH_SHORE = { lon: -1.95, lat: 50.85 };
+const MOSELLE_POINT = regionFacts(MOSELLE)!.point;
 
 async function launchedSeason(
   t: ReturnType<typeof boot>,
@@ -510,12 +523,140 @@ describe('placement', () => {
     const token = await launchedSeason(t);
     await promoteHq(t, token, unlockLevel('port'));
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'port', regionId: MOSELLE }),
+      t.mutation(api.constructions.start, {
+        token,
+        building: 'port',
+        regionId: MOSELLE,
+        point: CALAIS_SHORE,
+      }),
     ).rejects.toThrow('NOT_COASTAL');
     await t.mutation(api.constructions.start, {
       token,
       building: 'port',
       regionId: PAS_DE_CALAIS,
+      point: CALAIS_SHORE,
+    });
+  });
+
+  /**
+   * **Le port se pose à un point, et lui seul** (ADR 0013, révision du 04/09). Two of the three
+   * refusals answer a client that made up its own gesture; the third is the one a legitimate
+   * ghost can meet, when the ground it snapped onto is not the region's.
+   */
+  describe('the coast point of a port', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('is refused on anything that is not a port', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await expect(
+        t.mutation(api.constructions.start, {
+          token,
+          building: 'mine',
+          regionId: MOSELLE,
+          point: CALAIS_SHORE,
+        }),
+      ).rejects.toThrow('POINT_FOR_PORT_ONLY');
+    });
+
+    it('is required of a port', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await promoteHq(t, token, unlockLevel('port'));
+      await expect(
+        t.mutation(api.constructions.start, {
+          token,
+          building: 'port',
+          regionId: PAS_DE_CALAIS,
+        }),
+      ).rejects.toThrow('PORT_NEEDS_A_COAST_POINT');
+    });
+
+    it('is refused inland, where no ship could reach it', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await promoteHq(t, token, unlockLevel('port'));
+      await expect(
+        t.mutation(api.constructions.start, {
+          token,
+          building: 'port',
+          regionId: PAS_DE_CALAIS,
+          point: { lon: MOSELLE_POINT[0], lat: MOSELLE_POINT[1] },
+        }),
+      ).rejects.toThrow('PORT_NEEDS_A_COAST_POINT');
+    });
+
+    it('is refused on the shore of another country', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await promoteHq(t, token, unlockLevel('port'));
+      await expect(
+        t.mutation(api.constructions.start, {
+          token,
+          building: 'port',
+          regionId: PAS_DE_CALAIS,
+          point: ENGLISH_SHORE,
+        }),
+      ).rejects.toThrow('POINT_OUTSIDE_REGION');
+    });
+
+    /** The queue carries it, the finished building keeps it, and the view serves it: the mast
+     *  stands on the quay from the order to the end of the season. */
+    it('travels from the queue to the standing building and out to the board', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await promoteHq(t, token, unlockLevel('port'));
+      for (const key of RESOURCES) await fill(t, token, key, BASE_CAP);
+      await t.mutation(api.constructions.start, {
+        token,
+        building: 'port',
+        regionId: PAS_DE_CALAIS,
+        point: CALAIS_SHORE,
+      });
+
+      const queued = await t.query(api.view.playerView, { token });
+      expect(queued.me.construction?.point).toEqual([CALAIS_SHORE.lon, CALAIS_SHORE.lat]);
+
+      await vi.advanceTimersByTimeAsync(buildMinutes('port', 1) * 60_000 + 1000);
+      const view = await t.query(api.view.playerView, { token });
+      const port = view.me.buildings.find((building) => building.key === 'port');
+      expect(port?.point).toEqual([CALAIS_SHORE.lon, CALAIS_SHORE.lat]);
+    });
+
+    /** A raise does not move a quay, so it does not ask for one either — nor does it take one. */
+    it('is neither asked for nor accepted when the port is only being raised', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await promoteHq(t, token, MAX_HQ_LEVEL);
+      await raise(t, token, 'port', PAS_DE_CALAIS);
+      for (const key of RESOURCES) await fill(t, token, key, BASE_CAP);
+      await expect(
+        t.mutation(api.constructions.start, {
+          token,
+          building: 'port',
+          regionId: PAS_DE_CALAIS,
+          point: CALAIS_SHORE,
+        }),
+      ).rejects.toThrow('POINT_FOR_PORT_ONLY');
+      await t.mutation(api.constructions.start, {
+        token,
+        building: 'port',
+        regionId: PAS_DE_CALAIS,
+      });
+    });
+
+    /** A port from before the field existed reads where it always read — its region's point,
+     *  and no backfill anywhere (`pointOfBuilding`). */
+    it('leaves a port written before the field standing at its centroid', async () => {
+      const t = boot();
+      const token = await launchedSeason(t);
+      await raise(t, token, 'port', PAS_DE_CALAIS);
+      const view = await t.query(api.view.playerView, { token });
+      expect(view.me.buildings.find((building) => building.key === 'port')?.point).toBeNull();
+      expect(pointOfBuilding({ regionId: PAS_DE_CALAIS })).toEqual(
+        regionFacts(PAS_DE_CALAIS)!.point,
+      );
     });
   });
 

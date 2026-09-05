@@ -64,13 +64,15 @@ const colors = { trace: '#000000', progress: '#ffffff' };
 const thickness = 2.5;
 const opacities = { trace: 0.55, progress: 1 };
 
-const crossing = computeRoute(grid, toLonLat(20, 25), toLonLat(60, 25), 'combined')!;
+/** La plage d'Eastland, et non son intérieur : depuis la décision 72a une route combinée finit
+ *  à la côte, et la jambe de terre qui suivait la mer n'existe plus. */
+const crossing = computeRoute(grid, toLonLat(20, 25), toLonLat(40, 25), 'combined')!;
 
 describe('buildThread on a combined route', () => {
   const thread = buildThread(crossing, frame, colors, thickness, opacities);
 
-  it('cuts the thread like the legs, land then sea then land', () => {
-    expect(thread.legs.map((leg) => leg.medium)).toEqual(['land', 'sea', 'land']);
+  it('cuts the thread like the legs, land then sea', () => {
+    expect(thread.legs.map((leg) => leg.medium)).toEqual(['land', 'sea']);
   });
 
   it('lays land and sea at the same altitude: no step at the coast', () => {
@@ -81,8 +83,10 @@ describe('buildThread on a combined route', () => {
     expect(Math.max(...heights) - Math.min(...heights)).toBeCloseTo(0, 10);
   });
 
-  it('plants a dock at each transfer, embarkation then landing', () => {
-    expect(thread.docks.map((dock) => dock.embarking)).toEqual([true, false]);
+  /** Un seul quai, celui de l'embarquement : la mise à terre est le bout du fil, là où le
+   *  jalon d'arrivée se tient déjà, et elle n'ouvre plus de jambe à marquer. */
+  it('plants a dock at the embarkation and at it alone', () => {
+    expect(thread.docks.map((dock) => dock.embarking)).toEqual([true]);
   });
 
   it('the thread is continuous: each leg picks up where the previous one stops', () => {
@@ -172,7 +176,8 @@ describe('the thread cut', () => {
   };
 
   it('covered and remaining meet on the pawn vertex, nowhere else', () => {
-    for (const t of [0.1, 0.27, 0.4, 0.63, 0.85, 0.99]) {
+    // Off the dock, where the pawn parks on the seam between two legs and no strand is cut.
+    for (const t of [0.1, 0.25, 0.4, 0.75, 0.9, 0.99]) {
       const pawn = cutAt(t);
       const started = pairs.filter(
         ([covered, remaining]) => visibleSegments(covered) > 0 && visibleSegments(remaining) > 0,

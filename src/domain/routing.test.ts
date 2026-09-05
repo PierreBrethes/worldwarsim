@@ -4,8 +4,10 @@ import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
   buildGrid,
+  coastCellsIn,
   computeRoute,
   countryAt,
+  isCoastCell,
   routeMedium,
 } from './routing';
 
@@ -63,6 +65,42 @@ describe('buildGrid', () => {
   });
 });
 
+/**
+ * The one reading a port is placed against (ADR 0013, revision of 04/09). Westland is a
+ * rectangle from x=10 to x=30: x=29 is its eastern shore, x=20 its middle, x=35 open water.
+ */
+describe('a coast cell', () => {
+  it('is land with the sea beside it', () => {
+    expect(isCoastCell(grid, toLonLat(29.5, 25.5))).toBe(true);
+  });
+
+  it('is not the inland of the same island', () => {
+    expect(isCoastCell(grid, toLonLat(20.5, 25.5))).toBe(false);
+  });
+
+  it('is not the water off it — a quay stands on the ground', () => {
+    expect(isCoastCell(grid, toLonLat(35.5, 25.5))).toBe(false);
+  });
+
+  /**
+   * The box is a region's, so it is the caller that cuts: what comes back is every shore of the
+   * rectangle, and the ones that stand inside the region are sifted by whoever holds the
+   * polygons (`MapEngine.setPlacing`).
+   */
+  it('gathers the shores of a box, and only land ones', () => {
+    const cells = coastCellsIn(grid, [8, 18, 32, 32]);
+    expect(cells.length).toBeGreaterThan(0);
+    expect(cells.every((cell) => isCoastCell(grid, cell.lonLat))).toBe(true);
+    expect(cells.some((cell) => Math.round(cell.x) === 20 && Math.round(cell.y) === 25)).toBe(
+      false,
+    );
+  });
+
+  it('finds nothing in a box of open sea', () => {
+    expect(coastCellsIn(grid, [32, 22, 38, 28])).toEqual([]);
+  });
+});
+
 describe('land routes', () => {
   it('stays on the same island', () => {
     const route = computeRoute(grid, toLonLat(12, 25), toLonLat(28, 25), 'land');
@@ -75,18 +113,28 @@ describe('land routes', () => {
   });
 });
 
+/**
+ * **Une route combinée finit à la côte** (décision 72a, 04/09) : elle embarque, traverse et pose
+ * la colonne sur la plage visée. Le dernier pas sort de l'eau — c'est un débarquement, pas une
+ * marche — et il compte dans la jambe de mer ; les deux franchissements de la ligne d'eau se
+ * paient tous les deux, l'embarquement comme la mise à terre.
+ */
 describe('combined routes', () => {
-  it('embarks, crosses, lands — two transfers at the advertised price', () => {
-    const route = computeRoute(grid, toLonLat(20, 25), toLonLat(60, 25), 'combined');
+  it('embarks, crosses and lands on the shore aimed at — two transfers, no walk ashore', () => {
+    const route = computeRoute(grid, toLonLat(20, 25), toLonLat(40, 25), 'combined');
     expect(route).not.toBeNull();
-    const mediums = route!.legs.map((leg) => leg.medium);
-    expect(mediums).toEqual(['land', 'sea', 'land']);
+    expect(route!.legs.map((leg) => leg.medium)).toEqual(['land', 'sea']);
     const expected =
       route!.legs[0]!.distanceUnits * COST_BY_MEDIUM.land +
       route!.legs[1]!.distanceUnits * COST_BY_MEDIUM.sea +
-      route!.legs[2]!.distanceUnits * COST_BY_MEDIUM.land +
       2 * TRANSFER_COST;
     expect(route!.costUnits).toBeCloseTo(expected, 6);
+  });
+
+  /** L'intérieur des terres n'est plus routable pour elle : la grille refuse de contourner le
+   *  refus que la visée oppose déjà (`LANDING_NEEDS_A_COAST`). */
+  it('leads nowhere inland: the boots do not walk out of the sea', () => {
+    expect(computeRoute(grid, toLonLat(20, 25), toLonLat(60, 25), 'combined')).toBeNull();
   });
 });
 

@@ -64,6 +64,28 @@ export function regionFacts(regionId: string): RegionFacts | null {
 }
 
 /**
+ * **Where a building stands.** A building is its region's point — the pole of inaccessibility of
+ * `region-index.json` — **except a port**, which carries the coast point the player picked at
+ * the placement (ADR 0013, revision of 04/09): a ship leaves from the water, and a large region
+ * has several coasts.
+ *
+ * Every reading of a building's position goes through here and through nothing else. The
+ * alternative is eleven `regionFacts(building.regionId).point` that each have to remember the
+ * exception — and the one that forgets sends a convoy inland to embark.
+ *
+ * A port put up before the field existed carries no point and reads at its centroid, as it
+ * always did: nothing is backfilled (the lesson of 27/08 on `buildings.seasonId`), and the
+ * tolerance leaves with the next wipe.
+ */
+export function pointOfBuilding(building: {
+  readonly regionId: string;
+  readonly point?: { readonly lon: number; readonly lat: number } | undefined;
+}): LonLat | null {
+  if (building.point !== undefined) return [building.point.lon, building.point.lat];
+  return regionFacts(building.regionId)?.point ?? null;
+}
+
+/**
  * The region whose point stands closest to a lon/lat — **which region is nearest, and nothing
  * more**. It answered "whose ground this is" until the borders were tested: a pole of
  * inaccessibility says where a region is and never where it stops, so three frontier points out

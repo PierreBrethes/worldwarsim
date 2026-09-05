@@ -24,7 +24,7 @@ import {
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { regionFacts } from './regions';
 import { pointOf } from './movement/forces';
-import { routeBetween } from './routes';
+import { coastAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -93,11 +93,20 @@ async function raise(
   token: string,
   key: BuildingKey,
   regionId: string,
+  /** The quay a port stands on, when the test needs it away from its region's centroid. */
+  point?: { lon: number; lat: number },
 ): Promise<Id<'buildings'>> {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
+    return ctx.db.insert('buildings', {
+      seasonId,
+      playerId,
+      key,
+      regionId,
+      level: 1,
+      ...(point === undefined ? {} : { point }),
+    });
   });
 }
 
@@ -912,6 +921,7 @@ describe('a column whose infantry rides goes faster', () => {
           myOutpostIds: new Set(),
           departureBuildings: new Set<BuildingKey>(['barracks']),
           afloat: false,
+          coastal: false,
         },
       ),
     ).toContain('attack');
@@ -1694,6 +1704,25 @@ describe('the door of the sea, read on the pile', () => {
   const KENT: LonLat = [0.73, 51.21]; // across the water, and only across it
   const DOGGER: LonLat = [2.5, 54.5]; // open sea, hosted by nobody
   const HELIGOLAND: LonLat = [6.5, 54.6]; // another patch of the same water
+  const MIDLANDS: LonLat = [-1.5, 52.4]; // English, and no water within a grid cell of it
+
+  /** Le débarquement de référence : un fantassin et sa coque, partis du quai du Nord, posés
+   *  ensemble sur la plage du Kent. Ce que chacun demande ensuite est l'objet des cas d'après. */
+  const landAtKent = async (t: ReturnType<typeof boot>, token: string) => {
+    await raise(t, token, 'barracks', NORD);
+    const quay = await raise(t, token, 'port', NORD);
+    const infantry = await form(t, token, 'infantry', quay);
+    const cargo = await form(t, token, 'cargo', quay);
+    const beach = { lon: KENT[0], lat: KENT[1] };
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [infantry, cargo],
+      point: beach,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    return { infantry, cargo, beach };
+  };
 
   /**
    * The whole column leaves from the quay: the transport is moored there and its passengers
@@ -1756,15 +1785,20 @@ describe('the door of the sea, read on the pile', () => {
     ).resolves.toBeDefined();
   });
 
-  it('carries infantry across the Channel aboard a cargo, by land and sea', async () => {
+  /**
+   * **Le quai part de l'eau, la plage la reçoit** (décisions 71a puis 72a). Depuis que le port
+   * se pose sur une cellule de côte, la colonne embarque au premier pas ; depuis que le
+   * débarquement est une opération, elle ne remet pas les bottes à terre avant sa cible. Entre
+   * les deux il n'y a que de la mer — c'est un débarquement, et non plus une marche qui mouille.
+   */
+  it('carries infantry across the Channel aboard a cargo and lands them on the shore', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);
     await embark(t, token, ['infantry', 'infantry', 'cargo']);
 
     const [movement] = await t.run(async (ctx) => ctx.db.query('movements').collect());
-    expect(movement!.legs.some((leg) => leg.medium === 'sea')).toBe(true);
-    expect(movement!.legs.some((leg) => leg.medium === 'land')).toBe(true);
-    /** The transfer is billed: a crossing costs more than its distance weighted by medium. */
+    expect(movement!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
+    /** The transfers are billed: a crossing costs more than its distance weighted by medium. */
     expect(movement!.costUnits).toBeGreaterThan(movement!.distanceUnits);
     /** The United Kingdom is a playable nation, so the ground has a host to owe a window to. */
     expect(movement!.hostCountry).toBe('GBR');
@@ -1810,17 +1844,154 @@ describe('the door of the sea, read on the pile', () => {
       'NO_PORT_AT_DEPARTURE',
     );
 
-    const aim: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1] };
+    const aim: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1], coastal: true };
     const quayless: Column = {
       roles: ['infantry', 'cargo'],
       myRegionIds: new Set([NORD]),
       myOutpostIds: new Set(),
       departureBuildings: new Set<BuildingKey>(['barracks', 'depot']),
       afloat: false,
+      coastal: false,
     };
     expect(refusalOf('attack', aim, quayless)).toBe('NO_PORT_AT_DEPARTURE');
     /** Et la porte ferme le fan entier : plus rien à demander depuis ce sol-là. */
     expect(legalMovementTypes(aim, quayless)).toEqual([]);
+  });
+
+  /**
+   * **Un débarquement se choisit, il ne se traverse pas** (décision 72a, 04/09). Le cargo suivait
+   * ses passagers sur la jambe terrestre : la mer n'était qu'un morceau du chemin et la plage se
+   * choisissait toute seule. Elle se nomme désormais, et le reste est l'ordre d'après.
+   */
+  it('refuses a landing anywhere but on a coast, and the fan says so with no route', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await raise(t, token, 'barracks', NORD);
+    const quay = await raise(t, token, 'port', NORD);
+    const troopIds = [await form(t, token, 'infantry', quay), await form(t, token, 'cargo', quay)];
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'building', buildingId: quay },
+        troopIds,
+        point: { lon: MIDLANDS[0], lat: MIDLANDS[1] },
+      }),
+    ).rejects.toThrow('LANDING_NEEDS_A_COAST');
+
+    /** Les quatre cibles, et la même réponse des deux côtés du fil — aucun Dijkstra ne tourne
+     *  sous cette assertion (ADR 0015). */
+    const landing: Column = {
+      roles: ['infantry', 'cargo'],
+      myRegionIds: new Set([NORD]),
+      myOutpostIds: new Set(),
+      departureBuildings: new Set<BuildingKey>(['barracks', 'port']),
+      afloat: false,
+      coastal: false,
+    };
+    const beach: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1], coastal: true };
+    const inland: MovementAim = {
+      kind: 'point',
+      lon: MIDLANDS[0],
+      lat: MIDLANDS[1],
+      coastal: false,
+    };
+    expect(coastAtPoint(KENT)).toBe(true);
+    expect(coastAtPoint(MIDLANDS)).toBe(false);
+    expect(legalMovementTypes(beach, landing)).toEqual(['march', 'attack']);
+    expect(legalMovementTypes(inland, landing)).toEqual([]);
+    expect(refusalOf('march', inland, landing)).toBe('LANDING_NEEDS_A_COAST');
+    expect(refusalOf('attack', { kind: 'region', regionId: RUHR, country: 'DEU' }, landing)).toBe(
+      'LANDING_NEEDS_A_COAST',
+    );
+  });
+
+  /**
+   * **Tout le monde descend au même endroit** (règle 3 de la décision 72a) : deux adresses
+   * rendraient le rembarquement impossible à composer (`sameStation`). Ce que chacun fait de la
+   * plage lui appartient ensuite — le fantassin marche, la coque reprend la mer.
+   */
+  it('puts hulls and passengers ashore at one address, and each is ordered on from it', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const { infantry, cargo, beach } = await landAtKent(t, token);
+
+    const ashore = await t.run(async (ctx) => [
+      (await ctx.db.get(infantry))!.stationedAt,
+      (await ctx.db.get(cargo))!.stationedAt,
+    ]);
+    expect(ashore).toEqual([beach, beach]);
+
+    /** Le fantassin s'enfonce dans les terres, seul et à pied : plus rien ne le porte. */
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'point', point: beach },
+        troopIds: [infantry],
+        point: { lon: MIDLANDS[0], lat: MIDLANDS[1] },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  /**
+   * **La plage tient lieu du quai qu'elle n'a pas** (ADR 0019 §2, révision du 04/09). Sans cela
+   * une coque débarquée resterait échouée là pour la saison — le *mouvement fantôme* que la
+   * révision du 27/08 avait chassé du large, revenu par la côte.
+   */
+  it('lets the hull sail again off the beach it landed on, with no quay under it', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const { cargo, beach } = await landAtKent(t, token);
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'point', point: beach },
+        troopIds: [cargo],
+        point: { lon: DOGGER[0], lat: DOGGER[1] },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  /** Et la pile se recompose : les deux repartent ensemble par où ils sont venus — d'une plage
+   *  vers une autre, puisqu'une colonne embarquée ne se pose plus sur l'eau. */
+  it('re-embarks the pair from the same address, coast to coast', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const { infantry, cargo, beach } = await landAtKent(t, token);
+    const [lon, lat] = regionFacts(NORD)!.point;
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'point', point: beach },
+        troopIds: [infantry, cargo],
+        point: { lon, lat },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  /**
+   * **La règle ne fabrique pas de quai.** Un cargo posé à l'intérieur des terres est impossible
+   * après ce chantier, mais une donnée d'avant-wipe peut l'être : il reste refusé, exactement
+   * comme avant, parce que c'est la côte qui l'exempte et rien d'autre.
+   */
+  it('fabricates no quay for a hull left inland', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const quay = await raise(t, token, 'port', NORD);
+    const cargo = await form(t, token, 'cargo', quay);
+    const stranded = { lon: MIDLANDS[0], lat: MIDLANDS[1] };
+    await t.run(async (ctx) => ctx.db.patch(cargo, { stationedAt: stranded }));
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'point', point: stranded },
+        troopIds: [cargo],
+        point: { lon: DOGGER[0], lat: DOGGER[1] },
+      }),
+    ).rejects.toThrow('NO_PORT_AT_DEPARTURE');
   });
 
   it('asks no port of a column that only walks', async () => {
@@ -2703,6 +2874,7 @@ describe('a column enters a garrison of its own', () => {
       myOutpostIds: new Set(),
       departureBuildings: new Set(),
       afloat: false,
+      coastal: false,
     };
     const aim: MovementAim = { kind: 'building', buildingId: mine, key: 'mine' };
     expect(legalMovementTypes(aim, column)).toEqual([]);
@@ -2759,6 +2931,31 @@ describe('a column enters a garrison of its own', () => {
         type: 'march',
       }),
     ).rejects.toThrow('UNKNOWN_BUILDING');
+  });
+
+  /**
+   * **Elle marche jusqu'au quai, pas jusqu'au centre de la région** (ADR 0013, révision du
+   * 04/09). The whole point of the coast point is that it is where the building *is*: the march
+   * that ends in it ends there, and the arc drawn on the board ends there too.
+   */
+  it('walks to the port\u2019s own quay rather than to its region\u2019s point', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const quay = { lon: 1.92, lat: 50.56 };
+    const port = await raise(t, token, 'port', NORD, quay);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+
+    await t.mutation(api.movements.enterGarrison, {
+      token,
+      origin: { kind: 'point', point: camp },
+      troopIds: [infantry],
+      buildingId: port,
+    });
+    const [filed] = await movementsOf(t, token);
+    const arrival = filed!.points[filed!.points.length - 1]!;
+    expect(distanceKm([arrival.lon, arrival.lat], [quay.lon, quay.lat])).toBeLessThan(40);
+    expect(distanceKm([arrival.lon, arrival.lat], regionFacts(NORD)!.point)).toBeGreaterThan(40);
   });
 
   it('previews the route to the building and names its region', async () => {

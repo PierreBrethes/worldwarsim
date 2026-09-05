@@ -15,7 +15,7 @@ import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
 import { resolveContact } from '../combat';
 import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS } from '../constants';
-import { capitalRegionOf, regionFacts } from '../regions';
+import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
 import { fileSightings } from './detection';
 import {
@@ -293,12 +293,14 @@ async function homeFor(
   if (buildingId !== null) {
     const building = await ctx.db.get(buildingId);
     const origin = building === null ? null : regionFacts(building.regionId);
+    const back = building === null ? null : pointOfBuilding(building);
     /** Razed while its column was away: it stays on the ground it fought on (ADR 0019 §1). */
-    if (building === null || origin === null) return { kind: 'stays', address: asPoint(from) };
+    if (building === null || origin === null || back === null)
+      return { kind: 'stays', address: asPoint(from) };
     return {
       kind: 'walks',
       key: `building:${troop.playerId}:${building._id}`,
-      point: origin.point,
+      point: back,
       hostCountry: origin.country,
       target: { kind: 'home' },
       fromBuildingId: building._id,

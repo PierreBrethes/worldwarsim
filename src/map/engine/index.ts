@@ -22,6 +22,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { isTyping } from '@/map/typing';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
+import { buildGrid, coastCellsIn, isCoastCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { ReachRing } from './reach';
@@ -33,6 +34,7 @@ import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
+import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 
 /**
@@ -71,6 +73,10 @@ const TROWEL_CURSOR = 'url(/cursors/curseur-construire.png) 29 3, crosshair';
 /** The aim wears a plain crosshair: there is no drawn cursor for it, and inventing one here
  *  would put a drawing decision in the engine. */
 const AIM_CURSOR = 'crosshair';
+
+/** The one refusal the board shows with a cursor: holding a building over ground that has no
+ *  shore to take it. The system's own, because refusal is a browser word before it is ours. */
+const REFUSED_CURSOR = 'not-allowed';
 
 /**
  * How long the orbit gets to settle before recomputing the overlap degradation of labels.
@@ -126,6 +132,9 @@ export class MapEngine {
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  /** Land and water in one list, allocated once: it is walked on every hover of a placement,
+   *  and a fresh array per frame is the kind of garbage a render loop must not make. */
+  private readonly aimable: Object3D[];
   private readonly ray = new Raycaster();
   private readonly pointer = new Vector2(-2, -2);
   private readonly aim = new Vector2();
@@ -138,6 +147,15 @@ export class MapEngine {
   private building = false;
   private aiming = false;
   private designating = false;
+  /** The region a building is being placed on, `null` when nothing is held. */
+  private placing: string | null = null;
+  private readonly ghost: PlacingGhost;
+  /**
+   * The routing grid, built on the first placement and kept — 1.33 M cells, the same raster the
+   * server routes on (`convex/routes.ts`). Nothing else on the client needs it, so nothing else
+   * pays for it: a player who never puts a port down never rasterises a world.
+   */
+  private routeGrid: RouteGrid | null = null;
   private screenWidth = 1;
   private screenHeight = 1;
   private restTimer: ReturnType<typeof setTimeout> | null = null;
@@ -168,6 +186,11 @@ export class MapEngine {
    * two questions where the player asked one.
    */
   onRegionClick: (regionId: string | null) => void = () => {};
+  /**
+   * A clean left click while a building is held: the coast point it snapped onto. Like
+   * `onRegionClick`, it replaces the selection rather than doubling it — one click, one answer.
+   */
+  onPlacePoint: (point: LonLat) => void = () => {};
   onRightClick: (click: MapRightClick) => void = () => {};
   /**
    * The first orientation drag. It is the instant the player discovers that dragging the
@@ -187,7 +210,9 @@ export class MapEngine {
 
   constructor(
     private readonly container: HTMLElement,
-    world: World,
+    /** Kept for the one thing that is asked of the world after the board is built: the routing
+     *  raster, rasterised on the first placement and never before (`coastOfRegion`). */
+    private readonly world: World,
   ) {
     this.frame = new WorldFrame(world);
     this.curvature = new Curvature(this.frame);
@@ -240,10 +265,14 @@ export class MapEngine {
     for (const mesh of meshes) this.scene.add(mesh);
     this.scene.add(borders);
 
+    this.aimable = [...this.countries, this.surface];
+
     this.arcs = new ArcLayer(this.frame);
     this.reach = new ReachRing(this.frame);
+    this.ghost = new PlacingGhost(this.frame);
     this.scene.add(this.arcs.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.ghost.object);
 
     this.regions = new RegionLayer(this.frame, this.curvature);
     this.labels = new LabelLayer(
@@ -390,8 +419,7 @@ export class MapEngine {
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.ray.setFromCamera(this.aim, this.camera);
-    const targets = includeSea ? [...this.countries, this.surface] : this.countries;
-    return this.ray.intersectObjects(targets, false)[0];
+    return this.ray.intersectObjects(includeSea ? this.aimable : this.countries, false)[0];
   }
 
   /** The camera holds still while a rose is open: one does not aim at a moving target. */
@@ -444,6 +472,7 @@ export class MapEngine {
     this.frame.curvature = intensity;
     this.curvature.applyAll();
     this.reach.rebuild();
+    this.ghost.rebuild();
     this.arcs.rebuild();
     this.labels.rebuild();
     this.regions.rebuild();
@@ -481,6 +510,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.ghost.dispose();
     this.arcs.dispose();
     this.regions.dispose();
     this.scene.traverse(disposeNode);
@@ -578,6 +608,11 @@ export class MapEngine {
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
     if (gesture.button !== 0 || gesture.panning || gesture.pastThreshold) return;
+    if (this.placing !== null) {
+      const spot = this.ghost.spot;
+      if (spot !== null) this.onPlacePoint(spot.lonLat);
+      return;
+    }
     if (this.designating) {
       this.onRegionClick(this.regionAtPoint(event.clientX, event.clientY)?.id ?? null);
       return;
@@ -624,6 +659,8 @@ export class MapEngine {
     const { style } = this.renderer.domElement;
     if (this.gesture?.panning === true) style.cursor = 'grabbing';
     else if (this.spaceHeld) style.cursor = 'grab';
+    else if (this.placing !== null)
+      style.cursor = this.ghost.spot === null ? REFUSED_CURSOR : TROWEL_CURSOR;
     else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else style.cursor = '';
@@ -652,6 +689,50 @@ export class MapEngine {
     if (designating === this.designating) return;
     this.designating = designating;
     this.refreshCursor();
+  }
+
+  /**
+   * **The board is holding a building, and the next left click puts it down** (ADR 0013,
+   * revision of 04/09). Only the port enters this mode, and what it may take is settled here,
+   * once: the coast cells of the routing grid that fall inside this region and no other.
+   *
+   * Two readings meet and neither is guessed — the grid says what a ship can sail from
+   * (`coastCellsIn`, the very function the server refuses with), the region layer says where the
+   * region stops. A region whose polygons have not landed yet, or one the grid finds no shore
+   * in, arms an empty magnet: the ghost stays away and the cursor refuses, rather than offering
+   * a click the server would send back.
+   */
+  setPlacing(regionId: string | null, sprite: string | null): void {
+    if (regionId === this.placing) return;
+    this.placing = regionId;
+    if (regionId === null) {
+      this.ghost.disarm();
+      this.refreshCursor();
+      return;
+    }
+    this.ghost.arm(sprite, this.coastOfRegion(regionId));
+    this.hoverDirty = true;
+    this.refreshCursor();
+  }
+
+  /**
+   * **Cette cellule est-elle une côte ?** La même lecture que le serveur refuse avec
+   * (`coastAtPoint`), sur la même grille : ce que la visée offre au clic droit et ce que la
+   * mutation accepte sortent d'une seule fonction (ADR 0015). La grille se bâtit à la première
+   * question et se garde ensuite, comme pour la pose d'un port.
+   */
+  coastAt(lonLat: LonLat): boolean {
+    this.routeGrid ??= buildGrid(this.world);
+    return isCoastCell(this.routeGrid, lonLat);
+  }
+
+  private coastOfRegion(regionId: string): ReadonlyArray<CoastSpot> {
+    const outline = this.regions.outlineOf(regionId);
+    if (outline === null) return [];
+    this.routeGrid ??= buildGrid(this.world);
+    return coastCellsIn(this.routeGrid, outline.box).filter((cell) =>
+      outline.covers(cell.x, cell.y),
+    );
   }
 
   /**
@@ -707,6 +788,20 @@ export class MapEngine {
       this.onArcHover(arc);
     }
 
+    /** The ghost follows over the water too, so the ray is given the sea back — the hover above
+     *  only wanted the land. It has just walked the arcs, hence the second aim rather than the
+     *  hit already in hand. */
+    if (this.placing !== null) {
+      const arrived = this.ghost.spot === null;
+      this.ray.setFromCamera(this.pointer, this.camera);
+      const board = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+      this.ghost.aimAt(
+        board === undefined ? null : board.x + this.frame.centerX,
+        board === undefined ? null : board.z + this.frame.centerY,
+      );
+      if (arrived && this.ghost.spot !== null) this.refreshCursor();
+    }
+
     this.hovered = touched ?? null;
     const adm0 = this.hovered?.userData.adm0 ?? null;
     if (adm0 !== this.hoveredCountry) {
@@ -754,6 +849,7 @@ export class MapEngine {
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    this.ghost.orient(this.camera.position);
     this.regions.animate(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE

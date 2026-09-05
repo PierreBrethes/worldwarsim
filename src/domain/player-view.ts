@@ -120,7 +120,18 @@ export type ArcView =
 export type TroopStation =
   | { readonly kind: 'building'; readonly buildingId: string }
   | { readonly kind: 'outpost'; readonly outpostId: string }
-  | { readonly kind: 'point'; readonly lonLat: LonLat; readonly country: string }
+  | {
+      readonly kind: 'point';
+      readonly lonLat: LonLat;
+      readonly country: string;
+      /**
+       * **Le sol sous elle est-il une plage ?** Servi par le serveur comme `country` l'est, et
+       * pour la même raison : le client ne tient aucune géométrie, et une seconde lecture de la
+       * côte serait une seconde réponse. C'est ce qui laisse une coque débarquée repartir sans
+       * quai (ADR 0019 §2, révision du 04/09).
+       */
+      readonly coastal: boolean;
+    }
   | { readonly kind: 'home' };
 
 /**
@@ -279,6 +290,12 @@ export type Building = {
   readonly key: BuildingKey;
   readonly name: string;
   readonly regionId: string;
+  /**
+   * **Its own ground, when its region's is not where it stands** — the port and nothing else
+   * (ADR 0013, revision of 04/09): the coast point the player picked, served by the server and
+   * never recomputed here. `null` hangs the mast on the region, exactly as before.
+   */
+  readonly point: LonLat | null;
   readonly level: number;
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
@@ -380,6 +397,9 @@ export type RunningWork = {
   readonly key: BuildingKey;
   readonly regionId: string;
   readonly regionName: string;
+  /** The quay a port was ordered on — the crane stands there from the queue, not from the
+   *  moment it is finished. `null` for everything that hangs from its region. */
+  readonly point: LonLat | null;
   readonly minutesLeft: number;
 };
 

@@ -8,7 +8,7 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
-import { homeCountryOf, regionFacts } from '../regions';
+import { homeCountryOf, pointOfBuilding } from '../regions';
 import { ARRIVAL_RADIUS_KM, outpostReachKm } from '../constants';
 import { seasonBuildings } from '../buildings';
 import { troopsStationedAt } from '../combat';
@@ -223,8 +223,8 @@ async function stanceOf(
   }
   const buildingId = ctx.db.normalizeId('buildings', address);
   const building = buildingId === null ? null : await ctx.db.get(buildingId);
-  const region = building === null ? null : regionFacts(building.regionId);
-  return region === null ? null : { point: region.point, outpostId: null };
+  const point = building === null ? null : pointOfBuilding(building);
+  return point === null ? null : { point, outpostId: null };
 }
 
 /** **A technical tolerance, not a radius of the game** — the width of a coordinate that has been

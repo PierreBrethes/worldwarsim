@@ -84,3 +84,14 @@ fusion n'est décidée ici.
 - Le départ d'un mouvement depuis n'importe quel point du territoire.
 - La granularité strictement nationale posée par l'ADR 0004.
 - La validité immédiate des équilibres mesurés dans le rapport de simulation.
+
+## Révision du 04/09 — le port a un point, les autres bâtiments un centroïde
+
+> ⚠️ **Révision (04/09/2026, décisions 71b et 73a).** Un bâtiment de projection reste posé sur
+> une région, une bâtisse par région (ADR 0015). Mais **le port porte un point de côte choisi
+> par le joueur** au moment de la pose (mode de pose depuis la rose de la région, fantôme
+> aimanté sur la côte de cette région) — parce qu'un navire part de l'eau, et qu'une grande
+> région a plusieurs côtes. Les autres bâtiments restent au centroïde tant qu'aucune portée ne
+> lit leur position ; le jour où l'ADR 0021 est branchée, la question se rouvre pour la station
+> d'écoute et l'aérodrome, pas avant. Une seule lecture, `pointOfBuilding`, sert tout le monde.
+

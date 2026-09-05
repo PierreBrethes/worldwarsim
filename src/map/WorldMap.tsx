@@ -3,7 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
@@ -69,6 +69,14 @@ type Props = {
   onCompassAction: (action: CompassAction, at: { x: number; y: number }) => void;
   /** The board wears the trowel while a construction panel is open. */
   building?: boolean;
+  /**
+   * **A building held over one region, waiting for the point it goes down on** (ADR 0013,
+   * revision of 04/09) — the port and nothing else so far. The ghost snaps onto the coast cells
+   * of that region; the click hands back the one it landed on, and everything else about the
+   * mode — what it costs, what it is called, when it ends — stays on the board.
+   */
+  placing?: PlacingBuilding | null;
+  onPlacePoint?: (point: LonLat) => void;
   /** A column is armed: the cursor becomes the aim and the right click names a march. */
   aiming?: boolean;
   /**
@@ -89,6 +97,18 @@ type Props = {
     readonly places?: ReadonlyArray<LonLat>;
     readonly nonce: number;
   } | null;
+};
+
+/**
+ * What the board is holding: the region the ghost may land in, its plate, and the card that
+ * follows the pointer while it looks for a shore. The card's lines arrive written (ADR 0016):
+ * the map prices nothing and names nothing.
+ */
+export type PlacingBuilding = {
+  readonly regionId: string;
+  readonly sprite: string | null;
+  readonly title: string;
+  readonly figures: string;
 };
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
@@ -117,6 +137,8 @@ export function WorldMap({
   compassOf,
   onCompassAction,
   building = false,
+  placing = null,
+  onPlacePoint,
   aiming = false,
   designatedRegions = NO_REGIONS,
   onDesignateRegion,
@@ -196,9 +218,22 @@ export function WorldMap({
 
   const closeRose = useCallback(() => setRose(null), []);
 
+  /**
+   * **Une seule lecture de la côte, celle de la grille de routage** (décision 72a) : le moteur
+   * répond avec `isCoastCell`, la fonction même dont le serveur tire son refus. Le fan ne peut
+   * donc pas offrir une plage que la mutation renverrait (ADR 0015).
+   */
+  const coastAt = useCallback((lonLat: LonLat) => engine.current?.coastAt(lonLat) ?? false, []);
+
   useEffect(() => {
     if (!readyEngine) return;
     readyEngine.onRightClick = ({ country, region, point, clientX, clientY }) => {
+      /** **Rien ne s'ouvre pendant qu'on tient un bâtiment** : le mode de pose attend un point,
+       *  et une rose posée par-dessus offrirait un second geste au même clic. */
+      if (placing !== null) {
+        setRose(null);
+        return;
+      }
       /**
        * **Aiming, the board answers everywhere.** The place under the pointer is a lon/lat at
        * every scale and over water too, so the silence the player used to get when zoomed out —
@@ -206,7 +241,7 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        const aimed = pointTarget(country, region, point);
+        const aimed = pointTarget(country, region, point, point !== null && coastAt(point));
         if (aimed === null) {
           setRose(null);
           return;
@@ -229,7 +264,7 @@ export function WorldMap({
     return () => {
       readyEngine.onRightClick = () => {};
     };
-  }, [readyEngine, openRose, aiming]);
+  }, [readyEngine, openRose, aiming, placing, coastAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -266,11 +301,12 @@ export function WorldMap({
         label,
         map?.countryAtPoint(clientX, clientY) ?? null,
         map?.regionAtPoint(clientX, clientY) ?? null,
+        coastAt,
       );
       if (target === null) return;
       openRose(target, clientX, clientY);
     },
-    [onOpenStack, openRose],
+    [onOpenStack, openRose, coastAt],
   );
 
   const onLabelMenu = useCallback(
@@ -280,7 +316,7 @@ export function WorldMap({
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
        *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
       const region = map?.regionAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country, region);
+      const target = targetOfLabel(label, country, region, coastAt);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
@@ -298,18 +334,19 @@ export function WorldMap({
        * signe, elle a seulement une adresse de plus. Un chantier, lui, n'a pas de bâtiment et
        * rend son sol.
        */
+      const ground = map?.pointAt(clientX, clientY) ?? null;
       const aimed =
         aiming &&
         target?.kind !== 'outpost' &&
         target?.kind !== 'force' &&
         target?.kind !== 'building' &&
         map !== null
-          ? pointTarget(country, region, map.pointAt(clientX, clientY))
+          ? pointTarget(country, region, ground, ground !== null && coastAt(ground))
           : target;
       if (aimed === null) return;
       openRose(aimed, clientX, clientY);
     },
-    [openRose, aiming],
+    [openRose, aiming, coastAt],
   );
 
   useEffect(() => {
@@ -327,6 +364,14 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setAiming(aiming);
   }, [readyEngine, aiming]);
+
+  useEffect(() => {
+    readyEngine?.setPlacing(placing?.regionId ?? null, placing?.sprite ?? null);
+  }, [readyEngine, placing]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onPlacePoint = onPlacePoint ?? (() => {});
+  }, [onPlacePoint]);
 
   // A key with no ground to go down on designates nothing: the trowel only comes out when a
   // click can actually land, so the mode is the list and not a separate flag to keep in step.
@@ -404,6 +449,7 @@ export function WorldMap({
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}
         onContextMenu={onLabelMenu}
+        muted={placing !== null}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />
       {designatedArc && (
@@ -412,6 +458,7 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint />}
+      {placing && <PlacingCard placing={placing} container={container} />}
       {rose && (
         <CompassRose
           compass={rose.compass}
@@ -443,6 +490,57 @@ const ROSE_MARGIN = 70;
 const HINT_MS = 7000;
 
 /**
+ * **What the player is holding, beside the pointer.** It follows the mouse rather than the
+ * ghost: the ghost is where the building *would* go, the card is what the hand is carrying, and
+ * pinning the words to the quay would leave the eye reading a caption at the other end of a bay.
+ *
+ * It is written entirely by the board (ADR 0016) — a name, a bill, a way out. The map prices
+ * nothing.
+ */
+function PlacingCard({
+  placing,
+  container,
+}: {
+  placing: PlacingBuilding;
+  container: RefObject<HTMLDivElement | null>;
+}) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const element = container.current;
+    if (element === null) return;
+    const follow = (event: PointerEvent) => {
+      const rect = element.getBoundingClientRect();
+      setAt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+    };
+    element.addEventListener('pointermove', follow);
+    const forget = () => setAt(null);
+    element.addEventListener('pointerleave', forget);
+    return () => {
+      element.removeEventListener('pointermove', follow);
+      element.removeEventListener('pointerleave', forget);
+    };
+  }, [container]);
+
+  if (at === null) return null;
+  return (
+    <div
+      className="hud pointer-events-none absolute z-10 max-w-[240px] border border-[var(--ink-quiet)] bg-[var(--desk)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--paper)]"
+      style={{ left: at.x + PLACING_CARD_GAP, top: at.y + PLACING_CARD_GAP }}
+    >
+      <span className="block font-semibold">{placing.title}</span>
+      <span className="block font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
+        {placing.figures}
+      </span>
+      <span className="mt-[4px] block text-[11px] text-[var(--paper-dim)]">{fr.placing.hint}</span>
+    </div>
+  );
+}
+
+/** Clear of the cursor's own drawing, which is twenty-nine pixels wide (`TROWEL_CURSOR`). */
+const PLACING_CARD_GAP = 22;
+
+/**
  * The first-time hint. It asks nothing and does not close by hand: its work was done the
  * moment it was read, and the controls card takes over afterwards.
  */
@@ -468,6 +566,7 @@ function pointTarget(
   country: string | null,
   region: RegionIdentity | null,
   point: LonLat | null,
+  coastal: boolean,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -477,6 +576,7 @@ function pointTarget(
     regionId: region?.id ?? null,
     country,
     name: region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country)),
+    coastal,
   };
 }
 
@@ -488,6 +588,9 @@ function targetOfLabel(
   label: MapLabel,
   country: string | null,
   region: RegionIdentity | null,
+  /** **La côte se lit sur le point du label, jamais sous le curseur** : un mât plein cadre
+   *  déborde sa cellule, et une colonne embarquée débarque à l'ancre, pas là où on a cliqué. */
+  coastAt: (lonLat: LonLat) => boolean,
 ): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null) {
     return {
@@ -495,6 +598,7 @@ function targetOfLabel(
       id: label.id,
       hostCountry: label.hostCountry,
       name: lineText(label, 'nature') ?? fr.compass.fallbackOutpost,
+      coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
     };
   }
   /**

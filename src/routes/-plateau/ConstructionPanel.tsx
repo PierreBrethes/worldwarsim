@@ -49,12 +49,19 @@ export function ConstructionPanel({
   regionId,
   at,
   onClose,
+  onPlace,
 }: {
   view: PlayerView;
   token: string;
   regionId: string;
   at: { x: number; y: number };
   onClose: () => void;
+  /**
+   * **Le port ne se commande pas d'ici** (ADR 0013, révision du 04/09) : il se pose à un point de
+   * côte, et le panneau n'a pas de carte. Il rend la main au plateau, qui arme le mode de pose ;
+   * ce qui revient est un clic sur le rivage, jamais une ligne de plus dans ce panneau.
+   */
+  onPlace: (option: BuildOption) => void;
 }) {
   const now = useClock();
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +129,11 @@ export function ConstructionPanel({
    * désigner. Ce qui se voit sous la souris n'a pas besoin qu'on l'annonce.
    */
   const order = (option: BuildOption) => {
+    if (option.key === 'port') {
+      onPlace(option);
+      onClose();
+      return;
+    }
     setError(null);
     start({ token, building: option.key, regionId }).then(
       () => {

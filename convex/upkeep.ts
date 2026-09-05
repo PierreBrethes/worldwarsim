@@ -10,7 +10,7 @@ import {
   outpostReachKm,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
-import { homeCountryOf, regionFacts } from './regions';
+import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint } from './routes';
 
 /**
@@ -157,6 +157,5 @@ async function standsAt(ctx: QueryCtx, troop: Doc<'troops'>): Promise<LonLat | n
   }
   const buildingId = ctx.db.normalizeId('buildings', address);
   const building = buildingId === null ? null : await ctx.db.get(buildingId);
-  const region = building === null ? null : regionFacts(building.regionId);
-  return region === null ? null : region.point;
+  return building === null ? null : pointOfBuilding(building);
 }

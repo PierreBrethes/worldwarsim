@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from '../src/domain/geo';
-import { homeCountryOf, regionFacts } from './regions';
-import { hostAtPoint } from './routes';
+import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
+import { coastAtPoint, hostAtPoint, routeBetween } from './routes';
 
 /**
  * The empty string is the open sea and nothing else. It used to mean "no playable nation here"
@@ -60,5 +60,50 @@ describe('a point on a border', () => {
 
   it.each(CASES)('places %s in %s', (_name, adm0, point) => {
     expect(hostAtPoint(point)).toBe(adm0);
+  });
+});
+
+/**
+ * **Un navire part de l'eau** (ADR 0013, révision du 04/09). Hokkaidō is the case that opened the
+ * yard: its pole of inaccessibility stands sixty kilometres inland, so a port read at the
+ * centroid puts a cargo on the road before it ever floats.
+ *
+ * The two readings go through the one function every rule uses (`pointOfBuilding`) — a port with
+ * a point and a port without — and the routing is the same grid the movement is billed on.
+ */
+describe('a port on the coast', () => {
+  const HOKKAIDO = 'JPN-1847';
+  const HOKKAIDO_SHORE: LonLat = [141.82, 43.53];
+  /** **De l'eau, et pas seulement un nom d'eau.** [129, 42] portait ce nom et tombait en
+   *  Mandchourie : le mode combiné y arrivait à pied, ce qu'une colonne embarquée ne fait plus
+   *  (décision 72a). Le large, lui, se rejoint par la mer et par elle seule. */
+  const SEA_OF_JAPAN: LonLat = [137, 41];
+
+  it('stands on a cell a ship can sail from', () => {
+    expect(coastAtPoint(HOKKAIDO_SHORE)).toBe(true);
+    expect(coastAtPoint(regionFacts(HOKKAIDO)!.point)).toBe(false);
+  });
+
+  it('sends its column to sea with no land leg, where the centroid walked first', () => {
+    const fromQuay = routeBetween(
+      pointOfBuilding({
+        regionId: HOKKAIDO,
+        point: { lon: HOKKAIDO_SHORE[0], lat: HOKKAIDO_SHORE[1] },
+      })!,
+      SEA_OF_JAPAN,
+      'combined',
+    );
+    const fromCentroid = routeBetween(
+      pointOfBuilding({ regionId: HOKKAIDO })!,
+      SEA_OF_JAPAN,
+      'combined',
+    );
+    expect(fromQuay!.legs[0]!.medium).toBe('sea');
+    expect(fromCentroid!.legs[0]!.medium).toBe('land');
+  });
+
+  /** A port from before the field reads where it always read: nothing is backfilled. */
+  it('falls back on its region when it carries no point of its own', () => {
+    expect(pointOfBuilding({ regionId: HOKKAIDO })).toEqual(regionFacts(HOKKAIDO)!.point);
   });
 });

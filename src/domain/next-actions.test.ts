@@ -41,6 +41,7 @@ const posted = (country: string, lonLat: [number, number]): TroopStation => ({
   kind: 'point',
   lonLat,
   country,
+  coastal: false,
 });
 
 const kinds = (view: PlayerView): ReadonlyArray<NextActionKind> =>

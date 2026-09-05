@@ -29,7 +29,12 @@ const me = {
     troop('T-5', 'fighter', { kind: 'home' }),
     /** A column left standing on the map: an address like any other since ADR 0019 §1, and the
      *  one the widget had no card for. */
-    troop('T-6', 'infantry', { kind: 'point', lonLat: [46.7, 24.6], country: 'SAU' }),
+    troop('T-6', 'infantry', {
+      kind: 'point',
+      lonLat: [46.7, 24.6],
+      country: 'SAU',
+      coastal: false,
+    }),
   ],
   outposts: [
     {
@@ -110,7 +115,12 @@ describe('what stands still', () => {
   it('serves a posted column with the country it was left in', () => {
     const posted = stationGroups(me, marching).find((group) => group.station.kind === 'point');
     expect(posted?.count).toBe(1);
-    expect(posted?.station).toEqual({ kind: 'point', lonLat: [46.7, 24.6], country: 'SAU' });
+    expect(posted?.station).toEqual({
+      kind: 'point',
+      lonLat: [46.7, 24.6],
+      country: 'SAU',
+      coastal: false,
+    });
   });
 
   it('adds the hit points of the group against the nominal it was formed at', () => {

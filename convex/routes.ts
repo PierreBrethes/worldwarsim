@@ -1,6 +1,12 @@
 import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, RouteMode } from '../src/domain/routing';
-import { buildGrid, computeRoute, countryAmong, countryAt } from '../src/domain/routing';
+import {
+  buildGrid,
+  computeRoute,
+  countryAmong,
+  countryAt,
+  isCoastCell,
+} from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import worldAsset from '../public/world.json';
 
@@ -41,6 +47,19 @@ export function routeBetween(
 ): ComputedRoute | null {
   grid ??= buildGrid(world);
   return computeRoute(grid, from, to, mode, landCost);
+}
+
+/**
+ * **Is this a coast the routing can sail from?** The very grid a movement is computed on
+ * answers, so a port accepted here is a port a cargo leaves from without a land leg. A port
+ * refused here would have been a quay Dijkstra never found water beside.
+ *
+ * It is the client's own reading too (`isCoastCell`): the ghost snaps onto the cells this
+ * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
+ */
+export function coastAtPoint(point: LonLat): boolean {
+  grid ??= buildGrid(world);
+  return isCoastCell(grid, point);
 }
 
 /**

@@ -48,6 +48,9 @@ export type CompassTarget =
       readonly id: string;
       readonly hostCountry: string;
       readonly name: string;
+      /** Le point de l'avant-poste est-il une côte ? Lu sur la grille de routage du moteur de
+       *  carte, la même que le serveur refuse avec — voir `MovementAim`. */
+      readonly coastal: boolean;
     }
   /**
    * **Un bâtiment à soi, désigné par son mât** (décisions 54a et 56a). C'est la seule cible qui
@@ -77,6 +80,9 @@ export type CompassTarget =
       readonly regionId: string | null;
       readonly country: string | null;
       readonly name: string;
+      /** Idem : la cellule visée est-elle une côte ? C'est ce qui sépare une plage d'un point
+       *  intérieur pour une colonne embarquée (`LANDING_NEEDS_A_COAST`). */
+      readonly coastal: boolean;
     }
   | {
       /**
@@ -355,7 +361,14 @@ function aim(
       target.name,
       view,
       column,
-      [{ kind: 'outpost', outpostId: target.id, hostCountry: target.hostCountry }],
+      [
+        {
+          kind: 'outpost',
+          outpostId: target.id,
+          hostCountry: target.hostCountry,
+          coastal: target.coastal,
+        },
+      ],
       objectiveKnown,
     );
   }
@@ -387,7 +400,7 @@ function aim(
     target.name,
     view,
     column,
-    [{ kind: 'point', lon: target.lon, lat: target.lat }],
+    [{ kind: 'point', lon: target.lon, lat: target.lat, coastal: target.coastal }],
     objectiveKnown,
   );
 }
@@ -450,6 +463,9 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'NO_AIRFIELD_AT_DEPARTURE',
   'NO_PORT_AT_DEPARTURE',
   'NOT_ENOUGH_LIFT',
+  /** Après les portes de départ et avant l'allégeance : la carte montre bien une côte, mais pas
+   *  la cellule que la grille de routage tient pour telle — le joueur ne peut pas la lire. */
+  'LANDING_NEEDS_A_COAST',
   'INFANTRY_ONLY',
   /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
