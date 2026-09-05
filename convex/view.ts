@@ -6,7 +6,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
-import type { TroopStation } from '../src/domain/player-view';
+import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   TIER_2_HQ_LEVEL,
@@ -20,7 +20,7 @@ import {
 import { engagementsOf } from './combat';
 import { homeSlotReliefOf, queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
-import { movementsOf, outpostsOf, specializationServed } from './movement/forces';
+import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
@@ -70,12 +70,11 @@ export const playerView = query({
     const troops = await troopsOf(ctx, player._id);
     const recruiting = await recruitmentsOf(ctx, player._id);
     const outposts = await outpostsOf(ctx, player._id);
-    const sealed = await Promise.all(
-      outposts.map(async (outpost) => ({
-        outpost,
-        specializationLocked: await specializationServed(ctx, outpost),
-      })),
-    );
+    const locked = await specializationsServed(ctx, season._id, outposts);
+    const sealed = outposts.map((outpost) => ({
+      outpost,
+      specializationLocked: locked.has(outpost._id),
+    }));
     const movements = await movementsOf(ctx, player._id);
     /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
      *  "who is far from home": one arbitration, one answer. */
@@ -148,6 +147,14 @@ export const playerView = query({
      *
      * Read at the instant, every time: a player who rebuilds over the bar leaves the count of
      * the man who put him under it.
+     *
+     * **Et il reste dans la vue, sciemment** (enquête sur les bornes, 05/09) : le tableau lit les
+     * troupes de chaque belligérant et, par `executionerOf`, les passes qu'il a subies — c'est la
+     * seule lecture de `playerView` qui grandisse avec le nombre de joueurs et qu'aucune fenêtre
+     * ne borne. Le sortir dans une query à part le rendrait moins cher au chargement du plateau,
+     * et ce serait du travail sur un échafaudage condamné : la Domination simplifiée part entière
+     * avec la part de carte (ADR 0020), elle ne s'amende pas. Le jour où elle part, ce coût part
+     * avec elle ; d'ici là il est connu, et c'est tout ce qu'on lui demande.
      */
     const standings = await standingsOf(ctx, season._id);
     const nationOf = new Map(
@@ -429,6 +436,9 @@ export const playerView = query({
        * raw material of the journal, and later of the visual replay. Numbers only: the French
        * is built on the client (ADR 0016), and re-resolving a pass to display it is how two
        * accounts of the same battle start disagreeing.
+       *
+       * The last `REPORTS_SERVED` of them (`engagementsOf`), and the blow-by-blow of none: the
+       * detail hangs in `strikes`, read one pass at a time the day the replay asks for it.
        */
       reports: (await engagementsOf(ctx, player._id)).map((engagement) => {
         const side =
@@ -571,12 +581,18 @@ export const playerView = query({
        * Ids and numbers only, like every other dispatch (ADR 0016). The one thing resolved here
        * is the **region name**: the client holds no region table, and an id in a headline would
        * be worse than no headline.
+       *
+       * **The last `NOTICES_SERVED`, newest first**, and the gap design sheet 01 flagged is
+       * closed with them: a season wrote these without limit and the board read them all on every
+       * load. The window is served, never paginated — the journal answers "what changed while I
+       * was away", and nothing scrolls back to the founding.
        */
       notices: (
         await ctx.db
           .query('notices')
           .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-          .collect()
+          .order('desc')
+          .take(NOTICES_SERVED)
       )
         .filter(notDecoyNotice)
         .map(named),

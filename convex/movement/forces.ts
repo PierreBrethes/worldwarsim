@@ -325,12 +325,33 @@ export async function specializationServed(
   ctx: QueryCtx,
   outpost: Doc<'outposts'>,
 ): Promise<boolean> {
+  return served(outpost, await seasonMovements(ctx, outpost.seasonId));
+}
+
+/**
+ * La même question posée de plusieurs points **en une lecture** : la vue la pose de chaque
+ * avant-poste du joueur, et une par point relisait la saison entière autant de fois qu'il en tient
+ * — le prix d'un point fondé était payé sur tous les autres, à chaque chargement du plateau.
+ */
+export async function specializationsServed(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+  outposts: ReadonlyArray<Doc<'outposts'>>,
+): Promise<ReadonlySet<Id<'outposts'>>> {
+  if (outposts.length === 0) return new Set();
+  const movements = await seasonMovements(ctx, seasonId);
+  return new Set(
+    outposts.filter((outpost) => served(outpost, movements)).map((outpost) => outpost._id),
+  );
+}
+
+const served = (outpost: Doc<'outposts'>, movements: ReadonlyArray<Doc<'movements'>>): boolean => {
   const here = pointOf(outpost.point);
-  return (await seasonMovements(ctx, outpost.seasonId)).some(
+  return movements.some(
     (movement) =>
       movement.departedAt >= outpost.foundedAt &&
       movement.points.some(
         (point) => distanceKm(pointOf(point), here) <= outpostReachKm(outpost.level),
       ),
   );
-}
+};

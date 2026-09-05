@@ -13,6 +13,7 @@ import {
   RESOURCE_KEY,
   SEASON_STATUS,
   SPECIALIZATION,
+  STRIKE,
   TROOP_STATE,
   UNIT_ROLE,
   UNIT_TIER,
@@ -382,19 +383,15 @@ export default defineSchema({
      * a pass nobody measured cannot have been the one that crossed it.
      */
     reducedDefender: v.optional(v.boolean()),
-    strikes: v.array(
-      v.object({
-        phase: v.union(v.literal('strike'), v.literal('riposte')),
-        by: v.id('troops'),
-        byRole: UNIT_ROLE,
-        byTier: UNIT_TIER,
-        bySide: COMBAT_SIDE,
-        target: v.id('troops'),
-        targetRole: UNIT_ROLE,
-        targetTier: UNIT_TIER,
-        losses: v.number(),
-      }),
-    ),
+    /**
+     * **Legacy, plus jamais écrit ni lu.** Le détail frappe par frappe est passé dans la table
+     * `strikes` : gardé dans le document de l'engagement, il se relisait à chaque chargement du
+     * plateau pour n'afficher que deux totaux. `v.optional` et non un retrait sec, pour la raison
+     * habituelle — les engagements déjà écrits le portent, et un champ retiré d'une table déjà
+     * écrite fait refuser la poussée (leçon du 27/08 sur `buildings.seasonId`). Il part au
+     * prochain wipe (ADR 0001).
+     */
+    strikes: v.optional(v.array(v.object(STRIKE))),
     troops: v.array(
       v.object({
         troopId: v.id('troops'),
@@ -409,6 +406,25 @@ export default defineSchema({
   })
     .index('byAttacker', ['attackerId'])
     .index('byDefender', ['defenderId']),
+
+  /**
+   * **Le détail frappe par frappe, dans sa propre table** — la matière du rejeu visuel (surface
+   * 4.7), et rien d'autre ne la lit. Elle vit à part parce que le compte rendu, lui, est relu à
+   * chaque chargement du plateau : une passe à vingt-quatre pions écrit des dizaines de frappes,
+   * et rangées dans le document de l'engagement elles se relisaient toutes pour afficher deux
+   * totaux. Une saison de trois cents passes franchissait ainsi le plafond de lecture de Convex.
+   *
+   * `rank` plutôt que l'ordre d'insertion : les lignes d'une même passe sont écrites dans la même
+   * mutation, et un ordre qu'on ne stocke pas est un ordre qu'on ne garantit pas.
+   *
+   * Pas de `seasonId` : une frappe pend à son engagement comme une dépendance, elle n'est jamais
+   * balayée par saison — on la lit `byEngagement` ou pas du tout.
+   */
+  strikes: defineTable({
+    engagementId: v.id('engagements'),
+    rank: v.number(),
+    ...STRIKE,
+  }).index('byEngagement', ['engagementId']),
 
   /**
    * One sequential queue **per player**, ordered by `rank` — the patron of `recruitments`

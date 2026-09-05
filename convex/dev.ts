@@ -14,6 +14,7 @@ export const GAME_TABLES = [
   'regionSightings',
   'recruitments',
   'orders',
+  'strikes',
   'engagements',
   'movements',
   'outposts',

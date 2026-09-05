@@ -162,6 +162,18 @@ async function engagementsIn(t: ReturnType<typeof boot>) {
   return t.run(async (ctx) => ctx.db.query('engagements').collect());
 }
 
+/** Le détail frappe par frappe pend à l'engagement (`strikes`), il n'est plus dans son document. */
+async function strikesIn(t: ReturnType<typeof boot>, engagementId: Id<'engagements'>) {
+  return t.run(async (ctx) =>
+    (
+      await ctx.db
+        .query('strikes')
+        .withIndex('byEngagement', (q) => q.eq('engagementId', engagementId))
+        .collect()
+    ).sort((a, b) => a.rank - b.rank),
+  );
+}
+
 async function ammunitionOf(t: ReturnType<typeof boot>, token: string): Promise<number> {
   const view = await t.query(api.view.playerView, { token });
   return view.me.resources.ammunition.stock;
@@ -589,7 +601,7 @@ describe('an attack marches at somebody', () => {
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
-    expect(account!.strikes).toHaveLength(2);
+    expect(await strikesIn(t, account!._id)).toHaveLength(2);
     expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(28);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(34);
 
@@ -1376,7 +1388,7 @@ describe('a march goes to a point and the column stays there', () => {
     expect(account!.defenderId).toBe(await playerOf(t, token));
     expect(account!.cause).toBe('arrival');
     /** The camp struck first: the strike opening the pass is its own. */
-    expect(account!.strikes[0]!.bySide).toBe('attacker');
+    expect((await strikesIn(t, account!._id))[0]!.bySide).toBe('attacker');
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.playerId).toBe(
       await playerOf(t, guest),
     );

@@ -233,9 +233,13 @@ describe('capituler', () => {
     const engagements = await t.run(async (ctx) => ctx.db.query('engagements').collect());
     expect(engagements).toHaveLength(1);
     expect(engagements[0]!.defenderId).toBe((await playerOf(t, victim!))._id);
-    expect(
-      engagements[0]!.strikes.filter((strike) => strike.bySide === 'defender').length,
-    ).toBeGreaterThan(0);
+    const strikes = await t.run(async (ctx) =>
+      ctx.db
+        .query('strikes')
+        .withIndex('byEngagement', (q) => q.eq('engagementId', engagements[0]!._id))
+        .collect(),
+    );
+    expect(strikes.filter((strike) => strike.bySide === 'defender').length).toBeGreaterThan(0);
     // Et il reste pillable : capituler n'est pas s'évaporer.
     expect(await strengthOf(t, defender)).toBeLessThan(50);
 

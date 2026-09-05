@@ -536,6 +536,21 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .collect();
 
+  /** Les frappes pendent à l'engagement et non au joueur : elles partent avec le compte rendu
+   *  qui les nomme, sans quoi la table garderait des lignes que plus aucun index n'atteint. */
+  const accounts = await ctx.db
+    .query('engagements')
+    .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))
+    .collect();
+  for (const account of accounts) {
+    for (const strike of await ctx.db
+      .query('strikes')
+      .withIndex('byEngagement', (q) => q.eq('engagementId', account._id))
+      .collect()) {
+      await ctx.db.delete(strike._id);
+    }
+  }
+
   const owned = [
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
@@ -549,10 +564,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('regionSightings')),
     ...(await byPlayer('notices')),
     ...(await byPlayer('messages')),
-    ...(await ctx.db
-      .query('engagements')
-      .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))
-      .collect()),
+    ...accounts,
   ];
   for (const doc of owned) await ctx.db.delete(doc._id);
 }

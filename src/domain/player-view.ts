@@ -169,6 +169,25 @@ export type OutpostView = {
 };
 
 /**
+ * **What the board serves of a season's paperwork, and it is a screen bound** — the reason it
+ * lives here and not in `convex/constants.ts` is the telegraph's (`domain/telegraph.ts`): nothing
+ * in the game is decided by these two, no simulation will ever measure them, and the day they
+ * move it is because a window looked wrong.
+ *
+ * They are also the only thing standing between the view and Convex's read ceiling. Accounts and
+ * dispatches are the two rows a season writes without limit — three hundred passes and a week of
+ * notices read whole is megabytes, on **every** load of the board — while the journal shows the
+ * last page of them and the manchette shows one. A window served is not a window paginated: there
+ * is no scroll backwards, by design (ADR 0001 — a season is disposable, its archive is nobody's
+ * need).
+ */
+export const REPORTS_SERVED = 50;
+
+/** Deeper than the accounts because it carries every other kind of line — a delivery, a landing,
+ *  a sighting — and it is the same depth the telegraph serves. */
+export const NOTICES_SERVED = 200;
+
+/**
  * One engagement as its own participant reads it afterwards: what each side brought, what each
  * side left on the ground. Never the enemy's composition by role — the fog does not lift because
  * shots were exchanged (ADR 0005); a head count and a butcher's bill is what a commander gets.

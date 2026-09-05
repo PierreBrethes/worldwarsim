@@ -2,6 +2,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { resolveEngagement, type Combatant, type Engagement } from '../src/domain/combat';
 import { COMBAT_RULES } from './constants';
+import { REPORTS_SERVED } from '../src/domain/player-view';
 import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
 
@@ -135,23 +136,6 @@ export async function resolveContact(
     outpostId,
     disabledUntil,
     reducedDefender,
-    strikes: engagement.strikes.map((strike) => {
-      const by = byId.get(strike.by)!;
-      const target = byId.get(strike.target)!;
-      return {
-        phase: strike.phase,
-        by: by._id,
-        byRole: by.role,
-        byTier: by.tier,
-        bySide: attacker.troops.some((troop) => troop._id === by._id)
-          ? ('attacker' as const)
-          : ('defender' as const),
-        target: target._id,
-        targetRole: target.role,
-        targetTier: target.tier,
-        losses: strike.losses,
-      };
-    }),
     troops: engagement.outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {
@@ -165,6 +149,34 @@ export async function resolveContact(
       };
     }),
   });
+
+  /**
+   * **The blow-by-blow hangs from the account, it is not part of it.** The report is read on
+   * every load of the board to show two totals; the detail is read by nothing yet and by the
+   * visual replay one day (surface 4.7), one engagement at a time. Kept inside the document it
+   * made a season of passes unreadable in a single query.
+   */
+  let rank = 0;
+  for (const strike of engagement.strikes) {
+    const by = byId.get(strike.by)!;
+    const target = byId.get(strike.target)!;
+    await ctx.db.insert('strikes', {
+      engagementId,
+      rank,
+      phase: strike.phase,
+      by: by._id,
+      byRole: by.role,
+      byTier: by.tier,
+      bySide: attacker.troops.some((troop) => troop._id === by._id)
+        ? ('attacker' as const)
+        : ('defender' as const),
+      target: target._id,
+      targetRole: target.role,
+      targetTier: target.tier,
+      losses: strike.losses,
+    });
+    rank += 1;
+  }
 
   /**
    * The season is claimed here and only here, because this is the one place an engagement is
@@ -184,6 +196,15 @@ export async function resolveContact(
   return { engagementId, engagement, routed };
 }
 
+/**
+ * **The last passes of a player, both sides of the field, and nothing older.** The window is the
+ * journal's (`REPORTS_SERVED`) and it is a screen bound, not a rule: a season with three hundred
+ * accounts in it read them all to show the last twenty, and the view grew with the season until
+ * it went through Convex's read ceiling.
+ *
+ * Two indexes, so the depth is taken **on each** before the merge: an attacker who was never
+ * attacked would otherwise serve half a window.
+ */
 export async function engagementsOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
@@ -191,12 +212,14 @@ export async function engagementsOf(
   const mine = await ctx.db
     .query('engagements')
     .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))
-    .collect();
+    .order('desc')
+    .take(REPORTS_SERVED);
   const against = await ctx.db
     .query('engagements')
     .withIndex('byDefender', (q) => q.eq('defenderId', playerId))
-    .collect();
-  return [...mine, ...against].sort((a, b) => b.at - a.at);
+    .order('desc')
+    .take(REPORTS_SERVED);
+  return [...mine, ...against].sort((a, b) => b.at - a.at).slice(0, REPORTS_SERVED);
 }
 
 /** Every troop hanging from a point or a building, whoever it belongs to. */

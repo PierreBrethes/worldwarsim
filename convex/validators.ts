@@ -344,6 +344,23 @@ export const TROOP_STATE = v.union(
 );
 
 /**
+ * One strike of a resolution pass, in men and machines. Shared between the table that holds the
+ * detail (`strikes`) and the legacy array still lying in the engagements written before it — one
+ * shape, so a row of one is readable as a row of the other for as long as both exist.
+ */
+export const STRIKE = {
+  phase: v.union(v.literal('strike'), v.literal('riposte')),
+  by: v.id('troops'),
+  byRole: UNIT_ROLE,
+  byTier: UNIT_TIER,
+  bySide: COMBAT_SIDE,
+  target: v.id('troops'),
+  targetRole: UNIT_ROLE,
+  targetTier: UNIT_TIER,
+  losses: v.number(),
+};
+
+/**
  * One stretch of a route under a single medium. It travels with the movement because the map
  * draws the thread from it — a polyline alone cannot say where the column embarks, and the
  * dock is a third of what a combined trip costs (`src/domain/route-timing.ts`).

@@ -76,9 +76,13 @@ Chaque dépêche finie porte : `at`, `t` (heure formatée), `severity`
 
 ## Manque côté serveur (futurs prompts code, ne rien inventer)
 
-- **Aucune borne sur les dépêches** : `view.ts` collecte toutes les `notices` de la saison.
-  Une saison longue rendra le fil ingérable ; il faudra une fenêtre servie (à la manière des
-  200 derniers du télégraphe).
+- ~~**Aucune borne sur les dépêches**~~ — **fait le 05/09** : `view.ts` sert les
+  `NOTICES_SERVED` dernières (200, `src/domain/player-view.ts`), et les comptes rendus les
+  `REPORTS_SERVED` derniers (50), au lieu de la saison entière. Le détail frappe par frappe a
+  quitté le document de l'engagement pour la table `strikes` — il attend le rejeu (4.7), et le
+  journal n'en a jamais rien lu. Budget tenu par `convex/view-budget.test.ts`. **Le fil ne
+  remonte pas plus loin que sa fenêtre** : pas de pagination, rien à dessiner pour « charger
+  plus ».
 - **Recentrer la carte depuis une dépêche** (une colonne arrivée, un relevé) : la notice ne
   porte pas de point, seulement un pays. Si design le veut, il faut servir le point.
 
