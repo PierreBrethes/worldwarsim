@@ -11,8 +11,8 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import {
-  liftOf,
   movementSlots,
+  refusalDetails,
   refusalOf,
   landCostOf,
   routeModeOf,
@@ -123,7 +123,9 @@ type Aimed = {
 
 export async function aimOf(
   ctx: QueryCtx,
-  target: Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' },
+  /** Read for one target only: a building is aimed at by its owner and by nobody else. */
+  playerId: Id<'players'>,
+  target: Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' },
 ): Promise<Aimed> {
   /** **A point is kept as it was aimed** (ADR 0019 §1): nothing looks up what stands there. Only
    *  the country is read off it, because the rest window is owed to whoever owns the ground. */
@@ -147,6 +149,25 @@ export async function aimOf(
       point: pointOf(outpost.point),
       name: outpost.hostCountry,
       host: outpost.hostCountry,
+    };
+  }
+  /**
+   * **One enters one's own buildings and nobody else's** (decision 64b). Somebody else's is
+   * answered exactly as a building that does not exist — the same word the departure uses for
+   * it — because saying « pas à vous » would confirm that something stands there (ADR 0005).
+   * The point is the region's, the only coordinate a building has (`stanceOf`).
+   */
+  if (target.kind === 'building') {
+    const building = await ctx.db.get(target.buildingId);
+    if (!building || building.playerId !== playerId) fail('UNKNOWN_BUILDING');
+    const region = regionFacts(building.regionId);
+    if (!region) fail('UNKNOWN_REGION', { regionId: building.regionId });
+    return {
+      aim: { kind: 'building', buildingId: building._id, key: building.key },
+      target: { kind: 'building', buildingId: building._id },
+      point: region.point,
+      name: region.name,
+      host: region.country,
     };
   }
   const region = regionFacts(target.regionId);
@@ -265,7 +286,7 @@ export async function march(
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   const column = await columnOf(ctx, playerId, troops, departure);
   const refusal = refusalOf(type, aim.aim, column);
-  if (refusal !== null) fail(refusal, { type, ...liftOf(column.roles) });
+  if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
 
   const route = routeBetween(
     departure.point,

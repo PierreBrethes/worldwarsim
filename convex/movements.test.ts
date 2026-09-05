@@ -2542,3 +2542,229 @@ describe('an outpost changes trade until a pass has read it', () => {
     expect((await t.run(async (ctx) => ctx.db.get(outpostId)))!.specialization).toBe('listening');
   });
 });
+
+/**
+ * **Entering a garrison** (decisions 64b, 69a, 70b): a march aimed at a building of one's own,
+ * which ends with `stationedAt` on the building rather than on the ground in front of it. It is
+ * what lets the infantry board the cargo moored at that port on the next order — the case the
+ * test game of 04/09 could not play.
+ */
+describe('a column enters a garrison of its own', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const NORD = 'FRA-5330'; // coastal, facing the Channel
+  const KENT: LonLat = [0.73, 51.21];
+  /** Thirty-odd kilometres inland of the port's region point — posted, not stationed. */
+  const nearby = (): { lon: number; lat: number } => {
+    const [lon, lat] = regionFacts(NORD)!.point;
+    return { lon: lon + 0.4, lat };
+  };
+
+  async function post(
+    t: ReturnType<typeof boot>,
+    token: string,
+    role: UnitRole,
+    at: { lon: number; lat: number },
+  ): Promise<Id<'troops'>> {
+    const playerId = await playerOf(t, token);
+    const strength = nominalStrength(role, 1);
+    return t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(playerId))!.seasonId;
+      return ctx.db.insert('troops', {
+        seasonId,
+        playerId,
+        role,
+        tier: 1,
+        nominalStrength: strength,
+        currentStrength: strength,
+        stationedAt: at,
+      });
+    });
+  }
+
+  async function noticesOf(t: ReturnType<typeof boot>, token: string) {
+    const playerId = await playerOf(t, token);
+    return t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+  }
+
+  it('stations the infantry at the port it marched into, and says so by name', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const port = await raise(t, token, 'port', NORD);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+
+    await t.mutation(api.movements.enterGarrison, {
+      token,
+      origin: { kind: 'point', point: camp },
+      troopIds: [infantry],
+      buildingId: port,
+    });
+    const [filed] = await movementsOf(t, token);
+    expect(filed!.type).toBe('march');
+    expect(filed!.target).toEqual({ kind: 'building', buildingId: port });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect((await t.run(async (ctx) => ctx.db.get(infantry)))!.stationedAt).toBe(port);
+    expect(await movementsOf(t, token)).toHaveLength(0);
+    const entered = (await noticesOf(t, token)).filter(
+      (notice) => notice.kind === 'garrisonEntered',
+    );
+    expect(entered).toHaveLength(1);
+    expect(entered[0]).toMatchObject({ building: 'port', regionId: NORD, troops: 1 });
+    expect((await noticesOf(t, token)).some((notice) => notice.kind === 'columnArrived')).toBe(
+      false,
+    );
+    /** The modal of the port reads the same address the view serves. */
+    const view = await t.query(api.view.playerView, { token });
+    expect(view.me.troops.find((troop) => troop.id === infantry)?.stationedAt).toEqual({
+      kind: 'building',
+      buildingId: port,
+    });
+  });
+
+  /** **The case that opened the yard**: infantry at the port, cargo at the port, one order. */
+  it('lets the infantry sail with the cargo moored at that port on its next order', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const port = await raise(t, token, 'port', NORD);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+    const cargo = await form(t, token, 'cargo', port);
+
+    await t.mutation(api.movements.enterGarrison, {
+      token,
+      origin: { kind: 'point', point: camp },
+      troopIds: [infantry],
+      buildingId: port,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin: { kind: 'building', buildingId: port },
+        troopIds: [cargo, infantry],
+        point: { lon: KENT[0], lat: KENT[1] },
+      }),
+    ).resolves.toBeDefined();
+    const [crossing] = await movementsOf(t, token);
+    expect(crossing!.legs.some((leg) => leg.medium === 'sea')).toBe(true);
+  });
+
+  it('refuses the role the building is shut to, naming both', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const mine = await raise(t, token, 'mine', NORD);
+    const camp = nearby();
+    const armour = await post(t, token, 'armor', camp);
+
+    const refused = await t
+      .mutation(api.movements.enterGarrison, {
+        token,
+        origin: { kind: 'point', point: camp },
+        troopIds: [armour],
+        buildingId: mine,
+      })
+      .catch((problem: unknown) => problem);
+    expect(refused).toBeInstanceOf(ConvexError);
+    expect(
+      (refused as ConvexError<{ code: string; role: string; building: string }>).data,
+    ).toMatchObject({
+      code: 'NOT_A_GARRISON_FOR',
+      role: 'armor',
+      building: 'mine',
+    });
+    /** And the fan agrees without asking: same function, same table (ADR 0015). */
+    const column: Column = {
+      roles: ['armor'],
+      myRegionIds: new Set([NORD]),
+      myOutpostIds: new Set(),
+      departureBuildings: new Set(),
+      afloat: false,
+    };
+    const aim: MovementAim = { kind: 'building', buildingId: mine, key: 'mine' };
+    expect(legalMovementTypes(aim, column)).toEqual([]);
+    expect(refusalOf('march', aim, column)).toBe('NOT_A_GARRISON_FOR');
+  });
+
+  it('stands the column on the point when the building fell during the march', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const port = await raise(t, token, 'port', NORD);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+
+    await t.mutation(api.movements.enterGarrison, {
+      token,
+      origin: { kind: 'point', point: camp },
+      troopIds: [infantry],
+      buildingId: port,
+    });
+    await t.run(async (ctx) => ctx.db.delete(port));
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [lon, lat] = regionFacts(NORD)!.point;
+    expect((await t.run(async (ctx) => ctx.db.get(infantry)))!.stationedAt).toEqual({ lon, lat });
+    const notices = await noticesOf(t, token);
+    expect(notices.some((notice) => notice.kind === 'garrisonEntered')).toBe(false);
+    expect(notices.find((notice) => notice.kind === 'columnArrived')).toMatchObject({
+      movementType: 'march',
+      troops: 1,
+    });
+  });
+
+  it("answers somebody else's building as unknown — the fog does not confirm it stands", async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const theirs = await raise(t, guest, 'barracks', PSKOV);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+
+    await expect(
+      t.mutation(api.movements.enterGarrison, {
+        token,
+        origin: { kind: 'point', point: camp },
+        troopIds: [infantry],
+        buildingId: theirs,
+      }),
+    ).rejects.toThrow('UNKNOWN_BUILDING');
+    await expect(
+      t.query(api.movements.preview, {
+        token,
+        origin: { kind: 'point', point: camp },
+        troopIds: [infantry],
+        target: { kind: 'building', buildingId: theirs },
+        type: 'march',
+      }),
+    ).rejects.toThrow('UNKNOWN_BUILDING');
+  });
+
+  it('previews the route to the building and names its region', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const port = await raise(t, token, 'port', NORD);
+    const camp = nearby();
+    const infantry = await post(t, token, 'infantry', camp);
+
+    const preview = await t.query(api.movements.preview, {
+      token,
+      origin: { kind: 'point', point: camp },
+      troopIds: [infantry],
+      target: { kind: 'building', buildingId: port },
+      type: 'march',
+    });
+    expect(preview).not.toBeNull();
+    expect(preview!.destinationName).toBe(regionFacts(NORD)!.name);
+    expect(preview!.route.mode).toBe('land');
+  });
+});

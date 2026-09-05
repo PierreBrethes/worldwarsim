@@ -81,6 +81,20 @@ export const fr = {
     carrier: { one: 'porte-avions', many: 'porte-avions' },
   } satisfies Record<UnitRole, { one: string; many: string }>,
 
+  /** The gender of each role name, for the one sentence that puts an article on a role — the
+   *  garrison refusal, « un blindé n'entre pas dans une mine » (decision 70b). */
+  roleGender: {
+    infantry: 'f',
+    armor: 'm',
+    landTransport: 'm',
+    fighter: 'm',
+    bomber: 'm',
+    airTransport: 'm',
+    escort: 'f',
+    cargo: 'm',
+    carrier: 'm',
+  } satisfies Record<UnitRole, 'm' | 'f'>,
+
   roleAbbreviations: {
     infantry: 'INF',
     armor: 'BLD',
@@ -345,6 +359,9 @@ export const fr = {
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
+    /** Decision 70b, said of the first role the door is shut to: the rose borrows this very
+     *  sentence before the click, the server answers it after. */
+    NOT_A_GARRISON_FOR: (d) => `${aRoleName(d.role)} n’entre pas dans ${aBuildingName(d.building)}`,
     NOT_ORDERABLE: () => 'ce mouvement ne s’ordonne pas — le retour naît de la résolution',
     EMPTY_MESSAGE: () => 'un message vide ne part pas',
     MESSAGE_TOO_LONG: (d) => `${num(d.maximum)} caractères au plus — la ligne est courte`,
@@ -786,6 +803,10 @@ export const fr = {
           return `Une garnison de ${column} est rentrée au pays — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
+      /** L'adresse en toutes lettres (décision 64b) : « a pris position — France » ne dirait
+       *  pas quel port tient maintenant l'infanterie que le cargo attend. */
+      garrisonEntered: (troops: number, building: string, region: string) =>
+        `Une colonne de ${troops} troupe${plural(troops, '', 's')} est entrée en garnison à ${building} · ${region}.`,
       movementStalled: (country: string) =>
         `Une colonne attend à la frontière — ${country} : la plage de repos y interdit toute arrivée.`,
       outpostFounded: (specialization: string, country: string) =>
@@ -1595,6 +1616,9 @@ export const fr = {
     found: 'Fonder un avant-poste',
     foundConsequence:
       'Plante un avant-poste ici : la colonne y devient garnison, et la spécialisation se règle sur son panneau.',
+    /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
+     *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
+    garrison: 'entrer en garnison',
     region: (country: string) => `région · ${country}`,
     /**
      * **La cible est l'instance, et sa qualification décisionnelle est son niveau** (tranché le
@@ -1870,6 +1894,11 @@ const resourceName = (value: unknown): string =>
  *  le bâtiment là où celui-ci le désigne dans une phrase. */
 const aBuildingName = (value: unknown): string =>
   typeof value === 'string' && value in fr.buildings ? aBuilding(value as BuildingKey) : str(value);
+/** « un blindé », « une infanterie » — the role with its article, from an error payload. */
+const aRoleName = (value: unknown): string =>
+  typeof value === 'string' && value in fr.roles
+    ? `${fr.roleGender[value as UnitRole] === 'f' ? 'une' : 'un'} ${fr.roles[value as UnitRole].one}`
+    : str(value);
 const buildingName = (value: unknown): string =>
   typeof value === 'string' && value in fr.buildings
     ? fr.buildings[value as BuildingKey]

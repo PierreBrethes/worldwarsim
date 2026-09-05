@@ -1,4 +1,4 @@
-import type { BuildingKey, Medium, UnitRole, UnitTier } from './ids';
+import { BUILDINGS, type BuildingKey, type Medium, type UnitRole, type UnitTier } from './ids';
 import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from './player-view';
 
 export type { UnitTier };
@@ -28,6 +28,32 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
 
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
+
+/**
+ * **Which buildings a role may enter as a garrison** (decision 70b, 01/09). The infantry enters
+ * every building of its owner — the rule « seule l'infanterie pille, capture, fonde », extended
+ * — and every other role only the buildings of its own domain: armour and trucks a barracks or
+ * the headquarters, hulls a port, wings an aerodrome. A mixed column enters only if **each** of
+ * its roles may.
+ *
+ * One table, read by the refusal the compass rose shows before the click and by the one the
+ * server raises after it (`refusalOf`, ADR 0015) — never two. An outpost is not in it: the
+ * `outpost` aim already makes a garrison of what arrives (ADR 0019 §3).
+ */
+export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
+  infantry: BUILDINGS,
+  armor: ['barracks', 'hq'],
+  landTransport: ['barracks', 'hq'],
+  fighter: ['airfield'],
+  bomber: ['airfield'],
+  airTransport: ['airfield'],
+  escort: ['port'],
+  cargo: ['port'],
+  carrier: ['port'],
+};
+
+export const garrisons = (role: UnitRole, key: BuildingKey): boolean =>
+  GARRISON_KEYS_BY_ROLE[role].includes(key);
 
 /**
  * **What a transport carries, and what a passenger weighs** (design sheet 09, § "Les transports

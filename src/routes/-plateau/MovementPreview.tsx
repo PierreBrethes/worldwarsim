@@ -20,7 +20,9 @@ export const wireTarget = (aim: MovementAim) =>
     ? ({ kind: 'region', regionId: aim.regionId } as const)
     : aim.kind === 'outpost'
       ? ({ kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> } as const)
-      : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+      : aim.kind === 'building'
+        ? ({ kind: 'building', buildingId: aim.buildingId as Id<'buildings'> } as const)
+        : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 /**
  * Where a column stands, in the shape the mutations take — the branded ids go back on at the one
@@ -72,6 +74,7 @@ export function MovementPreview({
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const marchTo = useMutation(api.movements.marchTo);
+  const enterGarrison = useMutation(api.movements.enterGarrison);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
 
@@ -85,7 +88,7 @@ export function MovementPreview({
     const from = wireOrigin(origin);
     /** Trois ordres et pas un quatrième : la fondation n'en est plus un — c'est ce qu'une colonne
      *  fait là où elle se tient (`foundOutpostHere`) — et le leurre a été retiré du jeu le
-     *  29/08/2026. */
+     *  29/08/2026. Entrer en garnison est une marche sur un mât à soi (64b), pas un ordre de plus. */
     const order =
       type === 'march' && aim.kind === 'point'
         ? marchTo({
@@ -94,19 +97,26 @@ export function MovementPreview({
             troopIds: ids,
             point: { lon: aim.lon, lat: aim.lat },
           })
-        : type === 'raid' && aim.kind === 'outpost'
-          ? raid({
+        : type === 'march' && aim.kind === 'building'
+          ? enterGarrison({
               token,
               origin: from,
               troopIds: ids,
-              outpostId: aim.outpostId as Id<'outposts'>,
+              buildingId: aim.buildingId as Id<'buildings'>,
             })
-          : attack({
-              token,
-              origin: from,
-              troopIds: ids,
-              target: wireTarget(aim),
-            });
+          : type === 'raid' && aim.kind === 'outpost'
+            ? raid({
+                token,
+                origin: from,
+                troopIds: ids,
+                outpostId: aim.outpostId as Id<'outposts'>,
+              })
+            : attack({
+                token,
+                origin: from,
+                troopIds: ids,
+                target: wireTarget(aim),
+              });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);
@@ -136,7 +146,10 @@ export function MovementPreview({
             <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
           </div>
           <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
-            {fr.aim.heading(destinationOf(aim, preview), fr.movementTypes[type])}
+            {fr.aim.heading(
+              destinationOf(aim, preview),
+              aim.kind === 'building' ? fr.compass.garrison : fr.movementTypes[type],
+            )}
           </h3>
           <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
 
@@ -236,5 +249,11 @@ function legOf(route: NonNullable<MovementPreviewed>['route']): string {
  */
 function destinationOf(aim: MovementAim, preview: MovementPreviewed | undefined): string {
   if (aim.kind === 'point') return fr.aim.pointAt(aim.lon, aim.lat);
+  /** The building, then the region the server names — « Port · Nord », the address the journal
+   *  will print when the column enters it (`station-name.ts` writes it the same way). */
+  if (aim.kind === 'building') {
+    const region = preview?.destinationName;
+    return region === undefined ? fr.buildings[aim.key] : `${fr.buildings[aim.key]} · ${region}`;
+  }
   return preview?.destinationName ?? '—';
 }

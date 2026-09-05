@@ -133,6 +133,16 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     troops: v.number(),
   }),
+  /** **A march that ended inside one of the player's buildings** (decision 64b): the address is
+   *  named, building and region, because « a pris position — France » would not say which port
+   *  now holds the infantry the cargo is waiting for. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('garrisonEntered'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    troops: v.number(),
+  }),
   /** The hour the border lets it through — what a player discovers on waking, and the one
    *  thing the journal's own "au réveil" column is for (fiche 11 §4.1). */
   v.object({
@@ -284,9 +294,10 @@ export const MOVEMENT_ORIGIN = v.union(
 );
 
 /**
- * What a march is aimed at: a region somebody holds, an outpost, or a plain point of the map.
- * A raid only ever takes the second, and a foundation only the first — `refusalOf` says which,
- * here as on the client.
+ * What a march is aimed at: a region somebody holds, an outpost, a plain point of the map, or
+ * **a building of the player's own** (decision 64b) — the one target a column enters rather
+ * than stands at. A raid only ever takes the second, a garrison entry only the last —
+ * `refusalOf` says which, here as on the client.
  *
  * The point is the form that answers at every scale (ADR 0019 §1), and it is stored as it was
  * aimed: nothing resolves it into the region it may fall in, so the document says exactly where
@@ -296,6 +307,7 @@ export const ATTACK_TARGET = v.union(
   v.object({ kind: v.literal('region'), regionId: v.string() }),
   v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
   v.object({ kind: v.literal('point'), point: LON_LAT }),
+  v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
 );
 
 /**

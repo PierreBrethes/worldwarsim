@@ -14,6 +14,7 @@ import {
   attachHome,
   engageAt,
   forgetMovement,
+  garrisonOf,
   recallAt,
   standAt,
   walkHome,
@@ -174,7 +175,37 @@ export const marchTo = mutation({
       type: 'march',
       origin,
       troopIds,
-      aim: await aimOf(ctx, { kind: 'point', point }),
+      aim: await aimOf(ctx, player._id, { kind: 'point', point }),
+    });
+  },
+});
+
+/**
+ * **Entering a garrison is a march aimed at a building of one's own** (decisions 64b, 69a, 70b).
+ * The same corridor, the same slot, the same detection and the same passes on the road: what
+ * changes is the address at the end — `stationedAt` becomes the building, which is what lets
+ * the infantry board the cargo moored at that port on its next order. No new type: `march`
+ * already means « go there and stay », and `recall` was not brought back for it — its word says
+ * a garrison coming home, and its landing hunts a barracks by region.
+ */
+export const enterGarrison = mutation({
+  args: {
+    token: v.string(),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(player, season);
+
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'march',
+      origin,
+      troopIds,
+      aim: await aimOf(ctx, player._id, { kind: 'building', buildingId }),
     });
   },
 });
@@ -196,7 +227,7 @@ export const attack = mutation({
       type: 'attack',
       origin,
       troopIds,
-      aim: await aimOf(ctx, target),
+      aim: await aimOf(ctx, player._id, target),
     });
   },
 });
@@ -220,7 +251,7 @@ export const raid = mutation({
       type: 'raid',
       origin,
       troopIds,
-      aim: await aimOf(ctx, { kind: 'outpost', outpostId }),
+      aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
     });
   },
 });
@@ -247,7 +278,7 @@ export const preview = query({
     const column = await columnOf(ctx, player._id, troops, departure);
     const pace = column.roles;
 
-    const { point, name, host } = await aimOf(ctx, target);
+    const { point, name, host } = await aimOf(ctx, player._id, target);
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 
@@ -309,10 +340,27 @@ export const arrive = internalMutation({
       return;
     }
 
+    /** A march that came to garrison a building enters it if it still stands and is still the
+     *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
+     *  journal says so in the plain words of an arrival. */
+    let garrisoned = false;
     if (movement.type === 'attack' || movement.type === 'raid') {
       await engageAt(ctx, movement, movement.type, now);
-    } else if (movement.type === 'march') await standAt(ctx, movement, now);
-    else if (movement.type === 'recall') await recallAt(ctx, movement);
+    } else if (movement.type === 'march') {
+      const garrison = await garrisonOf(ctx, movement);
+      const entered = await standAt(ctx, movement, now, garrison?._id ?? movement.to);
+      if (garrison !== null && entered > 0) {
+        garrisoned = true;
+        await ctx.db.insert('notices', {
+          playerId: movement.playerId,
+          at: now,
+          kind: 'garrisonEntered',
+          building: garrison.key,
+          regionId: garrison.regionId,
+          troops: entered,
+        });
+      }
+    } else if (movement.type === 'recall') await recallAt(ctx, movement);
     /** **Un leurre encore en vol le 29/08/2026 finit ici, et n'y fait rien** : il ne porte
      *  personne, donc `attachHome` ne rattache rien et `forgetMovement` l'efface. Une branche
      *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
@@ -321,7 +369,11 @@ export const arrive = internalMutation({
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
      *  their own notice. Without this a player came back to "rien à signaler" after eight quiet
      *  hours. */
-    if (movement.type === 'march' || movement.type === 'recall' || movement.type === 'return') {
+    if (
+      (movement.type === 'march' && !garrisoned) ||
+      movement.type === 'recall' ||
+      movement.type === 'return'
+    ) {
       await ctx.db.insert('notices', {
         playerId: movement.playerId,
         at: now,

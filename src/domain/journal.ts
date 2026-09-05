@@ -161,6 +161,13 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'garrisonEntered':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'column',
+        text: said.garrisonEntered(notice.troops, fr.buildings[notice.building], notice.regionName),
+      };
     /** The one dispatch that carries an hour in the future — it is the whole of the journal's
      *  "au réveil" column (fiche 11 §4.1), and the column reads `resolutionAt`, not the text. */
     case 'movementStalled':

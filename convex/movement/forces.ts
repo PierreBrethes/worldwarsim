@@ -128,6 +128,9 @@ export async function defenceOf(
 ): Promise<Defence | null> {
   const target = movement.target;
   if (target.kind === 'point') return defenceNear(ctx, movement, pointOf(target.point));
+  /** A building of one's own is reached like a point (decision 64b): whoever camps within the
+   *  arrival radius of it is met, and the garrison inside is the player's — never a defence. */
+  if (target.kind === 'building') return defenceNear(ctx, movement, pointOf(movement.to));
   if (target.kind === 'outpost') {
     const outpost = await ctx.db.get(target.outpostId);
     if (!outpost) return null;

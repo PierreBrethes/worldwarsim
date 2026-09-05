@@ -100,23 +100,42 @@ export async function engageAt(
   await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now);
 }
 
+/**
+ * **The building a march was aimed at, if it still answers to the column's owner.** Razed or
+ * lost since the departure, `null`: the column then stands on the point it reached (rule 3,
+ * ADR 0019 §1) and nothing hangs from a building that is not there.
+ */
+export async function garrisonOf(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<Doc<'buildings'> | null> {
+  if (movement.target.kind !== 'building') return null;
+  const building = await ctx.db.get(movement.target.buildingId);
+  return building !== null && building.playerId === movement.playerId ? building : null;
+}
+
 /** ADR 0019 §3: the column stops walking and stands there. When something *is* waiting, the
  *  standing force is handed to `resolveContact` as the **attacker** — an attack buys initiative by
  *  declaring itself (ADR 0014), a march declares nothing and takes the first blow. What is still
- *  on its feet stays: losing a pass it did not seek does not send it home. */
+ *  on its feet stays: losing a pass it did not seek does not send it home.
+ *
+ *  `address` is what the standing troops take — the point reached, or the building they came to
+ *  garrison (decision 64b). It answers how many took it, so the journal can tell a garrison
+ *  entered from a column that fought its way to a point and lost everything on it. */
 export async function standAt(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
-): Promise<void> {
+  address: TroopAddress = movement.to,
+): Promise<number> {
   const owner = await ctx.db.get(movement.playerId);
   const marching = await troopsCarriedBy(ctx, movement);
-  if (!owner || marching.length === 0) return;
+  if (!owner || marching.length === 0) return 0;
 
   const defence = await defenceOf(ctx, movement);
   if (defence === null) {
-    for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: movement.to });
-    return;
+    for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
+    return marching.length;
   }
 
   const { engagement, routed } = await resolveContact(ctx, {
@@ -133,13 +152,12 @@ export async function standAt(
 
   const stateOf = (troopId: string) =>
     engagement.outcomes.find((outcome) => outcome.id === troopId)?.state ?? null;
-  for (const troop of marching) {
-    if (stateOf(troop._id) === 'standing')
-      await ctx.db.patch(troop._id, { stationedAt: movement.to });
-  }
+  const standing = marching.filter((troop) => stateOf(troop._id) === 'standing');
+  for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: address });
   /** `routed` carries both sides of the pass, so the column that broke contact walks back from
    *  here just as the camp that held the ground and lost it does (ADR 0019 §3). */
   await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now);
+  return standing.length;
 }
 
 /** ADR 0004, deactivated and never taken: the immunity window stops a relay of cheap raids from

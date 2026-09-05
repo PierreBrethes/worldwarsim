@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
+  barredFrom,
   foundingRefusal,
   landCostOf,
   legalMovementTypes,
   motorized,
   movementSlots,
   ORDERABLE_TYPES,
+  refusalDetails,
   refusalOf,
   routeModeOf,
   type Column,
@@ -368,5 +370,67 @@ describe('the pace of a land column', () => {
     // The land seats live outside `LIFT_CAPACITY` precisely so that this stays refused: a
     // column of two infantry and a truck has nothing to cross the water aboard.
     expect(routeModeOf(['infantry', 'infantry', 'landTransport'])).toBe('land');
+  });
+});
+
+/**
+ * **Entering a garrison is a march aimed at a building of one's own** (decisions 64b, 70b). The
+ * infantry enters everything; every other role only its own domain's buildings; a mixed column
+ * only if each of its roles may. One table, `GARRISON_KEYS_BY_ROLE`, read here and by the
+ * server — never two.
+ */
+describe('a march aimed at a building of mine', () => {
+  const mine: MovementAim = { kind: 'building', buildingId: 'B-mine', key: 'mine' };
+  const barracks: MovementAim = { kind: 'building', buildingId: 'B-barracks', key: 'barracks' };
+  const port: MovementAim = { kind: 'building', buildingId: 'B-port', key: 'port' };
+  const airfield: MovementAim = { kind: 'building', buildingId: 'B-air', key: 'airfield' };
+  const quay = { departureBuildings: new Set<BuildingKey>(['port']) };
+
+  it('lets the infantry into any building, mine included', () => {
+    expect(legalMovementTypes(mine, column(['infantry']))).toEqual(['march']);
+    expect(legalMovementTypes(port, column(['infantry']))).toEqual(['march']);
+  });
+
+  it('keeps armour out of a mine and lets it into a barracks, naming role and building', () => {
+    expect(refusalOf('march', mine, column(['armor']))).toBe('NOT_A_GARRISON_FOR');
+    expect(barredFrom(['armor'], 'mine')).toEqual({ role: 'armor', building: 'mine' });
+    expect(refusalOf('march', barracks, column(['armor']))).toBeNull();
+  });
+
+  it('sends a cargo to a port and nowhere else, and a bomber to an aerodrome', () => {
+    expect(refusalOf('march', barracks, column(['cargo'], quay))).toBe('NOT_A_GARRISON_FOR');
+    expect(refusalOf('march', port, column(['cargo'], quay))).toBeNull();
+    expect(refusalOf('march', airfield, column(['bomber']))).toBe('NO_AIRFIELD_AT_DEPARTURE');
+    expect(refusalOf('march', port, column(['bomber']))).toBe('NOT_A_GARRISON_FOR');
+  });
+
+  it('refuses a mixed column as soon as one of its roles may not enter', () => {
+    expect(refusalOf('march', port, column(['infantry', 'cargo'], quay))).toBeNull();
+    expect(refusalOf('march', barracks, column(['infantry', 'cargo'], quay))).toBe(
+      'NOT_A_GARRISON_FOR',
+    );
+    expect(barredFrom(['infantry', 'cargo'], 'barracks')).toEqual({
+      role: 'cargo',
+      building: 'barracks',
+    });
+  });
+
+  it('still reads the door under the column before letting it enter', () => {
+    expect(refusalOf('march', port, column(['cargo']))).toBe('NO_PORT_AT_DEPARTURE');
+  });
+
+  it('refuses the attack and the raid on it — a building of mine is friendly ground', () => {
+    expect(refusalOf('attack', mine, column(['infantry']))).toBe('FRIENDLY_TARGET');
+    expect(refusalOf('raid', mine, column(['infantry']))).toBe('OUTPOST_TARGET_ONLY');
+  });
+
+  it('carries the role and the building in the refusal details, the berths otherwise', () => {
+    expect(refusalDetails(mine, column(['armor']))).toEqual({
+      needed: 2,
+      offered: 0,
+      role: 'armor',
+      building: 'mine',
+    });
+    expect(refusalDetails(point, column(['infantry']))).toEqual({ needed: 1, offered: 0 });
   });
 });

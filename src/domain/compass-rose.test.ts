@@ -603,9 +603,12 @@ describe('raising a level from the map', () => {
     });
   });
 
-  /** **La visée ne change pas d'un signe** : une colonne armée marche sur un lieu, et améliorer
-   *  n'est pas une destination — le picking rend le sol, jamais le mât (`targetOfLabel`). */
-  it('is not an aim: an armed column reads nothing on a building target', () => {
+  /**
+   * **Un mât à soi est une destination en visée** (décisions 64b, 69a, 70b) : la colonne vient
+   * y entrer, la branche le dit, et la seule marche offerte est celle-là — ni « améliorer », ni
+   * la grue du sol, qui appartiennent à la rose au repos.
+   */
+  it('offers « entrer en garnison » to an armed infantry, and nothing else', () => {
     const armed = {
       roles: ['infantry' as const],
       myRegionIds: new Set(['FRA-9999']),
@@ -613,7 +616,77 @@ describe('raising a level from the map', () => {
       departureBuildings: new Set<BuildingKey>(['barracks']),
       afloat: false,
     };
-    expect(compassOf(mast, standing({}), armed, true)).toBeNull();
+    const compass = compassOf(mast, standing({}), armed, true);
+    expect(compass?.kicker).toBe('visée armée · 1 troupe');
+    expect(compass?.name).toBe('Mine');
+    expect(compass?.actions).toHaveLength(1);
+    expect(compass?.actions[0]).toMatchObject({
+      key: 'aim',
+      type: 'march',
+      label: 'entrer en garnison',
+      pictogram: 'doorway',
+      aim: { kind: 'building', buildingId: 'B-01', key: 'mine' },
+    });
+    expect(compass?.refusal).toBeNull();
+  });
+
+  /** The same mast under another key: the fixture's building is a mine, and these cases need
+   *  a barracks and a port standing in its place. */
+  const housing = (key: BuildingKey, name: string): PlayerView =>
+    ({ ...view, me: { ...view.me, buildings: [{ ...mine, key, name }] } }) as unknown as PlayerView;
+
+  /** La table 70b, dans les mots du serveur : le motif nomme le rôle et le bâtiment, et la rose
+   *  s'ouvre dessus plutôt que de griser une branche (ADR 0015). */
+  it('opens on the motive for a role the building is shut to', () => {
+    const armour = {
+      roles: ['armor' as const],
+      myRegionIds: new Set(['FRA-9999']),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(['barracks']),
+      afloat: false,
+    };
+    const onMine = compassOf(mast, standing({}), armour, true);
+    expect(onMine?.actions).toEqual([]);
+    expect(onMine?.refusal).toBe('un blindé n’entre pas dans une mine');
+
+    const onBarracks = compassOf(
+      { ...mast, key: 'barracks' },
+      housing('barracks', 'Caserne'),
+      armour,
+      true,
+    );
+    expect(onBarracks?.actions.map((action) => action.label)).toEqual(['entrer en garnison']);
+  });
+
+  it('sends a cargo to a port and keeps it out of a barracks', () => {
+    const fleet = {
+      roles: ['cargo' as const],
+      myRegionIds: new Set(['FRA-9999']),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(['port']),
+      afloat: false,
+    };
+    const onBarracks = compassOf(
+      { ...mast, key: 'barracks' },
+      housing('barracks', 'Caserne'),
+      fleet,
+      true,
+    );
+    expect(onBarracks?.refusal).toBe('un cargo n’entre pas dans une caserne');
+    const onPort = compassOf({ ...mast, key: 'port' }, housing('port', 'Port'), fleet, true);
+    expect(onPort?.actions.map((action) => action.label)).toEqual(['entrer en garnison']);
+  });
+
+  /** Seuls les siens sont dessinés ; un mât que la vue ne porte plus n'ouvre rien en visée. */
+  it('opens nothing on a mast the view no longer carries', () => {
+    const armed = {
+      roles: ['infantry' as const],
+      myRegionIds: new Set<string>(),
+      myOutpostIds: new Set<string>(),
+      departureBuildings: new Set<BuildingKey>(),
+      afloat: false,
+    };
+    expect(compassOf({ ...mast, id: 'B-gone' }, standing({}), armed, true)).toBeNull();
   });
 
   /** Le clic droit reste inerte pour un défait, sur un bâtiment comme partout ailleurs. */

@@ -292,12 +292,18 @@ export function WorldMap({
        * menu mixte que la décision interdit : le clic tombait sur une troupe et répondait un
        * terrain. Deux cibles, séparées par ce qui est sous le curseur.
        *
-       * **Un bâtiment, lui, rend son sol en visée** : une colonne armée marche sur un lieu, et
-       * « améliorer » n'est pas une destination. La grammaire de la visée ne change pas d'un
-       * signe (décision 54a) — l'élévation est une action de la rose au repos, et d'elle seule.
+       * **Un bâtiment à soi est une destination en visée** (décision 64b, révision du 54a) : la
+       * colonne vient y entrer en garnison, et la rose armée le dit ou dit pourquoi non. Au repos
+       * il garde sa rose d'élévation — la grammaire de la visée ne change toujours pas d'un
+       * signe, elle a seulement une adresse de plus. Un chantier, lui, n'a pas de bâtiment et
+       * rend son sol.
        */
       const aimed =
-        aiming && target?.kind !== 'outpost' && target?.kind !== 'force' && map !== null
+        aiming &&
+        target?.kind !== 'outpost' &&
+        target?.kind !== 'force' &&
+        target?.kind !== 'building' &&
+        map !== null
           ? pointTarget(country, region, map.pointAt(clientX, clientY))
           : target;
       if (aimed === null) return;

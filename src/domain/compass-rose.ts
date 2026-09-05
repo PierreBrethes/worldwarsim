@@ -6,8 +6,8 @@ import { DEPOSITS, RESOURCES } from './ids';
 import {
   foundingRefusal,
   legalMovementTypes,
-  liftOf,
   ORDERABLE_TYPES,
+  refusalDetails,
   refusalOf,
   type Column,
   type MovementAim,
@@ -117,7 +117,11 @@ export type CompassPictogram =
   /** L'élévation : le chevron sur ses deux assises — « un étage de plus », lisible à quinze
    *  pixels (tranché le 01/09). Le mât de la grue reste à « Bâtir ici » : poser et monter sont
    *  deux verbes, et deux dessins. */
-  | 'chevron';
+  | 'chevron'
+  /** « Entrer en garnison » (64b, 69a) : la hutte de la marche, **porte ouverte** — la même
+   *  famille que `cabin`, et ce qui les sépare est exactement ce qui sépare les deux ordres :
+   *  une marche s'arrête devant, celle-ci entre. */
+  | 'doorway';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -250,19 +254,28 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
   return: 'anchor',
 };
 
-const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassAction => ({
-  key: 'aim',
-  pictogram: AIM_PICTOGRAM[type],
-  label: fr.movementTypes[type],
-  cost: slotCost(view),
-  /** **The forfait is not quantified here, and that is deliberate**: the figure lives in
-   *  `convex/constants.ts` with every other balance number, and the domain does not read it
-   *  (ADR 0016, the layering of `CLAUDE.md`). The aiming card says it, one gesture later, at the
-   *  moment it is a price rather than a warning. */
-  consequence: fr.compass.marchConsequence(fr.movementTypes[type]),
-  aim,
-  type,
-});
+/**
+ * One branch per march. **The march aimed at a building of one's own is « entrer en garnison »**
+ * (decisions 64b, 69a): the same type on the wire — `march`, go there and stay — but the branch
+ * says where the column ends, because « marche » on a mast would read as a walk to the doorstep.
+ */
+const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassAction => {
+  const garrison = type === 'march' && aim.kind === 'building';
+  const label = garrison ? fr.compass.garrison : fr.movementTypes[type];
+  return {
+    key: 'aim',
+    pictogram: garrison ? 'doorway' : AIM_PICTOGRAM[type],
+    label,
+    cost: slotCost(view),
+    /** **The forfait is not quantified here, and that is deliberate**: the figure lives in
+     *  `convex/constants.ts` with every other balance number, and the domain does not read it
+     *  (ADR 0016, the layering of `CLAUDE.md`). The aiming card says it, one gesture later, at the
+     *  moment it is a price rather than a warning. */
+    consequence: fr.compass.marchConsequence(label),
+    aim,
+    type,
+  };
+};
 
 /**
  * The crane, and the crane only where something can actually go up. **Nothing greyed out,
@@ -346,6 +359,24 @@ function aim(
       objectiveKnown,
     );
   }
+  /**
+   * **A mast of one's own is a destination in aim** (decision 64b): the column comes to enter
+   * the building, and the fan holds « entrer en garnison » or the motive that keeps it out —
+   * « un blindé n'entre pas dans une mine » — never a grey branch. Only the player's buildings
+   * are ever drawn, so a mast the view does not carry is one that no longer stands: the click
+   * then falls through to nothing rather than to a building the server would refuse.
+   */
+  if (target.kind === 'building') {
+    const standing = view.me.buildings.find((candidate) => candidate.id === target.id);
+    if (standing === undefined) return null;
+    return fanOf(
+      standing.name,
+      view,
+      column,
+      [{ kind: 'building', buildingId: standing.id, key: standing.key }],
+      objectiveKnown,
+    );
+  }
   if (target.kind !== 'point') return null;
   /**
    * The arrival reads what stands within `ARRIVAL_RADIUS_KM` of where the column stopped
@@ -420,6 +451,9 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'NO_PORT_AT_DEPARTURE',
   'NOT_ENOUGH_LIFT',
   'INFANTRY_ONLY',
+  /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
+   *  not what the player asked — he asked to enter, and the door is what he cannot see. */
+  'NOT_A_GARRISON_FOR',
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',
@@ -437,7 +471,12 @@ function refusalIn(aims: ReadonlyArray<MovementAim>, column: Column): string | n
   );
   const code = REFUSAL_PRIORITY.find((candidate) => met.has(candidate));
   if (code === undefined) return null;
-  return fr.errors[code](code === 'NOT_ENOUGH_LIFT' ? { ...liftOf(column.roles) } : {});
+  return fr.errors[code](
+    aims.reduce<Record<string, unknown>>(
+      (details, aimed) => ({ ...details, ...refusalDetails(aimed, column) }),
+      {},
+    ),
+  );
 }
 
 function build(target: CompassTarget, view: PlayerView): Fan {

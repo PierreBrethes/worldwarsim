@@ -441,6 +441,14 @@ export type Notice =
       readonly hostCountry: string;
       readonly troops: number;
     }
+  /** A march that ended inside one of the player's own buildings (decision 64b). */
+  | {
+      readonly kind: 'garrisonEntered';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly troops: number;
+    }
   | {
       readonly kind: 'movementStalled';
       readonly at: number;

@@ -332,6 +332,11 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   crane: (
     <path d="M2.3 2.5 H18.2 V5.4 H2.3 Z M6.2 5.4 H9.7 V17 H6.2 Z M14.3 5.4 H16.2 V10.2 H14.3 Z M13.2 10.2 H17.3 V13.2 H13.2 Z M3.1 17 H12.8 V19.5 H3.1 Z" />
   ),
+  /** « Entrer en garnison » : la hutte de la marche, porte ouverte — le toit de `cabin`, deux
+   *  murs, un linteau, et le vide entre eux par où la colonne entre. */
+  doorway: (
+    <path d="M10 1.75 L18.5 8.5 H1.5 Z M3.3 9.4 H7.4 V18 H3.3 Z M12.6 9.4 H16.7 V18 H12.6 Z M7.4 9.4 H12.6 V11.6 H7.4 Z" />
+  ),
   anchor: (
     <path d="M10 1.5 A2.5 2.5 0 1 1 9.99 1.5 Z M8.9 5.6 H11.1 V17.2 H8.9 Z M5.4 7.1 H14.6 V9 H5.4 Z M3.1 10.9 C3.1 15.8 6.2 18.3 10 18.3 C13.8 18.3 16.9 15.8 16.9 10.9 H14.8 C14.8 14.8 12.6 16.2 10 16.2 C7.4 16.2 5.2 14.8 5.2 10.9 Z M3.1 9 L5.9 13 H0.3 Z M16.9 9 L19.7 13 H14.1 Z" />
   ),

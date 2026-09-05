@@ -496,7 +496,11 @@ export const playerView = query({
             movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
           const origin = barracks === null ? null : regionFacts(barracks.regionId);
           const destination =
-            movement.target.kind === 'region' ? regionFacts(movement.target.regionId) : null;
+            movement.target.kind === 'region'
+              ? regionFacts(movement.target.regionId)
+              : movement.target.kind === 'building'
+                ? regionFacts((await ctx.db.get(movement.target.buildingId))?.regionId ?? '')
+                : null;
           return {
             id: movement._id,
             type: movement.type,
@@ -618,6 +622,7 @@ function named(notice: Doc<'notices'>) {
   switch (notice.kind) {
     case 'constructionCancelled':
     case 'constructionFinished':
+    case 'garrisonEntered':
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'recruitmentDelivered':
       return {

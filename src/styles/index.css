@@ -6,6 +6,12 @@
 
 @theme {
   --font-display: 'Bodoni Moda', Georgia, serif;
+  /* **La face de labeur, en regard de la didone** (retour de Pierre, 04/09). Bodoni est dessinée
+     pour la manchette : à treize pixels sur trois colonnes ses déliés s'effacent, et une dépêche
+     composée dedans se lit comme un titre qu'on aurait rapetissé. Un corps de texte n'est un
+     corps de texte que dans une face qui n'est pas celle du titre — c'est la quatrième, et la
+     maquette la distinguait déjà. */
+  --font-text: 'Source Serif 4', Georgia, serif;
   --font-body: 'Archivo Narrow', 'Arial Narrow', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 }

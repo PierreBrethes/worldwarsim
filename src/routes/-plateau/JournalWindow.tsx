@@ -164,7 +164,7 @@ export function JournalWindow({
                     {stalled.map((entry) => (
                       <p
                         key={`${entry.t}-${entry.text}`}
-                        className="font-(family-name:--font-display) text-[14px] leading-[1.5] break-words text-[var(--ink)]"
+                        className="font-(family-name:--font-text) text-[14px] leading-[1.5] break-words text-[var(--ink)]"
                       >
                         {entry.text}
                         {fr.journal.stalledResolution}
@@ -174,7 +174,7 @@ export function JournalWindow({
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-[9px] font-(family-name:--font-display) text-[14px] leading-[1.5] text-[var(--ink-soft)]">
+                  <p className="mt-[9px] font-(family-name:--font-text) text-[14px] leading-[1.5] text-[var(--ink-soft)]">
                     {fr.journal.noneStalled}
                   </p>
                 )}
@@ -231,7 +231,7 @@ export function JournalWindow({
           <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
             {fr.journal.historyLabel}
           </span>
-          <span className="font-(family-name:--font-display) text-[13px] text-[var(--ink-quiet)] italic">
+          <span className="font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic">
             {fr.journal.keepNote}
           </span>
           <button
@@ -267,7 +267,7 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
         <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
           {fr.victory.kicker}
         </span>
-        <span className="font-(family-name:--font-display) text-[13px] text-[var(--ink-quiet)] italic">
+        <span className="font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic">
           {fr.victory.scaffold}
         </span>
       </div>
@@ -326,8 +326,12 @@ function Dispatch({ entry }: { entry: JournalDispatch }) {
       <div className="mt-[3px] font-(family-name:--font-display) text-[16.5px] leading-[1.35] font-semibold text-pretty break-words text-[var(--ink)]">
         {entry.text}
       </div>
+      {/* **Le titre est en didone, son corps ne l'est pas** (retour de Pierre, 04/09). Deux
+          dessins, sinon la ligne sous le titre se lit comme un second titre plus petit — et
+          l'`Archivo Narrow` qu'elle portait est une condensée de titraille, faite pour les
+          capitales espacées et non pour une phrase. */}
       {entry.resolutionAt && (
-        <div className="mt-[3px] text-[12px] leading-[1.4] break-words text-[var(--ink-soft)]">
+        <div className="mt-[3px] font-(family-name:--font-text) text-[12px] leading-[1.4] break-words text-[var(--ink-soft)]">
           {fr.journal.resolutionAt(entry.resolutionAt)}
         </div>
       )}

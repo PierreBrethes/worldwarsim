@@ -4,6 +4,7 @@ import { COST_BY_MEDIUM } from './routing';
 import type { UnitDomain } from './troops';
 import {
   DOMAIN_BY_ROLE,
+  garrisons,
   LAND_SEATS_PER_TRANSPORT,
   LIFT_CAPACITY,
   LIFT_COST,
@@ -28,7 +29,14 @@ export type MovementAim =
    * ground — the fan would leak what the fog exists to hide (ADR 0005). What stands there is
    * discovered by the arrival, like everything else.
    */
-  | { readonly kind: 'point'; readonly lon: number; readonly lat: number };
+  | { readonly kind: 'point'; readonly lon: number; readonly lat: number }
+  /**
+   * **A building of one's own, entered as a garrison** (decision 64b, 01/09) — the one aim that
+   * is a thing rather than a place, and it is always **mine**: the server resolves nobody else's
+   * building (`aimOf`), so nothing here has to ask. The key travels because the rule reads it
+   * (`GARRISON_KEYS_BY_ROLE`), and the client holds it off the mast it clicked.
+   */
+  | { readonly kind: 'building'; readonly buildingId: string; readonly key: BuildingKey };
 
 /**
  * The column as the rule reads it: what it carries, and what its owner already holds. Plain
@@ -65,6 +73,7 @@ export type OrderRefusal =
   | 'NOT_ENOUGH_LIFT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
+  | 'NOT_A_GARRISON_FOR'
   | 'NOT_ORDERABLE';
 
 /**
@@ -119,10 +128,17 @@ export function refusalOf(
     /**
      * **The plain one, and the only one that refuses nothing for allegiance** (ADR 0019 §7): one
      * walks on one's own ground exactly as on somebody else's, which is what separates it from
-     * an attack. Its target is a place and only a place — an outpost is a thing one comes to
-     * fight, and marching *at* one would be an attack under another word.
+     * an attack. Its target is a place — an outpost is a thing one comes to fight, and marching
+     * *at* one would be an attack under another word — **or a building of one's own** (64b):
+     * the same march, ending as a garrison rather than as a camp, and the table of 70b says
+     * which role may end there.
      */
     case 'march':
+      if (aim.kind === 'building') {
+        return barredFrom(column.roles, aim.key) === null
+          ? closedGate(column)
+          : 'NOT_A_GARRISON_FOR';
+      }
       return aim.kind === 'point' ? closedGate(column) : 'POINT_TARGET_ONLY';
     case 'attack':
       return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(column);
@@ -166,6 +182,31 @@ export function legalMovementTypes(aim: MovementAim, column: Column): ReadonlyAr
 }
 
 /**
+ * **The first role the building's door is shut to**, and the building — what the refusal names
+ * (« un blindé n'entre pas dans une mine »). `null` when the whole column may enter. The table
+ * is `GARRISON_KEYS_BY_ROLE`, and this is its only reader on either side of the wire.
+ */
+export function barredFrom(
+  roles: ReadonlyArray<UnitRole>,
+  key: BuildingKey,
+): { readonly role: UnitRole; readonly building: BuildingKey } | null {
+  const role = roles.find((candidate) => !garrisons(candidate, key));
+  return role === undefined ? null : { role, building: key };
+}
+
+/**
+ * What a refusal carries besides its code, so the sentence can name numbers and things: the
+ * berths for `NOT_ENOUGH_LIFT`, the role and the building for `NOT_A_GARRISON_FOR`. The server
+ * puts them in the error's data and the rose in its motive — one reading, two readers.
+ */
+export function refusalDetails(aim: MovementAim, column: Column): Record<string, unknown> {
+  return {
+    ...liftOf(column.roles),
+    ...(aim.kind === 'building' ? (barredFrom(column.roles, aim.key) ?? {}) : {}),
+  };
+}
+
+/**
  * A point is **never mine**, and that is the same refusal to resolve it: saying "those are your
  * own" about a coordinate would mean matching it against my regions, which is the resolution the
  * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
@@ -173,7 +214,11 @@ export function legalMovementTypes(aim: MovementAim, column: Column): ReadonlyAr
 const mine = (aim: MovementAim, column: Column): boolean =>
   aim.kind === 'outpost'
     ? column.myOutpostIds.has(aim.outpostId)
-    : aim.kind === 'region' && column.myRegionIds.has(aim.regionId);
+    : aim.kind === 'building'
+      ? /** Always: the aim exists only once the server has found the building among the player's
+         *  own (`aimOf`), so an attack aimed at one is an attack on oneself by construction. */
+        true
+      : aim.kind === 'region' && column.myRegionIds.has(aim.regionId);
 
 /**
  * **The door is read at departure, and the pile alone says which door** (ADR 0019 §2). A hull
