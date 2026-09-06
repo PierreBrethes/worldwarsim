@@ -5,6 +5,11 @@ import { distanceKm, type LonLat } from './geo';
  * (ADR 0004) — par le joueur dont un avant-poste vivant la couvre, ou par la nation dont elle
  * est le sol d'origine.
  *
+ * **Un avant-poste tient d'abord la région où il se tient**, quelle que soit sa taille
+ * (précision du 04/09), puis celles dont le point tombe dans son rayon. Le rayon reste métrique
+ * — on ajoute l'évidence qu'il oubliait : une région se mesure à son pôle d'inaccessibilité, et
+ * celui d'une région sibérienne est à trois cents kilomètres de la côte où l'on plante.
+ *
  * **Le rayon de contrôle est le rayon de construction** (`outpostReachKm`), et il arrive porté
  * par chaque point : *là où je peux bâtir est là où je tiens*. Une seconde constante serait une
  * deuxième règle à apprendre pour le même geste, et l'ADR l'interdit nommément. Il suit le
@@ -30,6 +35,13 @@ export type ControlOutpost = {
   readonly point: LonLat;
   /** Ce que ce point-là porte, lu sur son niveau par l'appelant (`outpostReachKm`). */
   readonly reachKm: number;
+  /**
+   * **La région où il se tient** — `null` quand l'appelant ne la connaît pas. Elle est tenue
+   * quelle que soit sa taille (précision de l'ADR 0020 du 04/09) : le rayon reste métrique, on
+   * ajoute l'évidence qu'il oubliait. Une région sibérienne a son point à trois cents kilomètres
+   * de sa côte, et un avant-poste planté dedans ne tenait pas même le sol sous ses pieds.
+   */
+  readonly regionId: string | null;
 };
 
 /** Le sol d'origine d'une nation en jeu : son pays, et le joueur qui la porte. */
@@ -70,19 +82,29 @@ export function heldRegions({
       held.set(region.id, home);
       continue;
     }
-    const holder = nearestHolder(region.point, outposts);
+    const holder = nearestHolder(region, outposts);
     if (holder !== null) held.set(region.id, holder);
   }
   return held;
 }
 
-/** Le plus proche propriétaire à portée, `null` s'il n'y en a aucun **ou** si deux se disputent
- *  la région à la même distance au kilomètre près. */
-function nearestHolder(point: LonLat, outposts: ReadonlyArray<ControlOutpost>): string | null {
+/**
+ * Le plus proche propriétaire à portée, `null` s'il n'y en a aucun **ou** si deux se disputent
+ * la région à la même distance au kilomètre près.
+ *
+ * **Un point posé dans la région est à distance nulle d'elle**, quoi que dise son pôle
+ * d'inaccessibilité : c'est ainsi que la précision du 04/09 entre dans la règle, sans seconde
+ * branche et sans seconde constante. Le départage suit — deux points adverses plantés dans la
+ * même région sont à égalité exacte, donc personne ne la tient, ce que la règle dit déjà.
+ */
+function nearestHolder(
+  region: ControlledRegion,
+  outposts: ReadonlyArray<ControlOutpost>,
+): string | null {
   let best: { owner: string; km: number } | null = null;
   let disputed = false;
   for (const outpost of outposts) {
-    const km = distanceKm(outpost.point, point);
+    const km = outpost.regionId === region.id ? 0 : distanceKm(outpost.point, region.point);
     if (km > outpost.reachKm) continue;
     if (best === null || km < best.km) {
       best = { owner: outpost.owner, km };
@@ -141,6 +163,10 @@ export const seatInk = (rank: number): string => SEAT_INKS[rank % SEAT_INKS.leng
 export type Observer = {
   readonly point: LonLat;
   readonly radiusKm: number;
+  /** **La région où il se tient**, couverte quelle que soit sa taille — `null` pour tout
+   *  détecteur dont l'appelant ne sait pas le sol, ce qu'une troupe posée et une halte de trajet
+   *  sont : le serveur ne tient aucun polygone, seul un avant-poste nomme sa région. */
+  readonly regionId: string | null;
 };
 
 /**
@@ -161,11 +187,20 @@ export function coveredRegions(
   const covered = new Set<string>();
   if (observers.length === 0) return covered;
 
+  /** Le sol qu'un détecteur occupe, avant toute mesure : la bande de latitude ci-dessous
+   *  retirerait la région même d'un point dont le pôle est loin au nord. */
+  const standing = new Set<string>();
+  for (const { regionId } of observers) if (regionId !== null) standing.add(regionId);
+
   const degrees = (km: number) => km / 111.32;
   const south = Math.min(...observers.map(({ point, radiusKm }) => point[1] - degrees(radiusKm)));
   const north = Math.max(...observers.map(({ point, radiusKm }) => point[1] + degrees(radiusKm)));
 
   for (const region of regions) {
+    if (standing.has(region.id)) {
+      covered.add(region.id);
+      continue;
+    }
     const latitude = region.point[1];
     if (latitude < south || latitude > north) continue;
     for (const observer of observers) {

@@ -37,7 +37,7 @@ import {
   sameStation,
   troopsAmong,
 } from './movement/orders';
-import { homeCountryOf, nearestRegion } from './regions';
+import { homeCountryOf, nearestRegion, regionFacts, regionOfOutpost } from './regions';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
@@ -64,10 +64,18 @@ export const foundOutpostHere = mutation({
   args: {
     token: v.string(),
     point: LON_LAT,
+    /**
+     * **La région sous le point, nommée par la carte** (`regionAtPoint`, précision de l'ADR 0020
+     * du 04/09) : le serveur ne tient aucun polygone — même limite assumée que le quai d'un port
+     * — et il ne peut donc que vérifier que le pays de cette région est bien celui du sol. Au
+     * dézoom la couche des régions n'existe pas : `null` est alors la réponse honnête, et le
+     * point se relit par la géographie comme ceux d'avant le champ.
+     */
+    regionId: v.union(v.string(), v.null()),
     specialization: SPECIALIZATION,
     troopIds: v.array(v.id('troops')),
   },
-  handler: async (ctx, { token, point, specialization, troopIds }) => {
+  handler: async (ctx, { token, point, regionId, specialization, troopIds }) => {
     const { player, season } = await playerByToken(ctx, token);
     requirePlayable(player, season);
 
@@ -97,11 +105,23 @@ export const foundOutpostHere = mutation({
     );
     if (refusal !== null) fail(refusal, {});
 
+    /**
+     * **Où le point se plante**, et c'est tout ce que le serveur retient du sol : le pays qu'il
+     * lit sur le polygone, et la région que la carte a nommée — gardée seulement si elle est de
+     * ce pays-là, faute de quoi un clic au ras d'une frontière désignerait le voisin. Rien
+     * n'est écrit quand elle manque : le repli de `regionOfOutpost` répond alors, comme pour les
+     * points d'avant le champ.
+     */
+    const hostCountry = hostAtPoint(pointOf(point));
+    const ground =
+      regionId !== null && regionFacts(regionId)?.country === hostCountry
+        ? { point, hostCountry, regionId }
+        : { point, hostCountry };
+
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: season._id,
       playerId: player._id,
-      point,
-      hostCountry: hostAtPoint(pointOf(point)),
+      ...ground,
       level: 1,
       specialization,
       foundedAt: Date.now(),
@@ -111,12 +131,19 @@ export const foundOutpostHere = mutation({
     for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
     /** **La fondation est un point d'échantillonnage** (ADR 0020 §5) : le sol autour vient de
      *  changer de main, et le relevé de chacun de ceux qui regardent ce sol-là bouge avec lui. */
-    await surveyFoundation(ctx, season._id, pointOf(point), outpostReachKm(1), Date.now());
+    await surveyFoundation(
+      ctx,
+      season._id,
+      pointOf(point),
+      outpostReachKm(1),
+      regionOfOutpost(ground),
+      Date.now(),
+    );
     await ctx.db.insert('notices', {
       playerId: player._id,
       at: Date.now(),
       kind: 'outpostFounded',
-      hostCountry: hostAtPoint(pointOf(point)),
+      hostCountry,
       specialization,
     });
     return { outpostId };

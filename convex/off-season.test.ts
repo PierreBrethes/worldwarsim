@@ -707,8 +707,10 @@ describe('a season without a clock', () => {
     );
 
     await t.mutation(api.seasons.launch, { token: creator });
+    /** Le doyen s'entend dire *pourquoi* il ne clôt pas : le fondateur est là. La porte
+     *  s'ouvrirait pour lui après `FOUNDER_ABSENCE_HOURS` (`founder-absence.test.ts`). */
     await expect(t.mutation(api.seasons.conclude, { token: guest })).rejects.toThrow(
-      'CREATOR_ONLY',
+      'FOUNDER_STILL_PRESENT',
     );
 
     await t.mutation(api.seasons.conclude, { token: creator });
@@ -857,6 +859,7 @@ describe('scrapping a season', () => {
       // An outpost, planted where a column of its own stands.
       const desert = pointOf(RIYADH);
       await t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token: creator,
         point: asPoint(desert),
         specialization: 'relay',

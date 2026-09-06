@@ -1,9 +1,38 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
-import { NATIONS, restWindowFrom } from './constants';
+import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason, isAtWar, playerByToken, requirePlayable } from './seasons';
+
+/**
+ * **Il est là.** La seule écriture de présence du jeu, et elle n'a qu'un lecteur : le fondateur
+ * qui ne revient plus perd l'exclusivité de la clôture (`seasons.conclude`). Une query ne peut
+ * pas écrire, donc c'est le client qui frappe — au montage du plateau, puis toutes les
+ * `PRESENCE_THROTTLE_MIN` minutes.
+ *
+ * **Le serveur ne fait pas confiance à cette cadence** : sous le seuil il ne réécrit rien. Sans
+ * ce frein, un client qui remonte le plateau à chaque navigation réinvaliderait la vue de tout
+ * le monde à chaque fois, pour une valeur que rien ne lit à la minute.
+ *
+ * **No-op plutôt que refus**, sur un salon comme sur un défait : ce n'est pas un ordre, personne
+ * ne l'a demandée, et une erreur remontée ici s'afficherait au bandeau d'un joueur qui n'a rien
+ * fait. Un défait n'a pas de présence à tenir — il observe, et le fondateur qu'il n'est plus
+ * (`surrender` passe le titre) n'a rien à retenir.
+ */
+export const touch = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    if (season.status !== 'launched') return;
+    if (player.defeated === true) return;
+
+    const now = Date.now();
+    const seen = player.lastSeenAt;
+    if (seen !== undefined && now - seen < PRESENCE_THROTTLE_MIN * 60_000) return;
+    await ctx.db.patch(player._id, { lastSeenAt: now });
+  },
+});
 
 /**
  * **The choices of the lobby seal at the player's own entry into war**, not at the season's

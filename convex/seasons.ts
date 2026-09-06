@@ -10,6 +10,7 @@ import { capitalRegionOf } from './regions';
 import { SEASON_CLOCK_HOURS } from './validators';
 import {
   DEFAULT_REST_WINDOW,
+  FOUNDER_ABSENCE_HOURS,
   HQ_LEVEL_AT_LAUNCH,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
@@ -448,6 +449,66 @@ export async function concludeSeason(
 }
 
 /**
+ * **Depuis quand on ne l'a plus vu.** Un siège déposé avant que la présence existe ne porte pas
+ * le champ, et le lancement de la saison fait alors foi : un fondateur d'avant n'est pas un
+ * fondateur absent depuis toujours, il est un fondateur qu'on n'a pas encore mesuré. Le
+ * `_creationTime` ne sert que le cas dégénéré d'une saison au salon, qui n'a pas d'heure de
+ * lancement et où la clôture n'existe pas.
+ */
+export function lastSeenOf(player: Doc<'players'>, season: Doc<'seasons'>): number {
+  return player.lastSeenAt ?? season.launchedAt ?? player._creationTime;
+}
+
+/** L'heure à partir de laquelle le doyen peut clore à la place du fondateur. */
+export const concludeOpensAt = (founder: Doc<'players'>, season: Doc<'seasons'>): number =>
+  lastSeenOf(founder, season) + FOUNDER_ABSENCE_HOURS * 3_600_000;
+
+export const founderOf = (seats: ReadonlyArray<Doc<'players'>>): Doc<'players'> | null =>
+  seats.find((seat) => seat.creator) ?? null;
+
+/**
+ * **Le doyen : le plus ancien belligérant debout qui n'est pas le fondateur.** Le rang d'entrée
+ * plutôt qu'un vote, comme le successeur d'une capitulation (`players.surrender`) — et le
+ * fondateur en est exclu par construction, sans quoi le doyen serait presque toujours lui et la
+ * porte ne s'ouvrirait sur personne.
+ */
+export function elderOf(
+  seats: ReadonlyArray<Doc<'players'>>,
+  season: Doc<'seasons'>,
+  founder: Doc<'players'>,
+): Doc<'players'> | null {
+  return (
+    [...seats]
+      .filter((seat) => seat._id !== founder._id && seat.defeated !== true && isAtWar(seat, season))
+      .sort((left, right) => left._creationTime - right._creationTime)[0] ?? null
+  );
+}
+
+/**
+ * **Qui peut clore, et pourquoi pas.** Une seule fonction pour la mutation et pour la vue
+ * (ADR 0015) : ce que le plateau propose et ce que le serveur accepte ne peuvent pas diverger,
+ * et il n'y a donc pas de bouton grisé à expliquer.
+ *
+ * Le fondateur passe toujours ; le doyen passe quand le fondateur n'a plus été vu depuis
+ * `FOUNDER_ABSENCE_HOURS`. **Le titre ne bouge pas** — le fondateur reste fondateur, il a
+ * seulement perdu l'exclusivité, et il la reprend à son retour puisque la présence se réécrit.
+ */
+export function concludeRefusal(
+  player: Doc<'players'>,
+  seats: ReadonlyArray<Doc<'players'>>,
+  season: Doc<'seasons'>,
+  now: number,
+): 'CREATOR_ONLY' | 'FOUNDER_STILL_PRESENT' | null {
+  if (player.creator) return null;
+  const founder = founderOf(seats);
+  if (founder === null) return 'CREATOR_ONLY';
+  /** Le rang d'abord, l'heure ensuite : à qui n'est pas le doyen on ne dit rien du fondateur.
+   *  L'absence est publique, mais elle n'a de sens que pour la main à qui elle ouvre la porte. */
+  if (elderOf(seats, season, founder)?._id !== player._id) return 'CREATOR_ONLY';
+  return now < concludeOpensAt(founder, season) ? 'FOUNDER_STILL_PRESENT' : null;
+}
+
+/**
  * **Le fondateur clôt la saison, à la main.** C'est la seule fin d'une partie sans horloge
  * (révision du 27/08 de l'ADR 0017), et la fin à l'heure n'existe de toute façon pas encore : ce
  * bouton rend le fait honnête plutôt que de le cacher derrière un compte à rebours qui ne
@@ -462,15 +523,17 @@ export const conclude = mutation({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const { player, season } = await playerByToken(ctx, token);
-    if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
 
     const now = Date.now();
-    await concludeSeason(ctx, season._id, null, now);
     const present = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
       .collect();
+    const refusal = concludeRefusal(player, present, season, now);
+    if (refusal !== null) fail(refusal);
+
+    await concludeSeason(ctx, season._id, null, now);
     for (const entry of present) {
       await ctx.db.insert('notices', { playerId: entry._id, at: now, kind: 'seasonClosed' });
     }

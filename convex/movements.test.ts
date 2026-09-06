@@ -39,6 +39,13 @@ const PRAHOVA = 'ROU-310'; // Romanian oil, 1 800 km east — nobody's home coun
 const RUHR = 'DEU-1572'; // German, and far out of any Romanian reach
 const RIYADH = 'SAU-1097'; // Ar Riyad — a second neutral, to prove neutrals are not one country
 const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
+/** **Une région immense, et un point dedans qui est loin de son pôle d'inaccessibilité** : le
+ *  Fort McMurray albertain se tient à 378 km du point que `region-index.json` donne à l'Alberta,
+ *  soit trois fois la portée d'un avant-poste neuf. C'est le cas qui a fait écrire la précision
+ *  du 04/09 — et l'Alberta porte du pétrole, comme la Sibérie de la partie de test. */
+const ALBERTA = 'CAN-632';
+const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
+const SASKATCHEWAN = 'CAN-631'; // voisine, son point à 659 km : hors de portée et elle le reste
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
@@ -208,6 +215,9 @@ async function plant(
   token: string,
   point: LonLat,
   hostCountry: string,
+  /** La région où il se plante, telle que la carte la nomme. Omise, le point se relit par le
+   *  repli, comme ceux d'avant le champ (précision du 04/09). */
+  regionId?: string,
 ): Promise<Id<'outposts'>> {
   const playerId = await playerOf(t, token);
   return t.run(async (ctx) => {
@@ -217,6 +227,7 @@ async function plant(
       playerId,
       point: { lon: point[0], lat: point[1] },
       hostCountry,
+      ...(regionId === undefined ? {} : { regionId }),
       level: 1,
       specialization: 'relay',
       foundedAt: Date.now(),
@@ -272,6 +283,7 @@ describe('a posted column founds an outpost where it stands', () => {
     const posted = await post(t, token, point);
 
     await t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
       token,
       point: asPoint(point),
       specialization: 'relay',
@@ -311,6 +323,7 @@ describe('a posted column founds an outpost where it stands', () => {
     for (const regionId of [PRAHOVA, RIYADH]) {
       const point = regionFacts(regionId)!.point;
       await t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(point),
         specialization: 'relay',
@@ -330,6 +343,7 @@ describe('a posted column founds an outpost where it stands', () => {
 
     await expect(
       t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(point),
         specialization: 'relay',
@@ -349,6 +363,7 @@ describe('a posted column founds an outpost where it stands', () => {
 
     await expect(
       t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(point),
         specialization: 'relay',
@@ -374,6 +389,7 @@ describe('a posted column founds an outpost where it stands', () => {
 
     await expect(
       t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(point),
         specialization: 'relay',
@@ -390,6 +406,7 @@ describe('a posted column founds an outpost where it stands', () => {
 
     await expect(
       t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(regionFacts(RUHR)!.point),
         specialization: 'relay',
@@ -399,6 +416,7 @@ describe('a posted column founds an outpost where it stands', () => {
 
     await expect(
       t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
         token,
         point: asPoint(point),
         specialization: 'relay',
@@ -481,6 +499,7 @@ describe('an outpost opens a radius to build in', () => {
     const { token } = await launchedSeason(t);
     const point = regionFacts(PRAHOVA)!.point;
     await t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
       token,
       point: { lon: point[0], lat: point[1] },
       specialization: 'relay',
@@ -488,6 +507,57 @@ describe('an outpost opens a radius to build in', () => {
     });
     return token;
   }
+
+  /**
+   * **Un avant-poste atteint toujours la région où il se tient** (précision de l'ADR 0020 du
+   * 04/09). Le rayon se mesure au pôle d'inaccessibilité de la région, et celui d'une région
+   * grande comme l'Alberta est à 378 km du point où l'on plante : le puits de la région même de
+   * l'avant-poste se faisait refuser.
+   */
+  it('accepts the region the point stands in, however far its own point is', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, 'CAN', ALBERTA);
+
+    const started = await t.mutation(api.constructions.start, {
+      token,
+      building: 'oilWell',
+      regionId: ALBERTA,
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
+  });
+
+  /** **La règle métrique ne bouge pas** : on ajoute l'évidence qu'elle oubliait, on ne l'élargit
+   *  pas. La voisine reste à 659 km du point, donc dehors. */
+  it('leaves the neighbouring region out, its point being out of the radius', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, 'CAN', ALBERTA);
+
+    await expect(
+      t.mutation(api.constructions.start, {
+        token,
+        building: 'billets',
+        regionId: SASKATCHEWAN,
+      }),
+    ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+  });
+
+  /**
+   * **Un avant-poste n'est pas un bâtiment**, et `REGION_TAKEN` ne le compte pas : le sol qu'il
+   * occupe reste constructible, ce qui est tout l'intérêt de l'y planter. Ce qui prend une
+   * région est le bâtiment qui s'y tient — la seconde entrée le montre.
+   */
+  it('never takes the region it stands in', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, 'CAN', ALBERTA);
+
+    await t.mutation(api.constructions.start, { token, building: 'oilWell', regionId: ALBERTA });
+    await expect(
+      t.mutation(api.constructions.start, { token, building: 'billets', regionId: ALBERTA }),
+    ).rejects.toThrow('REGION_TAKEN');
+  });
 
   /** The whole point of the loop: the well the nation has no ground for at home. */
   it('accepts a foreign region within the reach', async () => {

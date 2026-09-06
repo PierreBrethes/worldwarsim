@@ -108,6 +108,54 @@ export function nearestRegion(point: LonLat): RegionFacts | null {
   return closest === null ? null : regionFacts(closest.id);
 }
 
+/**
+ * **La région où un avant-poste se tient**, et la seule fonction qui réponde : ce qu'il tient,
+ * couvre, atteint et relève commence par elle (précision de l'ADR 0020 §1 du 04/09). Un point
+ * tient toujours le sol qu'il occupe, quelle que soit la taille de la région — mesurer la
+ * distance à son pôle d'inaccessibilité laissait un avant-poste sibérien ne pas tenir la région
+ * où il est planté.
+ *
+ * Le client la nomme à la fondation ; les points d'avant le champ se relisent par la géographie
+ * — **repli, jusqu'au wipe** — et le pays borne cette lecture, faute de quoi un point planté sur
+ * une frontière se verrait chez le voisin.
+ */
+export function regionOfOutpost(outpost: {
+  readonly regionId?: string | undefined;
+  readonly point: { readonly lon: number; readonly lat: number };
+  readonly hostCountry: string;
+}): string | null {
+  if (outpost.regionId !== undefined) return outpost.regionId;
+  return nearestRegionOf([outpost.point.lon, outpost.point.lat], outpost.hostCountry)?.id ?? null;
+}
+
+/**
+ * La région d'un pays dont le point est le plus proche — le repli ci-dessus, et rien d'autre ne
+ * l'appelle. Un pays que l'index ne connaît pas n'a aucune région, donc aucune réponse.
+ *
+ * **Mémoïsée sur le point**, parce que le repli est chaud tant que la saison en cours porte des
+ * avant-postes d'avant le champ : la vue demande le site de chacune des régions de son pays, et
+ * chacune de ces demandes relit la portée de chaque point. La réponse est une fonction pure des
+ * assets cuits, et le cache est borné par le nombre de points d'un isolat. Il part avec le repli,
+ * au prochain wipe.
+ */
+const NEAREST_OF: Map<string, RegionFacts | null> = new Map();
+
+export function nearestRegionOf(point: LonLat, country: string): RegionFacts | null {
+  const key = `${country}:${point[0]},${point[1]}`;
+  const known = NEAREST_OF.get(key);
+  if (known !== undefined) return known;
+  const closest = regionsOf(country).reduce<{ facts: RegionFacts; km: number } | null>(
+    (best, facts) => {
+      const km = distanceKm(point, facts.point);
+      return best === null || km < best.km ? { facts, km } : best;
+    },
+    null,
+  );
+  const answer = closest === null ? null : closest.facts;
+  NEAREST_OF.set(key, answer);
+  return answer;
+}
+
 export const homeCountryOf = (nation: string | null): string | null =>
   isNation(nation) ? ADM0_BY_NATION[nation] : null;
 
@@ -241,12 +289,20 @@ export function allRegions(): ReadonlyArray<RegionFacts> {
   return everyRegion;
 }
 
+/** Cuit par pays, à la demande : la vue relit tout le sol national à chaque chargement du
+ *  plateau, et le balayage des 4 589 clés y était refait à chaque fois. Même contrat
+ *  qu'`allRegions` — un fait de la carte, jamais de la saison. */
+const REGIONS_OF: Map<string, ReadonlyArray<RegionFacts>> = new Map();
+
 export function regionsOf(country: string): ReadonlyArray<RegionFacts> {
+  const known = REGIONS_OF.get(country);
+  if (known !== undefined) return known;
   const found: Array<RegionFacts> = [];
   for (const regionId of Object.keys(COUNTRY_OF_REGION)) {
     if (COUNTRY_OF_REGION[regionId] !== country) continue;
     const facts = regionFacts(regionId);
     if (facts) found.push(facts);
   }
+  REGIONS_OF.set(country, found);
   return found;
 }

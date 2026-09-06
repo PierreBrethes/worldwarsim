@@ -300,6 +300,14 @@ administrative. Au front : « Défaite : observer » à l'accueil, un cachet au 
 rose au clic droit, la carte « à faire maintenant » absente, les boutons d'action retirés plutôt
 que grisés, et le bouton « déposer les armes » rangé dans Réglages à côté de « clore la saison ».
 
+**Et un fondateur qui ne revient plus ne gèle plus la saison** (décision 1a du 06/09) : le plateau
+écrit une présence (`players.touch`, au montage puis toutes les `PRESENCE_THROTTLE_MIN` minutes), et
+passé `FOUNDER_ABSENCE_HOURS` sans l'avoir vu, le **doyen des belligérants non défaits** clôt à sa
+place (`concludeRefusal`, lue par la mutation et par la vue — le bouton est là ou il n'y est pas).
+Le titre ne bouge pas, `destroy` reste au seul fondateur, et `lastSeenAt` ne sort de `playerView`
+que pour lui, en durée et près du seuil : une « dernière connexion » adverse serait un canal sur les
+plages de repos (ADR 0005).
+
 **Ni terrain, ni tenaille, ni soin.** Le modificateur de terrain attend l'ADR qui autorise une
 règle à lire `RegionType` ; la tenaille attend une définition de la convergence ; une troupe
 entamée reste entamée — la boucle de soin attend la pharmacie et `consommation-continue.md`.

@@ -22,7 +22,13 @@ import {
   outpostReachKm,
 } from './constants';
 import { movementsOf, outpostsOf, pointOf, seasonOutposts } from './movement/forces';
-import { allRegions, homeCountryOf, pointOfBuilding, type RegionFacts } from './regions';
+import {
+  allRegions,
+  homeCountryOf,
+  pointOfBuilding,
+  regionOfOutpost,
+  type RegionFacts,
+} from './regions';
 
 /**
  * **Les portées qu'un joueur tient debout**, et rien de ce qu'elles voient. Les mêmes détecteurs
@@ -30,7 +36,9 @@ import { allRegions, homeCountryOf, pointOfBuilding, type RegionFacts } from './
  * sont des décisions :
  *
  * - **tout avant-poste relève, pas seulement le poste d'écoute.** Le sol autour d'un point est
- *   ce que ce point *tient* déjà (§1) ; ignorer qui le tient serait tenir sans regarder.
+ *   ce que ce point *tient* déjà (§1) ; ignorer qui le tient serait tenir sans regarder. Il
+ *   relève **la région où il se tient** avant toute mesure (précision du 04/09) : il tient ce
+ *   sol-là, donc il le voit.
  * - **un point désactivé relève quand même** — même lecture que `recognises` : un raid brûle le
  *   dépôt, il n'aveugle pas le relais.
  *
@@ -44,14 +52,18 @@ export async function standingObserversOf(
   const observers: Array<Observer> = [];
 
   for (const outpost of await outpostsOf(ctx, playerId)) {
-    observers.push({ point: pointOf(outpost.point), radiusKm: outpostReachKm(outpost.level) });
+    observers.push({
+      point: pointOf(outpost.point),
+      radiusKm: outpostReachKm(outpost.level),
+      regionId: regionOfOutpost(outpost),
+    });
   }
 
   for (const building of await playerBuildings(ctx, playerId)) {
     if (building.key !== 'listening') continue;
     const stand = pointOfBuilding(building);
     if (stand !== null) {
-      observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
+      observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM, regionId: null });
     }
   }
 
@@ -64,7 +76,7 @@ export async function standingObserversOf(
     .collect()) {
     const address = troop.stationedAt;
     if (marching.has(troop._id) || address === null || typeof address === 'string') continue;
-    observers.push({ point: pointOf(address), radiusKm: SCOUT_RADIUS_KM });
+    observers.push({ point: pointOf(address), radiusKm: SCOUT_RADIUS_KM, regionId: null });
   }
 
   return observers;
@@ -110,6 +122,7 @@ export async function fileSurvey(
       owner: outpost.playerId as string,
       point: pointOf(outpost.point),
       reachKm: outpostReachKm(outpost.level),
+      regionId: regionOfOutpost(outpost),
     })),
     homeGrounds: await homeGroundsOf(ctx, player.seasonId),
   });
@@ -164,7 +177,8 @@ export const surveyFromPoint = (
   playerId: Id<'players'>,
   point: LonLat,
   at: number,
-): Promise<number> => fileSurvey(ctx, playerId, [{ point, radiusKm: SCOUT_RADIUS_KM }], at);
+): Promise<number> =>
+  fileSurvey(ctx, playerId, [{ point, radiusKm: SCOUT_RADIUS_KM, regionId: null }], at);
 
 /**
  * **Ce qu'une colonne a vu du couloir qu'elle vient de marcher**, relevé à l'arrivée et pas au
@@ -183,6 +197,7 @@ export const surveyAlongRoute = (
     surveyStops(movement.points.map(pointOf), SCOUT_RADIUS_KM).map((point) => ({
       point,
       radiusKm: SCOUT_RADIUS_KM,
+      regionId: null,
     })),
     at,
   );
@@ -195,16 +210,19 @@ export const surveyAlongRoute = (
  *
  * Le balayage est borné des deux côtés : huit sièges au plus, et les seules régions que le
  * nouveau point peut avoir touchées — `reachKm` est le rayon **de ce point-là**, lu sur son
- * niveau par l'appelant qui vient de le planter.
+ * niveau par l'appelant qui vient de le planter, et `regionId` la région où il se plante, qui
+ * change de main quelle que soit sa taille (précision du 04/09). Sans elle, un point sibérien
+ * ne faisait bouger le relevé de personne, pas même celui de son fondateur.
  */
 export async function surveyFoundation(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   point: LonLat,
   reachKm: number,
+  regionId: string | null,
   at: number,
 ): Promise<number> {
-  const reached = coveredRegions(allRegions(), [{ point, radiusKm: reachKm }]);
+  const reached = coveredRegions(allRegions(), [{ point, radiusKm: reachKm, regionId }]);
   const touched = allRegions().filter((region) => reached.has(region.id));
   if (touched.length === 0) return 0;
 

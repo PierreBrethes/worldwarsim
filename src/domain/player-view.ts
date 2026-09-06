@@ -162,6 +162,13 @@ export type OutpostView = {
   readonly id: string;
   readonly hostCountry: string;
   readonly lonLat: LonLat;
+  /**
+   * **La région où il se tient**, qu'il tient, couvre et atteint quelle que soit sa taille
+   * (précision de l'ADR 0020 du 04/09). Servie par le serveur : le client n'a ni polygone ni
+   * index des régions, et les points plantés avant le champ se relisent par la géographie
+   * — `null` est un point que même ce repli ne place pas.
+   */
+  readonly regionId: string | null;
   readonly specialization: Specialization;
   readonly level: number;
   readonly garrison: number;
@@ -578,6 +585,17 @@ export type ReductionStanding = {
   readonly reduced: number;
 };
 
+/**
+ * **L'absence du fondateur, servie près du seuil seulement.** Aucune identité, aucune date de
+ * connexion : une durée écoulée et l'heure à laquelle le doyen pourra clore. Un joueur ordinaire
+ * n'a pas de jumeau de ce type — servir « vu il y a 3 h » pour un adversaire dirait quand le
+ * frapper (ADR 0005).
+ */
+export type FounderAbsence = {
+  readonly hours: number;
+  readonly concludeOpensAt: number;
+} | null;
+
 export type PlayerView = {
   readonly season: {
     readonly number: number;
@@ -595,6 +613,14 @@ export type PlayerView = {
     /** Le fondateur, et lui seul, clôt une saison sans horloge (`seasons.conclude`). C'est le
      *  seul pouvoir que le plateau réserve à un joueur plutôt qu'à une nation. */
     readonly creator: boolean;
+    /** **Le bouton « clore la saison » existe ou n'existe pas** — servi par la fonction que la
+     *  mutation lit (ADR 0015), jamais dérivé de `creator` : le doyen l'obtient quand le
+     *  fondateur ne revient plus, sans que le titre bouge. */
+    readonly mayConclude: boolean;
+    /** **Le fondateur n'est plus là, et la porte approche** (`FOUNDER_ABSENCE_HOURS`). `null`
+     *  partout ailleurs, ce qui est l'état normal : une ligne, pas une surface. C'est la seule
+     *  forme sous laquelle une présence sort du serveur, et elle ne concerne que lui. */
+    readonly founderAbsence: FounderAbsence;
     /** **Il a déposé les armes : il observe.** Le seul champ que l'interface lit pour retirer
      *  ses boutons — la vue elle-même est inchangée, portée par ses détecteurs restants
      *  (décision 47a). Rien ici ne se déduit d'une capacité : réduit n'est pas défait. */

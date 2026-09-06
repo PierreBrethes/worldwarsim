@@ -5,7 +5,13 @@ import { reachingOutpost } from '../src/domain/outposts';
 import { homeSlots, outpostReachKm } from './constants';
 import { levelOf, playerBuildings } from './buildings';
 import { outpostsOf, pointOf } from './movement/forces';
-import { foundationOf, homeCountryOf, regionFacts, type RegionFacts } from './regions';
+import {
+  foundationOf,
+  homeCountryOf,
+  regionFacts,
+  regionOfOutpost,
+  type RegionFacts,
+} from './regions';
 
 /**
  * **A site is what carries placements** (ADR 0020 §10): the national soil a player was born on,
@@ -27,10 +33,12 @@ export const sameSite = (one: Site, other: Site): boolean =>
     : other.kind === 'outpost' && other.outpostId === one.outpostId;
 
 /** Un point tel qu'une portée le lit : son emplacement, son rayon — qui suit son niveau depuis le
- *  31/08 — et son identité, pour que l'ancrage sache de quel budget il parle. */
+ *  31/08 —, la région où il se tient et son identité, pour que l'ancrage sache de quel budget il
+ *  parle. */
 export const reachOf = (outpost: Doc<'outposts'>) => ({
   point: pointOf(outpost.point),
   reachKm: outpostReachKm(outpost.level),
+  regionId: regionOfOutpost(outpost),
   id: outpost._id,
 });
 
@@ -45,6 +53,10 @@ export const reachOf = (outpost: Doc<'outposts'>) => ({
  *
  * Deactivated points anchor like any other: a raid freezes production, it does not move a
  * building's placement from one budget to another (ADR 0020 §10, §6).
+ *
+ * **La région où un point se tient est toujours la sienne** (précision du 04/09) : elle passe
+ * donc à `reachingOutpost`, faute de quoi le puits de la région même de l'avant-poste tombait
+ * hors du rayon dès que le pôle d'inaccessibilité était loin de la côte.
  */
 export function siteFor(
   region: RegionFacts,
@@ -52,7 +64,7 @@ export function siteFor(
   outposts: ReadonlyArray<Doc<'outposts'>>,
 ): Site | null {
   if (homeCountry !== null && region.country === homeCountry) return HOME;
-  const nearest = reachingOutpost(region.point, outposts.map(reachOf));
+  const nearest = reachingOutpost(region.point, outposts.map(reachOf), region.id);
   if (nearest === null) return null;
   return { kind: 'outpost', outpostId: nearest.nearest.id };
 }

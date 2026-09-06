@@ -272,6 +272,8 @@ export const fr = {
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,
     NATION_REQUIRED: () => 'être prêt exige une nation',
     CREATOR_ONLY: () => 'seul le fondateur lance la saison',
+    FOUNDER_STILL_PRESENT: () =>
+      'le fondateur est toujours là — lui seul peut clore la saison pour l’instant',
     PLAYER_DEFEATED: () =>
       'vous avez déposé les armes — vous observez la saison, vous ne l’ordonnez plus',
     NOT_ENOUGH_PLAYERS: (d) => `il faut au moins ${num(d.minimum)} joueurs`,
@@ -944,6 +946,12 @@ export const fr = {
     projection: 'bâtiment de projection',
     troopCount: (count: number) => `${count} troupe${plural(count, '', 's')}`,
     empty: 'Aucune troupe ne stationne ici.',
+    /** **L'en-tête d'un avant-poste** : le sol qu'il tient d'office (précision du 04/09) et son
+     *  niveau, qui décide de sa portée comme de ses emplacements. Le mât dit déjà les deux, et
+     *  le panneau qu'on vient d'ouvrir dessus ne doit pas en dire moins. Sans région nommée —
+     *  un point d'avant le champ que le repli ne place pas — il reste le niveau. */
+    outpostGround: (level: number, region: string | null) =>
+      `${region === null ? '' : `${region} · `}niveau ${level}`,
     column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
     /**
      * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
@@ -1446,6 +1454,17 @@ export const fr = {
     restNote:
       'Publique : vos adversaires la voient. Un mouvement qui arriverait pendant est immobilisé à la frontière jusqu’à sa fin.',
     restFrozen: 'Scellée au lancement — elle se déclarait au salon.',
+    /**
+     * **Une ligne, et seulement près du seuil** (`convex/constants.ts`,
+     * `FOUNDER_ABSENCE_NOTICE_HOURS`). Elle ne nomme personne et ne dit aucune heure de
+     * connexion : une durée d'absence et l'heure d'ouverture de la porte, parce que c'est une
+     * règle publique et pas un relevé de présence.
+     */
+    founderHeader: 'commandement',
+    founderAbsent: (since: string, at: string) =>
+      `Le fondateur est absent depuis ${since} — la saison pourra être close par le doyen des belligérants à partir du ${at}.`,
+    founderAbsentOpen: (since: string) =>
+      `Le fondateur est absent depuis ${since} — la saison peut être close par le doyen des belligérants.`,
   },
 
   /**
@@ -1478,7 +1497,9 @@ export const fr = {
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
     soundState: (on: boolean) => (on ? 'activé' : 'coupé'),
     /** **Le seul pouvoir de fondateur du plateau.** Une saison sans horloge n'a pas d'autre fin,
-     *  et la note dit ce qui reste après — sinon « clore » se lit comme « supprimer ». */
+     *  et la note dit ce qui reste après — sinon « clore » se lit comme « supprimer ». Il passe
+     *  au doyen quand le fondateur ne revient plus (`seasons.conclude`), sans que le titre
+     *  bouge : le bouton apparaît, il n'est jamais grisé (ADR 0015). */
     concludeLabel: 'Clore la saison',
     concludeNote:
       'La saison passe en lecture : plus aucun ordre, le plateau et le journal restent lisibles.',

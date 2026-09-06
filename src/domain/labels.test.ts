@@ -49,6 +49,7 @@ const OUTPOST: MapMarker = {
   id: 'ap-1',
   lonLat: [8.5, 61.4],
   hostCountry: 'Norway',
+  station: { kind: 'outpost', outpostId: 'ap-1' },
   specialization: 'relay',
   level: 2,
   garrison: 40,
@@ -160,7 +161,7 @@ describe('buildLabels', () => {
     expect(label?.anchor).toEqual({ kind: 'movementHead', arc: 'mv-1' });
   });
 
-  it('gives an outpost’s click to its host country, never a stack’s', () => {
+  it('names an outpost’s host country, never a stack’s', () => {
     const labels = buildLabels(viewWith([]), [
       OUTPOST,
       {
@@ -175,6 +176,17 @@ describe('buildLabels', () => {
     ]);
     expect(labels[0]?.hostCountry).toBe('Norway');
     expect(labels[1]?.hostCountry).toBeNull();
+  });
+
+  /**
+   * **Le mât d'un avant-poste ouvre sa garnison** (précision du 04/09) : la colonne qui a fondé
+   * y stationne (ADR 0019 §1), et depuis la disparition du widget de troupes plus aucune porte
+   * ne l'ouvrait — le seul marqueur cliquable était la pile posée sur un point. L'adresse
+   * voyage sur l'étiquette, comme celle d'une pile : c'est elle que le clic gauche ouvre.
+   */
+  it('carries the address a click opens the garrison of', () => {
+    const [label] = buildLabels(viewWith([]), [OUTPOST]);
+    expect(label?.station).toEqual({ kind: 'outpost', outpostId: 'ap-1' });
   });
 
   it('hangs a deposit on its region, without ink, words, or the right to push anything aside', () => {

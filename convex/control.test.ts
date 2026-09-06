@@ -5,7 +5,7 @@ import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { SEAT_INKS } from '../src/domain/control';
 import { outpostReachKm } from './constants';
-import { regionFacts } from './regions';
+import { regionFacts, regionOfOutpost } from './regions';
 import schema from './schema';
 import { surveyFoundation, surveyFromPoint } from './surveys';
 import { modules } from './test.setup';
@@ -20,6 +20,12 @@ const PARIS = 'FRA-5333';
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310'; // Romanian oil, nobody's home country
 const RUHR = 'DEU-1572'; // German ground, far out of any Romanian reach
+/** **Une région immense, et un point dedans loin de son pôle d'inaccessibilité** : Fort McMurray
+ *  se tient à 378 km du point que `region-index.json` donne à l'Alberta, trois fois la portée
+ *  d'un avant-poste neuf. Sa voisine la Saskatchewan a le sien à 659 km. */
+const ALBERTA = 'CAN-632';
+const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
+const SASKATCHEWAN = 'CAN-631';
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { code, token } = await t.mutation(api.seasons.create, {
@@ -54,21 +60,42 @@ const seatOf = async (t: ReturnType<typeof boot>, token: string) =>
  * ce qui est sous test est la couleur et sa mémoire, pas la marche qui plante le point — elle a
  * ses propres tests (`movements.test.ts`).
  */
-async function plant(t: ReturnType<typeof boot>, token: string, point: LonLat) {
+async function plant(
+  t: ReturnType<typeof boot>,
+  token: string,
+  point: LonLat,
+  /** La région où il se plante — omise, le point se relit par le repli, comme ceux d'avant le
+   *  champ (précision du 04/09). */
+  regionId?: string,
+  hostCountry = 'ROU',
+) {
   const player = await seatOf(t, token);
+  /** Le sol du point, exactement comme la fondation l'écrit : la région que la carte a nommée,
+   *  ou rien — et c'est alors le repli qui répond, ici comme là-bas. */
+  const ground = {
+    point: { lon: point[0], lat: point[1] },
+    hostCountry,
+    ...(regionId === undefined ? {} : { regionId }),
+  };
   return t.run(async (ctx) => {
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: player.seasonId,
       playerId: player._id,
-      point: { lon: point[0], lat: point[1] },
-      hostCountry: 'ROU',
+      ...ground,
       level: 1,
       specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
     });
-    await surveyFoundation(ctx, player.seasonId, point, outpostReachKm(1), Date.now());
+    await surveyFoundation(
+      ctx,
+      player.seasonId,
+      point,
+      outpostReachKm(1),
+      regionOfOutpost(ground),
+      Date.now(),
+    );
     return outpostId;
   });
 }
@@ -208,6 +235,46 @@ describe('an outpost colours what it reaches', () => {
     // Les deux points regardent la même région : chacun y lit le même tenant, le plus proche.
     expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
     expect(await knownOf(t, guest, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
+  });
+});
+
+/**
+ * **La précision du 04/09** : une région se mesure à son pôle d'inaccessibilité, et celui d'une
+ * région grande comme l'Alberta est à 378 km de l'endroit où l'on plante. Un avant-poste ne
+ * tenait donc même pas le sol sous ses pieds — le constat de la partie du 04/09, en Extrême-Orient
+ * soviétique.
+ */
+describe('an outpost holds the region it stands in', () => {
+  it('colours it from the foundation, whatever the distance to its point', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, ALBERTA, 'CAN');
+
+    expect(await regionIdsOf(t, token, 'Pierre')).toContain(ALBERTA);
+    expect(await knownOf(t, token, ALBERTA)).toMatchObject({
+      holder: 'Pierre',
+      state: 'current',
+    });
+  });
+
+  /** Un avant-poste d'avant-wipe ne porte pas le champ : il se relit par la géographie, bornée
+   *  au pays où il se tient. Le repli part au prochain wipe. */
+  it('reads a point planted before the field by its nearest region of the right country', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, undefined, 'CAN');
+
+    expect(await regionIdsOf(t, token, 'Pierre')).toContain(ALBERTA);
+  });
+
+  /** La règle métrique ne bouge pas : on ajoute l'évidence qu'elle oubliait, et rien d'autre. */
+  it('leaves the neighbouring region, whose point is out of the radius, to nobody', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await plant(t, token, FORT_MCMURRAY, ALBERTA, 'CAN');
+
+    expect(await regionIdsOf(t, token, 'Pierre')).not.toContain(SASKATCHEWAN);
+    expect(await knownOf(t, token, SASKATCHEWAN)).toBeNull();
   });
 });
 

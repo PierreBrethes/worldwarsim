@@ -23,6 +23,13 @@ const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTI
  *
  * Le panneau garde ce qui n'appartient qu'à un point : le cachet d'avant-poste désactivé et le
  * choix de spécialisation, qui se règle sur le terrain une fois planté.
+ *
+ * **Le mât d'un avant-poste est sa porte** (précision du 04/09) : la colonne qui a fondé y
+ * stationne (ADR 0019 §1), et depuis la disparition du widget de troupes plus rien ne l'ouvrait
+ * — le seul marqueur cliquable était la pile posée sur un point. Il n'y a pas de modale de site
+ * pour un avant-poste : il ne forme rien, donc l'en-tête porte ici sa région et son niveau.
+ * Garnison vide, le panneau s'ouvre quand même : une porte qui ne s'ouvre que parfois se lit
+ * comme une panne.
  */
 export function GarrisonPanel({
   view,
@@ -72,9 +79,15 @@ export function GarrisonPanel({
    * placer, donc qu'il ne sait pas router.
    */
   const canPrepare = station.kind !== 'home';
-  const region = building
-    ? (view.me.regions.find((candidate) => candidate.id === building.regionId)?.name ?? null)
-    : null;
+  const regionName = (regionId: string | null): string | null =>
+    view.me.regions.find((candidate) => candidate.id === regionId)?.name ?? null;
+  /** Ce que le panneau dit du lieu : la région d'un bâtiment, la région **et le niveau** d'un
+   *  avant-poste — il n'a pas de modale de site pour les porter, il ne forme rien. */
+  const ground = building
+    ? regionName(building.regionId)
+    : outpost !== null
+      ? fr.garrison.outpostGround(outpost.level, regionName(outpost.regionId))
+      : null;
 
   const title = building
     ? building.name
@@ -118,7 +131,7 @@ export function GarrisonPanel({
         )}
 
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
-          <span>{projection ? fr.garrison.projection : (region ?? '')}</span>
+          <span>{projection ? fr.garrison.projection : (ground ?? '')}</span>
           <span className="ml-auto font-(family-name:--font-mono)">
             {fr.garrison.troopCount(held.length)}
           </span>

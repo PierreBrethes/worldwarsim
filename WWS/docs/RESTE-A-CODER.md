@@ -1,16 +1,27 @@
 # Reste à coder — ce qui est acté ou évoqué, dans l'ordre où ça se donne
 
-Tenu par Cowork, 04/09/2026. Un chantier code à la fois. « Acté » = décision numérotée ou ADR ;
+Tenu par Cowork, 06/09/2026 (mise à jour du 04/09). Un chantier code à la fois. « Acté » = décision numérotée ou ADR ;
 « évoqué » = proposition ou Registre, pas encore tranché. La source reste les ADR et les
 propositions ; ce fichier est la file.
 
 ## Bloquant pour la partie de contrôle à deux
 
-1. **entrer-en-garnison** (64b · 69a · 70b) — *prêt* — sans lui le cargo japonais ne charge rien.
-2. **journal-corps-de-texte** — *prêt* — face de texte distincte de la manchette.
-3. **Trois commits à faire** (lots 1-3 dans l'arbre de travail) + `.git/index.lock` à retirer.
+1. ~~entrer-en-garnison~~ · ~~journal-corps-de-texte~~ · ~~avant-poste-tient-sa-region~~ — livrés (04-06/09).
+2. **fondateur-absent** (1a du 06/09) — *prêt* — `ready/fondateur-absent.md` ; ferme le 🔴 de
+   `QUESTIONS.md`. La victoire territoriale, elle, est **mise de côté** (1a).
+3. **Commit** du chantier avant-poste-tient-sa-region (dans l'arbre de travail) ;
+   `.git/index.lock.stale` à supprimer.
 4. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
-5. Contrôle à l'œil : pictogrammes + popin de la fiche (lot 3), rail réordonné (lot 1).
+5. Contrôle à l'œil : garnison / journal / port (Bulletin N° 56).
+
+## Acté le 06/09, prêts ou à écrire
+
+- **classement-et-page-de-presse** (79a) — *prêt* — spec `propositions/classement-bareme.md`.
+- **etat-de-reference-depuis-une-saison** (5a) — *prêt* — l'ancien simulateur part en `_to_delete/`.
+- **Comptes pseudo + mot de passe** — ADR 0022 *proposée*, à accepter ; prompt après acceptation ;
+  wipe requis.
+- **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (8).
+- **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
 
 ## Acté, à rédiger (dans l'ordre naturel)
 

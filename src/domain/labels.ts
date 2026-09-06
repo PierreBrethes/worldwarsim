@@ -14,6 +14,13 @@ export type MapMarker =
       readonly id: string;
       readonly lonLat: LonLat;
       readonly hostCountry: string;
+      /**
+       * **Le mât d'un avant-poste ouvre sa garnison**, comme celui d'un bâtiment hors
+       * projection : la colonne qui a fondé y stationne (ADR 0019 §1), et depuis la disparition
+       * du widget de troupes elle n'avait plus aucune porte. Une adresse, jamais deux — le clic
+       * droit garde la rose du point.
+       */
+      readonly station: Extract<TroopStation, { kind: 'outpost' }>;
       readonly specialization: Specialization;
       readonly level: number;
       readonly garrison: number;
@@ -305,6 +312,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         type: 'outpost',
         priority: PRIORITY.outpost,
         pictogram: 'outpost',
+        station: marker.station,
         hostCountry: marker.hostCountry,
         lines: [
           { role: 'nature', text: fr.specializations[marker.specialization] },

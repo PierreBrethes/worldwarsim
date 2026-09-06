@@ -40,6 +40,10 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     me: {
       nation: server.me.nation,
       creator: server.me.creator ?? false,
+      /** Un déploiement d'une version en retard ne connaît que le fondateur : le bouton retombe
+       *  sur le titre, ce qu'il a toujours fait, et le doyen n'en voit aucun. */
+      mayConclude: server.me.mayConclude ?? server.me.creator ?? false,
+      founderAbsence: server.me.founderAbsence ?? null,
       /** Un déploiement d'une version en retard ne connaît pas la capitulation : personne
        *  n'a déposé les armes, et le plateau garde tous ses boutons. */
       defeated: server.me.defeated ?? false,
@@ -119,6 +123,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         ...outpost,
         disabledMinutesLeft: outpost.disabledMinutesLeft ?? null,
         level: outpost.level ?? 1,
+        /** Un déploiement d'une version de retard ne place aucun point : la région est alors
+         *  inconnue, et rien de ce qui la lit ne s'ouvre — jamais une mauvaise région. */
+        regionId: outpost.regionId ?? null,
       })),
     },
     buildCatalog: server.buildCatalog,

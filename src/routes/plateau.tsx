@@ -50,6 +50,7 @@ import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
+import { usePresence } from '@/data/presence';
 import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
@@ -290,6 +291,7 @@ function NoGame() {
 
 function LiveBoard({ world, token }: { world: World; token: string }) {
   const server = useQuery(api.view.playerView, { token });
+  usePresence(token);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
   // it on each render would redo the labels and the compass on every keystroke elsewhere.
   const view = useMemo(
@@ -400,14 +402,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       setColumn(null);
       setOrder(null);
       setPosted(null);
-      /** **Un observateur ne compose plus de pile.** Le panneau de garnison n'est fait que pour
-       *  ça — sa seule sortie est « préparer » — et l'ouvrir vide serait promettre l'ordre que
-       *  `requirePlayable` refuse. Le clic recadre quand même : la carte reste sa carte. */
-      if (view.me.defeated) {
-        const seen = markerOfStation(view, station);
-        if (seen !== null) setFocus({ ids: [seen], nonce: Date.now() });
-        return;
-      }
+      /** **Un observateur lit sa garnison, il ne la compose plus** (décision du 31/08) : les
+       *  cases partent avec `observing` et « préparer » avec elles, mais le panneau s'ouvre —
+       *  une porte qui ne s'ouvre que parfois se lit comme une panne, et ses troupes restent
+       *  les siennes à regarder. */
       setGarrison({ station, preselect, ...at });
       const marker = markerOfStation(view, station);
       if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
@@ -564,6 +562,10 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           foundHere({
             token,
             point: { lon: action.point[0], lat: action.point[1] },
+            /** Le sol sous la pile, tel que la carte le dessine : le serveur n'a pas les
+             *  polygones et ne peut que vérifier le pays. Au dézoom il n'y a pas de région, et
+             *  `null` laisse le repli répondre. */
+            regionId: action.regionId,
             specialization: 'relay',
             troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
           }).then(
@@ -775,6 +777,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       id: `outpost-${outpost.id}`,
       lonLat: outpost.lonLat,
       hostCountry: outpost.hostCountry,
+      /** **Le mât ouvre la garnison** : la colonne qui a fondé stationne là (ADR 0019 §1), et
+       *  depuis la disparition du widget de troupes plus rien ne l'ouvrait. */
+      station: { kind: 'outpost', outpostId: outpost.id },
       specialization: outpost.specialization,
       level: outpost.level,
       garrison: outpost.garrison,
@@ -1171,7 +1176,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <SettingsWindow
                   key={name}
                   token={token}
-                  founder={view.me.creator}
+                  mayConclude={view.me.mayConclude}
                   defeated={view.me.defeated}
                   onShowBriefing={() => setBriefing(true)}
                   {...windowProps}

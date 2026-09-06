@@ -28,18 +28,6 @@ des ports** pour exister ailleurs ([ADR 0013](docs/adr/0013-batiments-de-project
 et une **condition de victoire** qui exige d'agir loin de chez soi. C'est au simulateur refondu de
 dire laquelle mord — le rapport actuel ne vaut plus une ligne depuis les ADR 0013, 0014 et 0015.
 
-**La clôture d'une saison quand le fondateur est parti.** Depuis l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
-§9, la **victoire par seuil tenu est le seul terminateur de partie** : plus d'horloge (révision du
-27/08 de l'ADR 0017), plus de mode alternatif. Il ne reste que deux portes de sortie — la passe de
-résolution qui fait franchir le seuil (`convex/victory.ts`), et `seasons.conclude`, **réservée au
-fondateur**. Un fondateur qui abandonne la partie laisse donc une saison que personne ne peut clore
-si personne ne gagne : elle court indéfiniment, et le wipe manuel devient le seul recours.
-
-Le trou était gênant tant qu'une horloge ou un second mode pouvaient l'absorber ; il est
-**bloquant** depuis le 31/08. Pistes non tranchées : passer le pouvoir de clôture au doyen des
-belligérants quand le fondateur n'a plus rejoué depuis N heures, un vote à la majorité des
-belligérants, ou un abandon explicite qui transmet le siège de fondateur.
-
 ## 🟢 Tranchées par la simulation
 
 **Le temps de trajet : 14 min pour 1 000 km.** La question était mal posée : il n'y a pas de ratio
@@ -94,6 +82,17 @@ Sans cette issue, l'interception est une punition sans contre-jeu.
 **~~Le secret des doctrines à 2 joueurs.~~ Sans objet depuis l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
 §9 :** il n'y a plus de doctrine à garder secrète, la domination est le mode unique et son score est
 public par décision (§4). Ce qui reste caché, et ce qui s'achète, c'est ce qui bouge.
+
+**~~La clôture d'une saison quand le fondateur est parti.~~ Tranchée le 06/09 (décision 1a),
+codée :** le pouvoir de clôture passe au **doyen des belligérants non défaits** quand le fondateur
+n'a plus été vu depuis `FOUNDER_ABSENCE_HOURS` (48 h) — pas de vote, et **pas de transfert de
+titre** : le fondateur reste fondateur, il perd l'exclusivité et la reprend en revenant. La présence
+s'écrit au montage du plateau, au plus toutes les 30 minutes (`players.touch`), et elle ne sort de
+`playerView` que pour le fondateur, sous forme de durée et près du seuil — une « dernière
+connexion » adverse serait un canal sur les plages de repos ([ADR 0005](docs/adr/0005-plages-de-repos.md)).
+`seasons.destroy` ne s'ouvre pas : on clôt une saison abandonnée, on ne l'efface jamais à la place
+de son fondateur. L'abandon *explicite* était déjà couvert par la capitulation, qui transmet le
+titre (`players.surrender`).
 
 **~~Le plafond de bâtiments.~~ Tranchée par l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
 §10 (31/08 au soir) :** les emplacements sont portés par **chaque site** — `2 × niveau de QG` sur le

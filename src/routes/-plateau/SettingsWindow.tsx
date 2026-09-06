@@ -17,14 +17,14 @@ import { FloatingWindow, type WindowProps } from './Window';
 
 export function SettingsWindow({
   token,
-  founder,
+  mayConclude,
   defeated,
   onClose,
   onShowBriefing,
   ...windowProps
 }: WindowProps & {
   token: string;
-  founder: boolean;
+  mayConclude: boolean;
   defeated: boolean;
   onShowBriefing: () => void;
 }) {
@@ -135,7 +135,7 @@ export function SettingsWindow({
           {/* **Le seul pouvoir de fondateur du plateau**, et il est rangé ici parce qu'une saison
               sans horloge n'a pas d'autre fin. Deux clics, comme la suppression d'une partie :
               c'est la même famille de geste, sauf que rien n'est effacé. */}
-          {founder && !defeated && (
+          {mayConclude && (
             <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
               <div className="text-[13.5px] text-[var(--ink)]">
                 {fr.settingsWindow.concludeLabel}

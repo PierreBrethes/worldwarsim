@@ -743,3 +743,35 @@ export const SURVEY_FADED_HOURS = 24;
  * @a-mesurer une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus
  */
 export const SURVEY_REFRESH_HOURS = 1;
+
+/**
+ * **Au bout de combien de temps un fondateur qui ne revient plus cesse d'être seul à pouvoir
+ * clore.** Depuis l'ADR 0020 §9 la Domination est le seul terminateur automatique : un fondateur
+ * qui abandonne sans capituler laisse une saison que personne ne peut finir, et le wipe manuel
+ * devient le seul recours. Le pouvoir passe donc au doyen des belligérants — pas le titre, la
+ * seule exclusivité (`seasons.conclude`).
+ *
+ * Quarante-huit heures, soit la plus courte des saisons : en deçà, une nuit et une journée de
+ * travail suffisent à ouvrir la porte sur un fondateur qui joue encore.
+ *
+ * @a-mesurer choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie
+ */
+export const FOUNDER_ABSENCE_HOURS = 48;
+
+/**
+ * **À quelle cadence au plus une présence s'écrit.** Une query ne peut pas écrire, donc la
+ * présence est une mutation que le client appelle — et une mutation appelée à chaque
+ * rafraîchissement du plateau serait un battement, avec l'invalidation de vue qui va avec.
+ *
+ * Trente minutes contre quarante-huit heures : la mesure est grossière de deux ordres de
+ * grandeur sous le seuil qu'elle sert, ce qui est exactement ce qu'on lui demande.
+ */
+export const PRESENCE_THROTTLE_MIN = 30;
+
+/**
+ * **À partir de quand l'absence du fondateur se dit au plateau.** Une ligne, pas une surface — et
+ * elle n'apparaît qu'à l'approche de la porte : afficher « absent depuis 3 h » dès la première
+ * matinée ferait d'une absence ordinaire un événement, et de la fenêtre Nation un mouchard sur
+ * les habitudes du fondateur.
+ */
+export const FOUNDER_ABSENCE_NOTICE_HOURS = 24;

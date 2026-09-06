@@ -171,6 +171,9 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly point: LonLat;
+      /** Le sol dessiné sous la pile, `null` au-dessus du seuil de fondu : c'est ce que le
+       *  serveur inscrit sur le point, faute de polygone à lui (précision du 04/09). */
+      readonly regionId: string | null;
       readonly troopIds: ReadonlyArray<string>;
     }
   /**
@@ -642,6 +645,7 @@ function foundHere(
       cost: null,
       consequence: fr.compass.foundConsequence,
       point: station.lonLat,
+      regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
     },
   ];

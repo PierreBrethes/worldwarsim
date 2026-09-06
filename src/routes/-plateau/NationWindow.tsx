@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { fr, nationLabel, roleLabel, stackLabel } from '@/i18n/fr';
+import { asDayAndTime, asDuration } from '@/domain/duration';
 import { DEPOSITS } from '@/domain/ids';
-import type { PlayerView, TroopStation } from '@/domain/player-view';
+import type { FounderAbsence, PlayerView, TroopStation } from '@/domain/player-view';
 import { marchingTroopIds, stationGroups, type StationGroup } from '@/domain/troops';
 import { stationNames } from '@/domain/station-name';
 import { Flag } from '@/emblems/Flag';
@@ -66,6 +67,8 @@ export function NationWindow({
           </Entry>
 
           <NationalGap regions={view.me.regions} />
+
+          <FounderLine absence={view.me.founderAbsence} />
 
           <Entry header={fr.nationSheet.armyHeader}>
             <div className="flex flex-col gap-[5px] text-[12.5px]">
@@ -154,6 +157,27 @@ function StandingRow({
       </span>
       <span className="shrink-0 text-[12px] text-[var(--interaction)]">›</span>
     </button>
+  );
+}
+
+/**
+ * **Le fondateur ne revient plus, et la partie reste clôturable.** Une ligne qui n'existe qu'à
+ * l'approche du seuil : le reste du temps `founderAbsence` est nul et la section n'est pas
+ * repliée, elle n'est pas là (même règle que « à faire maintenant » — vide, la carte n'existe
+ * pas). Elle ne dit ni qui est le doyen, ni aucune heure de connexion : la règle est publique,
+ * la présence des autres ne l'est pas (ADR 0005).
+ */
+function FounderLine({ absence }: { absence: FounderAbsence }) {
+  if (absence === null) return null;
+  const since = asDuration(absence.hours * 60);
+  return (
+    <Entry header={fr.nationSheet.founderHeader}>
+      <p className="text-[12.5px] leading-[1.5] text-[var(--ink)]">
+        {absence.concludeOpensAt <= Date.now()
+          ? fr.nationSheet.founderAbsentOpen(since)
+          : fr.nationSheet.founderAbsent(since, asDayAndTime(absence.concludeOpensAt))}
+      </p>
+    </Entry>
   );
 }
 

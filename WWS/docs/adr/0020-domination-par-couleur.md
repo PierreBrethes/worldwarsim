@@ -40,6 +40,19 @@ de construction a compris la couleur. La nation d'origine colore son propre pays
 sens de l'ADR 0004** : elle n'est pas annexée, elle est *tenue* tant qu'un avant-poste vivant la
 couvre. Retirer l'avant-poste retire la couleur, sans transfert.
 
+> **Précision du 04/09/2026.** **Un avant-poste tient, couvre et atteint toujours la région où
+> il se tient**, quelle que soit sa taille — puis les régions dont le point tombe dans son rayon,
+> comme avant. Le rayon reste métrique (§3) ; on ajoute l'évidence qu'il oubliait. Une région se
+> mesure à son **pôle d'inaccessibilité** (`region-index.json`), et celui d'une région sibérienne
+> est à deux ou quatre cents kilomètres de sa côte : un avant-poste de niveau 1 planté dedans ne
+> tenait pas même le sol sous ses pieds, et le puits de pétrole de sa propre région se faisait
+> refuser (`OUT_OF_OUTPOST_REACH`). Constat de la partie de test du 04/09, Japon, avant-poste en
+> Extrême-Orient soviétique. La région est nommée par le client à la fondation
+> (`outposts.regionId`, la région sous le point) et le serveur, qui ne tient aucun polygone, ne
+> vérifie que son pays ; les points d'avant le champ se relisent par la région la plus proche du
+> bon pays, repli assumé jusqu'au wipe. Une seule fonction la répond (`regionOfOutpost`), et tout
+> ce qui tient, couvre, atteint ou relève la lit.
+
 ### 2. Le score est relatif, pas absolu
 
 Le score d'un joueur est sa **part du théâtre** — le nombre de régions qu'il tient sur le total

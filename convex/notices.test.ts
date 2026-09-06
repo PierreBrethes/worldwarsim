@@ -242,6 +242,7 @@ describe('what the jobs file for the journal', () => {
     const { token, guest } = await launchedSeason(t);
     const desert = pointOf(PRAHOVA);
     await t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
       token,
       point: asPoint(desert),
       specialization: 'relay',

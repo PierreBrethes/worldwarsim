@@ -9,6 +9,7 @@ import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
+  FOUNDER_ABSENCE_NOTICE_HOURS,
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
@@ -22,11 +23,20 @@ import { homeSlotReliefOf, queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
 import { restHold } from './movements';
-import { foundationOwed, homeCountryOf, regionFacts, regionsOf } from './regions';
+import { foundationOwed, homeCountryOf, regionFacts, regionOfOutpost, regionsOf } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, hostAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
-import { isAtWar, playerByToken, requireStarted, warEntryOf } from './seasons';
+import {
+  concludeOpensAt,
+  concludeRefusal,
+  founderOf,
+  isAtWar,
+  lastSeenOf,
+  playerByToken,
+  requireStarted,
+  warEntryOf,
+} from './seasons';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 
@@ -70,6 +80,15 @@ export const playerView = query({
     const troops = await troopsOf(ctx, player._id);
     const recruiting = await recruitmentsOf(ctx, player._id);
     const outposts = await outpostsOf(ctx, player._id);
+    /** **Un avant-poste atteint toujours la région où il se tient** (précision de l'ADR 0020 du
+     *  04/09) : sans cette ligne, la seule région qu'un point sibérien rende constructible
+     *  n'était servie à personne, et le panneau ne pouvait rien offrir sur le sol même du
+     *  point. Le reste de sa portée attend la passe qui servira son cercle entier. */
+    for (const outpost of outposts) {
+      const regionId = regionOfOutpost(outpost);
+      const facts = regionId === null ? null : regionFacts(regionId);
+      if (facts) carrying.set(facts.id, facts);
+    }
     const locked = await specializationsServed(ctx, season._id, outposts);
     const sealed = outposts.map((outpost) => ({
       outpost,
@@ -157,6 +176,26 @@ export const playerView = query({
      * avec la part de carte (ADR 0020), elle ne s'amende pas. Le jour où elle part, ce coût part
      * avec elle ; d'ici là il est connu, et c'est tout ce qu'on lui demande.
      */
+    /**
+     * **La seule sortie de `lastSeenAt`, et elle ne parle que du fondateur.** Une « dernière
+     * connexion » servie pour un autre siège serait un canal sur les plages de repos (ADR 0005) :
+     * on saurait quand frapper. Ce qui sort ici est une durée d'absence, d'un seul joueur, dont
+     * l'absence a une conséquence de règle publique — et seulement quand la porte est proche
+     * (`FOUNDER_ABSENCE_NOTICE_HOURS`) ou déjà ouverte. Le reste du temps : `null`, et le plateau
+     * n'a pas de ligne.
+     */
+    const founder = founderOf(seats);
+    const opensAt = founder === null ? null : concludeOpensAt(founder, season);
+    const founderAbsence =
+      founder === null || opensAt === null
+        ? null
+        : opensAt - now > FOUNDER_ABSENCE_NOTICE_HOURS * 3_600_000
+          ? null
+          : {
+              hours: Math.max(0, now - lastSeenOf(founder, season)) / 3_600_000,
+              concludeOpensAt: opensAt,
+            };
+
     const standings = await standingsOf(ctx, season._id);
     const nationOf = new Map(
       standings.map((standing) => [
@@ -207,6 +246,16 @@ export const playerView = query({
         /** Le seul pouvoir que le plateau réserve au fondateur : clore une saison sans horloge
          *  (`seasons.conclude`). Rien d'autre n'en dépend. */
         creator: player.creator,
+        /**
+         * **Ce que `seasons.conclude` accepterait de lui, à cet instant**, par la fonction que la
+         * mutation lit elle-même (ADR 0015) : le bouton n'est jamais grisé, il est là ou il n'y
+         * est pas. C'est le fondateur, et le doyen quand le fondateur ne revient plus.
+         */
+        mayConclude:
+          season.status === 'launched' &&
+          player.defeated !== true &&
+          concludeRefusal(player, seats, season, now) === null,
+        founderAbsence,
         /** **Il observe.** Le plateau se lit entier — c'est bien sa vue, portée par ses
          *  détecteurs restants — et les surfaces d'action se présentent sans leurs boutons :
          *  l'interface ne promet pas ce que `requirePlayable` refuse déjà (audit du 25/08). */
@@ -433,6 +482,10 @@ export const playerView = query({
           id: outpost._id,
           hostCountry: outpost.hostCountry,
           lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
+          /** **Le sol qu'il tient d'office**, quelle que soit la taille de la région (précision
+           *  du 04/09). Servi plutôt que redeviné : le client n'a ni polygone ni index, et le
+           *  repli des points d'avant le champ est une lecture du serveur. */
+          regionId: regionOfOutpost(outpost),
           specialization: outpost.specialization,
           level: outpost.level,
           garrison: troops.filter((troop) => troop.stationedAt === outpost._id).length,

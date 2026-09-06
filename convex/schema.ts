@@ -135,6 +135,22 @@ export default defineSchema({
      * the journal silences the chat's badge.
      */
     telegraphReadAt: v.optional(v.number()),
+    /**
+     * **L'heure où on l'a vu pour la dernière fois**, absente tant qu'il n'a rien ouvert depuis
+     * que le champ existe — le lancement de la saison fait alors foi (`lastSeenOf`). `v.optional`
+     * pour la raison habituelle : les sièges déjà déposés ne le portent pas, et un champ
+     * obligatoire posé sans migration fait refuser la poussée (leçon du 27/08).
+     *
+     * **Une seule règle la lit, et pour un seul joueur** : le fondateur qui ne revient plus perd
+     * l'exclusivité de la clôture (`seasons.conclude`). Elle ne sort jamais de `playerView` pour
+     * un autre siège — une « dernière connexion » adverse serait un canal sur les plages de repos
+     * (ADR 0005), et la seule forme qui sorte est une durée d'absence du fondateur, près du
+     * seuil.
+     *
+     * Écrite au plus toutes les `PRESENCE_THROTTLE_MIN` minutes (`players.touch`) : c'est une
+     * présence, pas un battement.
+     */
+    lastSeenAt: v.optional(v.number()),
   })
     .index('byToken', ['token'])
     .index('bySeason', ['seasonId']),
@@ -346,6 +362,18 @@ export default defineSchema({
     playerId: v.id('players'),
     point: LON_LAT,
     hostCountry: v.string(),
+    /**
+     * **La région où il se tient**, nommée par le client à la fondation (`regionAtPoint`) : le
+     * serveur ne tient aucun polygone, et le pôle d'inaccessibilité d'une région sibérienne est
+     * à trois cents kilomètres de sa côte — mesurer la distance à ce point-là laissait un point
+     * ne pas tenir le sol qu'il occupe (précision de l'ADR 0020 du 04/09).
+     *
+     * `v.optional` parce que les points plantés avant ce champ ne le portent pas, et qu'un champ
+     * obligatoire posé sans migration fait refuser la poussée (leçon du 27/08 sur
+     * `buildings.seasonId`). Ils se relisent par la géographie (`regionOfOutpost`), et le repli
+     * part au prochain wipe.
+     */
+    regionId: v.optional(v.string()),
     level: v.number(),
     specialization: SPECIALIZATION,
     foundedAt: v.number(),

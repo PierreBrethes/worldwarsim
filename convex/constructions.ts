@@ -220,7 +220,7 @@ export const finish = internalMutation({
         await fileSurvey(
           ctx,
           construction.playerId,
-          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM }],
+          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM, regionId: null }],
           Date.now(),
         );
       }
