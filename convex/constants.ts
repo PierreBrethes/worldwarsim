@@ -775,3 +775,17 @@ export const PRESENCE_THROTTLE_MIN = 30;
  * les habitudes du fondateur.
  */
 export const FOUNDER_ABSENCE_NOTICE_HOURS = 24;
+
+/**
+ * **À quelle cadence le classement paraît** (décision 80 du 06/09, qui révise les 2 h de la
+ * décision 43). C'est la **seule constante nouvelle** que le classement introduit — tout le
+ * reste de son barème se lit dans les tables qui existent déjà (`propositions/classement-bareme.md`
+ * §1), et une grille de points par bâtiment ou par rôle serait une seconde table d'équilibrage
+ * à tenir d'accord avec la première.
+ *
+ * Trois heures : assez long pour que la page ne soit pas un moniteur — entre deux éditions le
+ * classement **ne bouge pas**, et c'est ce qui en fait un rendez-vous — assez court pour qu'une
+ * journée de jeu en porte huit. La première paraît à `launchedAt + PRESS_EDITION_HOURS`, jamais
+ * au lancement : au lancement il n'y a rien à dire.
+ */
+export const PRESS_EDITION_HOURS = 3;

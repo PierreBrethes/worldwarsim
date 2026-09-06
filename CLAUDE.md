@@ -300,6 +300,29 @@ administrative. Au front : « Défaite : observer » à l'accueil, un cachet au 
 rose au clic droit, la carte « à faire maintenant » absente, les boutons d'action retirés plutôt
 que grisés, et le bouton « déposer les armes » rangé dans Réglages à côté de « clore la saison ».
 
+**La presse paraît toutes les trois heures, et le classement ne bouge pas entre deux** (décision
+80 du 06/09, qui révise les 2 h de la 43 ; spec `propositions/classement-bareme.md`, contrat de
+vue 07). Un travail serveur qui se replanifie (`convex/press.ts`, `PRESS_EDITION_HOURS = 3`) écrit
+une ligne par joueur dans `editions` — territoire, industrie, puissance militaire, faits d'armes,
+général — et dépose chez chacun une dépêche `editionPublished` qui ne dit que **son** rang. Le
+barème est pur et testé sans base (`src/domain/standings.ts`) et **ne crée aucune table** : les
+trois catégories chiffrées se mesurent en **alliage payé**, lu dans `buildCost` et `COST_BY_ROLE`
+— un bâtiment vaut la somme des niveaux gravis, une troupe son prix au prorata de ses points de
+vie, un bâtiment sous un avant-poste désactivé vaut zéro tant qu'il l'est. Le territoire est une
+**part** (régions tenues ÷ régions tenues par quelqu'un, ADR 0020 §2), le général vaut
+`industrie + militaire` sans coefficient, et les faits d'armes n'y entrent pas — un compteur
+d'activité additionné à de l'alliage n'a pas d'unité. **`playerView` sert la dernière édition,
+jamais un recalcul** : recruter entre deux éditions ne déplace pas un chiffre de la page, et c'est
+tout le dispositif. Le cloisonnement est dans la forme servie — l'industrie et le militaire d'un
+autre joueur **ne sortent pas du serveur** (la ligne n'a pas les champs), le général et le
+territoire sont **exacts** : ce que le brouillard protège est *où* est la force, jamais *combien*.
+La fenêtre Presse au rail liste par territoire (rang · drapeau · nation · pseudo · % · général ·
+faits d'armes, tri de lecture sur les trois colonnes chiffrées), un défait y reste à son rang,
+estompé et tamponné ; la fenêtre Nation gagne « nos registres », le seul endroit du jeu où le
+détail existe, chaque chiffre avec sa variation depuis l'édition précédente. `concludeSeason`
+écrit une **édition finale** avant de fermer, et rien ne suit : elle tient lieu d'écran de fin.
+Pas de graphique, pas d'historique, pas de compte de régions.
+
 **Et un fondateur qui ne revient plus ne gèle plus la saison** (décision 1a du 06/09) : le plateau
 écrit une présence (`players.touch`, au montage puis toutes les `PRESENCE_THROTTLE_MIN` minutes), et
 passé `FOUNDER_ABSENCE_HOURS` sans l'avoir vu, le **doyen des belligérants non défaits** clôt à sa

@@ -24,6 +24,7 @@ import type * as movement_forces from "../movement/forces.js";
 import type * as movement_orders from "../movement/orders.js";
 import type * as movements from "../movements.js";
 import type * as players from "../players.js";
+import type * as press from "../press.js";
 import type * as regions from "../regions.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "movement/orders": typeof movement_orders;
   movements: typeof movements;
   players: typeof players;
+  press: typeof press;
   regions: typeof regions;
   resources: typeof resources;
   routes: typeof routes;

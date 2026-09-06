@@ -135,6 +135,9 @@ const TelegraphWindow = lazy(() =>
 const GunneryWindow = lazy(() =>
   import('./-plateau/GunneryWindow').then((module) => ({ default: module.GunneryWindow })),
 );
+const PressWindow = lazy(() =>
+  import('./-plateau/PressWindow').then((module) => ({ default: module.PressWindow })),
+);
 
 const WINDOWS = [
   'journal',
@@ -149,6 +152,9 @@ const WINDOWS = [
   /** L'abaque de tir a pris l'entrée de rail que l'onglet « prod. » a libérée (59a, contrat 06) :
    *  il faut pouvoir le lire sans posséder un seul bâtiment de projection. */
   'gunnery',
+  /** La presse : le classement à l'heure du dernier relevé. Elle ne commande rien — on la
+   *  ferme, et c'est la seule action que le contrat 07 lui accorde. */
+  'press',
 ] as const;
 
 export type BoardWindow = (typeof WINDOWS)[number];
@@ -1171,6 +1177,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               );
             case 'gunnery':
               return <GunneryWindow key={name} token={token} {...windowProps} />;
+            case 'press':
+              return <PressWindow key={name} press={view.press} {...windowProps} />;
             case 'settings':
               return (
                 <SettingsWindow

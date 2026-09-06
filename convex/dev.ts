@@ -7,6 +7,7 @@ import { internalMutation } from './_generated/server';
  * mid-season would leave behind, since nothing here is migrated.
  */
 export const GAME_TABLES = [
+  'editions',
   'constructions',
   'messages',
   'notices',

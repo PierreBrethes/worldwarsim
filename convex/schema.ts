@@ -583,6 +583,39 @@ export default defineSchema({
    * corrige une couleur périmée, et c'est pour ça qu'elle s'écrit au lieu d'être omise. L'absence
    * de ligne, elle, est le troisième état — *vierge*, jamais observée, qui n'est pas *neutre*.
    */
+  /**
+   * **Une édition du classement : une ligne par joueur, à l'heure du relevé** (spécification
+   * `propositions/classement-bareme.md` §3). Ce qui la rend nécessaire tient en une phrase : le
+   * classement **ne bouge pas entre deux éditions**, donc il ne peut pas être une lecture de
+   * l'état — une vue qui recalculerait les scores à chaque chargement ferait de la presse un
+   * moniteur temps réel, ce que ce jeu n'a pas.
+   *
+   * Les valeurs sont **exactes**, jamais arrondies en tranche : la tranche a été abandonnée le
+   * 06/09 (décision 80), et de toute façon un affichage n'a rien à faire en base.
+   *
+   * `final` marque l'édition écrite hors cadence à la conclusion de la saison (§5) — la dernière,
+   * et celle que la page de presse tamponne. Rien ne suit une édition finale.
+   *
+   * Volume : huit joueurs, huit éditions par jour, sept jours — quatre cent quarante-huit lignes.
+   * Rien à borner, et `destroy` l'emporte avec le reste (`convex/dev.ts`).
+   */
+  editions: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    at: v.number(),
+    final: v.boolean(),
+    /** La part du théâtre, en pour cent — jamais un compte de régions (contrat de vue 07 P3). */
+    territory: v.number(),
+    industry: v.number(),
+    military: v.number(),
+    deeds: v.number(),
+    general: v.number(),
+  })
+    /** L'édition entière, par saison et par heure : ce que la page de presse sert. */
+    .index('bySeasonAt', ['seasonId', 'at'])
+    /** Les deux dernières lignes d'un joueur : la sienne et celle d'avant, dont sort le delta. */
+    .index('byPlayerAt', ['playerId', 'at']),
+
   regionSightings: defineTable({
     /** L'observateur, jamais le tenant de ce qui a été vu. */
     playerId: v.id('players'),

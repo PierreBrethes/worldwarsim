@@ -275,6 +275,18 @@ function written(notice: Notice): Written {
         kind: 'command',
         text: said.commandTransferred(nationName(notice.nation)),
       };
+    /**
+     * **Le rendez-vous collectif, et il est routinier** : l'édition paraît à l'heure dite, elle
+     * n'annonce rien qui exige un geste. Son rang seul y figure — la table se lit à la page de
+     * presse, et la chiffrer ici en ferait une seconde source à tenir d'accord avec la première.
+     */
+    case 'editionPublished':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'edition',
+        text: said.editionPublished(asLocalTime(notice.at), notice.rank),
+      };
   }
 }
 

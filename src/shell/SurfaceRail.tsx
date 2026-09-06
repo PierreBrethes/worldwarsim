@@ -71,6 +71,13 @@ export function SurfaceRail({
       target: toggled('gunnery'),
       active: windowOpen(search, 'gunnery'),
     },
+    {
+      title: fr.rail.press.title,
+      label: fr.rail.press.label,
+      icon: <FoldedPaperIcon />,
+      target: toggled('press'),
+      active: windowOpen(search, 'press'),
+    },
   ];
 
   /**
@@ -233,6 +240,21 @@ function TelegraphIcon() {
       <path d="M9.5 11.5v4" />
       <circle cx="5" cy="11.5" r="1.3" />
       <path d="M14 8.2l1.8-1.7M16.4 9.4l2.3-.7" />
+    </Glyph>
+  );
+}
+
+/**
+ * **Un journal plié** : la pliure au milieu, la manchette et trois lignes de colonne. Tracé et
+ * non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire pour lui, et le
+ * pictogramme `journal` est déjà pris par le bouton du bandeau, dont il serait le sosie.
+ */
+function FoldedPaperIcon() {
+  return (
+    <Glyph>
+      <path d="M3 5h14v10H3z" />
+      <path d="M10 5v10" />
+      <path d="M5 8h3M5 11h3M12 8h3M12 11h3" />
     </Glyph>
   );
 }

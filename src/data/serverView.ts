@@ -129,6 +129,11 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
     },
     buildCatalog: server.buildCatalog,
+    /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta
+     *  reconstitué côté client aurait besoin de l'édition précédente, que la vue ne sert pas et
+     *  ne servira pas (contrat 07 P3 : pas d'historique). Un déploiement d'une version de retard
+     *  n'en sert aucune, et la page dit simplement qu'aucune édition n'a paru. */
+    press: server.press ?? null,
     arcs: [...(server.movements ?? []).map(asArc), ...(server.detected ?? []).map(asDetectedArc)],
     journal: journalDispatches(
       server.reports ?? [],

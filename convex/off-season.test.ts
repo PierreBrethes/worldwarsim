@@ -720,9 +720,16 @@ describe('a season without a clock', () => {
     expect(season.winnerId).toBeNull();
     expect(season.concludedAt).not.toBeNull();
 
-    // Une dépêche par belligérant : c'est le seul écran qui annonce la fin.
+    /** Une dépêche par belligérant : c'est le seul écran qui annonce la fin. Elle arrive avec
+     *  celle de l'**édition finale** — la conclusion écrit un dernier classement avant de fermer
+     *  (`convex/press.ts`), et une édition dépose sa convocation chez chacun comme les autres. */
     const notices = await t.run(async (ctx) => ctx.db.query('notices').collect());
-    expect(notices.map((notice) => notice.kind)).toEqual(['seasonClosed', 'seasonClosed']);
+    expect(notices.map((notice) => notice.kind).sort()).toEqual([
+      'editionPublished',
+      'editionPublished',
+      'seasonClosed',
+      'seasonClosed',
+    ]);
 
     // Elle se relit, elle ne se joue plus.
     await expect(

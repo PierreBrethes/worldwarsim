@@ -446,7 +446,9 @@ export type DispatchKind =
   | 'firedDry'
   | 'foundNothing'
   | 'surrender'
-  | 'command';
+  | 'command'
+  /** L'édition du classement : le seul rendez-vous que tout le monde reçoit à la même heure. */
+  | 'edition';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -545,7 +547,10 @@ export type Notice =
   /** Une capitulation, et la main qu'elle passe (`convex/players.ts`, `surrender`). Publiques
    *  toutes les deux : elles changent la table, elles ne relèvent d'aucun brouillard. */
   | { readonly kind: 'playerSurrendered'; readonly at: number; readonly nation: string }
-  | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string };
+  | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
+  /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
+   *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
+  | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number };
 
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
@@ -595,6 +600,59 @@ export type FounderAbsence = {
   readonly hours: number;
   readonly concludeOpensAt: number;
 } | null;
+
+/**
+ * **La dernière édition du classement — un relevé daté, jamais l'état** (contrat de vue 07,
+ * `propositions/classement-bareme.md`). L'écran ne bouge pas entre deux éditions, et c'est ce
+ * type qui le garantit : rien ici n'est calculable depuis le plateau, tout vient d'une ligne
+ * écrite à une heure donnée.
+ *
+ * **Le cloisonnement est dans la forme.** `mine` porte les cinq chiffres ; `PressLine` en porte
+ * trois, et n'a structurellement ni `industry` ni `military` — on ne peut pas les afficher par
+ * distraction, exactement comme un arc adverse n'a pas de composition (convention §8).
+ */
+export type PressEdition = {
+  /** L'heure du relevé — la manchette l'imprime, à la seconde, comme partout ailleurs. */
+  readonly at: number;
+  /** `null` sur une édition finale : plus rien ne suit. */
+  readonly next: number | null;
+  readonly final: boolean;
+  /** `null` pour un siège entré après la dernière édition : il paraîtra à la prochaine. */
+  readonly mine: PressOwnLine | null;
+  readonly others: ReadonlyArray<PressLine>;
+};
+
+/** Ce qu'on lit d'un autre joueur, et rien de plus (décision 80) : le général est exact, il ne
+ *  se décompose pas. */
+export type PressLine = {
+  readonly playerId: string;
+  readonly nickname: string;
+  readonly nation: string | null;
+  readonly rank: number;
+  /** La part du théâtre, en pour cent — jamais un compte de régions. */
+  readonly territory: number;
+  readonly general: number;
+  readonly deeds: number;
+  readonly defeated: boolean;
+};
+
+/** Ma ligne : la même, plus le détail que je suis seul à lire, plus la variation depuis
+ *  l'édition précédente — `null` à la première, où il n'y a rien à comparer. */
+export type PressOwnLine = Omit<PressLine, 'playerId' | 'general'> & {
+  readonly industry: number;
+  readonly military: number;
+  readonly general: number;
+  readonly since: number | null;
+  readonly delta: PressDelta | null;
+};
+
+export type PressDelta = {
+  readonly territory: number;
+  readonly industry: number;
+  readonly military: number;
+  readonly deeds: number;
+  readonly general: number;
+};
 
 export type PlayerView = {
   readonly season: {
@@ -688,6 +746,9 @@ export type PlayerView = {
   /** Level-one price list, served by the server: balance numbers have one home, `constants.ts`. */
   readonly buildCatalog: Readonly<Record<BuildingKey, BuildSpec>>;
   readonly arcs: ReadonlyArray<ArcView>;
+  /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
+   *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
+  readonly press: PressEdition | null;
   readonly journal: ReadonlyArray<JournalDispatch>;
   readonly opponents: ReadonlyArray<Opponent>;
   readonly coverage: { readonly visible: number; readonly total: number };

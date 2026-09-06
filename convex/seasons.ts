@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -6,11 +7,13 @@ import { gameCode, playableRegion } from '../src/domain/off-season';
 import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
+import { publishFinalEdition } from './press';
 import { capitalRegionOf } from './regions';
 import { SEASON_CLOCK_HOURS } from './validators';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
+  PRESS_EDITION_HOURS,
   HQ_LEVEL_AT_LAUNCH,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
@@ -397,6 +400,15 @@ export const launch = mutation({
       playableRegion: playableRegion(present.length),
     });
     for (const entry of present) await endow(ctx, entry, now);
+
+    /**
+     * **La première édition du classement**, à `launchedAt + PRESS_EDITION_HOURS` et pas une
+     * minute avant : au lancement tout le monde a la même dotation, il n'y a rien à raconter.
+     * Le travail se replanifie ensuite lui-même (`convex/press.ts`), comme les files.
+     */
+    await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
+      playerId: present[0]!._id,
+    });
   },
 });
 
@@ -445,6 +457,13 @@ export async function concludeSeason(
   winnerId: Id<'players'> | null,
   at: number,
 ): Promise<void> {
+  /**
+   * **L'édition finale s'écrit d'abord** (`classement-bareme.md` §5) : après le `patch`, le
+   * garde-fou de tout travail planifié (`seasonStillPlays`) la refuserait — ce qui est
+   * précisément ce qui arrête toutes les suivantes. C'est le classement que la page de presse
+   * tamponne, et il n'y a pas d'écran de fin pour le doubler.
+   */
+  await publishFinalEdition(ctx, seasonId, at);
   await ctx.db.patch(seasonId, { status: 'concluded', winnerId, concludedAt: at });
 }
 
@@ -614,7 +633,15 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     }
   }
 
+  /** Les éditions pendent au joueur par un index composé — le préfixe suffit à les balayer,
+   *  et un second index par joueur seul serait une clé de plus à tenir pour la même réponse. */
+  const editions = await ctx.db
+    .query('editions')
+    .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId))
+    .collect();
+
   const owned = [
+    ...editions,
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),

@@ -16,7 +16,9 @@ propositions ; ce fichier est la file.
 
 ## Acté le 06/09, prêts ou à écrire
 
-- **classement-et-page-de-presse** (79a) — *prêt* — spec `propositions/classement-bareme.md`.
+- ~~**classement-et-page-de-presse**~~ (79a, révisé par la décision 80) — **livré le 06/09** :
+  barème pur (`src/domain/standings.ts`), table `editions`, job `convex/press.ts` toutes les
+  `PRESS_EDITION_HOURS = 3` h, fenêtre Presse au rail et bloc « nos registres » dans Nation.
 - **etat-de-reference-depuis-une-saison** (5a) — *prêt* — l'ancien simulateur part en `_to_delete/`.
 - **Comptes pseudo + mot de passe** — ADR 0022 *proposée*, à accepter ; prompt après acceptation ;
   wipe requis.
@@ -32,7 +34,9 @@ propositions ; ce fichier est la file.
    l'infanterie pille, capture des seuls bâtiments de production.
 9. **Bâtiment de stockage unique** — entrepôt + dépôt fusionnés, posé, pillable.
 10. **Objectifs neutres** (proposition `objectifs-neutres.md`).
-11. **Page de presse** — classement en édition toutes les 2 h (43), barème chiffré à trancher.
+11. ~~**Page de presse**~~ — **livrée le 06/09** (cadence portée à 3 h par la décision 80, barème
+    tranché par `propositions/classement-bareme.md`). Ce qui n'y est pas : l'écran de fin —
+    l'édition finale en tient lieu — et le graphique, refusé par le contrat de vue 07.
 12. **Fin de saison au seuil tenu** (ADR 0020).
 13. **Titre « mon territoire »** dans `GroundPanel` (trouvaille du 01/09, une clé fr).
 14. **Fondateur parti → transfert au plus ancien** (40a) — prompt à retrouver dans `done/` ou à

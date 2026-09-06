@@ -1,8 +1,14 @@
 import { useMemo, type ReactNode } from 'react';
 import { fr, nationLabel, roleLabel, stackLabel } from '@/i18n/fr';
-import { asDayAndTime, asDuration } from '@/domain/duration';
+import { asDayAndTime, asDuration, asLocalTime } from '@/domain/duration';
 import { DEPOSITS } from '@/domain/ids';
-import type { FounderAbsence, PlayerView, TroopStation } from '@/domain/player-view';
+import type {
+  FounderAbsence,
+  PlayerView,
+  PressEdition,
+  PressOwnLine,
+  TroopStation,
+} from '@/domain/player-view';
 import { marchingTroopIds, stationGroups, type StationGroup } from '@/domain/troops';
 import { stationNames } from '@/domain/station-name';
 import { Flag } from '@/emblems/Flag';
@@ -69,6 +75,8 @@ export function NationWindow({
           <NationalGap regions={view.me.regions} />
 
           <FounderLine absence={view.me.founderAbsence} />
+
+          <Registers press={view.press} />
 
           <Entry header={fr.nationSheet.armyHeader}>
             <div className="flex flex-col gap-[5px] text-[12.5px]">
@@ -159,6 +167,62 @@ function StandingRow({
     </button>
   );
 }
+
+/**
+ * **« Nos registres » — les cinq chiffres du classement, et le seul endroit où ils existent en
+ * clair** (`propositions/classement-bareme.md` §4). Les autres joueurs n'ont que le général : la
+ * fiche de nation est chez soi, et c'est chez soi que le détail se lit.
+ *
+ * **Ce sont les chiffres du dernier relevé, pas ceux de l'instant** — la date le dit, et le delta
+ * la double : sans elle, un joueur qui vient de poser une fonderie lirait un chiffre inchangé
+ * comme un bug. Rien ici n'est recalculé, exactement comme à la page de presse.
+ *
+ * Absente tant qu'aucune édition n'a paru : vide, la section n'existe pas (même règle que
+ * « à faire maintenant » et que la ligne du fondateur au-dessus).
+ */
+function Registers({ press }: { press: PressEdition | null }) {
+  const own = press?.mine ?? null;
+  if (press === null || own === null) return null;
+  const said = fr.press.registers;
+  const lines: ReadonlyArray<{ label: string; value: string; delta: string }> = [
+    line(said.territory, fr.press.percent(own.territory), own, (delta) => delta.territory, 1),
+    line(said.industry, fr.press.score(own.industry), own, (delta) => delta.industry),
+    line(said.military, fr.press.score(own.military), own, (delta) => delta.military),
+    line(said.deeds, fr.press.score(own.deeds), own, (delta) => delta.deeds),
+    line(said.general, fr.press.score(own.general), own, (delta) => delta.general),
+  ];
+  return (
+    <Entry header={said.title}>
+      <p className="mb-[6px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+        {fr.press.capturedAt(asLocalTime(press.at))}
+      </p>
+      <div className="flex flex-col gap-[5px] text-[12.5px]">
+        {lines.map((entry) => (
+          <span key={entry.label} className="flex items-baseline justify-between gap-3">
+            <span className="text-[var(--ink-soft)]">{entry.label}</span>
+            <span className="flex items-baseline gap-[9px]">
+              <span className="text-[var(--ink)]">{entry.value}</span>
+              <span className="w-[42px] text-right font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+                {entry.delta}
+              </span>
+            </span>
+          </span>
+        ))}
+      </div>
+      <p className="mt-[6px] text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
+        {own.since === null ? said.noPrevious : said.since(asLocalTime(own.since))}
+      </p>
+    </Entry>
+  );
+}
+
+const line = (
+  label: string,
+  value: string,
+  own: PressOwnLine,
+  of: (delta: NonNullable<PressOwnLine['delta']>) => number,
+  decimals = 0,
+) => ({ label, value, delta: own.delta === null ? '' : fr.press.delta(of(own.delta), decimals) });
 
 /**
  * **Le fondateur ne revient plus, et la partie reste clôturable.** Une ligne qui n'existe qu'à

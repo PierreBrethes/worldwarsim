@@ -131,6 +131,27 @@ async function credit(t: ReturnType<typeof boot>, token: string, stock: number) 
   });
 }
 
+/**
+ * **De quoi tenir aussi longtemps que le test fait avancer l'horloge.** Vider la file d'une
+ * caserne fait maintenant courir la saison jusqu'au bout de son horloge — l'édition de la presse
+ * se replanifie toutes les trois heures (`convex/press.ts`) et `finishAllScheduledFunctions` la
+ * déroule entière. Une nation sans ferme y meurt de faim, et une file arrêtée par la famine
+ * (`consommation-continue.md` D3) est une règle correcte qui n'a rien à voir avec ce qui est
+ * mesuré ici : le plafond d'effectifs.
+ */
+async function feed(t: ReturnType<typeof boot>, token: string, stock: number) {
+  const playerId = await playerOf(t, token);
+  await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    for (const row of rows) {
+      if (row.key === 'food') await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    }
+  });
+}
+
 /** The ammunition stock, read the way the board reads it — the workshop no longer serves it. */
 async function ammunitionOf(t: ReturnType<typeof boot>, token: string): Promise<number> {
   const view = await t.query(api.view.playerView, { token });
@@ -350,6 +371,7 @@ describe('the troop ceiling', () => {
       const t = boot();
       const token = await launchedSeason(t);
       await credit(t, token, 40_000);
+      await feed(t, token, 40_000);
       const barracks = await raise(t, token, 'barracks', MARNE);
       const billets = await raise(t, token, 'billets', ARDENNES, 2);
       await raise(t, token, 'billets', MEUSE, 2);

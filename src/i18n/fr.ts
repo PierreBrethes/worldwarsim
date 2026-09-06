@@ -33,6 +33,19 @@ import type {
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
 
+/** `1ᵉʳ`, puis `2ᵉ` — l'exposant est composé en caractères, jamais en balise : ces chaînes
+ *  passent aussi par des attributs `title`, où un `<sup>` s'imprimerait tel quel. */
+const ordinal = (rank: number): string => (rank === 1 ? '1ᵉʳ' : `${rank}ᵉ`);
+
+/** Les chiffres de la presse à la française : virgule décimale, milliers séparés par une espace
+ *  insécable étroite — `1 460`, `31,8`. Le composeur du navigateur plutôt qu'un découpage à la
+ *  main, qui se trompe sur les négatifs et sur les nombres à cinq chiffres. */
+const decimal = (value: number, decimals: number): string =>
+  new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+
 /** Building names are capitalised as titles; mid-sentence they are common nouns again. */
 const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + label.slice(1);
 
@@ -605,12 +618,65 @@ export const fr = {
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
   },
 
+  /**
+   * **La presse — le classement, à l'heure du dernier relevé** (contrat de vue 07, annexe
+   * `07-presse-donnees.md`, barème `propositions/classement-bareme.md`). Les chaînes sont celles
+   * de l'annexe, mot pour mot : la maquette a été validée dessus, et une reformulation ici
+   * décalerait la colonne qu'elle a mesurée.
+   *
+   * **Aucune mention « estimations ».** Les chiffres sont exacts depuis la décision 80 ; la
+   * manchette « scores relevés à » est la seule source que la page cite, et c'est elle qui porte
+   * tout l'avertissement : ce n'est pas maintenant, c'est le relevé de 14 heures.
+   */
+  press: {
+    title: 'Presse',
+    /** Ce que la page dit d'elle-même au rail — la seule promesse qu'elle tient. */
+    kicker: 'classement de la saison',
+    capturedAt: (time: string) => `scores relevés à ${time}`,
+    next: (time: string) => `prochaine édition à ${time}`,
+    final: 'édition finale',
+    none: 'Aucune édition n’a encore paru — la première tombe trois heures après le lancement.',
+    columns: {
+      rank: 'rang',
+      pseudo: 'pseudo',
+      territory: 'territoire',
+      general: 'score général',
+      deeds: 'faits d’armes',
+    },
+    /** Le tri est une lecture, jamais un ordre : la page n'envoie rien, et l'ordre servi reste
+     *  celui du territoire — le but de la saison (79a). */
+    sortBy: (column: string) => `trier par ${column}, du plus grand au plus petit`,
+    leadColumn: 'premier de la colonne',
+    ownRegisters: 'selon nos propres registres',
+    registers: {
+      title: 'nos registres',
+      territory: 'territoire',
+      industry: 'industrie',
+      military: 'puissance militaire',
+      deeds: 'faits d’armes',
+      general: 'score général',
+      since: (time: string) => `depuis l’édition de ${time}`,
+      /** Première édition : rien à comparer, et un « +393 » depuis le néant serait une
+       *  progression inventée. */
+      noPrevious: 'première édition — rien à comparer',
+    },
+    /** **Le signe s'imprime toujours**, et `=` remplace un zéro : une case vide se lirait comme
+     *  une donnée manquante plutôt que comme une immobilité. */
+    delta: (value: number, decimals = 0): string =>
+      Math.abs(value) < 10 ** -decimals / 2
+        ? '='
+        : `${value > 0 ? '+' : '−'}${decimal(Math.abs(value), decimals)}`,
+    percent: (value: number): string => `${decimal(value, 1)} %`,
+    score: (value: number): string => decimal(value, 0),
+  },
+
   rail: {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
     economy: { title: 'Économie — chantier, filière et projection', label: 'écon.' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
+    press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
     settings: 'Réglages',
     seasonEnd: (season: number, hours: number, minutes: string) =>
@@ -743,6 +809,7 @@ export const fr = {
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       command: 'commandement',
+      edition: 'édition',
     } satisfies Record<DispatchKind, string>,
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
@@ -798,6 +865,10 @@ export const fr = {
       playerSurrendered: (nation: string) =>
         `${nation.toUpperCase()} CAPITULE — ses armes sont déposées. Ses positions tiennent, ses colonnes ne partiront plus.`,
       commandTransferred: (nation: string) => `${nation} prend la direction de la partie.`,
+      /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
+       *  presse est la lecture, cette ligne n'est que la convocation. */
+      editionPublished: (time: string, rank: number) =>
+        `Édition de ${time} — vous êtes ${ordinal(rank)} au classement.`,
       constructionFinished: (building: string, region: string, level: number) =>
         level <= 1
           ? `${building} en ${region} entre en service.`

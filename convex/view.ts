@@ -10,6 +10,8 @@ import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
 import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
+  MAX_PLAYERS,
+  PRESS_EDITION_HOURS,
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
@@ -195,6 +197,8 @@ export const playerView = query({
               hours: Math.max(0, now - lastSeenOf(founder, season)) / 3_600_000,
               concludeOpensAt: opensAt,
             };
+
+    const press = await lastEdition(ctx, season._id, player._id);
 
     const standings = await standingsOf(ctx, season._id);
     const nationOf = new Map(
@@ -503,6 +507,20 @@ export const playerView = query({
         })),
       },
       /**
+       * **La dernière édition du classement, et jamais un recalcul** (`classement-bareme.md` §3).
+       * C'est tout le point de la table : entre deux éditions le classement **ne bouge pas**, et
+       * une vue qui repèserait les bâtiments à chaque chargement ferait de la presse un moniteur
+       * — recruter entre deux éditions ne doit rien changer à ce que la page affiche.
+       *
+       * **Industrie et militaire ne sortent que pour soi.** Les autres n'ont que le territoire,
+       * le général et les faits d'armes (décision 80) : le général se lit, il ne se décompose
+       * pas, et le garde-fou tient ici, à la couture — pas dans un filtre du client.
+       *
+       * `null` tant qu'aucune édition n'a paru, ce qui est l'état des trois premières heures
+       * d'une saison : la page le dit en une phrase plutôt que d'afficher une table à zéro.
+       */
+      press,
+      /**
        * **What the engagements of this player amount to**, attacked and attacking alike — the
        * raw material of the journal, and later of the visual replay. Numbers only: the French
        * is built on the client (ADR 0016), and re-resolving a pass to display it is how two
@@ -681,6 +699,106 @@ export const playerView = query({
     };
   },
 });
+
+/**
+ * **La dernière édition parue, telle que la page de presse la lit.** Deux lectures indexées et
+ * rien d'autre : les lignes de l'édition la plus récente de la saison, et les deux dernières du
+ * joueur — dont sort le delta, qui est la seule chose que la page calcule.
+ *
+ * **Le cloisonnement est ici.** `mine` porte les cinq chiffres ; `others` en porte trois. Une
+ * industrie d'adversaire ne sort pas du serveur, donc aucun client, aucune capture de requête et
+ * aucun bug d'affichage ne peut la révéler — c'est la même défense que les états d'arc.
+ */
+async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<'players'>) {
+  /** Une édition écrit exactement une ligne par joueur, et le salon plafonne à `MAX_PLAYERS` :
+   *  la dernière fenêtre de cette taille contient donc l'édition entière, jamais moins. */
+  const recent = await ctx.db
+    .query('editions')
+    .withIndex('bySeasonAt', (q) => q.eq('seasonId', seasonId))
+    .order('desc')
+    .take(MAX_PLAYERS);
+  const at = recent[0]?.at;
+  if (at === undefined) return null;
+  const edition = recent.filter((line) => line.at === at);
+
+  const own = await ctx.db
+    .query('editions')
+    .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId))
+    .order('desc')
+    .take(2);
+  const mine = own[0] ?? null;
+  /** L'édition d'avant, `null` à la première : un delta depuis le néant serait une progression
+   *  inventée, et la fenêtre Nation n'imprime alors aucun signe. */
+  const before = own[1] ?? null;
+
+  const seats = await ctx.db
+    .query('players')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+  const seatOf = new Map(seats.map((seat) => [seat._id as string, seat]));
+
+  /** Le rang se lit sur le territoire, le premier en haut (79a) — calculé sur l'édition et non
+   *  sur l'état, comme tout le reste de cette réponse. */
+  const ranked = [...edition].sort((left, right) => right.territory - left.territory);
+  const rankOf = new Map(ranked.map((line, index) => [line._id as string, index + 1]));
+
+  return {
+    at,
+    /** `null` sur une édition finale : plus rien ne suit, et une « prochaine édition » y serait
+     *  un rendez-vous qui n'aura pas lieu. */
+    next: mine?.final === true ? null : at + PRESS_EDITION_HOURS * 3_600_000,
+    final: mine?.final ?? false,
+    mine:
+      mine === null
+        ? null
+        : {
+            rank: rankOf.get(mine._id as string) ?? 1,
+            /** Le pseudo et le drapeau voyagent avec ma ligne parce qu'elle **est** une ligne du
+             *  tableau : la page m'imprime à mon rang comme les autres, et sans eux le client
+             *  devrait reconstituer mon nom depuis une seconde source. */
+            nickname: seatOf.get(playerId as string)?.nickname ?? '',
+            nation: seatOf.get(playerId as string)?.nation ?? null,
+            defeated: seatOf.get(playerId as string)?.defeated ?? false,
+            territory: mine.territory,
+            industry: mine.industry,
+            military: mine.military,
+            deeds: mine.deeds,
+            general: mine.general,
+            /** L'heure de l'édition précédente, pour que la fenêtre Nation puisse dire
+             *  « depuis l'édition de 11:00:00 » plutôt qu'un « depuis la dernière fois ». */
+            since: before?.at ?? null,
+            delta:
+              before === null
+                ? null
+                : {
+                    territory: mine.territory - before.territory,
+                    industry: mine.industry - before.industry,
+                    military: mine.military - before.military,
+                    deeds: mine.deeds - before.deeds,
+                    general: mine.general - before.general,
+                  },
+          },
+    /** **Trois chiffres, et le troisième est un compteur d'activité.** Ni `industry` ni
+     *  `military` ne figurent ici, et c'est structurel : ils ne sont pas omis à l'affichage,
+     *  ils ne sont pas construits. */
+    others: ranked.flatMap((line) => {
+      if (line.playerId === playerId) return [];
+      const seat = seatOf.get(line.playerId as string);
+      return [
+        {
+          playerId: line.playerId,
+          nickname: seat?.nickname ?? '',
+          nation: seat?.nation ?? null,
+          rank: rankOf.get(line._id as string) ?? 1,
+          territory: line.territory,
+          general: line.general,
+          deeds: line.deeds,
+          defeated: seat?.defeated ?? false,
+        },
+      ];
+    }),
+  };
+}
 
 /**
  * **Ce que le retrait du leurre laisse en base, et que rien ne doit servir** (29/08/2026). Les

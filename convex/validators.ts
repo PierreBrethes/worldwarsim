@@ -232,6 +232,20 @@ export const NOTICE = v.union(
     nation: v.string(),
   }),
   /**
+   * **L'édition du classement a paru** (`propositions/classement-bareme.md` §4). Le rendez-vous
+   * collectif que l'audit du 25/08 réclamait, à coût nul : tout le monde la reçoit à la même
+   * heure, et c'est la seule chose du jeu qui arrive à tout le monde en même temps.
+   *
+   * **Un rang, et rien d'autre.** Pas de score, et surtout pas celui des autres : la page de
+   * presse est là pour ça, et une dépêche qui chiffrerait la table ferait du journal une seconde
+   * source à tenir d'accord avec la première.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('editionPublished'),
+    rank: v.number(),
+  }),
+  /**
    * **The one event of the game that used to leave no trace at all.** An attack or a raid that
    * walks onto empty ground files no engagement — there was no pass — so without this row the
    * player reads "rien à signaler" after the longest march of his season.
