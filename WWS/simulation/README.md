@@ -1,43 +1,42 @@
-# Simulateur de saison
+# Simulation et état de référence
 
-Instrument de mesure, **pas** un prototype de jeu. Des joueurs virtuels suivent des politiques
-fixes, on fait tourner 48 h, on compte.
+Deux choses vivent ici, et aucune n'est un prototype de jeu.
+
+## L'état de référence — exporté, plus jamais simulé
+
+`ETAT-REFERENCE.md` est la vue d'un joueur sur une **saison réellement jouée**, brouillard
+appliqué : ce que `playerView` et `control.held` servent à son jeton, mis en pages. C'est ce
+qu'on donne à un designer.
 
 ```bash
-node run.mjs
+node scripts/exporter-etat-reference.mjs --token=…   # interroge le backend, écrit les deux
+node scripts/exporter-etat-reference.mjs             # rend le Markdown depuis le JSON déjà là
 ```
 
-Aucune dépendance. `world.json` fournit les coordonnées réelles des 163 pays : les temps de trajet
-sont calculés en distance orthodromique, avec enroulement de la longitude.
+Le jeton se lit dans l'URL de plateau du joueur. Le script appelle `dev.snapshot`
+(`convex/dev.ts`), une `internalQuery` qui **rappelle les fonctions de la vue** au lieu d'en
+recopier une projection — une copie aurait divergé au premier champ ajouté, et le document
+aurait recommencé à décrire un jeu que personne ne joue.
 
 | Fichier | Rôle |
 |---|---|
-| `sim.mjs` | le moteur : économie, slots, avant-postes, matrice de combat, doctrines, nations |
-| `run.mjs` | le balayage de constantes, la calibration et le rapport |
-| `derniere-sortie.txt` | la sortie de la dernière campagne |
-| `resultats.json` | les mêmes données, exploitables |
-| `etat-reference.mjs` | génère un instantané de partie destiné aux maquettes |
-| `etat-reference.json` | l'instantané, exploitable |
-| `ETAT-REFERENCE.md` | le même, lisible — **c'est ce qu'on donne à un designer** |
+| `etat-reference.json` | l'instantané brut, tel que le serveur l'a servi |
+| `ETAT-REFERENCE.md` | le même, lisible — chaque section titre le champ dont elle sort |
 
-## Méthode
+Les deux sont **absents tant que personne n'a exporté** : ils ne sont pas dans le dépôt par
+défaut, et c'est voulu — un état de référence périmé trompe plus qu'il n'aide.
 
-**Calibration avant mesure.** Les seuils de victoire ne sont pas posés à l'intuition. On fait
-d'abord tourner 48 h *sans aucun seuil* — personne ne gagne — et on relève les scores bruts de
-chaque doctrine. Le seuil est ensuite fixé au **90ᵉ centile** : il doit être atteint par le
-meilleur joueur en fin de saison, pas par la moitié d'entre eux.
+## Le simulateur d'ouverture — `opening/`
 
-Cette étape est indispensable. Calibrer sur la médiane faisait terminer les saisons en 9 h.
+L'instrument de mesure vivant : combien de décisions un joueur prend pendant l'ouverture d'une
+saison, et à quels moments. Il a son propre [README](opening/README.md). `verify.mjs` en est le
+miroir de constantes, lu par `npm run verifier`.
 
-**Ce qu'on mesure ensuite** : le taux de victoire par doctrine, l'écart maximal à 33 %, la part de
-la saison au bout de laquelle le vainqueur prend définitivement la tête, le nombre de décisions par
-joueur et par heure, et la répartition des victoires par couple nation × doctrine.
+## Ce qui a été retiré — `../docs/_to_delete/simulation-v1/`
 
-## Limites assumées
-
-- **Pas de brouillard.** Les joueurs virtuels ont l'information parfaite. Le brouillard rendrait la
-  matrice d'unités *plus* décisive, pas moins — les mesures d'équilibre sont donc optimistes.
-- **Pas d'interception en vol.** Les combats ont lieu à l'arrivée, jamais en route.
-- **Politiques fixes.** Un joueur virtuel ne s'adapte pas, ne négocie pas, ne trahit pas. C'est le
-  plancher du comportement humain, pas sa moyenne.
-- **Pas de Revanchisme ni de plancher de pertes.** L'anti-élimination n'est pas testée ici.
+Le simulateur de saison complète (`sim.mjs`, `run.mjs`, `derniere-sortie.txt`, `resultats.json`,
+`world.json`) et son générateur d'instantané (`etat-reference.mjs`, avec le JSON et le Markdown
+qu'il avait produits) y sont rangés. Ils mesuraient un jeu d'avant les ADR 0013 à 0015 :
+doctrines, acier, effectifs, slots 3/3 — plus une ligne n'en vaut. Ce que ces campagnes ont
+appris est déjà écrit dans `docs/technique/rapport-simulation.md`, et le nouvel état de
+référence sort d'une vraie partie.

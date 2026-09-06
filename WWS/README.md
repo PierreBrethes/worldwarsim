@@ -14,7 +14,7 @@ Jeu de stratégie web asynchrone sur une carte du monde réel. Saison de 48 h à
 | voir la carte tourner | [prototypes/carte-3d.html](prototypes/carte-3d.html) |
 | savoir ce qui n'est pas tranché | [QUESTIONS.md](QUESTIONS.md) |
 | lancer une passe de design | [docs/design/11-brief-ui.md](docs/design/11-brief-ui.md) |
-| peupler des maquettes | [simulation/ETAT-REFERENCE.md](simulation/ETAT-REFERENCE.md) |
+| peupler des maquettes | [simulation/README.md](simulation/README.md) — l'état de référence s'exporte d'une vraie saison |
 | savoir ce qui va faire mal à coder | [docs/technique/risques.md](docs/technique/risques.md) |
 | voir ce que la simulation a mesuré | [docs/technique/rapport-simulation.md](docs/technique/rapport-simulation.md) |
 

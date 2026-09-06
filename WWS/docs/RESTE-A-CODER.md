@@ -6,24 +6,24 @@ propositions ; ce fichier est la file.
 
 ## Bloquant pour la partie de contrôle à deux
 
-1. ~~entrer-en-garnison~~ · ~~journal-corps-de-texte~~ · ~~avant-poste-tient-sa-region~~ — livrés (04-06/09).
-2. **fondateur-absent** (1a du 06/09) — *prêt* — `ready/fondateur-absent.md` ; ferme le 🔴 de
-   `QUESTIONS.md`. La victoire territoriale, elle, est **mise de côté** (1a).
-3. **Commit** du chantier avant-poste-tient-sa-region (dans l'arbre de travail) ;
-   `.git/index.lock.stale` à supprimer.
-4. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
-5. Contrôle à l'œil : garnison / journal / port (Bulletin N° 56).
+1. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
+2. Contrôle à l'œil : garnison / journal / port (04/09), presse et fondateur absent (06/09).
+3. Le moment du **wipe** pour les comptes (ADR 0022) : après la partie à deux (reco), pas pendant.
 
-## Acté le 06/09, prêts ou à écrire
+Livrés et commités les 04-06/09 : entrer-en-garnison · journal-corps-de-texte ·
+port-sur-la-cote · debarquement-sur-la-cote · avant-poste-tient-sa-region · fondateur-absent
+(`aba2f89`) · classement-et-page-de-presse (`74cfa5a`). La victoire territoriale reste **mise de
+côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fermé.
 
-- ~~**classement-et-page-de-presse**~~ (79a, révisé par la décision 80) — **livré le 06/09** :
-  barème pur (`src/domain/standings.ts`), table `editions`, job `convex/press.ts` toutes les
-  `PRESS_EDITION_HOURS = 3` h, fenêtre Presse au rail et bloc « nos registres » dans Nation.
+## Prêts ou en attente d'une décision
+
 - **etat-de-reference-depuis-une-saison** (5a) — *prêt* — l'ancien simulateur part en `_to_delete/`.
 - **Comptes pseudo + mot de passe** — ADR 0022 *proposée*, à accepter ; prompt après acceptation ;
-  wipe requis.
+  wipe requis. Borner le pseudo dans ce prompt (aucune borne serveur aujourd'hui).
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (8).
 - **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
+- Ménage : `.claude/settings.local.json` à ignorer (`*.local` ne le couvre pas) ;
+  `_wws_snapshot.tgz` (908 Ko) tracké à la racine, à sortir du dépôt.
 
 ## Acté, à rédiger (dans l'ordre naturel)
 

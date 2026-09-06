@@ -1,4 +1,7 @@
-import { internalMutation } from './_generated/server';
+import { v } from 'convex/values';
+import { internalMutation, internalQuery } from './_generated/server';
+import { heldOf } from './control';
+import { viewOf } from './view';
 
 /**
  * **Every table of the game, and the whole of it.** Exported rather than inlined so a test can
@@ -43,4 +46,24 @@ export const reset = internalMutation({
       }
     }
   },
+});
+
+/**
+ * **L'état de référence, pris sur une saison réellement jouée.** Ce qui sort d'ici est
+ * exactement ce que le plateau de ce jeton reçoit — `viewOf` est la fonction que `playerView`
+ * appelle, `heldOf` celle de `control.held` — brouillard compris. Rien n'est ajouté : une vue
+ * d'export qui lirait la vérité aurait produit un document décrivant un jeu que personne ne
+ * joue, ce qu'était l'ancien instantané du simulateur.
+ *
+ * `internalQuery`, donc hors de portée d'un client, et un jeton inconnu échoue par
+ * `playerByToken` — jamais une vue vide, qui se serait exportée sans bruit.
+ *
+ * `npx convex run dev:snapshot '{"token":"…"}'`, ou `node scripts/exporter-etat-reference.mjs`.
+ */
+export const snapshot = internalQuery({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => ({
+    playerView: await viewOf(ctx, token),
+    control: await heldOf(ctx, token),
+  }),
 });

@@ -156,12 +156,13 @@ révélation à la création du mouvement.
 
 À jour au dernier passage, à corriger avant d'exploiter le simulateur pour de l'équilibrage fin :
 
-- **`simulation/sim.mjs` reflète l'état d'avant la révision 1940.** Il fait jouer l'Italie avec un
-  multiplicateur sur la ligne Escorte, alors que la fiche 06 lui donne désormais *Reconnaissance
-  aérienne*. Le pouvoir italien actuel n'a donc **jamais été simulé** — et il touche au brouillard,
-  que le simulateur ne modélise pas.
-- Le simulateur ne modélise ni le brouillard, ni l'interception en vol, ni le Revanchisme. Ses
-  limites sont listées dans `simulation/README.md` et ses mesures d'équilibre sont **optimistes**.
+- **Le simulateur de saison complète n'existe plus** (06/09). `sim.mjs`, `run.mjs` et leur
+  générateur d'instantané sont rangés dans `docs/_to_delete/simulation-v1/` : ils mesuraient des
+  doctrines, de l'acier et des slots 3/3, un jeu mort depuis le 15/08. Ce qu'ils ont appris tient
+  dans `docs/technique/rapport-simulation.md`, et **l'état de référence s'exporte désormais d'une
+  saison réellement jouée** (`scripts/exporter-etat-reference.mjs`, `dev.snapshot`).
+- Ce qui reste mesuré l'est par `simulation/opening/`, qui ne modélise ni le brouillard, ni
+  l'interception en vol : ses mesures d'équilibre sont **optimistes**.
 
 ---
 
