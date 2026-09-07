@@ -12,7 +12,7 @@
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { coveredRegions, heldRegions, surveyStops, type Observer } from '../src/domain/control';
+import { coveredRegions, surveyStops, type Observer } from '../src/domain/control';
 import type { LonLat } from '../src/domain/geo';
 import { playerBuildings } from './buildings';
 import {
@@ -21,7 +21,8 @@ import {
   SURVEY_REFRESH_HOURS,
   outpostReachKm,
 } from './constants';
-import { movementsOf, outpostsOf, pointOf, seasonOutposts } from './movement/forces';
+import { heldOver } from './holding';
+import { movementsOf, outpostsOf, pointOf } from './movement/forces';
 import {
   allRegions,
   homeCountryOf,
@@ -116,16 +117,7 @@ export async function fileSurvey(
   if (player === null) return 0;
 
   const seen = over.filter((region) => covered.has(region.id));
-  const truth = heldRegions({
-    regions: seen,
-    outposts: (await seasonOutposts(ctx, player.seasonId)).map((outpost) => ({
-      owner: outpost.playerId as string,
-      point: pointOf(outpost.point),
-      reachKm: outpostReachKm(outpost.level),
-      regionId: regionOfOutpost(outpost),
-    })),
-    homeGrounds: await homeGroundsOf(ctx, player.seasonId),
-  });
+  const truth = await heldOver(ctx, player.seasonId, seen, at);
 
   const home = homeCountryOf(player.nation);
   const staleAfter = SURVEY_REFRESH_HOURS * 3_600_000;
@@ -154,21 +146,6 @@ export async function fileSurvey(
     written += 1;
   }
   return written;
-}
-
-/** Le sol d'origine des sièges de la saison — ce qu'aucun avant-poste ne prend (ADR 0004). */
-async function homeGroundsOf(
-  ctx: QueryCtx,
-  seasonId: Id<'seasons'>,
-): Promise<ReadonlyArray<{ owner: string; country: string }>> {
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
-  return seats.flatMap((seat) => {
-    const country = homeCountryOf(seat.nation);
-    return country === null ? [] : [{ owner: seat._id as string, country }];
-  });
 }
 
 /** Une troupe posée relève le sol autour d'elle, au même rayon qu'elle relève ce qui passe. */

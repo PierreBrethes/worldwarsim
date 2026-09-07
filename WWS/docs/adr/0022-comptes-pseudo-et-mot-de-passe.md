@@ -1,7 +1,7 @@
 # ADR 0022 — Comptes pseudo et mot de passe, sans e-mail
 
-**Statut :** proposée (06/09/2026) — **révise l'[ADR 0009](0009-pseudo-et-code-plutot-que-comptes.md)**.
-Décision de Pierre (06/09, 75 · 77a) ; à accepter à la lecture.
+**Statut :** acceptée (06/09/2026, « validé ») — **révise l'[ADR 0009](0009-pseudo-et-code-plutot-que-comptes.md)**.
+Décision de Pierre (06/09, 75 · 77a), acceptée le soir même.
 
 ## Contexte
 

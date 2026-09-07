@@ -16,7 +16,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0006](0006-slots-de-mouvement.md) | Slots de mouvement comme régulateur central | acceptée |
 | [0007](0007-epoque-1940.md) | Époque 1940 plutôt que matériel moderne | acceptée |
 | [0008](0008-combat-par-interception.md) | Combat par interception et rejeu, pas de tour par tour | acceptée, révisée par 0021 |
-| [0009](0009-pseudo-et-code-plutot-que-comptes.md) | Pseudo et code de partie plutôt que comptes | acceptée |
+| [0009](0009-pseudo-et-code-plutot-que-comptes.md) | Pseudo et code de partie plutôt que comptes | révisée par 0022 |
 | [0010](0010-convex-auto-heberge-sur-vps.md) | Convex auto-hébergé sur VPS plutôt que Convex cloud | acceptée |
 | [0011](0011-premiere-tranche-du-schema-de-jeu.md) | Première tranche du schéma de jeu écrite avant la fermeture du 🔴 | révisée par 0014 et 0015 |
 | [0012](0012-trajets-multimodaux-sur-grille.md) | Trajets multimodaux sur grille raster, calculés dans le domaine | acceptée |
@@ -29,3 +29,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée |
 | [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée |
 | [0021](0021-portee-de-detection-et-postures.md) | Portée de détection, posture de mouvement, salve d'allonge | acceptée |
+| [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009 |

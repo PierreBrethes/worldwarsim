@@ -164,6 +164,24 @@ export const NOTICE = v.union(
     specialization: SPECIALIZATION,
   }),
   /**
+   * **La production reliée qui mord, et qui lâche** (ADR 0020 §6). Le compte, jamais la liste :
+   * la dépêche dit qu'il faut aller voir, la carte « à faire maintenant » dit lesquels. Chez le
+   * seul propriétaire — l'adversaire qui a coupé la frontière le lit sur sa carte, et une ligne
+   * chez lui lui donnerait ce que son renseignement n'a pas payé.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('productionCut'),
+    sites: v.number(),
+    hostCountry: v.string(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('productionRestored'),
+    sites: v.number(),
+    hostCountry: v.string(),
+  }),
+  /**
    * **A thread, a place and a heading — nothing else exists to file** (fiche 04). No type, no
    * composition, no nation: the row carries what a sentry can honestly report, so the dispatch
    * could not leak what the fog hides even if its sentence tried.

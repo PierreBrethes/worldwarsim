@@ -226,6 +226,28 @@ grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mou
 remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
 dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
 
+**Et un bâtiment ne produit que relié** (ADR 0020 §6, `src/domain/economy.ts` pour la règle —
+`isLinked`, une comparaison et rien d'autre). Sa région porte la couleur de son propriétaire ou il
+rend zéro : le sol national l'est toujours, une région d'avant-poste l'est tant que le point la
+tient, et **un point désactivé décolore** (§7, première application de la règle) donc coupe.
+Seuls les sept bâtiments qui produisent sont concernés — quatre extracteurs, trois chaînes ; le
+stockage, la projection et le QG ne font rien entrer dans le monde. **Une seule fonction dit la
+couleur** (`convex/holding.ts`, `heldOver` → `heldRegions`), et c'est la même pour la carte, le
+classement, le relevé et la production : quatre lectures parallèles auraient divergé au premier
+raid. Il n'y a **pas de champ `linked` stocké** et pas de cron : la couleur ne bouge qu'à trois
+événements — fondation, désactivation, fin de désactivation — et à chacun le serveur **règle les
+stocks à l'ancienne couleur avant d'écrire la nouvelle** (`convex/production.ts`), sans quoi la
+coupure s'appliquerait rétroactivement aux heures déjà tenues. La fin d'une désactivation est le
+seul de ces événements que personne n'ordonne : le raid en prend le rendez-vous, et le règlement
+se fait à `disabledUntil` exactement même si le travail se réveille en retard. Au front : le
+tampon **« hors réseau »** (un état, pas une action) sur la modale du site et en tête de filière,
+où il l'emporte sur « à sec » — un site coupé n'est pas à sec, il est coupé — une ligne au pied de
+la colonne QG, une ligne dans « à faire maintenant », et deux dépêches, `productionCut` (alarme,
+encre rouge) et `productionRestored`, chez le seul propriétaire : l'adversaire qui a coupé la
+frontière le lit sur sa carte. Une chaîne coupée refuse le lot (`SITE_UNLINKED`) mais l'abandonne
+toujours. Le recrutement n'est pas touché — une caserne hors réseau forme encore, elle instruit,
+elle ne produit pas.
+
 **La carte se colore** (ADR 0020 §1) : une région est *tenue* par le joueur dont un avant-poste
 la couvre dans **son** rayon (`outpostReachKm` — 120 / 180 / 240 km aux niveaux 1 / 2 / 3, le
 rayon de construction et jamais une seconde constante) ou par la nation dont elle est le sol
@@ -234,8 +256,7 @@ d'origine, que rien ne lui prend. La règle est pure
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
 d'une colonne. La teinte est **celle du siège**, pas de la nation, et elle reste au loin quand les
-frontières de région s'effacent. Pas encore de score, pas de production reliée, pas de
-décoloration au raid.
+frontières de région s'effacent. La production, elle, y est reliée depuis le 07/09 (§6).
 
 **Un joueur voit son dernier relevé, pas la vérité** (ADR 0020 §5). Trois états d'une région :
 *vierge* — jamais observée, aucune couleur, inconnue et non pas neutre ; *relevée* — vue à une
@@ -253,7 +274,9 @@ fondent aucune ligne. L'ancienneté se voit **en permanence** — un relevé anc
 survol donne la date en clair, « relevé du 12 août ».
 
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
-`OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière ; la **destruction** après
+`OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
+désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
+qu'il disputait ; la **destruction** après
 plusieurs raids attend le pillage, et rien ne les compte. Il ouvre autour de son point un rayon qui
 **suit son niveau** (`outpostReachKm`, révision du 31/08), où l'on bâtit comme chez soi (le puits
 en Arabie), et

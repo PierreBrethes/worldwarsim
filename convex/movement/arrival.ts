@@ -15,6 +15,7 @@ import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
 import { resolveContact } from '../combat';
 import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS } from '../constants';
+import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
 import { fileSightings } from './detection';
@@ -171,6 +172,14 @@ async function deactivate(
 ): Promise<void> {
   if (outpost.immuneUntil !== null && outpost.immuneUntil > now) return;
 
+  /**
+   * **Les stocks se règlent avant que la couleur change** (ADR 0020 §6, §7). Le point cesse de
+   * colorer sa zone à cet instant, donc tout ce qui y produit cesse de produire à cet
+   * instant — et pas rétroactivement sur les heures qu'il a bien tenues. C'est ce qui donne au
+   * raid sa valeur économique indépendante du butin.
+   */
+  const before = await settleBeforeChange(ctx, outpost.seasonId, now);
+
   const disabledUntil = now + OUTPOST_DISABLED_HOURS * 3_600_000;
   await ctx.db.patch(outpost._id, {
     disabledUntil,
@@ -186,6 +195,10 @@ async function deactivate(
     hostCountry: outpost.hostCountry,
     specialization: outpost.specialization,
   });
+  await reportChange(ctx, outpost.seasonId, before, now);
+  /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
+   *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
+  await scheduleRestore(ctx, outpost.seasonId, disabledUntil);
 }
 
 /** `fromBuildingId` carries no address here — the column left an outpost, not a building

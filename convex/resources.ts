@@ -7,6 +7,8 @@ import {
   clipToCapacity,
   emptyStocks,
   exploits,
+  isLinked,
+  produces,
   settleStocks,
   type ChainReport,
   type Conversion,
@@ -23,6 +25,7 @@ import {
   type Costs,
 } from './constants';
 import { fail } from './errors';
+import { heldOver } from './holding';
 import { regionFacts } from './regions';
 import { upkeepOf, type Upkeep } from './upkeep';
 
@@ -49,22 +52,37 @@ export type ExtractionSite = {
   readonly level: number;
   readonly deposit: DepositKey | null;
   readonly perHour: number;
+  /**
+   * **Sa région porte-t-elle encore sa couleur** (ADR 0020 §6). Servi à côté du débit plutôt que
+   * déduit d'un zéro : une mine posée sur du pétrole rend zéro elle aussi, et les deux se
+   * réparent par des gestes opposés — l'une se déplace, l'autre se reprend sur la carte.
+   */
+  readonly linked: boolean;
 };
 
+/**
+ * Ce que chaque exploitation sort du sol, **et si le sol est encore à elle** (ADR 0020 §6). La
+ * couleur arrive en paramètre : c'est celle que la carte peint, calculée une fois
+ * (`convex/holding.ts`), jamais relue ici.
+ */
 export function extractionSites(
   buildings: ReadonlyArray<Doc<'buildings'>>,
+  held: ReadonlyMap<string, string>,
+  ownerId: string,
 ): ReadonlyArray<ExtractionSite> {
   return buildings
     .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
     .map((building) => {
       const deposit = regionFacts(building.regionId)?.deposit ?? null;
       const yielding = deposit !== null && exploits(building.key, deposit);
+      const linked = isLinked(building, held, ownerId);
       return {
         key: building.key,
         regionId: building.regionId,
         level: building.level,
         deposit,
-        perHour: yielding ? EXTRACTION_PER_HOUR[deposit] * building.level : 0,
+        perHour: yielding && linked ? EXTRACTION_PER_HOUR[deposit] * building.level : 0,
+        linked,
       };
     });
 }
@@ -80,9 +98,11 @@ export function extractionSites(
  */
 export function extractionRates(
   buildings: ReadonlyArray<Doc<'buildings'>>,
+  held: ReadonlyMap<string, string>,
+  ownerId: string,
 ): Record<ResourceKey, number> {
   const rates = emptyStocks();
-  for (const site of extractionSites(buildings)) {
+  for (const site of extractionSites(buildings, held, ownerId)) {
     if (site.deposit !== null) rates[site.deposit] += site.perHour;
   }
   return rates;
@@ -119,16 +139,29 @@ export type OrderState = {
 export function chainsOf(
   buildings: ReadonlyArray<Doc<'buildings'>>,
   orders: ReadonlyArray<OrderState>,
+  held: ReadonlyMap<string, string>,
+  ownerId: string,
 ): ReadonlyArray<Conversion> {
+  /**
+   * **Le niveau qui compte est celui des exemplaires reliés** (ADR 0020 §6). Deux fonderies, une
+   * chez soi et une sous un avant-poste que le raid vient de couper : la vitesse tombe à celle
+   * qui reste, elle ne tombe pas à zéro. C'est la même somme qu'avant, sur une liste plus courte.
+   */
+  const linked = buildings.filter((building) => isLinked(building, held, ownerId));
+
   return (Object.keys(CHAINS) as ReadonlyArray<ChainKey>).map((key) => {
     const { output, inputs, perHourPerLevel } = CHAINS[key];
     const lot = orders.find((order) => order.chain === key);
+    const standing = totalLevelOf(buildings, key);
     return {
       by: key,
       output,
       inputs,
-      perHour: perHourPerLevel * totalLevelOf(buildings, key),
+      perHour: perHourPerLevel * totalLevelOf(linked, key),
       quota: isCommanded(key) ? Math.max(0, (lot?.ordered ?? 0) - (lot?.produced ?? 0)) : null,
+      /** Bâtie et entièrement coupée : c'est ça, `unlinked`. Rien de bâti reste `off` — il n'y a
+       *  pas de réseau à reprendre pour une chaîne qui n'existe pas. */
+      linked: standing === 0 || totalLevelOf(linked, key) > 0,
     };
   });
 }
@@ -164,6 +197,19 @@ export type Economy = {
    * grows reads, hour for hour, in perfect health.
    */
   readonly starving: boolean;
+  /**
+   * **Ce que la production reliée a coupé** (ADR 0020 §6) : les bâtiments qui produisent — les
+   * quatre extracteurs et les trois chaînes — dont la région ne porte plus la couleur de leur
+   * propriétaire. Ni le stockage, ni la projection, ni le quartier général : ils ne font rien
+   * entrer dans le monde, donc rien ne se coupe chez eux.
+   *
+   * C'est un **compte**, et c'est ce qui déclenche la dépêche : le serveur compare celui d'avant
+   * l'événement et celui d'après, et n'écrit que si le nombre a bougé.
+   */
+  readonly unlinked: ReadonlyArray<Doc<'buildings'>>;
+  /** Ce que chaque exploitation sort du sol, site par site — le détail que le taux national
+   *  résume, servi depuis le même règlement pour qu'aucune des deux lectures ne dérive. */
+  readonly extraction: ReadonlyArray<ExtractionSite>;
 };
 
 /**
@@ -189,6 +235,7 @@ export async function economyOf(
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
+  const held = await heldFor(ctx, playerId, buildings, now);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -212,7 +259,7 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
-  const ratePerHour = extractionRates(buildings);
+  const ratePerHour = extractionRates(buildings, held, playerId);
   ratePerHour.food -= upkeep.foodPerHour;
   /** The outposts eat beside the army, and in the same term of the rate (ADR 0020 §10): the
    *  brake on expansion is a continuous cost, so it has to be part of the one arbitration. */
@@ -223,7 +270,7 @@ export async function economyOf(
     stocks: stored,
     ratePerHour,
     cap,
-    conversions: chainsOf(buildings, orderRows),
+    conversions: chainsOf(buildings, orderRows, held, playerId),
     hours: (now - updatedAt) / 3_600_000,
   });
 
@@ -248,7 +295,7 @@ export async function economyOf(
     stocks: settled.stocks,
     ratePerHour,
     cap,
-    conversions: chainsOf(buildings, orders),
+    conversions: chainsOf(buildings, orders, held, playerId),
     hours: OUTLOOK_HOURS,
   });
 
@@ -276,7 +323,41 @@ export async function economyOf(
     /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
      *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
     starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
+    unlinked: buildings.filter(
+      (building) => produces(building.key) && !isLinked(building, held, playerId),
+    ),
+    extraction: extractionSites(buildings, held, playerId),
   };
+}
+
+/**
+ * **La couleur, sur le sol que ce joueur-là a bâti, et rien de plus.** Le classement dépouille le
+ * planisphère parce que c'est sa question ; un règlement de stock n'a besoin que des régions qui
+ * portent un bâtiment — une poignée — et mesurer les 4 589 à chaque débit serait payer un
+ * dépouillement pour une adresse. Même fonction (`heldOver`), même réponse, moins de sol.
+ *
+ * **Ce que ça coûte au fan-out, dit une fois** (`technique/brouillard-et-fanout.md`) : la table
+ * des avant-postes de la saison entre dans la dépendance de `playerView`, qui se réinvalide donc
+ * désormais à **chaque fondation** de n'importe qui. C'est inévitable — la production dépend des
+ * points des autres, c'est toute la règle du §6 — et c'est le petit côté du marché : la vue se
+ * recalcule déjà au moindre pas d'une colonne, alors qu'une fondation est un événement rare.
+ * `control.held`, lui, reste hors de ce couplage : c'est là que le piège était.
+ */
+async function heldFor(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+  now: number,
+): Promise<ReadonlyMap<string, string>> {
+  const player = await ctx.db.get(playerId);
+  if (player === null) return new Map();
+  const regions = new Map(
+    buildings.flatMap((building) => {
+      const facts = regionFacts(building.regionId);
+      return facts === null ? [] : [[facts.id, facts] as const];
+    }),
+  );
+  return heldOver(ctx, player.seasonId, [...regions.values()], now);
 }
 
 export async function ordersOf(

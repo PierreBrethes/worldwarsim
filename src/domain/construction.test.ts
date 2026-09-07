@@ -372,6 +372,7 @@ describe('placement over the whole estate', () => {
     deposit: null,
     coastal: false,
     point: [0, 0],
+    linked: true,
     buildings: [],
     site: { outpostId: null },
     ...extra,

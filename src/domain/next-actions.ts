@@ -1,4 +1,5 @@
 import { fr } from '@/i18n/fr';
+import { produces } from './economy';
 import type { LonLat } from './geo';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
@@ -15,7 +16,13 @@ import { stationNames, type StationNames } from './station-name';
  * ce qui interdit à cette carte de devenir une seconde liste de tâches à tenir à jour.
  */
 export type NextActionKind =
-  'foundation' | 'idleSite' | 'idleBarracks' | 'troopWithoutOrder' | 'unsupplied' | 'freeSlot';
+  | 'foundation'
+  | 'idleSite'
+  | 'idleBarracks'
+  | 'unlinkedSites'
+  | 'troopWithoutOrder'
+  | 'unsupplied'
+  | 'freeSlot';
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
@@ -63,6 +70,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
 
   return [
     ...foundationLine(view),
+    ...unlinkedSitesLine(view),
     ...idleSiteLine(view),
     ...idleProjectionLines(view),
     ...troopsWithoutOrder(view, standing, names),
@@ -82,6 +90,46 @@ const foundationLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           target: { kind: 'unfold' },
         },
       ];
+
+/**
+ * **Ce que la carte vient de couper** (ADR 0020 §6). Une seule ligne pour tous les sites : ils
+ * sont coupés par la même chose — une région qui a changé de couleur — et une ligne par bâtiment
+ * ferait de la perte d'une frontière une liste de six attentes distinctes. Elle passe juste
+ * derrière la fondation : c'est le seul poste où le joueur perd sans avoir rien fait, et il ne
+ * se répare pas sur le site mais sur la carte.
+ *
+ * Elle mène au premier, comme une caserne au repos mène à la sienne — même grammaire, même
+ * geste : la carte recadre le mât et la modale s'ouvre.
+ */
+function unlinkedSitesLine(view: PlayerView): ReadonlyArray<NextAction> {
+  const cut = unlinkedProducers(view);
+  const first = cut[0];
+  if (first === undefined) return [];
+  return [
+    {
+      id: 'unlinkedSites',
+      kind: 'unlinkedSites',
+      label: fr.nextActions.unlinkedSites(cut.length),
+      target: { kind: 'site', buildingId: first.id },
+    },
+  ];
+}
+
+/**
+ * **Les bâtiments qui produisent et dont la région n'est plus tenue.** Servi par la vue et non
+ * recalculé : `regions[].linked` est la couleur que la carte peint, et une seconde lecture ici
+ * ferait diverger la ligne du lavis.
+ */
+export function unlinkedProducers(
+  view: PlayerView,
+): ReadonlyArray<PlayerView['me']['buildings'][number]> {
+  const cut = new Set(
+    view.me.regions.filter((region) => !region.linked).map((region) => region.id),
+  );
+  return view.me.buildings.filter(
+    (building) => produces(building.key) && cut.has(building.regionId),
+  );
+}
 
 /** La tête de file est la seule entrée datée : sans elle, rien ne se bâtit, quelle que soit la
  *  longueur de ce qui attend derrière — il n'y a rien derrière. */

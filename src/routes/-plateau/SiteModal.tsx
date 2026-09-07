@@ -4,6 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { aBuilding, fr, roleLabel } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
+import { Stamp } from '@/shell/Stamp';
 import { handleError } from '@/data/errors';
 import { ResourceIcon, resourceColor, type ResourceKey } from '@/emblems/ResourceIcon';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -20,6 +21,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
+import { produces } from '@/domain/economy';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
@@ -135,6 +137,12 @@ function Site({
         <span className="border border-[rgba(42,33,24,.45)] px-[7px] py-[2px] text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
           {fr.production.siteLevel(building.level)}
         </span>
+        {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
+            debout, entier, et c'est sa région qui a changé de couleur. Le tampon le constate, et
+            il n'ouvre aucun bouton — ce qui se reprend se reprend sur la carte. */}
+        {region !== undefined && !region.linked && produces(building.key) && (
+          <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
+        )}
         <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
         <UpgradeControl building={building} view={view} token={token} now={now} />
         <button

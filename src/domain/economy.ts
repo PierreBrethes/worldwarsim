@@ -104,6 +104,14 @@ export type Conversion = {
    * on screen says so.
    */
   readonly quota?: number | null;
+  /**
+   * **Faux quand la nation a cette chaîne debout et qu'aucun de ses exemplaires n'est relié**
+   * (ADR 0020 §6). Un champ à part plutôt qu'un `perHour` à zéro qui parlerait pour lui : une
+   * chaîne éteinte et une chaîne coupée se réparent par des gestes opposés — l'une se bâtit,
+   * l'autre se reprend sur la carte — et un seul zéro pour les deux les rendrait
+   * indistinguables. Absent vaut relié : le domaine pur est testé sans carte.
+   */
+  readonly linked?: boolean;
 };
 
 /**
@@ -115,7 +123,7 @@ export type Conversion = {
  * whole reason the report leaves `settleStocks` rather than being recomputed beside it: a
  * second loop making the same trade-off is a second chance to make it differently.
  */
-export type ChainState = 'off' | 'idle' | 'running' | 'starved' | 'overflowing';
+export type ChainState = 'off' | 'unlinked' | 'idle' | 'running' | 'starved' | 'overflowing';
 
 export type ChainReport = {
   readonly conversion: Conversion;
@@ -147,6 +155,37 @@ export const PRODUCER_OF: Readonly<Record<ResourceKey, BuildingKey>> = {
   ammunition: 'arsenal',
   bandages: 'quartermaster',
 };
+
+/**
+ * **Ce qui produit, et ce qui ne fait qu'occuper le sol.** Les quatre extracteurs et les trois
+ * chaînes — ce sont exactement les bâtiments que la production reliée peut couper (ADR 0020 §6).
+ * Le stockage, la projection, le quartier général et les cantonnements n'y sont pas : ils ne font
+ * rien entrer dans le monde, donc rien ne se coupe chez eux.
+ *
+ * Dérivé de `PRODUCER_OF` plutôt qu'écrit une seconde fois : la table dit déjà *quel bâtiment
+ * amène quelle ressource*, et une liste parallèle serait le premier endroit où une huitième
+ * ressource se ferait oublier.
+ */
+const PRODUCERS: ReadonlySet<string> = new Set(Object.values(PRODUCER_OF));
+
+export const produces = (key: BuildingKey): boolean => PRODUCERS.has(key);
+
+/**
+ * **Un bâtiment ne produit que relié** (ADR 0020 §6) : sa région porte la couleur de son
+ * propriétaire, ou il ne rend rien. C'est la règle entière, et elle tient en une comparaison —
+ * il n'y a **pas** de seconde notion de réseau, pas de chaîne d'approvisionnement, pas de
+ * distance à la capitale : `held` est ce que la carte peint, et ce que la carte peint est ce qui
+ * produit.
+ *
+ * La couleur arrive en paramètre, jamais lue ici : c'est `heldRegions` qui la calcule, une fois,
+ * pour la carte, le classement, le relevé et ceci (`convex/holding.ts`). Deux lectures seraient
+ * deux vérités, et le joueur verrait une région à ses couleurs au-dessus d'un site coupé.
+ */
+export const isLinked = (
+  building: { readonly regionId: string },
+  held: ReadonlyMap<string, string>,
+  ownerId: string,
+): boolean => held.get(building.regionId) === ownerId;
 
 export const emptyStocks = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
@@ -367,7 +406,16 @@ function integrate(
     return {
       conversion,
       made,
-      ...verdict(conversion.perHour, made, nominal, room, affordable, scarcest, quota),
+      ...verdict(
+        conversion.perHour,
+        made,
+        nominal,
+        room,
+        affordable,
+        scarcest,
+        quota,
+        conversion.linked ?? true,
+      ),
     };
   });
 
@@ -395,7 +443,12 @@ function verdict(
   affordable: number,
   scarcest: ResourceKey | null,
   quota: number,
+  linked: boolean,
 ): { state: ChainState; missing: ResourceKey | null } {
+  /** **Hors réseau passe avant tout le reste** (ADR 0020 §6) : un site coupé n'est pas à sec, il
+   *  est coupé, et lui dire « à sec — charbon » enverrait le joueur creuser une mine quand ce
+   *  qu'il doit reprendre est une frontière. Avant `off` aussi : la chaîne est bâtie. */
+  if (!linked) return { state: 'unlinked', missing: null };
   if (perHour <= 0) return { state: 'off', missing: null };
   if (quota <= 0) return { state: 'idle', missing: null };
   if (made >= nominal) return { state: 'running', missing: null };

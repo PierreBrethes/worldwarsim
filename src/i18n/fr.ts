@@ -357,6 +357,10 @@ export const fr = {
     BATCH_ALREADY_STARTED: () => 'ce lot a déjà commencé — il ne s’annule plus',
     CHAIN_NOT_COMMANDED: (d) => `${buildingName(d.chain)} tourne seule — elle ne se commande pas`,
     CHAIN_NOT_STANDING: (d) => `aucun ${buildingName(d.building)} debout`,
+    /** **Coupé, pas absent** (ADR 0020 §6). Le refus nomme la carte parce que c'est là que le
+     *  remède se joue : rien ne se répare sur le site, la région se reprend. */
+    SITE_UNLINKED: (d) =>
+      `${buildingName(d.building)} est hors réseau : sa région ne porte plus vos couleurs`,
     EMPTY_ORDER: () => 'un lot d’au moins une unité',
     ORDER_ABOVE_RESERVE: (d) => `la réserve d’entrée ne permet que ${num(d.maximum)}`,
     ORDER_RUNNING: (d) =>
@@ -810,10 +814,15 @@ export const fr = {
       surrender: 'capitulation',
       command: 'commandement',
       edition: 'édition',
+      productionCut: 'production coupée',
+      productionRestored: 'production rétablie',
     } satisfies Record<DispatchKind, string>,
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
     outpostDisabled: 'désactivé',
+    /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
+     *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
+    unlinked: 'hors réseau',
     /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
     unidentified: 'non identifié',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
@@ -899,6 +908,15 @@ export const fr = {
         `Un ${specialization} a été fondé — ${country}.`,
       outpostDisabled: (specialization: string, country: string) =>
         `Notre ${specialization} a été désactivé par un raid — ${country}.`,
+      /**
+       * **La production reliée, quand elle mord** (ADR 0020 §6). Elle est déposée chez le seul
+       * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
+       * dépêche chez lui lui dirait ce que son renseignement n'a pas payé.
+       */
+      productionCut: (sites: number, country: string) =>
+        `${sites} site${plural(sites, '', 's')} hors réseau — ${country} : la région ne porte plus nos couleurs.`,
+      productionRestored: (sites: number, country: string) =>
+        `${sites} site${plural(sites, '', 's')} de nouveau relié${plural(sites, '', 's')} — ${country}.`,
       /**
        * **Nos guetteurs, jamais celui qu'on a vu.** Le pays nommé est celui d'où l'on a regardé :
        * la notice ne porte pas la nation de la colonne, et la phrase ne doit pas laisser croire
@@ -996,6 +1014,7 @@ export const fr = {
     foundation: (count: number) =>
       `${count} pose${plural(count, '', 's')} de fondation offerte${plural(count, '', 's')}`,
     idleSite: 'chantier libre — rien en file',
+    unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     troopWithoutOrder: (count: number, place: string) =>
       `${count} troupe${plural(count, '', 's')} sans ordre — ${place}`,
@@ -1325,6 +1344,12 @@ export const fr = {
         `${count} région${plural(count, '', 's')} l’accepte${plural(count, '', 'nt')} — clic droit sur la carte`,
     },
 
+    /** **La ligne que la colonne du QG gardait en réserve** (ADR 0020 §6). Zéro, elle n'est pas
+     *  là : un « 0 site hors réseau » permanent est du bruit de fond, et c'est la faute que le
+     *  chantier en tête a déjà coûtée une fois. */
+    unlinkedSites: (count: number) =>
+      `${count} site${plural(count, '', 's')} hors réseau — la région ne porte plus vos couleurs`,
+
     sitesHeader: 'les sites de la filière',
     /** Les clés que rien ne porte, regroupées : une condition par ligne, jamais un vide
      *  intercalé entre deux bâtisses debout. */
@@ -1337,6 +1362,10 @@ export const fr = {
 
     chainStates: {
       off: 'éteinte',
+      /** **Un site coupé n'est pas à sec, il est coupé** (ADR 0020 §6) : le premier envoie
+       *  reprendre une frontière, le second envoie creuser une mine. Le tampon passe donc avant
+       *  « à sec » et avant « tourne » — c'est l'ordre de lecture de la filière. */
+      unlinked: 'hors réseau',
       idle: 'en attente d’ordre',
       running: 'tourne',
       starved: 'à sec',
@@ -1655,6 +1684,14 @@ export const fr = {
   selectedCountry: {
     enemyTitle: 'Nation adverse',
     neutralTitle: 'Pays neutre',
+    /**
+     * **Son propre pays n'est pas neutre** (trouvaille du 01/09). Le panneau titrait « Pays
+     * neutre » sur la France d'un joueur français : la carte de la rose sait le dire depuis
+     * toujours (`compass.myTerritory`), le panneau de terre ne le savait pas. Deux clés parce
+     * que ce sont deux emplacements — un titre de panneau et l'intitulé d'une cible — et qu'un
+     * jour l'un des deux se reformulera sans l'autre.
+     */
+    myTitle: 'Mon territoire',
     marker: 'sélection',
     hoverMarker: 'survol',
     progression: 'progression',

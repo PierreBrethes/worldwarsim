@@ -73,10 +73,20 @@ export function GroundPanel({
   const nation = NATION_BY_ADM0.get(country);
   const opponent =
     nation === undefined ? undefined : view.opponents.find((other) => other.nation === nation);
+  /** **Son propre sol répond de lui-même** (trouvaille du 01/09) : sans cette branche le panneau
+   *  titrait « Pays neutre » sur la France d'un joueur français, ce que la rose des vents savait
+   *  déjà ne pas dire. Aucune ligne ne change dessous — c'est le titre qui mentait. */
+  const mine = nation !== undefined && nation === view.me.nation;
 
   return (
     <Panel
-      title={opponent ? fr.selectedCountry.enemyTitle : fr.selectedCountry.neutralTitle}
+      title={
+        mine
+          ? fr.selectedCountry.myTitle
+          : opponent
+            ? fr.selectedCountry.enemyTitle
+            : fr.selectedCountry.neutralTitle
+      }
       marker={hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker}
       position="static"
       width={280}

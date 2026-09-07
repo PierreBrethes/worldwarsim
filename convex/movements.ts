@@ -38,6 +38,7 @@ import {
   troopsAmong,
 } from './movement/orders';
 import { homeCountryOf, nearestRegion, regionFacts, regionOfOutpost } from './regions';
+import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
@@ -118,13 +119,24 @@ export const foundOutpostHere = mutation({
         ? { point, hostCountry, regionId }
         : { point, hostCountry };
 
+    /**
+     * **Les stocks se règlent avant que la couleur change** (ADR 0020 §6). Une fondation peut
+     * couper la production d'un voisin — le sien comme celui d'en face — et la règle veut que la
+     * coupure prenne effet **à la date où elle se produit**, jamais rétroactivement sur les
+     * heures déjà écoulées. C'est le même contrat que tout `settle` avant écriture, sur toute la
+     * table plutôt que sur un joueur : la couleur est la seule chose du jeu qu'un geste d'un
+     * joueur change chez un autre.
+     */
+    const founded = Date.now();
+    const before = await settleBeforeChange(ctx, season._id, founded);
+
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: season._id,
       playerId: player._id,
       ...ground,
       level: 1,
       specialization,
-      foundedAt: Date.now(),
+      foundedAt: founded,
       disabledUntil: null,
       immuneUntil: null,
     });
@@ -146,6 +158,7 @@ export const foundOutpostHere = mutation({
       hostCountry,
       specialization,
     });
+    await reportChange(ctx, season._id, before, founded);
     return { outpostId };
   },
 });

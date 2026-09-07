@@ -34,12 +34,18 @@ const held = (
     point: LonLat;
     reachKm?: number;
     regionId?: string;
+    disabled?: boolean;
   }>,
   homeGrounds: ReadonlyArray<{ owner: string; country: string }> = [],
 ) =>
   heldRegions({
     regions,
-    outposts: outposts.map((outpost) => ({ reachKm: REACH_KM, regionId: null, ...outpost })),
+    outposts: outposts.map((outpost) => ({
+      reachKm: REACH_KM,
+      regionId: null,
+      disabled: false,
+      ...outpost,
+    })),
     homeGrounds,
   });
 
@@ -54,6 +60,26 @@ describe('the colour follows the outpost', () => {
     const map = held([region('far', 10)], [{ owner: 'pierre', point: at(0) }]);
     expect(map.has('far')).toBe(false);
     expect(map.size).toBe(0);
+  });
+
+  /** ADR 0020 §7 : un point hors service décolore sa zone pendant toute la désactivation. */
+  it('holds nothing while the outpost is out of service', () => {
+    const map = held(
+      [region('near', 1)],
+      [{ owner: 'pierre', point: at(0), disabled: true, regionId: 'near' }],
+    );
+    expect(map.size).toBe(0);
+  });
+
+  it('hands a disputed region to the neighbour while the nearer point is out of service', () => {
+    const map = held(
+      [region('between', 1)],
+      [
+        { owner: 'pierre', point: at(0.5), disabled: true },
+        { owner: 'anna', point: at(3) },
+      ],
+    );
+    expect(map.get('between')).toBe('anna');
   });
 
   it('holds nothing at all without an outpost', () => {

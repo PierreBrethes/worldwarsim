@@ -33,6 +33,13 @@ export const order = mutation({
     // that was standing then, not to the one about to replace it.
     const economy = await settle(ctx, player._id, now);
 
+    /** **Une chaîne coupée ne prend pas de lot** (ADR 0020 §6). Le refus se lit sur le règlement
+     *  lui-même, jamais sur une seconde lecture de la carte : la vitesse à zéro et le refus
+     *  sortent du même verdict, donc l'écran et le serveur ne peuvent pas se contredire. */
+    if (economy.chains.some((line) => line.conversion.by === chain && line.state === 'unlinked')) {
+      fail('SITE_UNLINKED', { building: chain });
+    }
+
     const standing = economy.orders.find((lot) => lot.chain === chain) ?? null;
     if (standing !== null && standing.produced < standing.ordered) {
       fail('ORDER_RUNNING', { ordered: standing.ordered, produced: Math.floor(standing.produced) });
@@ -67,6 +74,9 @@ export const cancelOrder = mutation({
 
     const now = Date.now();
     const economy = await settle(ctx, player._id, now);
+    /** **On abandonne un lot coupé, on n'en prend pas.** Refuser ici enfermerait le joueur : la
+     *  chaîne ne rendra rien tant que la région n'est pas reprise, et le lot lui interdit d'en
+     *  poser un autre le jour où elle l'est. */
     const standing = economy.orders.find((lot) => lot.chain === chain) ?? null;
     if (standing === null) fail('NO_ORDER', { chain });
 

@@ -19,7 +19,7 @@ const board = (
       construction: { id: 'W-1' },
       buildings: [{ id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 }],
       recruiting: ['B-1'],
-      regions: [{ id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7] }],
+      regions: [{ id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7], linked: true }],
       outposts: [],
       slots: { total: 2, used: 2 },
       troops: [],
@@ -59,6 +59,32 @@ describe('what waits for the player', () => {
     expect(owed?.target).toEqual({ kind: 'unfold' });
 
     expect(kinds(board({ foundation: [] }))).not.toContain('foundation');
+  });
+
+  /**
+   * **Une ligne pour tous les sites coupés** (ADR 0020 §6). Ils le sont par la même chose — une
+   * région qui a changé de couleur — et une ligne par bâtiment ferait de la perte d'une frontière
+   * six attentes distinctes. Elle mène au premier, comme une caserne au repos mène à la sienne.
+   */
+  it('raises one line for every site the map has cut, and points at the first', () => {
+    const cut = board({
+      buildings: [
+        { id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 },
+        { id: 'B-2', key: 'oilWell', name: 'Puits', regionId: 'ROU-1', level: 1 },
+        { id: 'B-3', key: 'foundry', name: 'Fonderie', regionId: 'ROU-1', level: 1 },
+      ],
+      regions: [
+        { id: 'FRA-1', name: 'Rhône', point: [4.8, 45.7], linked: true },
+        { id: 'ROU-1', name: 'Prahova', point: [26, 45.1], linked: false },
+      ],
+    } as unknown as Partial<PlayerView['me']>);
+
+    const line = nextActionsOf(cut).find((action) => action.kind === 'unlinkedSites');
+    expect(line?.label).toBe('2 sites hors réseau');
+    expect(line?.target).toEqual({ kind: 'site', buildingId: 'B-2' });
+
+    // La caserne est sur un sol relié, et de toute façon elle ne produit rien.
+    expect(kinds(board())).not.toContain('unlinkedSites');
   });
 
   it('names an idle site only while nothing heads the queue', () => {

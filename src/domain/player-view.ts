@@ -344,6 +344,9 @@ export type ExtractionSiteView = {
   readonly level: number;
   readonly deposit: DepositKey | null;
   readonly perHour: number;
+  /** Sa région porte-t-elle encore sa couleur (ADR 0020 §6) — coupé, il rend zéro, et c'est un
+   *  état, pas une panne : rien ne se répare sur le site, tout se reprend sur la carte. */
+  readonly linked: boolean;
 };
 
 /**
@@ -375,6 +378,13 @@ export type RegionView = {
   /** Whose placements a building here would spend — `null` when no living site of the player
    *  reaches it any more, which is a region nothing can go up on. */
   readonly site: SiteRef | null;
+  /**
+   * **Porte-t-elle la couleur de son propriétaire** (ADR 0020 §6). Ce qui y produit ne produit
+   * que si oui : le sol national l'est toujours, une région d'avant-poste l'est tant que le
+   * point la tient, et un point hors service décolore (§7). Servi par région parce que c'est la
+   * région qui est tenue — deux bâtiments du même sol ne peuvent pas répondre différemment.
+   */
+  readonly linked: boolean;
 };
 
 export type OpponentBar =
@@ -448,7 +458,11 @@ export type DispatchKind =
   | 'surrender'
   | 'command'
   /** L'édition du classement : le seul rendez-vous que tout le monde reçoit à la même heure. */
-  | 'edition';
+  | 'edition'
+  /** **La production reliée qui mord, et qui lâche** (ADR 0020 §6). Une alarme et son
+   *  contraire : la coupure exige une décision maintenant, le rétablissement se lit à son heure. */
+  | 'productionCut'
+  | 'productionRestored';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -514,6 +528,23 @@ export type Notice =
       readonly at: number;
       readonly hostCountry: string;
       readonly specialization: Specialization;
+    }
+  /**
+   * **Ce que la couleur a coupé, et rendu** (ADR 0020 §6). Le compte de sites, jamais leur
+   * liste : la ligne du journal dit qu'il faut aller voir, la carte « à faire maintenant » dit
+   * lesquels, et une dépêche qui les nommerait serait une seconde source à tenir d'accord.
+   */
+  | {
+      readonly kind: 'productionCut';
+      readonly at: number;
+      readonly sites: number;
+      readonly hostCountry: string;
+    }
+  | {
+      readonly kind: 'productionRestored';
+      readonly at: number;
+      readonly sites: number;
+      readonly hostCountry: string;
     }
   /**
    * A thread, a place, a heading — and nothing a sentry could not honestly report (fiche 04).

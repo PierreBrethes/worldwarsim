@@ -11,6 +11,7 @@ import {
 import { aBuilding, fr, nationLabel } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { Gauge } from '@/shell/Gauge';
+import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
 import {
   BUILDINGS,
@@ -20,6 +21,7 @@ import {
   type ResourceKey,
 } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
+import { unlinkedProducers } from '@/domain/next-actions';
 import { pledgedOn, placementOf, slotsOn, type Placement } from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
 import type { Building, ChainView, PlayerView, QueuedWork, SiteRef } from '@/domain/player-view';
@@ -410,7 +412,7 @@ function SupplyColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <ColumnHead column={column} />
+      <ColumnHead column={column} cut={isCut(view, column, worked)} />
       {column.sources.map((source, rank) => (
         <SourceBox
           key={source.kind === 'deposit' ? source.deposit : source.resource}
@@ -451,7 +453,7 @@ function SupplyColumn({
  * server never ran. The name of the resource is not repeated here: the sortie box at the foot
  * of the column is where the filière ends, and the plate identifies the head well enough.
  */
-function ColumnHead({ column }: { column: Column }) {
+function ColumnHead({ column, cut }: { column: Column; cut: boolean }) {
   const dry = column.output.perHour <= 0;
   return (
     <div className="mb-[7px] border-b border-[var(--ink)] pb-[5px]">
@@ -467,9 +469,35 @@ function ColumnHead({ column }: { column: Column }) {
           {fr.economy.perHour(column.output.perHour)}
         </span>
       </div>
-      {column.conversion !== null && <ChainVerdict chain={column.conversion} />}
+      {/* **Hors réseau passe avant tout** (ADR 0020 §6) : un extracteur coupé n'a jamais eu de
+          badge — une filière brute n'en porte pas — mais celui-là dit *pourquoi* le débit est à
+          zéro, et c'est la seule chose que le chiffre ne dit pas. Sur une colonne convertie il
+          l'emporte sur « à sec » et sur « tourne » : un site coupé n'est pas à sec. */}
+      {cut ? (
+        <StateBadge state="unlinked" label={fr.economy.chainStates.unlinked} />
+      ) : (
+        column.conversion !== null && <ChainVerdict chain={column.conversion} />
+      )}
     </div>
   );
+}
+
+/**
+ * **La filière est-elle coupée** (ADR 0020 §6) : elle l'est quand elle a des sites et qu'aucun
+ * n'est relié. Un extracteur relié et un autre coupé n'est pas une filière coupée — le débit
+ * baisse, il ne s'éteint pas, et le tampon dirait le contraire de ce que le chiffre montre.
+ *
+ * La conversion répond d'elle-même : son état sort du règlement, jamais d'un second calcul ici.
+ */
+function isCut(view: PlayerView, column: Column, worked: ReadonlyArray<DepositKey>): boolean {
+  if (column.conversion !== null) return column.conversion.state === 'unlinked';
+  const sites = view.me.extraction.filter(
+    (site) =>
+      column.extraction.includes(site.key) &&
+      site.deposit !== null &&
+      worked.includes(site.deposit),
+  );
+  return sites.length > 0 && sites.every((site) => !site.linked);
 }
 
 /** How much this exploitation actually pulls out of the deposits this column stands on — the
@@ -742,6 +770,10 @@ function ConversionBox({
  */
 const STATE_INK: Readonly<Record<ChainView['state'], string>> = {
   off: 'var(--ink-quiet)',
+  /** **Hors réseau prend l'encre rouge** : rien n'est cassé sur le site, et pourtant le stock a
+   *  cessé de monter sans que le joueur ait rien fait — c'est la définition même de ce qui exige
+   *  une décision maintenant (règle 3 du tampon). */
+  unlinked: 'var(--critical)',
   idle: 'var(--ink-soft)',
   running: 'var(--valid)',
   starved: 'var(--critical)',
@@ -749,20 +781,26 @@ const STATE_INK: Readonly<Record<ChainView['state'], string>> = {
 };
 
 function ChainVerdict({ chain }: { chain: ChainView }) {
-  const badge =
-    chain.state === 'starved' && chain.missing !== null
-      ? fr.economy.starvedOn(fr.resources[chain.missing])
-      : fr.economy.chainStates[chain.state];
-
   return (
-    <span
-      className="mt-[5px] inline-block border px-[5px] py-[1px] text-[9px] tracking-[.1em] uppercase"
-      style={{ color: STATE_INK[chain.state], borderColor: STATE_INK[chain.state] }}
-    >
-      {badge}
-    </span>
+    <StateBadge
+      state={chain.state}
+      label={
+        chain.state === 'starved' && chain.missing !== null
+          ? fr.economy.starvedOn(fr.resources[chain.missing])
+          : fr.economy.chainStates[chain.state]
+      }
+    />
   );
 }
+
+const StateBadge = ({ state, label }: { state: ChainView['state']; label: string }) => (
+  <span
+    className="mt-[5px] inline-block border px-[5px] py-[1px] text-[9px] tracking-[.1em] uppercase"
+    style={{ color: STATE_INK[state], borderColor: STATE_INK[state] }}
+  >
+    {label}
+  </span>
+);
 
 function OutputBox({ column }: { column: Column }) {
   const dry = column.output.perHour <= 0;
@@ -1028,9 +1066,30 @@ function HeadquartersColumn({
 
       <OutpostBudgets view={view} />
 
-      {/* La place réservée à la **production reliée** (ADR 0020 §6) : aucun champ ne dit
-          aujourd'hui qu'un site est relié ou coupé, donc rien ne s'affiche ici — la colonne
-          garde son pied libre pour le jour où le serveur le sert. */}
+      <UnlinkedSites view={view} />
+    </div>
+  );
+}
+
+/**
+ * **Ce que la carte a coupé, au pied de la colonne qui porte les plafonds** (ADR 0020 §6). Une
+ * ligne, jamais une liste : les sites sont coupés par la même chose — une région qui a changé de
+ * couleur — et ce qui se répare est la frontière, pas le bâtiment. La carte « à faire
+ * maintenant » mène au premier ; ici on dit seulement combien.
+ *
+ * **À zéro elle n'existe pas.** Un « 0 site hors réseau » permanent redevient du bruit de fond,
+ * et un grisé serait pire encore : il n'y a rien à faire ici, jamais.
+ */
+function UnlinkedSites({ view }: { view: PlayerView }) {
+  const cut = unlinkedProducers(view);
+  if (cut.length === 0) return null;
+
+  return (
+    <div className="border-t border-[rgba(42,33,24,.22)] px-4 py-[9px]">
+      <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
+      <p className="mt-[5px] text-[11.5px] leading-[1.4] text-[var(--critical)]">
+        {fr.economy.unlinkedSites(cut.length)}
+      </p>
     </div>
   );
 }

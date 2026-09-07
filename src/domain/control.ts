@@ -42,6 +42,16 @@ export type ControlOutpost = {
    * de sa côte, et un avant-poste planté dedans ne tenait pas même le sol sous ses pieds.
    */
   readonly regionId: string | null;
+  /**
+   * **Hors service, il ne tient plus rien** (ADR 0020 §7). Un avant-poste désactivé par un raid
+   * décolore sa zone pendant toute la désactivation — c'est le premier retour visuel d'un
+   * mécanisme codé et jusque-là muet, et c'est ce qui donne au raid une valeur indépendante du
+   * butin. Il n'est pas déraciné pour autant (ADR 0004) : il paie son entretien, il garde ses
+   * bâtiments debout, et sa couleur revient seule à la fin de la fenêtre.
+   *
+   * La désactivation est lue par l'appelant, qui seul connaît l'heure : le domaine ne date rien.
+   */
+  readonly disabled: boolean;
 };
 
 /** Le sol d'origine d'une nation en jeu : son pays, et le joueur qui la porte. */
@@ -96,6 +106,10 @@ export function heldRegions({
  * d'inaccessibilité : c'est ainsi que la précision du 04/09 entre dans la règle, sans seconde
  * branche et sans seconde constante. Le départage suit — deux points adverses plantés dans la
  * même région sont à égalité exacte, donc personne ne la tient, ce que la règle dit déjà.
+ *
+ * **Un point hors service ne concourt pas** (§7), et il ne dispute donc rien non plus : la
+ * région qu'il tenait revient au voisin qui la couvre, adverse compris. C'est exactement ce
+ * qu'un raid vient chercher.
  */
 function nearestHolder(
   region: ControlledRegion,
@@ -104,6 +118,7 @@ function nearestHolder(
   let best: { owner: string; km: number } | null = null;
   let disputed = false;
   for (const outpost of outposts) {
+    if (outpost.disabled) continue;
     const km = outpost.regionId === region.id ? 0 : distanceKm(outpost.point, region.point);
     if (km > outpost.reachKm) continue;
     if (best === null || km < best.km) {

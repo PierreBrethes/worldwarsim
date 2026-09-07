@@ -24,19 +24,13 @@ import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { heldRegions } from '../src/domain/control';
 import { rankedByTerritory, scoresOf, type AlloyPrices } from '../src/domain/standings';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { seasonBuildings } from './buildings';
-import {
-  COST_BY_ROLE,
-  PRESS_EDITION_HOURS,
-  TIER_2_FACTOR,
-  buildCost,
-  outpostReachKm,
-} from './constants';
-import { pointOf, seasonOutposts } from './movement/forces';
-import { allRegions, homeCountryOf, regionOfOutpost } from './regions';
+import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './constants';
+import { heldOver } from './holding';
+import { seasonOutposts } from './movement/forces';
+import { allRegions } from './regions';
 import { isAtWar, playingSeason } from './seasons';
 import { seasonTroops } from './troops';
 
@@ -124,7 +118,7 @@ async function writeEdition(
   const players = seats.filter((seat) => isAtWar(seat, season));
   if (players.length === 0) return;
 
-  const held = await heldCounts(ctx, seasonId, players);
+  const held = await heldCounts(ctx, seasonId, at);
   const heldByAnyone = [...held.values()].reduce((sum, count) => sum + count, 0);
 
   const buildings = await seasonBuildings(ctx, seasonId);
@@ -190,30 +184,20 @@ async function writeEdition(
  * **Qui tient combien de régions, à cet instant** — la vérité, sur les 4 589 régions cuites.
  * C'est le même calcul que le relevé du sol (`convex/surveys.ts`), sur le monde entier plutôt
  * que sur ce qu'une portée couvre : ici il n'y a pas d'observateur, il y a un dépouillement.
+ * Une seule fonction le rend (`heldOver`), et c'est elle qui colore la carte et relie la
+ * production — un classement qui compterait autrement dirait autre chose que ce que le joueur
+ * voit.
  *
- * Un avant-poste **désactivé tient toujours son sol** : le raid le met hors service, il ne le
- * déracine pas (ADR 0004), et la carte le colore encore — le classement ne doit pas dire autre
- * chose que ce que le joueur voit.
+ * Un avant-poste **hors service ne tient rien** le temps de sa désactivation (ADR 0020 §7) : le
+ * raid ne le déracine pas (ADR 0004), il lui prend sa part. C'est précisément ce que
+ * l'édition doit montrer.
  */
 async function heldCounts(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
-  players: ReadonlyArray<Doc<'players'>>,
+  at: number,
 ): Promise<ReadonlyMap<string, number>> {
-  const truth = heldRegions({
-    regions: allRegions(),
-    outposts: (await seasonOutposts(ctx, seasonId)).map((outpost) => ({
-      owner: outpost.playerId as string,
-      point: pointOf(outpost.point),
-      reachKm: outpostReachKm(outpost.level),
-      regionId: regionOfOutpost(outpost),
-    })),
-    homeGrounds: players.flatMap((player) => {
-      const country = homeCountryOf(player.nation);
-      return country === null ? [] : [{ owner: player._id as string, country }];
-    }),
-  });
-
+  const truth = await heldOver(ctx, seasonId, allRegions(), at);
   const counts = new Map<string, number>();
   for (const owner of truth.values()) counts.set(owner, (counts.get(owner) ?? 0) + 1);
   return counts;

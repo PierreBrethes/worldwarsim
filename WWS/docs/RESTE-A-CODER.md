@@ -17,30 +17,38 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 
 ## Prêts ou en attente d'une décision
 
-- **etat-de-reference-depuis-une-saison** (5a) — *prêt* — l'ancien simulateur part en `_to_delete/`.
-- **Comptes pseudo + mot de passe** — ADR 0022 *proposée*, à accepter ; prompt après acceptation ;
-  wipe requis. Borner le pseudo dans ce prompt (aucune borne serveur aujourd'hui).
+- ~~etat-de-reference-depuis-une-saison~~ — **livré le 06/09** (`aa2ae63`) : `dev.snapshot`, script
+  d'export, ancien simulateur dans `_to_delete/simulation-v1/`. **Reste à Pierre : l'export de la
+  saison Japon** (`node scripts/exporter-etat-reference.mjs --token=…`, le jeton est le
+  `wws-token` du navigateur) — sans lui, `WWS/simulation/` n'a plus d'état de référence du tout.
+- **comptes** — ADR 0022 **acceptée** (06/09) ; prompt *prêt* (`ready/comptes.md`) ; **à donner
+  au moment du wipe, après la partie à deux**, jamais pendant. Borne le pseudo (3-16).
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (8).
 - **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
 - Ménage : `.claude/settings.local.json` à ignorer (`*.local` ne le couvre pas) ;
   `_wws_snapshot.tgz` (908 Ko) tracké à la racine, à sortir du dépôt.
 
-## Acté, à rédiger (dans l'ordre naturel)
+## Acté, rédigé le 06/09 au soir — dans l'ordre où ça se donne (`ready/`)
 
-6. **Production reliée** (ADR 0020 §6) — la place est réservée dans l'Économie.
-7. **ADR 0021 branchée** — portées de détection, postures, salve d'allonge, réévaluation. Amène
-   l'œil « portée » dans la fiche de l'abaque (68a) et les placeholders `@a-mesurer`.
-8. **Pillage et butin** (proposition `pillage-et-butin.md`) — butin porté par la colonne, seule
-   l'infanterie pille, capture des seuls bâtiments de production.
-9. **Bâtiment de stockage unique** — entrepôt + dépôt fusionnés, posé, pillable.
-10. **Objectifs neutres** (proposition `objectifs-neutres.md`).
-11. ~~**Page de presse**~~ — **livrée le 06/09** (cadence portée à 3 h par la décision 80, barème
-    tranché par `propositions/classement-bareme.md`). Ce qui n'y est pas : l'écran de fin —
-    l'édition finale en tient lieu — et le graphique, refusé par le contrat de vue 07.
-12. **Fin de saison au seuil tenu** (ADR 0020).
-13. **Titre « mon territoire »** dans `GroundPanel` (trouvaille du 01/09, une clé fr).
-14. **Fondateur parti → transfert au plus ancien** (40a) — prompt à retrouver dans `done/` ou à
-    réécrire si non livré.
+6. ~~production-reliee~~ — **livré le 07/09** (ADR 0020 §6 **et §7**, `convex/holding.ts` pour la
+   lecture unique de la couleur, `convex/production.ts` pour le règlement à l'événement). Emporte
+   le titre « mon territoire » (13) et la **décoloration au raid**, jusqu'ici jamais codée : la
+   couleur, le classement, le relevé et la production sortent désormais d'une seule fonction, et
+   un avant-poste hors service ne tient plus rien. ⚠ Deux conséquences à regarder au premier
+   skirmish : le classement d'un joueur raidé baisse pendant la fenêtre (c'est §7, mais c'est
+   nouveau au front), et la fin d'une désactivation est le premier événement du jeu que
+   **personne n'ordonne** — un travail planifié à `disabledUntil`, dont le règlement est daté à
+   cette seconde-là même s'il se réveille en retard.
+7. **portees-et-postures** (ADR 0021 §1-4, §6) — *prêt* — ⚠ retire l'interception par les
+   garnisons posées (§3) ; le sélecteur de posture peut appeler un contrat de vue.
+8. **salve-d-allonge** (ADR 0021 §5) — *prêt* — après 7.
+9. **stockage-unique** (sortie b du 31/08) — *prêt* — petit, avant le pillage.
+10. **pillage-et-butin** lot 1 — *prêt* — après 6, 7, 9. Lot 2 (capture, QG) plus tard.
+11. **objectifs-neutres** lot 1 — *prêt* — après 10 (réutilise `loot` et le retour).
+12. **fin-de-saison-au-seuil-tenu** — *prêt* — ⚠ 74a le mettait de côté ; à donner en dernier,
+    après la partie de contrôle à deux (elle fixe `DOMINATION_SHARE` et `DOMINATION_HELD_HOURS`).
+13. ~~Titre « mon territoire »~~ — livré dans 6.
+14. ~~Fondateur parti~~ — livré (`surrender` + `fondateur-absent`).
 
 ## Acté sur le principe, ADR à écrire avant le code
 

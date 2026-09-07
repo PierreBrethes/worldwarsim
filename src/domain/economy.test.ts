@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { clipToCapacity, emptyStocks, settleStocks, type Conversion, type Stocks } from './economy';
+import {
+  clipToCapacity,
+  emptyStocks,
+  isLinked,
+  produces,
+  settleStocks,
+  type Conversion,
+  type Stocks,
+} from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
 
 const stocksOf = (held: Partial<Record<ResourceKey, number>>): Stocks => ({
@@ -91,6 +99,48 @@ describe('a stock that opens above its ceiling', () => {
   });
 });
 
+describe('a building only produces when its region carries its colour', () => {
+  const held = new Map([
+    ['FRA-5323', 'pierre'],
+    ['ROU-310', 'lea'],
+  ]);
+
+  it('links a region its owner holds, and nothing else', () => {
+    expect(isLinked({ regionId: 'FRA-5323' }, held, 'pierre')).toBe(true);
+    // Tenue, mais par quelqu'un d'autre : bâtir chez le voisin ne relie pas (ADR 0004).
+    expect(isLinked({ regionId: 'ROU-310' }, held, 'pierre')).toBe(false);
+    // Tenue par personne : la même réponse, et c'est la règle entière.
+    expect(isLinked({ regionId: 'ROU-314' }, held, 'pierre')).toBe(false);
+  });
+
+  /** Les quatre extracteurs et les trois chaînes, et rien d'autre : le stockage, la projection,
+   *  le quartier général et les cantonnements ne font rien entrer dans le monde. */
+  it('only ever cuts what produces', () => {
+    for (const key of [
+      'farm',
+      'mill',
+      'mine',
+      'oilWell',
+      'foundry',
+      'arsenal',
+      'quartermaster',
+    ] as const) {
+      expect(produces(key)).toBe(true);
+    }
+    for (const key of [
+      'hq',
+      'warehouse',
+      'depot',
+      'barracks',
+      'port',
+      'airfield',
+      'billets',
+    ] as const) {
+      expect(produces(key)).toBe(false);
+    }
+  });
+});
+
 describe('the state of a conversion', () => {
   it('names the input that ran out, and not the one still there', () => {
     const { report } = settleOne(foundry(4), { ore: 200, coal: 0 }, 1);
@@ -106,6 +156,26 @@ describe('the state of a conversion', () => {
     const { report } = settleOne(foundry(4), { ore: 200, coal: 200, alloy: CEILING }, 1);
     expect(report.state).toBe('overflowing');
     expect(report.missing).toBeNull();
+  });
+
+  /**
+   * **Hors réseau passe avant tout le reste** (ADR 0020 §6) : un site coupé n'est pas à sec, il
+   * n'est pas éteint, et il ne déborde pas — les trois envoient le joueur ailleurs que là où le
+   * remède se trouve, qui est la carte.
+   */
+  it('calls a cut chain unlinked, whatever else would have been said of it', () => {
+    const cut = { ...foundry(0), linked: false };
+    expect(settleOne(cut, { ore: 200, coal: 200 }, 1).report.state).toBe('unlinked');
+    expect(settleOne({ ...cut, perHour: 4 }, { ore: 0, coal: 0 }, 1).report.state).toBe('unlinked');
+    expect(settleOne({ ...cut, perHour: 4 }, { ore: 200, coal: 200 }, 1).report.state).toBe(
+      'unlinked',
+    );
+  });
+
+  it('makes nothing at all on a cut chain, whatever the reserve', () => {
+    const { stocks } = settleOne({ ...foundry(0), linked: false }, { ore: 200, coal: 200 }, 8);
+    expect(stocks.alloy).toBe(0);
+    expect(stocks.ore).toBe(200);
   });
 
   it('reports a chain nobody built as off, not as starved', () => {

@@ -1048,6 +1048,11 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     expect(broken!.stationedAt).toBe(outpostId);
 
     // Its owner reads the point as out of service, counting down like every other due time.
+    // L'horloge est ramenée juste après la passe : la fin de la désactivation est désormais un
+    // rendez-vous planifié (ADR 0020 §6, `production.restoreAfterDisabling`), et le drainage des
+    // travaux ci-dessus a donc porté le temps au-delà de la fenêtre. C'est le décompte pendant
+    // la fenêtre qu'on lit ici.
+    vi.setSystemTime(account!.at + 60_000);
     const owner = await t.query(api.view.playerView, { token: guest });
     const left = owner.me.outposts[0]!.disabledMinutesLeft!;
     expect(left).toBeGreaterThan(0);

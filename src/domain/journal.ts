@@ -201,6 +201,25 @@ function written(notice: Notice): Written {
         ),
       };
     /**
+     * **Une alarme, au même titre qu'un avant-poste désactivé** (ADR 0020 §6) : le stock cesse de
+     * monter sans que le joueur ait rien perdu ni rien fait, et rien d'autre sur le plateau ne
+     * le dira. Le rétablissement, lui, est une nouvelle qu'on lit à son heure.
+     */
+    case 'productionCut':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'productionCut',
+        text: said.productionCut(notice.sites, countryLabel(notice.hostCountry)),
+      };
+    case 'productionRestored':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'productionRestored',
+        text: said.productionRestored(notice.sites, countryLabel(notice.hostCountry)),
+      };
+    /**
      * **La dépêche nomme le détecteur, jamais la colonne.** C'est un fait du plateau de celui
      * qui lit — il sait ce qu'il a bâti — et c'est ce qui sépare « on a vu quelque chose » de
      * « ma station de Prahova l'a vu ». Rien de ce que le brouillard cache n'y entre : ni type,
@@ -323,8 +342,15 @@ export const nationName = (nation: string): string =>
  * fini, un avant-poste fondé sont des nouvelles qu'on lit à son heure.
  *
  * `seasonConcluded` n'y est pas, et c'est délibéré : une saison close n'exige plus rien de
- * personne — elle se relit, elle ne se joue plus.
+ * personne — elle se relit, elle ne se joue plus. `productionRestored` non plus, pour la raison
+ * inverse : c'est une nouvelle qu'on lit à son heure.
  */
-const ALARMS: ReadonlyArray<DispatchKind> = ['attacked', 'outpostDisabled', 'firedDry', 'sighting'];
+const ALARMS: ReadonlyArray<DispatchKind> = [
+  'attacked',
+  'outpostDisabled',
+  'firedDry',
+  'sighting',
+  'productionCut',
+];
 
 export const isAlarm = (kind: DispatchKind): boolean => ALARMS.includes(kind);

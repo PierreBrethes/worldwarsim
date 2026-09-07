@@ -24,11 +24,12 @@ import { engagementsOf } from './combat';
 import { homeSlotReliefOf, queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
+import { heldOver } from './holding';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionOfOutpost, regionsOf } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, hostAtPoint } from './routes';
-import { OUTLOOK_HOURS, economyOf, extractionSites, maxOrderOf, snapshotAll } from './resources';
+import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import {
   concludeOpensAt,
   concludeRefusal,
@@ -101,6 +102,14 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     const facts = regionId === null ? null : regionFacts(regionId);
     if (facts) carrying.set(facts.id, facts);
   }
+  /**
+   * **La couleur du sol qu'il peut bâtir**, lue par la fonction unique (`convex/holding.ts`) que
+   * la carte, le classement et le relevé lisent aussi. Elle est servie par région parce que
+   * c'est là que le joueur la lit — la modale d'un site, la colonne d'une filière et la carte
+   * « à faire maintenant » posent toutes la même question sur la même région.
+   */
+  const held = await heldOver(ctx, season._id, [...carrying.values()], now);
+
   const locked = await specializationsServed(ctx, season._id, outposts);
   const sealed = outposts.map((outpost) => ({
     outpost,
@@ -311,7 +320,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
       }),
       /** What each exploitation pulls out, site by site — `resources` only carries the sum,
        *  which cannot name the mine that sits on nothing. */
-      extraction: extractionSites(buildings),
+      extraction: economy.extraction,
       // The slots follow the headquarters since the logistics centre was dissolved
       // (ADR 0015). One slot outlives the building: a nation always has one movement to
       // make, even with its capital flattened.
@@ -408,6 +417,13 @@ export async function viewOf(ctx: QueryCtx, token: string) {
          * there.
          */
         site: siteRef(sites.siteAt(facts.id)),
+        /**
+         * **La région porte-t-elle sa couleur** (ADR 0020 §6) — c'est ce qui décide si ce qui s'y
+         * tient produit. Servi par région et non par bâtiment : c'est la région qui est tenue ou
+         * perdue, et une mine et une fonderie posées sur le même sol ne peuvent pas répondre
+         * différemment. Son propre pays est toujours relié, ce que la règle rend seule.
+         */
+        linked: held.get(facts.id) === player._id,
       })),
       // The region and the key travel with it because the map plants the crane on the
       // ground: a region name is a caption, not an anchor.

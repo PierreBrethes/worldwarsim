@@ -32,6 +32,10 @@ L'instrument de mesure vivant : combien de décisions un joueur prend pendant l'
 saison, et à quels moments. Il a son propre [README](opening/README.md). `verify.mjs` en est le
 miroir de constantes, lu par `npm run verifier`.
 
+**La production reliée ne l'a pas touché** (ADR 0020 §6, livrée le 07/09) : il n'a pas de carte,
+donc pas de couleur, donc rien à couper — tout y produit comme sur un sol national, qui est de
+toute façon ce que mesure une ouverture. Le jour où il posera un avant-poste, il devra le dire.
+
 ## Ce qui a été retiré — `../docs/_to_delete/simulation-v1/`
 
 Le simulateur de saison complète (`sim.mjs`, `run.mjs`, `derniere-sortie.txt`, `resultats.json`,
