@@ -41,7 +41,7 @@ navale/aérienne en partie. `convex/detection.test.ts` couvre détecteurs et rel
 - Le simulateur d'ouverture ne représente pas une guerre entre joueurs. Son README annonce
   notamment l'absence d'adversaire et d'entretien de l'armée. L'ancien simulateur de saison
   complète est archivé : ses pourcentages de victoire ne démontrent rien sur le jeu actuel.
-- `a-mesurer.md` contient **19 valeurs**, hors tables économiques. Tests verts ne signifie
+- `a-mesurer.md` contient désormais **18 valeurs**, hors tables économiques. Tests verts ne signifie
   pas équilibre ou plaisir démontré.
 - Le build signale un paquet principal de **1 050 Ko minifié / 300 Ko gzip**. À mesurer sur
   appareil cible avant d'en faire un chantier ; les fenêtres ont déjà des paquets séparés.
@@ -55,12 +55,12 @@ navale/aérienne en partie. `convex/detection.test.ts` couvre détecteurs et rel
 | --- | --- | --- |
 | Maintenant | Restauration d'une sauvegarde dans un environnement isolé, puis contrôle à deux des surfaces récentes. | Savoir reprendre une partie et confirmer les interactions que les tests ne voient pas. |
 | Pendant ce contrôle | Exporter une vue réelle et noter compréhension, hésitations et occasions de conflit. | Une matière de design issue du jeu actuel. |
-| Ensuite | Portées et postures → salve d'allonge ; stockage unique avant pillage. | Contact compréhensible, retours contestables, cible de stockage unifiée. |
+| Livré le 08/09 | Portées passives par rôle, comportement dérivé de l'ordre, réévaluation événementielle ; postures et salve abandonnées. | Contact mobile déterministe, sans interception par les forces posées. |
 | Ensuite | Pillage lot 1 → objectifs neutres lot 1. | Une raison de sortir, de se rencontrer et de défendre un retour chargé. |
 | En dernier selon la file | Victoire par seuil territorial tenu, valeurs confrontées au contrôle à deux. | Faire converger score, actions et fin de saison. |
 | Au wipe après le contrôle | Comptes. | Retrouver ses sièges avec une identité persistante. |
 
-Un chantier de code à la fois. La salve dépend des portées ; le pillage dépend des portées,
+Un chantier de code à la fois. Le pillage dépend des portées,
 du stockage unique et de la production reliée déjà livrée ; les objectifs dépendent du pillage.
 Les comptes constituent un chantier distinct, avec leur contrainte de wipe.
 
@@ -75,15 +75,14 @@ Les comptes constituent un chantier distinct, avec leur contrainte de wipe.
    Certaines compositions géographiques n'en offrent aucune. Définir le repli et tester les
    nations éloignées avant de promettre deux objectifs à toute partie à deux. Tester aussi la
    reprise d'un dépôt partiellement vidé après disparition de sa garnison.
-3. **Portées.** L'ADR parle de portées qui se croisent ; le brief précise une détection par rayon
-   individuel, sans addition des rayons. Harmoniser cette formulation. Le changement retire
-   l'interception des garnisons : vérifier que le joueur comprend ce que sa garnison défend.
+3. **Portées.** Livrées en rayon individuel, maximum de la pile sans addition. Vérifier en partie
+   que le joueur comprend qu'une garnison voit à distance mais ne défend que son point.
 
 ## Les ajouts que je privilégierais
 
 | Idée | Apport au joueur | Place proposée |
 | --- | --- | --- |
-| Rejeu court depuis le compte rendu | Comprendre les pertes et donner un moment marquant à une décision antérieure. | Après stabilisation des portées et de la salve ; lire les frappes enregistrées, sans recalculer. |
+| Rejeu court depuis le compte rendu | Comprendre les pertes et donner un moment marquant à une décision antérieure. | Après stabilisation des portées ; lire les frappes enregistrées, sans recalculer. |
 | Crayon d'état-major personnel | Préparer une offensive, noter une hypothèse et s'approprier la carte. | Petit chantier de plaisir entre deux systèmes ; proposition déjà validée le 26/08. |
 | Compas de mesure | Comparer des destinations avant l'engagement irréversible. | Vérifier d'abord ce que l'aperçu couvre ; une distance droite ne doit pas être annoncée comme une durée de route. |
 | Objectifs neutres rares et disputés | Faire converger deux joueurs vers une récompense commune. | Déjà en file, après pillage ; résoudre le placement géographique. |

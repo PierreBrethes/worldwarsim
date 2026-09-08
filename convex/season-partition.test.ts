@@ -7,7 +7,7 @@ import { api } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { landCostOf } from '../src/domain/movement-orders';
-import { nominalStrength, routeMinutes, SCOUT_RADIUS_KM } from './constants';
+import { DETECTION_RANGE_KM, nominalStrength, routeMinutes } from './constants';
 import { GAME_TABLES } from './dev';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
@@ -197,7 +197,7 @@ describe('a season reads its own board and no other', () => {
 
   /**
    * **The camp is sixty kilometres from the road, which is inside a sentry's reach**
-   * (`SCOUT_RADIUS_KM`) — so the same board, played inside one season, does file the relevé the
+   * (the infantry role range) — so the same board, played inside one season, does file the relevé the
    * case above demands not to see. Without this the first guard would pass on a game that never
    * detects anything at all.
    */
@@ -228,7 +228,7 @@ describe('a season reads its own board and no other', () => {
     );
     expect(sightings).toHaveLength(1);
     expect(sightings[0]!.detector).toBe('troop');
-    expect(SCOUT_RADIUS_KM).toBeGreaterThan(0);
+    expect(DETECTION_RANGE_KM.infantry).toBeGreaterThan(0);
   });
 });
 

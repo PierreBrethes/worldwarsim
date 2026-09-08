@@ -29,6 +29,7 @@ import {
   seasonStillPlays,
 } from './seasons';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
+import { reassessDetection } from './movement/detection';
 
 /** Derived from the domain table rather than written a second time: one key, one domain. */
 const DOMAIN_OF_PROJECTION = new Map<BuildingKey, UnitDomain>(
@@ -236,6 +237,7 @@ export const deliver = internalMutation({
       site: station === null ? null : { building: station.key, regionId: station.regionId },
     });
     await ctx.db.delete(recruitmentId);
+    await reassessDetection(ctx, season._id);
     await startHead(ctx, batch.buildingId, Date.now());
   },
 });

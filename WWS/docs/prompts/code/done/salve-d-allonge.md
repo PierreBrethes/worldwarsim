@@ -1,5 +1,8 @@
 # salve-d-allonge — ADR 0021 §5 : l'allonge donne une salve, jamais la victoire
 
+> **Abandonné le 08/09/2026 par la révision de l'ADR 0021.** Conservé comme dossier historique ;
+> ce brief ne doit pas être exécuté.
+
 Lis `CLAUDE.md`, `CONVENTIONS.md`, l'ADR 0021 §5, l'ADR 0018 §1-§2-§4, `src/domain/combat.ts`
 (`resolveEngagement`, `hit`, l'ordre des rôles, la déroute à 0,25), `convex/combat.ts` (le
 branchement, munitions au tir, `DEFENDER_BONUS`), `convex/validators.ts` (`phase: strike |

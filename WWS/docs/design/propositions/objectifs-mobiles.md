@@ -63,7 +63,7 @@ la cible publique, pas automatiquement tous ses effectifs.
 
 ## Place dans la file
 
-Les portées et postures (ADR 0021), le stockage unique et le pillage préparent cette boucle.
+Les portées passives et le comportement dérivé de l'ordre (ADR 0021), le stockage unique et le pillage préparent cette boucle.
 Le premier dépôt neutre permet de valider défense, chargement et retour ; le mouvement neutre
 ajoute ensuite le rendez-vous mobile et sa visibilité publique. Le brief `ready/objectifs-neutres.md`
 ne couvre pas cette extension : rédiger son propre brief et formaliser les décisions qui

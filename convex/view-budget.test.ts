@@ -154,7 +154,7 @@ async function ageSeason(t: ReturnType<typeof boot>, token: string) {
     for (let dispatch = 0; dispatch < DISPATCHES; dispatch += 1) {
       await ctx.db.insert('notices', {
         playerId: me._id,
-        at: MIDDAY.getTime() + dispatch * 60_000,
+        at: MIDDAY.getTime() - (DISPATCHES - 1 - dispatch) * 60_000,
         kind: 'columnArrived' as const,
         movementType: 'march' as const,
         hostCountry: 'France',
@@ -182,7 +182,7 @@ describe('la vue du plateau tient dans un budget', () => {
     expect(view.notices).toHaveLength(NOTICES_SERVED);
     // La fenêtre est prise sur le récent : la dernière passe écrite est la première servie.
     expect(view.reports[0]!.at).toBe(MIDDAY.getTime() + (PASSES - 1) * 60_000);
-    expect(view.notices[0]!.at).toBe(MIDDAY.getTime() + (DISPATCHES - 1) * 60_000);
+    expect(view.notices[0]!.at).toBe(MIDDAY.getTime());
   });
 
   it('pèse un ordre de grandeur sous le plafond de lecture, en octets comme en documents', async () => {

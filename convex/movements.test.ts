@@ -9,7 +9,7 @@ import {
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
   REST_WINDOW_MINUTES,
-  SCOUT_RADIUS_KM,
+  DETECTION_RANGE_KM,
   unlockLevel,
 } from './constants';
 import { ConvexError } from 'convex/values';
@@ -1347,12 +1347,8 @@ describe('an arrival on a point finds who stands there', () => {
     ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
   });
 
-  /**
-   * **A posted column orders nothing, and defends the ground it stands on** — the amendment of
-   * ADR 0019 §3. It reaches for nobody: a column passes within `ARRIVAL_RADIUS_KM` of the camp,
-   * which is a meeting and not a blockade, and the pass is the camp's.
-   */
-  it('crosses a camp its road walks into', async () => {
+  /** A posted column observes from its role's range, but only defends the point where it stands. */
+  it('walks past a camp on its road without opening a pass', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -1368,15 +1364,11 @@ describe('an arrival on a point finds who stands there', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [account] = await engagementsIn(t);
-    expect(account).toBeDefined();
-    /** The camp struck: it holds the terrain, the column is the one surprised (ADR 0014). */
-    expect(account!.attackerId).toBe(await playerOf(t, guest));
-    expect(account!.cause).toBe('interception');
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toBe(barracks);
   });
 
-  /** **The geometry is read once, at departure** (ADR 0018 §3, ADR 0019 §6). A camp pitched
-   *  behind a marching column never meets it: the renseignement is a bet, not a reaction. */
+  /** A detector added after departure is reassessed, but being detected still starts no pass. */
   it('walks past a camp pitched after it left', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
@@ -1526,13 +1518,8 @@ describe('a march goes to a point and the column stays there', () => {
     expect(accounts[0]!.outpostId).toBe(outpostId);
   });
 
-  /**
-   * **The camp is found again after the round trip** — written into the contact, read back out
-   * of the database, resolved. Its point used to travel as a string built and taken apart by
-   * hand: when the reading missed, the pass was scheduled, nobody was found, and nothing at all
-   * happened, without a word. The coordinate is deliberately one no rounding would survive.
-   */
-  it('resolves the crossing against the camp whose point made the round trip', async () => {
+  /** A precise posted address remains passive while a movement crosses its detection range. */
+  it('keeps a camp passive at its exact stored point', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -1549,12 +1536,11 @@ describe('a march goes to a point and the column stays there', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [account] = await engagementsIn(t);
-    expect(account).toBeDefined();
-    expect(account!.attackerId).toBe(await playerOf(t, guest));
-    /** It was there, and it took the riposte: the pass was resolved against troops, not
-     *  against an empty reference. */
-    expect(account!.troops.some((one) => one.troopId === camped)).toBe(true);
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toEqual({
+      lon: middle[0] + Math.PI / 1000,
+      lat: middle[1] - Math.E / 1000,
+    });
   });
 
   /**
@@ -1636,8 +1622,8 @@ describe('a march goes to a point and the column stays there', () => {
     expect((await t.run(async (ctx) => ctx.db.get(worn)))!.stationedAt).toBe(barracks);
   });
 
-  /** The crossing of §2, ordered as a march this time: the road, not the destination. */
-  it('crosses a camp standing on its road, and the camp opens the pass', async () => {
+  /** A march stays observational even when its road crosses a posted detector. */
+  it('crosses a camp standing on its road without opening a pass', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -1653,9 +1639,8 @@ describe('a march goes to a point and the column stays there', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [account] = await engagementsIn(t);
-    expect(account).toBeDefined();
-    expect(account!.attackerId).toBe(await playerOf(t, guest));
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(AIMED));
   });
 
   /**
@@ -2211,14 +2196,14 @@ describe('the door of the sea, read on the pile', () => {
   });
 });
 
-describe('an interception inverts the initiative', () => {
+describe('a posted force never starts a pass at a distance', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
   });
   afterEach(() => vi.useRealTimers());
 
-  it('lets the garrison on the road strike first', async () => {
+  it('lets an attack pass a garrison and resolve only at its destination', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -2238,25 +2223,16 @@ describe('an interception inverts the initiative', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [account] = await engagementsIn(t);
-    expect(account).toBeDefined();
-    expect(account!.cause).toBe('interception');
-    // The one who was already there is the attacker of the pass — that is the counter-power.
-    expect(account!.attackerId).toBe(await playerOf(t, guest));
-    expect(account!.defenderId).toBe(await playerOf(t, token));
-    // It struck first: the marching column took the heavier toll of the two.
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(28);
-    expect((await t.run(async (ctx) => ctx.db.get(waiting)))!.currentStrength).toBe(34);
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(
+      nominalStrength('infantry', 1),
+    );
+    expect((await t.run(async (ctx) => ctx.db.get(waiting)))!.currentStrength).toBe(
+      nominalStrength('infantry', 1),
+    );
   });
 
-  /**
-   * **A garrison keeps its net for everything it is not the target of** (ADR 0019 §3). The
-   * exclusion is derived from `defenceOf` — the very function the arrival will call — so a raid
-   * on A silences A's garrison and nothing else. A blind radius around the aim used to cost the
-   * neighbouring point its whole two hundred kilometres, which is a garrison watching an enemy
-   * column pass under its walls.
-   */
-  it('leaves the neighbouring garrison its net, and still resolves the raid once', async () => {
+  it('lets a neighbouring garrison observe a raid resolved once at the aimed outpost', async () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -2282,46 +2258,15 @@ describe('an interception inverts the initiative', () => {
     const accounts = await engagementsIn(t);
     const onTheRoad = accounts.filter((account) => account.cause === 'interception');
     const atTheEnd = accounts.filter((account) => account.cause === 'arrival');
-    expect(onTheRoad).toHaveLength(1);
-    /** One pass at A, and the raid did what a raid comes for. */
+    expect(onTheRoad).toHaveLength(0);
     expect(atTheEnd).toHaveLength(1);
     expect(atTheEnd[0]!.outpostId).toBe(raided);
     expect((await t.run(async (ctx) => ctx.db.get(raided)))!.disabledUntil).not.toBeNull();
 
-    /** B fought on the road, A only at its own point. */
-    expect(onTheRoad[0]!.troops.some((one) => one.troopId === watching)).toBe(true);
-    expect(onTheRoad[0]!.troops.some((one) => one.troopId === held)).toBe(false);
-  });
-
-  it('lets what survives the ambush walk on to the end of its road', async () => {
-    const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const troop = await form(t, token, 'infantry', barracks);
-    const road = routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
-    const outpostId = await plant(
-      t,
-      guest,
-      road.points[Math.floor(road.points.length / 2)]!,
-      'ROU',
+    expect((await t.run(async (ctx) => ctx.db.get(watching)))!.currentStrength).toBe(
+      nominalStrength('infantry', 1),
     );
-    await garrison(t, guest, outpostId);
-
-    await t.mutation(api.movements.attack, {
-      token,
-      origin: { kind: 'building', buildingId: barracks },
-      troopIds: [troop],
-      target: { kind: 'region', regionId: PRAHOVA },
-    });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-
-    /** Wounded, not stopped: the interception is a pass on the way, never a cancellation of the
-     *  order. The column walked to the end and came back from it. */
-    const survivor = await t.run(async (ctx) => ctx.db.get(troop));
-    expect(survivor!.currentStrength).toBeGreaterThan(0);
-    expect(survivor!.currentStrength).toBeLessThan(nominalStrength('infantry', 1));
-    expect(survivor!.stationedAt).toBe(barracks);
-    expect(await movementsOf(t, token)).toHaveLength(0);
+    expect(atTheEnd[0]!.troops.some((one) => one.troopId === held)).toBe(true);
   });
 });
 
@@ -2543,9 +2488,7 @@ describe('a rout refluxes to the nearest anchor', () => {
 /**
  * **Nobody teleports** (ADR 0019 §3, amended 19/08). The travel time is the central lever the
  * simulation measured, and it owns no exception: the same `return` carries the beaten and the
- * winners. Two roads used to be missing — a column that broke contact after leaving an outpost,
- * and any winner that had left a plain point — and both ended the same way, with the troops
- * standing at their point of departure the instant the pass was resolved.
+ * winners back to the address they left.
  */
 describe('a column that comes out of a pass walks back, winner or beaten', () => {
   beforeEach(() => {
@@ -2557,47 +2500,6 @@ describe('a column that comes out of a pass walks back, winner or beaten', () =>
   const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
   /** Deliberately off the Prahova centroid, and far enough from it to be another place. */
   const AIMED: LonLat = [25.2, 44.6];
-
-  it('walks the garrison that left an outpost back to its anchor, never straight into it', async () => {
-    const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const held = await plant(t, guest, regionFacts(PRAHOVA)!.point, 'ROU');
-    const worn = await garrison(t, guest, held);
-    // Thirty soldiers walking at fifty: the ambush takes it under the quarter it breaks at.
-    await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
-
-    // Halfway down the road it is about to take, so it walks straight into the radius.
-    const road = routeBetween(regionFacts(PRAHOVA)!.point, regionFacts(RUHR)!.point, 'land')!;
-    const ambush = road.points[Math.floor(road.points.length / 2)]!;
-    await garrison(t, token, await plant(t, token, ambush, 'DEU'));
-
-    const sent = await t.mutation(api.movements.attack, {
-      token: guest,
-      origin: { kind: 'outpost', outpostId: held },
-      troopIds: [worn],
-      target: { kind: 'region', regionId: RUHR },
-    });
-    vi.advanceTimersByTime(sent.minutes * 60_000);
-    await t.finishInProgressScheduledFunctions();
-
-    const [account] = await engagementsIn(t);
-    expect(account!.cause).toBe('interception');
-    expect(account!.troops.find((one) => one.troopId === worn)!.state).toBe('routed');
-
-    /** The road home is a real one: it used to have none — an outpost address answered to
-     *  neither of the two functions — so the garrison reappeared on its point at once. */
-    const [back] = await movementsOf(t, guest);
-    expect(back).toBeDefined();
-    expect(back!.type).toBe('return');
-    expect(back!.target).toEqual({ kind: 'outpost', outpostId: held });
-    expect(back!.troopIds).toEqual([worn]);
-    expect(back!.arrivesAt).toBeGreaterThan(Date.now());
-    /** It leaves from where it broke, not from the point it had already left. */
-    expect(back!.from).not.toEqual(asPoint(regionFacts(PRAHOVA)!.point));
-
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect((await t.run(async (ctx) => ctx.db.get(worn)))!.stationedAt).toBe(held);
-  });
 
   it('walks the winners of an attack back to the camp they left', async () => {
     const t = boot();
@@ -2673,12 +2575,11 @@ describe('a column that comes out of a pass walks back, winner or beaten', () =>
 
 /**
  * **A posted troop is the fourth source of detection** (ADR 0019 §5, design sheet 04): it reveals
- * what passes within `SCOUT_RADIUS_KM` to its owner, and it pierces nothing — a thread, a
+ * what passes within its role's range to its owner, and it pierces nothing — a thread, a
  * bearing, an estimated schedule, a medium, never the type nor the composition.
  *
- * The rows are written at the departure of the movement and never recomputed, which is both the
- * answer to the fan-out (`WWS/docs/technique/brouillard-et-fanout.md`) and a design decision: one
- * posts a sentry for what will pass, not for what is passing.
+ * The rows are maintained at board events and read only through the observer's own index, which
+ * keeps the fan-out bounded (`WWS/docs/technique/brouillard-et-fanout.md`).
  */
 describe('a posted troop sees what passes within its radius', () => {
   beforeEach(() => {
@@ -2686,8 +2587,6 @@ describe('a posted troop sees what passes within its radius', () => {
     vi.setSystemTime(MIDDAY);
   });
   afterEach(() => vi.useRealTimers());
-
-  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 
   /** The road the column will actually walk, and how close a point stands to it: the tests turn
    *  on the radius, so the geography is measured rather than assumed. */
@@ -2710,10 +2609,9 @@ describe('a posted troop sees what passes within its radius', () => {
     const t = boot();
     const { token, guest } = await launchedSeason(t);
     const halfway = road().points[Math.floor(road().points.length / 2)]!;
-    // Forty kilometres off the road: inside the sentry's radius, well outside the twenty-five
-    // that would make it a crossing instead of a sighting.
+    // Forty kilometres off the road: inside the sentry's passive detection range.
     const camp = eastOf(halfway, 40);
-    expect(nearestOn(road().points, camp)).toBeLessThan(SCOUT_RADIUS_KM);
+    expect(nearestOn(road().points, camp)).toBeLessThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
 
     const sent = await marchAcross(t, token);
@@ -2731,7 +2629,7 @@ describe('a posted troop sees what passes within its radius', () => {
     expect(seen).not.toHaveProperty('troopIds');
     expect(seen).not.toHaveProperty('playerId');
 
-    /** And no engagement came of it: forty kilometres is a sighting, not a meeting. */
+    /** And no engagement came of it: a posted detector never starts a pass at a distance. */
     expect(await engagementsIn(t)).toHaveLength(0);
   });
 
@@ -2740,48 +2638,8 @@ describe('a posted troop sees what passes within its radius', () => {
     const { token, guest } = await launchedSeason(t);
     const halfway = road().points[Math.floor(road().points.length / 2)]!;
     const camp = eastOf(halfway, 150);
-    expect(nearestOn(road().points, camp)).toBeGreaterThan(SCOUT_RADIUS_KM);
+    expect(nearestOn(road().points, camp)).toBeGreaterThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
-
-    const sent = await marchAcross(t, token);
-    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
-
-    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
-  });
-
-  /**
-   * **The rule the screen has to say out loud.** The survey is computed at the departure of the
-   * movement, once, against what already stands — the same instant as the interception
-   * (ADR 0018 §3). One posts a sentry in anticipation of what will pass; a sentry posted after
-   * the fact catches nothing, and that is the design rather than a hole in it.
-   */
-  it('never sees a movement that left before it was posted', async () => {
-    const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const sent = await marchAcross(t, token);
-
-    const halfway = road().points[Math.floor(road().points.length / 2)]!;
-    await post(t, guest, eastOf(halfway, 40));
-    vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
-
-    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
-  });
-
-  /** **A troop in flight watches nothing**: it stands nowhere, which is the same reading that
-   *  keeps a column from defending the ground it left. */
-  it('watches nothing while it is itself marching', async () => {
-    const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const halfway = road().points[Math.floor(road().points.length / 2)]!;
-    const camp = eastOf(halfway, 40);
-    const walker = await post(t, guest, camp);
-
-    await t.mutation(api.movements.marchTo, {
-      token: guest,
-      origin: { kind: 'point', point: asPoint(camp) },
-      troopIds: [walker],
-      point: asPoint(regionFacts(RIYADH)!.point),
-    });
 
     const sent = await marchAcross(t, token);
     vi.advanceTimersByTime(sent.minutes * 60_000 * 0.5);
@@ -2870,9 +2728,8 @@ describe('an outpost changes trade until a pass has read it', () => {
   });
 
   /**
-   * Un départ **à portée** est ce qui scelle : `pacedMinutes` lit les relais au départ et
-   * `fileSightings` lit les postes d'écoute au même instant. C'est là, et nulle part ailleurs, que
-   * les deux métiers servent.
+   * Un départ **à portée** est ce qui scelle : il peut lire le relais immédiatement et fait
+   * entrer le poste d'écoute dans la réévaluation événementielle.
    */
   it('seals it once a departure passes within its reach', async () => {
     const t = boot();

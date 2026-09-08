@@ -653,7 +653,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     ),
     /**
      * **The other half of the fog, and the only one there is** (ADR 0005, ADR 0019 §5): what a
-     * posted troop of the player's saw pass within `SCOUT_RADIUS_KM`. Every row is his own —
+     * troop of the player's saw pass within the maximum range of its roles. Every row is his own —
      * the `sightings` ledger is indexed by observer, so this reading never touches the
      * movements of the board at large and the fan-out of the naive query does not exist
      * (`WWS/docs/technique/brouillard-et-fanout.md`).
@@ -701,7 +701,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     notices: (
       await ctx.db
         .query('notices')
-        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .withIndex('byPlayerAt', (q) => q.eq('playerId', player._id).lte('at', now))
         .order('desc')
         .take(NOTICES_SERVED)
     )
@@ -929,6 +929,7 @@ async function detectedArcs(
  *  camp is a pile at a point, which is not a place. */
 async function regionOfStation(ctx: QueryCtx, sighting: Doc<'sightings'>): Promise<string | null> {
   if (sighting.detector !== 'station' || sighting.detectorId === null) return null;
+  if (sighting.detectorRegion !== undefined) return sighting.detectorRegion;
   const building = await ctx.db.get(sighting.detectorId as Id<'buildings'>);
   return building === null ? null : (regionFacts(building.regionId)?.name ?? null);
 }

@@ -6,7 +6,7 @@ import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
   HQ_LEVEL_AT_LAUNCH,
   NATIONS,
-  SCOUT_RADIUS_KM,
+  DETECTION_RANGE_KM,
   STARTING_AMMUNITION,
   STARTING_KIT,
   STRENGTH_PER_ROUND,
@@ -846,7 +846,7 @@ describe('scrapping a season', () => {
       ];
       expect(
         road.points.reduce((closest, step) => Math.min(closest, distanceKm(step, camp)), Infinity),
-      ).toBeLessThan(SCOUT_RADIUS_KM);
+      ).toBeLessThan(DETECTION_RANGE_KM.infantry);
       await form(t, guest, asPoint(camp));
 
       // Somebody to meet at the far end, so an account gets filed.

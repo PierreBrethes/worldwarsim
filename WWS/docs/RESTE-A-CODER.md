@@ -5,10 +5,40 @@ Tenu par Cowork, 06/09/2026 (mise à jour du 04/09). Un chantier code à la fois
 propositions ; ce fichier est la file.
 
 Relecture code du 08/09 : [bilan daté, vérifications et recommandations](technique/point-projet-2026-09-08.md).
-L'ordre de livraison ci-dessous reste inchangé ; le bilan relève notamment les cas à préciser
-dans les briefs de victoire et d'objectifs neutres avant de les exécuter.
+Le bilan relève notamment les cas à préciser dans les briefs de victoire et d'objectifs neutres
+avant de les exécuter. La file historique ci-dessous est complétée par la direction V1 du 08/09.
+
+## Direction V1 retenue le 08/09
+
+Pierre accueille favorablement **les points 1 à 8** de la proposition de version plus complète :
+[vision V1 — expéditions et positions à défendre](design/propositions/vision-v1-expeditions.md).
+Cette validation porte sur la direction ; les règles détaillées et leur chiffrage restent à
+formaliser dans les briefs concernés. Aucun de ces ajouts n'est marqué livré par cette note.
+
+Elle ajoute notamment les intentions « intercepter » et « escorter », la préparation sur carte,
+le compte rendu d'expédition avec rejeu, la **récupération passive dans un site adapté**, et la
+révision de **« à faire maintenant »** pour ne plus traiter toute attente comme un problème.
+La récupération révise le principe actuel « une troupe entamée reste entamée » ; elle demandera
+sa règle économique. La victoire territoriale est confirmée comme cible V1.
+
+Séquence proposée : portées passives et rencontres → stockage unique et pillage avec dépêches →
+premiers objectifs neutres → objectifs mobiles et ordre d'interception. Les outils de préparation,
+la lecture des positions et le rejeu accompagnent ces lots ; récupération et victoire complètent
+la version. Le détail des dépendances et des points ouverts figure dans la proposition.
+
+Le point 9 (mobile, notifications, diplomatie) n'est pas inclus dans cette nouvelle validation ;
+les décisions antérieures sur ces sujets restent conservées dans leurs propres propositions.
 
 ## Retour de partie du 08/09 — donner une raison de s'affronter
+
+**Correction de Pierre sur les postures (08/09, après `b35af57`)** : aucun choix de posture
+à ajouter au joueur. Le comportement doit découler de l'action donnée et du déplacement.
+Le sélecteur prévu dans l'ancien brief et l'ADR 0021 §4 a été retiré de leur révision.
+La précision acceptée et transmise à la tâche dédiée conserve
+la portée P en stationnement, retient la meilleure portée d'une pile sans addition et donne
+sa propre portée à la station d'écoute. Aucun bonus générique de bâtiment ni coefficient de
+discrétion à introduire. Marcher ou rentrer ne provoque pas de chasse automatique ; une force
+attaquée riposte. Le nouvel ordre « intercepter » appartient au lot d'actions de carte suivant.
 
 Pierre a déjà testé : combattre fonctionne, mais les occasions et les gains manquent.
 **Principes approuvés** : pillage avec butin à ramener ; dépôts neutres gardés ; positions
@@ -68,9 +98,13 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
    nouveau au front), et la fin d'une désactivation est le premier événement du jeu que
    **personne n'ordonne** — un travail planifié à `disabledUntil`, dont le règlement est daté à
    cette seconde-là même s'il se réveille en retard.
-7. **portees-et-postures** (ADR 0021 §1-4, §6) — *prêt* — ⚠ retire l'interception par les
-   garnisons posées (§3) ; le sélecteur de posture peut appeler un contrat de vue.
-8. **salve-d-allonge** (ADR 0021 §5) — *prêt* — après 7.
+7. ~~portees-et-postures~~ — **livré le 08/09 sous la forme révisée « portées passives »** :
+   portée par rôle, maximum de pile, observation posée et mobile, contact mobile seulement pour
+   `attack` / `raid`, réévaluation événementielle et annulation des prédictions périmées. Aucune
+   posture ni salve d'allonge.
+8. **salve-d-allonge** — **hors du lot portées passives**. La livraison l'a archivée comme
+   abandonnée dans `done/` et dans l'ADR 0021, mais Pierre n'a pas décidé cet abandon dans cette
+   conversation. Ce classement documentaire reste à corriger ou à arbitrer avant ce futur lot.
 9. **stockage-unique** (sortie b du 31/08) — *prêt* — petit, avant le pillage.
 10. **pillage-et-butin** lot 1 — *prêt* — après 6, 7, 9. Lot 2 (capture, QG) plus tard.
 11. **objectifs-neutres** lot 1 — *prêt* — après 10 (réutilise `loot` et le retour).
@@ -103,6 +137,6 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   `convex/press.ts`, proposition `classement-bareme.md`. Son calibrage en partie reste distinct
   de son implémentation.
 - Nom 1940 de la frappe terminale (19).
-- Valeurs `@a-mesurer` : portées par rôle, posture discrète, heures de butin, capacité de
+- Valeurs `@a-mesurer` : portées par rôle, heures de butin, capacité de
   chargement, présence du pillage, entretien d'avant-poste, barème du classement — à regarder à
   la main au premier test, aucune ne se simule.

@@ -1,6 +1,7 @@
 # ADR 0005 — Brouillard de guerre par défaut
 
 **Statut :** acceptée — **révisée le 31/08/2026 par l'[ADR 0020](0020-domination-par-couleur.md)**
+— détection événementielle précisée le 08/09/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)
 
 > ⚠️ **Révision (31/08/2026).** Le secret change d'objet : la **couleur des territoires devient
 > publique** — on sait où sont les nations et jusqu'où elles portent. Ce qui reste caché, et ce

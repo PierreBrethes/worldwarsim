@@ -30,8 +30,10 @@ documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survi
 
 **Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
 (`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
-modificateurs dans `convex/constants.ts`). L'**interception** en route inverse l'initiative ; son
-rayon est un placeholder assumé et non simulé, le trou le plus béant du modèle (fiche 08 §11). Un
+modificateurs dans `convex/constants.ts`). Le **contact mobile** se réévalue aux événements : la
+portée maximale des rôles détecte, mais seuls `attack` et `raid` engagent un mouvement adverse
+dans le même milieu ; une force posée voit sans intercepter. Les neuf portées sont des placeholders
+`@a-mesurer`. Un
 raid gagné **désactive** l'avant-poste, jamais ne le prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
 sur ce compte rendu, sans re-résoudre.
@@ -81,15 +83,14 @@ fermé. L'ordre de mobilisation en est devenu la première ligne, dépliable
 (`FoundationRows.tsx`) ; la liste complète des troupes est passée dans la fenêtre Nation, où
 chaque ligne recentre.
 
-**Une seule détection existe, et c'est une troupe posée** (ADR 0019 §5) : elle révèle à son
-propriétaire les mouvements adverses qui passent dans `SCOUT_RADIUS_KM` (60 km) — un fil, un cap,
-un horaire estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé
-se calcule **au départ du mouvement, une seule fois**, et se dénormalise dans la table
-`sightings` (`observateur, mouvement, tDébut, tFin`) : chaque joueur lit son propre index, jamais
-un filtre sur la table des mouvements (`WWS/docs/technique/brouillard-et-fanout.md`). Conséquence
-assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le relevé
-se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches ; la station
-d'écoute, l'agent dormant et la sonde n'existent toujours pas.
+**La détection des troupes est passive et suit le rôle** (ADR 0021 révisée le 08/09) : posée ou
+en mouvement, une pile relève à la plus grande portée de ses rôles — un fil, un cap, un horaire
+estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé se réévalue
+aux événements et se dénormalise dans `sightings` (`observateur, mouvement, tDébut, tFin`) : chaque
+joueur lit son propre index, jamais un filtre sur la table des mouvements
+(`WWS/docs/technique/brouillard-et-fanout.md`). Une fenêtre future est annulable et ne produit ni
+arc ni dépêche avant son ouverture ; une fenêtre déjà vue devient dernière position connue. La
+station d'écoute et l'avant-poste d'écoute existent aussi ; l'agent dormant et la sonde non.
 
 **Le recrutement se fait dans la modale d'un site, et de nulle part ailleurs** (décisions 59a,
 60b, 61a du 01/09). La fenêtre Production générale et son onglet « prod. » sont **morts** : le
@@ -362,6 +363,9 @@ Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque �
 spécifié. L'oublier coûte une réécriture.
 
 ## Instructions
+
+Les tâches de développement travaillent directement dans `C:/Users/Tacoctus/Documents/dev/worldwarsim`.
+Ne crée pas de worktree séparé sauf demande explicite de Pierre (préférence du 08/09/2026).
 
 Git : 
 Ne commit pas

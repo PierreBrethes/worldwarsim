@@ -529,24 +529,38 @@ export const COMBAT_RULES: CombatRules = {
 };
 
 /**
- * **The most gaping hole in the model, and it is not simulated** (design sheet 08 §11). Too wide
- * and nothing gets through: the map freezes. Too narrow and interception — the first counter-power
- * ADR 0014 demands — never fires.
+ * **How far each role sees** (ADR 0021, revision of 08/09/2026). Detection is passive and does
+ * not become weapon range: only the order says whether a mobile contact becomes a pass.
  *
- * Two hundred kilometres is a **placeholder with no measurement behind it whatsoever**, roughly a
- * quarter of an hour of marching at the measured pace. The first campaign must look at it.
- *
- * @a-mesurer no measurement whatsoever; the simulator does not model interception at all
+ * @a-mesurer every value; no season simulation models detection
  */
-export const INTERCEPTION_RADIUS_KM = 200;
+export const DETECTION_RANGE_KM: Readonly<Record<UnitRole, number>> = {
+  infantry: 60,
+  armor: 60,
+  landTransport: 40,
+  fighter: 150,
+  bomber: 100,
+  airTransport: 80,
+  escort: 120,
+  cargo: 60,
+  carrier: 200,
+};
+
+/**
+ * **A stack sees as far as its best detector, never as their sum** (ADR 0021, revision of
+ * 08/09/2026). These are starting points inherited from the abandoned posture brief, not
+ * balance claims: the first campaign still has to measure all nine.
+ */
+export const detectionRangeOf = (roles: ReadonlyArray<UnitRole>): number =>
+  roles.reduce((best, role) => Math.max(best, DETECTION_RANGE_KM[role]), 0);
 
 /**
  * **How close one has to stand to be found on arrival.** ADR 0019 §1: it replaces the containment
  * the server cannot compute, since it holds no polygons.
  *
  * Twenty-five kilometres is **an assumed starting point, never measured** — the same status as
- * `INTERCEPTION_RADIUS_KM` and deliberately not the same value: an interception is a net cast
- * across a road, an arrival is a place one walked to. Wider, aiming stops saying anything;
+ * the passive detection ranges and deliberately not the same value: detecting is seeing,
+ * while an arrival is a place one walked to. Wider, aiming stops saying anything;
  * narrower, the point one clicks would have to land on a defender to find him.
  *
  * @a-mesurer an assumed starting point; nothing measures how close is close enough on arrival
@@ -554,28 +568,12 @@ export const INTERCEPTION_RADIUS_KM = 200;
 export const ARRIVAL_RADIUS_KM = 25;
 
 /**
- * **How far a posted troop sees what moves** (ADR 0019 §5, design sheet 04's fourth detector).
- *
- * **Sixty kilometres** is the realism of an infantry company, and frankly shorter than
- * `INTERCEPTION_RADIUS_KM` (200) and an outpost's reach (120 to 240 by level) on purpose: a
- * sentry that saw as far as one intercepts would make the listening station and the sleeping
- * agent decorative.
- *
- * **It is meant to become a role statistic**, and stays one constant until something reads a
- * second value — laying a table of nine before a second consumer exists is the mistake D1 of
- * `consommation-continue.md` turned down once.
- *
- * @a-mesurer picked for realism and for its rank among the detectors, never measured
- */
-export const SCOUT_RADIUS_KM = 60;
-
-/**
  * **How far a listening station hears what moves** — design sheet 04's second detector.
  *
  * A hundred and twenty kilometres is a placement in the ordering the design asks for and nothing
- * more: longer than `SCOUT_RADIUS_KM` (60), because a station bought for forty minutes and
- * thirty-five of alloy has to be worth more than a rifleman standing still; shorter than
- * `INTERCEPTION_RADIUS_KM` (200), because a station hears and catches nothing.
+ * more: longer than an infantry company's 60 km, because a station bought for forty minutes and
+ * thirty-five of alloy has to be worth more than a rifleman standing still. It hears and catches
+ * nothing by itself.
  *
  * A station has no point of its own: it listens from its region's (`regionFacts`).
  *

@@ -59,7 +59,7 @@ maquette a besoin d'une donnée adverse « pour faire vrai », c'est qu'elle est
 ## Vocabulaire (WWS/CONTEXT.md)
 
 Imposé : **mouvement**, **passe de résolution**, avant-poste **désactivé** / **détruit**
-(jamais pris), **emplacement**, **posture**, **relevé**, **édition**, **journal d'événements**,
+(jamais pris), **emplacement**, **relevé**, **édition**, **journal d'événements**,
 **slot de mouvement**, **caserne** et **filière** (le mot « atelier » est rejeté, 55b).
 Bannis : tick, temps réel, micro, base, rush, convoi, leurre.
 

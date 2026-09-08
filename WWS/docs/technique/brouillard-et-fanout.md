@@ -19,11 +19,12 @@ côté client pour des raisons de performance.
 
 ## L'approche retenue
 
-**Calculer les fenêtres de révélation à la création du mouvement, et les dénormaliser.**
+**Calculer les fenêtres aux événements qui changent le plateau, puis les dénormaliser.**
 
-Quand un mouvement est créé, on connaît déjà tout ce qu'il faut : sa courbe, sa date de départ, sa
-date d'arrivée, et la position de tous les détecteurs existants. On calcule alors, pour chaque
-détecteur, l'intersection entre le trajet et son rayon, et on écrit des enregistrements :
+Un départ, une arrivée, une composition modifiée, un détecteur posé ou retiré et son changement
+d'état déclenchent une réévaluation serveur bornée par les mouvements et les slots de la saison.
+On calcule, pour chaque observateur, l'intersection temporelle entre les trajets et les portées,
+puis on écrit ou corrige des enregistrements :
 
 ```
 (observateur, mouvement, tDébut, tFin)
@@ -32,18 +33,23 @@ détecteur, l'intersection entre le trajet et son rayon, et on écrit des enregi
 Chaque joueur ne lit ensuite **que ses propres lignes**. Sa requête ne dépend plus de la table des
 mouvements, mais d'une table qui lui est propre. Le fan-out disparaît.
 
+Une ligne future porte un rendez-vous annulable : aucune dépêche et aucun arc ne sort avant
+`tDébut`. Si l'événement suivant rend la fenêtre impossible, la ligne et son rendez-vous
+disparaissent. Une fenêtre déjà ouverte n'est pas effacée : son `tFin` est refermé et elle devient
+la dernière position connue.
+
 ## Ce que ça implique
 
-- **Un détecteur créé après un mouvement ne le voit pas.** C'est une décision de design, pas
-  seulement une optimisation : poser une station d'écoute ne révèle pas rétroactivement ce qui est
-  déjà en vol. C'est défendable et lisible, mais il faut l'assumer explicitement — ou recalculer les
-  fenêtres à la création d'un détecteur, ce qui reste borné puisque les détecteurs sont rares.
+- **Un détecteur créé après un départ peut voir la suite du mouvement**, jamais son passé. La
+  réévaluation commence à l'heure de l'événement et ne fabrique aucune information rétroactive.
+- **Un détecteur mobile ne voit que dans son milieu courant.** Les segments et les coûts stockés
+  donnent sa position et son milieu à l'heure considérée ; un transfert n'appartient à aucun milieu.
 - **Le pouvoir britannique** (voit tous les arcs maritimes) se traite dans le même passage, comme un
   détecteur global à information partielle.
 - **Le sabotage** a besoin de savoir si un agent est à portée à un instant donné : c'est la même
-  intersection segment/cercle, calculée une seule fois.
-- Les détecteurs étant peu nombreux et les mouvements bornés par les slots, le calcul à la création
-  est négligeable.
+  géométrie temporelle, à intégrer à la même réévaluation le jour où l'agent existe.
+- Les détecteurs et les mouvements étant bornés par les troupes et les slots, la réévaluation reste
+  un coût d'écriture événementiel ; aucune query de joueur ne balaie le plateau.
 
 ## Le même piège au sol
 

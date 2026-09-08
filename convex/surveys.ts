@@ -14,19 +14,24 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { coveredRegions, surveyStops, type Observer } from '../src/domain/control';
 import type { LonLat } from '../src/domain/geo';
+import type { UnitRole } from '../src/domain/ids';
+import { isNation } from '../src/domain/nations';
 import { playerBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
-  SCOUT_RADIUS_KM,
+  DETECTION_RANGE_KM,
   SURVEY_REFRESH_HOURS,
+  detectionRangeOf,
   outpostReachKm,
 } from './constants';
 import { heldOver } from './holding';
 import { movementsOf, outpostsOf, pointOf } from './movement/forces';
 import {
   allRegions,
+  capitalRegionOf,
   homeCountryOf,
   pointOfBuilding,
+  regionFacts,
   regionOfOutpost,
   type RegionFacts,
 } from './regions';
@@ -52,7 +57,8 @@ export async function standingObserversOf(
 ): Promise<ReadonlyArray<Observer>> {
   const observers: Array<Observer> = [];
 
-  for (const outpost of await outpostsOf(ctx, playerId)) {
+  const outposts = await outpostsOf(ctx, playerId);
+  for (const outpost of outposts) {
     observers.push({
       point: pointOf(outpost.point),
       radiusKm: outpostReachKm(outpost.level),
@@ -60,7 +66,8 @@ export async function standingObserversOf(
     });
   }
 
-  for (const building of await playerBuildings(ctx, playerId)) {
+  const buildings = await playerBuildings(ctx, playerId);
+  for (const building of buildings) {
     if (building.key !== 'listening') continue;
     const stand = pointOfBuilding(building);
     if (stand !== null) {
@@ -71,13 +78,38 @@ export async function standingObserversOf(
   const marching = new Set<Id<'troops'>>(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
   );
+  const outpostById = new Map(outposts.map((outpost) => [outpost._id, outpost]));
+  const buildingById = new Map(buildings.map((building) => [building._id, building]));
+  const player = await ctx.db.get(playerId);
   for (const troop of await ctx.db
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect()) {
+    if (marching.has(troop._id)) continue;
     const address = troop.stationedAt;
-    if (marching.has(troop._id) || address === null || typeof address === 'string') continue;
-    observers.push({ point: pointOf(address), radiusKm: SCOUT_RADIUS_KM, regionId: null });
+    let point: LonLat | null;
+    if (address === null) {
+      const capital =
+        player !== null && isNation(player.nation)
+          ? regionFacts(capitalRegionOf(player.nation))
+          : null;
+      point = capital?.point ?? null;
+    } else if (typeof address !== 'string') point = pointOf(address);
+    else {
+      const outpost = outpostById.get(address as Id<'outposts'>);
+      if (outpost !== undefined) point = pointOf(outpost.point);
+      else {
+        const building = buildingById.get(address as Id<'buildings'>);
+        point = building === undefined ? null : pointOfBuilding(building);
+      }
+    }
+    if (point !== null) {
+      observers.push({
+        point,
+        radiusKm: detectionRangeOf([troop.role]),
+        regionId: null,
+      });
+    }
   }
 
   return observers;
@@ -154,8 +186,8 @@ export const surveyFromPoint = (
   playerId: Id<'players'>,
   point: LonLat,
   at: number,
-): Promise<number> =>
-  fileSurvey(ctx, playerId, [{ point, radiusKm: SCOUT_RADIUS_KM, regionId: null }], at);
+  radiusKm = DETECTION_RANGE_KM.infantry,
+): Promise<number> => fileSurvey(ctx, playerId, [{ point, radiusKm, regionId: null }], at);
 
 /**
  * **Ce qu'une colonne a vu du couloir qu'elle vient de marcher**, relevé à l'arrivée et pas au
@@ -163,21 +195,28 @@ export const surveyFromPoint = (
  * n'a pas encore fait un pas rendrait le renseignement gratuit. Les haltes sortent de la
  * polyligne du mouvement, celle que `convex/routes.ts` a calculée une fois.
  */
-export const surveyAlongRoute = (
+export const surveyAlongRoute = async (
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   at: number,
-): Promise<number> =>
-  fileSurvey(
+): Promise<number> => {
+  const roles: UnitRole[] = [];
+  for (const troopId of movement.troopIds) {
+    const troop = await ctx.db.get(troopId);
+    if (troop !== null) roles.push(troop.role);
+  }
+  const radiusKm = detectionRangeOf(roles);
+  return fileSurvey(
     ctx,
     movement.playerId,
-    surveyStops(movement.points.map(pointOf), SCOUT_RADIUS_KM).map((point) => ({
+    surveyStops(movement.points.map(pointOf), radiusKm).map((point) => ({
       point,
-      radiusKm: SCOUT_RADIUS_KM,
+      radiusKm,
       regionId: null,
     })),
     at,
   );
+};
 
 /**
  * **Une fondation change la vérité autour d'un point, et chacun l'apprend s'il regarde.** Le

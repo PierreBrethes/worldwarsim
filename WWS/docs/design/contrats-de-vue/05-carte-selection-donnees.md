@@ -74,7 +74,8 @@ code (« Pays neutre » s'affiche aujourd'hui — vrai manque, nouvelle clé fr 
   lit « `effectif 106 / 124` », jamais le chiffre d'une seule troupe
 - **UN tampon : « `ravitaillée` »** ou « `hors ravitaillement — entretien ×2` » (une seule
   troupe hors suffit à tamponner la pile)
-- Portée, en une phrase : « `relève à 60 km` » (`SCOUT_RADIUS_KM`)
+- Portée, en une phrase : « `relève à 60 km` » pour l'infanterie ; une pile affiche le maximum
+  de ses rôles (`detectionRangeOf`).
 - Pied en visée (désigner arme) : « `choisissez la destination — clic droit sur la carte` »
   + « `échap — désarme` ». Observateur : le pied se tait — plus d'ailleurs à viser.
 - La **composition** (cases à cocher, allure, emport) vit dans la fenêtre de garnison — ses
@@ -91,6 +92,7 @@ ne change plus` » · « `aucun gisement — caserne, aérodrome, baraquements` 
 ## Interdits (rappel du contrat 05)
 
 « progression » et « dernier renseignement » d'un adversaire (échafaudage client, rien de
-servi) · type de terrain dans le panneau ·  tout panneau sur un avant-poste ou une troupe adverses · tampon de posture
+servi) · type de terrain dans le panneau · tout panneau sur un avant-poste ou une troupe adverses
+· posture ou tampon de posture
 (ADR 0021, pas codé — pas même la place) · aucun ordre dans les trois lectures (la popin
 lit, la carte agit) · toute chaîne ou tout chiffre absent de ce fichier.

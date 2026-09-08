@@ -1,134 +1,91 @@
-# ADR 0021 — Portée de détection, posture de mouvement, salve d'allonge
+# ADR 0021 — Portées passives et comportement dérivé de l’ordre
 
-**Statut :** acceptée (31/08/2026) — **révise l'[ADR 0008](0008-combat-par-interception.md)** et
-les **§3 et §5 de l'[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md)** ; le calcul de la
-passe lui-même (ADR 0014, ADR 0018 §1-2-4) n'est pas rouvert
+**Statut :** acceptée (31/08/2026), **révisée le 08/09/2026** — révise l’[ADR 0008](0008-combat-par-interception.md), les §3 et §5 de l’[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) et la conséquence du §5 de l’ADR 0019 selon laquelle un détecteur arrivé après un départ ne voit jamais ce mouvement. Le calcul de la passe (ADR 0014, ADR 0018 §1-2-4) reste fermé.
 
 ## Contexte
 
-Le contact reposait sur `INTERCEPTION_RADIUS_KM = 200`, décrit dans sa propre ADR comme un
-placeholder « non mesuré », « le trou le plus béant du modèle » (fiche 08 §11). Autour de lui,
-trois rayons cohabitent sans règle commune : `SCOUT_RADIUS_KM` (60) pour ce qu'une troupe posée
-relève, `LISTENING_STATION_RADIUS_KM` (120) pour une station qui n'a aucun effet, et le rayon
-d'interception lui-même.
+Le contact reposait sur `INTERCEPTION_RADIUS_KM = 200`, placeholder sans mesure, tandis que les troupes posées relevaient à `SCOUT_RADIUS_KM = 60` et les stations à 120 km. Un mouvement nouvellement créé était déjà comparé aux mouvements existants : une rencontre tardive entre deux routes était donc possible, mais seulement parce que la seconde colonne provoquait ce calcul. Les détecteurs, compositions et rendez-vous changés ensuite ne réévaluaient rien.
 
-Pire, l'interception se calcule **une seule fois, au départ du mouvement** (ADR 0018 §3). Trois
-conséquences vécues : la tenaille de la fiche 08 §5 est vendue comme payante alors qu'elle est
-structurellement indétectable ; une colonne qui rentre chargée ne peut pas être reprise ; et rien
-de ce qui arrive après le départ n'existe pour un mouvement déjà en route.
-
-L'[ADR 0020](0020-domination-par-couleur.md) déplace le secret de *où es-tu* vers *ce qui bouge*.
-Il faut donc une règle unique, visible sur la carte, qui dise qui voit quoi et où le contact se
-produit.
+La première version de cette ADR ajoutait trois postures choisies, une discrétion chiffrée et une salve d’allonge. Ces mécanismes ajoutaient un geste à l’ordre, des coefficients non mesurés et confondaient encore portée de détection et portée de combat.
 
 ## Décision
 
-### 1. Une seule notion : la portée
+### 1. Une troupe porte une portée de détection
 
-Chaque troupe porte une **portée de détection**. Chaque bâtiment de détection posé au sol en porte
-une aussi. Les trois rayons existants deviennent trois valeurs de la même règle, plus trois règles
-différentes.
+Chaque rôle possède une portée `P`. Une pile utilise la meilleure portée de ses troupes, sans addition. Cette portée suit la troupe en stationnement comme en mouvement. Une station d’écoute possède sa propre portée ; un bâtiment ordinaire, la durée d’occupation et la simple présence d’un avant-poste n’ajoutent aucun bonus générique.
 
-Un joueur voit ce qui entre dans une de ses portées. C'est le brouillard, énoncé une fois.
+Les premières valeurs reprennent les points de départ déjà documentés et restent toutes `@a-mesurer`. Elles ne sont pas présentées comme équilibrées.
 
-### 2. Le contact se produit au croisement des portées, et il se réévalue
+### 2. Détecter n’est pas combattre
 
-Deux forces adverses dont les portées se croisent entrent en contact. Le calcul n'est plus fait
-une fois au départ : il est **réévalué en route**, notamment **au retour**.
+Une force voit une force adverse lorsqu’elle entre dans **sa** portée. Les portées ne s’additionnent pas. Elles ne deviennent ni une portée de tir ni un modificateur de la passe de résolution.
 
-`INTERCEPTION_RADIUS_KM` disparaît. La tenaille redevient possible — deux mouvements convergents
-peuvent réellement se rejoindre sur un troisième, ce que la fiche 08 §5 promettait et que le
-calcul unique interdisait. Et une colonne qui rentre chargée de butin peut être reprise : sans
-cette réévaluation, le butin arrive toujours à bon port et le pillage n'a pas d'adversaire.
+Une rencontre en route exige en plus :
 
-L'exclusion de la cible du calcul aller (ADR 0018 §3, `except: aim.outpostId`) reste : une passe
-par engagement, jamais deux pour un seul ordre.
+- deux forces mobiles présentes au même instant dans le même milieu réel du trajet ;
+- au moins une colonne dont l’ordre exprime l’intention de combattre ;
+- cette colonne voit l’autre avec la portée de la pile qu’elle porte alors.
 
-### 3. Le contact n'est pas le combat — la posture décide
+Les garnisons et les troupes posées voient, mais n’interceptent pas à distance. Elles défendent leur position lorsqu’une colonne y arrive, par les règles existantes de `defenceOf` et `standAt`.
 
-**Seule une force en posture offensive engage.** Une garnison défend sa région ; elle ne mord pas
-ce qui passe à côté d'elle.
+### 3. Le comportement vient de l’ordre, sans choix supplémentaire
 
-Sans cette règle, croiser une portée déclencherait un combat qu'on n'a jamais voulu, et il
-deviendrait impossible de contourner, de se dérober ou de laisser passer. En asynchrone, où l'on
-ne réagit pas à ce qui se produit pendant qu'on dort, un combat non refusable est une frustration
-pure — et la question « peut-on refuser le combat ? » se refermerait par la mauvaise réponse.
+Il n’existe aucun sélecteur de posture et aucune posture stockée.
 
-### 4. Trois postures, chacune se paie
+| Ordre | En route |
+|---|---|
+| marche, rappel legacy, retour | voit mais n’engage pas |
+| attaque, raid | engage une force mobile adverse détectée |
+| force immobile | voit et riposte si elle est attaquée à sa position, n’engage pas à distance |
 
-Une posture se choisit **par mouvement**.
+Une force attaquée riposte par la passe normale. Aucun ordre de poursuite ni nouvel ordre d’interception n’est introduit par ce lot.
 
-| Posture | Détection | Au contact |
-|---|---|---|
-| **offensive** | portée pleine | engage toute force adverse à portée, garde l'initiative |
-| **défensive** | portée pleine | n'engage pas, riposte normalement |
-| **discrète** | portée réduite **dans les deux sens** | n'engage pas, **perd l'initiative si elle est surprise** |
+### 4. Les prévisions sont événementielles et remplaçables
 
-Le triangle est fermé : voir loin ou être vu peu, jamais les deux. La discrétion est le prix de
-l'aveuglement, et elle se paie une seconde fois le jour où l'on se fait surprendre.
+Il n’y a pas de boucle globale. À chaque événement qui change un trajet ou un détecteur pertinent — départ, arrivée, pose, recrutement, construction d’une station, changement de spécialisation, désactivation ou restauration, combat et composition survivante — le serveur :
 
-C'est aussi ce qui donne son arbitrage au retour d'un pillage : rentrer discrètement pour ne pas
-être repéré, en acceptant d'être surpris chargé.
+1. annule les rendez-vous de rencontre devenus périmés ;
+2. recalcule les premières rencontres engageantes des mouvements encore en vol ;
+3. remplace les fenêtres de visibilité futures concernées ;
+4. conserve ce qui a déjà été vu comme dernière position connue ;
+5. vérifie à nouveau les conditions lorsque le rendez-vous se déclenche.
 
-**La posture a un défaut porté par l'ordre** — offensive sur une attaque ou un raid, discrète sur
-un retour — et se change d'un geste. Elle ne doit pas devenir une étape de plus : lancer un
-mouvement coûte déjà sept gestes (audit du 25/08 §3).
+Un détecteur posé après le départ peut donc voir un mouvement encore en vol. À l’inverse, un détecteur parti avant l’ouverture d’une fenêtre ne révèle rien. Une ligne future n’est jamais servie avant son heure.
 
-### 5. L'allonge donne une salve, jamais la victoire
+Un seul rendez-vous est retenu par mouvement. Quand deux prévisions partagent une colonne, la plus proche est seule programmée ; après la passe, la composition restante provoque une nouvelle évaluation. Cela empêche deux jobs de résoudre le même croisement avec un manifeste devenu faux.
 
-Au contact, le camp dont la portée est la plus longue tire **une salve gratuite** avant que la
-passe de résolution normale commence. Le camp surpris ne l'obtient pas, même s'il porte plus loin.
+### 5. Les segments réels gouvernent le contact
 
-Une salve, pas la décision : si tirer en premier gagnait le combat, la portée deviendrait la seule
-statistique du jeu et plus personne n'achèterait autre chose. Le contre-pouvoir existe déjà —
-`DEFENDER_BONUS` (1,15) — et l'ADR 0014 en exigeait trois ; celui-ci en remplace un placeholder par
-une règle lisible.
+La position d’une colonne suit le coût temporel de ses jambes et des transferts, pas une interpolation uniforme sur la longueur totale. Une route combinée attend donc au quai et n’est comparée qu’à une force présente dans le même milieu au même instant. La compatibilité de milieu empêche une portée de transformer une colonne terrestre en tir contre un avion ou un navire au large.
 
-**Le calcul de la passe est inchangé.** `resolveEngagement` (ADR 0018 §1-2-4) n'est pas rouvert :
-ordre des rôles, meilleure cible atteignable, excès perdu, déroute à 0,25, ripostes après toutes
-les frappes, table unique, munitions au tir. La salve d'allonge s'ajoute **en tête**, elle ne
-remplace rien. Les soixante-quinze couples de `src/domain/combat.test.ts` doivent repasser tels
-quels.
+### 6. La portée est lisible, chez soi seulement
 
-### 6. La station d'écoute retrouve son effet, elle ne se retire pas
-
-La recommandation du 30/08 — retirer la station d'écoute et le relais, jugés « nuls » — **est
-caduque**. Une station d'écoute est exactement ce que cette ADR décrit : une portée de détection
-posée au sol, sans capacité de blocage. C'est aussi le poste frontière de l'ADR 0020 §8.
-
-Le code est déjà en place (`94b0899` : `LISTENING_STATION_RADIUS_KM`, `detector` dans `sightings`,
-quatre détecteurs). Il n'y a rien à retirer ; il y a à brancher.
+La carte dessine la portée de la pile sélectionnée et d’un mouvement à soi désigné. L’abaque-catalogue imprime la portée de chaque rôle. La vue adverse ne sert toujours ni composition, ni portée, ni intention d’ordre, ni trajectoire future avant l’ouverture d’une fenêtre de relevé.
 
 ## Conséquences
 
-- **L'ADR 0008 est révisée** : le contact ne se calcule plus à un rayon fixe unique, et il se
-  réévalue. Le déterminisme et l'absence d'aléa restent entiers — la géométrie est une fonction
-  pure de l'état du plateau.
-- **L'ADR 0018 §3 et §5 sont révisées** ; §1, §2, §4, §6, §7 tiennent.
-- **La fiche 08 §5 se referme** : la tenaille cesse d'être une promesse invérifiable.
-- **Le relevé de `sightings` change de nature.** « Une troupe posée après un départ ne verra jamais
-  ce mouvement » (ADR 0019 §5) était une conséquence du calcul unique. Avec la réévaluation, cette
-  phrase — imprimée en permanence dans l'interface — devient fausse et doit disparaître.
-- **Coût de calcul** : croisements de cercles entre forces en route, à chaque réévaluation. À 2-8
-  joueurs avec les slots de mouvement de l'ADR 0006, la charge reste triviale ; c'est le fan-out
-  vers `PlayerView` qu'il faut surveiller, pas la géométrie.
-- **La posture n'est pas optionnelle.** Sans elle, la décision 2 rend tout combat inévitable.
-  Livrer 2 sans 4 serait pire que ne rien livrer.
-- **Les portées doivent être lisibles sur la carte**, sinon la règle redevient invisible et le
-  joueur subit des contacts qu'il ne pouvait pas prévoir.
+- `INTERCEPTION_RADIUS_KM` et `SCOUT_RADIUS_KM` disparaissent au profit de la table par rôle ; la station conserve son propre point de départ à 120 km.
+- Un nouveau détecteur peut relever une colonne déjà partie sans que `PlayerView` ne balaie la table des mouvements : les fenêtres restent dénormalisées par observateur.
+- L’ancien calcul n’était pas incapable de rencontrer deux mouvements : il traitait le nouveau venu. La correction porte précisément sur les réévaluations ultérieures, les jobs périmés et les doubles passes.
+- Le coût est borné par les joueurs et les slots de mouvement. À 2 joueurs et QG 5, 12 mouvements
+  donnent 66 couples de contact et 132 lectures mobiles orientées ; à 4 joueurs, 24 mouvements
+  donnent 276 couples et 552 lectures orientées. Chaque lecture marche au plus 241 échantillons ;
+  les détecteurs posés ajoutent `mouvements × détecteurs × 241`. Une réévaluation lit une saison
+  et écrit seulement les lignes des observateurs concernés ; `PlayerView` continue de lire l’index
+  du joueur. Ce coût d’écriture doit être profilé avec des piles et sites maximaux avant d’élargir
+  le nombre de joueurs.
+- Les valeurs de portée et le coût de cette réévaluation doivent être mesurés en saison réelle.
 
-## Ce qu'on abandonne
+## Ce qu’on abandonne
 
-- **`INTERCEPTION_RADIUS_KM` et le calcul unique au départ.**
-- **L'idée qu'un rayon de détection, un rayon d'interception et un rayon de relevé sont trois
-  choses différentes.**
-- **Le retrait de la station d'écoute**, décidé le 30/08 et annulé ici.
-- **Le combat comme conséquence automatique de la proximité** — il faut une intention.
+- le rayon fixe d’interception de 200 km ;
+- la conséquence « une troupe posée après le départ ne verra jamais ce mouvement » ;
+- les postures choisies et stockées ;
+- la discrétion automatique, ses coefficients et ses malus ;
+- la salve d’allonge ;
+- toute interception à distance déclenchée par une garnison ou une force posée.
 
 ## Questions ouvertes
 
-- Les valeurs de portée par rôle : aucune n'est mesurée. `SCOUT_RADIUS_KM` (60) et
-  `LISTENING_STATION_RADIUS_KM` (120) survivent comme points de départ, pas comme vérités.
-- La réduction de portée en posture discrète : facteur unique ou par rôle.
-- Faut-il un coût à changer de posture en route, ou est-ce interdit une fois parti ? Non tranché —
-  la seconde réponse est plus simple et plus asynchrone.
+- Les neuf valeurs de portée sont des points de départ, pas un équilibrage.
+- Un futur ordre explicite d’interception ou de poursuite demanderait sa propre décision et son propre geste ; ce lot n’en prépare aucune surface.

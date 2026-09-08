@@ -143,6 +143,15 @@ export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
  */
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
+/**
+ * **The order is the behaviour** (ADR 0021, revision of 08/09/2026): there is no posture to
+ * choose or store. An attack and a raid may start a mobile encounter when their own detector
+ * sees another mobile force; every other word observes without reaching for it. Arrival defence
+ * is deliberately elsewhere and unchanged.
+ */
+export const movementBehavior = (type: MovementType | 'decoy'): 'engage' | 'observe' =>
+  type === 'attack' || type === 'raid' ? 'engage' : 'observe';
+
 export function refusalOf(
   type: MovementType,
   aim: MovementAim,

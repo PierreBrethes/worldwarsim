@@ -22,12 +22,18 @@ import {
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
-import { MAX_HQ_LEVEL, RELAY_SPEED_MULTIPLIER, outpostReachKm, routeMinutes } from '../constants';
+import {
+  MAX_HQ_LEVEL,
+  RELAY_SPEED_MULTIPLIER,
+  detectionRangeOf,
+  outpostReachKm,
+  routeMinutes,
+} from '../constants';
 import { fail } from '../errors';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
-import { fileSightings, scheduleInterception } from './detection';
+import { reassessDetection } from './detection';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
@@ -346,11 +352,10 @@ export async function march(
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
   const filed = (await ctx.db.get(movementId))!;
-  await scheduleInterception(ctx, filed);
-  await fileSightings(ctx, filed);
+  await reassessDetection(ctx, filed.seasonId, now);
   /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
-  await surveyFromPoint(ctx, playerId, departure.point, now);
+  await surveyFromPoint(ctx, playerId, departure.point, now, detectionRangeOf(column.roles));
   return { movementId, minutes, arrivesAt };
 }
 

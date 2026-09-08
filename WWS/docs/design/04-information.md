@@ -32,8 +32,9 @@ C'est le cœur du jeu, pas une couche annexe. Cf.
 
 ## Le brouillard
 
-**Par défaut, tu ne vois que tes propres arcs.** Les mouvements adverses ne sont visibles que dans le
-rayon de détection de ton territoire, de ta station d'écoute et de tes avant-postes d'écoute.
+**Par défaut, tu ne vois que tes propres arcs.** Les mouvements adverses ne sont visibles que dans
+une fenêtre écrite par ton territoire, ta station d'écoute, tes avant-postes d'écoute ou une de tes
+troupes posées ou en mouvement.
 
 C'est la décision la plus importante du design. Elle transforme d'un coup :
 
@@ -52,8 +53,8 @@ Depuis l'ADR 0019 (18/08), une troupe peut rester posée sur la carte. Elle suit
 écrite pour l'avant-poste adverse — *exactement le genre de chose que le brouillard existe pour
 cacher* : **aucune détection à distance**, ni par le rayon d'un territoire, ni par celui d'une
 autre force posée. Ce qui se voit de loin, c'est ce qui **bouge** — un convoi fait du bruit, un
-campement non. Trois choses seules révèlent une force posée : l'agent dormant, un mouvement qui la
-croise (contact à `ARRIVAL_RADIUS_KM`, initiative au posé), et l'arrivée sur elle.
+campement non. Deux choses seules révèlent une force posée : l'agent dormant, pas encore codé, et
+l'arrivée d'un mouvement sur son point. Une force posée détecte, mais n'intercepte jamais à distance.
 
 Le contrepoids, qui ne perce aucun brouillard : en visée, un point hors du sol du joueur et hors
 du rayon de ses avant-postes est marqué **« sol non reconnu »**. Le marqueur ne promet rien — il
@@ -62,16 +63,16 @@ chose : *rien à moi ne regarde ce sol*.
 
 **Elle voit en revanche ce qui bouge.** Une troupe posée est la **quatrième source de détection**,
 après le territoire, la station d'écoute et l'avant-poste d'écoute — et la seule qui existe dans le
-code à ce jour. Rayon court (`SCOUT_RADIUS_KM`, 60 km), un fil, un cap, un horaire estimé, un
+code à ce jour. Portée propre à son rôle (`DETECTION_RANGE_KM`, maximum pour une pile), un fil, un cap, un horaire estimé, un
 domaine, **jamais le type ni la composition**, jamais la nation. Elle ne perce rien :
 l'identification reste l'affaire de l'agent et des bâtiments.
 
-Le relevé se calcule **au départ du mouvement adverse, une seule fois** — même instant et même
-géométrie que l'interception (ADR 0018 §3), et c'est ce qui fait tenir le fan-out : chaque joueur
-lit une table à lui (`sightings`, `(observateur, mouvement, tDébut, tFin)`), jamais un filtre sur
-la table des mouvements. Conséquence assumée, dite à l'écran : **une troupe posée après le départ
-d'un mouvement ne le verra jamais.** On se poste en prévision de ce qui passera, pas pour rattraper
-ce qui passe — le renseignement est un pari, pas une réaction.
+Le relevé se recalcule **aux événements du plateau** — départ, arrivée, composition et changement
+de détecteur — tout en gardant le fan-out : chaque joueur lit une table à lui (`sightings`,
+`(observateur, mouvement, tDébut, tFin)`), jamais un filtre sur la table des mouvements. Un
+détecteur posé après le départ voit seulement la suite ; s'il quitte sa position avant une fenêtre
+future, celle-ci est annulée. Une troupe en mouvement observe les mouvements adverses dans le même
+milieu courant.
 
 ## Outils
 

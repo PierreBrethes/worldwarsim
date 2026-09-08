@@ -1,7 +1,12 @@
 import { useQuery } from 'convex/react';
 import { Fragment, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { DAMAGE_TABLE, DEFENDER_BONUS, DRY_AMMUNITION_FACTOR } from '../../../convex/constants';
+import {
+  DAMAGE_TABLE,
+  DEFENDER_BONUS,
+  DRY_AMMUNITION_FACTOR,
+  detectionRangeOf,
+} from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
 import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
 import { gunneryRows, PROFILE_UNITS, type Band, type GunneryShot } from '@/domain/gunnery';
@@ -11,7 +16,7 @@ import type { UnitRole } from '@/domain/ids';
 import { asDuration } from '@/domain/duration';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
-import { ClockGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
+import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
@@ -183,6 +188,7 @@ function Sheet({
   const entry = workshop?.grid.find((candidate) => candidate.role === role) ?? null;
   const nation = workshop?.nation ?? null;
   const marks: ReadonlyArray<UnitTier> = marked ? [1, 2] : [1];
+  const [rangeHover, setRangeHover] = useState<StatHover | null>(null);
 
   return (
     <div className="flex items-stretch">
@@ -201,13 +207,28 @@ function Sheet({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-[11px] px-[18px] py-[14px]">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-[11px] px-[18px] py-[14px]">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-(family-name:--font-display) text-[20px] leading-none font-extrabold text-[var(--ink)]">
             {roleLabel(role, 1)}
           </span>
           <span className="eyebrow">{fr.production.domains[DOMAIN_BY_ROLE[role]]}</span>
+          <span className="ml-auto flex items-center gap-[6px] font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+            <StatGlyph stat="range" onHover={setRangeHover} />
+            {fr.gunnery.detectionRange(detectionRangeOf([role]))}
+          </span>
         </div>
+
+        {rangeHover !== null && (
+          <HoverCard left={rangeHover.left} top={rangeHover.top} width={STAT_POPIN_WIDTH}>
+            <span className="block text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
+              {fr.gunnery.stats.range.name}
+            </span>
+            <span className="mt-[2px] block leading-[1.4] text-[var(--ink)]">
+              {fr.gunnery.stats.range.note}
+            </span>
+          </HoverCard>
+        )}
 
         {entry !== null && (
           <div className="flex flex-wrap gap-x-[34px] gap-y-3">
@@ -388,6 +409,7 @@ const STAT_DRAWING: Readonly<Record<SheetStat, typeof IngotGlyph>> = {
   alloy: IngotGlyph,
   training: ClockGlyph,
   strength: HeartGlyph,
+  range: EyeGlyph,
 };
 
 /**

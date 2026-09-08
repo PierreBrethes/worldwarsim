@@ -1,4 +1,4 @@
-import { SCOUT_RADIUS_KM, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
+import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel, stackLabel } from '@/i18n/fr';
 import { representativeRole, tierLabel } from '@/domain/troops';
 import type { Stack, TroopView } from '@/domain/player-view';
@@ -112,7 +112,7 @@ export function TroopBadge({
 
         {/* Ce que le cercle tracé sur la carte veut dire, une fois, à côté de lui (ADR 0019 §5). */}
         <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.troops.badgeScouting(SCOUT_RADIUS_KM)}
+          {fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)))}
         </p>
 
         {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste

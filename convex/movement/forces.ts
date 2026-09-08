@@ -294,7 +294,7 @@ export async function troopsCarriedBy(
 
 /**
  * **What the player already watches — and nothing whatsoever about what stands there.**
- * `SCOUT_RADIUS_KM` is meant to be the third source (`reperage-des-troupes-posees.md`). ADR 0019
+ * Passive role ranges are another source (`reperage-des-troupes-posees.md`). ADR 0019
  * §6: recognised ground is not safe ground. It is information about one's own level of
  * information, which is why the server may answer it at all — there is no fog to leak.
  */
@@ -311,9 +311,8 @@ export async function recognises(
 
 /**
  * **Une passe s'est-elle déjà servie de ce point ?** — c'est-à-dire un départ postérieur à la
- * fondation dont la route passe à portée. Les deux spécialisations sont lues exactement là :
- * `pacedMinutes` prend les relais au départ (ADR 0018 §3), `fileSightings` prend les postes
- * d'écoute au même instant. Tant que la réponse est non, le métier du point se change encore
+ * fondation dont la route passe à portée. Le relais est chiffré au départ et un poste d'écoute
+ * entre dans la réévaluation événementielle. Tant que la réponse est non, le métier du point se change encore
  * (`movements.respecialize`) ; après, il est scellé.
  *
  * La portée est le critère plutôt que le simple fait qu'un mouvement soit parti : un départ à

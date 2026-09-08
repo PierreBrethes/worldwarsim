@@ -4,6 +4,9 @@
 remplace `projection-depuis-un-avant-poste.md`, qui instruisait une règle que le mouvement libre
 supprime.
 
+> **Révision du 08/09/2026 :** les paragraphes sur le calcul unique au départ sont remplacés par
+> l'ADR 0021 révisée : portées par rôle, observation mobile et réévaluation aux événements.
+
 ## 1. Ce qui est décidé
 
 1. **Une troupe se déplace d'où elle est vers où le joueur veut**, sans condition d'origine. Un

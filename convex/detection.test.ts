@@ -5,23 +5,27 @@ import type { Doc, Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
+import { COST_BY_MEDIUM } from '../src/domain/routing';
 import {
   LISTENING_STATION_RADIUS_KM,
   RELAY_SPEED_MULTIPLIER,
+  DETECTION_RANGE_KM,
+  detectionRangeOf,
   outpostReachKm,
   nominalStrength,
   routeMinutes,
 } from './constants';
 import { regionFacts } from './regions';
-import { routeBetween } from './routes';
+import { hostAtPoint, routeBetween } from './routes';
+import { reassessDetection } from './movement/detection';
 import schema from './schema';
 import { modules } from './test.setup';
 
 /**
- * **Les quatre détecteurs de la fiche 04 font ce qu'ils vendent.** Le territoire, la station
- * d'écoute et l'avant-poste d'écoute rejoignent la troupe posée : ils relèvent au départ, une
- * seule fois, avec la même sortie qu'elle — un fil, un cap, une fenêtre — et jamais le type ni
- * la nation. Et le relais logistique, lui, accélère la route de son propriétaire.
+ * **Les détecteurs de la fiche 04 font ce qu'ils vendent.** Le territoire, la station d'écoute,
+ * l'avant-poste d'écoute et les troupes posées ou mobiles maintiennent une sortie identique — un
+ * fil, un cap, une fenêtre — et jamais le type ni la nation. Le relais logistique, lui, accélère
+ * la route de son propriétaire.
  */
 const boot = () => convexTest(schema, modules);
 
@@ -39,6 +43,13 @@ const eastOf = (point: LonLat, km: number): LonLat => [
   point[1],
 ];
 const northOf = (point: LonLat, km: number): LonLat => [point[0], point[1] + km / 111.32];
+
+describe('role detection ranges', () => {
+  it('gives a stack its best role without adding ranges', () => {
+    expect(detectionRangeOf(['infantry', 'fighter', 'cargo'])).toBe(DETECTION_RANGE_KM.fighter);
+    expect(detectionRangeOf([])).toBe(0);
+  });
+});
 
 /** Walked exactly as the detector walks it — `positionAt` over the sampled road — because the
  *  stored polyline is simplified and its vertices alone would read a road as further away than
@@ -148,6 +159,43 @@ async function sightingsOf(t: ReturnType<typeof boot>, token: string) {
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .collect(),
   );
+}
+
+async function moving(
+  t: ReturnType<typeof boot>,
+  token: string,
+  troopId: Id<'troops'>,
+  type: 'march' | 'attack' | 'raid' | 'return',
+  from: LonLat,
+  to: LonLat,
+  durationMs: number,
+) {
+  const playerId = await playerOf(t, token);
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    const distanceUnits = distanceKm(from, to);
+    const movementId = await ctx.db.insert('movements', {
+      seasonId,
+      playerId,
+      type,
+      fromBuildingId: null,
+      target: { kind: 'point', point: asPoint(to) },
+      from: asPoint(from),
+      to: asPoint(to),
+      hostCountry: hostAtPoint(to),
+      points: [asPoint(from), asPoint(to)],
+      legs: [{ medium: 'land', distanceUnits }],
+      distanceUnits,
+      costUnits: distanceUnits * COST_BY_MEDIUM.land,
+      landCost: COST_BY_MEDIUM.land,
+      troopIds: [troopId],
+      departedAt: Date.now(),
+      arrivesAt: Date.now() + durationMs,
+    });
+    await ctx.db.patch(troopId, { stationedAt: null });
+    await reassessDetection(ctx, seasonId);
+    return movementId;
+  });
 }
 
 describe('what sees a movement go past', () => {
@@ -279,6 +327,106 @@ describe('what sees a movement go past', () => {
 
     expect(await sightingsOf(t, token)).toEqual([]);
     expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+});
+
+describe('event-driven mobile contact', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('lets an attack initiate one pass against a crossing march, never the same pass twice', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const attacker = await form(t, token, 'fighter', null);
+    const observer = await form(t, guest, 'fighter', null);
+    const duration = 4 * 3_600_000;
+
+    const attackId = await moving(t, token, attacker, 'attack', [-2, 0], [2, 0], duration);
+    const marchId = await moving(t, guest, observer, 'march', [0, -2], [0, 2], duration);
+    const reserved = await t.run(async (ctx) => ctx.db.get(attackId));
+    expect(reserved).toMatchObject({
+      contactWithId: marchId,
+      contactInitiatorId: attackId,
+    });
+    expect(reserved!.contactAt).toBeGreaterThan(Date.now());
+    expect(await sightingsOf(t, token)).toMatchObject([{ movementId: marchId, detector: 'troop' }]);
+    expect(await sightingsOf(t, guest)).toMatchObject([
+      { movementId: attackId, detector: 'troop' },
+    ]);
+
+    await t.run(async (ctx) => reassessDetection(ctx, reserved!.seasonId));
+    const refreshed = await t.run(async (ctx) => ctx.db.get(attackId));
+    vi.advanceTimersByTime(refreshed!.contactAt! - Date.now());
+    await t.finishInProgressScheduledFunctions();
+
+    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
+    await t.run(async (ctx) => reassessDetection(ctx, refreshed!.seasonId));
+    await t.finishInProgressScheduledFunctions();
+    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
+  });
+
+  it('keeps two crossing marches observational', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const first = await form(t, token, 'fighter', null);
+    const second = await form(t, guest, 'fighter', null);
+    const duration = 4 * 3_600_000;
+
+    const firstId = await moving(t, token, first, 'march', [-2, 0], [2, 0], duration);
+    const secondId = await moving(t, guest, second, 'march', [0, -2], [0, 2], duration);
+    const movements = await t.run(async (ctx) =>
+      Promise.all([ctx.db.get(firstId), ctx.db.get(secondId)]),
+    );
+    expect(movements.every((movement) => movement!.contactJobId === undefined)).toBe(true);
+  });
+
+  it('adds a future sighting when a detector appears after departure', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const target = await form(t, guest, 'infantry', null);
+    const movementId = await moving(t, guest, target, 'march', [0, 0], [4, 0], 4 * 3_600_000);
+    expect(await sightingsOf(t, token)).toEqual([]);
+
+    const detector = await form(t, token, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(detector, { stationedAt: asPoint([2, 0]) });
+      const movement = (await ctx.db.get(movementId))!;
+      await reassessDetection(ctx, movement.seasonId);
+    });
+
+    const [sighting] = await sightingsOf(t, token);
+    expect(sighting).toMatchObject({ movementId, detector: 'troop' });
+    expect(sighting!.from).toBeGreaterThan(Date.now());
+  });
+
+  it('cancels a future sighting when its detector leaves before the window', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const target = await form(t, guest, 'infantry', null);
+    const movementId = await moving(t, guest, target, 'march', [0, 0], [4, 0], 4 * 3_600_000);
+    const detector = await form(t, token, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(detector, { stationedAt: asPoint([2, 0]) });
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+    const [future] = await sightingsOf(t, token);
+    expect(future).toBeDefined();
+
+    await moving(t, token, detector, 'march', [2, 0], [2, 4], 4 * 3_600_000);
+    expect(await sightingsOf(t, token)).toEqual([]);
+    vi.advanceTimersByTime(future!.from - Date.now());
+    await t.finishInProgressScheduledFunctions();
+    const playerId = await playerOf(t, token);
+    const notices = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+    expect(notices.filter((notice) => notice.kind === 'movementSighted')).toEqual([]);
   });
 });
 

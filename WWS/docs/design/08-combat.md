@@ -35,24 +35,25 @@ emporte tant d'infanteries, tant de véhicules, tant d'avions. C'est la seule fo
 qui subsiste. En mer on voit le navire, pas la cargaison : un transport vide est indiscernable d'un
 plein, et le leurre y gagne.
 
-## 2. Le déclenchement : la zone d'interception
+## 2. Le déclenchement : le contact mobile
 
-Toute force — en mouvement ou stationnée sur un avant-poste — porte un **rayon d'interception**. Si
-un mouvement adverse traverse ce rayon, le combat se résout au point de contact.
+Toute troupe porte une **portée de détection par rôle** ; une pile prend le maximum. Une passe à
+distance ne s'ouvre qu'entre deux mouvements présents dans le même milieu, lorsqu'au moins l'un
+porte un ordre `attack` ou `raid` et détecte l'autre. `march` et `return` observent sans engager.
+Une force stationnée détecte ce qui passe mais ne combat qu'à l'arrivée sur son point.
 
 C'est ce qui donne son sens au positionnement : blocus d'un détroit, escorte d'un convoi, embuscade
 sur une route connue. Et ça rend le renseignement directement monnayable — savoir *où* passe une
 force permet de se placer sur sa route.
 
-**Le calcul est déjà écrit** : même intersection segment/cercle que les fenêtres de révélation du
-brouillard, faite au même moment, à la création du mouvement. Un mouvement connaît sa courbe, ses
-dates et la position des intercepteurs existants ; on en déduit la date et le lieu du contact, et
-on planifie la résolution.
+**Le calcul est écrit** : même géométrie temporelle que les fenêtres de révélation du brouillard,
+réévaluée aux événements qui changent le plateau. Les segments et leurs coûts donnent la position
+et le milieu à chaque instant ; les rendez-vous périmés sont annulés et le callback relit l'état.
 
-**L'interception inverse l'initiative** : le défenseur qui intercepte devient l'attaquant de
-l'engagement. C'est le premier des trois contre-pouvoirs exigés par l'ADR 0014.
+**Le mouvement engageant prend l'initiative** ; si les deux engagent, la plus grande portée, puis
+le départ et la création les départagent sans aléa.
 
-Le rayon lui-même **n'est pas chiffré**. Voir §8.
+Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §11.
 
 ## 3. La résolution : une passe, initiative à l'attaquant
 
@@ -183,13 +184,8 @@ se reconnectant, exactement dans le même état que celui qui était en ligne.
 
 ## 11. Ce qui reste ouvert
 
-- **Le rayon d'interception.** Fixe, ou fonction de la composition de la force ? S'il est trop
-  grand, plus aucun mouvement ne passe et la carte se fige. C'est le trou le plus béant de cette
-  fiche : le premier des trois contre-pouvoirs n'a aucun nombre, et le simulateur ne le modélise
-  pas — il faudra trancher à la main.
-- **Peut-on refuser le combat ?** Une force rapide devrait pouvoir se dérober au prix d'un détour.
-  Sans cette issue, l'interception est une punition sans contre-jeu. Couplé à la question
-  précédente.
+- **Les neuf portées de détection.** Elles existent par rôle et le simulateur ne les modélise pas :
+  il faudra les calibrer à la main en première saison.
 - **La supériorité aérienne.** Dans le chiffrage actuel, l'aviation ne se contre que par
   l'aviation : le sol ne lui oppose qu'une valeur symbolique portée par l'infanterie MK2. C'est le
   point le plus fragile du modèle, et la première chose à mesurer.

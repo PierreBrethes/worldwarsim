@@ -24,6 +24,7 @@ import { credit, debit } from './resources';
 import { fileSurvey } from './surveys';
 import { playerByToken, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY, LON_LAT } from './validators';
+import { reassessDetection } from './movement/detection';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -224,6 +225,7 @@ export const finish = internalMutation({
           Date.now(),
         );
       }
+      await reassessDetection(ctx, season._id);
     }
     /** The one channel that says a site is standing: nothing else on the board announces it,
      *  and a player who was away sees only the finished building, never the moment. */

@@ -89,7 +89,8 @@ brief flux-mouvement).
 
 ### P2
 
-- Le nombre de troupes de la pile, la portée de détection en une phrase (60 km), l'état de
+- Le nombre de troupes de la pile, la portée de détection de la pile en une phrase (maximum de
+  ses rôles), l'état de
   visée (destination à nommer / touche qui défait) — le pied du cartouche.
 - **Composer la pile** (fenêtre de garnison, sur un mât ou une pile multiple) : lignes de
   troupes cochables (sprite, rôle, marque, effectif, ravitaillée), places d'emport
@@ -131,10 +132,10 @@ brief flux-mouvement).
   Économie). Prompt client, rien à servir.
 - **`lastIntel` et la progression adverse** : surfaces 4.8 / 4.9 — rien de servi, retirer
   des maquettes jusque-là.
-- **Postures** (ADR 0021 §4) : décidées, pas codées — aucun champ de posture sur les
-  mouvements ni les troupes. Réserver le mot, pas la donnée.
-- **Portées lisibles sur la carte** (ADR 0021, conséquence) : seule la portée de troupe
-  posée (60 km) est dessinée ; station / avant-poste à venir avec le branchement.
+- **Aucune posture** (ADR 0021 révisée le 08/09) : le comportement vient de l'ordre, sans champ
+  ni sélecteur. `attack` et `raid` engagent ; `march` et `return` observent.
+- **Portées lisibles sur la carte** : la troupe ou pile sélectionnée et le mouvement à soi
+  survolé dessinent leur portée maximale. Aucun cercle adverse n'est servi.
 
 ## À coller à Claude design — Sélection sur la carte
 
@@ -155,7 +156,7 @@ brief flux-mouvement).
 > métier scellé ou non, rayon du niveau, emplacements pris / total. Un avant-poste adverse
 > n'a pas de panneau. 3) Troupe / pile : sprite en grand, rôle + marque, le chiffre =
 > effectif « 32 / 50 », le tampon = ravitaillement (×2 si hors) ; au pli : taille de pile,
-> portée 60 km en une phrase, état de visée en pied ; la composition (cases à cocher,
+> portée maximale de la pile en une phrase, état de visée en pied ; la composition (cases à cocher,
 > places d'emport offert / requis, allure motorisé / à pied, refus dit avant la visée) vit
 > dans la fenêtre de garnison ; renvoi abaque de tir. Toute troupe adverse : rien — rien
 > n'est servi.

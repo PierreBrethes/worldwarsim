@@ -2,6 +2,7 @@
 
 **Statut :** acceptée — précise l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md), gravée après coup
 — **§7 renversée le 25/08/2026** (question 18, option a) : les munitions se facturent au tir, plus au recrutement
+— **§3 et §5 révisées le 08/09/2026** par l'[ADR 0021](0021-portee-de-detection-et-postures.md)
 
 > Cette ADR ne décide rien de nouveau. Elle grave des décisions déjà prises par le code pendant
 > le traitement combat-séquentiel et jamais formalisées — le mécanisme documenté ici tourne en
@@ -74,7 +75,7 @@ cet ordre exact :
    encore debout riposte sur qui l'a frappé en dernier s'il peut l'atteindre, sinon sur la
    meilleure cible qu'il peut atteindre, sinon pas du tout (`riposteTarget`).
 
-### 3. Le bonus du défenseur, les types qui combattent, l'interception au départ
+### 3. Le bonus du défenseur, les types qui combattent, le contact mobile
 
 **`DEFENDER_BONUS` vaut 1,15** — le deuxième des trois contre-pouvoirs exigés par l'ADR 0014
 contre l'initiative de l'attaquant, appliqué à la riposte (le partage de dégâts est divisé par ce
@@ -84,18 +85,18 @@ facteur pour la frappe de l'attaquant, multiplié pour la riposte du défenseur)
 (`convex/movements.ts:245`). Un raid gagné désactive l'avant-poste visé (jamais ne le prend,
 ADR 0004) ; une attaque n'a pas cet effet secondaire, elle ne fait que combattre.
 
-**L'interception se calcule une seule fois, au départ du mouvement**
-(`src/domain/interception.ts`, `scheduleInterception`), contre tout ce qui se trouve déjà sur le
-plateau à cet instant — jamais recalculée en continu. C'est le mouvement qui vient de partir qui
-regarde ce qui existe, pas l'inverse : aucune force déjà en route n'est réexaminée quand une
-troisième apparaît, ce qui évite de refaire la géométrie de toutes les paires à chaque nouveau
-départ.
+**Le contact à distance ne concerne que deux mouvements compatibles**
+(`src/domain/interception.ts`, `firstMobileEncounter`). Ils doivent occuper le même milieu au même
+instant ; au moins l'un des deux doit porter `attack` ou `raid`, seuls ordres dont le comportement
+dérivé est « engager ». `march` et `return` voient sans engager. Une force posée détecte avec la
+portée de ses rôles mais n'intercepte jamais : elle combat seulement lorsqu'un mouvement arrive à
+son point.
 
-**La cible d'une colonne ne l'intercepte pas en chemin.** La garnison de l'avant-poste ou de la
-région visée est explicitement exclue du calcul d'interception aller (`except: aim.outpostId`) :
-sans cette exclusion, une colonne qui marche vers une garnison entrerait dans son rayon
-d'interception avant d'arriver, et la même passe se rejouerait deux fois pour un seul ordre — une
-fois en chemin, une fois à l'arrivée. Une passe par engagement (ADR 0014) l'interdit.
+Les prédictions sont **réévaluées aux événements qui changent le plateau** : départ, arrivée,
+composition, pose ou retrait d'un détecteur et changement d'état d'un détecteur. Le rendez-vous
+précédent est annulé avant d'être remplacé ; le callback relit les deux mouvements et refuse toute
+prédiction périmée. Le couple résolu est mémorisé jusqu'à la fin de l'un des mouvements, donc la
+même rencontre ne peut pas ouvrir deux passes.
 
 ### 4. La table de chiffrage est unique
 
@@ -108,13 +109,12 @@ victimes par design — vit maintenant dans `src/domain/combat.test.ts`, et il r
 soixante-quinze couples à travers `resolveEngagement` lui-même, pas à travers une reformulation
 de la règle.
 
-### 5. Le rayon d'interception : placeholder assumé, non simulé
+### 5. Les portées de détection : placeholders assumés, non simulés
 
-**`INTERCEPTION_RADIUS_KM` vaut 200.** Ce n'est pas une valeur mesurée : c'est un
-ordre de grandeur — un quart d'heure de marche au rythme mesuré — posé pour que le premier des
-trois contre-pouvoirs de l'ADR 0014 existe *techniquement* avant d'être calibré. Le simulateur ne
-modélise pas l'interception ; ce nombre est, textuellement, « le trou le plus béant du modèle »
-(fiche 08 §11) et doit être regardé à la main dès la première saison.
+`DETECTION_RANGE_KM` porte une valeur par rôle ; une pile prend le maximum de ses rôles. Ces neuf
+valeurs sont `@a-mesurer` et le simulateur ne modélise toujours pas leur effet. La détection ne
+déclenche pas mécaniquement une passe : le comportement de l'ordre et la compatibilité du milieu
+restent deux portes séparées.
 
 ### 6. Désactivation d'avant-poste : `OUTPOST_DISABLED_HOURS` et son immunité
 
@@ -159,12 +159,12 @@ peut pas le refaire, il ne modélise aucun combat.
 
 ## Justification
 
-**Zéro écran, zéro chiffre inventé.** Chacune des règles ci-dessus se lit sans introduire un
+**Zéro écran, peu de chiffres inventés.** Chacune des règles de résolution ci-dessus se lit sans introduire un
 paramètre supplémentaire dans le modèle : la cible est toujours « la meilleure part atteignable »,
 la victoire est toujours « plus rien en face », l'excès est toujours perdu plutôt que réparti
 selon une formule à choisir. Le seul endroit où un chiffre est posé sans mesure, c'est là où le
-design lui-même n'en fournit aucun — le rayon d'interception et les durées de désactivation — et
-ces deux endroits sont marqués comme tels dans le code, pas seulement ici.
+design lui-même n'en fournit aucun — les portées de détection et les durées de désactivation — et
+ces endroits sont marqués comme tels dans le code, pas seulement ici.
 
 **Le déterminisme reste total.** Aucune étape ne tire un nombre aléatoire ; l'ordre de frappe,
 la cible et le montant des pertes sont une fonction pure de l'état des deux camps et de la table
@@ -181,9 +181,9 @@ qui rejoue la vraie fonction de résolution est la seule version qui ne peut pas
   ADR gravait l'inverse de ce que disaient les §5 et §7 de la fiche ; la question 18 a tranché
   pour la fiche, et c'est le code qui a bougé. La fiche 08 §7 est réécrite avec la date, le
   chiffrage §4 et §5 étaient déjà justes et n'ont pas été touchés.
-- **Le rayon d'interception reste à mesurer.** Rien dans cette ADR ne le calibre ; elle se
-  contente de nommer sa nature de placeholder pour qu'il ne soit pas lu comme une valeur de
-  design.
+- **Les portées par rôle restent à mesurer.** Rien dans cette ADR ne les calibre ; elle se
+  contente de nommer leur nature de placeholder pour qu'elles ne soient pas lues comme des
+  valeurs de design.
 - **`src/domain/combat.test.ts` est désormais l'unique garde-fou anti-contre-absolu.** Toute
   future modification de `DAMAGE_TABLE` doit repasser ses soixante-quinze cas ; il n'y a plus de
   seconde copie à mettre à jour en parallèle.

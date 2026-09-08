@@ -7,7 +7,7 @@ import {
   ARRIVAL_RADIUS_KM,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
-  SCOUT_RADIUS_KM,
+  detectionRangeOf,
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
@@ -18,11 +18,12 @@ import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleToken } from '@/shell/StaleToken';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import { RESOURCES, type BuildingKey } from '@/domain/ids';
+import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
+import { positionAt } from '@/domain/interception';
 import { DEPOSIT_REGIONS, type RegionIdentity, type World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import { knownObjectiveAt } from '@/domain/objectives';
@@ -880,9 +881,49 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * d'écoute — une onde, pas une couche — et part avec la désignation.
    */
   const postedReach = useMemo<Reach | null>(
-    () => (posted === null ? null : { lonLat: posted.station.lonLat, km: SCOUT_RADIUS_KM }),
+    () =>
+      posted === null
+        ? null
+        : {
+            lonLat: posted.station.lonLat,
+            km: detectionRangeOf(posted.troops.map((troop) => troop.role)),
+          },
     [posted],
   );
+  const movementReach = useMemo<Reach | null>(() => {
+    const movement = view.arcs.find(
+      (arc): arc is Extract<ArcView, { state: 'mine' }> =>
+        arc.state === 'mine' && arc.id === hoveredMovement,
+    );
+    if (movement === undefined) return null;
+    const roles = (Object.entries(movement.stack) as ReadonlyArray<[UnitRole, number | undefined]>)
+      .filter(([, count]) => (count ?? 0) > 0)
+      .map(([role]) => role);
+    const elapsed = Math.max(0, surveyClock - view.loadedAt);
+    const progress =
+      movement.progress >= 1 || movement.minutesLeft <= 0
+        ? 1
+        : Math.min(
+            1,
+            movement.progress +
+              ((1 - movement.progress) * elapsed) / (movement.minutesLeft * 60_000),
+          );
+    return {
+      lonLat: positionAt(
+        {
+          id: movement.id,
+          points: movement.route.points,
+          legs: movement.route.legs,
+          distanceUnits: movement.route.distanceUnits,
+          landCost: movement.route.landCost,
+          departedAt: 0,
+          arrivesAt: 1,
+        },
+        progress,
+      ),
+      km: detectionRangeOf(roles),
+    };
+  }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
 
   const closeWindow = useCallback(
     (name: BoardWindow) => {
@@ -1019,7 +1060,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onOpenBuilding={openBuilding}
           onOpenStack={openStack}
           selectedLabel={posted?.labelId ?? null}
-          reach={postedReach}
+          reach={postedReach ?? movementReach}
           onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
           onArcHover={setHoveredArc}

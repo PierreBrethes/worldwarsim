@@ -4,7 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { REST_WINDOW_MINUTES, SCOUT_RADIUS_KM, nominalStrength } from './constants';
+import { DETECTION_RANGE_KM, REST_WINDOW_MINUTES, nominalStrength } from './constants';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
@@ -315,7 +315,7 @@ describe('what the jobs file for the journal', () => {
     const camp = eastOf(halfway, 40);
     expect(
       road.points.reduce((closest, step) => Math.min(closest, distanceKm(step, camp)), Infinity),
-    ).toBeLessThan(SCOUT_RADIUS_KM);
+    ).toBeLessThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
 
     const barracks = await raise(t, token, 'barracks', MARNE);
@@ -326,8 +326,25 @@ describe('what the jobs file for the journal', () => {
       target: { kind: 'region', regionId: PRAHOVA },
     });
 
+    expect(await noticesOf(t, guest, 'movementSighted')).toEqual([]);
+    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
+    const guestPlayer = await playerOf(t, guest);
+    const [window] = await t.run(async (ctx) =>
+      ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestPlayer))
+        .collect(),
+    );
+    expect(window).toBeDefined();
+    vi.advanceTimersByTime(window!.from - Date.now());
+    await t.finishInProgressScheduledFunctions();
+
     const [sighted] = await noticesOf(t, guest, 'movementSighted');
     expect(sighted).toBeDefined();
+    const [detected] = (await t.query(api.view.playerView, { token: guest })).detected;
+    expect(detected).toBeDefined();
+    expect(detected).not.toHaveProperty('type');
+    expect(detected).not.toHaveProperty('stack');
     // A place, a heading and what caught it — nothing else exists to file: no type, no nation.
     // The detector is the observer's own, so naming it leaks nothing about what walked past.
     expect(Object.keys(sighted!).sort()).toEqual(
@@ -345,6 +362,14 @@ describe('what the jobs file for the journal', () => {
     );
     expect(sighted).toMatchObject({ detector: 'troop', detectorRegion: null });
     expect(await noticesOf(t, token, 'movementSighted')).toEqual([]);
+
+    vi.advanceTimersByTime(window!.to - Date.now() + 1);
+    await t.finishInProgressScheduledFunctions();
+    const [memory] = (await t.query(api.view.playerView, { token: guest })).detected;
+    expect(memory).toBeDefined();
+    expect(memory!.seenTo).toBeLessThan(Date.now());
+    expect(memory).not.toHaveProperty('type');
+    expect(memory).not.toHaveProperty('stack');
   });
 
   /**

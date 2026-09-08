@@ -1200,7 +1200,12 @@ export const fr = {
         name: 'effectif nominal',
         note: 'L’effectif est la vie : la part de l’abaque se prend sur lui, et une troupe à 32 / 50 tire à 32 / 50.',
       },
-    } satisfies Record<'alloy' | 'training' | 'strength', { name: string; note: string }>,
+      range: {
+        name: 'portée de détection',
+        note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
+      },
+    } satisfies Record<'alloy' | 'training' | 'strength' | 'range', { name: string; note: string }>,
+    detectionRange: (km: number) => `${num(km)} km`,
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,

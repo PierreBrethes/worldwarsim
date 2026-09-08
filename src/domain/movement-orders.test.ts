@@ -6,6 +6,7 @@ import {
   landCostOf,
   legalMovementTypes,
   motorized,
+  movementBehavior,
   movementSlots,
   ORDERABLE_TYPES,
   refusalDetails,
@@ -37,6 +38,16 @@ const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4, coastal: false
 /** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
 const shore: MovementAim = { kind: 'point', lon: 10.3, lat: 36.8, coastal: true, onLand: true };
 const sea: MovementAim = { kind: 'point', lon: -30, lat: 40, coastal: false, onLand: false };
+
+describe('the behavior carried by an order', () => {
+  it('engages only for an attack or a raid', () => {
+    expect(movementBehavior('attack')).toBe('engage');
+    expect(movementBehavior('raid')).toBe('engage');
+    expect(movementBehavior('march')).toBe('observe');
+    expect(movementBehavior('return')).toBe('observe');
+    expect(movementBehavior('decoy')).toBe('observe');
+  });
+});
 
 describe('what a column may ask for', () => {
   it('offers the attack on a foreign region — founding is no longer a march', () => {

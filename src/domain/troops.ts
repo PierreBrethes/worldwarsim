@@ -60,7 +60,7 @@ export const garrisons = (role: UnitRole, key: BuildingKey): boolean =>
  * sont des troupes"): a land troop crosses the sea aboard a hull and the sky aboard a wing, or
  * it does not cross. Five numbers rather than a table per role — the lesson of D1 in
  * `consommation-continue.md` — and they are **assumed, never simulated**, exactly like
- * `INTERCEPTION_RADIUS_KM`.
+ * the other assumed values in `convex/constants.ts`.
  *
  * The one bearing they were chosen against: the troop ceiling is 24, so two cargos lift half an
  * army. A landing is an operation one prepares, not a reflex — which is the whole point of

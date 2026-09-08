@@ -79,3 +79,15 @@ export function HeartGlyph({ size = 15, label }: SolidGlyphProps) {
     </SolidGlyph>
   );
 }
+
+/** The open eye is detection, never weapon range. */
+export function EyeGlyph({ size = 15, label }: SolidGlyphProps) {
+  return (
+    <SolidGlyph size={size} label={label}>
+      <path
+        fillRule="evenodd"
+        d="M2 12 C5.1 6.2 8.5 4.5 12 4.5 C15.5 4.5 18.9 6.2 22 12 C18.9 17.8 15.5 19.5 12 19.5 C8.5 19.5 5.1 17.8 2 12 Z M12 8 A4 4 0 1 0 12 16 A4 4 0 1 0 12 8 Z M12 10.3 A1.7 1.7 0 1 1 12 13.7 A1.7 1.7 0 1 1 12 10.3 Z"
+      />
+    </SolidGlyph>
+  );
+}

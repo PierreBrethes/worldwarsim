@@ -2,7 +2,8 @@
 
 **Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
 le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
-objet.
+objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par
+l'[ADR 0021](0021-portee-de-detection-et-postures.md).**
 
 ## Contexte
 
@@ -88,19 +89,14 @@ vaincus. L'avant-poste gagne ainsi son troisième rôle sans une règle de plus 
 terrain, il nourrit, il **rallie**. Une colonne partie d'un bâtiment continue, elle, de rentrer à
 son bâtiment. Conséquences assumées : un réseau d'avant-postes rend les défaites moins chères
 (les survivants se regroupent en avant), et désactiver l'avant-poste de ralliement fait refluer
-les déroutes suivantes beaucoup plus loin — deux paramètres que le simulateur refondu devra voir. La **passe
-gagnée par le posé compte pour sa victoire** : poser le campement était l'ordre — un slot, une
-troupe sur vingt-quatre, un entretien majoré — et un pari qui réussit se paie ; ce n'est pas un
-gain « en dormant », c'est le rendement du renseignement. Et **l'arrivée n'éteint l'interception
-que pour les défenseurs qu'elle résoudra elle-même** — l'ensemble se dérive de `defenceOf`, jamais
-d'un rayon aveugle, sans quoi une garnison voisine de la cible perdrait son filet entier.
+les déroutes suivantes beaucoup plus loin — deux paramètres que le simulateur refondu devra voir.
+La **passe gagnée par le posé compte pour sa victoire lorsqu'un mouvement arrive sur son point** :
+poser le campement était l'ordre — un slot, une troupe sur vingt-quatre, un entretien majoré — et
+le défenseur y riposte par la règle d'arrivée existante. À distance, il observe seulement.
 
-**Vingt-cinq kilomètres et pas deux cents.** `INTERCEPTION_RADIUS_KM` ferait de trois pions un
-barrage continental ; le rayon d'arrivée est une aiguille sur une carte mondiale. L'interception
-longue portée reste ce qu'elle est, un fait **entre mouvements** (ADR 0018 §3), et la passe de
-résolution n'est pas touchée. L'exception `except: aim.outpostId` — écrite pour empêcher une
-garnison d'intercepter la colonne qui marchait sur elle — disparaît quand même : c'est le contact
-d'arrivée qui répond désormais, une seule fois.
+**Vingt-cinq kilomètres pour l'arrivée, indépendamment des portées de détection.** Le rayon
+d'arrivée est une aiguille sur une carte mondiale ; la détection par rôle ne l'élargit pas et ne
+la transforme pas en interception. `defenceOf` répond une seule fois au point visé.
 
 ### 4. L'entretien dépend de l'ancrage, et l'avant-poste ravitaille
 
@@ -128,22 +124,19 @@ moyen d'affamer l'armée qui campe dans le rayon — un point qui nourrirait hor
 au raid son seul sens économique. Il **rallie** en revanche même désactivé : ce qu'une
 désactivation suspend, ce sont ses effets, jamais son adresse.
 
-### 5. Les trois valeurs, et ce qu'elles valent
+### 5. L'entretien et les portées passives
 
 **`UPKEEP_UNSUPPLIED_MULTIPLIER` vaut 2.** Ce n'est pas une valeur mesurée — même statut que
-`INTERCEPTION_RADIUS_KM` (ADR 0018 §5) : un point de départ délibérément léger, choisi pour que
+les portées passives (ADR 0018 §5) : un point de départ délibérément léger, choisi pour que
 la règle existe et se mesure plutôt que pour équilibrer quoi que ce soit. Le risque connu est
 qu'à ×2 le surcoût se noie dans une économie où l'alliage est le goulot et la nourriture
 abondante ; si la mesure le confirme, la valeur monte, la règle ne change pas.
 
-**`SCOUT_RADIUS_KM` vaut 60.** Choisi pour le réalisme d'une infanterie, et franchement plus court
-que `INTERCEPTION_RADIUS_KM` (200) et que la portée d'un avant-poste (120 à 240 suivant son
-niveau depuis le 31/08) — sans quoi une sentinelle
-verrait aussi loin qu'on intercepte et rendrait la station d'écoute et l'agent dormant
-décoratifs. **Destinée à devenir une statistique de rôle** : un appareil de reconnaissance ne voit
-pas ce que voit un fantassin. Elle reste une constante unique tant que rien ne lit une seconde
-valeur — poser une table de neuf nombres avant d'avoir un second consommateur est la faute que D1
-de `consommation-continue.md` a déjà écartée une fois.
+**`DETECTION_RANGE_KM` porte maintenant une valeur par rôle.** Une troupe posée ou en mouvement
+observe à la portée de son rôle ; une pile prend le maximum. Les neuf valeurs sont des placeholders
+`@a-mesurer`. La portée ne dit jamais si une passe s'ouvre : une force posée n'intercepte pas, et
+un mouvement n'engage que si son ordre est `attack` ou `raid` et que les deux mouvements occupent
+le même milieu.
 
 **Un avant-poste allié ne ravitaille pas.** Décision, pas placeholder ; elle se rouvre le jour où
 l'alliance est un objet du jeu.
@@ -204,16 +197,15 @@ rejoignent.
   tel quel, et le champ reste unique pour la raison que le schéma donne déjà.
 - **Le widget de troupes perd son regroupement par bâtiment.** Une troupe n'a plus de bâtiment
   pour adresse ; le regroupement est à maquetter.
-- **Le repérage est un système nouveau, et le seul.** Une troupe posée voit ce qui passe dans
-  `SCOUT_RADIUS_KM` : un fil, un cap, un domaine — jamais le type ni la composition, ce que la
+- **Le repérage est un système nouveau, et le seul.** Une troupe posée ou en mouvement voit ce
+  qui passe dans la portée maximale de ses rôles : un fil, un cap, un domaine — jamais le type ni la composition, ce que la
   fiche 04 accorde déjà à un mouvement détecté non identifié. L'agent dormant garde la portée,
   l'identification et la discrétion ; sans cet écart, six couples nation × doctrine adossés à
   Influence tomberaient avec lui.
-- **On ne se poste pas pour voir ce qui vole déjà.** La détection se calcule au départ du
-  mouvement, comme l'interception (ADR 0018 §3), et n'est jamais recalculée. Une troupe posée
-  après un départ ne verra pas ce mouvement. C'est structurel, c'est gratuit, et c'est un bon
-  design : le renseignement est un pari, pas une réaction. À écrire à l'écran, sinon ce sera lu
-  comme un défaut.
+- **Le relevé suit les événements du plateau.** Poser, déplacer ou retirer un détecteur, changer
+  sa composition ou son état, partir et arriver recalculent les fenêtres futures concernées. Une
+  fenêtre déjà ouverte reste une dernière position connue ; une fenêtre future devenue impossible
+  est annulée avant d'être révélée.
 - **Le plafond de troupes devient le seul frein à la dispersion.** Chaque sentinelle est une
   troupe qui ne combat pas, sur vingt-quatre. L'arbitrage est bon ; il n'est pas mesuré.
 - **Fiches à reprendre** : 03 (l'avant-poste gagne le ravitaillement), 04 (quatrième source de
@@ -241,4 +233,3 @@ moment-là.
 > point en mer, ou d'un point de côte où elle se tient — elle y est arrivée par la mer. Un
 > port ne se fabrique pas ailleurs : une coque posée à l'intérieur des terres reste sans
 > départ. Même jour, 64b codée : entrer en garnison est une marche visant un bâtiment à soi.
-

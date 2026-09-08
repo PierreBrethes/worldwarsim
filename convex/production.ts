@@ -6,6 +6,7 @@ import type { MutationCtx } from './_generated/server';
 import { regionFacts } from './regions';
 import { settle } from './resources';
 import { isAtWar } from './seasons';
+import { reassessDetection } from './movement/detection';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -117,6 +118,7 @@ export const restoreAfterDisabling = internalMutation({
     if (season === null || season.concludedAt !== null) return;
     const before = await settleBeforeChange(ctx, seasonId, at);
     await reportChange(ctx, seasonId, before, Date.now());
+    await reassessDetection(ctx, seasonId);
   },
 });
 

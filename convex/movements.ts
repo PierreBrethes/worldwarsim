@@ -3,7 +3,14 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
-import { foundingRefusal, landCostOf, refusalOf, routeModeOf } from '../src/domain/movement-orders';
+import {
+  foundingRefusal,
+  landCostOf,
+  movementBehavior,
+  refusalOf,
+  routeModeOf,
+} from '../src/domain/movement-orders';
+import { firstMobileEncounter } from '../src/domain/interception';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
@@ -21,7 +28,6 @@ import {
 } from './movement/arrival';
 import {
   asPoint,
-  forceOf,
   movementsOf,
   pointOf,
   recognises,
@@ -37,6 +43,11 @@ import {
   sameStation,
   troopsAmong,
 } from './movement/orders';
+import {
+  mobileForceOf,
+  reassessDetection,
+  revealSighting as revealScheduledSighting,
+} from './movement/detection';
 import { homeCountryOf, nearestRegion, regionFacts, regionOfOutpost } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
@@ -159,6 +170,7 @@ export const foundOutpostHere = mutation({
       specialization,
     });
     await reportChange(ctx, season._id, before, founded);
+    await reassessDetection(ctx, season._id, founded);
     return { outpostId };
   },
 });
@@ -169,8 +181,8 @@ export const foundOutpostHere = mutation({
  * La fondation part du clic droit et pose « relais » : le serveur exige un mot à l'insertion, et
  * ce mot ne peut plus être choisi sur la carte au moment où l'on plante (décision Pierre du
  * 29/08). Le panneau de l'avant-poste rattrape ce choix — et le referme dès qu'un départ a lu ce
- * point, parce que c'est exactement là que les deux spécialisations servent : `pacedMinutes` lit
- * les relais au départ (ADR 0018 §3) et `fileSightings` lit les postes d'écoute au même instant.
+ * point, parce que c'est là que les deux spécialisations s'engagent : `pacedMinutes` lit les
+ * relais au départ et la détection passive réévalue les postes d'écoute aux événements.
  *
  * « S'en être servi » se mesure donc à un départ qui **passe à portée** : un mouvement à l'autre
  * bout du monde n'a rien lu de ce point-là, et sceller sur lui aurait scellé chaque avant-poste
@@ -191,6 +203,7 @@ export const respecialize = mutation({
     if (await specializationServed(ctx, outpost)) fail('SPECIALIZATION_SEALED', { outpostId });
 
     await ctx.db.patch(outpost._id, { specialization });
+    await reassessDetection(ctx, season._id);
     return { outpostId: outpost._id };
   },
 });
@@ -379,6 +392,7 @@ export const arrive = internalMutation({
         hostCountry: movement.hostCountry,
         resolvesAt: held,
       });
+      await reassessDetection(ctx, movement.seasonId, now);
       return;
     }
 
@@ -430,12 +444,120 @@ export const arrive = internalMutation({
      *  la colonne a vu ce qu'elle a traversé, et il n'y a plus de polyligne à lire ensuite. */
     await surveyAlongRoute(ctx, movement, now);
     await forgetMovement(ctx, movementId);
+    await reassessDetection(ctx, movement.seasonId, now);
   },
 });
 
-/** ADR 0008: the interceptor takes the initiative. Date and place were settled at departure
- *  (`src/domain/interception.ts`), and everything can have changed since — that is ordinary, and
- *  it means nothing happens. */
+/** The opening of a future visibility window, still validated against its own ledger row. */
+export const revealSighting = internalMutation({
+  args: { sightingId: v.id('sightings') },
+  handler: (ctx, { sightingId }) => revealScheduledSighting(ctx, sightingId),
+});
+
+/**
+ * One predicted mobile encounter. Both manifests and the order-derived behaviour are reread at
+ * the appointment; a stale callback only asks for a fresh assessment.
+ */
+export const encounter = internalMutation({
+  args: {
+    initiatorId: v.id('movements'),
+    withId: v.id('movements'),
+    expectedAt: v.number(),
+  },
+  handler: async (ctx, { initiatorId, withId, expectedAt }) => {
+    const initiator = await ctx.db.get(initiatorId);
+    const other = await ctx.db.get(withId);
+    if (initiator === null && other === null) return;
+    if (initiator === null) {
+      await reassessDetection(ctx, other!.seasonId);
+      return;
+    }
+    if (other === null) {
+      await reassessDetection(ctx, initiator.seasonId);
+      return;
+    }
+    if (
+      initiator.contactWithId !== withId ||
+      initiator.contactAt !== expectedAt ||
+      initiator.contactInitiatorId !== initiatorId
+    ) {
+      await reassessDetection(ctx, initiator.seasonId);
+      return;
+    }
+    if (initiator.seasonId !== other.seasonId || initiator.playerId === other.playerId) {
+      await reassessDetection(ctx, initiator.seasonId);
+      return;
+    }
+
+    const [mine, theirs] = await Promise.all([
+      mobileForceOf(ctx, initiator),
+      mobileForceOf(ctx, other),
+    ]);
+    const contact = firstMobileEncounter({
+      a: mine.force,
+      b: theirs.force,
+      rangeA: mine.rangeKm,
+      rangeB: theirs.rangeKm,
+      engagesA: movementBehavior(initiator.type) === 'engage',
+      engagesB: movementBehavior(other.type) === 'engage',
+      after: expectedAt,
+      samples: 1,
+    });
+    if (contact === null || contact.at !== expectedAt || contact.initiatorId !== initiatorId) {
+      await reassessDetection(ctx, initiator.seasonId);
+      return;
+    }
+    const attacking = await troopsCarriedBy(ctx, initiator);
+    const defending = await troopsCarriedBy(ctx, other);
+    if (attacking.length === 0 || defending.length === 0) {
+      await reassessDetection(ctx, initiator.seasonId);
+      return;
+    }
+
+    await ctx.db.patch(initiatorId, {
+      contactJobId: undefined,
+      contactWithId: undefined,
+      contactAt: undefined,
+      contactInitiatorId: undefined,
+    });
+    const now = Date.now();
+    const { engagement, routed } = await resolveContact(ctx, {
+      seasonId: initiator.seasonId,
+      attacker: { playerId: initiator.playerId, troops: attacking },
+      defender: { playerId: other.playerId, troops: defending },
+      cause: 'interception',
+      point: asPoint(contact.point),
+      hostCountry: hostAtPoint(contact.point),
+      outpostId: null,
+      disabledUntil: null,
+      at: now,
+    });
+
+    const standing = new Set(
+      engagement.outcomes
+        .filter((outcome) => outcome.state === 'standing')
+        .map((outcome) => outcome.id),
+    );
+    for (const [movement, met] of [
+      [initiator, other._id],
+      [other, initiator._id],
+    ] as const) {
+      const carriedOn = movement.troopIds.filter((troopId) => standing.has(troopId));
+      if (carriedOn.length === 0) await forgetMovement(ctx, movement._id);
+      else {
+        await ctx.db.patch(movement._id, {
+          troopIds: carriedOn,
+          encounteredMovementIds: [...new Set([...(movement.encounteredMovementIds ?? []), met])],
+        });
+      }
+    }
+    await walkHome(ctx, { winners: [], beaten: routed }, contact.point, now);
+    await reassessDetection(ctx, initiator.seasonId, now);
+  },
+});
+
+/** Legacy callback kept until the next wipe so already scheduled fixed-radius jobs become a
+ * harmless reassessment instead of resolving a forbidden stationary interception. */
 export const intercept = internalMutation({
   args: {
     movementId: v.id('movements'),
@@ -445,54 +567,9 @@ export const intercept = internalMutation({
   handler: async (ctx, { movementId, by, point }) => {
     const movement = await ctx.db.get(movementId);
     if (!movement) return;
-    if (!(await seasonStillPlays(ctx, movement.playerId))) return;
-    const owner = await ctx.db.get(movement.playerId);
-    if (!owner) return;
-
-    const interceptor = await forceOf(ctx, by);
-    if (interceptor === null || interceptor.troops.length === 0) return;
-    if (interceptor.playerId === movement.playerId) return;
-
-    const now = Date.now();
-    const marching = await troopsCarriedBy(ctx, movement);
-    /** Rien à intercepter : la colonne a été défaite ailleurs, ou c'est un leurre resté en vol
-     *  au retrait du 29/08/2026. Son arrivée l'effacera. */
-    if (marching.length === 0) return;
-
-    const { engagement, routed } = await resolveContact(ctx, {
-      seasonId: owner.seasonId,
-      attacker: { playerId: interceptor.playerId, troops: interceptor.troops },
-      defender: { playerId: movement.playerId, troops: marching },
-      cause: 'interception',
-      point,
-      hostCountry: movement.hostCountry,
-      outpostId: null,
-      disabledUntil: null,
-      at: now,
-    });
-
-    const left = new Set(
-      engagement.outcomes
-        .filter((outcome) => outcome.side === 'defender' && outcome.state === 'standing')
-        .map((outcome) => outcome.id),
-    );
-    /** Breaking off the whole march would make one cheap contact worth an entire order. */
-    const carriedOn = movement.troopIds.filter((troopId) => left.has(troopId));
-    if (carriedOn.length === 0) await forgetMovement(ctx, movement._id);
-    else await ctx.db.patch(movement._id, { troopIds: carriedOn });
-
-    if (interceptor.movementId !== null) {
-      const carrier = await ctx.db.get(interceptor.movementId);
-      if (carrier) {
-        const kept = carrier.troopIds.filter(
-          (troopId) => !routed.some((troop) => troop._id === troopId),
-        );
-        if (kept.length === 0) await forgetMovement(ctx, carrier._id);
-        else await ctx.db.patch(carrier._id, { troopIds: kept });
-      }
-    }
-    /** Only the beaten take a road here: what still stands has carried on down its own. */
-    await walkHome(ctx, { winners: [], beaten: routed }, pointOf(point), now);
+    void by;
+    void point;
+    await reassessDetection(ctx, movement.seasonId);
   },
 });
 

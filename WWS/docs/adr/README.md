@@ -28,5 +28,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08, §3 et §5 révisés par 0021 |
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée |
 | [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée |
-| [0021](0021-portee-de-detection-et-postures.md) | Portée de détection, posture de mouvement, salve d'allonge | acceptée |
+| [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09 |
 | [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009 |

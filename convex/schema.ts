@@ -342,6 +342,18 @@ export default defineSchema({
     troopIds: v.array(v.id('troops')),
     departedAt: v.number(),
     arrivesAt: v.number(),
+    /**
+     * The next mobile encounter reserved for this column. Optional because movements already in
+     * flight predate passive ranges. A reassessment cancels the job before replacing these four
+     * fields; the callback checks the expected pair and date before resolving anything.
+     */
+    contactJobId: v.optional(v.id('_scheduled_functions')),
+    contactWithId: v.optional(v.id('movements')),
+    contactAt: v.optional(v.number()),
+    contactInitiatorId: v.optional(v.id('movements')),
+    /** Pairs already resolved while both movements remain in flight. This prevents a
+     * reassessment immediately after a pass from scheduling the same encounter again. */
+    encounteredMovementIds: v.optional(v.array(v.id('movements'))),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
@@ -499,7 +511,9 @@ export default defineSchema({
    * A notice is a line of the journal and nothing else. It carries ids and numbers, never a
    * sentence (ADR 0016): the French is put on it on the client, like every other dispatch.
    */
-  notices: defineTable(NOTICE).index('byPlayer', ['playerId']),
+  notices: defineTable(NOTICE)
+    .index('byPlayer', ['playerId'])
+    .index('byPlayerAt', ['playerId', 'at']),
 
   /**
    * **The telegraph — one general channel per season, and nothing else.** No private channel, no
@@ -533,10 +547,9 @@ export default defineSchema({
    * (`WWS/docs/technique/brouillard-et-fanout.md`). A row here belongs to one observer, and he
    * reads his own index.
    *
-   * The rows are written **at the departure of the movement, once**, against the watchers already
-   * standing — the same instant and the same geometry as the interception (ADR 0018 §3). A troop
-   * posted afterwards therefore never sees that movement: intelligence is a wager on what will
-   * pass, not a reaction to what is passing, and the screen says so.
+   * The rows are maintained by **board events** against stationary and mobile observers. A new
+   * detector sees only the future of a movement already in flight; a future window that becomes
+   * impossible is cancelled before it can be served.
    *
    * `from` and `to` bound the stretch the thread spent inside the radius. Past `to` the arc is
    * not deleted but goes stale — the last known position ADR 0005 asks for — and it is the
@@ -554,11 +567,18 @@ export default defineSchema({
      * twice on the same board — so what is kept is the earliest, which is also the only one a
      * dispatch can honestly name: *relevé par* is a first sight, not a roll call.
      *
-     * The territory and a posted camp carry no id, and for opposite reasons: one is the ground
-     * itself, the other a pile at a point, and a pile is not a row (`postedForces`).
+     * Territory and troop detectors carry no source id, for opposite reasons: one is the ground
+     * itself, the other may be a moving stack and a stack is not a row of its own.
      */
     detector: DETECTOR,
     detectorId: v.union(v.id('buildings'), v.id('outposts'), v.null()),
+    /** Context captured from the observer, never from the detected column. Optional for rows
+     * written before reassessment existed. */
+    detectorHostCountry: v.optional(v.string()),
+    detectorRegion: v.optional(v.union(v.string(), v.null())),
+    /** A future window takes one cancellable appointment to file its dispatch at opening. */
+    revealJobId: v.optional(v.id('_scheduled_functions')),
+    noticeFiled: v.optional(v.boolean()),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),

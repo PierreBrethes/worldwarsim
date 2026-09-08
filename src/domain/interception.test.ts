@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { distanceKm, type LonLat } from './geo';
-import { firstInterception, positionAt, sightingsAlong, type MarchingForce } from './interception';
+import {
+  firstMobileEncounter,
+  mediumAt,
+  mobileSighting,
+  positionAt,
+  sightingsAlong,
+  type MarchingForce,
+} from './interception';
 
 const HOUR = 3_600_000;
 
@@ -40,73 +47,100 @@ describe('where a column stands at an instant', () => {
     };
     expect(distanceKm(positionAt(crossing, HOUR / 2), [180, 0])).toBeLessThan(1);
   });
+
+  it('waits at a transfer and follows the actual time of each medium', () => {
+    const combined: MarchingForce = {
+      id: 'combined',
+      points: [
+        [0, 0],
+        [10, 0],
+      ],
+      legs: [
+        { medium: 'land', distanceUnits: 5 },
+        { medium: 'sea', distanceUnits: 5 },
+      ],
+      distanceUnits: 10,
+      departedAt: 0,
+      arrivesAt: HOUR,
+    };
+
+    expect(mediumAt(combined, HOUR * 0.1)).toBe('land');
+    expect(mediumAt(combined, HOUR * 0.4)).toBeNull();
+    expect(positionAt(combined, HOUR * 0.4)[0]).toBeCloseTo(5, 6);
+    expect(mediumAt(combined, HOUR * 0.8)).toBe('sea');
+  });
 });
 
-describe('the first contact on the road', () => {
-  it('is the garrison whose radius the column walks into', () => {
-    const contact = firstInterception({
-      mine: column('mine', 0, 10),
-      standing: [{ id: 'outpost:far', point: [9, 0] }],
-      marching: [],
-      radiusKm: 200,
-    });
-
-    expect(contact).not.toBeNull();
-    expect(contact!.withId).toBe('outpost:far');
-    // Two hundred kilometres short of the point, so a bit before the eighth degree.
-    expect(contact!.point[0]).toBeGreaterThan(6.5);
-    expect(contact!.point[0]).toBeLessThan(9);
+describe('mobile encounters derive from the order', () => {
+  const mobile = (id: string, from: number, to: number, medium: 'land' | 'sea' | 'air') => ({
+    ...column(id, from, to),
+    legs: [{ medium, distanceUnits: Math.abs(to - from) }],
+    distanceUnits: Math.abs(to - from),
   });
 
-  it('ignores a garrison the road never comes near', () => {
+  it('lets two observing columns cross without a pass', () => {
     expect(
-      firstInterception({
-        mine: column('mine', 0, 10),
-        standing: [{ id: 'outpost:aside', point: [5, 40] }],
-        marching: [],
-        radiusKm: 200,
+      firstMobileEncounter({
+        a: mobile('a', 0, 10, 'land'),
+        b: mobile('b', 10, 0, 'land'),
+        rangeA: 100,
+        rangeB: 100,
+        engagesA: false,
+        engagesB: false,
       }),
     ).toBeNull();
   });
 
-  it('catches a column coming the other way, at the hour they cross', () => {
-    const contact = firstInterception({
-      mine: column('mine', 0, 10),
-      standing: [],
-      marching: [column('movement:theirs', 10, 0)],
-      radiusKm: 200,
+  it('gives the initiative to the attacking column that detects the crossing', () => {
+    const contact = firstMobileEncounter({
+      a: mobile('attack', 0, 10, 'land'),
+      b: mobile('march', 10, 0, 'land'),
+      rangeA: 100,
+      rangeB: 100,
+      engagesA: true,
+      engagesB: false,
     });
 
-    expect(contact).not.toBeNull();
-    expect(contact!.withId).toBe('movement:theirs');
-    expect(contact!.at / HOUR).toBeGreaterThan(3);
-    expect(contact!.at / HOUR).toBeLessThan(7);
+    expect(contact?.initiatorId).toBe('attack');
+    expect(contact?.medium).toBe('land');
   });
 
-  it('lets a column pass behind one that has already gone by', () => {
-    // They walk the same road in the same direction, six hours apart: nobody ever catches up.
+  it('does not turn detection into fire across incompatible media', () => {
     expect(
-      firstInterception({
-        mine: column('mine', 0, 10, 6 * HOUR),
-        standing: [],
-        marching: [column('movement:ahead', 0, 10)],
-        radiusKm: 200,
+      firstMobileEncounter({
+        a: mobile('air', 0, 10, 'air'),
+        b: mobile('ground', 10, 0, 'land'),
+        rangeA: 500,
+        rangeB: 500,
+        engagesA: true,
+        engagesB: true,
       }),
     ).toBeNull();
   });
 
-  it('keeps the earliest of two contacts', () => {
-    const contact = firstInterception({
-      mine: column('mine', 0, 10),
-      standing: [
-        { id: 'outpost:late', point: [9, 0] },
-        { id: 'outpost:early', point: [3, 0] },
-      ],
-      marching: [],
-      radiusKm: 200,
+  it('breaks an equal engagement tie by creation order, never by an identifier', () => {
+    const laterNamedFirst = { ...mobile('z-last-name', 0, 10, 'land'), createdAt: 1 };
+    const earlierNamedLast = { ...mobile('a-first-name', 10, 0, 'land'), createdAt: 2 };
+    const contact = firstMobileEncounter({
+      a: laterNamedFirst,
+      b: earlierNamedLast,
+      rangeA: 100,
+      rangeB: 100,
+      engagesA: true,
+      engagesB: true,
     });
 
-    expect(contact!.withId).toBe('outpost:early');
+    expect(contact?.initiatorId).toBe('z-last-name');
+  });
+
+  it('lets a mobile detector reveal an observing column without engaging it', () => {
+    expect(
+      mobileSighting({
+        observer: mobile('observer', 0, 10, 'land'),
+        target: mobile('target', 10, 0, 'land'),
+        radiusKm: 100,
+      }),
+    ).not.toBeNull();
   });
 });
 

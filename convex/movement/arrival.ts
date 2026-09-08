@@ -14,11 +14,10 @@ import { isNation } from '../../src/domain/nations';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
 import { resolveContact } from '../combat';
-import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS } from '../constants';
+import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS, detectionRangeOf } from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
-import { fileSightings } from './detection';
 import {
   asPoint,
   defenceOf,
@@ -33,11 +32,28 @@ import { pacedMinutes } from './orders';
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
  *  disappears in three places, and all three go through here. */
 export async function forgetMovement(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
+  const movement = await ctx.db.get(movementId);
+  if (movement?.contactJobId !== undefined) {
+    try {
+      await ctx.scheduler.cancel(movement.contactJobId);
+    } catch {
+      // A running callback validates the movement row before resolving a pass.
+    }
+  }
   const seen = await ctx.db
     .query('sightings')
     .withIndex('byMovement', (q) => q.eq('movementId', movementId))
     .collect();
-  for (const sighting of seen) await ctx.db.delete(sighting._id);
+  for (const sighting of seen) {
+    if (sighting.revealJobId !== undefined) {
+      try {
+        await ctx.scheduler.cancel(sighting.revealJobId);
+      } catch {
+        // A running reveal validates that its row still exists.
+      }
+    }
+    await ctx.db.delete(sighting._id);
+  }
   await ctx.db.delete(movementId);
 }
 
@@ -395,7 +411,11 @@ export async function walkHome(
    *  laisse des troupes debout sur un point, et les deux camps en repartent en le sachant. Un
    *  relevé par joueur présent, pas un par troupe — c'est le même sol. */
   for (const playerId of new Set([...homeward.values()].map(({ troop }) => troop.playerId))) {
-    await surveyFromPoint(ctx, playerId, from, now);
+    const roles = [...homeward.values()]
+      .map(({ troop }) => troop)
+      .filter((troop) => troop.playerId === playerId)
+      .map((troop) => troop.role);
+    await surveyFromPoint(ctx, playerId, from, now, detectionRangeOf(roles));
   }
 
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
@@ -448,8 +468,5 @@ export async function walkHome(
       arrivesAt,
     });
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
-    /** **A return is a movement, and what moves is seen** (ADR 0005): a class of movement
-     *  invisible to the fog would be a hole in the rule, not a rule of its own. */
-    await fileSightings(ctx, (await ctx.db.get(movementId))!);
   }
 }

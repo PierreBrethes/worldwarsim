@@ -1,12 +1,13 @@
 # ADR 0008 — Combat par interception et rejeu, plutôt que tour par tour interactif
 
-**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) — **révisée le 31/08/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)**
+**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) — **révisée le 08/09/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)**
 
-> ⚠️ **Révision (31/08/2026).** Le contact ne se calcule plus à un rayon fixe unique
+> ⚠️ **Révision (08/09/2026).** Le contact ne se calcule plus à un rayon fixe unique
 > (`INTERCEPTION_RADIUS_KM`, placeholder jamais mesuré) ni une seule fois au départ : il se produit
-> au **croisement des portées de détection** et se **réévalue en route**, notamment au retour.
-> S'y ajoutent trois postures de mouvement et une salve d'allonge. Le déterminisme, l'absence
-> d'aléa et le refus du tour par tour sont intacts.
+> lorsqu'un mouvement dont l'ordre implique l'engagement (`attack`, `raid`) détecte un mouvement
+> adverse dans le même milieu. La règle se réévalue aux événements du plateau. Une force posée
+> détecte mais n'intercepte jamais à distance ; aucune posture, discrétion ni salve d'allonge
+> n'existe. Le déterminisme, l'absence d'aléa et le refus du tour par tour sont intacts.
 
 > Précision (14/08/2026) : le combat reste automatique, avec interception et rejeu.
 > Seule la formule interne change — résolution séquentielle à l'initiative de
@@ -24,7 +25,7 @@ unités placées.
 
 ## Décision
 
-- La **zone d'interception** est retenue.
+- La **portée de détection de chaque rôle** borne le contact entre mouvements.
 - Le combat se résout **automatiquement et de façon déterministe** au point de contact.
 - Le joueur peut ensuite **plonger sur la scène en rejeu cinématique**.
 - L'**orientation** est conservée, mais remontée au niveau stratégique : c'est le **cap d'arrivée**.
@@ -59,19 +60,20 @@ déroulé des passes. Ce qui coûte cher, c'est l'interactivité — pas le spec
 Avantage supplémentaire : le joueur absent voit exactement la même chose que celui qui était en
 ligne.
 
-### L'interception est structurellement gratuite
+### Le contact réemploie la géométrie du renseignement
 
 C'est la même intersection segment/cercle que les fenêtres de révélation du brouillard, calculée au
-même moment — à la création du mouvement. Elle ne demande aucun système nouveau.
+même moment — lors d'une réévaluation événementielle. Elle ne demande aucune lecture réactive de
+toute la table par chaque joueur.
 
 ## Conséquences
 
-- Le positionnement des forces devient signifiant : blocus, escorte, embuscade.
+- Le choix d'un ordre engageant et la composition des mouvements deviennent signifiants ; une force
+  posée garde seulement son point d'arrivée.
 - Le renseignement devient directement monnayable : savoir où passe un convoi permet de s'y placer.
-- Il faut trancher **si l'on peut refuser le combat**. Sans dérobade possible, l'interception est une
-  punition sans contre-jeu.
-- Le rayon d'interception devient un paramètre sensible : trop grand, plus aucun convoi ne passe et
-  la carte se fige.
+- Marcher ou retourner implique l'observation seule ; attaquer ou raider implique l'engagement si
+  la portée et le milieu le permettent. Il n'y a pas de décision séparée à demander au joueur.
+- Les portées par rôle deviennent des paramètres sensibles et restent `@a-mesurer`.
 - Le combat n'étant plus une inconnue, la **simulation d'équilibrage est débloquée**.
 
 ## Ce qu'on abandonne
