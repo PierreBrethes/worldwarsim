@@ -80,6 +80,7 @@ describe('radial menu', () => {
       compassOf(
         {
           kind: 'force',
+          onLand: true,
           id: 'stack-home',
           country: 'FRA',
           name: '24 INF · 6 BLD',
@@ -96,6 +97,7 @@ describe('radial menu', () => {
     expect(
       labelsOf({
         kind: 'force',
+        onLand: true,
         id: 'stack-sea',
         country: null,
         name: '12 ESC',
@@ -163,6 +165,7 @@ describe('in aim', () => {
     regionId: 'ESP-1234',
     country: 'ESP',
     name: 'Aragón',
+    onLand: true,
     coastal: false,
   } as const;
 
@@ -258,6 +261,7 @@ describe('in aim', () => {
         regionId: null,
         country: null,
         name: 'haute mer',
+        onLand: false,
         coastal: false,
       },
       view,
@@ -274,7 +278,7 @@ describe('in aim', () => {
       roles: ['cargo' as const],
       departureBuildings: new Set<BuildingKey>(['port']),
     };
-    const compass = compassOf(aragon, view, naval, true);
+    const compass = compassOf({ ...aragon, coastal: true }, view, naval, true);
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
   });
 
@@ -315,6 +319,7 @@ describe('aiming at a point', () => {
         regionId: null,
         country: 'ROU',
         name: 'Roumanie',
+        onLand: true,
         coastal: false,
       },
       view,
@@ -342,6 +347,7 @@ describe('aiming at a point', () => {
         regionId: 'ROU-310',
         country: 'ROU',
         name: 'Prahova',
+        onLand: true,
         coastal: false,
       },
       view,
@@ -355,7 +361,7 @@ describe('aiming at a point', () => {
     ).toBe(false);
   });
 
-  it('still opens over water, where no country answers', () => {
+  it('refuses infantry over water, where no country answers', () => {
     const compass = compassOf(
       {
         kind: 'point',
@@ -364,13 +370,17 @@ describe('aiming at a point', () => {
         regionId: null,
         country: null,
         name: 'haute mer',
+        onLand: false,
         coastal: false,
       },
       view,
       column,
       true,
     );
-    expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe(
+      'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
+    );
   });
 
   /**
@@ -387,6 +397,7 @@ describe('aiming at a point', () => {
         regionId: null,
         country: 'ROU',
         name: 'Roumanie',
+        onLand: true,
         coastal: false,
       },
       view,
@@ -407,9 +418,110 @@ describe('aiming at a point', () => {
  * garnison, qui sert à composer une pile et non à donner un ordre. La branche vit sur la pile
  * elle-même, parce qu'on fonde où l'on se tient (ADR 0019 §1).
  */
+describe('joining a transport from the map', () => {
+  const beach = { kind: 'point', lonLat: [142.1, 47], country: 'RUS', coastal: true } as const;
+  const origin = { ...beach, lonLat: [142.3, 47] } as const;
+  const target = {
+    kind: 'force',
+    id: 'cargo-stack',
+    onLand: true,
+    country: 'RUS',
+    name: 'cargo',
+    headcount: 1,
+    station: beach,
+    regionId: 'RUS-2616',
+  } as const;
+  const column = {
+    roles: ['infantry' as const],
+    myRegionIds: new Set<string>(),
+    myOutpostIds: new Set<string>(),
+    departureBuildings: new Set<BuildingKey>(),
+    afloat: false,
+    coastal: false,
+  };
+  const withTransport = (role = 'cargo', passengers = 0): PlayerView =>
+    ({
+      ...view,
+      me: {
+        ...view.me,
+        troops: [
+          { id: 'transport', role, stationedAt: beach },
+          ...Array.from({ length: passengers }, (_, rank) => ({
+            id: `passenger-${rank}`,
+            role: 'infantry',
+            stationedAt: beach,
+          })),
+        ],
+      },
+    }) as unknown as PlayerView;
+
+  it('offers a garrison march to the exact address of a friendly cargo', () => {
+    const compass = compassOf(target, withTransport(), column, false, origin);
+    expect(compass?.actions).toHaveLength(1);
+    expect(compass?.actions[0]).toMatchObject({
+      key: 'aim',
+      type: 'march',
+      label: 'entrer en garnison',
+      pictogram: 'doorway',
+      aim: { kind: 'point', lon: 142.1, lat: 47, onLand: true, coastal: true },
+    });
+  });
+
+  it('does not offer an infantry march to an offshore cargo', () => {
+    const compass = compassOf({ ...target, onLand: false }, withTransport(), column, false, origin);
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toContain('une troupe terrestre doit viser la terre');
+  });
+
+  it('offers no boarding when the cargo has no remaining places', () => {
+    const compass = compassOf(target, withTransport('cargo', 6), column, false, origin);
+    expect(compass?.actions).toEqual([]);
+  });
+
+  it('offers infantry a truck with a free seat, but never puts armour in it', () => {
+    expect(
+      compassOf(target, withTransport('landTransport', 1), column, false, origin)?.actions,
+    ).toHaveLength(1);
+    expect(
+      compassOf(target, withTransport('landTransport', 2), column, false, origin)?.actions,
+    ).toEqual([]);
+    expect(
+      compassOf(
+        target,
+        withTransport('landTransport'),
+        { ...column, roles: ['armor'] },
+        false,
+        origin,
+      )?.actions,
+    ).toEqual([]);
+  });
+
+  it('offers no transport action on an escort, an unknown stack, or the origin itself', () => {
+    expect(compassOf(target, withTransport('escort'), column, false, origin)).toBeNull();
+    expect(
+      compassOf(target, { ...view, me: { ...view.me, troops: [] } }, column, false, origin),
+    ).toBeNull();
+    expect(compassOf(target, withTransport(), column, false, beach)).toBeNull();
+  });
+
+  it('can rejoin a nearby transport without treating it as the origin', () => {
+    const nearby = { ...beach, lonLat: [142.101, 47.001] } as const;
+    expect(compassOf(target, withTransport(), column, false, nearby)?.actions).toHaveLength(1);
+  });
+
+  it('never offers to board a transport already moving', () => {
+    const moving = {
+      ...withTransport(),
+      arcs: [{ state: 'mine', troopIds: ['transport'] }],
+    } as unknown as PlayerView;
+    expect(compassOf(target, moving, column, false, origin)).toBeNull();
+  });
+});
+
 describe('founding from the map', () => {
   const camp = {
     kind: 'force',
+    onLand: true,
     id: 'stack-point:12.0000,20.0000',
     country: 'LBY',
     name: '2 INF',

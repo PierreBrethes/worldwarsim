@@ -4,6 +4,7 @@ import {
   marchingTroopIds,
   representativeRole,
   stackRows,
+  stationKeyOf,
   stationGroups,
   troopsAt,
 } from './troops';
@@ -18,6 +19,33 @@ const troop = (id: string, role: TroopView['role'], stationedAt: TroopStation): 
   nominalStrength: 50,
   stationedAt,
   supplied: true,
+});
+
+describe('the exact address of a posted pile', () => {
+  it('keeps nearby troops separate until they reach the same point', () => {
+    const beach: TroopStation = {
+      kind: 'point',
+      lonLat: [142.123, 47.012],
+      country: 'RUS',
+      coastal: true,
+    };
+    const nearby: TroopStation = { ...beach, lonLat: [142.129, 47.014] };
+    const cargo = troop('cargo', 'cargo', beach);
+    const infantry = troop('infantry', 'infantry', nearby);
+    const stationed = { ...me, troops: [cargo, infantry] };
+    expect(stationKeyOf(beach)).not.toBe(stationKeyOf(nearby));
+    expect(troopsAt(stationed, stationKeyOf(beach), new Set()).map((troop) => troop.id)).toEqual([
+      'cargo',
+    ]);
+    const reunited = {
+      ...me,
+      troops: [cargo, { ...infantry, stationedAt: { ...beach } }],
+    };
+    expect(troopsAt(reunited, stationKeyOf(beach), new Set()).map((troop) => troop.id)).toEqual([
+      'infantry',
+      'cargo',
+    ]);
+  });
 });
 
 const me = {

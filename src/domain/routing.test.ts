@@ -111,6 +111,10 @@ describe('land routes', () => {
   it('never crosses the sea', () => {
     expect(computeRoute(grid, toLonLat(20, 25), toLonLat(60, 25), 'land')).toBeNull();
   });
+
+  it('does not move a sea destination to the nearest land', () => {
+    expect(computeRoute(grid, toLonLat(20, 25), toLonLat(32, 25), 'land')).toBeNull();
+  });
 });
 
 /**
@@ -139,6 +143,10 @@ describe('combined routes', () => {
 });
 
 describe('naval routes', () => {
+  it('does not move an inland destination to the nearest sea', () => {
+    expect(computeRoute(grid, toLonLat(35, 25), toLonLat(60, 25), 'naval')).toBeNull();
+  });
+
   it('starts from the nearest coast and never touches land', () => {
     const route = computeRoute(grid, toLonLat(31, 25), toLonLat(39, 25), 'naval');
     expect(route).not.toBeNull();

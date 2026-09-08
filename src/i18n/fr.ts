@@ -380,6 +380,9 @@ export const fr = {
     /** Le débarquement en deux temps (72a) : la phrase dit la plage, pas la règle — marcher vers
      *  l'intérieur est l'ordre d'après, et le joueur le donnera lui-même. */
     LANDING_NEEDS_A_COAST: () => 'une colonne embarquée ne débarque que sur une côte',
+    LAND_TARGET_REQUIRED: () =>
+      'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
+    SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
     /** The stack's footer prints this **before** the aim, not after the refusal: it says how
      *  many berths are short, because "il manque du transport" leaves the player counting. */
     NOT_ENOUGH_LIFT: (d) =>
@@ -1761,6 +1764,9 @@ export const fr = {
     /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
      *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
     garrison: 'entrer en garnison',
+    transportFull: 'ces troupes ne tiennent pas dans les transports disponibles ici',
+    joinTransport:
+      'rejoindre sa position actuelle pour composer une pile — le transport doit vous y attendre',
     region: (country: string) => `région · ${country}`,
     /**
      * **La cible est l'instance, et sa qualification décisionnelle est son niveau** (tranché le

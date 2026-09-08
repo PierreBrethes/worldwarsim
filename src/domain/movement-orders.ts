@@ -39,6 +39,8 @@ export type MovementAim =
       readonly kind: 'point';
       readonly lon: number;
       readonly lat: number;
+      /** Read on the routing grid, so an offshore click cannot become a walk on another coast. */
+      readonly onLand: boolean;
       /**
        * **Whether a hull can reach this exact spot** — `isCoastCell` on the routing grid and
        * nothing else: a coastline read off another source would say "coast" where Dijkstra finds
@@ -97,6 +99,8 @@ export type OrderRefusal =
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'
+  | 'LAND_TARGET_REQUIRED'
+  | 'SEA_TARGET_REQUIRED'
   | 'NOT_ENOUGH_LIFT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
@@ -269,7 +273,7 @@ const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   if (domains.has('sea') && embarking(column, domains)) {
     if (!column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) return 'NO_PORT_AT_DEPARTURE';
   }
-  return overloaded(column) ?? landlocked(aim, column);
+  return overloaded(column) ?? destinationRefusal(aim, column);
 };
 
 /**
@@ -308,8 +312,14 @@ const embarking = (column: Column, domains: ReadonlySet<UnitDomain>): boolean =>
  * grille de routage trouve de l'eau à côté. Une région ne passe jamais : c'est un centroïde, et
  * un centroïde n'est le bord de rien.
  */
-const landlocked = (aim: MovementAim, column: Column): OrderRefusal | null =>
-  routeModeOf(column.roles) === 'combined' && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
+const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | null => {
+  const mode = routeModeOf(column.roles);
+  if (mode === 'land' && aim.kind === 'point' && !aim.onLand) return 'LAND_TARGET_REQUIRED';
+  if (mode === 'naval' && !(aim.kind === 'point' && !aim.onLand) && !shore(aim)) {
+    return 'SEA_TARGET_REQUIRED';
+  }
+  return mode === 'combined' && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
+};
 
 const shore = (aim: MovementAim): boolean => {
   switch (aim.kind) {

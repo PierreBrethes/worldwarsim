@@ -55,6 +55,7 @@ export function MovementPreview({
   troopIds,
   aim,
   type,
+  label,
   at,
   preview,
   freeSlots,
@@ -65,6 +66,7 @@ export function MovementPreview({
   troopIds: ReadonlyArray<string>;
   aim: MovementAim;
   type: MovementType;
+  label: string;
   at: { x: number; y: number };
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
   preview: MovementPreviewed | undefined;
@@ -146,10 +148,7 @@ export function MovementPreview({
             <span className="font-(family-name:--font-mono) tracking-[.06em]">{fr.aim.slot}</span>
           </div>
           <h3 className="mt-[3px] font-(family-name:--font-display) text-[18px] leading-[1.15] font-extrabold">
-            {fr.aim.heading(
-              destinationOf(aim, preview),
-              aim.kind === 'building' ? fr.compass.garrison : fr.movementTypes[type],
-            )}
+            {fr.aim.heading(destinationOf(aim, preview), label)}
           </h3>
           <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
 

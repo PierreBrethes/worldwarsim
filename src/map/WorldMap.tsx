@@ -224,6 +224,7 @@ export function WorldMap({
    * donc pas offrir une plage que la mutation renverrait (ADR 0015).
    */
   const coastAt = useCallback((lonLat: LonLat) => engine.current?.coastAt(lonLat) ?? false, []);
+  const landAt = useCallback((lonLat: LonLat) => engine.current?.landAt(lonLat) ?? false, []);
 
   useEffect(() => {
     if (!readyEngine) return;
@@ -241,7 +242,13 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        const aimed = pointTarget(country, region, point, point !== null && coastAt(point));
+        const aimed = pointTarget(
+          country,
+          region,
+          point,
+          point !== null && coastAt(point),
+          point !== null && landAt(point),
+        );
         if (aimed === null) {
           setRose(null);
           return;
@@ -264,7 +271,7 @@ export function WorldMap({
     return () => {
       readyEngine.onRightClick = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt]);
+  }, [readyEngine, openRose, aiming, placing, coastAt, landAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -302,11 +309,12 @@ export function WorldMap({
         map?.countryAtPoint(clientX, clientY) ?? null,
         map?.regionAtPoint(clientX, clientY) ?? null,
         coastAt,
+        landAt,
       );
       if (target === null) return;
       openRose(target, clientX, clientY);
     },
-    [onOpenStack, openRose, coastAt],
+    [onOpenStack, openRose, coastAt, landAt],
   );
 
   const onLabelMenu = useCallback(
@@ -316,17 +324,16 @@ export function WorldMap({
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
        *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
       const region = map?.regionAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country, region, coastAt);
+      const target = targetOfLabel(label, country, region, coastAt, landAt);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
        * to the ground it covers. Without this, a right click landing on a mark would be the last
        * place on the board where aiming answers nothing.
        *
-       * **Une pile à soi n'est pas une destination non plus, et elle garde donc sa rose armée ou
-       * non** (`compassOf`, décision du 30/08). Rendre le sol sous elle faisait exactement le
-       * menu mixte que la décision interdit : le clic tombait sur une troupe et répondait un
-       * terrain. Deux cibles, séparées par ce qui est sous le curseur.
+       * A posted pile keeps its own target: a friendly transport can now be joined at its exact
+       * address (Pierre, 08/09). Falling through to the cursor's ground point would leave the
+       * arriving troops beside it, at another address, unable to form a shared garrison.
        *
        * **Un bâtiment à soi est une destination en visée** (décision 64b, révision du 54a) : la
        * colonne vient y entrer en garnison, et la rose armée le dit ou dit pourquoi non. Au repos
@@ -341,12 +348,18 @@ export function WorldMap({
         target?.kind !== 'force' &&
         target?.kind !== 'building' &&
         map !== null
-          ? pointTarget(country, region, ground, ground !== null && coastAt(ground))
+          ? pointTarget(
+              country,
+              region,
+              ground,
+              ground !== null && coastAt(ground),
+              ground !== null && landAt(ground),
+            )
           : target;
       if (aimed === null) return;
       openRose(aimed, clientX, clientY);
     },
-    [openRose, aiming, coastAt],
+    [openRose, aiming, coastAt, landAt],
   );
 
   useEffect(() => {
@@ -567,6 +580,7 @@ function pointTarget(
   region: RegionIdentity | null,
   point: LonLat | null,
   coastal: boolean,
+  onLand: boolean,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -577,6 +591,7 @@ function pointTarget(
     country,
     name: region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country)),
     coastal,
+    onLand,
   };
 }
 
@@ -591,6 +606,7 @@ function targetOfLabel(
   /** **La côte se lit sur le point du label, jamais sous le curseur** : un mât plein cadre
    *  déborde sa cellule, et une colonne embarquée débarque à l'ancre, pas là où on a cliqué. */
   coastAt: (lonLat: LonLat) => boolean,
+  landAt: (lonLat: LonLat) => boolean,
 ): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null) {
     return {
@@ -617,6 +633,7 @@ function targetOfLabel(
       country,
       name: lineText(label, 'figures') ?? fr.compass.fallbackForce,
       headcount: Number(lineText(label, 'headcount') ?? 0),
+      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
       /** Son adresse : on fonde où l'on se tient, donc c'est le point que la branche plantera. */
       station: label.station,
       regionId: region?.id ?? null,

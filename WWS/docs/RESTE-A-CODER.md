@@ -4,6 +4,34 @@ Tenu par Cowork, 06/09/2026 (mise à jour du 04/09). Un chantier code à la fois
 « évoqué » = proposition ou Registre, pas encore tranché. La source reste les ADR et les
 propositions ; ce fichier est la file.
 
+Relecture code du 08/09 : [bilan daté, vérifications et recommandations](technique/point-projet-2026-09-08.md).
+L'ordre de livraison ci-dessous reste inchangé ; le bilan relève notamment les cas à préciser
+dans les briefs de victoire et d'objectifs neutres avant de les exécuter.
+
+## Retour de partie du 08/09 — donner une raison de s'affronter
+
+Pierre a déjà testé : combattre fonctionne, mais les occasions et les gains manquent.
+**Principes approuvés** : pillage avec butin à ramener ; dépôts neutres gardés ; positions
+stratégiques à tenir pour leurs ressources ; victoire territoriale au seuil tenu ; journal
+qui rend les conséquences d'une expédition lisibles. Les contrats de guerre entre joueurs
+restent une piste intéressante, sans règle arrêtée.
+
+**Ajout demandé : des objectifs publics qui se déplacent sur terre ou en mer**, par exemple
+un cargo chargé reliant le Cap-Vert à l'Australie, que chacun peut aller intercepter. Une
+variante comporte une garnison PNJ à détruire pour récupérer la récompense. Le principe est
+validé ; [la proposition détaillée](design/propositions/objectifs-mobiles.md) sépare le
+périmètre proposé des arbitrages encore ouverts. Elle complète le lot 11 sans transformer
+son brief actuel en promesse de mouvements PNJ déjà prêts à coder.
+
+**Correctif local du 08/09** : destination terrestre/navale vérifiée sur la même grille au
+front et au serveur, aperçu soumis aux refus d'ordre, regroupement des piles à leur adresse
+exacte. Une troupe sélectionnée peut rejoindre un transport ami posé par clic droit →
+« entrer en garnison », selon les places disponibles ; le transport doit attendre à cette
+position. Test d'intégration sur Sakhaline : débarquer, séparer, regrouper, repartir vers le
+Japon. `npm run verifier` réussi : 936 tests, types, lint, format, build et miroir sans dérive
+sur les 119 valeurs comparées. Aucun déploiement ni réparation des positions déjà stockées ;
+le geste complet au navigateur reste à contrôler.
+
 ## Bloquant pour la partie de contrôle à deux
 
 1. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
@@ -25,8 +53,9 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   au moment du wipe, après la partie à deux**, jamais pendant. Borne le pseudo (3-16).
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (8).
 - **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
-- Ménage : `.claude/settings.local.json` à ignorer (`*.local` ne le couvre pas) ;
-  `_wws_snapshot.tgz` (908 Ko) tracké à la racine, à sortir du dépôt.
+- Ménage : `_wws_snapshot.tgz` tracké à la racine, à sortir du dépôt lors d'une passe dédiée.
+  `.claude/settings.local.json` n'est pas suivi selon `git ls-files` au contrôle du 08/09 ;
+  vérifier son exclusion effective avant tout futur ajout.
 
 ## Acté, rédigé le 06/09 au soir — dans l'ordre où ça se donne (`ready/`)
 
@@ -70,7 +99,9 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 
 ## Questions ouvertes qui bloqueront un prompt
 
-- Barème chiffré de l'édition (11).
+- ~~Barème chiffré de l'édition~~ — livré avec la presse : `src/domain/standings.ts`,
+  `convex/press.ts`, proposition `classement-bareme.md`. Son calibrage en partie reste distinct
+  de son implémentation.
 - Nom 1940 de la frappe terminale (19).
 - Valeurs `@a-mesurer` : portées par rôle, posture discrète, heures de butin, capacité de
   chargement, présence du pillage, entretien d'avant-poste, barème du classement — à regarder à

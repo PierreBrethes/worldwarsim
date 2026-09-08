@@ -144,9 +144,9 @@ export const ROLE_ORDER: ReadonlyArray<UnitRole> = [
 
 /**
  * **A troop's address, as one string to group and select on.** The union says what the address
- * *is*; this says whether two troops share it — which is all a card, a selection and a garrison
- * panel ever ask. A point is written to one decimal, the precision a click carries: two troops
- * left at the same place are one stack on the widget, not two cards a hundred metres apart.
+ * *is*; this says whether two troops share it. Coordinates keep their full precision, like
+ * the server's sameStation: rounding grouped nearby troops at an address only one occupied,
+ * so selecting that apparent garrison produced orders the server could never accept.
  */
 export const stationKeyOf = (station: TroopStation): string => {
   switch (station.kind) {
@@ -155,7 +155,7 @@ export const stationKeyOf = (station: TroopStation): string => {
     case 'outpost':
       return `outpost:${station.outpostId}`;
     case 'point':
-      return `point:${station.lonLat[0].toFixed(1)},${station.lonLat[1].toFixed(1)}`;
+      return `point:${station.lonLat[0]},${station.lonLat[1]}`;
     case 'home':
       return 'home';
   }

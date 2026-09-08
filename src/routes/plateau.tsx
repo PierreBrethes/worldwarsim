@@ -106,6 +106,7 @@ type PostedForce = {
 type Order = {
   readonly aim: MovementAim;
   readonly type: MovementType;
+  readonly label: string;
   readonly x: number;
   readonly y: number;
 };
@@ -525,7 +526,13 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    */
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      compassOf(target, view, column?.rule ?? null, objectiveUnder(target, view)),
+      compassOf(
+        target,
+        view,
+        column?.rule ?? null,
+        objectiveUnder(target, view),
+        column?.station ?? null,
+      ),
     [view, column],
   );
 
@@ -555,7 +562,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         case 'aim':
-          setOrder({ aim: action.aim, type: action.type, x: at.x, y: at.y });
+          setOrder({ aim: action.aim, type: action.type, label: action.label, x: at.x, y: at.y });
           return;
         /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
@@ -1080,6 +1087,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         )}
         {column && order && (
           <MovementPreview
+            label={order.label}
             token={token}
             origin={column.station}
             troopIds={column.troopIds}

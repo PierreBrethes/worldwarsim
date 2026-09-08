@@ -3,7 +3,7 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
-import { foundingRefusal, landCostOf, routeModeOf } from '../src/domain/movement-orders';
+import { foundingRefusal, landCostOf, refusalOf, routeModeOf } from '../src/domain/movement-orders';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
@@ -311,6 +311,7 @@ export const preview = query({
   },
   handler: async (ctx, { token, origin, troopIds, target, type }) => {
     const { player } = await playerByToken(ctx, token);
+    if (type === 'decoy') return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
@@ -318,7 +319,8 @@ export const preview = query({
     const column = await columnOf(ctx, player._id, troops, departure);
     const pace = column.roles;
 
-    const { point, name, host } = await aimOf(ctx, player._id, target);
+    const { aim, point, name, host } = await aimOf(ctx, player._id, target);
+    if (refusalOf(type, aim, column) !== null) return null;
     const route = routeBetween(departure.point, point, routeModeOf(pace), landCostOf(pace));
     if (route === null) return null;
 

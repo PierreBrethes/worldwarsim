@@ -14,7 +14,15 @@ import {
   type OrderRefusal,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
-import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
+import {
+  LAND_SEATS_PER_TRANSPORT,
+  LIFT_CAPACITY,
+  LIFT_COST,
+  marchingTroopIds,
+  stackRows,
+  stationKeyOf,
+  troopsAt,
+} from './troops';
 import type { LonLat } from './geo';
 import type { BuildingKey, MovementType } from './ids';
 import { currentStock, type Building, type PlayerView, type TroopStation } from './player-view';
@@ -78,6 +86,7 @@ export type CompassTarget =
       readonly lon: number;
       readonly lat: number;
       readonly regionId: string | null;
+      readonly onLand: boolean;
       readonly country: string | null;
       readonly name: string;
       /** Idem : la cellule visée est-elle une côte ? C'est ce qui sépare une plage d'un point
@@ -95,6 +104,7 @@ export type CompassTarget =
       readonly country: string | null;
       readonly name: string;
       readonly headcount: number;
+      readonly onLand: boolean;
       readonly station: TroopStation | null;
       readonly regionId: string | null;
     };
@@ -320,6 +330,7 @@ export function compassOf(
   view: PlayerView,
   column: Column | null = null,
   objectiveKnown = false,
+  origin: TroopStation | null = null,
 ): Compass | null {
   /**
    * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08) : le clic droit ne
@@ -335,6 +346,12 @@ export function compassOf(
    * lui retirerait « fonder », qui est précisément l'ordre qu'on donne là où l'on se tient
    * (ADR 0019 §1). Le clic droit sur elle répond donc toujours la même chose, armée ou non.
    */
+  if (column !== null && target.kind === 'force' && origin !== null) {
+    const station = posted(target);
+    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin)) {
+      return joinTransport(target, station, view, column);
+    }
+  }
   if (column !== null && target.kind !== 'force') return aim(target, view, column, objectiveKnown);
   const fan = build(target, view);
   /** Un motif sans branche reste une rose : c'est ce qui sépare « rien à faire ici » — le clic
@@ -403,7 +420,15 @@ function aim(
     target.name,
     view,
     column,
-    [{ kind: 'point', lon: target.lon, lat: target.lat, coastal: target.coastal }],
+    [
+      {
+        kind: 'point',
+        lon: target.lon,
+        lat: target.lat,
+        coastal: target.coastal,
+        onLand: target.onLand,
+      },
+    ],
     objectiveKnown,
   );
 }
@@ -469,6 +494,8 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   /** Après les portes de départ et avant l'allégeance : la carte montre bien une côte, mais pas
    *  la cellule que la grille de routage tient pour telle — le joueur ne peut pas la lire. */
   'LANDING_NEEDS_A_COAST',
+  'LAND_TARGET_REQUIRED',
+  'SEA_TARGET_REQUIRED',
   'INFANTRY_ONLY',
   /** Before the allegiance: an attack on one's own mast is refused as friendly, and that is
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
@@ -596,6 +623,71 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         ? { kicker: fr.compass.openWater, name: target.name, actions: [], refusal: null }
         : build({ kind: 'country', country: target.country }, view);
   }
+}
+
+function joinTransport(
+  target: Extract<CompassTarget, { kind: 'force' }>,
+  station: Extract<TroopStation, { kind: 'point' }>,
+  view: PlayerView,
+  column: Column,
+): Compass | null {
+  const held = heldAt(station, view);
+  const hasLift = held.some((troop) => (LIFT_CAPACITY[troop.role] ?? 0) > 0);
+  const trucks = held.filter((troop) => troop.role === 'landTransport').length;
+  if (!hasLift && trucks === 0) return null;
+
+  const incoming = column.roles.map((role, rank) => ({ id: `incoming-${rank}`, role }));
+  const together = [...held, ...incoming];
+  const rows = stackRows(together, new Set(together.map((troop) => troop.id)));
+  const fits =
+    incoming.length > 0 &&
+    (hasLift
+      ? incoming.every(
+          (troop) =>
+            (LIFT_COST[troop.role] ?? 0) > 0 &&
+            rows.some((row) => row.troop.id === troop.id && row.carrier !== null),
+        )
+      : incoming.every((troop) => troop.role === 'infantry') &&
+        together.filter((troop) => troop.role === 'infantry').length <=
+          trucks * LAND_SEATS_PER_TRANSPORT);
+  if (!fits)
+    return {
+      kicker: fr.compass.aiming(column.roles.length),
+      name: target.name,
+      actions: [],
+      refusal: fr.compass.transportFull,
+    };
+
+  // A transport is a rendezvous at its current address. Keeping the exact point lets the
+  // arriving troops compose one pile with it; its later orders never redirect this march.
+  const fan = fanOf(
+    target.name,
+    view,
+    column,
+    [
+      {
+        kind: 'point',
+        lon: station.lonLat[0],
+        lat: station.lonLat[1],
+        coastal: station.coastal,
+        onLand: target.onLand,
+      },
+    ],
+    false,
+  );
+  return {
+    ...fan,
+    actions: fan.actions.map((action) =>
+      action.key !== 'aim'
+        ? action
+        : {
+            ...action,
+            label: fr.compass.garrison,
+            pictogram: 'doorway',
+            consequence: fr.compass.joinTransport,
+          },
+    ),
+  };
 }
 
 /** L'adresse d'une pile posée est un point, toujours : une garnison se lit sur le mât déjà

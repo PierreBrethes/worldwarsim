@@ -6,6 +6,7 @@ import {
   countryAmong,
   countryAt,
   isCoastCell,
+  isLandCell,
 } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import worldAsset from '../public/world.json';
@@ -60,6 +61,11 @@ export function routeBetween(
 export function coastAtPoint(point: LonLat): boolean {
   grid ??= buildGrid(world);
   return isCoastCell(grid, point);
+}
+
+export function landAtPoint(point: LonLat): boolean {
+  grid ??= buildGrid(world);
+  return isLandCell(grid, point);
 }
 
 /**

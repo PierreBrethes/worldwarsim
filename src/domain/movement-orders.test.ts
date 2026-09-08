@@ -33,9 +33,10 @@ const outpost: MovementAim = {
   hostCountry: 'Libya',
   coastal: false,
 };
-const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4, coastal: false };
+const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4, coastal: false, onLand: true };
 /** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
-const shore: MovementAim = { kind: 'point', lon: 10.3, lat: 36.8, coastal: true };
+const shore: MovementAim = { kind: 'point', lon: 10.3, lat: 36.8, coastal: true, onLand: true };
+const sea: MovementAim = { kind: 'point', lon: -30, lat: 40, coastal: false, onLand: false };
 
 describe('what a column may ask for', () => {
   it('offers the attack on a foreign region — founding is no longer a march', () => {
@@ -105,7 +106,13 @@ describe('an empty manifest', () => {
     afloat: false,
     coastal: false,
   };
-  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6, coastal: false };
+  const somewhere: MovementAim = {
+    kind: 'point',
+    lon: 25.2,
+    lat: 44.6,
+    coastal: false,
+    onLand: true,
+  };
 
   it('is refused for every orderable type, and for the same reason', () => {
     for (const type of ORDERABLE_TYPES) {
@@ -137,7 +144,7 @@ describe('the doors of the domains', () => {
 
   it('lets the same column leave once a port stands there', () => {
     const quay = column(['cargo'], { departureBuildings: new Set<BuildingKey>(['port']) });
-    expect(refusalOf('attack', region, quay)).toBeNull();
+    expect(refusalOf('attack', sea, quay)).toBeNull();
   });
 
   it('refuses an air column leaving ground with no airfield', () => {
@@ -179,8 +186,8 @@ describe('the doors of the domains', () => {
    */
   it('asks no port of a fleet already at sea — there is no quay to leave from out there', () => {
     const posted = column(['escort', 'cargo'], { afloat: true });
-    expect(refusalOf('attack', region, posted)).toBeNull();
-    expect(refusalOf('march', point, posted)).toBeNull();
+    expect(refusalOf('attack', shore, posted)).toBeNull();
+    expect(refusalOf('march', sea, posted)).toBeNull();
   });
 
   it('still asks it of the same fleet at a quayless coast — afloat is the point, not the pile', () => {
@@ -232,6 +239,15 @@ describe('the doors of the domains', () => {
  * (ADR 0015).
  */
 describe('where a landing column may put its boots down', () => {
+  it('keeps a landed infantry on land and a cargo on the water or shore', () => {
+    expect(legalMovementTypes(sea, column(['infantry'], { coastal: true }))).toEqual([]);
+    expect(refusalOf('march', sea, column(['infantry']))).toBe('LAND_TARGET_REQUIRED');
+    const cargo = column(['cargo'], { coastal: true });
+    expect(legalMovementTypes(point, cargo)).toEqual([]);
+    expect(refusalOf('march', point, cargo)).toBe('SEA_TARGET_REQUIRED');
+    expect(legalMovementTypes(sea, cargo)).toEqual(['march', 'attack']);
+    expect(legalMovementTypes(shore, cargo)).toEqual(['march', 'attack']);
+  });
   const landing = (held: Partial<Column> = {}) =>
     column(['infantry', 'cargo'], {
       departureBuildings: new Set<BuildingKey>(['barracks', 'port']),
@@ -318,7 +334,7 @@ describe('the places aboard', () => {
   it('asks nothing of a pile that never leaves its own medium', () => {
     const many: ReadonlyArray<UnitRole> = Array<UnitRole>(9).fill('armor');
     expect(refusalOf('attack', region, quay(many))).toBeNull();
-    expect(refusalOf('attack', region, quay(['escort', 'escort', 'carrier']))).toBeNull();
+    expect(refusalOf('attack', sea, quay(['escort', 'escort', 'carrier']))).toBeNull();
   });
 });
 
@@ -368,7 +384,13 @@ describe('the terrain a column travels on', () => {
  * the rule can say almost nothing about it — and that silence is the point.
  */
 describe('a point as a destination', () => {
-  const somewhere: MovementAim = { kind: 'point', lon: 25.2, lat: 44.6, coastal: false };
+  const somewhere: MovementAim = {
+    kind: 'point',
+    lon: 25.2,
+    lat: 44.6,
+    coastal: false,
+    onLand: true,
+  };
 
   it('takes a march, at any scale and with no region drawn', () => {
     expect(legalMovementTypes(somewhere, column(['infantry']))).toEqual(['march', 'attack']);

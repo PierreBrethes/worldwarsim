@@ -25,7 +25,7 @@ import { buildingLevel } from '../buildings';
 import { MAX_HQ_LEVEL, RELAY_SPEED_MULTIPLIER, outpostReachKm, routeMinutes } from '../constants';
 import { fail } from '../errors';
 import { pointOfBuilding, regionFacts } from '../regions';
-import { coastAtPoint, hostAtPoint, routeBetween } from '../routes';
+import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
 import { fileSightings, scheduleInterception } from './detection';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
@@ -144,7 +144,13 @@ export async function aimOf(
     const point = pointOf(target.point);
     const country = hostAtPoint(point);
     return {
-      aim: { kind: 'point', lon: point[0], lat: point[1], coastal: coastAtPoint(point) },
+      aim: {
+        kind: 'point',
+        lon: point[0],
+        lat: point[1],
+        coastal: coastAtPoint(point),
+        onLand: landAtPoint(point),
+      },
       target: { kind: 'point', point: target.point },
       point,
       name: country,

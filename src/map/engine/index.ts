@@ -22,7 +22,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { isTyping } from '@/map/typing';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
-import { buildGrid, coastCellsIn, isCoastCell, type RouteGrid } from '@/domain/routing';
+import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { ReachRing } from './reach';
@@ -724,6 +724,11 @@ export class MapEngine {
   coastAt(lonLat: LonLat): boolean {
     this.routeGrid ??= buildGrid(this.world);
     return isCoastCell(this.routeGrid, lonLat);
+  }
+
+  landAt(lonLat: LonLat): boolean {
+    this.routeGrid ??= buildGrid(this.world);
+    return isLandCell(this.routeGrid, lonLat);
   }
 
   private coastOfRegion(regionId: string): ReadonlyArray<CoastSpot> {

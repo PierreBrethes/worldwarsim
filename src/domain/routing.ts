@@ -236,6 +236,11 @@ export function computeRoute(
 ): ComputedRoute | null {
   if (mode === 'air') return airRoute(grid, from, to);
 
+  // Snapping may find a neighboring water cell for a quay, never replace the destination
+  // with another shore: the arrival records the point the player actually chose.
+  if (mode === 'land' && !isLandCell(grid, to)) return null;
+  if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
+
   const allowed = mode === 'land' ? [LAND] : mode === 'naval' ? [SEA] : [LAND, SEA];
   const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
   const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
@@ -325,6 +330,9 @@ function airRoute(grid: RouteGrid, from: LonLat, to: LonLat): ComputedRoute {
     landCost: COST_BY_MEDIUM.land,
   };
 }
+
+export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
+  grid.cells[projectOnGrid(grid, lonLat)] === LAND;
 
 /**
  * **A coast, as the routing knows one** — a land cell touching the sea, and nothing else. It is

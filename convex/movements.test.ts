@@ -23,8 +23,8 @@ import {
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { regionFacts } from './regions';
-import { pointOf } from './movement/forces';
-import { coastAtPoint, routeBetween } from './routes';
+import { asPoint, pointOf } from './movement/forces';
+import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -1702,7 +1702,7 @@ describe('a march goes to a point and the column stays there', () => {
     // The same order goes through the moment the headquarters carries a wider one.
     await setHqLevel(t, token, 2);
     expect((await t.query(api.view.playerView, { token })).me.slots.total).toBe(3);
-    await send(600);
+    await send(100);
   });
 
   /**
@@ -1919,7 +1919,13 @@ describe('the door of the sea, read on the pile', () => {
       'NO_PORT_AT_DEPARTURE',
     );
 
-    const aim: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1], coastal: true };
+    const aim: MovementAim = {
+      kind: 'point',
+      lon: KENT[0],
+      lat: KENT[1],
+      coastal: true,
+      onLand: true,
+    };
     const quayless: Column = {
       roles: ['infantry', 'cargo'],
       myRegionIds: new Set([NORD]),
@@ -1964,12 +1970,19 @@ describe('the door of the sea, read on the pile', () => {
       afloat: false,
       coastal: false,
     };
-    const beach: MovementAim = { kind: 'point', lon: KENT[0], lat: KENT[1], coastal: true };
+    const beach: MovementAim = {
+      kind: 'point',
+      lon: KENT[0],
+      lat: KENT[1],
+      coastal: true,
+      onLand: true,
+    };
     const inland: MovementAim = {
       kind: 'point',
       lon: MIDLANDS[0],
       lat: MIDLANDS[1],
       coastal: false,
+      onLand: true,
     };
     expect(coastAtPoint(KENT)).toBe(true);
     expect(coastAtPoint(MIDLANDS)).toBe(false);
@@ -2028,6 +2041,67 @@ describe('the door of the sea, read on the pile', () => {
     ).resolves.toBeDefined();
   });
 
+  it('refuses the landed infantry a sea destination in both preview and send', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const { infantry, beach } = await landAtKent(t, token);
+    const origin = { kind: 'point' as const, point: beach };
+    const point = { lon: 1.9, lat: 52 };
+
+    expect(
+      await t.query(api.movements.preview, {
+        token,
+        origin,
+        troopIds: [infantry],
+        type: 'march',
+        target: { kind: 'point', point },
+      }),
+    ).toBeNull();
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin,
+        troopIds: [infantry],
+        point,
+      }),
+    ).rejects.toThrow('LAND_TARGET_REQUIRED');
+    expect((await t.run(async (ctx) => ctx.db.get(infantry)))!.stationedAt).toEqual(beach);
+  });
+
+  it('refuses the landed cargo an inland destination and keeps it free to sail', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const { cargo, beach } = await landAtKent(t, token);
+    const origin = { kind: 'point' as const, point: beach };
+    const point = { lon: MIDLANDS[0], lat: MIDLANDS[1] };
+
+    expect(
+      await t.query(api.movements.preview, {
+        token,
+        origin,
+        troopIds: [cargo],
+        type: 'march',
+        target: { kind: 'point', point },
+      }),
+    ).toBeNull();
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin,
+        troopIds: [cargo],
+        point,
+      }),
+    ).rejects.toThrow('SEA_TARGET_REQUIRED');
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        token,
+        origin,
+        troopIds: [cargo],
+        point: { lon: DOGGER[0], lat: DOGGER[1] },
+      }),
+    ).resolves.toBeDefined();
+  });
+
   /** Et la pile se recompose : les deux repartent ensemble par où ils sont venus — d'une plage
    *  vers une autre, puisqu'une colonne embarquée ne se pose plus sur l'eau. */
   it('re-embarks the pair from the same address, coast to coast', async () => {
@@ -2044,6 +2118,56 @@ describe('the door of the sea, read on the pile', () => {
         point: { lon, lat },
       }),
     ).resolves.toBeDefined();
+  });
+
+  it('lands at Sakhalin, rejoins the cargo at its exact address and sails back to Japan', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const quayPoint = { lon: 141.82, lat: 43.53 };
+    const quay = await raise(t, token, 'port', 'JPN-1847', quayPoint);
+    const cargo = await form(t, token, 'cargo', quay);
+    const infantry = await form(t, token, 'infantry', quay);
+    const coast = Array.from({ length: 21 }, (_, i) => [142 + i * 0.05, 47] as LonLat).find(
+      (point) => coastAtPoint(point) && hostAtPoint(point) === 'RUS',
+    );
+    expect(coast).toBeDefined();
+    const beach = asPoint(coast!);
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [cargo, infantry],
+      point: beach,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const inland = regionFacts('RUS-2616')!.point;
+    expect(landAtPoint(inland)).toBe(true);
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'point', point: beach },
+      troopIds: [infantry],
+      point: asPoint(inland),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(cargo)))!.stationedAt).toEqual(beach);
+
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'point', point: asPoint(inland) },
+      troopIds: [infantry],
+      point: beach,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(infantry)))!.stationedAt).toEqual(beach);
+
+    const { movementId } = await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'point', point: beach },
+      troopIds: [cargo, infantry],
+      point: quayPoint,
+    });
+    const movement = await t.run(async (ctx) => ctx.db.get(movementId));
+    expect(movement!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
   });
 
   /**
