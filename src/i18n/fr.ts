@@ -240,6 +240,28 @@ export const fr = {
     listening: 'écoute',
   } satisfies Record<Specialization, string>,
 
+  loot: {
+    markerCurrent: 'caisse relevée',
+    markerStale: 'dernier relevé',
+    openMarker: 'Ouvrir le relevé de caisse',
+    cardKicker: 'caisse connue',
+    current: 'à jour',
+    stale: 'ancien relevé',
+    seenAt: (date: string) => `relevée le ${date}`,
+    seenAgo: (age: string) => `ancienneté : ${age}`,
+    cargoCapacity: (carried: number, capacity: number) =>
+      `charge ${num(carried)} / ${num(capacity)}`,
+    freeCapacity: (free: number) => `capacité libre : ${num(free)}`,
+    sharedCargo: (carriers: number) =>
+      carriers > 1 ? `charge commune · ${carriers} porteurs` : 'charge embarquée',
+    missions: {
+      plunderOutbound: 'expédition vers le site',
+      plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,
+      collection: 'vers le dernier relevé',
+      cargoReturn: 'retour chargé',
+    },
+  },
+
   /**
    * **Ce que fait une spécialisation, en une phrase et avec son rayon.** L'invité choisissait à
    * l'aveugle : deux mots sur une carte, aucun chiffre, aucun effet. Le rayon est écrit ici
@@ -271,6 +293,13 @@ export const fr = {
   } satisfies Record<Medium, string>,
 
   errors: {
+    NICKNAME_INVALID: () => 'pseudo invalide — utilisez entre 3 et 16 caractères visibles',
+    PASSWORD_TOO_SHORT: () => 'mot de passe trop court — 8 octets minimum',
+    PASSWORD_TOO_LONG: () => 'mot de passe trop long — 72 octets maximum',
+    NICKNAME_TAKEN: () => 'ce pseudo est déjà utilisé',
+    BAD_CREDENTIALS: () => 'pseudo ou mot de passe incorrect',
+    ACCOUNT_NOT_FOUND: () => 'compte introuvable',
+    SESSION_TOKEN_COLLISION: () => 'impossible de créer la session — réessayez',
     UNKNOWN_TOKEN: () => 'jeton inconnu — redemandez le code de partie',
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',
@@ -377,6 +406,8 @@ export const fr = {
     UNKNOWN_TROOP: () => 'troupe inconnue',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
     INFANTRY_ONLY: () => 'seule l’infanterie fonde un avant-poste',
+    INFANTRY_REQUIRED: () => 'le pillage exige au moins une troupe d’infanterie',
+    WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
@@ -392,6 +423,7 @@ export const fr = {
       `${num(d.needed)} place${plural(Number(d.needed), '', 's')} à embarquer pour ${num(
         d.offered,
       )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
+    NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
@@ -829,6 +861,13 @@ export const fr = {
       edition: 'édition',
       productionCut: 'production coupée',
       productionRestored: 'production rétablie',
+      lootTaken: 'butin pris',
+      sitePlundered: 'site pillé',
+      siteSabotaged: 'site saboté',
+      lootLost: 'charge perdue',
+      lootRecovered: 'charge reprise',
+      lootCollected: 'caisse ramassée',
+      lootDelivered: 'butin livré',
     } satisfies Record<DispatchKind, string>,
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
@@ -876,6 +915,20 @@ export const fr = {
      *  non-lues en numéral et ne garde ici que le mot qui l'accorde. */
     unreadLabel: (count: number) => `non lue${plural(count, '', 's')}`,
     allRead: 'tout est lu',
+    worldEvents: {
+      title: 'événements mondiaux',
+      note: 'signalements publics',
+      loading: 'Les correspondances arrivent…',
+      empty: 'Aucun signalement mondial publié.',
+      published: (date: string) => `publié le ${date}`,
+      states: {
+        active: 'recherche en cours',
+        ended: 'signalement terminé',
+      },
+      report: 'Du matériel abandonné a été signalé dans cette zone.',
+      locate: 'ouvrir la zone de recherche sur la carte',
+      dismiss: 'retirer la zone de recherche de la carte',
+    },
     /**
      * **Une phrase entière par sorte, à la manière presse.** Le relevé ne nomme jamais la nation
      * ni le type : la notice ne les porte pas (`convex/validators.ts`), et la phrase ne pourrait
@@ -891,6 +944,24 @@ export const fr = {
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>
         `Édition de ${time} — vous êtes ${ordinal(rank)} au classement.`,
+      lootTaken: (building: string, region: string, loot: string) =>
+        loot === 'rien'
+          ? `${building} de ${region} neutralisé — rien à prendre.`
+          : `${building} de ${region} neutralisé — charge embarquée : ${loot}.`,
+      sitePlundered: (building: string, region: string, taken: string, storageLost: string) =>
+        `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.`,
+      siteSabotaged: (building: string, region: string) =>
+        `${building} de ${region} saboté — production interrompue.`,
+      lootLost: (loot: string) => `Charge perdue : ${loot}.`,
+      lootRecovered: (country: string, loot: string) =>
+        `Charge récupérée après combat — ${country} : ${loot}.`,
+      lootCollected: (country: string, loot: string) => `Caisse ramassée — ${country} : ${loot}.`,
+      lootDelivered: (region: string, delivered: string, lost: string) =>
+        delivered === 'rien'
+          ? `Livraison impossible en ${region} — charge perdue : ${lost}.`
+          : lost === 'rien'
+            ? `Charge livrée en ${region} : ${delivered}.`
+            : `Charge livrée en ${region} : ${delivered} ; ${lost} perdu faute de place.`,
       constructionFinished: (building: string, region: string, level: number) =>
         level <= 1
           ? `${building} en ${region} entre en service.`

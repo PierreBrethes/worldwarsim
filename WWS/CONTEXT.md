@@ -8,6 +8,8 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | Terme | Définition |
 |---|---|
 | **Saison** | Une partie complète, de la création au wipe. |
+| **Compte** | Identité durable : pseudo unique et mot de passe, conservée après suppression des saisons. Serveur C2 livré localement ; rattachement aux places et interface encore absents. |
+| **Session** | Accès à un compte par un jeton de 32 octets aléatoires. Plusieurs sessions indépendantes, sans expiration ; déconnexion de la session ou révocation de toutes les sessions lors d'une récupération admin. Distincte du jeton de partie encore utilisé par le jeu. |
 | **Horloge** | La durée d'une saison : 48 h, 7 jours, ou **sans horloge**. Une saison sans horloge se clôt à la main par son fondateur, et aucun écran n'y affiche de compte à rebours. *(révision du 27/08 de l'ADR 0017)* |
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |

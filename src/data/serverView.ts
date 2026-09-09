@@ -2,7 +2,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { TIER_2_HQ_LEVEL } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
-import type { BuildingKey } from '@/domain/ids';
+import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
@@ -11,12 +11,15 @@ import { bearingDegrees, type LonLat } from '@/domain/geo';
 import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
-import type { UnitRole } from '@/domain/ids';
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
+export type PlunderPreviewed = FunctionReturnType<typeof api.movements.previewPlunder>;
+export type LootCollectionPreviewed = FunctionReturnType<
+  typeof api.movements.previewLootCollection
+>;
 
 export function adaptServerView(world: World, server: ServerView): PlayerView {
   const countryName = isNation(server.me.nation)
@@ -105,6 +108,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({ ...troop, supplied: troop.supplied ?? true })),
+      stationedCargo: server.me.stationedCargo ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : aucune caserne n'est alors
        *  déclarée occupée, ce qui donne une ligne de trop et jamais une ligne de moins. */
       recruiting: server.me.recruiting ?? [],
@@ -130,6 +134,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     },
     buildCatalog: server.buildCatalog,
     surveyedInstallations: server.surveyedInstallations ?? [],
+    lootSightings: server.lootSightings ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta
      *  reconstitué côté client aurait besoin de l'édition précédente, que la vue ne sert pas et
      *  ne servira pas (contrat 07 P3 : pas d'historique). Un déploiement d'une version de retard
@@ -184,6 +189,8 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     type: movement.type,
     stack: stackOf(movement.roles as ReadonlyArray<UnitRole>),
     troopIds: movement.troopIds,
+    cargo: movement.cargo ?? emptyCargo(),
+    mission: movement.mission ?? null,
     minutesLeft: Math.max(0, (movement.arrivesAt - now) / 60_000),
     borderWait:
       movement.holdUntil === null
@@ -192,6 +199,16 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     progress: departed <= 0 ? 1 : Math.min(1, Math.max(0, (now - movement.departedAt) / departed)),
   };
 }
+
+const emptyCargo = () => ({
+  loot: Object.fromEntries(RESOURCES.map((resource) => [resource, 0])) as Record<
+    (typeof RESOURCES)[number],
+    number
+  >,
+  carried: 0,
+  capacity: 0,
+  free: 0,
+});
 
 /**
  * A sighting becomes an arc **in one of the two enemy states and no other**: the union is what

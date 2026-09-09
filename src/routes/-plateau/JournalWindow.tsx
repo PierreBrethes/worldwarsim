@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isAlarm } from '@/domain/journal';
+import { asDayAndTime } from '@/domain/duration';
 import { Stamp } from '@/shell/Stamp';
 import type {
   JournalDispatch,
@@ -23,12 +24,29 @@ const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
   routine: 'var(--routine)',
 };
 
+export type LootRumor = {
+  readonly id: string;
+  readonly publishedAt: number;
+  readonly center: { readonly lon: number; readonly lat: number };
+  readonly radiusKm: number;
+  readonly state: 'active' | 'ended';
+};
+
 export function JournalWindow({
   view,
   token,
+  rumors,
+  selectedRumorId,
+  onSelectRumor,
   onClose,
   ...windowProps
-}: WindowProps & { view: PlayerView; token: string }) {
+}: WindowProps & {
+  view: PlayerView;
+  token: string;
+  rumors: ReadonlyArray<LootRumor> | undefined;
+  selectedRumorId: string | null;
+  onSelectRumor: (rumor: LootRumor) => void;
+}) {
   const markRead = useMutation(api.journal.markRead);
   const dispatches = view.journal;
   const unread = dispatches.filter((dispatch) => dispatch.unread);
@@ -42,6 +60,13 @@ export function JournalWindow({
     void markRead({ token }).catch(() => undefined);
     onClose();
   }, [markRead, token, onClose]);
+  const revealRumor = useCallback(
+    (rumor: LootRumor) => {
+      onSelectRumor(rumor);
+      close();
+    },
+    [close, onSelectRumor],
+  );
 
   /** La manchette est **la première non lue**, pas la première critique : le journal s'ouvre sur
    *  ce qui a changé depuis la dernière visite, ce qui est toute sa raison d'être. */
@@ -224,6 +249,8 @@ export function JournalWindow({
             })}
           </div>
 
+          <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
+
           <ReductionLine board={view.season.reduction} />
         </div>
 
@@ -244,6 +271,80 @@ export function JournalWindow({
         </div>
       </article>
     </FloatingWindow>
+  );
+}
+
+function WorldEvents({
+  rumors,
+  selectedRumorId,
+  onSelect,
+}: {
+  rumors: ReadonlyArray<LootRumor> | undefined;
+  selectedRumorId: string | null;
+  onSelect: (rumor: LootRumor) => void;
+}) {
+  return (
+    <section className="mt-4 border-t-2 border-[var(--ink)] pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[var(--ink)] pb-2">
+        <h3 className="text-[11px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
+          {fr.journal.worldEvents.title}
+        </h3>
+        <span className="font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic">
+          {fr.journal.worldEvents.note}
+        </span>
+      </div>
+      {rumors === undefined ? (
+        <p className="py-3 font-(family-name:--font-text) text-[14px] text-[var(--ink-soft)]">
+          {fr.journal.worldEvents.loading}
+        </p>
+      ) : rumors.length === 0 ? (
+        <p className="py-3 font-(family-name:--font-text) text-[14px] text-[var(--ink-soft)]">
+          {fr.journal.worldEvents.empty}
+        </p>
+      ) : (
+        <div className="grid gap-2 py-3 @3xl:grid-cols-2">
+          {[...rumors].reverse().map((rumor) => {
+            const selected = rumor.id === selectedRumorId;
+            return (
+              <button
+                key={rumor.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onSelect(rumor)}
+                className={`cursor-pointer border px-3 py-[10px] text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)] ${
+                  rumor.state === 'ended' ? 'border-dashed' : ''
+                } ${
+                  selected
+                    ? 'border-[var(--interaction)] bg-[rgba(176,116,52,.12)]'
+                    : 'border-[rgba(42,33,24,.35)] hover:border-[var(--ink)] hover:bg-[rgba(42,33,24,.05)]'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-3 text-[10px] tracking-[.16em] uppercase">
+                  <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
+                    {fr.journal.worldEvents.published(asDayAndTime(rumor.publishedAt))}
+                  </span>
+                  <span
+                    className={
+                      rumor.state === 'active'
+                        ? 'font-bold text-[var(--interaction)]'
+                        : 'text-[var(--ink-soft)]'
+                    }
+                  >
+                    {fr.journal.worldEvents.states[rumor.state]}
+                  </span>
+                </span>
+                <span className="mt-[5px] block font-(family-name:--font-display) text-[16px] leading-[1.3] font-semibold text-[var(--ink)]">
+                  {fr.journal.worldEvents.report}
+                </span>
+                <span className="mt-1 block font-(family-name:--font-text) text-[12.5px] text-[var(--ink-soft)]">
+                  {selected ? fr.journal.worldEvents.dismiss : fr.journal.worldEvents.locate}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

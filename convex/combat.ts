@@ -167,6 +167,7 @@ export async function resolveContact(
     cargoBefore,
     engagement.outcomes,
     dispossessedPlayerId,
+    at,
   );
   await recoverDestroyedCombatCargo(ctx, {
     seasonId,

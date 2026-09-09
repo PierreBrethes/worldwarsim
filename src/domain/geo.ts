@@ -2,6 +2,7 @@ export type LonLat = readonly [lon: number, lat: number];
 
 const EARTH_RADIUS_KM = 6371;
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const toDegrees = (radians: number) => (radians * 180) / Math.PI;
 
 export function shortestLongitudeGap(lonA: number, lonB: number): number {
   const raw = lonB - lonA;
@@ -17,6 +18,26 @@ export function distanceKm(a: LonLat, b: LonLat): number {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRadians(a[1])) * Math.cos(toRadians(b[1])) * Math.sin(dLon / 2) ** 2;
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
+
+/** Follow one great-circle bearing for an exact surface distance. Longitude is folded back into
+ * the map's canonical interval, so a search disk may cross the antimeridian without splitting. */
+export function destinationPoint(origin: LonLat, distance: number, bearing: number): LonLat {
+  const angularDistance = Math.max(0, distance) / EARTH_RADIUS_KM;
+  const heading = toRadians(bearing);
+  const originLat = toRadians(origin[1]);
+  const originLon = toRadians(origin[0]);
+  const latitude = Math.asin(
+    Math.sin(originLat) * Math.cos(angularDistance) +
+      Math.cos(originLat) * Math.sin(angularDistance) * Math.cos(heading),
+  );
+  const longitude =
+    originLon +
+    Math.atan2(
+      Math.sin(heading) * Math.sin(angularDistance) * Math.cos(originLat),
+      Math.cos(angularDistance) - Math.sin(originLat) * Math.sin(latitude),
+    );
+  return [((toDegrees(longitude) + 540) % 360) - 180, toDegrees(latitude)];
 }
 
 export function crossesAntimeridian(a: LonLat, b: LonLat): boolean {

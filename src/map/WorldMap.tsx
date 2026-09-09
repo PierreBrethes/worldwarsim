@@ -16,7 +16,7 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type BuiltRegions, type HeldClaim } from './engine';
+import { MapEngine, type BuiltRegions, type HeldClaim, type SearchArea } from './engine';
 
 type Props = {
   world: World;
@@ -51,8 +51,11 @@ type Props = {
    * seul clic. La règle qui sépare les deux reste au plateau, qui seul sait ce qui se tient là.
    */
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
+  /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
+  onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
+  selectedLootLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
    * détection d'une troupe désignée. Le survol l'emporte tant qu'il dure et le rend ensuite —
@@ -97,6 +100,8 @@ type Props = {
     readonly places?: ReadonlyArray<LonLat>;
     readonly nonce: number;
   } | null;
+  /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
+  searchArea?: SearchArea | null;
 };
 
 /**
@@ -128,7 +133,9 @@ export function WorldMap({
   onSelect,
   onOpenBuilding,
   onOpenStack,
+  onOpenLoot,
   selectedLabel = null,
+  selectedLootLabel = null,
   reach = null,
   onCountryHover,
   onRegionHover,
@@ -143,6 +150,7 @@ export function WorldMap({
   designatedRegions = NO_REGIONS,
   onDesignateRegion,
   focus = null,
+  searchArea = null,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
@@ -408,6 +416,10 @@ export function WorldMap({
   }, [readyEngine, focus]);
 
   useEffect(() => {
+    readyEngine?.showSearchArea(searchArea);
+  }, [readyEngine, searchArea]);
+
+  useEffect(() => {
     engine.current?.accentArc(accentedMovement);
   }, [accentedMovement]);
 
@@ -456,11 +468,13 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         selected={selectedLabel}
+        secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}
+        onOpenLoot={onOpenLoot ?? (() => {})}
         onContextMenu={onLabelMenu}
         muted={placing !== null}
       />

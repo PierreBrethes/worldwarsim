@@ -107,6 +107,13 @@ export const LOOT_LOAD = v.object({
   loot: RESOURCE_AMOUNTS,
   plunderReportId: v.optional(v.id('plunderReports')),
   recoveryId: v.optional(v.id('lootRecoveries')),
+  collectionId: v.optional(v.id('lootCollections')),
+});
+
+export const LOOT_COLLECTION_MISSION = v.object({
+  sightingId: v.id('lootCrateSightings'),
+  crateId: v.id('lootCrates'),
+  orderedAt: v.number(),
 });
 
 export const PLUNDER_MISSION = v.union(
@@ -334,6 +341,51 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('editionPublished'),
     rank: v.number(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootTaken'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    loot: RESOURCE_AMOUNTS,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('sitePlundered'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    taken: RESOURCE_AMOUNTS,
+    storageLost: RESOURCE_AMOUNTS,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('siteSabotaged'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootLost'),
+    loot: RESOURCE_AMOUNTS,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootRecovered'),
+    hostCountry: v.string(),
+    loot: RESOURCE_AMOUNTS,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootCollected'),
+    hostCountry: v.string(),
+    loot: RESOURCE_AMOUNTS,
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootDelivered'),
+    regionId: v.string(),
+    delivered: RESOURCE_AMOUNTS,
+    lost: RESOURCE_AMOUNTS,
   }),
   /**
    * **The one event of the game that used to leave no trace at all.** An attack or a raid that

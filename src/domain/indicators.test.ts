@@ -36,6 +36,8 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   pictogram: null,
   plate: null,
   deposit: null,
+  lootSightingId: null,
+  lootCurrent: true,
   lines: [],
   identified: false,
   offensive: false,

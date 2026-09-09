@@ -47,7 +47,10 @@ export function EdgeIndicators({
     () =>
       new Map(
         labels
-          .filter((label) => toggles[CATEGORY_BY_TYPE[label.type]])
+          .filter((label) => {
+            const category = CATEGORY_BY_TYPE[label.type];
+            return category !== undefined && toggles[category];
+          })
           .map((label) => [label.id, label] as const),
       ),
     [labels, toggles],
@@ -62,10 +65,12 @@ export function EdgeIndicators({
     const raw = latest.current.flatMap<RawIndicator>((projection) => {
       const label = kept.get(projection.id);
       if (!projection.atEdge || label === undefined) return [];
+      const category = CATEGORY_BY_TYPE[label.type];
+      if (category === undefined) return [];
       return [
         {
           id: projection.id,
-          category: CATEGORY_BY_TYPE[label.type],
+          category,
           priority: label.priority,
           x: projection.edgeX,
           y: projection.edgeY,

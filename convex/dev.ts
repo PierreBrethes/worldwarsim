@@ -4,10 +4,9 @@ import { heldOf } from './control';
 import { viewOf } from './view';
 
 /**
- * **Every table of the game, and the whole of it.** Exported rather than inlined so a test can
- * hold it against `schema.tables`: a table left out survives the wipe as an orphan nobody can
- * reach — no token names it and no season owns it — and it is exactly what a schema slice landing
- * mid-season would leave behind, since nothing here is migrated.
+ * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
+ * partition test can hold it together with `IDENTITY_TABLES` against `schema.tables`: a game
+ * table left out survives the wipe as an orphan nobody can reach.
  */
 export const GAME_TABLES = [
   'editions',
@@ -22,7 +21,9 @@ export const GAME_TABLES = [
   'engagements',
   'plunderReports',
   'lootRecoveries',
+  'lootCollections',
   'lootCrates',
+  'lootRumors',
   'lootCrateSightings',
   'lootCrateDetectionJobs',
   'stationedLoot',
@@ -35,10 +36,14 @@ export const GAME_TABLES = [
   'seasons',
 ] as const;
 
+/** Durable identity survives both a single-season destruction and the development game reset. */
+export const IDENTITY_TABLES = ['accounts', 'sessions'] as const;
+
 /**
  * **Wipes every game table.** A season is disposable by design — 48 hours to 7 days, then a
  * full reset (ADR 0001) — so a schema slice that lands mid-season is not migrated, it is
- * emptied: the old documents describe an economy that no longer exists.
+ * emptied: the old documents describe an economy that no longer exists. Accounts and sessions
+ * are durable identity and deliberately stay outside `GAME_TABLES`.
  *
  * `internalMutation`, so no client can reach it. Run it by hand:
  * `npx convex run dev:reset`.

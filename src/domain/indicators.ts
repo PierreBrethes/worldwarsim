@@ -24,7 +24,8 @@ export type IndicatorCategory =
   | 'inbound'
   | 'intel';
 
-export const CATEGORY_BY_TYPE: Readonly<Record<LabelType, IndicatorCategory>> = {
+/** Private loot stays on the board only; it does not create a new global edge inventory. */
+export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, IndicatorCategory>>> = {
   building: 'buildings',
   deposit: 'deposits',
   outpost: 'outposts',

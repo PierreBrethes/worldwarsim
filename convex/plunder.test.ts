@@ -326,6 +326,51 @@ describe('surveyed plunder targets', () => {
   });
 });
 
+describe('public plunder order', () => {
+  it('files the surveyed enemy installation through the common movement corridor', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const barracks = await building(t, token, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, token, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, token);
+
+    const filed = await t.mutation(api.movements.plunder, {
+      token,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [infantry],
+      buildingId: warehouseId,
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(filed.movementId))).toMatchObject({
+      playerId: (await playerOf(t, token))._id,
+      type: 'march',
+      target: { kind: 'building', buildingId: warehouseId },
+      plunder: { phase: 'outbound', buildingId: warehouseId },
+      troopIds: [infantry],
+    });
+  });
+
+  it('rolls back the departure when the selected column has no infantry', async () => {
+    const t = boot();
+    const { token, guest } = await launchedSeason(t);
+    const barracks = await building(t, token, 'barracks', undefined, MARNE);
+    const armor = await troop(t, token, 'armor', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, token);
+
+    await expect(
+      t.mutation(api.movements.plunder, {
+        token,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [armor],
+        buildingId: warehouseId,
+      }),
+    ).rejects.toThrow('INFANTRY_REQUIRED');
+    expect(await t.run((ctx) => ctx.db.query('movements').collect())).toEqual([]);
+  });
+});
+
 describe('plunder presence', () => {
   beforeEach(() => {
     vi.useFakeTimers();

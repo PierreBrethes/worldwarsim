@@ -16,6 +16,7 @@ import {
 } from './constants';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
+import { GAME_TABLES } from './dev';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -924,17 +925,15 @@ describe('scrapping a season', () => {
   });
 
   /**
-   * **The purge is checked against the schema, never against a list written here.** A table that
-   * `erasePlayer` forgets leaves rows nobody can reach — no token names them and no season owns
-   * them — and the only reader that notices is one that walks `schema.tables` itself. The season
-   * below is the widest one the game can produce today: a march, an outpost, an engagement, a
-   * sighting, a queue and a lot.
+   * **The purge is checked against the exhaustive game partition.** A table that `erasePlayer`
+   * forgets leaves rows nobody can reach — no game token names them and no season owns them. The
+   * season below is the widest one the game can produce today: a march, an outpost, an engagement,
+   * a sighting, a queue and a lot.
    *
-   * The assertion is that the store is **empty**, not merely free of this season's rows: the run
-   * holds one season and nothing else, so the two say the same thing — and emptiness is the one
-   * form that still means something for a table added tomorrow.
+   * Every game table is empty afterward. Accounts and sessions belong to the durable identity
+   * partition and are covered by `auth.test.ts` instead.
    */
-  describe('a season that used the whole schema', () => {
+  describe('a season that used every game table', () => {
     beforeEach(() => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date(2026, 7, 17, 12, 0, 0));
@@ -1111,12 +1110,27 @@ describe('scrapping a season', () => {
           .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
           .first();
         if (carrier === null) throw new Error('carrier not found');
+        const movement = await ctx.db
+          .query('movements')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .first();
+        if (movement === null) throw new Error('movement not found');
+        const collectionId = await ctx.db.insert('lootCollections', {
+          seasonId: player.seasonId,
+          collectorPlayerId: playerId,
+          sourceCrateId: crateId,
+          sourceRecoveryId: recoveryId,
+          movementId: movement._id,
+          at: Date.now(),
+          collected: { ...empty, food: 1 },
+        });
         await ctx.db.insert('stationedLoot', {
           seasonId: player.seasonId,
           playerId,
           troopIds: [carrier._id],
           stationedAt: carrier.stationedAt,
           loot: { ...empty, food: 1 },
+          collectionId,
         });
         await ctx.db.insert('recruitments', {
           playerId,
@@ -1153,7 +1167,7 @@ describe('scrapping a season', () => {
       // And one line of the telegraph: the channel is a table of the season like any other.
       await t.mutation(api.messages.post, { token: creator, text: 'je marche sur Prahova' });
 
-      const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
+      const tables = GAME_TABLES as ReadonlyArray<TableNames>;
       const before = await countRows(t, tables);
       // Every table carries something, or the emptiness below proves nothing about it.
       expect(Object.entries(before).filter(([, rows]) => rows === 0)).toEqual([]);

@@ -12,6 +12,7 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import {
   isPlunderTarget,
+  plunderOrderRefusalOf,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -40,7 +41,7 @@ import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
-type MarchOrigin =
+export type MarchOrigin =
   | { readonly kind: 'building'; readonly buildingId: Id<'buildings'> }
   | { readonly kind: 'outpost'; readonly outpostId: Id<'outposts'> }
   | { readonly kind: 'point'; readonly point: { readonly lon: number; readonly lat: number } };
@@ -133,7 +134,7 @@ export const sameStation = (a: TroopAddress, b: TroopAddress): boolean => {
 
 /** A target resolved to a place. The **legality** of marching there is not decided here — see
  *  `refusalOf` and ADR 0015. */
-type Aimed = {
+export type Aimed = {
   readonly aim: MovementAim;
   /** The same target in the shape the table stores, brand and all — `MovementAim` is domain
    *  data and knows nothing of Convex ids. */
@@ -165,6 +166,25 @@ export async function surveyedPlunderTarget(
     fail('UNKNOWN_BUILDING');
   }
   return building;
+}
+
+/** A surveyed enemy installation is an aim only for plunder; normal building aims stay mine. */
+export async function surveyedPlunderAim(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<Aimed> {
+  const building = await surveyedPlunderTarget(ctx, player, buildingId);
+  const region = regionFacts(building.regionId);
+  const point = pointOfBuilding(building);
+  if (region === null || point === null) fail('UNKNOWN_BUILDING');
+  return {
+    aim: { kind: 'building', buildingId: building._id, key: building.key },
+    target: { kind: 'building', buildingId: building._id },
+    point,
+    name: region.name,
+    host: region.country,
+  };
 }
 
 /** Arrival revalidation is internal state handling: it never returns a reason or a target view. */
@@ -346,6 +366,7 @@ export async function march(
     origin,
     troopIds,
     aim,
+    plunder,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -354,6 +375,7 @@ export async function march(
     origin: MarchOrigin;
     troopIds: ReadonlyArray<Id<'troops'>>;
     aim: Aimed;
+    plunder?: { readonly buildingId: Id<'buildings'> };
   },
 ) {
   await claimSlot(ctx, playerId);
@@ -382,7 +404,14 @@ export async function march(
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   const column = await columnOf(ctx, playerId, troops, departure);
-  const refusal = refusalOf(type, aim.aim, column);
+  const refusal =
+    plunder === undefined
+      ? refusalOf(type, aim.aim, column)
+      : plunderOrderRefusalOf(
+          aim.aim as Extract<MovementAim, { kind: 'building' }>,
+          column,
+          false,
+        );
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
 
   const route = routeBetween(
@@ -419,6 +448,9 @@ export async function march(
     troopIds: [...troopIds],
     departedAt: now,
     arrivesAt,
+    ...(plunder === undefined
+      ? {}
+      : { plunder: { phase: 'outbound' as const, buildingId: plunder.buildingId } }),
     ...movementCargoFields(cargo),
   });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

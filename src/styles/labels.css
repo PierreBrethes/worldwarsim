@@ -161,6 +161,60 @@
   filter: drop-shadow(0 0 1.4px var(--paper)) drop-shadow(0 0 1.4px var(--paper));
 }
 
+/* A crate is a private observation, not a possession: no national mast and no ground shadow.
+   The stale state changes both line style and opacity so age never relies on colour alone. */
+.label--loot::before,
+.label--loot .label-bar {
+  content: none;
+  display: none;
+}
+
+.label--loot .label-block {
+  bottom: 4px;
+  left: -14px;
+  cursor: pointer;
+}
+
+.label-loot {
+  position: relative;
+  display: flex;
+  padding: 2px;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  filter: drop-shadow(0 1px 1px rgb(38 30 20 / 45%));
+}
+
+.label-loot::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+
+.label--loot.label--selected .label-loot,
+.label--loot:focus-visible .label-loot {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.label--loot-stale .label-loot {
+  border-style: dashed;
+  opacity: 0.58;
+}
+
+.label--loot-stale .label-lines {
+  opacity: 0.62;
+}
+
+.label--loot.label--glyph .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--loot.label--glyph .label-lines {
+  display: none;
+}
+
 /* A movement's head is already planted: its 3D sprite carries its own footing. */
 .label--my-movement::before,
 .label--inbound-movement::before,

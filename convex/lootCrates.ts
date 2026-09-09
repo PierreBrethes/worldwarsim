@@ -10,6 +10,8 @@ import {
   reassessLootCrateSightings,
   refreshLootCrateDetection,
 } from './movement/detection';
+import { resolveDueLootCollectionMissions } from './lootCollections';
+import { ensureLootRumor } from './lootRumors';
 
 const emptyAmounts = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
@@ -50,6 +52,12 @@ export async function materializeRecoveryRemainder(
     .unique();
   if (existing !== null) {
     if (hasLoot(recovery.remainder)) await ctx.db.patch(recoveryId, { remainder: emptyAmounts() });
+    await ensureLootRumor(ctx, {
+      seasonId: recovery.seasonId,
+      engagementId: recovery.engagementId,
+      point: [recovery.point.lon, recovery.point.lat],
+      appearedAt: recovery.at,
+    });
     return now >= existing.expiresAt ? null : existing._id;
   }
   if (!hasLoot(recovery.remainder)) return null;
@@ -73,6 +81,12 @@ export async function materializeRecoveryRemainder(
     expectedAt: expiresAt,
   });
   await ctx.db.patch(crateId, { expirationJobId });
+  await ensureLootRumor(ctx, {
+    seasonId: recovery.seasonId,
+    engagementId: recovery.engagementId,
+    point: [recovery.point.lon, recovery.point.lat],
+    appearedAt: recovery.at,
+  });
   await reassessLootCrateDetection(ctx, recovery.seasonId, now);
   return crateId;
 }
@@ -82,8 +96,8 @@ export type CrateTake = {
   readonly loot: ResourceAmounts;
 };
 
-/** Internal S6c seam. Convex serializes competing mutations, so each caller can receive only the
- * quantity left by the one committed before it; the public priority rule remains outside here. */
+/** Atomic physical take used after the S6c coordinator has sorted every due mission. Convex then
+ * serializes each remainder update, so no two collectors can receive the same unit. */
 export async function takeLootFromCrate(
   ctx: MutationCtx,
   crateId: Id<'lootCrates'>,
@@ -122,6 +136,14 @@ export const expire = internalMutation({
     if (crate === null || crate.expiresAt !== expectedAt || Date.now() < expectedAt) return;
     const season = await ctx.db.get(crate.seasonId);
     if (season === null || season.concludedAt !== null) return;
+    await resolveDueLootCollectionMissions(ctx, {
+      seasonId: crate.seasonId,
+      crateId,
+      at: expectedAt,
+      inclusive: false,
+      now: Date.now(),
+    });
+    if ((await ctx.db.get(crateId)) === null) return;
     await ctx.db.delete(crateId);
     await reassessLootCrateDetection(ctx, crate.seasonId);
   },

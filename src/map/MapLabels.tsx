@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { asDuration } from '@/domain/duration';
+import { fr } from '@/i18n/fr';
 import {
   URGENCY_MS,
   isCountdown,
@@ -13,6 +14,7 @@ import {
   type Reach,
 } from '@/domain/labels';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
+import { Glyph } from '@/shell/Glyph';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
@@ -49,11 +51,13 @@ export function MapLabels({
   labels,
   engine,
   selected,
+  secondarySelected,
   onMovementHover,
   onReachHover,
   onSelect,
   onOpenBuilding,
   onOpenStack,
+  onOpenLoot,
   onContextMenu,
   muted,
 }: {
@@ -62,6 +66,8 @@ export function MapLabels({
   /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
    *  et rien d'autre ne bouge (décision du 29/08). */
   selected: string | null;
+  /** A private crate card may coexist with the armed troop designation. */
+  secondarySelected: string | null;
   onMovementHover: (id: string | null) => void;
   /** What the label covers on the ground, while the pointer is on it and no longer. */
   onReachHover: (reach: Reach | null) => void;
@@ -77,6 +83,8 @@ export function MapLabels({
   /** L'étiquette entière, et non sa seule adresse : la carte en tire aussi la cible de la rose,
    *  qui s'ouvre avec le cartouche (décision du 30/08). */
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
+  /** Coincident private sightings cycle through one shared pointer target. */
+  onOpenLoot: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
@@ -163,7 +171,10 @@ export function MapLabels({
 
   useLayoutEffect(() => {
     states.current = new Map(
-      labels.map((label) => [label.id, { visible: false, lod: 'glyph', folded: false, fade: 1 }]),
+      labels.map((label) => [
+        label.id,
+        { visible: false, lod: 'glyph', folded: false, fade: 1, x: 0, y: 0 },
+      ]),
     );
     refreshCountdowns();
   }, [labels, refreshCountdowns]);
@@ -216,6 +227,8 @@ export function MapLabels({
         }
 
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
+        state.x = projection.x;
+        state.y = projection.y;
         if (projection.lod !== state.lod) {
           state.lod = projection.lod;
           apply(projection.id, state);
@@ -247,7 +260,10 @@ export function MapLabels({
             ref={(node) => {
               register(roots.current, label.id, node);
             }}
-            className={classesOf(label, label.id === selected)}
+            className={classesOf(label, label.id === selected || label.id === secondarySelected)}
+            role={label.lootSightingId === null ? undefined : 'button'}
+            tabIndex={label.lootSightingId === null ? undefined : 0}
+            aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
             style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
             onPointerEnter={() => {
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
@@ -260,15 +276,32 @@ export function MapLabels({
             onClick={(event) => {
               // A building's mast opens its surface and nothing else: opening a window *and*
               // moving the country selection would be two answers to one click.
-              if (label.building !== null) {
+              if (label.lootSightingId !== null) {
+                onOpenLoot(
+                  nearbyLootSightings(label, labels, states.current),
+                  event.clientX,
+                  event.clientY,
+                );
+              } else if (label.building !== null) {
                 onOpenBuilding(label.building.id, event.clientX, event.clientY);
               } else if (label.station !== null) {
                 onOpenStack(label, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
+            onKeyDown={(event) => {
+              if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                const rect = roots.current.get(label.id)?.getBoundingClientRect();
+                onOpenLoot(
+                  nearbyLootSightings(label, labels, states.current),
+                  rect === undefined ? 0 : rect.left + rect.width / 2,
+                  rect === undefined ? 0 : rect.top + rect.height / 2,
+                );
+              }
+            }}
             onContextMenu={(event) => {
               event.preventDefault();
-              onContextMenu(label, event.clientX, event.clientY);
+              if (label.lootSightingId === null) onContextMenu(label, event.clientX, event.clientY);
             }}
           >
             <div
@@ -288,6 +321,13 @@ export function MapLabels({
                   style={{ color: resourceColor(label.deposit, true) }}
                 >
                   <ResourceIcon resource={label.deposit} size={15} />
+                </span>
+              )}
+              {label.lootSightingId !== null && (
+                <span className="label-loot">
+                  <Glyph size={28}>
+                    <path d="M3.5 7.5h13v9h-13zM3.5 7.5l3-4h7l3 4M10 7.5v9M6.5 3.5 10 7.5l3.5-4" />
+                  </Glyph>
                 </span>
               )}
               {label.pictogram !== null && (
@@ -332,7 +372,36 @@ const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   construction: 'construction',
 };
 
-type RenderState = { visible: boolean; lod: DetailLevel; folded: boolean; fade: number };
+type RenderState = {
+  visible: boolean;
+  lod: DetailLevel;
+  folded: boolean;
+  fade: number;
+  x: number;
+  y: number;
+};
+
+const LOOT_CYCLE_RADIUS_PX = 30;
+
+function nearbyLootSightings(
+  clicked: MapLabel,
+  labels: ReadonlyArray<MapLabel>,
+  states: ReadonlyMap<string, RenderState>,
+): ReadonlyArray<string> {
+  const origin = states.get(clicked.id);
+  if (origin === undefined || clicked.lootSightingId === null) return [];
+  return labels
+    .filter((candidate) => {
+      if (candidate.lootSightingId === null) return false;
+      const state = states.get(candidate.id);
+      return (
+        state?.visible === true &&
+        Math.hypot(state.x - origin.x, state.y - origin.y) <= LOOT_CYCLE_RADIUS_PX
+      );
+    })
+    .sort((first, second) => first.id.localeCompare(second.id))
+    .flatMap((candidate) => (candidate.lootSightingId === null ? [] : [candidate.lootSightingId]));
+}
 
 function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement | null): void {
   if (node) map.set(id, node);
@@ -345,8 +414,12 @@ function classesOf(label: MapLabel, selected: boolean): string {
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
+    label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     selected ? 'label--selected' : '',
-    label.hostCountry === null && label.building === null && label.station === null
+    label.hostCountry === null &&
+    label.building === null &&
+    label.station === null &&
+    label.lootSightingId === null
       ? ''
       : 'label--clickable',
   ]

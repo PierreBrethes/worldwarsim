@@ -11,6 +11,8 @@ export const PALETTE = {
   worldRim: '#6b4a24',
   /** `--notable`, the rail's amber: the board's one ink for "you are here", never an alarm. */
   designated: '#b07434',
+  /** A concluded public report: retained on the map, but no longer presented as live. */
+  searchEnded: '#777166',
   rimStroke: '#3a2a18',
 } as const;
 

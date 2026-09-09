@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6c0f15a -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ad71814 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-23 valeurs marquées dans `convex/` et `src/domain/`.
+25 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -29,13 +29,15 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:645` | starting points only; no simulation models plunder presence or warehouse downtime |
 | `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:646` | starting points only; no simulation models plunder presence or warehouse downtime |
 | `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:654` | provisional lifetime; no season simulation models crate discovery or collection |
-| `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` | `{ food: 2, coal: 1 }` | `convex/constants.ts:671` | assumed; nothing measures what an outpost should cost to hold against a farm's yield |
-| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:685` | placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:710` | shaped so the relay reads as a decision rather than a rounding |
-| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:736` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
-| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:763` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
-| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:776` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
-| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:790` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
+| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:662` | provisional disclosure delay and search radius; no season simulation models them |
+| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:663` | provisional disclosure delay and search radius; no season simulation models them |
+| `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` | `{ food: 2, coal: 1 }` | `convex/constants.ts:680` | assumed; nothing measures what an outpost should cost to hold against a farm's yield |
+| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:694` | placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:719` | shaped so the relay reads as a decision rather than a rounding |
+| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:745` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
+| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:772` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:785` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
+| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:799` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:75` | assumed against the troop ceiling alone — two cargos lift half an army |

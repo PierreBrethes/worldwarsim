@@ -6,7 +6,9 @@ import { DEPOSITS, RESOURCES } from './ids';
 import {
   foundingRefusal,
   legalMovementTypes,
+  lootCollectionOrderRefusalOf,
   ORDERABLE_TYPES,
+  plunderOrderRefusalOf,
   refusalDetails,
   refusalOf,
   type Column,
@@ -74,6 +76,25 @@ export type CompassTarget =
       readonly level: number;
       readonly regionId: string;
     }
+  | {
+      /** A private survey snapshot, never the live enemy building row. */
+      readonly kind: 'installation';
+      readonly id: string;
+      readonly key: BuildingKey;
+      readonly regionId: string;
+      readonly name: string;
+    }
+  | {
+      /** The exact private crate sighting selected under the pointer. */
+      readonly kind: 'loot';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly current: boolean;
+      readonly seenAt: number;
+      readonly onLand: boolean;
+      readonly coastal: boolean;
+      readonly name: string;
+    }
   /**
    * The map itself, wherever it carries nothing clickable — the open sea, and every scale above
    * the regions' fade-in threshold, where no region is drawn to be picked. `regionId` travels
@@ -138,6 +159,8 @@ export type CompassPictogram =
    *  famille que `cabin`, et ce qui les sépare est exactement ce qui sépare les deux ordres :
    *  une marche s'arrête devant, celle-ci entre. */
   | 'doorway';
+  | 'crate'
+  | 'sabotage';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays

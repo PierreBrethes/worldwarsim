@@ -63,6 +63,8 @@ import { GroundPanel } from './-plateau/GroundPanel';
 import { NextActions } from './-plateau/NextActions';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
+import { LootCrateCard } from './-plateau/LootCrateCard';
+import type { LootRumor } from './-plateau/JournalWindow';
 
 type BuildingSite = { regionId: string; x: number; y: number };
 
@@ -77,6 +79,8 @@ type OpenGarrison = {
   readonly x: number;
   readonly y: number;
 };
+
+type OpenLoot = { readonly id: string; readonly x: number; readonly y: number };
 
 /**
  * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
@@ -354,6 +358,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     readonly places?: ReadonlyArray<LonLat>;
     readonly nonce: number;
   } | null>(null);
+  const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
+  const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
    * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
@@ -364,6 +370,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
+  const lootRumors = useQuery(api.lootRumors.list, { token });
+  const searchArea = useMemo(() => {
+    const rumor = lootRumors?.find((candidate) => candidate.id === selectedRumorId);
+    if (rumor === undefined) return null;
+    return {
+      center: [rumor.center.lon, rumor.center.lat] as LonLat,
+      radiusKm: rumor.radiusKm,
+      state: rumor.state,
+    };
+  }, [lootRumors, selectedRumorId]);
 
   /**
    * **Le repère des panneaux est le plateau, jamais la fenêtre.** Ils sont posés en absolu dans
@@ -383,6 +399,29 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }, []);
 
+  const openLoot = useCallback(
+    (ids: ReadonlyArray<string>, clientX: number, clientY: number) => {
+      const first = ids[0];
+      if (first === undefined) return;
+      const at = boardPoint(clientX, clientY);
+      setSelectedLoot((previous) => {
+        const rank = previous === null ? -1 : ids.indexOf(previous.id);
+        return { id: ids[(rank + 1) % ids.length] ?? first, ...at };
+      });
+    },
+    [boardPoint],
+  );
+
+  /** A negative observation removes the private marker and any card still attached to it. */
+  useEffect(() => {
+    setSelectedLoot((previous) =>
+      previous !== null &&
+      !view.lootSightings.some((sighting) => sighting.id === previous.id && sighting.present)
+        ? null
+        : previous,
+    );
+  }, [view.lootSightings]);
+
   const select = useCallback(
     (name: string | null) => {
       void navigate({
@@ -394,6 +433,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       });
     },
     [navigate],
+  );
+  const selectRumor = useCallback(
+    (rumor: LootRumor) =>
+      setSelectedRumorId((selected) => (selected === rumor.id ? null : rumor.id)),
+    [],
   );
 
   /**
@@ -760,6 +804,15 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   // point, because it *is* a point and colours no ground (fiche 03). Sited constructions still
   // wait for 4.7 to serve positions — see `MapMarker`.
   const markers = useMemo<ReadonlyArray<MapMarker>>(() => {
+    const loot: ReadonlyArray<MapMarker> = view.lootSightings
+      .filter((sighting) => sighting.present)
+      .map((sighting) => ({
+        kind: 'loot' as const,
+        id: `loot-${sighting.id}`,
+        sightingId: sighting.id,
+        lonLat: sighting.point,
+        current: sighting.current,
+      }));
     /**
      * **Toute la géologie, pas seulement la sienne** (décision 65a du 01/09). La bascule dessinait
      * `me.regions` au nom de l'ADR 0005 : contresens, elle protège les *joueurs* — positions,
@@ -816,7 +869,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
      */
     const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
 
-    if (!toggles.buildings) return [...deposits, ...outposts, ...stacks];
+    if (!toggles.buildings) return [...deposits, ...loot, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
@@ -870,8 +923,8 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...outposts, ...stacks, ...standing, ...raising];
-  }, [marching, view.me, view.loadedAt, toggles.buildings, toggles.deposits]);
+    return [...deposits, ...loot, ...outposts, ...stacks, ...standing, ...raising];
+  }, [marching, view.me, view.loadedAt, view.lootSightings, toggles.buildings, toggles.deposits]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
@@ -924,6 +977,27 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       km: detectionRangeOf(roles),
     };
   }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
+  const selectedLootSighting =
+    selectedLoot === null
+      ? null
+      : (view.lootSightings.find(
+          (sighting) => sighting.id === selectedLoot.id && sighting.present,
+        ) ?? null);
+  const postedCargo = useMemo(
+    () =>
+      posted === null
+        ? []
+        : view.me.stationedCargo
+            .filter((group) =>
+              group.troopIds.some((troopId) => posted.troops.some((troop) => troop.id === troopId)),
+            )
+            .map((group) => ({
+              id: group.troopIds.join('-'),
+              cargo: group.cargo,
+              carriers: group.troopIds.length,
+            })),
+    [posted, view.me.stationedCargo],
+  );
 
   const closeWindow = useCallback(
     (name: BoardWindow) => {
@@ -1059,7 +1133,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           onSelect={select}
           onOpenBuilding={openBuilding}
           onOpenStack={openStack}
+          onOpenLoot={openLoot}
           selectedLabel={posted?.labelId ?? null}
+          selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
           reach={postedReach ?? movementReach}
           onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
@@ -1074,7 +1150,16 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           designatedRegions={designated}
           onDesignateRegion={placeFoundation}
           focus={focus}
+          searchArea={searchArea}
         />
+        {selectedLoot !== null && selectedLootSighting !== null && (
+          <LootCrateCard
+            key={selectedLoot.id}
+            sighting={selectedLootSighting}
+            at={selectedLoot}
+            onClose={() => setSelectedLoot(null)}
+          />
+        )}
         {buildingSite && (
           /* Keyed on where it was aimed: a panel opened at a second point is a second panel,
              and it must not inherit the push the player gave the first (`Draggable`). */
@@ -1122,6 +1207,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             troops={posted.troops}
             at={posted}
             aiming={column !== null}
+            cargo={postedCargo}
             onOpenGunnery={() => openWindow('gunnery')}
             onClose={releasePosted}
           />
@@ -1191,7 +1277,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           };
           switch (name) {
             case 'journal':
-              return <JournalWindow key={name} view={view} token={token} {...windowProps} />;
+              return (
+                <JournalWindow
+                  key={name}
+                  view={view}
+                  token={token}
+                  rumors={lootRumors}
+                  selectedRumorId={selectedRumorId}
+                  onSelectRumor={selectRumor}
+                  {...windowProps}
+                />
+              );
             case 'telegraph':
               return (
                 <TelegraphWindow key={name} telegraph={telegraph} token={token} {...windowProps} />

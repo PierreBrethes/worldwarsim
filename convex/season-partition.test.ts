@@ -8,7 +8,7 @@ import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { landCostOf } from '../src/domain/movement-orders';
 import { DETECTION_RANGE_KM, nominalStrength, routeMinutes } from './constants';
-import { GAME_TABLES } from './dev';
+import { GAME_TABLES, IDENTITY_TABLES } from './dev';
 import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
@@ -269,11 +269,12 @@ describe('no table is swept whole', () => {
     expect(sources.length).toBeGreaterThan(10);
   });
 
-  /** **What earns `dev.ts` its exemption**: it is whitelisted because it has to read every table
-   *  whole, so the least it owes is to read *all* of them. A slice that lands mid-season is
-   *  emptied and never migrated (ADR 0001) — a table missing from the wipe is the one thing that
-   *  would make "reset the base" a false answer. */
-  it('wipes every table of the schema, since it migrates none of them', () => {
-    expect([...GAME_TABLES].sort()).toEqual(Object.keys(schema.tables).sort());
+  /** `dev.reset` purges disposable games while durable identity survives. Keeping both lists
+   * exhaustive prevents a new table from silently falling on either side of that boundary. */
+  it('classifies every schema table as game or identity state', () => {
+    expect(IDENTITY_TABLES).toEqual(['accounts', 'sessions']);
+    const identity = new Set<string>(IDENTITY_TABLES);
+    expect(GAME_TABLES.filter((table) => identity.has(table))).toEqual([]);
+    expect([...GAME_TABLES, ...IDENTITY_TABLES].sort()).toEqual(Object.keys(schema.tables).sort());
   });
 });

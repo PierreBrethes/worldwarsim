@@ -662,6 +662,10 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     .query('lootRecoveries')
     .withIndex('byRecoveringPlayer', (q) => q.eq('recoveringPlayerId', playerId))
     .collect();
+  const lootCollections = await ctx.db
+    .query('lootCollections')
+    .withIndex('byCollector', (q) => q.eq('collectorPlayerId', playerId))
+    .collect();
   const lootCrates = (
     await Promise.all(
       lootRecoveries.map((recovery) =>
@@ -679,13 +683,22 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
           .query('lootCrateDetectionJobs')
           .withIndex('bySeason', (q) => q.eq('seasonId', player.seasonId))
           .collect();
+  const lootRumors =
+    player === null
+      ? []
+      : await ctx.db
+          .query('lootRumors')
+          .withIndex('bySeason', (q) => q.eq('seasonId', player.seasonId))
+          .collect();
 
   const owned = [
     ...editions,
     ...plunderReports.values(),
     ...lootCrates,
     ...lootCrateDetectionJobs,
+    ...lootRumors,
     ...lootRecoveries,
+    ...lootCollections,
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),

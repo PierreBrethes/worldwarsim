@@ -11,10 +11,29 @@ import type {
 } from './ids';
 import type { ChainState } from './economy';
 import type { ComputedRoute } from './routing';
+import type { ResourceAmounts } from './loot';
 
 export type { ChainState, MovementType, UnitRole };
 
 export type Stack = Partial<Record<UnitRole, number>>;
+
+export type CargoView = {
+  readonly loot: ResourceAmounts;
+  readonly carried: number;
+  readonly capacity: number;
+  readonly free: number;
+};
+
+export type OwnMovementMission =
+  | {
+      readonly kind: 'plunder';
+      readonly phase: 'outbound' | 'presence';
+      readonly buildingId: string;
+      readonly presenceEndsAt: number | null;
+    }
+  | { readonly kind: 'collection'; readonly sightingId: string }
+  | { readonly kind: 'cargoReturn'; readonly regionId: string }
+  | null;
 
 /**
  * What intelligence has pierced of an enemy movement. A nested union rather than a boolean
@@ -58,6 +77,9 @@ export type ArcView =
        * order, from the very building it left.
        */
       readonly troopIds: ReadonlyArray<string>;
+      /** Exact cargo and mission data exist only on the owner's branch of the arc union. */
+      readonly cargo?: CargoView;
+      readonly mission?: OwnMovementMission;
       readonly minutesLeft: number;
       /**
        * An arrival falling inside the target's rest window stalls the movement at the
@@ -471,7 +493,14 @@ export type DispatchKind =
   /** **La production reliée qui mord, et qui lâche** (ADR 0020 §6). Une alarme et son
    *  contraire : la coupure exige une décision maintenant, le rétablissement se lit à son heure. */
   | 'productionCut'
-  | 'productionRestored';
+  | 'productionRestored'
+  | 'lootTaken'
+  | 'sitePlundered'
+  | 'siteSabotaged'
+  | 'lootLost'
+  | 'lootRecovered'
+  | 'lootCollected'
+  | 'lootDelivered';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -590,7 +619,48 @@ export type Notice =
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
   /** **Une édition a paru, et voici mon rang.** Aucun score, et surtout aucun de ceux des
    *  autres : la table se lit à la page de presse, la dépêche dit seulement qu'elle a paru. */
-  | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number };
+  | { readonly kind: 'editionPublished'; readonly at: number; readonly rank: number }
+  | {
+      readonly kind: 'lootTaken';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly loot: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'sitePlundered';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly taken: ResourceAmounts;
+      readonly storageLost: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'siteSabotaged';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+    }
+  | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
+  | {
+      readonly kind: 'lootRecovered';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly loot: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'lootCollected';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly loot: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'lootDelivered';
+      readonly at: number;
+      readonly regionName: string;
+      readonly delivered: ResourceAmounts;
+      readonly lost: ResourceAmounts;
+    };
 
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
@@ -766,6 +836,12 @@ export type PlayerView = {
     /** How many troops may stand at once, carried by the billets. `troops` holds the count. */
     readonly troopCap: number;
     readonly troops: ReadonlyArray<TroopView>;
+    /** Shared stationed loads are grouped once by their connected carrier set. */
+    readonly stationedCargo: ReadonlyArray<{
+      readonly troopIds: ReadonlyArray<string>;
+      readonly stationedAt: TroopStation;
+      readonly cargo: CargoView;
+    }>;
     /**
      * **Les bâtiments de projection qui ont un lot en main** — leurs identifiants, jamais leur
      * file : « à faire maintenant » demande si une caserne tourne, pas ce qu'elle forme, et la
@@ -790,6 +866,15 @@ export type PlayerView = {
     readonly id: string;
     readonly key: Exclude<BuildingKey, 'depot'>;
     readonly regionId: string;
+  }>;
+  /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
+  readonly lootSightings: ReadonlyArray<{
+    readonly id: string;
+    readonly point: LonLat;
+    readonly loot: ResourceAmounts;
+    readonly seenAt: number;
+    readonly present: boolean;
+    readonly current: boolean;
   }>;
   readonly arcs: ReadonlyArray<ArcView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est

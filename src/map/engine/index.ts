@@ -36,6 +36,9 @@ import { buildBoard } from './board';
 import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
+import { SearchAreaLayer, type SearchArea } from './search-area';
+
+export type { SearchArea } from './search-area';
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -91,6 +94,9 @@ const CAMERA_REST_MS = 180;
  * wait. Zoom does not move: only a cluster overflowing the field widens the view.
  */
 const JOURNEY_MS = 500;
+const SEARCH_AREA_MARGIN = 1.3;
+const SEARCH_AREA_MIN_DISTANCE = 18;
+const DEFAULT_MAX_DISTANCE = 300;
 
 /**
  * Below this accumulated motion, the gesture is a clean click and designates the aimed
@@ -126,6 +132,7 @@ export class MapEngine {
   private readonly curvature: Curvature;
   private readonly arcs: ArcLayer;
   private readonly reach: ReachRing;
+  private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly countries: CountryMesh[];
@@ -235,7 +242,7 @@ export class MapEngine {
     this.controls.minPolarAngle = 0.3;
     this.controls.maxPolarAngle = 1.15;
     this.controls.minDistance = 4;
-    this.controls.maxDistance = 300;
+    this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
     // The right button belongs to the compass rose, it drives nothing here anymore. Panning
     // goes through the pressed wheel, doubled by the space alias: many trackpads have no
@@ -269,9 +276,11 @@ export class MapEngine {
 
     this.arcs = new ArcLayer(this.frame);
     this.reach = new ReachRing(this.frame);
+    this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
     this.scene.add(this.arcs.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
     this.regions = new RegionLayer(this.frame, this.curvature);
@@ -376,6 +385,50 @@ export class MapEngine {
     };
   }
 
+  /**
+   * Frame the public uncertainty itself. Unlike an entity journey this may tighten the view:
+   * the requested subject is the whole circle, not a pin whose wider map context must survive.
+   */
+  showSearchArea(area: SearchArea | null): void {
+    this.searchArea.show(area);
+    if (area === null) {
+      this.restoreDefaultZoom();
+      return;
+    }
+
+    const { center, rim } = this.searchArea.framingPoints(area);
+    const radius = Math.max(...rim.map((point) => point.distanceTo(center)));
+    const verticalHalfFov = (this.camera.fov * Math.PI) / 360;
+    const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * this.camera.aspect);
+    const framing =
+      (radius * SEARCH_AREA_MARGIN) / Math.tan(Math.min(verticalHalfFov, horizontalHalfFov));
+    const currentDistance = this.camera.position.distanceTo(this.controls.target);
+
+    const arrivalDistance = Math.max(SEARCH_AREA_MIN_DISTANCE, framing, this.controls.minDistance);
+    // A circle cut by the map's seam occupies both canonical rims. The ordinary 300-unit
+    // orbit ceiling cannot contain that honest projection, so it is lifted only for this
+    // journey and restored once the zone is dismissed or a local zone is selected.
+    this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, currentDistance, arrivalDistance);
+    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    if (prefersReducedMotion()) {
+      this.controls.target.copy(center);
+      this.camera.position.copy(center).addScaledVector(orientation, arrivalDistance);
+      this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, arrivalDistance);
+      this.hoverDirty = true;
+      this.postponeRest();
+      return;
+    }
+    this.journey = {
+      departure: this.controls.target.clone(),
+      arrival: center,
+      orientation,
+      departureDistance: currentDistance,
+      arrivalDistance,
+      maxDistanceAtEnd: Math.max(DEFAULT_MAX_DISTANCE, arrivalDistance),
+      startMs: performance.now(),
+    };
+  }
+
   select(adm0: string | null): void {
     this.selection = adm0;
   }
@@ -472,6 +525,7 @@ export class MapEngine {
     this.frame.curvature = intensity;
     this.curvature.applyAll();
     this.reach.rebuild();
+    this.searchArea.rebuild();
     this.ghost.rebuild();
     this.arcs.rebuild();
     this.labels.rebuild();
@@ -510,6 +564,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.searchArea.dispose();
     this.ghost.dispose();
     this.arcs.dispose();
     this.regions.dispose();
@@ -775,9 +830,39 @@ export class MapEngine {
     this.hoverDirty = true;
 
     if (share === 1) {
+      if (this.journey.maxDistanceAtEnd !== undefined) {
+        this.controls.maxDistance = this.journey.maxDistanceAtEnd;
+      }
       this.journey = null;
       this.postponeRest();
     }
+  }
+
+  private restoreDefaultZoom(): void {
+    const currentDistance = this.camera.position.distanceTo(this.controls.target);
+    if (currentDistance <= DEFAULT_MAX_DISTANCE) {
+      this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
+      return;
+    }
+    if (prefersReducedMotion()) {
+      const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+      this.camera.position
+        .copy(this.controls.target)
+        .addScaledVector(orientation, DEFAULT_MAX_DISTANCE);
+      this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
+      this.hoverDirty = true;
+      this.postponeRest();
+      return;
+    }
+    this.journey = {
+      departure: this.controls.target.clone(),
+      arrival: this.controls.target.clone(),
+      orientation: this.camera.position.clone().sub(this.controls.target).normalize(),
+      departureDistance: currentDistance,
+      arrivalDistance: DEFAULT_MAX_DISTANCE,
+      maxDistanceAtEnd: DEFAULT_MAX_DISTANCE,
+      startMs: performance.now(),
+    };
   }
 
   private updateHover(): void {
@@ -879,6 +964,7 @@ type Journey = {
   readonly orientation: Vector3;
   readonly departureDistance: number;
   readonly arrivalDistance: number;
+  readonly maxDistanceAtEnd?: number;
   readonly startMs: number;
 };
 
@@ -899,3 +985,5 @@ function disposeNode(node: Object3D): void {
     single.dispose();
   }
 }
+
+const prefersReducedMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;

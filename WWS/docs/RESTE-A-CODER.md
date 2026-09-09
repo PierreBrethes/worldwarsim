@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S6b-3b terminés localement le 09/09. S6c est le prochain lot. Aucun pillage jouable livré.**
+**S1-S7c-2 terminés localement le 09/09. S8 est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -183,16 +183,26 @@ la capacité effective des survivants ; elle n'est ni détruite ni transférée 
 10. **S6b-3b — fenêtres mobiles futures** ; terminé localement (09/09) : programmer l'entrée ou
     la sortie suivante d'un détecteur mobile dans la portée d'une caisse, sans relevé anticipé,
     avec annulation et revalidation au réveil.
-11. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
-   physique ; cible vide ou expirée = retour ordinaire avec toute charge déjà portée.
-12. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
-   tiré une fois dans un disque qui contient la caisse ; la rumeur vit jusqu'à son terme public.
-13. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
-   cadré et brume ; jamais le point réel avant détection.
-14. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
-    récupération et livraison sans vérité adverse supplémentaire.
-15. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
-    cycle, les vues et les dépêches sont raccordés ; aucun drapeau générique.
+11. **S6c-1 — retour chargé commun** ; terminé localement (09/09) : sélectionner une frontière
+    tenue atteignable, estampiller le retour des charges récupérées et livrer/perdre chaque
+    provenance une fois ; sans route, conserver la charge au point réel.
+12. **S6c-2 — ramassage** ; terminé localement (09/09) : mission interne vers le dernier relevé
+    privé, prélèvement priorisé et borné à l'arrivée, puis retour physique commun ; cible vide ou
+    expirée = retour ordinaire avec toute charge antérieure.
+13. **S7a — signalement mondial** ; terminé localement (09/09) : publier après 10 min une zone
+    fixe de rayon 200 km, centre tiré une fois dans un disque qui contient la caisse ; la rumeur
+    vit jusqu'à son terme public.
+14. **S7b — journal mondial et carte** ; terminé localement (09/09) : section française, caméra
+    sur le centre, cercle entier cadré et brume ; jamais le point réel avant détection.
+15. **S7c-1 — données privées, aperçus et dépêches** ; terminé localement (09/09) : charge à
+    soi groupée par porteurs, relevés privés de caisse lus par observateur, estimations serveur
+    de pillage et de ramassage, dépêches personnelles issues des faits durables. Aucun marqueur,
+    carte, bouton ou mutation publique.
+16. **S7c-2 — lecture en interface** ; terminé localement (09/09) : charges exactes sur les
+    mouvements propres et groupes posés, marqueurs privés des caisses encore présentes et
+    cartouche de dernier relevé ; aucun geste d'ordre.
+17. **S8 — ouverture coordonnée** : ouvrir ensemble l'ordre public, son aperçu et l'interface
+    de pillage et de ramassage ; aucun drapeau générique.
 
 **Bilan S6a-1 (09/09)** : une charge en trajet reste portée par `movements.loot`. Si aucun trajet
 de retour n'existe, ou quand un retour chargé finit avant le raccordement de la livraison,
@@ -316,11 +326,92 @@ sont relus ; un travail ancien, annulé ou tardif ne reconstruit pas le passé. 
 globale de S6b-3a garde le relevé courant si un autre détecteur couvre encore la caisse. Aucun
 polling, `PlayerView`, rumeur, interface ou collecte n'est ajouté.
 
-**Point d'entrée pour S6c** : ajouter le trajet de ramassage vers une caisse connue sans encore
-l'ouvrir dans l'interface. La validation doit partir du relevé privé de l'observateur, mais
-l'arrivée relit la caisse vraie : vide, expirée ou déjà prise donne un retour ordinaire avec la
-charge antérieure ; sinon le premier arrivé prélève dans la capacité libre puis enclenche le même
-retour physique et la même livraison que les charges récupérées. L'échéance initiale ne bouge pas.
+**Bilan S6c-1 (09/09)** : `movement/cargo-return.ts` porte désormais le choix serveur commun de
+la frontière tenue atteignable et la forme unique du mouvement `return` estampillé
+`lootDelivery`. `walkHome` l'emploie pour toute charge sans plan de retour déjà engagé ; un groupe
+déjà physiquement dans une région tenue livre au point réel par le même crédit borné, et un groupe
+sans route reste sur place avec ses fragments. La récupération d'un défenseur posé suit ce chemin
+sans exiger une nouvelle expédition. `completeLootDelivery` continue de revalider le contrôle à
+l'arrivée, borne le crédit à la place disponible et attribue livré/perdu à chaque `recoveryId` ou
+rapport d'origine, une fois. Aucun ramassage, fait de collecte, vue ou geste public n'est ajouté.
+
+**Bilan S6c-2 (09/09)** : `lootCollections.ts` file une marche interne depuis un relevé privé
+`present`, y compris périmé, sans lire la caisse vraie au départ. La capacité libre est calculée
+après la charge déjà portée et un refus annule toute la transaction. À l'arrivée, les missions
+de la même caisse déjà dues sont réglées par `(arrivesAt, orderedAt, id)` : chacune prend ce
+qui reste jusqu'à sa place libre, sans partage au prorata ni report de l'échéance. Le fait
+`lootCollections` appartient au nouveau porteur et garde la caisse et la récupération sources ;
+sa livraison et ses pertes suivent `collectionId`, tandis que la récupération historique n'est
+jamais créditée pour lui. **Correctif S6c-2b** : l'index composé
+`(lootCollection.crateId, arrivesAt)` limite l'arbitre à la caisse concernée. À l'échéance, la
+mutation d'expiration lui remet directement toutes les missions strictement antérieures, puis
+supprime une fois le reliquat ; une mission retenue par la plage de repos repart après l'échéance
+sans maintenir la caisse, et une arrivée égale à celle-ci ne prélève rien. Les sondes temporaires
+ont couvert ordre inverse, expiration d'abord, repos, échéance stricte, porteur disparu et doublon,
+puis ont été supprimées. Une cible vide, disparue ou expirée déclenche le retour commun avec la
+seule charge antérieure. Aucun geste public, `PlayerView`, rumeur, journal ou interface n'est
+ajouté ; l'ouverture reste S8.
+
+**Bilan S7a (09/09)** : la première caisse d'un engagement crée un unique `lootRumors`, et les
+reliquats suivants réemploient ce fait plutôt que d'empiler des cercles révélateurs. Son centre
+est tiré une fois côté serveur dans un disque géodésique de 200 km qui contient le vrai point,
+y compris à l'antiméridien ; aucune graine, translation ou position exacte n'est stockée dans le
+fait public. Les travaux identifiés/versionnés publient à `appearedAt + 10 min` et terminent à
+l'échéance originale des 2 h. Une collecte précoce ne les annule ni ne les actualise ; un travail
+ancien, dupliqué, réveillé après le terme, orphelin ou lié à une saison conclue reste inerte. La
+query authentifiée `lootRumors.list` ne lit que ces faits de la saison et sert uniquement id,
+date de publication, centre, rayon et état public — jamais caisse, quantité, récupération ou
+combattant. Les valeurs de délai/rayon sont inscrites `@a-mesurer`. Trois sondes temporaires ont
+couvert géométrie, regroupement, confidentialité inter-saisons, collecte avant publication,
+doublons, fin, retard et saison conclue, puis ont été supprimées. Aucun journal, carte ou geste
+public n'est branché.
+
+**Bilan S7b (09/09)** : le journal consomme uniquement `lootRumors.list` dans une section
+« événements mondiaux ». Chaque entrée donne la date de publication et l'état public, sans
+compte à rebours, contenu, acteur, propriétaire ni provenance. Sa sélection transmet seulement
+centre, rayon et état à `WorldMap`, puis au moteur impératif : la caméra vise le centre public et
+cadre tout le cercle avec une marge. La carte dessine un nuage brumeux sans repère central ; le
+périmètre actif reste continu, le signalement terminé devient discontinu et plus pâle. À
+l'antiméridien, les particules indépendantes se répartissent sur les deux bords canoniques sans
+trait traversant ; le cadrage recule pour garder les deux moitiés visibles. Choisir l'entrée ferme
+le journal pour rendre la carte ; la zone reste pendant les gestes de mouvement et se retire en
+resélectionnant la même entrée. Une sonde temporaire a vérifié le découpage et le cadrage aux deux
+bords, puis a été supprimée. Aucun lecteur privé, geste de collecte, dépêche S7c ou ouverture S8
+n'est ajouté.
+
+**Bilan S7c-1 (09/09)** : `PlayerView` sert la charge exacte des seuls mouvements du joueur et
+regroupe les charges posées par ensembles de porteurs connectés, avec capacité totale, occupée et
+libre. La mission propre distingue pillage en route, présence, retour chargé et ramassage ; la
+branche adverse reste structurellement sans mission ni charge. Les relevés de caisse sont lus
+uniquement par `lootCrateSightings.byPlayer` et rendent leur dernière photographie, y compris
+périmée ou l'absence observée, sans joindre la caisse vraie ni servir son échéance.
+
+`movements.previewPlunder` et `movements.previewLootCollection` calculent côté serveur route,
+coût, arrivée et capacité après charge existante. Le premier ne lit jamais le stock adverse ; le
+second estime depuis le seul relevé possédé, même périmé, et ne lit pas la caisse réelle. Les faits
+de prise, sabotage, perte, récupération, ramassage et livraison déposent une dépêche chez leur seul
+destinataire ; les callbacks déjà consommés restent inertes et les quantités fragmentées continuent
+de s'additionner dans leur fait source. Aucun ancien propriétaire n'est averti d'un ramassage ou
+d'une expiration distante. Le rendu français générique du journal est branché, sans carte privée,
+cartouche de charge, marqueur, bouton ni mutation publique.
+
+**Contrat réalisé en S7c-2** : afficher les données privées désormais servies — charge des
+mouvements et groupes posés, relevés de caisses — dans les surfaces prévues, sans rejoindre les
+tables Convex depuis le client et sans ouvrir les gestes de pillage ou de ramassage avant S8.
+
+**Bilan S7c-2 (09/09)** : les étiquettes des seuls mouvements propres rendent leur charge exacte,
+leur capacité et leur mission quand ces lignes apportent une information. Les garnisons et le
+cartouche d'une troupe rendent chaque charge stationnée une seule fois par groupe de porteurs,
+sans la répartir fictivement. Seuls les relevés privés encore `present` plantent une caisse sur
+la carte ; un relevé qui n'est plus `current` est pointillé et délavé. Le clic ouvre une lecture
+des ressources et de la date du relevé, sans propriétaire, provenance ni échéance ; les repères
+qui se chevauchent se parcourent par clics successifs. Un relevé d'absence retire le repère et
+ferme sa lecture. La rumeur publique ne crée jamais ce marqueur et les gestes existants de
+mouvement gardent leur état.
+
+**Point d'entrée exact pour S8** : ouvrir de manière coordonnée l'ordre public côté serveur, les
+aperçus déjà servis et les entrées d'interface de pillage et de ramassage. Aucun de ces trois
+éléments ne doit être ouvert seul.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté
@@ -372,7 +463,8 @@ le geste complet au navigateur reste à contrôler.
 
 1. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
 2. Contrôle à l'œil : garnison / journal / port (04/09), presse et fondateur absent (06/09).
-3. Le moment du **wipe** pour les comptes (ADR 0022) : après la partie à deux (reco), pas pendant.
+3. La bascule **C3 des comptes** : décider du devenir des places historiques avant activation.
+   C2 ajoute le serveur sans les modifier ; aucun wipe n'est autorisé par ces lots.
 
 Livrés et commités les 04-06/09 : entrer-en-garnison · journal-corps-de-texte ·
 port-sur-la-cote · debarquement-sur-la-cote · avant-poste-tient-sa-region · fondateur-absent
@@ -385,8 +477,12 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   d'export, ancien simulateur dans `_to_delete/simulation-v1/`. **Reste à Pierre : l'export de la
   saison Japon** (`node scripts/exporter-etat-reference.mjs --token=…`, le jeton est le
   `wws-token` du navigateur) — sans lui, `WWS/simulation/` n'a plus d'état de référence du tout.
-- **comptes** — ADR 0022 **acceptée** (06/09) ; prompt *prêt* (`ready/comptes.md`) ; **à donner
-  au moment du wipe, après la partie à deux**, jamais pendant. Borne le pseudo (3-16).
+- **comptes** — C1 et **C2 serveur livrés localement le 09/09** : inscription, connexion,
+  sessions indépendantes, lecture du compte, déconnexion et récupération admin interne.
+  Comptes et sessions survivent aux purges de jeu. Voir le
+  [rapport C2](rapports/2026-09-09-comptes-c2.md). **C3 reste à cadrer** : rattachement des
+  places, identité des mutations et interface. L'ancien `ready/comptes.md` est un brief
+  historique monolithique, pas une autorisation d'effacer les places actuelles.
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (10).
 - **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
 - Ménage : `_wws_snapshot.tgz` tracké à la racine, à sortir du dépôt lors d'une passe dédiée.

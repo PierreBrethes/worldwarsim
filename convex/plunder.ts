@@ -4,7 +4,6 @@ import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { carryCapacityOf, lootFromSurplus } from '../src/domain/loot';
-import { landCostOf, routeModeOf } from '../src/domain/movement-orders';
 import {
   BASE_CAP,
   CARRY_CAPACITY_BY_ROLE,
@@ -15,15 +14,17 @@ import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
 import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
-import { asPoint } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
-import { pacedMinutes } from './movement/orders';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { allRegions, regionFacts } from './regions';
-import { routeToRegions } from './routes';
+import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './region-geometry';
 import { seasonStillPlays } from './seasons';
+import {
+  canFollowCargoReturnPlan,
+  planCargoReturn,
+  startCargoReturn,
+} from './movement/cargo-return';
 import {
   cargoTotal,
   movementCargoFields,
@@ -69,7 +70,13 @@ async function startPresence(
   engagementId: Id<'engagements'> | null,
 ): Promise<void> {
   const until = now + PLUNDER_HOURS_PRESENT * 3_600_000;
-  const returnPlan = await planReturn(ctx, movement, troops, now);
+  const returnPlan = await planCargoReturn(ctx, {
+    seasonId: movement.seasonId,
+    playerId: movement.playerId,
+    from: pointOf(movement.to),
+    roles: troops.map((troop) => troop.role),
+    now,
+  });
   await ctx.db.patch(movement._id, {
     troopIds: troops.map((troop) => troop._id),
     from: movement.to,
@@ -92,45 +99,6 @@ async function startPresence(
     movementId: movement._id,
     expectedAt: until,
   });
-}
-
-type PresenceMission = Extract<NonNullable<Doc<'movements'>['plunder']>, { phase: 'presence' }>;
-type ReturnPlan = NonNullable<PresenceMission['returnPlan']>;
-
-async function planReturn(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  troops: ReadonlyArray<Doc<'troops'>>,
-  now: number,
-): Promise<ReturnPlan | null> {
-  const regions = allRegions();
-  const held = await heldOver(ctx, movement.seasonId, regions, now);
-  const destinations = regions.filter((region) => held.get(region.id) === movement.playerId);
-  const roles = troops.map((troop) => troop.role);
-  const planned = routeToRegions(
-    pointOf(movement.to),
-    destinations,
-    routeModeOf(roles),
-    landCostOf(roles),
-  );
-  if (planned === null) return null;
-  if (planned.kind === 'standing') {
-    return { kind: 'standing', regionId: planned.regionId, point: asPoint(planned.point) };
-  }
-  const region = regionFacts(planned.regionId);
-  if (region === null) return null;
-  return {
-    kind: 'route',
-    regionId: planned.regionId,
-    point: asPoint(planned.point),
-    hostCountry: region.country,
-    points: planned.route.points.map(asPoint),
-    legs: planned.route.legs.map((leg) => ({ ...leg })),
-    distanceUnits: planned.route.distanceUnits,
-    costUnits: planned.route.costUnits,
-    landCost: planned.route.landCost,
-    minutes: await pacedMinutes(ctx, movement.playerId, planned.route, now),
-  };
 }
 
 async function plannedReturnStillHeld(
@@ -172,49 +140,6 @@ async function keepLootAtTarget(
     stationedAt: movement.to,
     loads,
   });
-}
-
-function canFollowPlan(plan: ReturnPlan, troops: ReadonlyArray<Doc<'troops'>>): boolean {
-  if (plan.kind === 'standing') return true;
-  const mode = routeModeOf(troops.map((troop) => troop.role));
-  return plan.legs.every(({ medium }) => {
-    if (medium === 'air') return mode === 'air';
-    if (medium === 'sea') return mode === 'naval' || mode === 'combined';
-    return mode === 'land' || mode === 'combined';
-  });
-}
-
-async function startPlannedReturn(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  troops: ReadonlyArray<Doc<'troops'>>,
-  plan: Extract<ReturnPlan, { kind: 'route' }>,
-  loads: ReadonlyArray<ReturnType<typeof movementCargoLoads>[number]>,
-  now: number,
-): Promise<Id<'movements'>> {
-  const arrivesAt = now + plan.minutes * 60_000;
-  const movementId = await ctx.db.insert('movements', {
-    seasonId: movement.seasonId,
-    playerId: movement.playerId,
-    type: 'return',
-    fromBuildingId: null,
-    target: { kind: 'point', point: plan.point },
-    from: movement.to,
-    to: plan.point,
-    hostCountry: plan.hostCountry,
-    points: plan.points,
-    legs: plan.legs,
-    distanceUnits: plan.distanceUnits,
-    costUnits: plan.costUnits,
-    landCost: plan.landCost,
-    troopIds: troops.map((troop) => troop._id),
-    departedAt: now,
-    arrivesAt,
-    lootDelivery: { regionId: plan.regionId, point: plan.point },
-    ...movementCargoFields(loads),
-  });
-  await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
-  return movementId;
 }
 
 export async function arriveForPlunder(
@@ -326,6 +251,44 @@ export async function completePresence(
     storageLost,
   });
   if (isWarehouse) {
+    await ctx.db.insert('notices', {
+      playerId: movement.playerId,
+      at: now,
+      kind: 'lootTaken',
+      building: target.key,
+      regionId: target.regionId,
+      loot: taken,
+    });
+  } else {
+    await ctx.db.insert('notices', {
+      playerId: movement.playerId,
+      at: now,
+      kind: 'siteSabotaged',
+      building: target.key,
+      regionId: target.regionId,
+    });
+  }
+  await ctx.db.insert(
+    'notices',
+    isWarehouse
+      ? {
+          playerId: target.playerId,
+          at: now,
+          kind: 'sitePlundered',
+          building: target.key,
+          regionId: target.regionId,
+          taken,
+          storageLost,
+        }
+      : {
+          playerId: target.playerId,
+          at: now,
+          kind: 'siteSabotaged',
+          building: target.key,
+          regionId: target.regionId,
+        },
+  );
+  if (isWarehouse) {
     const takenLoad = { loot: taken, plunderReportId: reportId };
     const allLoads = [...existingLoads, takenLoad];
     if ((await plannedReturnStillHeld(ctx, movement, now)) === false) {
@@ -338,6 +301,14 @@ export async function completePresence(
         loads: existingLoads,
       });
       await ctx.db.patch(reportId, { delivered: emptyStocks(), lost: taken });
+      if (RESOURCES.some((resource) => taken[resource] > 0)) {
+        await ctx.db.insert('notices', {
+          playerId: movement.playerId,
+          at: now,
+          kind: 'lootLost',
+          loot: taken,
+        });
+      }
     } else if (movement.plunder.returnPlan === undefined) {
       /** Pre-S6a-2b presence: keep its old homeward behavior, but never infer a delivery. */
       const [returnMovementId] = await walkHome(
@@ -356,22 +327,30 @@ export async function completePresence(
       if (returnMovementId !== undefined) await ctx.db.patch(reportId, { returnMovementId });
     } else if (
       movement.plunder.returnPlan === null ||
-      !canFollowPlan(movement.plunder.returnPlan, troops)
+      !canFollowCargoReturnPlan(
+        movement.plunder.returnPlan,
+        troops.map((troop) => troop.role),
+      )
     ) {
       await keepLootAtTarget(ctx, movement, troops, allLoads);
     } else if (movement.plunder.returnPlan.kind === 'standing') {
       await standAtTarget(ctx, troops, movement);
       const result = await creditToStorage(ctx, movement.playerId, cargoTotal(allLoads), now);
-      await recordCargoDelivery(ctx, allLoads, result.delivered, result.lost);
+      await recordCargoDelivery(ctx, allLoads, result.delivered, result.lost, {
+        playerId: movement.playerId,
+        regionId: movement.plunder.returnPlan.regionId,
+        at: now,
+      });
     } else {
-      const returnMovementId = await startPlannedReturn(
-        ctx,
-        movement,
-        troops,
-        movement.plunder.returnPlan,
-        allLoads,
+      const returnMovementId = await startCargoReturn(ctx, {
+        seasonId: movement.seasonId,
+        playerId: movement.playerId,
+        from: pointOf(movement.to),
+        troopIds: troops.map((troop) => troop._id),
+        plan: movement.plunder.returnPlan,
+        cargoFields: movementCargoFields(allLoads),
         now,
-      );
+      });
       await ctx.db.patch(reportId, { returnMovementId });
     }
   } else {
@@ -409,6 +388,9 @@ export async function completeLootDelivery(
   const recoveries = await Promise.all(
     loads.map((load) => (load.recoveryId === undefined ? null : ctx.db.get(load.recoveryId))),
   );
+  const collections = await Promise.all(
+    loads.map((load) => (load.collectionId === undefined ? null : ctx.db.get(load.collectionId))),
+  );
   if (
     reports.some(
       (report) =>
@@ -427,6 +409,15 @@ export async function completeLootDelivery(
     recoveries.some(
       (recovery, index) => loads[index]!.recoveryId !== undefined && recovery === null,
     ) ||
+    collections.some(
+      (collection) =>
+        collection !== null &&
+        (collection.collectorPlayerId !== movement.playerId ||
+          collection.seasonId !== movement.seasonId),
+    ) ||
+    collections.some(
+      (collection, index) => loads[index]!.collectionId !== undefined && collection === null,
+    ) ||
     stamp.point.lon !== movement.to.lon ||
     stamp.point.lat !== movement.to.lat ||
     !isRouteEntryPoint(pointOf(stamp.point), stamp.regionId)
@@ -439,13 +430,21 @@ export async function completeLootDelivery(
     region !== null &&
     (await heldOver(ctx, movement.seasonId, [region], now)).get(region.id) === movement.playerId;
   if (!stillHeld) {
-    await recordCargoDelivery(ctx, loads, emptyStocks(), cargoTotal(loads));
+    await recordCargoDelivery(ctx, loads, emptyStocks(), cargoTotal(loads), {
+      playerId: movement.playerId,
+      regionId: stamp.regionId,
+      at: now,
+    });
     await takeMovementCargo(ctx, current);
     return true;
   }
 
   const result = await creditToStorage(ctx, movement.playerId, cargoTotal(loads), now);
-  await recordCargoDelivery(ctx, loads, result.delivered, result.lost);
+  await recordCargoDelivery(ctx, loads, result.delivered, result.lost, {
+    playerId: movement.playerId,
+    regionId: stamp.regionId,
+    at: now,
+  });
   await takeMovementCargo(ctx, current);
   return true;
 }

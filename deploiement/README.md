@@ -18,6 +18,32 @@ Traefik, puis la clé d'admin Convex (§ Dashboard).
 
 ## Dev local (Windows, Docker Desktop)
 
+### Comptes C2 — récupération administrateur
+
+Le serveur des comptes est livré localement ; il n'est pas encore raccordé aux places ou
+à l'interface du jeu. Ces ajouts de tables ne demandent aucun wipe. Aucun déploiement n'a
+été effectué pour C2.
+
+Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction
+**interne** `auth:resetPassword` depuis la console Convex, avec les arguments
+`{"nickname":"Pierre","password":"nouveau mot de passe"}` (exemple à remplacer).
+L'équivalent CLI est `npx convex run auth:resetPassword '<objet JSON des arguments>'`.
+Utiliser la console évite de saisir le secret dans l'historique du shell. Ne pas copier de
+vrai secret dans un rapport. La fonction remplace le digest et révoque toutes les sessions
+du compte dans une transaction ; les autres appareils doivent se reconnecter. Elle ne
+crée pas de session et refuse un compte absent avec `ACCOUNT_NOT_FOUND`.
+
+Les portes publiques sont les actions Node `auth:register` et `auth:login`, la query
+`accounts:me` (`{nickname}` ou `null`) et la mutation `accounts:logout`, idempotente.
+La présence `sessions.lastSeenAt` est seulement initialisée ; son branchement attend C3.
+
+Pour C2, `npx convex codegen --typecheck disable` a échoué faute de backend local joignable
+sur `127.0.0.1:3210`. Les deux références `accounts` et `auth` ont été ajoutées mécaniquement
+à `convex/_generated/api.d.ts`, puis validées par TypeScript. Ce n'est pas une génération
+automatique réussie ni une méthode universelle pour les futurs composants Convex.
+
+### Démarrage local
+
 1. Créer `.env` à la racine (jamais commité) :
 
    ```

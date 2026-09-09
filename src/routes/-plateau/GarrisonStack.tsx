@@ -6,10 +6,18 @@ import {
 } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { carryCapacityOf } from '@/domain/loot';
-import { boards, stackRows, DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST } from '@/domain/troops';
+import {
+  boards,
+  stackRows,
+  stationKeyOf,
+  DOMAIN_BY_ROLE,
+  LIFT_CAPACITY,
+  LIFT_COST,
+} from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { CargoReadout } from './CargoReadout';
 
 /**
  * **La pile qu'on compose, et la seule.** Elle avait deux portes — le mât d'un bâtiment et une
@@ -74,6 +82,15 @@ export function GarrisonStack({
   const onLand = useMemo(() => roles.some((role) => DOMAIN_BY_ROLE[role] === 'land'), [roles]);
 
   const composes = canPrepare && !observing;
+  const cargoGroups = useMemo(
+    () =>
+      (view.me.stationedCargo ?? []).filter(
+        (group) =>
+          stationKeyOf(group.stationedAt) === stationKeyOf(station) &&
+          group.troopIds.some((troopId) => held.some((troop) => troop.id === troopId)),
+      ),
+    [held, station, view.me.stationedCargo],
+  );
 
   const toggle = (troopId: string) => {
     setPicked((previous) => {
@@ -198,6 +215,14 @@ export function GarrisonStack({
           );
         })}
       </div>
+
+      {cargoGroups.map((group) => (
+        <CargoReadout
+          key={group.troopIds.join('-')}
+          cargo={group.cargo}
+          carriers={group.troopIds.length}
+        />
+      ))}
 
       {composes && onLand && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">

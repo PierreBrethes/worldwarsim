@@ -15,7 +15,9 @@ import { isNation } from '../../src/domain/nations';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
 import {
+  cargoTotal,
   movementCargoFields,
+  recordCargoDelivery,
   splitCargoLoads,
   stationCargoLoads,
   stationMovementLoot,
@@ -42,6 +44,8 @@ import {
 } from './forces';
 import { surveyFromPoint } from '../surveys';
 import { pacedMinutes } from './orders';
+import { creditToStorage } from '../resources';
+import { planCargoReturn, startCargoReturn } from './cargo-return';
 
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
  *  disappears in three places, and all three go through here. */
@@ -552,23 +556,71 @@ export async function walkHome(
   const cargoFor = (group: ReadonlyArray<Doc<'troops'>>): HomewardCargo | undefined =>
     cargoByGroup.get(group);
 
+  const returnCargo = async (
+    group: ReadonlyArray<Doc<'troops'>>,
+    load: HomewardCargo,
+  ): Promise<Id<'movements'> | null> => {
+    const first = group[0];
+    if (first === undefined || first.playerId !== load.playerId) return null;
+    const plan = await planCargoReturn(ctx, {
+      seasonId: first.seasonId,
+      playerId: first.playerId,
+      from,
+      roles: group.map((troop) => troop.role),
+      now,
+    });
+    if (plan === null) {
+      const stationedAt = asPoint(from);
+      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt });
+      await stationCargoLoads(ctx, {
+        seasonId: first.seasonId,
+        playerId: first.playerId,
+        troopIds: group.map((troop) => troop._id),
+        stationedAt,
+        loads: load.loads,
+      });
+      return null;
+    }
+    if (plan.kind === 'standing') {
+      const stationedAt = asPoint(from);
+      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt });
+      const credited = await creditToStorage(ctx, first.playerId, cargoTotal(load.loads), now);
+      await recordCargoDelivery(ctx, load.loads, credited.delivered, credited.lost, {
+        playerId: first.playerId,
+        regionId: plan.regionId,
+        at: now,
+      });
+      return null;
+    }
+    return startCargoReturn(ctx, {
+      seasonId: first.seasonId,
+      playerId: first.playerId,
+      from,
+      troopIds: group.map((troop) => troop._id),
+      plan,
+      cargoFields: movementCargoFields(load.loads),
+      now,
+    });
+  };
+
   const attachedCargo = new Set<HomewardCargo>();
-  for (const { address, group } of staying.values()) {
+  for (const { group } of staying.values()) {
     const load = cargoFor(group);
     if (load === undefined || attachedCargo.has(load) || group[0]?.playerId !== load.playerId)
       continue;
-    await stationCargoLoads(ctx, {
-      seasonId: group[0].seasonId,
-      playerId: load.playerId,
-      troopIds: group.map((troop) => troop._id),
-      stationedAt: address,
-      loads: load.loads,
-    });
+    const movementId = await returnCargo(group, load);
+    if (movementId !== null) filed.push(movementId);
     attachedCargo.add(load);
   }
 
   for (const { home, group } of roads.values()) {
     const load = cargoFor(group);
+    if (load !== undefined && !attachedCargo.has(load) && group[0]?.playerId === load.playerId) {
+      const movementId = await returnCargo(group, load);
+      if (movementId !== null) filed.push(movementId);
+      attachedCargo.add(load);
+      continue;
+    }
     /** **Already standing on it**, and it never left — the address it has is the one it would
      *  come back to. */
     if (home.point[0] === from[0] && home.point[1] === from[1]) {

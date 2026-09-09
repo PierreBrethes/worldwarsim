@@ -120,6 +120,8 @@ export type PlunderAim = {
 export type PlunderRefusal =
   'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
 
+export type LootCollectionRefusal = 'NO_CARGO_CAPACITY';
+
 export const isPlunderTarget = (key: BuildingKey): boolean =>
   key === 'warehouse' || key === 'depot' || produces(key);
 
@@ -133,6 +135,28 @@ export function plunderRefusalOf(
   if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
+}
+
+/** Collection is a march with one additional requirement: something selected must carry home. */
+export const lootCollectionRefusalOf = (freeCapacity: number): LootCollectionRefusal | null =>
+  freeCapacity > 0 ? null : 'NO_CARGO_CAPACITY';
+
+/** Whole public-order gate, shared by the rose and filing after the target has been authorised. */
+export function plunderOrderRefusalOf(
+  aim: PlunderAim,
+  column: Column,
+  isMine: boolean,
+): PlunderRefusal | OrderRefusal | null {
+  return plunderRefusalOf(aim, column.roles, isMine) ?? refusalOf('attack', aim, column);
+}
+
+/** A collection walks like a march and must retain positive capacity after existing cargo. */
+export function lootCollectionOrderRefusalOf(
+  aim: Extract<MovementAim, { kind: 'point' }>,
+  column: Column,
+  freeCapacity: number,
+): OrderRefusal | LootCollectionRefusal | null {
+  return refusalOf('march', aim, column) ?? lootCollectionRefusalOf(freeCapacity);
 }
 
 /**

@@ -654,6 +654,15 @@ export const PLUNDER_DISABLED_HOURS = 12;
 export const LOOT_CRATE_HOURS = 2;
 
 /**
+ * The public rumor waits after the physical remainder appears, then names only a search disk.
+ * Its public end remains the crate's original deadline even when the crate was collected early.
+ *
+ * @a-mesurer provisional disclosure delay and search radius; no season simulation models them
+ */
+export const LOOT_RUMOR_DELAY_MINUTES = 10;
+export const LOOT_RUMOR_RADIUS_KM = 200;
+
+/**
  * **What one outpost costs to hold, per level and per hour** (ADR 0020 §10). It is the brake on
  * expansion, deliberately put here rather than on the founding bill: a rising founding cost
  * punishes once, at the purchase, and is then forgotten; an upkeep weighs for as long as the

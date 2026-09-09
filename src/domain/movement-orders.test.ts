@@ -8,6 +8,7 @@ import {
   motorized,
   movementBehavior,
   movementSlots,
+  lootCollectionRefusalOf,
   ORDERABLE_TYPES,
   plunderRefusalOf,
   refusalDetails,
@@ -98,6 +99,12 @@ describe('refusals', () => {
     expect(plunderRefusalOf({ ...warehouse, key: 'hq' }, ['infantry'], false)).toBe(
       'WAREHOUSE_TARGET_ONLY',
     );
+  });
+
+  it('opens collection only when the selected column has room for loot', () => {
+    expect(lootCollectionRefusalOf(1)).toBeNull();
+    expect(lootCollectionRefusalOf(0)).toBe('NO_CARGO_CAPACITY');
+    expect(lootCollectionRefusalOf(-1)).toBe('NO_CARGO_CAPACITY');
   });
 
   it('names the ground as friendly rather than the column as wrong', () => {

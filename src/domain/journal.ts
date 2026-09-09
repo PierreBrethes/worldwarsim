@@ -1,6 +1,8 @@
 import { asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
+import { RESOURCES } from './ids';
+import type { ResourceAmounts } from './loot';
 import type {
   CombatReport,
   DispatchKind,
@@ -306,8 +308,78 @@ function written(notice: Notice): Written {
         kind: 'edition',
         text: said.editionPublished(asLocalTime(notice.at), notice.rank),
       };
+    case 'lootTaken':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'lootTaken',
+        text: said.lootTaken(
+          fr.buildings[notice.building],
+          notice.regionName,
+          lootWords(notice.loot),
+        ),
+      };
+    case 'sitePlundered':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'sitePlundered',
+        text: said.sitePlundered(
+          fr.buildings[notice.building],
+          notice.regionName,
+          lootWords(notice.taken),
+          lootWords(notice.storageLost),
+        ),
+      };
+    case 'siteSabotaged':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'siteSabotaged',
+        text: said.siteSabotaged(fr.buildings[notice.building], notice.regionName),
+      };
+    case 'lootLost':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'lootLost',
+        text: said.lootLost(lootWords(notice.loot)),
+      };
+    case 'lootRecovered':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'lootRecovered',
+        text: said.lootRecovered(countryLabel(notice.hostCountry), lootWords(notice.loot)),
+      };
+    case 'lootCollected':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'lootCollected',
+        text: said.lootCollected(countryLabel(notice.hostCountry), lootWords(notice.loot)),
+      };
+    case 'lootDelivered':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'lootDelivered',
+        text: said.lootDelivered(
+          notice.regionName,
+          lootWords(notice.delivered),
+          lootWords(notice.lost),
+        ),
+      };
   }
 }
+
+const lootWords = (loot: ResourceAmounts): string => {
+  const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+  const entries = RESOURCES.filter((resource) => loot[resource] > 0).map(
+    (resource) => `${number.format(loot[resource])} ${fr.resources[resource]}`,
+  );
+  return entries.length === 0 ? 'rien' : entries.join(' · ');
+};
 
 const fromCombat = (report: CombatReport): Written => ({
   at: report.at,
@@ -351,6 +423,8 @@ const ALARMS: ReadonlyArray<DispatchKind> = [
   'firedDry',
   'sighting',
   'productionCut',
+  'sitePlundered',
+  'lootLost',
 ];
 
 export const isAlarm = (kind: DispatchKind): boolean => ALARMS.includes(kind);

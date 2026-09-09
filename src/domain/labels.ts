@@ -1,6 +1,14 @@
+import { asLocalTime } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
-import type { BuildingKey, DepositKey, MovementType, Specialization, UnitRole } from './ids';
+import {
+  RESOURCES,
+  type BuildingKey,
+  type DepositKey,
+  type MovementType,
+  type Specialization,
+  type UnitRole,
+} from './ids';
 import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
 
 /**
@@ -9,6 +17,14 @@ import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
  * so a label cannot display another kind's field by accident.
  */
 export type MapMarker =
+  | {
+      /** A private observation only: no owner, origin or expiry exists in this shape. */
+      readonly kind: 'loot';
+      readonly id: string;
+      readonly sightingId: string;
+      readonly lonLat: LonLat;
+      readonly current: boolean;
+    }
   | {
       readonly kind: 'outpost';
       readonly id: string;
@@ -135,6 +151,7 @@ export type Reach = {
 };
 
 export type LabelType =
+  | 'loot'
   | 'outpost'
   | 'stack'
   | 'construction'
@@ -195,6 +212,10 @@ export type MapLabel = {
    * no ink beside it.
    */
   readonly deposit: DepositKey | null;
+  /** The private sighting a click opens; every other label carries null. */
+  readonly lootSightingId: string | null;
+  /** False gives a known crate its stale, dashed treatment. */
+  readonly lootCurrent: boolean;
   readonly lines: ReadonlyArray<LabelLine>;
   /** An enemy movement pierced by intelligence — the mockup marks it with a state. */
   readonly identified: boolean;
@@ -244,6 +265,7 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   'my-movement': 6,
   intel: 5,
   construction: 4,
+  loot: 3,
   outpost: 3,
   stack: 2,
   building: 1,
@@ -292,9 +314,11 @@ function markerLabel(marker: MapMarker): MapLabel {
   const common = {
     id: marker.id,
     anchor: anchorOf(marker),
-    ink: marker.kind === 'deposit' ? null : marker.ink,
+    ink: marker.kind === 'deposit' || marker.kind === 'loot' ? null : marker.ink,
     plate: null,
     deposit: null,
+    lootSightingId: null,
+    lootCurrent: true,
     identified: false,
     offensive: false,
     idle: false,
@@ -306,6 +330,22 @@ function markerLabel(marker: MapMarker): MapLabel {
   } as const;
 
   switch (marker.kind) {
+    case 'loot':
+      return {
+        ...common,
+        type: 'loot',
+        priority: PRIORITY.loot,
+        pictogram: null,
+        lootSightingId: marker.sightingId,
+        lootCurrent: marker.current,
+        hostCountry: null,
+        lines: [
+          {
+            role: 'nature',
+            text: marker.current ? fr.loot.markerCurrent : fr.loot.markerStale,
+          },
+        ],
+      };
     case 'outpost':
       return {
         ...common,
@@ -407,6 +447,9 @@ function markerLabel(marker: MapMarker): MapLabel {
  */
 function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   if (arc.state === 'mine') {
+    const mission = arc.mission ?? null;
+    const cargo = arc.cargo;
+    const cargoVisible = cargo !== undefined && (cargo.carried > 0 || mission !== null);
     return {
       id: arc.id,
       type: 'my-movement',
@@ -417,13 +460,29 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       pictogram: null,
       plate: null,
       deposit: null,
+      lootSightingId: null,
+      lootCurrent: true,
       identified: false,
       offensive: false,
       idle: false,
       hostCountry: null,
       building: null,
       station: null,
-      lines: [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }],
+      lines: [
+        { role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' },
+        ...(cargoVisible
+          ? [
+              {
+                role: 'figures',
+                text: fr.loot.cargoCapacity(cargo.carried, cargo.capacity),
+              } as const,
+            ]
+          : []),
+        ...(cargo !== undefined && cargo.carried > 0
+          ? [{ role: 'figures', text: resourceAmountsLabel(cargo.loot) } as const]
+          : []),
+        ...(mission === null ? [] : [{ role: 'mention', text: missionLabel(mission) } as const]),
+      ],
     };
   }
   if (arc.state !== 'enemyDetected') return null;
@@ -456,6 +515,8 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     pictogram: null,
     plate: null,
     deposit: null,
+    lootSightingId: null,
+    lootCurrent: true,
     identified: arc.identification.pierced,
     offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
     idle: false,
@@ -468,3 +529,23 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
 
 /** Striking means attacking a nation or raiding an outpost; the rest infiltrates. */
 const OFFENSIVE_TYPES: ReadonlyArray<MovementType> = ['attack', 'raid'];
+
+const resourceAmountsLabel = (amounts: PlayerView['lootSightings'][number]['loot']): string =>
+  RESOURCES.filter((resource) => amounts[resource] > 0)
+    .map((resource) => `${amounts[resource]} ${fr.resources[resource]}`)
+    .join(' · ');
+
+function missionLabel(
+  mission: NonNullable<Extract<ArcView, { state: 'mine' }>['mission']>,
+): string {
+  switch (mission.kind) {
+    case 'plunder':
+      return mission.phase === 'presence' && mission.presenceEndsAt !== null
+        ? fr.loot.missions.plunderPresence(asLocalTime(mission.presenceEndsAt))
+        : fr.loot.missions.plunderOutbound;
+    case 'collection':
+      return fr.loot.missions.collection;
+    case 'cargoReturn':
+      return fr.loot.missions.cargoReturn;
+  }
+}

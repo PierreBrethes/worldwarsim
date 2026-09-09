@@ -294,6 +294,62 @@ describe('in aim', () => {
       ),
     ).toBeNull();
   });
+
+  it('offers plunder or sabotage on the exact surveyed installation', () => {
+    const warehouse = compassOf(
+      {
+        kind: 'installation',
+        id: 'warehouse-enemy',
+        key: 'warehouse',
+        regionId: 'ROU-310',
+        name: 'Entrepôt',
+      },
+      view,
+      column,
+      true,
+    );
+    expect(warehouse?.actions).toEqual([
+      expect.objectContaining({
+        key: 'plunder',
+        label: 'piller',
+        buildingId: 'warehouse-enemy',
+        aim: { kind: 'building', buildingId: 'warehouse-enemy', key: 'warehouse' },
+      }),
+    ]);
+
+    const producer = compassOf(
+      {
+        kind: 'installation',
+        id: 'mine-enemy',
+        key: 'mine',
+        regionId: 'ROU-310',
+        name: 'Mine',
+      },
+      view,
+      column,
+      true,
+    );
+    expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
+  });
+
+  it('offers collection only on the selected private sighting and with free capacity', () => {
+    const target = {
+      kind: 'loot' as const,
+      id: 'sighting-1',
+      point: [12.4, 44.2] as const,
+      current: false,
+      seenAt: 123,
+    };
+    expect(compassOf(target, view, column, true, null, 20)?.actions[0]).toMatchObject({
+      key: 'collect',
+      label: 'ramasser',
+      sightingId: 'sighting-1',
+    });
+    expect(compassOf(target, view, column, true, null, 0)).toMatchObject({
+      actions: [],
+      refusal: 'aucune capacité libre pour ramener ce butin',
+    });
+  });
 });
 
 /**

@@ -4,7 +4,8 @@ import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
-import { canonicalBuildingKey, BUILDINGS, type BuildingKey } from '../src/domain/ids';
+import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
+import { carryCapacityOf } from '../src/domain/loot';
 import { nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
@@ -16,6 +17,7 @@ import {
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
+  CARRY_CAPACITY_BY_ROLE,
   isCommanded,
   unlockLevel,
   troopCap,
@@ -43,6 +45,7 @@ import {
 } from './seasons';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
+import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
 
 export const playerView = query({
   args: { token: v.string() },
@@ -131,6 +134,10 @@ export async function viewOf(ctx: QueryCtx, token: string) {
       regionId: survey.regionId,
     })),
   );
+  const lootSightings = await ctx.db
+    .query('lootCrateSightings')
+    .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+    .collect();
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
@@ -148,8 +155,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
    * gains the country hosting it: the client holds no geometry and could not name the place a
    * column was left in otherwise.
    */
-  const stationOf = (troop: (typeof troops)[number]): TroopStation => {
-    const address = troop.stationedAt;
+  const stationOfAddress = (address: (typeof troops)[number]['stationedAt']): TroopStation => {
     if (address === null) return { kind: 'home' };
     if (typeof address !== 'string') {
       const point: LonLat = [address.lon, address.lat];
@@ -163,6 +169,29 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     }
     if (garrisoned.has(address)) return { kind: 'outpost', outpostId: address };
     return standing.has(address) ? { kind: 'building', buildingId: address } : { kind: 'home' };
+  };
+  const stationOf = (troop: (typeof troops)[number]): TroopStation =>
+    stationOfAddress(troop.stationedAt);
+
+  const stationedCargo = await stationedCargoGroups(ctx, season._id, player._id);
+  const totalOf = (amounts: ReturnType<typeof cargoTotal>): number =>
+    RESOURCES.reduce((sum, resource) => sum + amounts[resource], 0);
+  const capacityOf = (carriers: ReadonlyArray<(typeof troops)[number]>): number =>
+    carryCapacityOf(
+      carriers.map((troop) => ({
+        role: troop.role,
+        strength: troop.currentStrength,
+        nominalStrength: troop.nominalStrength,
+      })),
+      CARRY_CAPACITY_BY_ROLE,
+    );
+  const cargoView = (
+    loads: ReadonlyArray<ReturnType<typeof movementCargoLoads>[number]>,
+    capacity: number,
+  ) => {
+    const loot = cargoTotal(loads);
+    const carried = totalOf(loot);
+    return { loot, carried, capacity, free: Math.max(0, capacity - carried) };
   };
 
   // The board counts troops by role and forgets their tier: only the workshop distinguishes
@@ -516,6 +545,11 @@ export async function viewOf(ctx: QueryCtx, token: string) {
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
       })),
+      stationedCargo: stationedCargo.map((group) => ({
+        troopIds: group.troopIds,
+        stationedAt: stationOfAddress(group.stationedAt),
+        cargo: cargoView(group.loads, group.capacity),
+      })),
       /**
        * **Mine only.** An opponent's outpost is exactly the kind of thing the fog exists to
        * hide (ADR 0005), and the way not to leak it is not to fetch it.
@@ -613,6 +647,16 @@ export async function viewOf(ctx: QueryCtx, token: string) {
      */
     buildCatalog,
     surveyedInstallations,
+    lootSightings: lootSightings
+      .filter((sighting) => sighting.seasonId === season._id)
+      .map((sighting) => ({
+        id: sighting._id,
+        point: [sighting.point.lon, sighting.point.lat] as [number, number],
+        loot: sighting.loot,
+        seenAt: sighting.seenAt,
+        present: sighting.present,
+        current: sighting.current,
+      })),
     /**
      * **Mine only, and that is the whole design of this field.** An enemy movement is exactly
      * what the fog exists to hide (ADR 0005): the way not to leak it is not to fetch it, and
@@ -640,6 +684,30 @@ export async function viewOf(ctx: QueryCtx, token: string) {
             : movement.target.kind === 'building'
               ? regionFacts((await ctx.db.get(movement.target.buildingId))?.regionId ?? '')
               : null;
+        const carriers = movement.troopIds.flatMap((troopId) => {
+          const troop = troops.find((candidate) => candidate._id === troopId);
+          return troop === undefined ? [] : [troop];
+        });
+        const mission =
+          movement.plunder !== undefined
+            ? {
+                kind: 'plunder' as const,
+                phase: movement.plunder.phase,
+                buildingId: movement.plunder.buildingId,
+                presenceEndsAt:
+                  movement.plunder.phase === 'presence' ? movement.plunder.until : null,
+              }
+            : movement.lootCollection !== undefined
+              ? {
+                  kind: 'collection' as const,
+                  sightingId: movement.lootCollection.sightingId,
+                }
+              : movement.lootDelivery !== undefined
+                ? {
+                    kind: 'cargoReturn' as const,
+                    regionId: movement.lootDelivery.regionId,
+                  }
+                : null;
         return {
           id: movement._id,
           type: movement.type,
@@ -657,6 +725,8 @@ export async function viewOf(ctx: QueryCtx, token: string) {
           /** The troops it carries: they keep their address, so the board has to know which
            *  ones are on the road before it offers them to a second order. */
           troopIds: movement.troopIds,
+          cargo: cargoView(movementCargoLoads(movement), capacityOf(carriers)),
+          mission,
           roles: movement.troopIds.flatMap((troopId) => {
             const troop = troops.find((candidate) => candidate._id === troopId);
             return troop ? [troop.role] : [];
@@ -867,6 +937,11 @@ function named(notice: Doc<'notices'>) {
     case 'constructionCancelled':
     case 'constructionFinished':
     case 'garrisonEntered':
+    case 'lootTaken':
+    case 'sitePlundered':
+    case 'siteSabotaged':
+      return { ...notice, regionName: nameOf(notice.regionId) };
+    case 'lootDelivered':
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'recruitmentDelivered':
       return {

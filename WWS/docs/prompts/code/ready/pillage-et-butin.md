@@ -1,12 +1,12 @@
 # pillage-et-butin — piller, porter, rentrer
 
-**Clarifié le 09/09/2026 ; S5c livré en interne, pillage non jouable.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
+**Clarifié le 09/09/2026 ; S7c-2 livré, pillage non jouable.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
 dans la [file centrale](../../../RESTE-A-CODER.md#petits-lots-stockage-et-pillage--0909).
 Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree, commit ni
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4 à S6b-3b sont terminés localement le 09/09 ; S6c est le prochain lot.
+S4 à S7c-2 sont terminés localement le 09/09 ; S8 est le prochain lot.
 
 ## Sources et acquis
 
@@ -233,17 +233,91 @@ annulé, dupliqué ou tardif, il ne reconstruit jamais une observation passée. 
 globale conserve `current:true` si un autre détecteur couvre encore la caisse. Aucun polling,
 `PlayerView`, rumeur mondiale, journal, carte ou ramassage n'est branché.
 
-## Prochain lot exact — S6c, ramassage et retour physique
+## Lot livré — S6c-1, retour chargé commun et livraison
 
-Ajouter le trajet serveur vers une caisse connue par le relevé privé du joueur, sans ouvrir encore
-le geste dans l'interface. Valider groupe, capacité libre et route avec les règles existantes ; le
-point visé vient du dernier relevé, jamais d'une lecture directe de `lootCrates`. À l'arrivée,
-revalider et sérialiser sur la caisse vraie : le premier arrivé prélève jusqu'à sa capacité libre,
-sans repousser `expiresAt`, puis repart par le même calcul de retour et de frontière que les charges
-récupérées. Si la caisse est vide, expirée ou déjà prise, la colonne repart normalement avec toute
-charge qu'elle portait déjà ; aucune vérité distante n'est révélée. Conserver la fermeture publique
-jusqu'à S8 et ne brancher ni `PlayerView`, rumeur, journal ou interface. Utiliser puis supprimer une
-sonde transactionnelle ciblée, lancer format/lint/types/tests pertinents et s'arrêter avant S7.
+Le choix d'une région tenue atteignable, sa frontière d'entrée et la création du retour estampillé
+vivent dans `movement/cargo-return.ts`, commun au pillage et aux récupérations de combat. Une
+charge sans destination préexistante part vers cette frontière ; déjà dans une région tenue, elle
+est créditée au point réel sans trajet nul. Sans route, troupes et fragments restent au point du
+combat. Le contrôle est toujours relu à l'arrivée par `completeLootDelivery`, qui crédite seulement
+la place disponible, inscrit le surplus en perte et cumule chaque provenance une fois. Un défenseur
+posé qui récupère une charge emprunte le même chemin. Aucun ramassage, fait de collecte, vue ou
+geste public n'est encore branché.
+
+## Lot livré — S6c-2, mission de ramassage
+
+La mission interne vise exclusivement le point du relevé privé `lootCrateSightings` possédé par le
+joueur, même si ce relevé n'est plus courant ; elle ne lit jamais `lootCrates` au départ. Marche,
+groupe, adresse, slot, route et capacité libre après charge existante passent par les règles
+communes, et un refus annule la transaction. L'arrivée relit caisse et troupes, puis règle les
+missions dues par `(arrivesAt, orderedAt, id)`, sans partage au prorata. Chaque prélèvement crée un
+fait `lootCollections` du nouveau porteur ; `collectionId` suit le chargement, ses divisions, ses
+pertes, ses récupérations et sa livraison sans attribuer celle-ci au `lootRecoveries` source. La
+caisse garde son échéance. Le correctif S6c-2b indexe les mouvements par
+`(lootCollection.crateId, arrivesAt)` : l'expiration appelle directement le même arbitre pour les
+arrivées strictement antérieures, puis supprime le reliquat une fois, sans boucle de réveil. Une
+mission retenue par la plage de repos est reportée après l'échéance et ne maintient pas la caisse ;
+une arrivée égale à l'échéance ne prélève rien. Les sondes temporaires de priorité, expiration,
+repos, invalidation et idempotence ont été exécutées puis supprimées. Vide, disparue ou expirée,
+la caisse ne révèle rien à distance et la colonne rentre avec sa charge antérieure. Aucun
+`PlayerView`, rumeur, journal, carte ou geste public n'est branché.
+
+## Lot livré — S7a, signalement mondial différé
+
+La première caisse matérielle d'un engagement crée un fait `lootRumors` unique ; les autres
+reliquats du même engagement réemploient exactement son cercle. Le centre est échantillonné une
+fois côté serveur dans le disque géodésique de 200 km qui contient le point, sans graine ni
+translation réversible stockée. Publication et fin sont deux rendez-vous identifiés/versionnés,
+datés depuis `appearedAt` à +10 min et +2 h. Ils relisent fait, version, date et saison ; doublon,
+ancien travail, réveil après le terme, saison conclue ou purge restent inertes. La disparition ou
+le prélèvement d'une caisse ne modifient jamais la rumeur. `lootRumors.list`, authentifiée par le
+jeton de partie, lit seulement les faits de la saison et sert id, date publiée, centre, rayon et
+état public ; aucun lecteur ne joint la caisse vraie, sa quantité, sa récupération ou ses
+combattants. Délai et rayon sont `@a-mesurer`. Les sondes temporaires ont été supprimées. Aucun
+journal, carte, `PlayerView` ou geste public n'est branché.
+
+## Lot livré — S7b, journal mondial et carte
+
+Le journal consomme exclusivement `lootRumors.list` dans sa section française « événements
+mondiaux ». Chaque entrée donne la date publiée et l'état public, jamais un compte à rebours,
+contenu, combattant, propriétaire ou provenance. Sa sélection transmet seulement centre, rayon et
+état à la carte. Le moteur impératif centre la caméra sur ce centre public et cadre le cercle avec
+une marge ; il rend une brume sans marqueur exact, avec un périmètre continu pour un signalement
+actif et discontinu, plus pâle, après sa fin. À l'antiméridien, les points gardent la projection
+canonique des deux bords sans tracer de bande au travers du monde ; la caméra recule assez pour
+montrer les deux moitiés. Choisir l'entrée ferme le journal pour rendre le plateau ; la zone reste
+pendant les gestes de mouvement et se retire en resélectionnant la même entrée. La sonde UI
+temporaire a été supprimée. Aucun lecteur privé, ramassage, dépêche S7c ou geste S8 n'est ouvert.
+
+## Lot livré — S7c-1, données privées, aperçus et dépêches
+
+La vue sert la charge exacte des mouvements propres et regroupe une charge stationnée une seule
+fois par ensemble de porteurs connectés. Elle sert aussi le dernier relevé de caisse depuis le seul
+index de l'observateur, sans lecture de la caisse vraie ni échéance. Les deux aperçus serveur
+calculent route, arrivée, coût et capacité libre après charge existante ; le pillage ne lit aucun
+stock adverse et le ramassage estime uniquement depuis le relevé possédé, même périmé. Les faits
+durables déposent chez le seul joueur concerné les dépêches de prise, sabotage, perte,
+récupération, ramassage et livraison, sans identité adverse ni provenance tierce. Le journal sait
+les rendre en français. Aucun marqueur, cartouche, bouton ou ordre public n'est ajouté.
+
+## Lot livré — S7c-2, lecture privée en interface
+
+Afficher la charge des mouvements et groupes posés, puis les caisses effectivement relevées, dans
+les cartouches dédiés. Consommer uniquement `PlayerView` et les contrats d'aperçu déjà servis ; ne
+faire aucune jointure cliente vers les tables privées. Ne pas ouvrir les ordres de pillage ou de
+ramassage : l'ouverture coordonnée du serveur et de la rose reste S8.
+
+Les seuls mouvements propres affichent charge, capacité et mission lorsque ces lignes sont utiles.
+Les charges posées restent groupées une fois par ensemble de porteurs dans les garnisons et le
+cartouche de troupe. Les seuls relevés privés `present` plantent un marqueur ; `current: false`
+le rend pointillé et délavé. Le cartouche en lecture donne ressources, date et âge du relevé, sans
+propriétaire, provenance ni échéance. Des repères superposés se parcourent par clics successifs ;
+un relevé d'absence nettoie le repère et sa sélection. Aucun geste d'ordre n'est ouvert.
+
+## Prochain lot exact — S8, ouverture coordonnée
+
+Ouvrir ensemble l'ordre public côté serveur, les aperçus déjà servis et les entrées d'interface de
+pillage et de ramassage. Aucun de ces trois éléments ne doit devenir jouable isolément.
 
 ## Acceptation et arrêt
 

@@ -2,21 +2,34 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
-import type { QueryCtx } from './_generated/server';
 import {
   foundingRefusal,
   landCostOf,
   movementBehavior,
+  plunderRefusalOf,
   refusalOf,
   routeModeOf,
 } from '../src/domain/movement-orders';
 import { firstMobileEncounter } from '../src/domain/interception';
-import { windowExit } from '../src/domain/rest-window';
+import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
+import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
-import { stationCargoLoads, stationMovementLoot, takeStationedCargo } from './cargo';
+import {
+  cargoTotal,
+  selectedStationedCargo,
+  stationCargoLoads,
+  stationMovementLoot,
+  takeStationedCargo,
+} from './cargo';
 import { resolveContact } from './combat';
-import { outpostReachKm, routeMinutes } from './constants';
+import {
+  CARRY_CAPACITY_BY_ROLE,
+  PLUNDER_DISABLED_HOURS,
+  PLUNDER_HOURS_PRESENT,
+  outpostReachKm,
+  routeMinutes,
+} from './constants';
 import { fail } from './errors';
 import {
   attachHome,
@@ -42,6 +55,8 @@ import {
   march,
   pacedMinutes,
   sameStation,
+  surveyedPlunderTarget,
+  surveyedPlunderAim,
   troopsAmong,
 } from './movement/orders';
 import {
@@ -49,12 +64,16 @@ import {
   reassessDetection,
   revealSighting as revealScheduledSighting,
 } from './movement/detection';
-import { homeCountryOf, nearestRegion, regionFacts, regionOfOutpost } from './regions';
+import { nearestRegion, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
+import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
+import { restHold } from './movement/rest';
+
+export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
   CONTACT_FORCE,
@@ -324,6 +343,49 @@ export const raid = mutation({
   },
 });
 
+/** Public S8 filing: the client names a surveyed installation, never its route or consequence. */
+export const plunder = mutation({
+  args: {
+    token: v.string(),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(player, season);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'march',
+      origin,
+      troopIds,
+      aim: await surveyedPlunderAim(ctx, player, buildingId),
+      plunder: { buildingId },
+    });
+  },
+});
+
+/** Public S8 filing: the private sighting is the sole target authority exposed to the client. */
+export const collectLoot = mutation({
+  args: {
+    token: v.string(),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    sightingId: v.id('lootCrateSightings'),
+  },
+  handler: async (ctx, { token, origin, troopIds, sightingId }) => {
+    const { player, season } = await playerByToken(ctx, token);
+    requirePlayable(player, season);
+    return startLootCollectionMission(ctx, {
+      playerId: player._id,
+      sightingId,
+      origin,
+      troopIds,
+    });
+  },
+});
+
 /**
  * What the player sees before he pays: the route the march will store (ADR 0012) and the rest
  * window it would stall in (design sheet 07). **It refuses nothing** — the fan only ever offered
@@ -372,6 +434,158 @@ export const preview = query({
   },
 });
 
+const cargoPreviewOf = async (
+  ctx: Parameters<typeof selectedStationedCargo>[0],
+  player: Doc<'players'>,
+  departure: NonNullable<Awaited<ReturnType<typeof departureOf>>>,
+  troops: ReadonlyArray<Doc<'troops'>>,
+) => {
+  const loads = await selectedStationedCargo(ctx, {
+    seasonId: player.seasonId,
+    playerId: player._id,
+    stationedAt: departure.stationId,
+    troops,
+  });
+  const loot = cargoTotal(loads);
+  const carried = RESOURCES.reduce((sum, resource) => sum + loot[resource], 0);
+  const capacity = carryCapacityOf(
+    troops.map((troop) => ({
+      role: troop.role,
+      strength: troop.currentStrength,
+      nominalStrength: troop.nominalStrength,
+    })),
+    CARRY_CAPACITY_BY_ROLE,
+  );
+  return { loot, carried, capacity, free: Math.max(0, capacity - carried) };
+};
+
+const previewTroopsAt = async (
+  ctx: Parameters<typeof troopsAmong>[0],
+  playerId: Id<'players'>,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+  departure: NonNullable<Awaited<ReturnType<typeof departureOf>>>,
+) => {
+  const troops = await troopsAmong(ctx, playerId, troopIds);
+  const marching = new Set(
+    (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
+  );
+  return troops.length === troopIds.length &&
+    troops.every(
+      (troop) => sameStation(troop.stationedAt, departure.stationId) && !marching.has(troop._id),
+    )
+    ? troops
+    : null;
+};
+
+/** S7c-1 preview only. Filing remains absent until S8 opens the server and the rose together. */
+export const previewPlunder = query({
+  args: {
+    token: v.string(),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
+    const { player } = await playerByToken(ctx, token);
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (troops === null) return null;
+    const column = await columnOf(ctx, player._id, troops, departure);
+    const target = await surveyedPlunderTarget(ctx, player, buildingId);
+    if (
+      plunderRefusalOf(
+        { kind: 'building', buildingId: target._id, key: target.key },
+        column.roles,
+        target.playerId === player._id,
+      ) !== null
+    ) {
+      return null;
+    }
+    const point = pointOfBuilding(target);
+    const region = regionFacts(target.regionId);
+    if (point === null || region === null) return null;
+    const route = routeBetween(
+      departure.point,
+      point,
+      routeModeOf(column.roles),
+      landCostOf(column.roles),
+    );
+    if (route === null) return null;
+    const now = Date.now();
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, region.country, arrivesAt),
+      destinationName: region.name,
+      originName: departure.name,
+      route: routeFacts(route),
+      cargo: await cargoPreviewOf(ctx, player, departure, troops),
+      effect:
+        canonicalBuildingKey(target.key) === 'warehouse'
+          ? ('loot' as const)
+          : ('sabotage' as const),
+      presenceHours: PLUNDER_HOURS_PRESENT,
+      disabledHours: PLUNDER_DISABLED_HOURS,
+    };
+  },
+});
+
+/** The estimate is frozen from the owned sighting. The true crate is deliberately never read. */
+export const previewLootCollection = query({
+  args: {
+    token: v.string(),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    sightingId: v.id('lootCrateSightings'),
+  },
+  handler: async (ctx, { token, origin, troopIds, sightingId }) => {
+    const { player } = await playerByToken(ctx, token);
+    const sighting = await ctx.db.get(sightingId);
+    if (
+      sighting === null ||
+      sighting.playerId !== player._id ||
+      sighting.seasonId !== player.seasonId ||
+      !sighting.present
+    ) {
+      return null;
+    }
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (troops === null) return null;
+    const column = await columnOf(ctx, player._id, troops, departure);
+    const aimed = await aimOf(ctx, player._id, { kind: 'point', point: sighting.point });
+    if (refusalOf('march', aimed.aim, column) !== null) return null;
+    const route = routeBetween(
+      departure.point,
+      aimed.point,
+      routeModeOf(column.roles),
+      landCostOf(column.roles),
+    );
+    if (route === null) return null;
+    const cargo = await cargoPreviewOf(ctx, player, departure, troops);
+    if (cargo.free <= 0) return null;
+    const now = Date.now();
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const arrivesAt = now + minutes * 60_000;
+    return {
+      minutes,
+      arrivesAt,
+      holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
+      destinationName: aimed.name,
+      originName: departure.name,
+      route: routeFacts(route),
+      cargo,
+      estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
+      seenAt: sighting.seenAt,
+      current: sighting.current,
+    };
+  },
+});
+
 const routeFacts = (route: ComputedRoute) => ({
   mode: route.mode,
   points: route.points.map(asPoint),
@@ -414,6 +628,12 @@ export const arrive = internalMutation({
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    if (movement.lootCollection !== undefined) {
+      await resolveLootCollectionArrivals(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }
@@ -609,23 +829,3 @@ export const intercept = internalMutation({
     await reassessDetection(ctx, movement.seasonId);
   },
 });
-
-/** Design sheet 07: the rest window forbids arrivals at a player, never departures — neutral
- *  ground has nobody to wake. Shared by the arrival, which stalls, and by the preview, which
- *  says so before the slot is spent. */
-export async function restHold(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  hostCountry: string,
-  at: number,
-): Promise<number | null> {
-  const owner = await ctx.db.get(playerId);
-  if (!owner) return null;
-  const host = (
-    await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', owner.seasonId))
-      .collect()
-  ).find((player) => player._id !== owner._id && homeCountryOf(player.nation) === hostCountry);
-  return host ? windowExit(at, host.restWindow) : null;
-}

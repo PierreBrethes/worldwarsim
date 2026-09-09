@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as accounts from "../accounts.js";
+import type * as auth from "../auth.js";
 import type * as buildings from "../buildings.js";
 import type * as combat from "../combat.js";
 import type * as constants from "../constants.js";
@@ -19,6 +21,7 @@ import type * as holding from "../holding.js";
 import type * as industry from "../industry.js";
 import type * as journal from "../journal.js";
 import type * as lootCrates from "../lootCrates.js";
+import type * as lootRumors from "../lootRumors.js";
 import type * as messages from "../messages.js";
 import type * as movement_arrival from "../movement/arrival.js";
 import type * as movement_detection from "../movement/detection.js";
@@ -46,6 +49,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accounts: typeof accounts;
+  auth: typeof auth;
   buildings: typeof buildings;
   combat: typeof combat;
   constants: typeof constants;
@@ -57,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   industry: typeof industry;
   journal: typeof journal;
   lootCrates: typeof lootCrates;
+  lootRumors: typeof lootRumors;
   messages: typeof messages;
   "movement/arrival": typeof movement_arrival;
   "movement/detection": typeof movement_detection;

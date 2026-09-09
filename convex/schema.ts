@@ -6,6 +6,7 @@ import {
   DETECTOR,
   LON_LAT,
   LOOT_DELIVERY,
+  LOOT_COLLECTION_MISSION,
   LOOT_LOAD,
   MOVEMENT_TARGET,
   ROUTE_LEG,
@@ -42,6 +43,24 @@ import {
  */
 
 export default defineSchema({
+  accounts: defineTable({
+    nickname: v.string(),
+    nicknameKey: v.string(),
+    passwordHash: v.string(),
+    salt: v.string(),
+    iterations: v.number(),
+    createdAt: v.number(),
+  }).index('byNicknameKey', ['nicknameKey']),
+
+  sessions: defineTable({
+    accountId: v.id('accounts'),
+    token: v.string(),
+    createdAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index('byToken', ['token'])
+    .index('byAccount', ['accountId']),
+
   seasons: defineTable({
     code: v.string(),
     status: SEASON_STATUS,
@@ -280,6 +299,7 @@ export default defineSchema({
     loot: RESOURCE_AMOUNTS,
     plunderReportId: v.optional(v.id('plunderReports')),
     recoveryId: v.optional(v.id('lootRecoveries')),
+    collectionId: v.optional(v.id('lootCollections')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
@@ -391,12 +411,15 @@ export default defineSchema({
     lootLoads: v.optional(v.array(LOOT_LOAD)),
     /** New returns carry the immutable frontier they must revalidate; absence is legacy cargo. */
     lootDelivery: v.optional(LOOT_DELIVERY),
+    /** Internal collection mission. Optional keeps every movement already stored readable. */
+    lootCollection: v.optional(LOOT_COLLECTION_MISSION),
     plunderReportId: v.optional(v.id('plunderReports')),
   })
     .index('byPlayer', ['playerId'])
-    .index('bySeason', ['seasonId']),
+    .index('bySeason', ['seasonId'])
+    .index('byLootCollectionCrateArrival', ['lootCollection.crateId', 'arrivesAt']),
 
-  /** Durable facts consumed by the S8 dispatch wiring. One successful expedition creates one
+  /** Durable facts consumed by the S7c dispatch wiring. One successful expedition creates one
    * row; callbacks and later reads never reconstruct it from current stocks. */
   plunderReports: defineTable({
     seasonId: v.id('seasons'),
@@ -431,6 +454,7 @@ export default defineSchema({
     at: v.number(),
     sourcePlunderReportId: v.optional(v.id('plunderReports')),
     sourceRecoveryId: v.optional(v.id('lootRecoveries')),
+    sourceCollectionId: v.optional(v.id('lootCollections')),
     recovered: RESOURCE_AMOUNTS,
     remainder: RESOURCE_AMOUNTS,
     delivered: v.optional(RESOURCE_AMOUNTS),
@@ -439,6 +463,24 @@ export default defineSchema({
     .index('bySeason', ['seasonId'])
     .index('byRecoveringPlayer', ['recoveringPlayerId'])
     .index('byEngagement', ['engagementId']),
+
+  /** A crate changes carrier without changing the historical recovery that created it. This
+   * fact owns the later carrier's delivery and loss counters. */
+  lootCollections: defineTable({
+    seasonId: v.id('seasons'),
+    collectorPlayerId: v.id('players'),
+    sourceCrateId: v.id('lootCrates'),
+    sourceRecoveryId: v.id('lootRecoveries'),
+    movementId: v.id('movements'),
+    at: v.number(),
+    collected: RESOURCE_AMOUNTS,
+    delivered: v.optional(RESOURCE_AMOUNTS),
+    lost: v.optional(RESOURCE_AMOUNTS),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byCollector', ['collectorPlayerId'])
+    .index('byCrate', ['sourceCrateId'])
+    .index('byMovement', ['movementId']),
 
   /** The single current quantity of a battlefield remainder. Its recovery fact keeps provenance,
    * while this private row alone owns what is still physically present. */
@@ -453,6 +495,25 @@ export default defineSchema({
   })
     .index('bySeason', ['seasonId'])
     .index('byRecovery', ['recoveryId']),
+
+  /** One immutable public search area for every engagement that left physical loot. The true
+   * crate point never enters this table, so the public reader cannot recover it by projection. */
+  lootRumors: defineTable({
+    seasonId: v.id('seasons'),
+    engagementId: v.id('engagements'),
+    center: LON_LAT,
+    radiusKm: v.number(),
+    appearedAt: v.number(),
+    publishAt: v.number(),
+    endsAt: v.number(),
+    version: v.number(),
+    publishJobId: v.optional(v.id('_scheduled_functions')),
+    endJobId: v.optional(v.id('_scheduled_functions')),
+    publishedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byEngagement', ['engagementId']),
 
   /** What one player last established about a crate. Reads stay on this observer-owned ledger:
    * the crate table remains server truth and is never filtered into a client view. */

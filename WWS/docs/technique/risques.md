@@ -2,6 +2,15 @@
 
 Classé par gravité. Un risque qui n'est pas ici n'a pas été évalué.
 
+## Comptes C2 — exposition des portes d'authentification
+
+Le lot local C2 conserve le choix du brief accepté : aucune limitation de débit sur la
+connexion et aucune expiration automatique des sessions. Des tentatives répétées peuvent
+consommer du calcul PBKDF2 et tester des mots de passe ; le cercle d'amis ne constitue pas
+un contrôle réseau. Réévaluer avant exposition élargie. La déconnexion révoque une session ;
+la récupération admin révoque toutes celles du compte. Les performances et le runtime du
+VPS n'ont pas été validés par les tests locaux. Aucun parcours client C2 n'est activé.
+
 ## 🔴 Le ratio temps de trajet ÷ temps de construction
 
 **Le seul risque qui peut tuer le projet.** Si un bâtiment monte en 6 h et qu'un trajet dure 8 min,

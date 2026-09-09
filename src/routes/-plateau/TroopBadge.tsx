@@ -1,10 +1,11 @@
 import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel, stackLabel } from '@/i18n/fr';
 import { representativeRole, tierLabel } from '@/domain/troops';
-import type { Stack, TroopView } from '@/domain/player-view';
+import type { CargoView, Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Draggable, DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
+import { CargoReadout } from './CargoReadout';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
@@ -28,6 +29,7 @@ export function TroopBadge({
   troops,
   at,
   aiming,
+  cargo,
   onOpenGunnery,
   onClose,
 }: {
@@ -39,6 +41,12 @@ export function TroopBadge({
    *  observateur, à qui il ne reste aucun ailleurs à nommer — et le pied se tait plutôt que de
    *  lui promettre un geste. */
   aiming: boolean;
+  /** Server-grouped loads touching this selection; never divided between individual troops. */
+  cargo: ReadonlyArray<{
+    readonly id: string;
+    readonly cargo: CargoView;
+    readonly carriers: number;
+  }>;
   /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
    *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
   onOpenGunnery: () => void;
@@ -114,6 +122,10 @@ export function TroopBadge({
         <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
           {fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)))}
         </p>
+
+        {cargo.map((group) => (
+          <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
+        ))}
 
         {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste
             qui reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin
