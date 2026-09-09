@@ -15,6 +15,7 @@
 
 import { readFileSync } from 'node:fs';
 import * as mirror from './constants.mjs';
+import { caps } from './engine.mjs';
 
 /**
  * **Trois sources, parce que les nombres du jeu ne vivent pas tous au même endroit.**
@@ -182,6 +183,17 @@ function foundation() {
   }
 }
 
+function storageCaps() {
+  const level = 2;
+  const expected = mirror.BASE_CAP + mirror.STORAGE_CAP_PER_LEVEL * level;
+  for (const key of ['warehouse', 'depot']) {
+    const held = caps({ sites: [{ key, level }] });
+    for (const resource of mirror.RESOURCES) {
+      report(`caps.${key}.${resource}`, expected, held[resource]);
+    }
+  }
+}
+
 /* ── the pass ───────────────────────────────────────────────────────────── */
 
 scalar('BASE_CAP', mirror.BASE_CAP);
@@ -218,6 +230,7 @@ specTable('BUILDING_SPEC', mirror.BUILDING_SPEC);
 roleTable('COST_BY_ROLE', mirror.COST_BY_ROLE);
 startingLine();
 foundation();
+storageCaps();
 
 /**
  * Left unread on purpose, and said out loud rather than skipped in silence: the chains and the
@@ -226,7 +239,6 @@ foundation();
  */
 unverified.push('CHAINS (débits et intrants des trois chaînes)');
 unverified.push('NOMINAL_STRENGTH (effectifs par rôle et par palier)');
-unverified.push('STORED_BY (ce que chaque bâtiment de stockage porte)');
 
 console.log(`\n${checked} valeurs comparées entre le jeu (convex/constants.ts, src/domain/routing.ts, src/domain/troops.ts) et le miroir.`);
 if (unverified.length > 0) {

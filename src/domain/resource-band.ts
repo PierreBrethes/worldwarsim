@@ -1,18 +1,12 @@
 import { fr, theBuilding } from '@/i18n/fr';
-import { PRODUCER_OF, STORED_BY } from './economy';
+import { PRODUCER_OF } from './economy';
+import { RESOURCES } from './ids';
 import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
 import { currentStock } from './player-view';
 
-/** The two stores, in reading order. A group, never a flat list of eight: the double rule
- *  between them is the ceiling's own partition, and a third store would be a third group. */
-export const BAND_STORES = ['warehouse', 'depot'] as const;
-
-export type Store = (typeof BAND_STORES)[number];
-
-export const BAND_GROUPS: ReadonlyArray<ReadonlyArray<ResourceKey>> = BAND_STORES.map(
-  (store) => STORED_BY[store],
-);
+/** The warehouse raises all eight national ceilings, so the band reads them as one group. */
+export const BAND_GROUPS: ReadonlyArray<ReadonlyArray<ResourceKey>> = [RESOURCES];
 
 /**
  * **One mark, and only one.** *Full* is production thrown away every hour: the one fact a
@@ -49,15 +43,13 @@ export function sourceOf(view: PlayerView, resource: ResourceKey): Source | null
 export function marksOf(view: PlayerView, now: number): Marks {
   const marks = {} as Record<ResourceKey, Mark | null>;
 
-  for (const store of BAND_STORES) {
-    for (const resource of STORED_BY[store]) {
-      const reserve = view.me.resources[resource];
-      const stock = currentStock(reserve, view.loadedAt, now);
-      marks[resource] =
-        reserve.cap > 0 && stock >= reserve.cap
-          ? { kind: 'full', diagnosis: fullDiagnosis(reserve, resource, store) }
-          : null;
-    }
+  for (const resource of RESOURCES) {
+    const reserve = view.me.resources[resource];
+    const stock = currentStock(reserve, view.loadedAt, now);
+    marks[resource] =
+      reserve.cap > 0 && stock >= reserve.cap
+        ? { kind: 'full', diagnosis: fullDiagnosis(reserve, resource) }
+        : null;
   }
 
   return marks;
@@ -69,15 +61,11 @@ export function marksOf(view: PlayerView, now: number): Marks {
  * says so instead — sending a player to enlarge a warehouse for a matter he is not making would
  * send him to build the wrong thing.
  */
-function fullDiagnosis(
-  reserve: { readonly ratePerHour: number },
-  resource: ResourceKey,
-  store: Store,
-): string {
+function fullDiagnosis(reserve: { readonly ratePerHour: number }, resource: ResourceKey): string {
   return reserve.ratePerHour > 0
     ? fr.resourceBand.fullDiagnosis(
         theBuilding(PRODUCER_OF[resource]),
-        theBuilding(store),
+        theBuilding('warehouse'),
         reserve.ratePerHour,
       )
     : fr.resourceBand.fullQuiet(fr.resources[resource]);

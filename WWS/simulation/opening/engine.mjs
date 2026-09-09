@@ -12,7 +12,7 @@
  */
 
 import {
-  RESOURCES, BASE_CAP, STORAGE_CAP_PER_LEVEL, STORED_BY, COMMANDED_CHAINS, CHAINS,
+  RESOURCES, BASE_CAP, STORAGE_CAP_PER_LEVEL, COMMANDED_CHAINS, CHAINS,
   EXPLOITED_DEPOSITS, MAX_QUEUED_BATCHES, PROJECTION_BY_DOMAIN, DOMAIN_BY_ROLE,
   DEFAULT_TUNING, unlockLevel,
   buildCost, buildMinutes, buildingCap, troopCap, recruitmentCost, roleHqLevel,
@@ -83,10 +83,9 @@ const owesFirstPlacement = (s, order) =>
 
 export function caps(s) {
   const c = Object.fromEntries(RESOURCES.map((r) => [r, BASE_CAP]));
-  for (const store of ['warehouse', 'depot']) {
-    const raised = STORAGE_CAP_PER_LEVEL * totalLevelOf(s, store);
-    for (const r of STORED_BY[store]) c[r] += raised;
-  }
+  const storageLevel = totalLevelOf(s, 'warehouse') + totalLevelOf(s, 'depot');
+  const raised = STORAGE_CAP_PER_LEVEL * storageLevel;
+  for (const resource of RESOURCES) c[resource] += raised;
   return c;
 }
 

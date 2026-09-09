@@ -3,7 +3,6 @@ import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
 import barracks from './barracks.webp';
 import billets from './billets.webp';
-import depot from './depot.webp';
 import farm from './farm.webp';
 import foundry from './foundry.webp';
 import hq from './hq.webp';
@@ -45,7 +44,7 @@ export const BUILDING_SPRITES: Readonly<Record<BuildingKey, string | null>> = {
   listening,
   billets,
   warehouse,
-  depot,
+  depot: warehouse,
 };
 
 export const buildingSprite = (key: BuildingKey): string | null => BUILDING_SPRITES[key];

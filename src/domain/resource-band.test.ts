@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { BAND_GROUPS, marksOf, sourceOf } from './resource-band';
-import { STORED_BY } from './economy';
 import { RESOURCES, type ResourceKey } from './ids';
 import type { ChainView, PlayerView, Resource } from './player-view';
 
@@ -53,6 +52,14 @@ describe('the band’s one mark', () => {
     expect(full.alloy?.diagnosis).toBe(
       'la fonderie tourne pour rien — 12 / h perdus, agrandir l’entrepôt',
     );
+
+    const oil = marksOf(
+      board({ resources: { oil: { stock: 400, cap: 400, ratePerHour: 6 } } }),
+      NOW,
+    );
+    expect(oil.oil?.diagnosis).toBe(
+      'le puits de pétrole tourne pour rien — 6 / h perdus, agrandir l’entrepôt',
+    );
   });
 });
 
@@ -71,8 +78,7 @@ describe('the source of a resource', () => {
 });
 
 describe('the band’s order', () => {
-  it('follows the two stores, warehouse then depot', () => {
-    expect(BAND_GROUPS).toEqual([STORED_BY.warehouse, STORED_BY.depot]);
-    expect(BAND_GROUPS.flat().slice().sort()).toEqual([...RESOURCES].sort());
+  it('reads the eight reserves as one warehouse group', () => {
+    expect(BAND_GROUPS).toEqual([RESOURCES]);
   });
 });

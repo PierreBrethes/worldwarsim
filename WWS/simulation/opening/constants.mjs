@@ -23,10 +23,6 @@ export const COMMANDED_CHAINS = new Set(['arsenal']);
 
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
-export const STORED_BY = {
-  warehouse: ['food', 'textile', 'coal', 'ore', 'alloy', 'bandages'],
-  depot: ['oil', 'ammunition'],
-};
 
 export const BUILDING_SPEC = {
   hq: { cost: { alloy: 60, coal: 40 }, minutes: 45 },

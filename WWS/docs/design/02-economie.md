@@ -1,6 +1,6 @@
 # 02 — Économie et bâtiments
 
-**Stockage serveur unifié — S2, 09/09/2026.** Chaque niveau d'entrepôt ajoute
+**Stockage unifié livré — S2-S3, 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
 porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
 historique compte comme un entrepôt et sa vue sert `warehouse`. Son identité, son niveau
@@ -8,14 +8,16 @@ et son rattachement restent conservés, sans migration massive ni écrêtage de 
 Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée un
 `warehouse` avec `buildings.costKey?: 'depot'` pour conserver le tarif historique au
 classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
-`costKey ?? key` détermine leur tarif. Le stock reste national. **S3 reste à faire** :
-interface complète, libellés et simulateur. Le pillage n'est pas livré.
+`costKey ?? key` détermine leur tarif. Le stock reste national. L'interface ne propose et ne
+recense qu'un entrepôt ; une clé `depot` historique reprend son nom et son sprite. Le bandeau
+lit les huit réserves comme un groupe unique et le simulateur applique puis vérifie le même
+plafond sur chacune. Le pillage n'est pas livré.
 
 Cette révision remplace la séparation entrepôt/dépôt décrite plus bas. La règle de
 l'ADR 0017 reste entière : plafond sur les entrées, remboursement intégral, écrêtage
 ponctuel uniquement à une perte effective de capacité. La fusion ne fait pas cette perte.
-`STORED_BY` reste provisoirement le regroupement d'affichage de S3 ; il ne calcule plus
-les plafonds serveur. Le miroir actuel ne vérifie pas cette affectation.
+L'ancien regroupement `STORED_BY` a disparu avec sa dernière lecture d'affichage. Le miroir
+vérifie l'entrepôt et le dépôt legacy sur chacune des huit ressources.
 
 **Statut : réécrite le 15/08/2026 depuis l'[ADR 0015](../adr/0015-economie-v2-ressources-localisees.md).**
 La version précédente — ravitaillement, acier, effectifs, cinq bâtiments nationaux — n'existe plus.
@@ -101,11 +103,10 @@ unités — la production est localisée, donc ciblable.
 | | **Port** | ouvre le maritime ; construit les navires (région côtière) |
 | Renseignement | **Station d'écoute** | détection passive ; contre-espionnage actif |
 | Plafond | **Casernements** | relève le plafond d'hommes de l'armée |
-| Stockage | **Entrepôt** | matières et alliage — se **pille** |
-| | **Dépôt** | pétrole et munitions — **explose**. Le raid spectaculaire |
+| Stockage | **Entrepôt** | relève le plafond national des huit ressources — se **pille** |
 
-**Les deux stockages se distinguent par leur mort** : l'entrepôt se vole, le dépôt saute. C'est
-la seule différence qui compte, et elle suffit à en faire deux bâtiments plutôt qu'un.
+Le littéral `depot` ne désigne plus un bâtiment proposé : il ne survit que pour relire sans perte
+les bâtiments, chantiers, tarifs et dépêches historiques jusqu'au wipe.
 
 **L'écran de construction reste digeste parce qu'il est contextuel** : une région à charbon ne
 propose que la mine, une région côtière ajoute le port, le reste n'apparaît pas. Règle de la rose

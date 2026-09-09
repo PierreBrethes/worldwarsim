@@ -186,7 +186,7 @@ const CHAIN_KEYS: ReadonlyArray<BuildingKey> = [
 const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = ['barracks', 'billets', 'airfield', 'port'];
 
 /** The rest of the census — command, storage, and the listening post until Espionage exists. */
-const WORK_KEYS: ReadonlyArray<BuildingKey> = ['warehouse', 'depot', 'listening'];
+const WORK_KEYS: ReadonlyArray<BuildingKey> = ['warehouse', 'listening'];
 
 /** The census in reading order, which is also the order the absent keys are gathered in. */
 const CENSUS_KEYS: ReadonlyArray<BuildingKey> = [...CHAIN_KEYS, ...PROJECTION_KEYS, ...WORK_KEYS];

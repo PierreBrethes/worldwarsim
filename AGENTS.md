@@ -193,7 +193,7 @@ ici et coûterait un modèle mental de plus.
 **La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
 géométrie plate et le clic tombe à côté sur les bords de la carte.
 
-**Stockage serveur unifié — S2, 09/09/2026.** Chaque niveau d'entrepôt ajoute
+**Stockage unifié livré — S2-S3, 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
 porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
 historique compte comme un entrepôt et sa vue sert `warehouse`. Son identité, son niveau
@@ -201,8 +201,9 @@ et son rattachement restent conservés, sans migration massive ni écrêtage de 
 Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée un
 `warehouse` avec `buildings.costKey?: 'depot'` pour conserver le tarif historique au
 classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
-`costKey ?? key` détermine leur tarif. Le stock reste national. **S3 reste à faire** :
-interface complète, libellés et simulateur. Le pillage n'est pas livré.
+`costKey ?? key` détermine leur tarif. Le stock reste national. L'interface, le bandeau et le
+simulateur ne présentent plus qu'un entrepôt ; une clé `depot` historique reprend son nom et
+son sprite. Le miroir vérifie les huit plafonds. Le pillage n'est pas livré.
 
 ## Schéma Convex
 

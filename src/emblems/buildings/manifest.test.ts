@@ -10,14 +10,13 @@ describe('building sprite manifest', () => {
     expect(Object.keys(BUILDING_SPRITES)).toHaveLength(BUILDINGS.length);
   });
 
-  /**
-   * Fifteen visuals, not a hundred and twenty: the plate is neutral and the nation arrives at
-   * display time. Two keys sharing a file would be the first step back toward per-nation
-   * plates, by way of a placeholder nobody removes.
-   */
-  it('gives each key its own plate', () => {
+  it('renders a historical depot with the warehouse plate', () => {
+    expect(buildingSprite('depot')).toBe(buildingSprite('warehouse'));
+  });
+
+  it('gives every current building its own plate', () => {
     const drawn = BUILDINGS.map(buildingSprite).filter((url) => url !== null);
-    expect(new Set(drawn).size).toBe(drawn.length);
+    expect(new Set(drawn).size).toBe(drawn.length - 1);
     expect(drawn).toHaveLength(BUILDINGS.length);
   });
 });

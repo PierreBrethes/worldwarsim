@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1 terminé ; S2 stockage serveur implémenté et vérifié localement le 09/09. S3 reste nécessaire et devient le prochain lot. Aucun pillage livré.**
+**S1-S3 terminés ; stockage unique implémenté et vérifié localement le 09/09. S4 est le prochain lot, bloqué par D1-D2. Aucun pillage livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -67,7 +67,7 @@ partie de S6b et n'attend pas la capture de bâtiments.
 | --- | --- | --- |
 | **S1 — clarification** ; terminé | Les deux briefs et cette file, rien de plus. | Contradictions résolues séparées des décisions manquantes ; liens et diff documentaires vérifiés. Aucun test de jeu annoncé. |
 | **S2 — stockage serveur** ; terminé localement (09/09) | Après S1. `src/domain/{ids,economy,construction}.ts`, `convex/{validators,constants,buildings,constructions,resources,view}.ts` ; lecteurs de prix dans `standings.ts`/`press.ts`. Compatibilité des bâtiments et chantiers `depot`. | Huit plafonds relevés, nouvelle pose `depot` refusée, ancien dépôt/chantier lisible, fin/élévation et remboursement préservés. `src/domain/{economy,construction}.test.ts`, `convex/economy.test.ts`. |
-| **S3 — stockage interface et simulateur** | Après S2. `src/routes/plateau.tsx`, `-plateau/{ConstructionPanel,EconomyWindow}.tsx`, `src/domain/{construction,compass-rose}.ts`, manifeste des bâtiments, `fr.ts`, `WWS/simulation/opening/{constants,engine,verify}.mjs`. | Une entrée entrepôt, ancien dépôt rendu correctement, huit plafonds identiques dans le simulateur. Tests construction/rose ; `node WWS/simulation/opening/verify.mjs` et vérification de l'affectation des huit ressources. Contrôle visuel si partie accessible. |
+| **S3 — stockage interface et simulateur** ; terminé localement (09/09) | Après S2. `src/routes/plateau.tsx`, `-plateau/{ConstructionPanel,EconomyWindow}.tsx`, `src/domain/{construction,compass-rose}.ts`, manifeste des bâtiments, `fr.ts`, `WWS/simulation/opening/{constants,engine,verify}.mjs`. | Une entrée entrepôt, ancien dépôt rendu correctement, huit plafonds identiques dans le simulateur. Tests construction/rose ; `node WWS/simulation/opening/verify.mjs` et vérification de l'affectation des huit ressources. Contrôle visuel si partie accessible. |
 | **S4 — calcul pur du butin et capacité** | Après S3 et **D1-D2**. Nouveau `src/domain/loot.ts` et son test ; `convex/constants.ts`, `scripts/generate-a-mesurer.mjs`. Aucun ordre ni mutation de stock. | Quantités bornées, répartition selon D1-D2, capacité des survivants, zéro production hors réseau, réserve de base protégée du prélèvement. Tests purs `loot.test.ts`, `scripts/a-mesurer.test.mjs` si le générateur change. |
 | **S5a — cibles autorisées et relevés** | Après S4. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
 | **S5b — combat, présence et désactivation** | Après S5a et **D3 et D5**. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage si utile. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts` (nouveau), `production.test.ts`, cas combat/mouvements concernés. |
@@ -85,9 +85,15 @@ Les fixtures ordinaires utilisent l'entrepôt ; sept cas Convex dédiés couvren
 Tests ciblés économie/construction/presse/classement/rose : **211 réussis** ; suite complète :
 **949 tests réussis, 56 fichiers**. Types, lint et format vérifiés. Aucun commit, push,
 déploiement ou contrôle visuel. Le miroir n'a pas été utilisé comme preuve du stockage.
-**S3 reste à faire**, notamment `resource-band.ts` et son test, qui consomment encore le
-regroupement d'affichage `STORED_BY`, ainsi que l'Économie, les libellés et le simulateur.
-La validation globale `npm run verifier` reste au lot S9. Arrêt après S2.
+**Bilan S3 (09/09)** : une seule entrée entrepôt dans la construction, la rose et Économie ;
+les huit réserves forment un groupe de bandeau et nomment toutes l'entrepôt. Une clé `depot`
+historique reprend le libellé et le sprite de l'entrepôt ; son asset distinct et `STORED_BY`
+ont été retirés sans toucher aux données ni tarifs legacy. Le moteur du simulateur additionne
+les niveaux `warehouse` et `depot` puis relève les huit plafonds ; `verify.mjs` exerce les
+seize couples bâtiment-ressource au lieu de laisser l'affectation non vérifiée. Tests ciblés
+construction/rose/bandeau/manifeste et contrôles du miroir passés ; types, lint et format
+vérifiés. Aucun commit, push, déploiement ou contrôle visuel faute de partie authentifiée.
+La validation globale `npm run verifier` reste au lot S9. Arrêt après S3.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté
@@ -99,8 +105,8 @@ sont explicitement signalés. Chaque lot de code ajoute les tests de son comport
 vérifie les types si un contrat change et documente immédiatement sa règle dans les sources
 concernées. Une adaptation minimale de contrat peut avancer d'un lot pour garder les
 consommateurs valides ; aucune refonte annexe. S9 consolide, il ne reporte pas la documentation
-des décisions. Le miroir doit vérifier le stockage lui-même : il laisse actuellement
-`STORED_BY` hors comparaison. Les constantes restent provisoires jusqu'au test de partie.
+des décisions. Depuis S3, le miroir vérifie le stockage sur les huit ressources, pour
+`warehouse` comme pour `depot` historique. Les constantes restent provisoires jusqu'au test de partie.
 
 ## Retour de partie du 08/09 — donner une raison de s'affronter
 
@@ -178,8 +184,8 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 8. **salve-d-allonge** — **hors du lot portées passives**. La livraison l'a archivée comme
    abandonnée dans `done/` et dans l'ADR 0021, mais Pierre n'a pas décidé cet abandon dans cette
    conversation. Ce classement documentaire reste à corriger ou à arbitrer avant ce futur lot.
-9. **stockage-unique** (sortie b du 31/08) — *S2 terminé localement le 09/09, S3 prochain lot* —
-   la fusion complète attend S3 ; voir le bilan S2 et les petits lots ci-dessus.
+9. **stockage-unique** (sortie b du 31/08) — *S2-S3 terminés localement le 09/09* —
+   fusion complète ; voir les bilans et les petits lots ci-dessus.
 10. **pillage-et-butin**, premier périmètre — *S4-S9 définis, arbitrages requis* — après 6, 7, 9.
     Capture de bâtiments et QG restent des chantiers ultérieurs ; récupération du butin
     par l’intercepteur incluse dans S6b.

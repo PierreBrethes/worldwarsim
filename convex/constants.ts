@@ -69,9 +69,6 @@ export const isCommanded = (key: BuildingKey): boolean =>
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
-/** Legacy display grouping, retained through the S2/S3 transition. */
-export { STORED_BY } from '../src/domain/economy';
-
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
 > = {

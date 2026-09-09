@@ -24,13 +24,6 @@ export const EXPLOITED_DEPOSITS: Readonly<Partial<Record<BuildingKey, ReadonlyAr
 export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean =>
   deposit !== null && (EXPLOITED_DEPOSITS[key]?.includes(deposit) ?? false);
 
-/** Legacy display grouping, kept until the resource band is unified in S3.
- *  Storage capacity uses all eight resources independently of these presentation groups. */
-export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<ResourceKey>>> = {
-  warehouse: ['food', 'textile', 'coal', 'ore', 'alloy', 'bandages'],
-  depot: ['oil', 'ammunition'],
-};
-
 /**
  * Why a region refuses a building — `null` when it takes it. The rule lives here, in the pure
  * domain, because both sides need it and neither may own it: the server refuses the placement

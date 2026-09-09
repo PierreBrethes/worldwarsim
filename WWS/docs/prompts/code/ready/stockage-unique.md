@@ -1,6 +1,6 @@
 # stockage-unique — fusionner dépôt et entrepôt, conserver le stock national
 
-**S2 implémenté et vérifié localement le 09/09/2026 ; S3 reste à faire.** Exécuter uniquement le petit lot demandé
+**S2 et S3 implémentés et vérifiés localement le 09/09/2026.** Le stockage unique est livré ; le pillage ne l'est pas. Exécuter uniquement le petit lot demandé
 dans la [file centrale](../../../RESTE-A-CODER.md#petits-lots-stockage-et-pillage--0909) :
 serveur/compatibilité (S2), puis interface/simulateur (S3). Travailler dans le dépôt
 sauvegardé, sans worktree, sans commit ni push. S'arrêter à la fin du lot.
@@ -14,9 +14,10 @@ Lire `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, `WWS/CONTEXT.md`, les
 
 Le stock national existe : table `resources`, `convex/resources.ts`, calcul pur dans
 `src/domain/economy.ts`. **Ne créer ni stock par bâtiment, ni table de stockage, ni
-capacité portée par le QG.** `storageCaps` répartit encore les huit ressources entre
-`warehouse` et `depot` via `STORED_BY`. `clipToCapacity` et sa porte serveur
-`clipToStorage` existent ; le pillage ajoutera leur appel à la perte effective de capacité.
+capacité portée par le QG.** `storageCaps` additionne les niveaux `warehouse` et `depot`
+historique puis relève les huit plafonds. L'ancien regroupement d'affichage `STORED_BY` a
+disparu en S3. `clipToCapacity` et sa porte serveur `clipToStorage` existent ; le pillage
+ajoutera leur appel à la perte effective de capacité.
 
 ## Règle retenue
 
@@ -68,11 +69,11 @@ Les fins d'anciens chantiers créent `warehouse` avec le champ optionnel
 `buildings.costKey: 'depot'` ; `buildingCostKey` préserve ainsi remboursement, durée,
 élévations et valeur d'industrie, sans modifier le barème pur de `standings.ts`.
 
-S3 doit également reprendre `src/domain/resource-band.ts` et son test : `STORED_BY`
-reste un regroupement d'affichage temporaire, sans rôle dans les plafonds serveur.
-Aucune validation visuelle ni mise à jour du simulateur n'est annoncée par S2.
+S3 a également repris `src/domain/resource-band.ts` et son test : `STORED_BY` était un
+regroupement d'affichage temporaire, sans rôle dans les plafonds serveur.
+Aucune validation visuelle ni mise à jour du simulateur n'était annoncée par S2.
 
-## S3 — interface et simulateur
+## S3 — interface et simulateur — terminé le 09/09/2026
 
 Une seule entrée de stockage dans la rose, la construction et l'Économie ; description
 des huit ressources dans `fr.ts`. Un dépôt ancien se lit « entrepôt », avec le sprite de l'entrepôt ;
@@ -84,8 +85,8 @@ Fichiers inspectés : `src/routes/plateau.tsx`,
 `src/domain/{construction,compass-rose}.ts`, `src/emblems/buildings/manifest.ts`,
 `src/i18n/fr.ts`, `WWS/simulation/opening/{constants,engine,verify}.mjs`.
 Le simulateur calcule aussi les plafonds dans `engine.mjs` : modifier les constantes seules
-ne suffit pas. `verify.mjs` déclare actuellement `STORED_BY` non vérifié ; son état vert ne
-prouve donc pas à lui seul que les huit affectations de stockage sont correctes.
+ne suffit pas. Avant S3, `verify.mjs` déclarait `STORED_BY` non vérifié ; il exerce désormais
+les deux clés compatibles sur chacune des huit ressources.
 
 Acceptation : plus de dépôt proposé ; ancien dépôt visible et utilisable comme entrepôt ;
 aucune section vide. Tests ciblés `src/domain/{construction,compass-rose}.test.ts`, tests

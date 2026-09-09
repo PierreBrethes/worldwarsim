@@ -174,7 +174,7 @@ export const fr = {
     listening: 'Station d’écoute',
     billets: 'Baraquements',
     warehouse: 'Entrepôt',
-    depot: 'Dépôt',
+    depot: 'Entrepôt',
   } satisfies Record<BuildingKey, string>,
 
   /**
@@ -215,8 +215,8 @@ export const fr = {
     port: 'ouvre le domaine maritime et construit les navires — région côtière',
     listening: `relève les mouvements adverses qui passent à moins de ${LISTENING_STATION_RADIUS_KM} km`,
     billets: 'relève le nombre de troupes que l’armée peut aligner',
-    warehouse: 'relève le plafond des matières et de l’alliage — se pille',
-    depot: 'relève le plafond du pétrole et des munitions — explose',
+    warehouse: 'relève le plafond des huit ressources — se pille',
+    depot: 'relève le plafond des huit ressources — se pille',
   } satisfies Record<BuildingKey, string>,
 
   playableRegions: {
