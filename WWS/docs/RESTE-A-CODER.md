@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S6a-1 terminés localement le 09/09. S6a-2 est le prochain lot. Aucun pillage jouable livré.**
+**S1-S6a-2a terminés localement le 09/09. S6a-2b est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -157,26 +157,30 @@ la capacité effective des survivants ; elle n'est ni détruite ni transférée 
 1. **S6a-1 — charge posée** ; terminé localement (09/09) : conserver une charge quand aucun
    retour ne part et quand un retour finit, sans crédit ni vue nouvelle ; compatibilité des
    mouvements `loot` existants.
-2. **S6a-2 — frontière et destination** : choisir et dater la région de retour au départ, livrer
-   une seule fois à la première entrée alors tenue ; poser/perdre selon D4, sans détour.
-3. **S6a-3 — pertes partielles** : réduire la charge à la capacité effective restante après
+2. **S6a-2a — destination planifiée** ; terminé localement (09/09) : graver la région de retour
+   connue avant son enclenchement, la revalider à la prise et appliquer la perte avant départ de
+   D4 ; anciens mouvements sans référence conservés.
+3. **S6a-2b — frontière et crédit** : ajouter au serveur la géométrie admin-1 minimale nécessaire,
+   router jusqu'au premier franchissement de la région planifiée, dater ce point et livrer une
+   seule fois si elle est encore tenue ; à défaut, poser/perdre à l'arrivée sans détour.
+4. **S6a-3 — pertes partielles** : réduire la charge à la capacité effective restante après
    chaque passe ; une simple déroute garde la part transportable.
-4. **S6b-1 — transfert sur destruction** : consommer l'ancienne charge une fois, remplir la
+5. **S6b-1 — transfert sur destruction** : consommer l'ancienne charge une fois, remplir la
    capacité libre du vainqueur et départager plusieurs récupérateurs par arrivée, ancienneté puis
    clé stable — jamais par ordre de callback.
-5. **S6b-2 — caisse persistante** : déposer le reliquat réel au point de destruction pour 2 h ;
+6. **S6b-2 — caisse persistante** : déposer le reliquat réel au point de destruction pour 2 h ;
    collecte partielle sans repousser l'échéance, disparition du restant à terme.
-6. **S6b-3 — détection privée** : révéler position et contenu exacts seulement à portée selon les
+7. **S6b-3 — détection privée** : révéler position et contenu exacts seulement à portée selon les
    détecteurs existants, par événements et rendez-vous annulables.
-7. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
+8. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
    physique ; cible vide ou expirée = retour ordinaire avec toute charge déjà portée.
-8. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
+9. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
    tiré une fois dans un disque qui contient la caisse ; la rumeur vit jusqu'à son terme public.
-9. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
+10. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
    cadré et brume ; jamais le point réel avant détection.
-10. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
+11. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
     récupération et livraison sans vérité adverse supplémentaire.
-11. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
+12. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
     cycle, les vues et les dépêches sont raccordés ; aucun drapeau générique.
 
 **Bilan S6a-1 (09/09)** : une charge en trajet reste portée par `movements.loot`. Si aucun trajet
@@ -184,7 +188,18 @@ de retour n'existe, ou quand un retour chargé finit avant le raccordement de la
 `stationedLoot` conserve les ressources, le groupe porteur et son adresse exacte. Une charge
 nulle ne crée aucune ligne. La table suit le reset et la destruction de saison ; aucun crédit,
 calcul de frontière, vue ou ordre public n'est ajouté. Types et 163 tests existants ciblés passés ;
-aucun nouveau scénario métier dans ce lot, pas de vérificateur global. S6a-2 suit.
+aucun nouveau scénario métier dans ce lot, pas de vérificateur global. S6a-2a a suivi.
+
+**Bilan S6a-2a (09/09)** : `plunder.returnRegionId?` fixe automatiquement la région connue de
+l'adresse d'origine au début de la présence — premier point durable disponible tant que l'ordre
+public reste fermé — et survivra à son futur estampillage dès la préparation. À la prise,
+`heldOver` revalide cette référence : perdue, elle empêche le départ, pose les survivants au site
+et inscrit `plunderReports.lost?`, sans charge posée ni crédit. Une référence absente ou illisible
+reste un ancien document, pas une preuve de perte. `delivered?` et `lost?` sont optionnels pour les
+rapports existants. Le franchissement exact n'est pas approximé : le serveur n'a actuellement que
+les points admin-1, pas leurs frontières ; S6a-2b porte la géométrie minimale, le trajet terminal
+et le crédit. Types et 21 tests existants du pillage passés ; attente exacte adaptée, aucun nouveau
+scénario métier, pas de vérificateur global.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

@@ -11,12 +11,13 @@ import {
   PLUNDER_HOURS_PRESENT,
 } from './constants';
 import { resolveContact } from './combat';
+import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
 import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { regionFacts } from './regions';
+import { regionFacts, regionOfOutpost } from './regions';
 import { seasonStillPlays } from './seasons';
 
 const targetAt = async (
@@ -48,6 +49,10 @@ async function startPresence(
   engagementId: Id<'engagements'> | null,
 ): Promise<void> {
   const until = now + PLUNDER_HOURS_PRESENT * 3_600_000;
+  const returnRegionId =
+    movement.plunder!.returnRegionId === undefined
+      ? await returnRegionOf(ctx, movement, troopIds)
+      : movement.plunder!.returnRegionId;
   await ctx.db.patch(movement._id, {
     troopIds: [...troopIds],
     from: movement.to,
@@ -62,12 +67,56 @@ async function startPresence(
       buildingId: movement.plunder!.buildingId,
       until,
       engagementId,
+      returnRegionId,
     },
   });
   await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
     movementId: movement._id,
     expectedAt: until,
   });
+}
+
+async function returnRegionOf(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+): Promise<string | null> {
+  if (movement.fromBuildingId !== null) {
+    return (await ctx.db.get(movement.fromBuildingId))?.regionId ?? null;
+  }
+  for (const troopId of troopIds) {
+    const troop = await ctx.db.get(troopId);
+    const address = troop?.stationedAt;
+    if (typeof address !== 'string') continue;
+    const buildingId = ctx.db.normalizeId('buildings', address);
+    if (buildingId !== null) return (await ctx.db.get(buildingId))?.regionId ?? null;
+    const outpostId = ctx.db.normalizeId('outposts', address);
+    const outpost = outpostId === null ? null : await ctx.db.get(outpostId);
+    if (outpost !== null) return regionOfOutpost(outpost);
+  }
+  return null;
+}
+
+async function plannedReturnStillHeld(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  now: number,
+): Promise<boolean | null> {
+  const regionId = movement.plunder?.returnRegionId;
+  if (regionId === undefined || regionId === null) return null;
+  const region = regionFacts(regionId);
+  if (region === null) return null;
+  return (
+    (await heldOver(ctx, movement.seasonId, [region], now)).get(regionId) === movement.playerId
+  );
+}
+
+async function standAtTarget(
+  ctx: MutationCtx,
+  troops: ReadonlyArray<Doc<'troops'>>,
+  movement: Doc<'movements'>,
+): Promise<void> {
+  for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: movement.to });
 }
 
 export async function arriveForPlunder(
@@ -182,14 +231,19 @@ export async function completePresence(
     storageLost,
   });
   if (isWarehouse) {
-    const [returnMovementId] = await walkHome(
-      ctx,
-      { winners: troops, beaten: [] },
-      pointOf(movement.to),
-      now,
-      { playerId: movement.playerId, loot: taken, plunderReportId: reportId },
-    );
-    if (returnMovementId !== undefined) await ctx.db.patch(reportId, { returnMovementId });
+    if ((await plannedReturnStillHeld(ctx, movement, now)) === false) {
+      await standAtTarget(ctx, troops, movement);
+      await ctx.db.patch(reportId, { lost: taken });
+    } else {
+      const [returnMovementId] = await walkHome(
+        ctx,
+        { winners: troops, beaten: [] },
+        pointOf(movement.to),
+        now,
+        { playerId: movement.playerId, loot: taken, plunderReportId: reportId },
+      );
+      if (returnMovementId !== undefined) await ctx.db.patch(reportId, { returnMovementId });
+    }
   } else {
     await walkHome(ctx, { winners: troops, beaten: [] }, pointOf(movement.to), now);
   }

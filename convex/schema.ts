@@ -378,7 +378,8 @@ export default defineSchema({
      * reassessment immediately after a pass from scheduling the same encounter again. */
     encounteredMovementIds: v.optional(v.array(v.id('movements'))),
     /** Internal until S8 opens the order. While present, the manifest stays unavailable to a
-     * second order because it still belongs to this movement. */
+     * second order because it still belongs to this movement. Its optional return region is the
+     * automatic plan fixed before the return; absence keeps pre-S6a documents readable. */
     plunder: v.optional(PLUNDER_MISSION),
     /** Cargo exists only on an internal return until S6 implements delivery. */
     loot: v.optional(RESOURCE_AMOUNTS),
@@ -402,6 +403,8 @@ export default defineSchema({
     engagementId: v.union(v.id('engagements'), v.null()),
     taken: RESOURCE_AMOUNTS,
     storageLost: RESOURCE_AMOUNTS,
+    delivered: v.optional(RESOURCE_AMOUNTS),
+    lost: v.optional(RESOURCE_AMOUNTS),
     returnMovementId: v.optional(v.id('movements')),
   })
     .index('bySeason', ['seasonId'])

@@ -210,6 +210,8 @@ deux durées restent `@a-mesurer`. Les producteurs relevés suivent désormais l
 la même présence, puis sont désactivés sans butin ni écrêtage. **S6a-1 conserve désormais une
 charge sans route ou arrivée dans `stationedLoot`**, sans la créditer. L'ordre public, la
 livraison, les dépêches et l'interface ne sont pas livrés : le pillage reste non jouable.
+**S6a-2a** grave la région de retour connue avant son enclenchement et applique la perte avant
+départ si elle n'est plus tenue ; la frontière exacte et le crédit restent S6a-2b.
 
 ## Schéma Convex
 

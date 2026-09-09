@@ -348,6 +348,7 @@ describe('plunder presence', () => {
       buildingId: warehouseId,
       until: MIDDAY + PLUNDER_HOURS_PRESENT * HOUR,
       engagementId: null,
+      returnRegionId: MARNE,
     });
     expect(movement?.from).toEqual(movement?.to);
     expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toEqual([]);

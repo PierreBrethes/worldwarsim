@@ -6,7 +6,7 @@ Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4 à S6a-1 sont terminés localement le 09/09 ; S6a-2 est le prochain lot.
+S4 à S6a-2a sont terminés localement le 09/09 ; S6a-2b est le prochain lot.
 
 ## Sources et acquis
 
@@ -188,8 +188,12 @@ existante. Une collecte ne retire pas immédiatement la rumeur mondiale : son te
 l'échéance prévue, afin de ne pas signaler à distance la présence du récupérateur. Le délai fixe
 masque l'instant immédiat, pas toute déduction sur l'heure passée.
 
-Le découpage exécutable S6a-1 à S8 est tenu dans `RESTE-A-CODER.md`. Aucun lot n'ouvre le geste
-avant le raccordement coordonné final.
+S6a-2 est scindé : **S6a-2a** grave la région automatique connue avant le retour et traite sa
+perte avant départ ; **S6a-2b** ajoute la géométrie admin-1 minimale qui manque aujourd'hui au
+serveur pour terminer réellement au premier franchissement, puis crédite ou perd à l'arrivée.
+Une proximité au point de région ne remplace jamais sa frontière. Le découpage exécutable S6a-1
+à S8 est tenu dans `RESTE-A-CODER.md`. Aucun lot n'ouvre le geste avant le raccordement coordonné
+final.
 
 ## Acceptation et arrêt
 

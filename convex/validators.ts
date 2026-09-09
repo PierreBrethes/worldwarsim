@@ -70,12 +70,17 @@ export const RESOURCE_AMOUNTS = v.object({
 });
 
 export const PLUNDER_MISSION = v.union(
-  v.object({ phase: v.literal('outbound'), buildingId: v.id('buildings') }),
+  v.object({
+    phase: v.literal('outbound'),
+    buildingId: v.id('buildings'),
+    returnRegionId: v.optional(v.union(v.string(), v.null())),
+  }),
   v.object({
     phase: v.literal('presence'),
     buildingId: v.id('buildings'),
     until: v.number(),
     engagementId: v.union(v.id('engagements'), v.null()),
+    returnRegionId: v.optional(v.union(v.string(), v.null())),
   }),
 );
 
