@@ -1,4 +1,10 @@
-import { RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from './ids';
+import {
+  canonicalBuildingKey,
+  RESOURCES,
+  type BuildingKey,
+  type DepositKey,
+  type ResourceKey,
+} from './ids';
 
 export type Stocks = Readonly<Record<ResourceKey, number>>;
 
@@ -18,13 +24,8 @@ export const EXPLOITED_DEPOSITS: Readonly<Partial<Record<BuildingKey, ReadonlyAr
 export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean =>
   deposit !== null && (EXPLOITED_DEPOSITS[key]?.includes(deposit) ?? false);
 
-/**
- * **Which store holds what.** A partition of the eight, not a balance figure: the warehouse
- * carries the matter, the depot carries what burns and what is fired. It lives in the pure
- * domain because both sides read it — the server raises a ceiling with it, and the resource
- * band groups its two halves by it — and a second copy would let the screen group what the
- * ceiling does not.
- */
+/** Legacy display grouping, kept until the resource band is unified in S3.
+ *  Storage capacity uses all eight resources independently of these presentation groups. */
 export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<ResourceKey>>> = {
   warehouse: ['food', 'textile', 'coal', 'ore', 'alloy', 'bandages'],
   depot: ['oil', 'ammunition'],
@@ -38,7 +39,12 @@ export const STORED_BY: Readonly<Record<'warehouse' | 'depot', ReadonlyArray<Res
  * button the server still takes, or the reverse.
  */
 export type PlacementRefusal =
-  'REGION_TAKEN' | 'SITE_SLOTS_FULL' | 'BUILDING_LOCKED' | 'DEPOSIT_REQUIRED' | 'NOT_COASTAL';
+  | 'UNKNOWN_BUILDING'
+  | 'REGION_TAKEN'
+  | 'SITE_SLOTS_FULL'
+  | 'BUILDING_LOCKED'
+  | 'DEPOSIT_REQUIRED'
+  | 'NOT_COASTAL';
 
 /**
  * What the player already holds **on the site he is aiming at**, as placement reads it.
@@ -76,7 +82,10 @@ export function placementRefusal(
   holdings: Holdings,
   unlockedAtHqLevel: number,
 ): PlacementRefusal | null {
-  const raising = holdings.onRegion === key;
+  const raising =
+    holdings.onRegion !== null &&
+    canonicalBuildingKey(holdings.onRegion) === canonicalBuildingKey(key);
+  if (canonicalBuildingKey(key) !== key && !raising) return 'UNKNOWN_BUILDING';
   if (holdings.onRegion !== null && !raising) return 'REGION_TAKEN';
   if (!raising && holdings.taken >= holdings.slots) return 'SITE_SLOTS_FULL';
   // The headquarters gates every other key and never itself: at level 0 it is what the player

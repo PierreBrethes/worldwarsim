@@ -1,8 +1,12 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import type { BuildingKey } from '../src/domain/ids';
+import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 
 export type { BuildingKey };
+
+// A completed legacy queue entry changes its building key, never its paid tariff.
+export const buildingCostKey = (building: Doc<'buildings'>): BuildingKey =>
+  building.costKey ?? building.key;
 
 export async function playerBuildings(
   ctx: QueryCtx,
@@ -38,7 +42,10 @@ export async function seasonBuildings(
  */
 export const levelOf = (buildings: ReadonlyArray<Doc<'buildings'>>, key: BuildingKey): number =>
   buildings.reduce(
-    (best, building) => (building.key === key ? Math.max(best, building.level) : best),
+    (best, building) =>
+      canonicalBuildingKey(building.key) === canonicalBuildingKey(key)
+        ? Math.max(best, building.level)
+        : best,
     0,
   );
 
@@ -54,7 +61,11 @@ export const totalLevelOf = (
   buildings: ReadonlyArray<Doc<'buildings'>>,
   key: BuildingKey,
 ): number =>
-  buildings.reduce((sum, building) => (building.key === key ? sum + building.level : sum), 0);
+  buildings.reduce(
+    (sum, building) =>
+      canonicalBuildingKey(building.key) === canonicalBuildingKey(key) ? sum + building.level : sum,
+    0,
+  );
 
 export async function buildingLevel(
   ctx: QueryCtx,
@@ -69,7 +80,11 @@ export const buildingAt = (
   key: BuildingKey,
   regionId: string,
 ): Doc<'buildings'> | undefined =>
-  buildings.find((building) => building.key === key && building.regionId === regionId);
+  buildings.find(
+    (building) =>
+      canonicalBuildingKey(building.key) === canonicalBuildingKey(key) &&
+      building.regionId === regionId,
+  );
 
 /**
  * The HQ caps the others: nothing rises above it. The rule lived twice — once as a guard in

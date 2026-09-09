@@ -25,6 +25,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
+| **Entrepôt** | Stockage national unique côté serveur depuis S2 (09/09/2026) : chaque niveau relève les huit plafonds. `depot` est une clé historique, jamais une nouvelle pose ; prix et chantiers anciens sont conservés. Interface complète et simulateur attendent S3. |
 | **Ressources** | Huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
 
 ## Actions

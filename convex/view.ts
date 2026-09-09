@@ -3,11 +3,11 @@ import { query } from './_generated/server';
 import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { BUILDINGS, type BuildingKey } from '../src/domain/ids';
+import { canonicalBuildingKey, BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
-import { cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
+import { buildingCostKey, cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
@@ -377,7 +377,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
         id: building._id,
-        key: building.key,
+        key: canonicalBuildingKey(building.key),
         regionId: building.regionId,
         /**
          * **Where it stands, when it does not stand at its region's point** — the port and
@@ -391,8 +391,8 @@ export async function viewOf(ctx: QueryCtx, token: string) {
             ? null
             : ([building.point.lon, building.point.lat] as [number, number]),
         level: building.level,
-        nextLevelCost: buildCost(building.key, building.level + 1),
-        nextLevelMinutes: buildMinutes(building.key, building.level + 1),
+        nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
+        nextLevelMinutes: buildMinutes(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
       })),
       regions: [...carrying.values()].map((facts) => ({
@@ -408,7 +408,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
         point: facts.point,
         buildings: buildings
           .filter((building) => building.regionId === facts.id)
-          .map((building) => ({ key: building.key, level: building.level })),
+          .map((building) => ({ key: canonicalBuildingKey(building.key), level: building.level })),
         /**
          * **Whose placements a building here would spend** — `null` is national soil, an id
          * is the outpost that reaches it, and an absent site is ground no point of his covers
@@ -432,7 +432,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
           ? {
               id: construction._id,
               name: construction.building,
-              key: construction.building,
+              key: canonicalBuildingKey(construction.building),
               regionId: construction.regionId,
               regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
               /** The crane stands on the quay from the moment the port is enqueued: the point
@@ -453,7 +453,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
       constructionQueue: queue.slice(1).map((entry) => ({
         id: entry._id,
         name: entry.building,
-        key: entry.building,
+        key: canonicalBuildingKey(entry.building),
         regionId: entry.regionId,
         regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
         level: entry.level,

@@ -105,6 +105,12 @@ export const BUILDINGS = [
 
 export type BuildingKey = (typeof BUILDINGS)[number];
 
+// Persisted keys remain valid for old buildings, queues, notices and price readers.
+export const canonicalBuildingKey = (key: BuildingKey): Exclude<BuildingKey, 'depot'> =>
+  key === 'depot' ? 'warehouse' : key;
+
+export const BUILDABLE_BUILDINGS = BUILDINGS.filter((key) => canonicalBuildingKey(key) === key);
+
 export type PlayableRegion = 'europe' | 'europe-med' | 'world';
 
 export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' | 'tundra';

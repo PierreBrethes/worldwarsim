@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { canonicalBuildingKey } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -6,7 +7,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { nearestOutpost } from '../src/domain/outposts';
-import { buildingAt, cappedByHq, playerBuildings } from './buildings';
+import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
@@ -140,14 +141,15 @@ export const start = mutation({
       return { finishesAt: now, cost: {}, level, rank: null };
     }
 
-    const cost = buildCost(building, level);
+    const costKey = standing === undefined ? building : buildingCostKey(standing);
+    const cost = buildCost(costKey, level);
     await debit(ctx, player._id, cost, now);
 
     const last = queue[queue.length - 1];
     const rank = last ? last.rank + 1 : 0;
     const constructionId = await ctx.db.insert('constructions', {
       playerId: player._id,
-      building,
+      building: costKey,
       regionId,
       level,
       rank,
@@ -201,7 +203,8 @@ export const finish = internalMutation({
       await ctx.db.insert('buildings', {
         seasonId: season._id,
         playerId: construction.playerId,
-        key: construction.building,
+        key: canonicalBuildingKey(construction.building),
+        ...(construction.building === 'depot' ? { costKey: 'depot' as const } : {}),
         regionId: construction.regionId,
         level: construction.level,
         /** The point chosen at the order, carried whole: `finish` decides nothing about where
@@ -262,7 +265,13 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 
     // The head is measured against what stands, and against nothing queued: everything else in
     // the queue is behind it and has not happened.
-    const refusal = await refusalFor(ctx, player, head.building, head.regionId, []);
+    const refusal = await refusalFor(
+      ctx,
+      player,
+      canonicalBuildingKey(head.building),
+      head.regionId,
+      [],
+    );
     if (refusal) {
       await credit(ctx, playerId, buildCost(head.building, head.level), now);
       await ctx.db.insert('notices', {
@@ -387,6 +396,7 @@ async function refusalFor(
     { onRegion, taken, slots: owed ? Number.POSITIVE_INFINITY : slots, hqLevel },
     requiredLevel,
   );
+  if (refusal === 'UNKNOWN_BUILDING') return { code: refusal };
   if (refusal === 'REGION_TAKEN')
     return { code: refusal, details: { regionId, standing: onRegion } };
   /**

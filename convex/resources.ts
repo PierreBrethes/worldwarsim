@@ -19,7 +19,6 @@ import {
   CHAINS,
   EXTRACTION_PER_HOUR,
   STORAGE_CAP_PER_LEVEL,
-  STORED_BY,
   isCommanded,
   type ChainKey,
   type Costs,
@@ -112,11 +111,8 @@ export function storageCaps(
   buildings: ReadonlyArray<Doc<'buildings'>>,
 ): Record<ResourceKey, number> {
   const caps = emptyStocks();
-  for (const key of RESOURCES) caps[key] = BASE_CAP;
-  for (const store of ['warehouse', 'depot'] as const) {
-    const raised = STORAGE_CAP_PER_LEVEL * totalLevelOf(buildings, store);
-    for (const key of STORED_BY[store]) caps[key] += raised;
-  }
+  const raised = STORAGE_CAP_PER_LEVEL * totalLevelOf(buildings, 'warehouse');
+  for (const key of RESOURCES) caps[key] = BASE_CAP + raised;
   return caps;
 }
 

@@ -168,6 +168,8 @@ export default defineSchema({
   /** One row per building **instance**: a nation holds as many mines as it has regions with
    *  ore, each with its own level. The `regionId` is the `id` of `regions.json`. */
   buildings: defineTable({
+    // Old depot work finishes as warehouse without losing its historical price.
+    costKey: v.optional(v.literal('depot')),
     seasonId: v.id('seasons'),
     playerId: v.id('players'),
     key: BUILDING_KEY,

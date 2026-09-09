@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clipToCapacity,
+  placementRefusal,
   emptyStocks,
   isLinked,
   produces,
@@ -422,5 +423,24 @@ describe('a reserve emptied by a negative rate', () => {
 
   it('leaves every reserve nobody drains alone', () => {
     expect(dryAfter(40, -20, 8).driedAfterHours.alloy).toBeNull();
+  });
+});
+
+describe('legacy storage placement', () => {
+  const region = { deposit: null, coastal: false };
+  it('refuses a new depot even on free ground', () => {
+    expect(
+      placementRefusal('depot', region, { onRegion: null, taken: 0, slots: 4, hqLevel: 2 }, 1),
+    ).toBe('UNKNOWN_BUILDING');
+  });
+  it('raises an old depot as a warehouse without taking another slot', () => {
+    expect(
+      placementRefusal(
+        'warehouse',
+        region,
+        { onRegion: 'depot', taken: 4, slots: 4, hqLevel: 2 },
+        1,
+      ),
+    ).toBeNull();
   });
 });

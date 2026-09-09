@@ -36,7 +36,7 @@ describe('the rest of the catalogue', () => {
   const reasonFor = (key: BuildingKey, overrides: Partial<Site> = {}) =>
     blockedOn(site(overrides), CATALOG).find((option) => option.key === key)?.reason;
 
-  it('partitions the fifteen with the offer, whatever the ground', () => {
+  it('partitions the current catalogue with the offer, whatever the ground', () => {
     for (const overrides of [
       {},
       { deposit: 'coal' as const },
@@ -48,7 +48,9 @@ describe('the rest of the catalogue', () => {
     ]) {
       const offered = keysOn(overrides);
       const blocked = blockedKeys(overrides);
-      expect([...offered, ...blocked].sort()).toEqual([...BUILDINGS].sort());
+      expect([...offered, ...blocked].sort()).toEqual(
+        BUILDINGS.filter((key) => key !== 'depot').sort(),
+      );
     }
   });
 
@@ -490,4 +492,10 @@ describe('placement over the whole estate', () => {
       expect(new Set(placementOf(view, key).regionIds)).toEqual(offered);
     }
   });
+});
+
+it('offers warehouse alone and keeps depot off the reference shelf', () => {
+  expect(keysOn()).toContain('warehouse');
+  expect(keysOn()).not.toContain('depot');
+  expect(blockedOn(site(), CATALOG).map((option) => option.key)).not.toContain('depot');
 });

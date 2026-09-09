@@ -26,7 +26,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { rankedByTerritory, scoresOf, type AlloyPrices } from '../src/domain/standings';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { seasonBuildings } from './buildings';
+import { buildingCostKey, seasonBuildings } from './buildings';
 import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './constants';
 import { heldOver } from './holding';
 import { seasonOutposts } from './movement/forces';
@@ -131,7 +131,7 @@ async function writeEdition(
       buildings: buildings
         .filter((building) => building.playerId === player._id)
         .map((building) => ({
-          key: building.key,
+          key: buildingCostKey(building),
           level: building.level,
           /** **Le rattachement écrit à la pose, jamais redeviné** (ADR 0020 §10). Une ligne
            *  d'avant le champ n'en porte aucun et compte donc plein : elle est du sol national

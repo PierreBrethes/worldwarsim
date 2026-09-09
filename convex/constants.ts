@@ -63,14 +63,13 @@ export const isCommanded = (key: BuildingKey): boolean =>
   (COMMANDED_CHAINS as ReadonlyArray<string>).includes(key);
 
 /**
- * Low by default, so the warehouse and the depot become necessary — and therefore targets,
- * which is the point (fiche 02). Each storage building raises its own half.
+ * Low by default so warehouses become necessary targets (fiche 02).
+ * Each level raises all eight ceilings; legacy depots count as warehouses.
  */
 export const BASE_CAP = 400;
 export const STORAGE_CAP_PER_LEVEL = 600;
 
-/** The partition itself is a rule both sides read, so it lives in the pure domain; it is
- *  re-exported here because the ceiling is the one number that belongs to this file. */
+/** Legacy display grouping, retained through the S2/S3 transition. */
 export { STORED_BY } from '../src/domain/economy';
 
 export const BUILDING_SPEC: Readonly<
@@ -90,6 +89,7 @@ export const BUILDING_SPEC: Readonly<
   listening: { cost: { alloy: 35, coal: 15 }, minutes: 40 },
   billets: { cost: { alloy: 25, food: 40 }, minutes: 30 },
   warehouse: { cost: { alloy: 30, coal: 10 }, minutes: 25 },
+  // Legacy tariffs still price queued work, refunds and industry.
   depot: { cost: { alloy: 40, coal: 15 }, minutes: 30 },
 };
 

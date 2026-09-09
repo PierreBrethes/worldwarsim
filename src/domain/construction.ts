@@ -1,4 +1,10 @@
-import { BUILDINGS, RESOURCES, type BuildingKey, type DepositKey, type ResourceKey } from './ids';
+import {
+  BUILDABLE_BUILDINGS,
+  RESOURCES,
+  type BuildingKey,
+  type DepositKey,
+  type ResourceKey,
+} from './ids';
 import { EXPLOITED_DEPOSITS, placementRefusal, type PlacementRefusal } from './economy';
 import {
   currentStock,
@@ -81,7 +87,7 @@ export function buildableOn(
   if (site.constructionHere || site.site === null) return [];
 
   const region = { deposit: site.deposit, coastal: site.coastal };
-  return BUILDINGS.flatMap((key) => {
+  return BUILDABLE_BUILDINGS.flatMap((key) => {
     if (key === site.standing) return [];
     // Nothing rises above the headquarters, and a level-1 building needs one standing.
     if (key === 'hq' ? site.hqLevel > 0 : site.hqLevel === 0) return [];
@@ -173,7 +179,7 @@ export type BlockedOption = {
 };
 
 /**
- * **The rest of the catalogue**, in the order of `BUILDINGS` — every key the offer left out,
+ * **The rest of the catalogue**, in the order of `BUILDABLE_BUILDINGS` — every key the offer left out,
  * each carrying the requirement it fails. Together with `buildableOn` it partitions the
  * fifteen exactly once, by construction: the complement of a list, never a second reading of
  * the placement rule.
@@ -188,7 +194,7 @@ export function blockedOn(
   catalog: Readonly<Record<BuildingKey, BuildSpec>>,
 ): ReadonlyArray<BlockedOption> {
   const offered = new Set(buildableOn(site, catalog).map((option) => option.key));
-  return BUILDINGS.filter((key) => !offered.has(key)).map((key) => ({
+  return BUILDABLE_BUILDINGS.filter((key) => !offered.has(key)).map((key) => ({
     key,
     cost: catalog[key].cost,
     minutes: catalog[key].minutes,

@@ -1,5 +1,22 @@
 # ADR 0017 — Format de saison, socle placé, et ce que borne un plafond de stockage
 
+**Stockage serveur unifié — S2, 09/09/2026.** Chaque niveau d'entrepôt ajoute
+`STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
+porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
+historique compte comme un entrepôt et sa vue sert `warehouse`. Son identité, son niveau
+et son rattachement restent conservés, sans migration massive ni écrêtage de fusion.
+Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée un
+`warehouse` avec `buildings.costKey?: 'depot'` pour conserver le tarif historique au
+classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
+`costKey ?? key` détermine leur tarif. Le stock reste national. **S3 reste à faire** :
+interface complète, libellés et simulateur. Le pillage n'est pas livré.
+
+Cette révision remplace la séparation entrepôt/dépôt décrite plus bas. La règle de
+l'ADR 0017 reste entière : plafond sur les entrées, remboursement intégral, écrêtage
+ponctuel uniquement à une perte effective de capacité. La fusion ne fait pas cette perte.
+`STORED_BY` reste provisoirement le regroupement d'affichage de S3 ; il ne calcule plus
+les plafonds serveur. Le miroir actuel ne vérifie pas cette affectation.
+
 **Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
 
 > ⚠️ **Révision (31/08/2026) : le format de saison est retiré, seule l'horloge survit.**
