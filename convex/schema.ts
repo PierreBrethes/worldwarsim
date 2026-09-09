@@ -5,6 +5,7 @@ import {
   COMBAT_SIDE,
   DETECTOR,
   LON_LAT,
+  LOOT_DELIVERY,
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
@@ -268,7 +269,8 @@ export default defineSchema({
 
   /** A load whose carrier is standing rather than represented by a movement. Loads in transit
    * stay on `movements.loot`; this second form prevents an arrival or an impossible return from
-   * deleting real resources merely because the movement row disappears. */
+   * deleting real resources merely because the movement row disappears. Its reprise by a later
+   * movement is the explicit S6a-4 lot. */
   stationedLoot: defineTable({
     seasonId: v.id('seasons'),
     playerId: v.id('players'),
@@ -381,8 +383,10 @@ export default defineSchema({
      * second order because it still belongs to this movement. Its optional return region is the
      * automatic plan fixed before the return; absence keeps pre-S6a documents readable. */
     plunder: v.optional(PLUNDER_MISSION),
-    /** Cargo exists only on an internal return until S6 implements delivery. */
+    /** Cargo on a stamped return is delivered at its frontier; an unstamped load stays legacy. */
     loot: v.optional(RESOURCE_AMOUNTS),
+    /** New returns carry the immutable frontier they must revalidate; absence is legacy cargo. */
+    lootDelivery: v.optional(LOOT_DELIVERY),
     plunderReportId: v.optional(v.id('plunderReports')),
   })
     .index('byPlayer', ['playerId'])

@@ -9,13 +9,20 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
+import { RESOURCES } from '../../src/domain/ids';
+import { carryCapacityOf, trimLootToCapacity } from '../../src/domain/loot';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { isNation } from '../../src/domain/nations';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
-import { stationLoot } from '../cargo';
+import { stationLoot, type HomewardCargo } from '../cargo';
 import { resolveContact } from '../combat';
-import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS, detectionRangeOf } from '../constants';
+import {
+  CARRY_CAPACITY_BY_ROLE,
+  OUTPOST_DISABLED_HOURS,
+  OUTPOST_IMMUNITY_HOURS,
+  detectionRangeOf,
+} from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
@@ -29,7 +36,6 @@ import {
 } from './forces';
 import { surveyFromPoint } from '../surveys';
 import { pacedMinutes } from './orders';
-import type { ResourceAmounts } from '../../src/domain/loot';
 
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
  *  disappears in three places, and all three go through here. */
@@ -93,7 +99,7 @@ export async function engageAt(
     return;
   }
 
-  const { engagementId, engagement, routed } = await resolveContact(ctx, {
+  const { engagementId, engagement, routed, routedCargo } = await resolveContact(ctx, {
     seasonId: owner.seasonId,
     attacker: { playerId: movement.playerId, troops: marching },
     defender: { playerId: defence.playerId, troops: defence.troops },
@@ -117,7 +123,13 @@ export async function engageAt(
       (outcome) => outcome.id === troop._id && outcome.state !== 'destroyed',
     ),
   );
-  await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now);
+  await walkHome(
+    ctx,
+    { winners: survivors, beaten: routed },
+    pointOf(movement.to),
+    now,
+    routedCargo,
+  );
 }
 
 /**
@@ -158,7 +170,7 @@ export async function standAt(
     return marching.length;
   }
 
-  const { engagement, routed } = await resolveContact(ctx, {
+  const { engagement, routed, routedCargo } = await resolveContact(ctx, {
     seasonId: owner.seasonId,
     attacker: { playerId: defence.playerId, troops: defence.troops },
     defender: { playerId: movement.playerId, troops: marching },
@@ -177,7 +189,7 @@ export async function standAt(
   for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: address });
   /** `routed` carries both sides of the pass, so the column that broke contact walks back from
    *  here just as the camp that held the ground and lost it does (ADR 0019 §3). */
-  await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now);
+  await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now, routedCargo);
   return standing.length;
 }
 
@@ -426,11 +438,7 @@ export async function walkHome(
   },
   from: LonLat,
   now: number,
-  cargo?: {
-    readonly playerId: Id<'players'>;
-    readonly loot: ResourceAmounts;
-    readonly plunderReportId: Id<'plunderReports'>;
-  },
+  cargo: ReadonlyArray<HomewardCargo> = [],
 ): Promise<ReadonlyArray<Id<'movements'>>> {
   /** The rout wins the tie: an attacker that broke contact is named on both lists, and that was
    *  the last thing it did. A map keyed by the troop makes two roads at once impossible. */
@@ -480,34 +488,95 @@ export async function walkHome(
     roads.set(home.key, road);
   }
 
-  let cargoAttached = false;
+  const groups = [
+    ...[...staying.values()].map(({ group }) => group),
+    ...[...roads.values()].map(({ group }) => group),
+  ];
+  const cargoByGroup = new Map<ReadonlyArray<Doc<'troops'>>, HomewardCargo>();
+  for (const load of cargo) {
+    const carrierIds = new Set(load.troopIds);
+    const carryingGroups = groups.filter((group) =>
+      group.some((troop) => carrierIds.has(troop._id)),
+    );
+    const capacities = await Promise.all(
+      carryingGroups.map(async (group) => {
+        const current = (await Promise.all(group.map((troop) => ctx.db.get(troop._id)))).filter(
+          (troop): troop is Doc<'troops'> => troop !== null,
+        );
+        return carryCapacityOf(
+          current.map((troop) => ({
+            role: troop.role,
+            strength: troop.currentStrength,
+            nominalStrength: troop.nominalStrength,
+          })),
+          CARRY_CAPACITY_BY_ROLE,
+        );
+      }),
+    );
+    const totalCapacity = capacities.reduce((sum, capacity) => sum + capacity, 0);
+    const totalLoot = RESOURCES.reduce((sum, key) => sum + load.loot[key], 0);
+    let assigned = Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<
+      (typeof RESOURCES)[number],
+      number
+    >;
+    carryingGroups.forEach((group, index) => {
+      const remaining = Object.fromEntries(
+        RESOURCES.map((key) => [key, Math.max(0, load.loot[key] - assigned[key])]),
+      ) as Record<(typeof RESOURCES)[number], number>;
+      const share =
+        index === carryingGroups.length - 1
+          ? remaining
+          : trimLootToCapacity(
+              load.loot,
+              totalCapacity <= 0 ? 0 : (totalLoot * capacities[index]!) / totalCapacity,
+            );
+      assigned = Object.fromEntries(
+        RESOURCES.map((key) => [key, assigned[key] + share[key]]),
+      ) as Record<(typeof RESOURCES)[number], number>;
+      if (RESOURCES.some((key) => share[key] > 0)) {
+        cargoByGroup.set(group, {
+          ...load,
+          troopIds: group.map((troop) => troop._id),
+          loot: share,
+        });
+      }
+    });
+  }
+
+  const cargoFor = (group: ReadonlyArray<Doc<'troops'>>): HomewardCargo | undefined =>
+    cargoByGroup.get(group);
+
+  const attachedCargo = new Set<HomewardCargo>();
   for (const { address, group } of staying.values()) {
-    if (cargo === undefined || cargoAttached || group[0]?.playerId !== cargo.playerId) continue;
+    const load = cargoFor(group);
+    if (load === undefined || attachedCargo.has(load) || group[0]?.playerId !== load.playerId)
+      continue;
     await stationLoot(ctx, {
       seasonId: group[0].seasonId,
-      playerId: cargo.playerId,
+      playerId: load.playerId,
       troopIds: group.map((troop) => troop._id),
       stationedAt: address,
-      loot: cargo.loot,
-      plunderReportId: cargo.plunderReportId,
+      loot: load.loot,
+      ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
     });
-    cargoAttached = true;
+    attachedCargo.add(load);
   }
 
   for (const { home, group } of roads.values()) {
+    const load = cargoFor(group);
     /** **Already standing on it**, and it never left — the address it has is the one it would
      *  come back to. */
     if (home.point[0] === from[0] && home.point[1] === from[1]) {
-      if (cargo !== undefined && !cargoAttached && group[0]?.playerId === cargo.playerId) {
+      if (load !== undefined && !attachedCargo.has(load) && group[0]?.playerId === load.playerId) {
         await stationLoot(ctx, {
           seasonId: group[0].seasonId,
-          playerId: cargo.playerId,
+          playerId: load.playerId,
           troopIds: group.map((troop) => troop._id),
           stationedAt: group[0].stationedAt,
-          loot: cargo.loot,
-          plunderReportId: cargo.plunderReportId,
+          loot: load.loot,
+          ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
         });
-        cargoAttached = true;
+        attachedCargo.add(load);
       }
       continue;
     }
@@ -519,16 +588,16 @@ export async function walkHome(
     /** No road home — a landing whose transports sank, and nothing else. */
     if (route === null) {
       for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: home.stranded });
-      if (cargo !== undefined && !cargoAttached && group[0]?.playerId === cargo.playerId) {
+      if (load !== undefined && !attachedCargo.has(load) && group[0]?.playerId === load.playerId) {
         await stationLoot(ctx, {
           seasonId: group[0].seasonId,
-          playerId: cargo.playerId,
+          playerId: load.playerId,
           troopIds: group.map((troop) => troop._id),
           stationedAt: home.stranded,
-          loot: cargo.loot,
-          plunderReportId: cargo.plunderReportId,
+          loot: load.loot,
+          ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
         });
-        cargoAttached = true;
+        attachedCargo.add(load);
       }
       continue;
     }
@@ -553,12 +622,17 @@ export async function walkHome(
       troopIds: group.map((troop) => troop._id),
       departedAt: now,
       arrivesAt,
-      ...(cargo !== undefined && group[0]!.playerId === cargo.playerId && !cargoAttached
-        ? { loot: cargo.loot, plunderReportId: cargo.plunderReportId }
+      ...(load !== undefined && group[0]!.playerId === load.playerId && !attachedCargo.has(load)
+        ? {
+            loot: load.loot,
+            ...(load.plunderReportId === undefined
+              ? {}
+              : { plunderReportId: load.plunderReportId }),
+          }
         : {}),
     });
-    if (cargo !== undefined && group[0]!.playerId === cargo.playerId && !cargoAttached) {
-      cargoAttached = true;
+    if (load !== undefined && group[0]!.playerId === load.playerId && !attachedCargo.has(load)) {
+      attachedCargo.add(load);
     }
     filed.push(movementId);
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

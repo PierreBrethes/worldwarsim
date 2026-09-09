@@ -24,6 +24,9 @@ export const UNIT_ROLE = v.union(
 
 export const UNIT_TIER = v.union(v.literal(1), v.literal(2));
 
+/** A point on the globe, in degrees; named fields keep longitude and latitude ordered. */
+export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
+
 export const BUILDING_KEY = v.union(
   v.literal('hq'),
   v.literal('farm'),
@@ -69,6 +72,37 @@ export const RESOURCE_AMOUNTS = v.object({
   bandages: v.number(),
 });
 
+/** One stretch of a route under one medium, shared by movements and immutable return plans. */
+export const ROUTE_LEG = v.object({
+  medium: v.union(v.literal('land'), v.literal('sea'), v.literal('air')),
+  distanceUnits: v.number(),
+});
+
+const PLUNDER_RETURN_PLAN = v.union(
+  v.object({
+    kind: v.literal('standing'),
+    regionId: v.string(),
+    point: LON_LAT,
+  }),
+  v.object({
+    kind: v.literal('route'),
+    regionId: v.string(),
+    point: LON_LAT,
+    hostCountry: v.string(),
+    points: v.array(LON_LAT),
+    legs: v.array(ROUTE_LEG),
+    distanceUnits: v.number(),
+    costUnits: v.number(),
+    landCost: v.number(),
+    minutes: v.number(),
+  }),
+);
+
+export const LOOT_DELIVERY = v.object({
+  regionId: v.string(),
+  point: LON_LAT,
+});
+
 export const PLUNDER_MISSION = v.union(
   v.object({
     phase: v.literal('outbound'),
@@ -81,6 +115,7 @@ export const PLUNDER_MISSION = v.union(
     until: v.number(),
     engagementId: v.union(v.id('engagements'), v.null()),
     returnRegionId: v.optional(v.union(v.string(), v.null())),
+    returnPlan: v.optional(v.union(PLUNDER_RETURN_PLAN, v.null())),
   }),
 );
 
@@ -333,13 +368,6 @@ export const MOVEMENT_TYPE = v.union(
   v.literal('return'),
 );
 
-/**
- * A point on the globe, in degrees. Named fields rather than the `[lon, lat]` tuple the domain
- * passes around: a two-number array is a shape a validator cannot keep in order, and the pair
- * being the wrong way round is the one mistake nothing else would catch.
- */
-export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
-
 export const TROOP_ADDRESS = v.union(v.id('buildings'), v.id('outposts'), LON_LAT, v.null());
 
 /**
@@ -430,11 +458,6 @@ export const STRIKE = {
  * draws the thread from it — a polyline alone cannot say where the column embarks, and the
  * dock is a third of what a combined trip costs (`src/domain/route-timing.ts`).
  */
-export const ROUTE_LEG = v.object({
-  medium: v.union(v.literal('land'), v.literal('sea'), v.literal('air')),
-  distanceUnits: v.number(),
-});
-
 export const REST_WINDOW = v.object({
   startMinutes: v.number(),
   endMinutes: v.number(),

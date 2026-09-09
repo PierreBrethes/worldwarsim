@@ -61,9 +61,18 @@ for (const line of projectedInner.coordinates) {
  */
 const ringsOf = (geometry) => {
   if (!geometry) return [];
-  if (geometry.type === 'Polygon') return [geometry.coordinates[0]];
-  if (geometry.type === 'MultiPolygon') return geometry.coordinates.map((polygon) => polygon[0]);
+  if (geometry.type === 'Polygon') return geometry.coordinates;
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.flatMap((polygon) => polygon);
   return [];
+};
+
+const isProjectionFrame = (ring) => {
+  const xs = ring.map(([x]) => x);
+  const ys = ring.map(([, y]) => y);
+  return (
+    Math.max(...xs) - Math.min(...xs) > WIDTH * 0.9 &&
+    Math.max(...ys) - Math.min(...ys) > HEIGHT * 0.9
+  );
 };
 
 /**
@@ -91,6 +100,7 @@ for (const region of feature(simplified, simplified.objects.regions).features) {
   const projectedRegion = geoProject(region, projection);
   const rings = ringsOf(projectedRegion?.geometry)
     .filter((ring) => ring && ring.length >= 4)
+    .filter((ring) => !isProjectionFrame(ring))
     .map((ring) => ring.map(([x, y]) => [rounded(x), rounded(y)]));
   if (rings.length === 0) continue;
   regions.push({

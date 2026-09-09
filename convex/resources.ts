@@ -27,6 +27,7 @@ import { fail } from './errors';
 import { heldOver } from './holding';
 import { regionFacts } from './regions';
 import { upkeepOf, type Upkeep } from './upkeep';
+import type { ResourceAmounts } from '../src/domain/loot';
 
 export type { ResourceKey, Costs };
 
@@ -531,4 +532,29 @@ export async function credit(
     stocks[key] += gain;
   }
   await writeStocks(ctx, economy, stocks, now);
+}
+
+/**
+ * A physical delivery fills only free storage. Existing excess is left untouched: capacity
+ * bounds what enters, never what the player already owns. The rejected remainder is returned
+ * to the caller so one durable report can account for every unit of cargo.
+ */
+export async function creditToStorage(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  gains: ResourceAmounts,
+  now: number,
+): Promise<{ readonly delivered: ResourceAmounts; readonly lost: ResourceAmounts }> {
+  const economy = await economyOf(ctx, playerId, now);
+  const stocks = { ...economy.stocks };
+  const delivered = emptyStocks();
+  const lost = emptyStocks();
+  for (const key of RESOURCES) {
+    const accepted = Math.min(gains[key], Math.max(0, economy.cap[key] - stocks[key]));
+    delivered[key] = accepted;
+    lost[key] = gains[key] - accepted;
+    stocks[key] += accepted;
+  }
+  await writeStocks(ctx, economy, stocks, now);
+  return { delivered, lost };
 }

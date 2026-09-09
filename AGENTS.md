@@ -210,8 +210,16 @@ deux durées restent `@a-mesurer`. Les producteurs relevés suivent désormais l
 la même présence, puis sont désactivés sans butin ni écrêtage. **S6a-1 conserve désormais une
 charge sans route ou arrivée dans `stationedLoot`**, sans la créditer. L'ordre public, la
 livraison, les dépêches et l'interface ne sont pas livrés : le pillage reste non jouable.
-**S6a-2a** grave la région de retour connue avant son enclenchement et applique la perte avant
-départ si elle n'est plus tenue ; la frontière exacte et le crédit restent S6a-2b.
+**S6a-2a** a introduit la référence provisoire de retour. **S6a-2b** la remplace par un plan
+automatique gravé avant la présence : un seul Dijkstra vise les cellules des régions tenues, le
+trajet finit au premier franchissement exact et l'arrivée crédite une fois dans la place libre —
+sans rogner un excès préexistant — ou perd la charge si cette région n'est plus tenue. Les anciens
+retours sans estampille restent du butin posé. Les contours sont indexés une fois par isolat ;
+trous, multipolygones, micro-régions, tangences et enroulement est-ouest sont traités. La reprise
+d'une charge déjà dans `stationedLoot` reste le lot S6a-4 avant l'ouverture publique. **S6a-3**
+borne maintenant toute charge après une passe à la capacité effective des survivants et partage
+la part conservée entre leurs trajectoires ; les pertes et livraisons s'ajoutent au rapport sans
+double comptage.
 
 ## Schéma Convex
 

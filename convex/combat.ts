@@ -5,6 +5,7 @@ import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
+import { combatCargoSnapshot, settleCombatCargo, type HomewardCargo } from './cargo';
 
 /**
  * **The pass of resolution, as the board records it.** The rules themselves are in
@@ -25,6 +26,7 @@ export type Resolution = {
   readonly engagement: Engagement;
   /** The troops that broke contact, by side — each one owes a march home. */
   readonly routed: ReadonlyArray<Doc<'troops'>>;
+  readonly routedCargo: ReadonlyArray<HomewardCargo>;
 };
 
 /**
@@ -111,6 +113,7 @@ export async function resolveContact(
     [...attacker.troops, ...defender.troops].map((troop) => [troop._id, troop]),
   );
   const routed: Array<Doc<'troops'>> = [];
+  const cargoBefore = await combatCargoSnapshot(ctx, seasonId, new Set(byId.keys()));
 
   for (const outcome of engagement.outcomes) {
     const troop = byId.get(outcome.id);
@@ -121,6 +124,8 @@ export async function resolveContact(
       if (outcome.state === 'routed') routed.push(troop);
     }
   }
+
+  const routedCargo = await settleCombatCargo(ctx, cargoBefore, engagement.outcomes);
 
   const reducedDefender = !wasReduced && (await isPlayerReduced(ctx, defender.playerId));
 
@@ -193,7 +198,7 @@ export async function resolveContact(
   const season = await ctx.db.get(seasonId);
   if (season) await claimVictory(ctx, season, attacker.playerId, at);
 
-  return { engagementId, engagement, routed };
+  return { engagementId, engagement, routed, routedCargo };
 }
 
 /**

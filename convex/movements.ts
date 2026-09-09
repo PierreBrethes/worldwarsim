@@ -54,7 +54,7 @@ import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
-import { arriveForPlunder, completePresence } from './plunder';
+import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import {
   ATTACK_TARGET,
   CONTACT_FORCE,
@@ -431,7 +431,9 @@ export const arrive = internalMutation({
      *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
     else {
       const home = await attachHome(ctx, movement);
-      if (movement.type === 'return') await stationMovementLoot(ctx, movement, home);
+      if (movement.type === 'return' && !(await completeLootDelivery(ctx, movement, now))) {
+        await stationMovementLoot(ctx, movement, home);
+      }
     }
 
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
@@ -543,7 +545,7 @@ export const encounter = internalMutation({
       contactInitiatorId: undefined,
     });
     const now = Date.now();
-    const { engagement, routed } = await resolveContact(ctx, {
+    const { engagement, routed, routedCargo } = await resolveContact(ctx, {
       seasonId: initiator.seasonId,
       attacker: { playerId: initiator.playerId, troops: attacking },
       defender: { playerId: other.playerId, troops: defending },
@@ -573,7 +575,7 @@ export const encounter = internalMutation({
         });
       }
     }
-    await walkHome(ctx, { winners: [], beaten: routed }, contact.point, now);
+    await walkHome(ctx, { winners: [], beaten: routed }, contact.point, now, routedCargo);
     await reassessDetection(ctx, initiator.seasonId, now);
   },
 });

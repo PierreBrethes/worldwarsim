@@ -13,9 +13,9 @@ import { fail } from './errors';
  * since decision 65a: the ground is public, and one file says it to both ends —
  * `region-index.json` names it, says which country it belongs to, whether it
  * touches the sea, and **where it stands** — one lon/lat point per region, the pole of
- * inaccessibility of its largest ring. `regions.json` itself never comes near the server — it
- * weighs 2.5 MB of polygons drawn for the screen, and no placement rule needs a polygon to
- * refuse a port.
+ * inaccessibility of its largest ring. Placement never loads `regions.json`: its 2.5 MB of
+ * contours only enter the separate plunder return crossing module, where the exact admin-1
+ * boundary is the rule rather than a proximity check.
  *
  * The point is what makes a region a place rather than a name: an outpost's reach is measured
  * in kilometres from it (ADR 0015), and a land movement leaves from the point of the region

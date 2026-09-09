@@ -343,13 +343,22 @@ describe('plunder presence', () => {
     const movementId = await plunderArrival(t, token, warehouseId, [infantry], barracks);
 
     const movement = await t.run((ctx) => ctx.db.get(movementId));
-    expect(movement?.plunder).toEqual({
+    expect(movement?.plunder).toMatchObject({
       phase: 'presence',
       buildingId: warehouseId,
       until: MIDDAY + PLUNDER_HOURS_PRESENT * HOUR,
       engagementId: null,
-      returnRegionId: MARNE,
+      returnRegionId: 'FRA-5302',
+      returnPlan: {
+        kind: 'route',
+        regionId: 'FRA-5302',
+        hostCountry: 'FRA',
+      },
     });
+    if (movement?.plunder?.phase !== 'presence' || movement.plunder.returnPlan?.kind !== 'route') {
+      throw new Error('return route not planned');
+    }
+    expect(movement.plunder.returnPlan.points.at(-1)).toEqual(movement.plunder.returnPlan.point);
     expect(movement?.from).toEqual(movement?.to);
     expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toEqual([]);
     expect((await t.run((ctx) => ctx.db.get(warehouseId)))?.disabledUntil).toBeUndefined();

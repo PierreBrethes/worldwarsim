@@ -33,6 +33,19 @@ export type ComputedRoute = {
   readonly landCost: number;
 };
 
+type RouteStep = {
+  readonly medium: Medium;
+  readonly distanceUnits: number;
+  readonly transfer: boolean;
+};
+
+export type RouteSearch = {
+  readonly route: ComputedRoute;
+  readonly rawPoints: ReadonlyArray<LonLat>;
+  readonly steps: ReadonlyArray<RouteStep>;
+  readonly goalCell: number;
+};
+
 /**
  * **What the trip is made of, read off the legs and never off the mode.** `RouteMode` says what
  * the pile was *allowed* to use — a column with a cargo routes `combined` even when the road
@@ -246,34 +259,155 @@ export function computeRoute(
   const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
   if (start === null || goal === null) return null;
 
-  const path = dijkstra(grid, start, goal, allowed, landCost);
+  const path = dijkstra(grid, start, (cell) => cell === goal, allowed, landCost);
   if (path === null) return null;
+  return routeSearchOf(grid, path, mode, landCost).route;
+}
 
-  const points: LonLat[] = [];
+/** One weighted search toward every admissible cell; the first extracted goal is the cheapest. */
+export function computeRouteToAny(
+  grid: RouteGrid,
+  from: LonLat,
+  goalCells: ReadonlySet<number>,
+  mode: RouteMode,
+  landCost: number = COST_BY_MEDIUM.land,
+): RouteSearch | null {
+  if (goalCells.size === 0) return null;
+
+  if (mode === 'air') {
+    let goal: number | null = null;
+    let least = Number.POSITIVE_INFINITY;
+    for (const candidate of goalCells) {
+      const to = unprojectCell(grid, candidate);
+      const distance = airRoute(grid, from, to).distanceUnits;
+      if (distance < least || (distance === least && (goal === null || candidate < goal))) {
+        goal = candidate;
+        least = distance;
+      }
+    }
+    if (goal === null) return null;
+    const to = unprojectCell(grid, goal);
+    const step = { medium: 'air' as const, distanceUnits: least, transfer: false };
+    return {
+      route: routeOf('air', [from, to], [step], landCost),
+      rawPoints: [from, to],
+      steps: [step],
+      goalCell: goal,
+    };
+  }
+
+  const allowed = mode === 'land' ? [LAND] : mode === 'naval' ? [SEA] : [LAND, SEA];
+  const usableGoals = new Set([...goalCells].filter((cell) => allowed.includes(grid.cells[cell]!)));
+  if (usableGoals.size === 0) return null;
+  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  if (start === null) return null;
+  const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), allowed, landCost);
+  return path === null ? null : routeSearchOf(grid, path, mode, landCost);
+}
+
+/** Reprices the exact prefix rather than prorating totals detached from their route legs. */
+export function truncateRouteSearch(
+  grid: RouteGrid,
+  search: RouteSearch,
+  segmentIndex: number,
+  fraction: number,
+  point: LonLat,
+): ComputedRoute {
+  const bounded = Math.max(0, Math.min(1, fraction));
+  const steps: RouteStep[] = search.steps.slice(0, segmentIndex);
+  const crossing = search.steps[segmentIndex];
+  if (crossing !== undefined && bounded > 0) {
+    steps.push({
+      ...crossing,
+      distanceUnits:
+        crossing.medium === 'air'
+          ? airRoute(grid, search.rawPoints[segmentIndex]!, point).distanceUnits
+          : crossing.distanceUnits * bounded,
+    });
+  }
+
+  const points = search.rawPoints.slice(0, segmentIndex + 1);
+  if (points.length === 0) points.push(point);
+  else if (bounded === 0) points[points.length - 1] = point;
+  else points.push(point);
+  return routeOf(search.route.mode, points, steps, search.route.landCost);
+}
+
+/** A sub-cell interior point completes a tiny region without pretending its pole is a goal. */
+export function extendRouteSearch(
+  grid: RouteGrid,
+  search: RouteSearch,
+  point: LonLat,
+): RouteSearch {
+  const from = search.rawPoints[search.rawPoints.length - 1]!;
+  if (from[0] === point[0] && from[1] === point[1]) return search;
+  const medium: Medium =
+    search.route.mode === 'air' ? 'air' : isLandCell(grid, point) ? 'land' : 'sea';
+  const step: RouteStep = {
+    medium,
+    distanceUnits:
+      medium === 'air'
+        ? airRoute(grid, from, point).distanceUnits
+        : projectedDistance(grid, from, point),
+    transfer: false,
+  };
+  const rawPoints = [...search.rawPoints, point];
+  const steps = [...search.steps, step];
+  return {
+    route: routeOf(search.route.mode, rawPoints, steps, search.route.landCost),
+    rawPoints,
+    steps,
+    goalCell: search.goalCell,
+  };
+}
+
+function routeSearchOf(
+  grid: RouteGrid,
+  path: ReadonlyArray<number>,
+  mode: RouteMode,
+  landCost: number,
+): RouteSearch {
+  const rawPoints = path.map((cell) => unprojectCell(grid, cell));
+  const steps: RouteStep[] = [];
+  for (let index = 1; index < path.length; index += 1) {
+    const previous = path[index - 1]!;
+    const cell = path[index]!;
+    steps.push({
+      medium: mediumBetween(grid, previous, cell),
+      distanceUnits: distanceBetweenCells(grid, previous, cell),
+      transfer: grid.cells[previous] !== grid.cells[cell],
+    });
+  }
+  return {
+    route: routeOf(mode, rawPoints, steps, landCost),
+    rawPoints,
+    steps,
+    goalCell: path[path.length - 1]!,
+  };
+}
+
+function routeOf(
+  mode: RouteMode,
+  points: ReadonlyArray<LonLat>,
+  steps: ReadonlyArray<RouteStep>,
+  landCost: number,
+): ComputedRoute {
   const legs: RouteLeg[] = [];
   let distance = 0;
   let cost = 0;
-  for (let i = 0; i < path.length; i++) {
-    const cell = path[i]!;
-    points.push(unprojectCell(grid, cell));
-    if (i === 0) continue;
-    const previous = path[i - 1]!;
-    const length = distanceBetweenCells(grid, previous, cell);
-    const medium = mediumBetween(grid, previous, cell);
-    distance += length;
-    cost += length * (medium === 'sea' ? COST_BY_MEDIUM.sea : landCost);
-    /** **Le transfert se paie au franchissement de la ligne d'eau, pas au changement de
-     *  jambe** — les deux coïncidaient tant qu'une jambe de terre suivait la mer, et la
-     *  révision du 04/09 les a séparés : un débarquement est désormais le dernier pas d'une
-     *  jambe de mer, et une colonne partie d'un quai n'ouvre aucune jambe de terre du tout.
-     *  Facturé sur la jambe, l'embarquement au quai devenait gratuit et le débarquement
-     *  disparaissait — un aller-retour transmanche pour le prix du chemin. */
-    if (grid.cells[previous] !== grid.cells[cell]) cost += TRANSFER_COST;
+  for (const step of steps) {
+    distance += step.distanceUnits;
+    const multiplier =
+      step.medium === 'air' ? 1 : step.medium === 'sea' ? COST_BY_MEDIUM.sea : landCost;
+    cost += step.distanceUnits * multiplier + (step.transfer ? TRANSFER_COST : 0);
     const last = legs[legs.length - 1];
-    if (last?.medium === medium) {
-      legs[legs.length - 1] = { medium, distanceUnits: last.distanceUnits + length };
+    if (last?.medium === step.medium) {
+      legs[legs.length - 1] = {
+        medium: step.medium,
+        distanceUnits: last.distanceUnits + step.distanceUnits,
+      };
     } else {
-      legs.push({ medium, distanceUnits: length });
+      legs.push({ medium: step.medium, distanceUnits: step.distanceUnits });
     }
   }
 
@@ -356,9 +490,9 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
 
 /**
  * **Every coast cell of a projected box**, which is a region's box and never a region: the grid
- * knows nothing of admin-1 shapes and does not have to learn them for this — `regions.json`
- * never crosses over to the server (`convex/regions.ts`), so the caller is the one that says
- * which of these cells fall inside its polygons.
+ * knows nothing of admin-1 shapes and does not have to learn them for this. The caller is the
+ * one that says which of these cells fall inside its polygons; plunder crossings use their own
+ * cached contour reader.
  *
  * The projected coordinate travels beside the lon/lat because the magnet compares distances on
  * the board: reprojecting every candidate on every frame would cost the hover.
@@ -419,9 +553,9 @@ export function directRoute(
 /**
  * **Which country a point stands in**, straight off the rings the world already carries — as an
  * `adm0_a3`, the code every rule keys on. It is the one question a lon/lat cannot answer alone
- * and that several rules need — the rest window of a destination first of all — and the server
- * has no other polygons: `regions.json` never comes near it, and `region-index.json` holds one
- * point per region, which places nothing.
+ * and that several rules need — the rest window of a destination first of all. The routing
+ * world has no admin-1 polygons; the separate plunder crossing module is the one narrow server
+ * exception, while `region-index.json` still holds only one point per region.
  *
  * **Containment, never proximity.** The nearest region's point used to stand in for this, and it
  * answered the wrong country five times out of six along a border: Menton fell to Monaco,
@@ -454,7 +588,7 @@ export const countryAmong = (
 ): string | null => (adm0s.size === 0 ? null : hostAmong(world, lonLat, adm0s));
 
 function hostAmong(world: World, lonLat: LonLat, adm0s: ReadonlySet<string> | null): string | null {
-  const [x, y] = project(world.outline, world.sphere, lonLat);
+  const [x, y] = projectLonLat(world.outline, world.sphere, lonLat);
   for (const country of world.countries) {
     if (adm0s !== null && !adm0s.has(country.adm0)) continue;
     let inside = false;
@@ -490,7 +624,7 @@ function edgeAtLatitude(
   };
 }
 
-function project(
+export function projectLonLat(
   outline: World['outline'],
   sphere: World['sphere'],
   lonLat: LonLat,
@@ -516,7 +650,7 @@ function latitudeAtY(outline: World['outline'], y: number): number {
 }
 
 function projectOnGrid(grid: RouteGrid, lonLat: LonLat): number {
-  const [x, y] = project(grid.outline, grid.sphere, lonLat);
+  const [x, y] = projectLonLat(grid.outline, grid.sphere, lonLat);
   const column = Math.min(
     grid.width - 1,
     Math.max(0, Math.round((x - grid.sphere.minX) / grid.step - 0.5)),
@@ -533,16 +667,24 @@ function unprojectCell(grid: RouteGrid, cell: number): LonLat {
   const row = Math.floor(cell / grid.width);
   const x = grid.sphere.minX + (column + 0.5) * grid.step;
   const y = grid.sphere.minY + (row + 0.5) * grid.step;
-  const latitude = latitudeAtY(grid.outline, y);
-  const centerX = (grid.sphere.minX + grid.sphere.maxX) / 2;
-  const halfWidth = edgeAtLatitude(grid.outline, latitude).eastX - centerX;
-  const longitude = halfWidth === 0 ? 0 : ((x - centerX) / halfWidth) * 180;
+  return lonLatAtProjected(grid.outline, grid.sphere, [x, y]);
+}
+
+export function lonLatAtProjected(
+  outline: World['outline'],
+  sphere: World['sphere'],
+  point: readonly [x: number, y: number],
+): LonLat {
+  const latitude = latitudeAtY(outline, point[1]);
+  const centerX = (sphere.minX + sphere.maxX) / 2;
+  const halfWidth = edgeAtLatitude(outline, latitude).eastX - centerX;
+  const longitude = halfWidth === 0 ? 0 : ((point[0] - centerX) / halfWidth) * 180;
   return [Math.max(-180, Math.min(180, longitude)), latitude];
 }
 
 function projectedDistance(grid: RouteGrid, a: LonLat, b: LonLat): number {
-  const [ax, ay] = project(grid.outline, grid.sphere, a);
-  const [bx, by] = project(grid.outline, grid.sphere, b);
+  const [ax, ay] = projectLonLat(grid.outline, grid.sphere, a);
+  const [bx, by] = projectLonLat(grid.outline, grid.sphere, b);
   return Math.hypot(bx - ax, by - ay);
 }
 
@@ -612,8 +754,8 @@ function engravePassage(
   cells: Uint8Array,
 ): void {
   for (let i = 0; i < passage.length - 1; i++) {
-    const [ax, ay] = project(world.outline, world.sphere, passage[i]!);
-    const [bx, by] = project(world.outline, world.sphere, passage[i + 1]!);
+    const [ax, ay] = projectLonLat(world.outline, world.sphere, passage[i]!);
+    const [bx, by] = projectLonLat(world.outline, world.sphere, passage[i + 1]!);
     const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / (step * 0.5)));
     for (let s = 0; s <= steps; s++) {
       const x = ax + ((bx - ax) * s) / steps;
@@ -701,7 +843,7 @@ function distanceBetweenCells(grid: RouteGrid, a: number, b: number): number {
 function dijkstra(
   grid: RouteGrid,
   start: number,
-  goal: number,
+  isGoal: (cell: number) => boolean,
   allowed: ReadonlyArray<number>,
   landCost: number,
 ): number[] | null {
@@ -711,11 +853,15 @@ function dijkstra(
   costs[start] = 0;
   heap.insert(start, 0);
   const buffer = new Array<number>(9);
+  let goal: number | null = null;
 
   while (heap.size > 0) {
     const { cell, cost } = heap.extractMin();
     if (cost > costs[cell]!) continue;
-    if (cell === goal) break;
+    if (isGoal(cell)) {
+      goal = cell;
+      break;
+    }
 
     const count = neighbors(grid, cell, buffer);
     for (let i = 0; i < count; i++) {
@@ -729,7 +875,7 @@ function dijkstra(
        * le débarquement cessait d'être une opération qu'on choisit. La visée l'exige déjà côté
        * règle (`LANDING_NEEDS_A_COAST`) : la grille ne fait que refuser de la contourner.
        */
-      if (type !== SEA && grid.cells[cell] === SEA && neighbor !== goal) continue;
+      if (type !== SEA && grid.cells[cell] === SEA && !isGoal(neighbor)) continue;
       const length = distanceBetweenCells(grid, cell, neighbor);
       const multiplier =
         mediumBetween(grid, cell, neighbor) === 'sea' ? COST_BY_MEDIUM.sea : landCost;
@@ -743,7 +889,7 @@ function dijkstra(
     }
   }
 
-  if (!Number.isFinite(costs[goal]!)) return null;
+  if (goal === null) return null;
   const path: number[] = [];
   for (let cell = goal; cell !== -1; cell = previous[cell]!) path.push(cell);
   return path.reverse();

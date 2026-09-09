@@ -6,7 +6,7 @@ Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4 à S6a-2a sont terminés localement le 09/09 ; S6a-2b est le prochain lot.
+S4 à S6a-3 sont terminés localement le 09/09 ; S6a-4 est le prochain lot.
 
 ## Sources et acquis
 
@@ -125,6 +125,9 @@ de la bordure d'une région tenue par le porteur, selon la décision ci-dessus.
 Régler le stock avant crédit et distinguer pris, livré et perdu au plafond. Selon l'ADR
 0017, une entrée ne rogne pas le stock préexistant au-dessus du plafond : ne pas appliquer
 naïvement `clipToCapacity(stock + loot, cap)`.
+Depuis S6a-3, une passe borne la charge à la capacité effective après dégâts et répartit la part
+transportable entre les trajectoires des survivants ; `lost` et `delivered` s'accumulent sans
+qu'un callback déjà consommé puisse les compter deux fois.
 
 **Récupération par l'intercepteur (S6b).** Étendre la résolution du contact existant :
 consommer la charge de la colonne détruite une seule fois et transférer seulement la part
@@ -189,8 +192,11 @@ l'échéance prévue, afin de ne pas signaler à distance la présence du récup
 masque l'instant immédiat, pas toute déduction sur l'heure passée.
 
 S6a-2 est scindé : **S6a-2a** grave la région automatique connue avant le retour et traite sa
-perte avant départ ; **S6a-2b** ajoute la géométrie admin-1 minimale qui manque aujourd'hui au
-serveur pour terminer réellement au premier franchissement, puis crédite ou perd à l'arrivée.
+perte avant départ ; **S6a-2b.1** ajoute la géométrie admin-1 et le calcul pur du premier
+franchissement ; **S6a-2b.2** choisit le retour atteignable par une recherche multi-objectif,
+tronque le trajet, puis crédite ou perd à l'arrivée. Le plan de S6a-2b.2 est désormais canonique :
+la région d'origine de S6a-2a n'est plus une seconde destination concurrente. **S6a-4** raccordera
+explicitement une charge déjà posée au prochain mouvement de ses porteurs avant S8.
 Une proximité au point de région ne remplace jamais sa frontière. Le découpage exécutable S6a-1
 à S8 est tenu dans `RESTE-A-CODER.md`. Aucun lot n'ouvre le geste avant le raccordement coordonné
 final.
