@@ -1,12 +1,12 @@
 # pillage-et-butin — piller, porter, rentrer
 
-**Clarifié le 09/09/2026 ; pillage non livré.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
+**Clarifié le 09/09/2026 ; S5b livré en interne, pillage non jouable.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
 dans la [file centrale](../../../RESTE-A-CODER.md#petits-lots-stockage-et-pillage--0909).
 Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree, commit ni
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4, S4b et S5a sont terminés localement le 09/09 ; S5b est le prochain lot après décision D3.
+S4, S4b, S5a et S5b sont terminés localement le 09/09 ; S5c est le prochain lot.
 
 ## Sources et acquis
 
@@ -101,6 +101,15 @@ relèvent du sabotage S5c, sans butin. Restaurer l'entrepôt à `disabledUntil` 
 est en retard. Préserver repos, capitulation et clôture existants ;
 `seasonStillPlays` garde les jobs. « Désactivé » et « hors réseau » restent deux causes.
 
+**D3 validée oralement par Pierre le 09/09 et livrée avec S5b.** La prise exige encore de
+l'infanterie survivante après toute la présence ; sinon les survivants repartent sans charge. Un
+site déjà désactivé est refusé, puis identité, saison, propriétaire, activité et survivants sont
+revalidés à l'arrivée et à la prise. Deux présences concurrentes attendent chacune leur échéance :
+la première prise valide désactive le site, la suivante repart vide, sans second prélèvement ni
+prolongation cumulée. La première arrivée ne dispense jamais des 2 h de présence. Les 2 h de
+présence et 12 h de désactivation restent des points de départ `@a-mesurer`, sans preuve
+d'équilibrage.
+
 **Sabotage (S5c).** Une expédition distincte vise une mine ou une usine déjà relevée et
 interrompt temporairement sa production, même si le site est momentanément à l'arrêt.
 Elle ne prélève ni ne crée aucune ressource, ne touche pas les stocks et ne produit aucun
@@ -152,12 +161,8 @@ S6b conserve aussi le fait de récupération pour une dépêche au nouveau porte
 quantité réellement emportée ; S8 la branche sans annoncer une livraison anticipée.
 Ni double dépêche ni fait réservé à un autre observateur. Textes via `src/i18n/fr.ts`.
 
-## Décisions nécessaires — recommandations non validées
+## Décisions encore nécessaires — recommandations non validées
 
-- **D3 — Présence, avant S5b.** Le comportement en route est validé ci-dessus. Restent les
-   recommandations : encore de l'infanterie à la prise, sinon retour vide ; refuser un
-   site encore désactivé et revalider à l'arrivée/prise, y compris deux expéditions
-   concurrentes. Pas d'immunité supplémentaire proposée.
 - **D4 — Changement de contrôle et absence de route, avant S6a.** La livraison à la bordure
    est validée ci-dessus ; la recommandation de rejoindre un pôle de région est retirée.
    Le comportement si le contrôle territorial change pendant le retour ou si aucune route

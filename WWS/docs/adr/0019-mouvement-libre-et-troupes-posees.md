@@ -5,6 +5,13 @@ le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette d
 objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par
 l'[ADR 0021](0021-portee-de-detection-et-postures.md).**
 
+> **Révision S5b (09/09/2026).** Une expédition de pillage arrivée et victorieuse devient une
+> présence durable de 2 h au point du site. Elle reste un mouvement : ses troupes et son slot
+> sont donc indisponibles à un second ordre. Elle n'engage rien spontanément, mais riposte comme
+> toute force qui tient un point. À l'échéance, encore de l'infanterie est nécessaire ; sinon les
+> survivants repartent vides. La valeur de 2 h est un point de départ `@a-mesurer`, pas un temps
+> équilibré. L'ordre public reste fermé jusqu'au lot S8.
+
 ## Contexte
 
 Le modèle en place attachait chaque troupe à un bâtiment. `stationedAt` était *un rattachement,

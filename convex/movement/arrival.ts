@@ -28,6 +28,7 @@ import {
 } from './forces';
 import { surveyFromPoint } from '../surveys';
 import { pacedMinutes } from './orders';
+import type { ResourceAmounts } from '../../src/domain/loot';
 
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
  *  disappears in three places, and all three go through here. */
@@ -102,6 +103,7 @@ export async function engageAt(
     disabledUntil: null,
     at: now,
   });
+  await retainStandingDefence(ctx, defence.movementId, engagement);
 
   if (type === 'raid' && outpost !== null && engagement.winner === 'attacker') {
     await deactivate(ctx, outpost, now, engagementId);
@@ -166,6 +168,7 @@ export async function standAt(
     disabledUntil: null,
     at: now,
   });
+  await retainStandingDefence(ctx, defence.movementId, engagement);
 
   const stateOf = (troopId: string) =>
     engagement.outcomes.find((outcome) => outcome.id === troopId)?.state ?? null;
@@ -175,6 +178,24 @@ export async function standAt(
    *  here just as the camp that held the ground and lost it does (ADR 0019 §3). */
   await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now);
   return standing.length;
+}
+
+async function retainStandingDefence(
+  ctx: MutationCtx,
+  movementId: Id<'movements'> | null,
+  engagement: Awaited<ReturnType<typeof resolveContact>>['engagement'],
+): Promise<void> {
+  if (movementId === null) return;
+  const movement = await ctx.db.get(movementId);
+  if (movement === null) return;
+  const standing = new Set(
+    engagement.outcomes
+      .filter((outcome) => outcome.state === 'standing')
+      .map((outcome) => outcome.id),
+  );
+  const troopIds = movement.troopIds.filter((troopId) => standing.has(troopId));
+  if (troopIds.length === 0) await forgetMovement(ctx, movementId);
+  else await ctx.db.patch(movementId, { troopIds });
 }
 
 /** ADR 0004, deactivated and never taken: the immunity window stops a relay of cheap raids from
@@ -400,7 +421,12 @@ export async function walkHome(
   },
   from: LonLat,
   now: number,
-): Promise<void> {
+  cargo?: {
+    readonly playerId: Id<'players'>;
+    readonly loot: ResourceAmounts;
+    readonly plunderReportId: Id<'plunderReports'>;
+  },
+): Promise<ReadonlyArray<Id<'movements'>>> {
   /** The rout wins the tie: an attacker that broke contact is named on both lists, and that was
    *  the last thing it did. A map keyed by the troop makes two roads at once impossible. */
   const homeward = new Map<Id<'troops'>, { troop: Doc<'troops'>; routed: boolean }>();
@@ -419,6 +445,7 @@ export async function walkHome(
   }
 
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
+  const filed: Array<Id<'movements'>> = [];
   for (const { troop, routed } of homeward.values()) {
     const home = await homeFor(ctx, troop, routed, from);
     if (home === null) continue;
@@ -466,7 +493,12 @@ export async function walkHome(
       troopIds: group.map((troop) => troop._id),
       departedAt: now,
       arrivesAt,
+      ...(cargo !== undefined && group[0]!.playerId === cargo.playerId && filed.length === 0
+        ? { loot: cargo.loot, plunderReportId: cargo.plunderReportId }
+        : {}),
     });
+    filed.push(movementId);
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   }
+  return filed;
 }

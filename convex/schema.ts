@@ -9,6 +9,8 @@ import {
   ROUTE_LEG,
   MOVEMENT_TYPE,
   NOTICE,
+  PLUNDER_MISSION,
+  RESOURCE_AMOUNTS,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_STATUS,
@@ -206,6 +208,9 @@ export default defineSchema({
      * re-hung anywhere, and nothing more can be placed there.
      */
     outpostId: v.optional(v.union(v.id('outposts'), v.null())),
+    /** A warehouse or production site can be temporarily put out of service. Absent means the
+     * row predates building disruption and is active. */
+    disabledUntil: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
@@ -357,9 +362,36 @@ export default defineSchema({
     /** Pairs already resolved while both movements remain in flight. This prevents a
      * reassessment immediately after a pass from scheduling the same encounter again. */
     encounteredMovementIds: v.optional(v.array(v.id('movements'))),
+    /** Internal until S8 opens the order. While present, the manifest stays unavailable to a
+     * second order because it still belongs to this movement. */
+    plunder: v.optional(PLUNDER_MISSION),
+    /** Cargo exists only on an internal return until S6 implements delivery. */
+    loot: v.optional(RESOURCE_AMOUNTS),
+    plunderReportId: v.optional(v.id('plunderReports')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
+
+  /** Durable facts consumed by the S8 dispatch wiring. One successful take creates one row;
+   * callbacks and later reads never reconstruct it from current stocks. */
+  plunderReports: defineTable({
+    seasonId: v.id('seasons'),
+    attackerId: v.id('players'),
+    defenderId: v.id('players'),
+    buildingId: v.id('buildings'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    hostCountry: v.string(),
+    at: v.number(),
+    disabledUntil: v.number(),
+    engagementId: v.union(v.id('engagements'), v.null()),
+    taken: RESOURCE_AMOUNTS,
+    storageLost: RESOURCE_AMOUNTS,
+    returnMovementId: v.optional(v.id('movements')),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byAttacker', ['attackerId'])
+    .index('byDefender', ['defenderId']),
 
   /**
    * **A point, never a polygon** (fiche 03): an outpost sits at a lon/lat, holds no ground, and

@@ -53,6 +53,7 @@ import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
+import { arriveForPlunder, completePresence } from './plunder';
 import {
   ATTACK_TARGET,
   CONTACT_FORCE,
@@ -396,6 +397,13 @@ export const arrive = internalMutation({
       return;
     }
 
+    if (movement.plunder?.phase === 'outbound') {
+      await surveyAlongRoute(ctx, movement, now);
+      await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
     /** A march that came to garrison a building enters it if it still stands and is still the
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
      *  journal says so in the plain words of an arrival. */
@@ -445,6 +453,16 @@ export const arrive = internalMutation({
     await surveyAlongRoute(ctx, movement, now);
     await forgetMovement(ctx, movementId);
     await reassessDetection(ctx, movement.seasonId, now);
+  },
+});
+
+export const completePlunderPresence = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: async (ctx, { movementId, expectedAt }) => {
+    const movement = await ctx.db.get(movementId);
+    if (movement === null) return;
+    await completePresence(ctx, movement, expectedAt);
+    await reassessDetection(ctx, movement.seasonId);
   },
 });
 

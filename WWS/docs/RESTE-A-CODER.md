@@ -36,14 +36,14 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S5a terminés localement le 09/09. S5b est le prochain lot, après décision D3. Aucun pillage jouable livré.**
+**S1-S5b terminés localement le 09/09. S5c est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
 
 Contrats : [stockage](prompts/code/ready/stockage-unique.md) et
 [pillage](prompts/code/ready/pillage-et-butin.md). Les décisions encore ouvertes sont listées
-dans le brief pillage : **D3** présence, **D4** changement de contrôle territorial/absence de route,
+dans le brief pillage : **D4** changement de contrôle territorial/absence de route et
 **D6** limites de la récupération après interception. Leurs recommandations restent
 **non validées** et ne bloquent pas S3. Les identifiants D sont conservés pour les références.
 **D5 est acceptée pour la V1** : seul le stock disponible est pillable ; les ressources
@@ -77,7 +77,7 @@ distincte de `LIFT_CAPACITY`, qui transporte des troupes.
 | **S4 — calcul pur du butin et capacité** ; terminé localement (09/09) | Après S3 et **D2**. Nouveau `src/domain/loot.ts` et son test ; `convex/constants.ts`, `scripts/generate-a-mesurer.mjs`. Aucun ordre ni mutation de stock. | Surplus réels bornés par la capacité, répartition automatique au prorata, contribution par troupe au ratio `strength / nominalStrength`, réserve de base protégée ; aucun rendement industriel créé ni effet sur `LIFT_CAPACITY`. Tests purs `loot.test.ts`, `scripts/a-mesurer.test.mjs`. |
 | **S4b — abaque et capacité du groupe** ; terminé localement (09/09) | Après S4. `GunneryWindow.tsx`, `GarrisonStack.tsx`, domaine pur de capacité, règles de mouvement existantes, `fr.ts`. Affichage seulement. | Fiche troupe : portée existante, capacité nominale, vitesse/milieux issus du moteur ; sélection : somme effective du groupe choisi, pas de toute la garnison. Tests ciblés domaine/composants ; aucune duplication de portée ou vitesse. |
 | **S5a — cibles autorisées et relevés** ; terminé localement (09/09) | Après S4b. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
-| **S5b — combat, présence et désactivation de l'entrepôt** | Après S5a et **D3** ; D5 est acquise. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage si utile. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts` (nouveau), `production.test.ts`, cas combat/mouvements concernés. |
+| **S5b — combat, présence et désactivation de l'entrepôt** ; terminé localement (09/09) | Après S5a et **D3**, désormais acquise ; D5 est acquise. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts`, `production.test.ts`, cas combat/mouvements concernés. |
 | **S5c — sabotage de production** | Après S5b. Réutiliser défense, présence, désactivation et restauration pour mines et usines ; aucun butin, stock local ou rendement créé. | Site actif ou momentanément arrêté interrompu pour la durée retenue ; stocks inchangés, aucun retour chargé. Cas ciblés dans `convex/plunder.test.ts` et `production.test.ts`. |
 | **S6a — retour chargé** | Après S5c et **D4**. `convex/movement/arrival.ts`, `convex/{movements,resources,schema,holding,routes}.ts`, domaine `loot.ts`. Livraison, interception, perte et destination ; faits durables pour S8. | Crédit unique, pertes partielles, destination perdue/impossible, ancien mouvement sans charge, stock déjà excédentaire préservé. `convex/plunder.test.ts`, `movements.test.ts`, `detection.test.ts`, tests purs touchés. |
 | **S6b — récupération après interception** | Après S6a et **D6**. `convex/movements.ts`, `convex/movement/arrival.ts`, `convex/combat.ts`, domaine `loot.ts`, schéma si nécessaire. Transfert de la charge après destruction, puis retour du nouveau porteur ; faits pour S8. | Charge précédente consommée une fois, transport borné en tenant compte de la charge existante, aucun crédit distant ; nouvelle interception et livraison unique. Déroute, plusieurs bénéficiaires et excédent selon D6. Tests `convex/plunder.test.ts`, `movements.test.ts` et `src/domain/loot.test.ts`. |
@@ -125,7 +125,18 @@ rien ; `warehouse` et `depot` historique convergent vers la même cible. Une por
 uniformément les identifiants inconnus, d'une autre saison, amis ou non pillables, et une seconde
 porte revalide la vérité à l'arrivée sans la servir. `PlayerView` n'expose que l'identité, la clé
 canonique et la région relevées — jamais stock, garnison ou vérité adverse recalculée. Le type
-`plunder` reste absent des ordres publics et de la rose. S5b est le prochain lot après D3.
+`plunder` reste absent des ordres publics et de la rose.
+
+**Bilan S5b (09/09)** : D3 est acquise : l'expédition victorieuse tient 2 h, reste indisponible
+à un second ordre et doit encore porter de l'infanterie à la prise ; sinon elle repart vide. Le
+site, revalidé à l'arrivée puis à la prise, doit encore appartenir à l'adversaire et être actif.
+Deux présences concurrentes ne cumulent rien : la première prise valide désactive l'entrepôt pour
+12 h, la seconde repart vide. La transaction règle les stocks, prélève le seul surplus disponible
+au-dessus de `BASE_CAP`, désactive, puis réduit les plafonds et écrête ; les recrutements déjà
+payés et leurs remboursements restent hors du stock pillable. `warehouse` et `depot` historique
+suivent la même règle. La charge et un rapport durable unique passent au retour interne ; la
+livraison et D4 restent S6a. Les 2 h / 12 h sont des points de départ `@a-mesurer`, pas un
+équilibrage. Le pillage reste fermé côté serveur et absent de l'interface ; S5c est le prochain lot.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

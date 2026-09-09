@@ -885,7 +885,34 @@ describe('scrapping a season', () => {
       // A queue, a lot, a construction and a notice, put down without paying for them: what is
       // under test is the purge, not the economy that would have fed them.
       const playerId = await playerOf(t, creator);
+      const guestId = await playerOf(t, guest);
       await t.run(async (ctx) => {
+        const player = (await ctx.db.get(playerId))!;
+        const engagement = (await ctx.db.query('engagements').first())!;
+        const empty = {
+          food: 0,
+          textile: 0,
+          coal: 0,
+          oil: 0,
+          ore: 0,
+          alloy: 0,
+          ammunition: 0,
+          bandages: 0,
+        };
+        await ctx.db.insert('plunderReports', {
+          seasonId: player.seasonId,
+          attackerId: playerId,
+          defenderId: guestId,
+          buildingId: theirs,
+          building: 'barracks',
+          regionId: PRAHOVA,
+          hostCountry: 'ROU',
+          at: Date.now(),
+          disabledUntil: Date.now() + 3_600_000,
+          engagementId: engagement._id,
+          taken: empty,
+          storageLost: empty,
+        });
         await ctx.db.insert('recruitments', {
           playerId,
           buildingId: barracks,

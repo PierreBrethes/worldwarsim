@@ -20,6 +20,7 @@ export const GAME_TABLES = [
   'orders',
   'strikes',
   'engagements',
+  'plunderReports',
   'movements',
   'outposts',
   'troops',

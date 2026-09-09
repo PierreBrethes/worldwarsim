@@ -640,8 +640,22 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId))
     .collect();
 
+  const plunderReports = new Map(
+    [
+      ...(await ctx.db
+        .query('plunderReports')
+        .withIndex('byAttacker', (q) => q.eq('attackerId', playerId))
+        .collect()),
+      ...(await ctx.db
+        .query('plunderReports')
+        .withIndex('byDefender', (q) => q.eq('defenderId', playerId))
+        .collect()),
+    ].map((report) => [report._id, report]),
+  );
+
   const owned = [
     ...editions,
+    ...plunderReports.values(),
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),

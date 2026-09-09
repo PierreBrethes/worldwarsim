@@ -118,6 +118,7 @@ type Defence = {
   readonly playerId: Id<'players'>;
   readonly troops: ReadonlyArray<Doc<'troops'>>;
   readonly outpostId: Id<'outposts'> | null;
+  readonly movementId: Id<'movements'> | null;
 };
 
 /** Who answers an arrival. If several nations hold ground in the same region, the one with the
@@ -137,7 +138,12 @@ export async function defenceOf(
     const garrison = await troopsStationedAt(ctx, outpost._id);
     return garrison.length === 0
       ? null
-      : { playerId: outpost.playerId, troops: garrison, outpostId: outpost._id };
+      : {
+          playerId: outpost.playerId,
+          troops: garrison,
+          outpostId: outpost._id,
+          movementId: null,
+        };
   }
   if (target.kind !== 'region') return null;
 
@@ -158,7 +164,7 @@ export async function defenceOf(
   for (const [playerId, troops] of byPlayer) {
     if (troops.length === 0) continue;
     if (defender === null || troops.length > defender.troops.length) {
-      defender = { playerId, troops, outpostId: null };
+      defender = { playerId, troops, outpostId: null, movementId: null };
     }
   }
   return defender;
@@ -175,19 +181,45 @@ async function defenceNear(
   movement: Doc<'movements'>,
   arrival: LonLat,
 ): Promise<Defence | null> {
-  const marching = new Set<Id<'troops'>>(
-    (await seasonMovements(ctx, movement.seasonId)).flatMap((other) => other.troopIds),
-  );
+  const movements = await seasonMovements(ctx, movement.seasonId);
+  const marching = new Set<Id<'troops'>>(movements.flatMap((other) => other.troopIds));
   const byPlayer = new Map<
     Id<'players'>,
-    { troops: Array<Doc<'troops'>>; outposts: Set<Id<'outposts'>> }
+    {
+      troops: Array<Doc<'troops'>>;
+      outposts: Set<Id<'outposts'>>;
+      movements: Set<Id<'movements'>>;
+    }
   >();
+
+  for (const present of movements) {
+    if (
+      present._id === movement._id ||
+      present.playerId === movement.playerId ||
+      present.plunder?.phase !== 'presence' ||
+      distanceKm(pointOf(present.to), arrival) > ARRIVAL_RADIUS_KM
+    ) {
+      continue;
+    }
+    const kept = byPlayer.get(present.playerId) ?? {
+      troops: [],
+      outposts: new Set(),
+      movements: new Set(),
+    };
+    kept.troops.push(...(await troopsCarriedBy(ctx, present)));
+    kept.movements.add(present._id);
+    byPlayer.set(present.playerId, kept);
+  }
 
   for (const troop of await seasonTroops(ctx, movement.seasonId)) {
     if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
     const stance = await stanceOf(ctx, troop.stationedAt);
     if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
-    const kept = byPlayer.get(troop.playerId) ?? { troops: [], outposts: new Set() };
+    const kept = byPlayer.get(troop.playerId) ?? {
+      troops: [],
+      outposts: new Set(),
+      movements: new Set(),
+    };
     kept.troops.push(troop);
     if (stance.outpostId !== null) kept.outposts.add(stance.outpostId);
     byPlayer.set(troop.playerId, kept);
@@ -199,10 +231,12 @@ async function defenceNear(
     /** Two outposts answering the same arrival is a place, not a point, and the account must
      *  not pick one of them. */
     const [only] = [...kept.outposts];
+    const [onlyMovement] = [...kept.movements];
     defender = {
       playerId,
       troops: kept.troops,
       outpostId: kept.outposts.size === 1 ? only! : null,
+      movementId: kept.movements.size === 1 ? onlyMovement! : null,
     };
   }
   return defender;

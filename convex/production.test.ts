@@ -7,9 +7,12 @@ import type { BuildingKey, ResourceKey } from '../src/domain/ids';
 import { unlinkedProducers } from '../src/domain/next-actions';
 import type { PlayerView } from '../src/domain/player-view';
 import {
+  BASE_CAP,
   EXTRACTION_PER_HOUR,
   OUTPOST_DISABLED_HOURS,
   OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
+  PLUNDER_DISABLED_HOURS,
+  STORAGE_CAP_PER_LEVEL,
   outpostReachKm,
 } from './constants';
 import { heldOver } from './holding';
@@ -475,5 +478,26 @@ describe('a building only produces when its region carries its colour', () => {
       async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.ore,
     );
     expect(twice).toBeCloseTo(once, 6);
+  });
+
+  it('restores warehouse capacity from its dated deadline when the job wakes late', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const warehouseId = await raise(t, token, 'warehouse', MARNE);
+    const player = await seatOf(t, token);
+    const disabledUntil = MIDDAY + PLUNDER_DISABLED_HOURS * HOUR;
+    await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil }));
+
+    expect((await t.run((ctx) => economyOf(ctx, player._id, MIDDAY))).cap.food).toBe(BASE_CAP);
+
+    vi.setSystemTime(disabledUntil + 2 * HOUR);
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: player.seasonId,
+      at: disabledUntil,
+    });
+
+    expect((await t.run((ctx) => economyOf(ctx, player._id, Date.now()))).cap.food).toBe(
+      BASE_CAP + STORAGE_CAP_PER_LEVEL,
+    );
   });
 });

@@ -636,6 +636,16 @@ export const OUTPOST_DISABLED_HOURS = 6;
 export const OUTPOST_IMMUNITY_HOURS = 3;
 
 /**
+ * First playable values for the warehouse expedition. They establish the two separate waits —
+ * holding the site, then keeping it out of service — but no simulation or game has balanced
+ * either one.
+ *
+ * @a-mesurer starting points only; no simulation models plunder presence or warehouse downtime
+ */
+export const PLUNDER_HOURS_PRESENT = 2;
+export const PLUNDER_DISABLED_HOURS = 12;
+
+/**
  * **What one outpost costs to hold, per level and per hour** (ADR 0020 §10). It is the brake on
  * expansion, deliberately put here rather than on the founding bill: a rising founding cost
  * punishes once, at the purchase, and is then forgotten; an upkeep weighs for as long as the

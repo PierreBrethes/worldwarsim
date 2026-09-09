@@ -58,6 +58,27 @@ export const RESOURCE_KEY = v.union(
   v.literal('bandages'),
 );
 
+export const RESOURCE_AMOUNTS = v.object({
+  food: v.number(),
+  textile: v.number(),
+  coal: v.number(),
+  oil: v.number(),
+  ore: v.number(),
+  alloy: v.number(),
+  ammunition: v.number(),
+  bandages: v.number(),
+});
+
+export const PLUNDER_MISSION = v.union(
+  v.object({ phase: v.literal('outbound'), buildingId: v.id('buildings') }),
+  v.object({
+    phase: v.literal('presence'),
+    buildingId: v.id('buildings'),
+    until: v.number(),
+    engagementId: v.union(v.id('engagements'), v.null()),
+  }),
+);
+
 /**
  * `concluded` is a season somebody won — read on, never played on. The wipe stays manual: one
  * reads the game back before erasing it (`seasons.destroy`), so a concluded season is a normal

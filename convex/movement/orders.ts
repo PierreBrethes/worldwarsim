@@ -166,15 +166,30 @@ export async function revalidatePlunderTarget(
   ctx: QueryCtx,
   player: Doc<'players'>,
   buildingId: Id<'buildings'>,
+  at = Date.now(),
 ): Promise<Doc<'buildings'>> {
+  const building = await plunderTargetAt(ctx, player, buildingId, at);
+  if (building === null) fail('UNKNOWN_BUILDING');
+  return building;
+}
+
+/** One truth gate for filing, arrival and take. The opaque wrappers decide only whether the
+ * caller needs an error or a no-op return. */
+export async function plunderTargetAt(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+  at: number,
+): Promise<Doc<'buildings'> | null> {
   const building = await ctx.db.get(buildingId);
   if (
     building === null ||
     building.seasonId !== player.seasonId ||
     building.playerId === player._id ||
-    canonicalBuildingKey(building.key) !== 'warehouse'
+    canonicalBuildingKey(building.key) !== 'warehouse' ||
+    (building.disabledUntil !== undefined && building.disabledUntil >= at)
   ) {
-    fail('UNKNOWN_BUILDING');
+    return null;
   }
 
   return building;
@@ -346,10 +361,13 @@ export async function march(
   }
 
   const troops: Array<Doc<'troops'>> = [];
+  const marching = new Set(
+    (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
+  );
   for (const troopId of troopIds) {
     const troop = await ctx.db.get(troopId);
     if (!troop || troop.playerId !== playerId) fail('UNKNOWN_TROOP', { troopId });
-    if (!sameStation(troop.stationedAt, departure.stationId)) {
+    if (!sameStation(troop.stationedAt, departure.stationId) || marching.has(troopId)) {
       fail('TROOP_NOT_AT_ORIGIN', { troopId });
     }
     troops.push(troop);

@@ -231,7 +231,10 @@ export async function economyOf(
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
   const buildings = await playerBuildings(ctx, playerId);
-  const held = await heldFor(ctx, playerId, buildings, now);
+  const activeBuildings = buildings.filter(
+    (building) => building.disabledUntil === undefined || building.disabledUntil < now,
+  );
+  const held = await heldFor(ctx, playerId, activeBuildings, now);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -255,18 +258,18 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
-  const ratePerHour = extractionRates(buildings, held, playerId);
+  const ratePerHour = extractionRates(activeBuildings, held, playerId);
   ratePerHour.food -= upkeep.foodPerHour;
   /** The outposts eat beside the army, and in the same term of the rate (ADR 0020 §10): the
    *  brake on expansion is a continuous cost, so it has to be part of the one arbitration. */
   for (const key of RESOURCES) ratePerHour[key] -= upkeep.outpostPerHour[key];
-  const cap = storageCaps(buildings);
+  const cap = storageCaps(activeBuildings);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({
     stocks: stored,
     ratePerHour,
     cap,
-    conversions: chainsOf(buildings, orderRows, held, playerId),
+    conversions: chainsOf(activeBuildings, orderRows, held, playerId),
     hours: (now - updatedAt) / 3_600_000,
   });
 
@@ -291,7 +294,7 @@ export async function economyOf(
     stocks: settled.stocks,
     ratePerHour,
     cap,
-    conversions: chainsOf(buildings, orders, held, playerId),
+    conversions: chainsOf(activeBuildings, orders, held, playerId),
     hours: OUTLOOK_HOURS,
   });
 
@@ -319,10 +322,10 @@ export async function economyOf(
     /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
      *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
     starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
-    unlinked: buildings.filter(
+    unlinked: activeBuildings.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(buildings, held, playerId),
+    extraction: extractionSites(activeBuildings, held, playerId),
   };
 }
 
