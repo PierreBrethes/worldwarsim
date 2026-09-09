@@ -601,6 +601,7 @@ export const destroy = mutation({
  * attacker — going by defender as well would delete the same row twice.
  */
 async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+  const player = await ctx.db.get(playerId);
   const byPlayer = async (
     table:
       | 'constructions'
@@ -612,6 +613,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'movements'
       | 'outposts'
       | 'sightings'
+      | 'lootCrateSightings'
       | 'regionSightings'
       | 'stationedLoot'
       | 'notices'
@@ -656,10 +658,34 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
         .collect()),
     ].map((report) => [report._id, report]),
   );
+  const lootRecoveries = await ctx.db
+    .query('lootRecoveries')
+    .withIndex('byRecoveringPlayer', (q) => q.eq('recoveringPlayerId', playerId))
+    .collect();
+  const lootCrates = (
+    await Promise.all(
+      lootRecoveries.map((recovery) =>
+        ctx.db
+          .query('lootCrates')
+          .withIndex('byRecovery', (q) => q.eq('recoveryId', recovery._id))
+          .collect(),
+      ),
+    )
+  ).flat();
+  const lootCrateDetectionJobs =
+    player === null
+      ? []
+      : await ctx.db
+          .query('lootCrateDetectionJobs')
+          .withIndex('bySeason', (q) => q.eq('seasonId', player.seasonId))
+          .collect();
 
   const owned = [
     ...editions,
     ...plunderReports.values(),
+    ...lootCrates,
+    ...lootCrateDetectionJobs,
+    ...lootRecoveries,
     ...(await byPlayer('constructions')),
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),
@@ -669,6 +695,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('movements')),
     ...(await byPlayer('outposts')),
     ...(await byPlayer('sightings')),
+    ...(await byPlayer('lootCrateSightings')),
     ...(await byPlayer('regionSightings')),
     ...(await byPlayer('stationedLoot')),
     ...(await byPlayer('notices')),

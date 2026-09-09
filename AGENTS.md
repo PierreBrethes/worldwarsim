@@ -225,10 +225,13 @@ leurs trajectoires ; les pertes et livraisons s'ajoutent au rapport sans double 
 libre des groupes debout du vainqueur, après leurs pertes et leur charge existante. Une déroute ou
 une destruction partielle ne transfère rien. Le rapport de pillage initial inscrit l'interception
 en perte ; la cargaison récupérée porte `recoveryId` et ses livraisons/pertes suivantes alimentent
-le fait privé `lootRecoveries`, qui conserve aussi le reliquat et son point exact sans caisse
-publique. Les lignes `stationedLoot` aux porteurs communs partagent une seule capacité au combat.
-S6b-2, la matérialisation privée et idempotente de ce reliquat en caisse, reste le prochain lot
-avant l'ouverture publique.
+le fait privé `lootRecoveries`. **S6b-2 matérialise désormais son reliquat une seule fois dans
+`lootCrates`** : une quantité courante unique au point exact, échéance fixe de 2 h depuis le combat,
+prélèvement partiel interne sans report et expiration événementielle idempotente. Une saison
+conclue reste immuable ; le wipe retire faits et caisses et les travaux orphelins deviennent
+inertes. Les lignes `stationedLoot` aux porteurs communs partagent une seule capacité au combat.
+S6b-3, le fan-out privé de détection à portée, reste le prochain lot avant collecte et ouverture
+publique.
 
 ## Schéma Convex
 

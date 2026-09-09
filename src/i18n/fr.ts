@@ -505,15 +505,14 @@ export const fr = {
     regionLabel: (region: string) => `région : ${region}`,
     quit: 'quitter',
     codeLabel: 'code de partie — à partager',
-    codeNote:
-      'Ce code identifie la partie ; les places et les nations disponibles se voient ci-dessous.',
+    codeNote: 'Partagez ce code pour inviter vos amis tant que les inscriptions sont ouvertes.',
     copyCode: 'copier le code',
     codeCopied: 'code copié',
     participantCount: (count: number) =>
       `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur 8`,
-    registrationBeforeLaunch:
-      'Les nouvelles places sont admises jusqu’au lancement, puis pendant la fenêtre d’arrivée.',
-    registrationUntil: (date: string) => `Nouvelles places admises jusqu’au ${date}.`,
+    registrationBeforeLaunch: (hours: number) =>
+      `Les inscriptions sont ouvertes avant le lancement, puis pendant les ${hours} premières heures.`,
+    registrationUntil: (date: string) => `Clôture des nouvelles inscriptions : ${date}.`,
     registrationClosed: 'Les nouvelles inscriptions sont closes.',
     registrationConcluded: 'La saison est conclue ; elle peut être relue.',
     nationsHeader: 'nations — premier arrivé, premier servi',

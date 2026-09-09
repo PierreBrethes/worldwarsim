@@ -440,6 +440,52 @@ export default defineSchema({
     .index('byRecoveringPlayer', ['recoveringPlayerId'])
     .index('byEngagement', ['engagementId']),
 
+  /** The single current quantity of a battlefield remainder. Its recovery fact keeps provenance,
+   * while this private row alone owns what is still physically present. */
+  lootCrates: defineTable({
+    seasonId: v.id('seasons'),
+    recoveryId: v.id('lootRecoveries'),
+    point: LON_LAT,
+    appearedAt: v.number(),
+    expiresAt: v.number(),
+    loot: RESOURCE_AMOUNTS,
+    expirationJobId: v.optional(v.id('_scheduled_functions')),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byRecovery', ['recoveryId']),
+
+  /** What one player last established about a crate. Reads stay on this observer-owned ledger:
+   * the crate table remains server truth and is never filtered into a client view. */
+  lootCrateSightings: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    crateId: v.id('lootCrates'),
+    point: LON_LAT,
+    loot: RESOURCE_AMOUNTS,
+    seenAt: v.number(),
+    present: v.boolean(),
+    current: v.boolean(),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('byCrate', ['crateId'])
+    .index('byPlayerCrate', ['playerId', 'crateId'])
+    .index('bySeason', ['seasonId']),
+
+  /** A prediction is deliberately separate from what an observer has seen. Only its callback may
+   * turn the current board into a sighting, after checking that this exact row is still current. */
+  lootCrateDetectionJobs: defineTable({
+    seasonId: v.id('seasons'),
+    movementId: v.id('movements'),
+    crateId: v.id('lootCrates'),
+    kind: v.union(v.literal('enter'), v.literal('exit')),
+    at: v.number(),
+    scheduledJobId: v.optional(v.id('_scheduled_functions')),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byMovement', ['movementId'])
+    .index('byCrate', ['crateId'])
+    .index('byMovementCrate', ['movementId', 'crateId']),
+
   /**
    * **A point, never a polygon** (fiche 03): an outpost sits at a lon/lat, holds no ground, and
    * colours no region. `hostCountry` is the one thing the point cannot answer on its own — the

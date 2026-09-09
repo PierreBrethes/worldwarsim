@@ -6,7 +6,7 @@ Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4 à S6b-1 sont terminés localement le 09/09 ; S6b-2 est le prochain lot.
+S4 à S6b-3b sont terminés localement le 09/09 ; S6c est le prochain lot.
 
 ## Sources et acquis
 
@@ -139,9 +139,11 @@ aux groupes debout du vainqueur après leurs propres pertes et leur charge exist
 récupérée porte un `recoveryId`, suit mouvements, stationnement, reprise et livraison S6a et ne
 crédite jamais le stock au combat. Le rapport de pillage initial inscrit l'interception en perte ;
 les livraisons et interceptions suivantes alimentent le fait `lootRecoveries`, sans attribuer au
-récupérateur le bâtiment pillé à l'origine. Le reliquat, son point et sa provenance sont durables
-sur ce fait privé. Aucun nouveau choix de posture ni ordre d'interception. La caisse et sa priorité
-stable restent à matérialiser dans les lots suivants de D6.
+récupérateur le bâtiment pillé à l'origine. Depuis S6b-2, le reliquat quitte atomiquement ce fait
+pour une unique `lootCrates` privée au point exact : quantité courante unique, échéance fixe de 2 h
+depuis la destruction, prélèvement interne partiel sans report et expiration idempotente. Aucun
+nouveau choix de posture ni ordre d'interception. La détection, la collecte physique et la priorité
+stable entre collecteurs restent dans les lots suivants de D6.
 
 **Ouverture et surfaces (S7-S8).** S5-S6 restent internes et testés par fixtures : ordre
 public refusé côté serveur. S7 raccorde la rose sous la même fermeture ; S8 ouvre l'ordre
@@ -206,21 +208,42 @@ Une proximité au point de région ne remplace jamais sa frontière. Le découpa
 à S8 est tenu dans `RESTE-A-CODER.md`. Aucun lot n'ouvre le geste avant le raccordement coordonné
 final.
 
-## Prochain lot exact — S6b-2, caisse persistante
+## Lot livré — S6b-3a, relevé privé aux événements présents
 
-À partir des seuls `lootRecoveries.remainder` non vides produits par S6b-1, créer la forme durable
-privée d'une caisse au `point` exact de l'engagement, avec une échéance initiale de 2 h
-`@a-mesurer`. La création et la consommation du reliquat doivent être atomiques et idempotentes :
-un même fait ne matérialise jamais deux caisses, et la somme déposée est exactement le reliquat,
-sans nouveau calcul de capacité ni nouvelle perte sur le rapport de pillage source. Préserver
-`seasonId`, `engagementId`, propriétaire dépossédé et chaîne de provenance nécessaires aux lots
-suivants. Préparer une collecte partielle future sans repousser l'échéance ; à l'échéance, le
-restant disparaît une fois. Ne brancher encore ni ordre de collecte, ni détection, ni rumeur, ni
-`PlayerView`, ni journal, ni interface. Les documents existants restent lisibles : tout ajout à
-une table existante est optionnel, ou la caisse vit dans une nouvelle table. Valider par une sonde
-transactionnelle temporaire : quantité et point exacts, idempotence de matérialisation, expiration
-unique et échéance inchangée après une consommation partielle interne ; supprimer la sonde, ne pas
-lancer le vérificateur global, puis s'arrêter avec S6b-3/S6c encore fermés.
+À partir de la seule vérité `lootCrates`, un fan-out privé par observateur révèle le
+point et le contenu exacts uniquement lorsqu'un détecteur existant couvre réellement la caisse.
+Il réutilise les portées de rôle, avant-poste d'écoute et station d'écoute déjà définies, sans
+nouvelle portée, ni bonus lié à la quantité, ni posture. Les relevés doivent être dénormalisés et
+lus par index d'observateur : aucune query de vue ne filtre la table vraie des caisses. Création,
+déplacement/pose ou disparition d'un détecteur, prélèvement et expiration réévaluent la couverture
+présente. Une collecte partielle ne met à jour que les observateurs encore à portée ; les autres
+gardent leur dernier relevé marqué périmé. À leur retour, ils apprennent le contenu courant ou
+l'absence. `expiresAt` n'est pas copié. `PlayerView`, rumeur mondiale, journal, carte et collecte
+restent fermés.
+
+## Lot livré — S6b-3b, fenêtres mobiles futures
+
+Pour chaque caisse existante et chaque mouvement qui porte un rôle détecteur, le serveur calcule sur sa route
+la prochaine entrée dans le rayon puis la sortie, sans traiter le territoire comme détecteur.
+Les rendez-vous annulables sont séparés du dernier relevé et ne révèlent rien avant leur réveil.
+Une modification géométrique de caisse, route ou composition recalcule les prédictions ; un simple
+prélèvement partiel actualise uniquement la couverture présente. Le callback vérifie son identité,
+la saison active, la caisse, le mouvement, ses troupes, leur portée et `positionAt(now)` : ancien,
+annulé, dupliqué ou tardif, il ne reconstruit jamais une observation passée. La synchronisation
+globale conserve `current:true` si un autre détecteur couvre encore la caisse. Aucun polling,
+`PlayerView`, rumeur mondiale, journal, carte ou ramassage n'est branché.
+
+## Prochain lot exact — S6c, ramassage et retour physique
+
+Ajouter le trajet serveur vers une caisse connue par le relevé privé du joueur, sans ouvrir encore
+le geste dans l'interface. Valider groupe, capacité libre et route avec les règles existantes ; le
+point visé vient du dernier relevé, jamais d'une lecture directe de `lootCrates`. À l'arrivée,
+revalider et sérialiser sur la caisse vraie : le premier arrivé prélève jusqu'à sa capacité libre,
+sans repousser `expiresAt`, puis repart par le même calcul de retour et de frontière que les charges
+récupérées. Si la caisse est vide, expirée ou déjà prise, la colonne repart normalement avec toute
+charge qu'elle portait déjà ; aucune vérité distante n'est révélée. Conserver la fermeture publique
+jusqu'à S8 et ne brancher ni `PlayerView`, rumeur, journal ou interface. Utiliser puis supprimer une
+sonde transactionnelle ciblée, lancer format/lint/types/tests pertinents et s'arrêter avant S7.
 
 ## Acceptation et arrêt
 

@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S6b-1 terminés localement le 09/09. S6b-2 est le prochain lot. Aucun pillage jouable livré.**
+**S1-S6b-3b terminés localement le 09/09. S6c est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -174,19 +174,24 @@ la capacité effective des survivants ; elle n'est ni détruite ni transférée 
 7. **S6b-1 — transfert sur destruction** ; terminé localement (09/09) : consommer l'ancienne
    charge une fois et remplir la capacité libre des groupes réellement debout du vainqueur. Une
    déroute ou une destruction partielle ne transfère rien à l'adversaire.
-8. **S6b-2 — caisse persistante** : déposer le reliquat réel au point de destruction pour 2 h ;
-   collecte partielle sans repousser l'échéance, disparition du restant à terme.
-9. **S6b-3 — détection privée** : révéler position et contenu exacts seulement à portée selon les
-   détecteurs existants, par événements et rendez-vous annulables.
-10. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
+8. **S6b-2 — caisse persistante** ; terminé localement (09/09) : déposer le reliquat réel au
+   point de destruction pour 2 h ; prélèvement interne partiel sans repousser l'échéance,
+   disparition du restant à terme.
+9. **S6b-3a — relevé privé aux événements présents** ; terminé localement (09/09) : révéler
+   position et contenu exacts seulement aux détecteurs existants actuellement à portée ; garder
+   le dernier relevé périmé hors portée, sans vue cliente.
+10. **S6b-3b — fenêtres mobiles futures** ; terminé localement (09/09) : programmer l'entrée ou
+    la sortie suivante d'un détecteur mobile dans la portée d'une caisse, sans relevé anticipé,
+    avec annulation et revalidation au réveil.
+11. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
    physique ; cible vide ou expirée = retour ordinaire avec toute charge déjà portée.
-11. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
+12. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
    tiré une fois dans un disque qui contient la caisse ; la rumeur vit jusqu'à son terme public.
-12. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
+13. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
    cadré et brume ; jamais le point réel avant détection.
-13. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
+14. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
     récupération et livraison sans vérité adverse supplémentaire.
-14. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
+15. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
     cycle, les vues et les dépêches sont raccordés ; aucun drapeau générique.
 
 **Bilan S6a-1 (09/09)** : une charge en trajet reste portée par `movements.loot`. Si aucun trajet
@@ -279,10 +284,43 @@ déjà occupée, provenance, seconde destruction et deux charges stationnées su
 puis a été supprimée. Types, lint et 132 tests existants ciblés passent ; aucun scénario conservé,
 pas de vérificateur global.
 
-**Points d'entrée du reliquat pour S6b-2** : chaque ligne privée `lootRecoveries` expose
-`remainder` avec son `point`, `at`, `engagementId` et ses références de provenance. S6b-2 doit
-matérialiser exactement cette quantité une fois, puis vider/consommer ce champ dans la même
-transaction ; aucune vue ne lit encore cette table et aucune caisse publique n'existe.
+**Bilan S6b-2 (09/09)** : `materializeRecoveryRemainder` déplace atomiquement chaque
+`lootRecoveries.remainder` non vide vers une unique ligne privée `lootCrates`, indexée par fait de
+récupération. La caisse porte seule la quantité courante, le point exact, `appearedAt` et
+`expiresAt = at + LOOT_CRATE_HOURS` ; le reliquat source est remis à zéro, sans nouvelle perte ni
+copie de total. Un second appel retrouve la même caisse et une matérialisation tardive ne recrée
+rien après l'échéance. `takeLootFromCrate` fournit la primitive interne de prélèvement partiel
+borné, sérialisée par Convex : elle ne repousse jamais `expiresAt` et retire la ligne quand elle
+est vide. Le rendez-vous `lootCrates.expire` supprime une fois le restant à la date d'origine,
+même réveillé en retard ; une saison conclue reste immuable et le wipe supprime faits et caisses,
+les travaux devenant inertes. La purge couvrant tout le schéma et `GAME_TABLES` incluent désormais
+`lootRecoveries` et `lootCrates`. Une sonde temporaire a couvert quantité/point, double création,
+prélèvement partiel, échéance inchangée et double expiration tardive, puis a été supprimée. Aucun
+ordre, détection, rumeur, vue, journal ou interface n'est ouvert.
+
+**Bilan S6b-3a (09/09)** : `lootCrateSightings` dénormalise par observateur le point, le contenu
+et la date du dernier relevé. La même photographie de détecteurs que le brouillard mobile couvre
+les troupes posées ou en mouvement, stations d'écoute et avant-postes d'écoute, sans territoire
+ni nouvelle portée. Création, prélèvement, disparition et événements de plateau resynchronisent
+uniquement la couverture présente. Hors portée, la ligne devient périmée sans recevoir les
+variations de contenu ; revenu sur place, l'observateur apprend l'état courant, y compris
+l'absence. `expiresAt` ne sort pas dans le relevé et aucune vue cliente ne le lit encore.
+
+**Bilan S6b-3b (09/09)** : `lootCrateDetectionJobs` garde séparément du relevé le prochain
+franchissement de portée de chaque mouvement détecteur/caisse. La route est parcourue avec
+`positionAt`, les horaires de segments et l'enroulement existants ; aucune prévision ne crée une
+ligne visible. Les événements de géométrie annulent et recalculent ces rendez-vous, tandis qu'un
+simple prélèvement partiel ne rebâtit que le contenu actuellement observé. Au réveil, l'identité
+du travail, la saison, la caisse, le mouvement, ses rôles survivants et la position de l'instant
+sont relus ; un travail ancien, annulé ou tardif ne reconstruit pas le passé. La synchronisation
+globale de S6b-3a garde le relevé courant si un autre détecteur couvre encore la caisse. Aucun
+polling, `PlayerView`, rumeur, interface ou collecte n'est ajouté.
+
+**Point d'entrée pour S6c** : ajouter le trajet de ramassage vers une caisse connue sans encore
+l'ouvrir dans l'interface. La validation doit partir du relevé privé de l'observateur, mais
+l'arrivée relit la caisse vraie : vide, expirée ou déjà prise donne un retour ordinaire avec la
+charge antérieure ; sinon le premier arrivé prélève dans la capacité libre puis enclenche le même
+retour physique et la même livraison que les charges récupérées. L'échéance initiale ne bouge pas.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

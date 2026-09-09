@@ -646,6 +646,14 @@ export const PLUNDER_HOURS_PRESENT = 2;
 export const PLUNDER_DISABLED_HOURS = 12;
 
 /**
+ * A battlefield remainder gets one fixed window from the pass that created it. Collecting part
+ * of it never starts a fresh window.
+ *
+ * @a-mesurer provisional lifetime; no season simulation models crate discovery or collection
+ */
+export const LOOT_CRATE_HOURS = 2;
+
+/**
  * **What one outpost costs to hold, per level and per hour** (ADR 0020 §10). It is the brake on
  * expansion, deliberately put here rather than on the founding bill: a rising founding cost
  * punishes once, at the purchase, and is then forgotten; an upkeep weighs for as long as the

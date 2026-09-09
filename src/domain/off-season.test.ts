@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REGISTRATION_WINDOW_HOURS, canJoinRegistration, registrationDeadline } from './off-season';
+import { canJoinRegistration, registrationDeadline } from './off-season';
 
 describe('registration window', () => {
   it('keeps a pre-launch season open regardless of its creation age', () => {
@@ -7,7 +7,7 @@ describe('registration window', () => {
   });
 
   it('uses an exact two-hour deadline, including a zero launch timestamp', () => {
-    const deadline = REGISTRATION_WINDOW_HOURS * 3_600_000;
+    const deadline = 7_200_000;
     expect(registrationDeadline(0)).toBe(deadline);
     expect(canJoinRegistration('launched', 0, deadline - 1)).toBe(true);
     expect(canJoinRegistration('launched', 0, deadline)).toBe(false);

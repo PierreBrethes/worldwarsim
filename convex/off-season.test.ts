@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id, TableNames } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
+import { REGISTRATION_WINDOW_HOURS } from '../src/domain/off-season';
 import {
   HQ_LEVEL_AT_LAUNCH,
   NATIONS,
@@ -95,48 +96,153 @@ describe('creating and joining', () => {
       'token',
     );
   });
+});
 
-  it('closes new seats at the launch deadline without inserting one', async () => {
+describe('registration deadline', () => {
+  const launchedAt = Date.UTC(2040, 0, 1);
+  const deadline = launchedAt + REGISTRATION_WINDOW_HOURS * 3_600_000;
+
+  beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+    vi.setSystemTime(launchedAt);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each([-1, 0, 1])('checks a new seat at deadline %+d ms on the server', async (offset) => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
-    await t.run(async (ctx) => {
-      const season = (await ctx.db.query('seasons').collect())[0]!;
-      await ctx.db.patch(season._id, { launchedAt: 0 });
-    });
+    const opening = await t.query(api.seasons.lobby, { token: creator });
+    expect(opening.registrationClosesAt).toBe(deadline);
+    const request = { code, nickname: 'Tard' };
+    const before = await t.run(async (ctx) => ({
+      players: await ctx.db.query('players').collect(),
+      resources: await ctx.db.query('resources').collect(),
+      buildings: await ctx.db.query('buildings').collect(),
+      troops: await ctx.db.query('troops').collect(),
+    }));
 
-    await expect(t.mutation(api.seasons.join, { code, nickname: 'Trop tard' })).rejects.toThrow(
-      'REGISTRATION_CLOSED',
+    vi.setSystemTime(deadline + offset);
+    if (offset < 0) {
+      const { token } = await t.mutation(api.seasons.join, request);
+      expect((await t.query(api.seasons.lobby, { token })).players).toHaveLength(3);
+    } else {
+      await expect(t.mutation(api.seasons.join, request)).rejects.toThrow('REGISTRATION_CLOSED');
+      expect(
+        await t.run(async (ctx) => ({
+          players: await ctx.db.query('players').collect(),
+          resources: await ctx.db.query('resources').collect(),
+          buildings: await ctx.db.query('buildings').collect(),
+          troops: await ctx.db.query('troops').collect(),
+        })),
+      ).toEqual(before);
+    }
+    expect((await t.query(api.seasons.lobby, { token: creator })).registrationClosesAt).toBe(
+      deadline,
     );
-    const lobby = await t.query(api.seasons.lobby, { token: creator });
-    expect(lobby.players).toHaveLength(2);
   });
 
-  it('keeps a seat obtained before closure usable for preparation and entry', async () => {
+  async function endowment(t: ReturnType<typeof boot>, token: string) {
+    return t.run(async (ctx) => {
+      const player = (await ctx.db
+        .query('players')
+        .withIndex('byToken', (q) => q.eq('token', token))
+        .unique())!;
+      return {
+        enteredWarAt: player.enteredWarAt,
+        resources: await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect(),
+        buildings: await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect(),
+        troops: await ctx.db
+          .query('troops')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect(),
+      };
+    });
+  }
+
+  it('resumes an existing seat, finishes preparation and endows it only once after closure', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    vi.setSystemTime(deadline - 1);
+    const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    vi.setSystemTime(deadline + 1);
+    expect(await t.query(api.seasons.previews, { tokens: [late] })).toEqual([
+      expect.objectContaining({ token: late, status: 'launched', atWar: false, nation: null }),
+    ]);
+    expect((await t.query(api.seasons.lobby, { token: late })).me.atWar).toBe(false);
+    await t.mutation(api.players.reserveNation, { token: late, nation: 'germany' });
+    await t.mutation(api.players.setRestWindow, { token: late, startMinutes: 300 });
+    await t.mutation(api.seasons.enterWar, { token: late });
+    const first = await endowment(t, late);
+    expect(first.enteredWarAt).toBe(deadline + 1);
+    expect(first.resources).toHaveLength(Object.keys(KIT).length);
+    expect(Object.fromEntries(first.resources.map(({ key, stock }) => [key, stock]))).toEqual(KIT);
+    expect(first.buildings).toHaveLength(1);
+    expect(first.troops).toHaveLength(1);
+    expect((await t.query(api.seasons.lobby, { token: late })).me.restWindow.startMinutes).toBe(
+      300,
+    );
+    expect((await t.query(api.view.playerView, { token: late })).me.nation).toBe('germany');
+    vi.setSystemTime(deadline + 3_600_000);
+    await t.mutation(api.seasons.enterWar, { token: late });
+    expect(await endowment(t, late)).toEqual(first);
+    expect(await t.query(api.seasons.previews, { tokens: [creator, late] })).toEqual([
+      expect.objectContaining({ token: creator, atWar: true }),
+      expect.objectContaining({ token: late, atWar: true }),
+    ]);
+  });
+
+  it('keeps legacy participants without an entry timestamp at war after closure', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    await t.run(async (ctx) => {
+      const player = (await ctx.db
+        .query('players')
+        .withIndex('byToken', (q) => q.eq('token', creator))
+        .unique())!;
+      await ctx.db.patch(player._id, { enteredWarAt: undefined });
+    });
+    const before = await endowment(t, creator);
+    vi.setSystemTime(deadline + 1);
+    expect((await t.query(api.seasons.lobby, { token: creator })).me.atWar).toBe(true);
+    expect(await t.query(api.seasons.previews, { tokens: [creator] })).toEqual([
+      expect.objectContaining({ token: creator, atWar: true }),
+    ]);
+    expect((await t.query(api.view.playerView, { token: creator })).me.nation).toBe('france');
+    await t.mutation(api.seasons.enterWar, { token: creator });
+    expect(await endowment(t, creator)).toEqual(before);
+  });
+
+  it.each([launchedAt + 1, deadline + 1])('keeps a concluded season closed at %d', async (at) => {
     const t = boot();
     const { code, creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, { token: creator });
     const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
     await t.run(async (ctx) => {
       const season = (await ctx.db.query('seasons').collect())[0]!;
-      await ctx.db.patch(season._id, { launchedAt: 0 });
+      await ctx.db.patch(season._id, { status: 'concluded', concludedAt: at });
     });
-
-    await t.mutation(api.players.reserveNation, { token: late, nation: 'germany' });
-    await t.mutation(api.seasons.enterWar, { token: late });
-    const view = await t.query(api.view.playerView, { token: late });
-    expect(view.me.nation).toBe('germany');
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
-    expect(view.me.resources.food.stock).toBeLessThanOrEqual(KIT.food);
-    expect(view.me.buildings).toHaveLength(1);
-    expect(view.me.troops).toHaveLength(1);
+    vi.setSystemTime(at);
+    await expect(t.mutation(api.seasons.join, { code, nickname: 'Trop tard' })).rejects.toThrow(
+      'SEASON_CONCLUDED',
+    );
+    await expect(t.mutation(api.seasons.enterWar, { token: late })).rejects.toThrow(
+      'SEASON_CONCLUDED',
+    );
+    expect((await t.query(api.seasons.lobby, { token: creator })).registrationClosesAt).toBeNull();
   });
 });
 
 /**
- * **L'entrée en guerre** — one joins a running season at any hour, and the season answers by
+ * **L'entrée en guerre** — an existing seat can enter after registration closes, and the season answers by
  * handing out the launch kit and nothing more (decision of 24/08). What these cases pin down is
  * the part a reader would not guess: the endowment is the very one the launch hands out, the
  * theatre does not move, and the threshold of the test victory recounts on the entry rather than
@@ -955,7 +1061,7 @@ describe('scrapping a season', () => {
           ammunition: 0,
           bandages: 0,
         };
-        await ctx.db.insert('plunderReports', {
+        const reportId = await ctx.db.insert('plunderReports', {
           seasonId: player.seasonId,
           attackerId: playerId,
           defenderId: guestId,
@@ -969,6 +1075,37 @@ describe('scrapping a season', () => {
           taken: empty,
           storageLost: empty,
         });
+        const recoveryId = await ctx.db.insert('lootRecoveries', {
+          seasonId: player.seasonId,
+          engagementId: engagement._id,
+          dispossessedPlayerId: guestId,
+          recoveringPlayerId: playerId,
+          point: asPoint(pointOf(PRAHOVA)),
+          at: Date.now(),
+          sourcePlunderReportId: reportId,
+          recovered: empty,
+          remainder: { ...empty, food: 1 },
+        });
+        const { materializeRecoveryRemainder } = await import('./lootCrates');
+        const crateId = await materializeRecoveryRemainder(ctx, recoveryId);
+        if (crateId === null) throw new Error('loot crate not materialized');
+        const crate = (await ctx.db.get(crateId))!;
+        const sighting = await ctx.db
+          .query('lootCrateSightings')
+          .withIndex('byPlayerCrate', (q) => q.eq('playerId', playerId).eq('crateId', crateId))
+          .unique();
+        if (sighting === null) {
+          await ctx.db.insert('lootCrateSightings', {
+            seasonId: player.seasonId,
+            playerId,
+            crateId,
+            point: crate.point,
+            loot: crate.loot,
+            seenAt: Date.now(),
+            present: true,
+            current: false,
+          });
+        }
         const carrier = await ctx.db
           .query('troops')
           .withIndex('byPlayer', (q) => q.eq('playerId', playerId))

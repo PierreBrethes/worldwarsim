@@ -7,7 +7,7 @@
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { bearingDegrees, type LonLat } from '../../src/domain/geo';
+import { bearingDegrees, distanceKm, type LonLat } from '../../src/domain/geo';
 import {
   firstMobileEncounter,
   INTERCEPTION_SAMPLES,
@@ -18,7 +18,7 @@ import {
   type Watcher,
 } from '../../src/domain/interception';
 import { movementBehavior } from '../../src/domain/movement-orders';
-import type { UnitRole } from '../../src/domain/ids';
+import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { seasonBuildings } from '../buildings';
 import { detectionRangeOf, LISTENING_STATION_RADIUS_KM, outpostReachKm } from '../constants';
@@ -74,7 +74,60 @@ export async function reassessDetection(
     await syncSightings(ctx, target, await desired, now);
   }
 
+  if (season.status === 'launched' && season.concludedAt === null) {
+    await syncLootCrateSightings(ctx, seasonId, board, now);
+    await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
+  }
+
   if (active.length > 1) await scheduleContacts(ctx, active, board.mobileById, now);
+}
+
+/** Re-read only the present board. Quantity changes use this seam so an unchanged route keeps
+ * its already validated appointment instead of rebuilding every mobile prediction. */
+export async function reassessLootCrateSightings(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  now = Date.now(),
+): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
+  const movements = (await seasonMovements(ctx, seasonId)).filter(
+    (movement) => movement.arrivesAt > now,
+  );
+  const board = await detectionBoard(ctx, seasonId, movements, now);
+  await syncLootCrateSightings(ctx, seasonId, board, now);
+}
+
+/** Geometry-changing events refresh both present knowledge and the next mobile transition. */
+export async function reassessLootCrateDetection(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  now = Date.now(),
+): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
+  const movements = (await seasonMovements(ctx, seasonId)).filter(
+    (movement) => movement.arrivesAt > now,
+  );
+  const board = await detectionBoard(ctx, seasonId, movements, now);
+  await syncLootCrateSightings(ctx, seasonId, board, now);
+  await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
+}
+
+/** A stale row, an early callback or a concluded season writes nothing. A valid wake-up applies
+ * only what is covered now, then reserves the following transition from the fresh board. */
+export async function refreshLootCrateDetection(
+  ctx: MutationCtx,
+  detectionJobId: Id<'lootCrateDetectionJobs'>,
+  expectedAt: number,
+  now = Date.now(),
+): Promise<void> {
+  const prediction = await ctx.db.get(detectionJobId);
+  if (prediction === null || prediction.at !== expectedAt || now < expectedAt) return;
+  const season = await ctx.db.get(prediction.seasonId);
+  if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
+  await ctx.db.patch(prediction._id, { scheduledJobId: undefined });
+  await reassessLootCrateDetection(ctx, prediction.seasonId, now);
 }
 
 /** The callback's fresh reading of one movement, including its current surviving manifest. */
@@ -267,6 +320,182 @@ async function detectionBoard(
   }
 
   return { mobileById, watchers, players };
+}
+
+type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
+
+type CurrentDetector = { readonly point: LonLat; readonly radiusKm: number };
+
+const emptyLoot = (): Record<ResourceKey, number> =>
+  Object.fromEntries(RESOURCES.map((resource) => [resource, 0])) as Record<ResourceKey, number>;
+
+async function syncLootCrateSightings(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  board: DetectionBoard,
+  now: number,
+): Promise<void> {
+  const [crates, sightings] = await Promise.all([
+    ctx.db
+      .query('lootCrates')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect(),
+    ctx.db
+      .query('lootCrateSightings')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect(),
+  ]);
+  const detectors = new Map<Id<'players'>, CurrentDetector[]>();
+  const addDetector = (playerId: Id<'players'>, detector: CurrentDetector) => {
+    const held = detectors.get(playerId) ?? [];
+    held.push(detector);
+    detectors.set(playerId, held);
+  };
+  for (const watcher of board.watchers) {
+    addDetector(watcher.playerId, { point: watcher.point, radiusKm: watcher.radiusKm });
+  }
+  for (const mobile of board.mobileById.values()) {
+    if (mobile.rangeKm <= 0) continue;
+    addDetector(mobile.movement.playerId, {
+      point: positionAt(mobile.force, now),
+      radiusKm: mobile.rangeKm,
+    });
+  }
+
+  const covers = (playerId: Id<'players'>, point: LonLat): boolean =>
+    (detectors.get(playerId) ?? []).some(
+      (detector) => distanceKm(detector.point, point) <= detector.radiusKm,
+    );
+  const crateById = new Map(crates.map((crate) => [crate._id, crate]));
+  const sightingsByCrate = new Map<Id<'lootCrates'>, Array<Doc<'lootCrateSightings'>>>();
+  for (const sighting of sightings) {
+    const held = sightingsByCrate.get(sighting.crateId) ?? [];
+    held.push(sighting);
+    sightingsByCrate.set(sighting.crateId, held);
+  }
+
+  for (const crate of crates) {
+    const point = pointOf(crate.point);
+    const existing = new Map(
+      (sightingsByCrate.get(crate._id) ?? []).map((sighting) => [sighting.playerId, sighting]),
+    );
+    for (const player of board.players) {
+      if (!covers(player._id, point)) continue;
+      const sighting = existing.get(player._id);
+      const value = {
+        point: crate.point,
+        loot: crate.loot,
+        seenAt: now,
+        present: true,
+        current: true,
+      };
+      if (sighting === undefined) {
+        await ctx.db.insert('lootCrateSightings', {
+          seasonId,
+          playerId: player._id,
+          crateId: crate._id,
+          ...value,
+        });
+      } else {
+        await ctx.db.patch(sighting._id, value);
+        existing.delete(player._id);
+      }
+    }
+    for (const sighting of existing.values()) {
+      if (sighting.current) await ctx.db.patch(sighting._id, { current: false });
+    }
+  }
+
+  for (const sighting of sightings) {
+    if (crateById.has(sighting.crateId)) continue;
+    const point = pointOf(sighting.point);
+    if (covers(sighting.playerId, point)) {
+      await ctx.db.patch(sighting._id, {
+        loot: emptyLoot(),
+        seenAt: now,
+        present: false,
+        current: true,
+      });
+    } else if (sighting.current) {
+      await ctx.db.patch(sighting._id, { current: false });
+    }
+  }
+}
+
+type DetectionTransition = { readonly kind: 'enter' | 'exit'; readonly at: number };
+
+function nextLootCrateDetectionTransition(
+  mobile: Mobile,
+  cratePoint: LonLat,
+  now: number,
+): DetectionTransition | null {
+  if (mobile.rangeKm <= 0) return null;
+  const from = Math.max(now, mobile.force.departedAt);
+  const to = mobile.force.arrivesAt;
+  if (to <= from) return null;
+  const insideAt = (at: number) =>
+    distanceKm(positionAt(mobile.force, at), cratePoint) <= mobile.rangeKm;
+  let previousAt = from;
+  let previousInside = insideAt(from);
+
+  for (let index = 1; index <= INTERCEPTION_SAMPLES; index += 1) {
+    const at = from + ((to - from) * index) / INTERCEPTION_SAMPLES;
+    const inside = insideAt(at);
+    if (inside !== previousInside) {
+      let lower = previousAt;
+      let upper = at;
+      for (let precision = 0; precision < 24; precision += 1) {
+        const middle = (lower + upper) / 2;
+        if (insideAt(middle) === previousInside) lower = middle;
+        else upper = middle;
+      }
+      return { kind: inside ? 'enter' : 'exit', at: Math.max(now + 1, Math.ceil(upper)) };
+    }
+    previousAt = at;
+    previousInside = inside;
+  }
+  return null;
+}
+
+async function rescheduleLootCrateDetectionJobs(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  board: DetectionBoard,
+  now: number,
+): Promise<void> {
+  const previous = await ctx.db
+    .query('lootCrateDetectionJobs')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+  for (const prediction of previous) {
+    if (prediction.scheduledJobId !== undefined) {
+      await cancelJob(ctx, prediction.scheduledJobId);
+    }
+    await ctx.db.delete(prediction._id);
+  }
+
+  const crates = await ctx.db
+    .query('lootCrates')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+  for (const mobile of board.mobileById.values()) {
+    for (const crate of crates) {
+      const transition = nextLootCrateDetectionTransition(mobile, pointOf(crate.point), now);
+      if (transition === null || transition.at >= crate.expiresAt) continue;
+      const detectionJobId = await ctx.db.insert('lootCrateDetectionJobs', {
+        seasonId,
+        movementId: mobile.movement._id,
+        crateId: crate._id,
+        ...transition,
+      });
+      const scheduledJobId = await ctx.scheduler.runAt(
+        transition.at,
+        internal.lootCrates.refreshDetection,
+        { detectionJobId, expectedAt: transition.at },
+      );
+      await ctx.db.patch(detectionJobId, { scheduledJobId });
+    }
+  }
 }
 
 function stationOf(

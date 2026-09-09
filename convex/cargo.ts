@@ -3,6 +3,7 @@ import type { MutationCtx } from './_generated/server';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import { carryCapacityOf, trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from './constants';
+import { materializeRecoveryRemainder } from './lootCrates';
 import type { TroopAddress } from './movement/forces';
 
 export type CargoLoad = {
@@ -624,6 +625,7 @@ export async function recoverDestroyedCombatCargo(
         recovered,
         remainder,
       });
+      await materializeRecoveryRemainder(ctx, recoveryId, at);
       if (hasLoot(recovered)) recoveredLoads.push({ loot: recovered, recoveryId });
     }
   }

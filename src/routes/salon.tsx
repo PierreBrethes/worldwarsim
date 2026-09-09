@@ -18,6 +18,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { TelegraphThread } from '@/shell/TelegraphThread';
 import { useTelegraph } from '@/data/telegraph';
 import { asDayAndTime } from '@/domain/duration';
+import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 
 export const Route = createFileRoute('/salon')({
   component: Lobby,
@@ -88,7 +89,7 @@ function ConnectedLobby({ token }: { token: string }) {
   const freeNations = NATIONS.filter((nation) => holderOf(nation) === undefined).length;
   const registrationNote =
     lobby.status === 'lobby'
-      ? fr.lobby.registrationBeforeLaunch
+      ? fr.lobby.registrationBeforeLaunch(REGISTRATION_WINDOW_HOURS)
       : lobby.registrationClosesAt === null
         ? lobby.status === 'concluded'
           ? fr.lobby.registrationConcluded
