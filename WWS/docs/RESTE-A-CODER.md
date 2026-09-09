@@ -36,45 +36,53 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S3 terminés ; stockage unique implémenté et vérifié localement le 09/09. S4 est le prochain lot, bloqué par D1-D2. Aucun pillage livré.**
+**S1-S4 terminés localement le 09/09. S4b est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
 
 Contrats : [stockage](prompts/code/ready/stockage-unique.md) et
 [pillage](prompts/code/ready/pillage-et-butin.md). Les décisions encore ouvertes sont listées
-dans le brief pillage : **D1** partage/rendement, **D2** calcul de capacité/partage des pertes,
-**D3** présence, **D4** changement de contrôle territorial/absence de route,
+dans le brief pillage : **D3** présence, **D4** changement de contrôle territorial/absence de route,
 **D6** limites de la récupération après interception. Leurs recommandations restent
 **non validées** et ne bloquent pas S3. Les identifiants D sont conservés pour les références.
 **D5 est acceptée pour la V1** : seul le stock disponible est pillable ; les ressources
 engagées dans les recrutements et leur remboursement sont protégés. La mise à l'abri dans
 une file annulable est une limite assumée.
-La livraison dès le franchissement de la bordure d'une région tenue par le porteur est
+Le butin vient uniquement de ressources existantes : l'entrepôt prélève les surplus positifs
+au-dessus de `BASE_CAP`, répartis automatiquement au prorata dans la capacité disponible.
+Les mines et usines se sabotent sans créer de butin ; D1 est donc retirée. La livraison dès
+le franchissement de la bordure d'une région tenue par le porteur est
 également acquise, pour le pilleur comme pour le récupérateur, sans atteindre centre ou
 capitale ; seuls le changement de contrôle et l'absence de route restent ouverts dans D4.
 Pierre a validé le 09/09 le prélèvement de tout le surplus de l'entrepôt au-dessus de
 `BASE_CAP`, borné par la capacité de transport ; la réserve de base est protégée du
 prélèvement. Il a aussi validé la perte du butin excédant ce que les survivants peuvent
-transporter après des pertes sans défaite. Cela ne valide ni les partages entre ressources,
-ni un coefficient de santé, ni le rendement des chaînes.
+transporter après des pertes sans défaite. D2 fixe les capacités nominales par rôle à
+40/0/120/0/0/80/0/240/0 dans l'ordre de `UnitRole`, et réduit chaque ressource au prorata
+de la charge transportée, sans création par résidu flottant.
 Il valide aussi le pillage dirigé uniquement vers sa cible, sans engagement spontané en
 route, avec riposte ; et la récupération du butin d'une colonne détruite par l'intercepteur,
 bornée par sa capacité, avec retour obligatoire avant crédit. Cette récupération fait
 partie de S6b et n'attend pas la capture de bâtiments.
+La capacité effective suit l'effectif de chaque troupe (`strength / nominalStrength`) puis
+s'additionne sur le groupe sélectionné pour la mission. Cette capacité de ressources est
+distincte de `LIFT_CAPACITY`, qui transporte des troupes.
 
 | Lot et dépendances | Périmètre fermé ; fichiers repérés | Acceptation et vérification ciblée |
 | --- | --- | --- |
 | **S1 — clarification** ; terminé | Les deux briefs et cette file, rien de plus. | Contradictions résolues séparées des décisions manquantes ; liens et diff documentaires vérifiés. Aucun test de jeu annoncé. |
 | **S2 — stockage serveur** ; terminé localement (09/09) | Après S1. `src/domain/{ids,economy,construction}.ts`, `convex/{validators,constants,buildings,constructions,resources,view}.ts` ; lecteurs de prix dans `standings.ts`/`press.ts`. Compatibilité des bâtiments et chantiers `depot`. | Huit plafonds relevés, nouvelle pose `depot` refusée, ancien dépôt/chantier lisible, fin/élévation et remboursement préservés. `src/domain/{economy,construction}.test.ts`, `convex/economy.test.ts`. |
 | **S3 — stockage interface et simulateur** ; terminé localement (09/09) | Après S2. `src/routes/plateau.tsx`, `-plateau/{ConstructionPanel,EconomyWindow}.tsx`, `src/domain/{construction,compass-rose}.ts`, manifeste des bâtiments, `fr.ts`, `WWS/simulation/opening/{constants,engine,verify}.mjs`. | Une entrée entrepôt, ancien dépôt rendu correctement, huit plafonds identiques dans le simulateur. Tests construction/rose ; `node WWS/simulation/opening/verify.mjs` et vérification de l'affectation des huit ressources. Contrôle visuel si partie accessible. |
-| **S4 — calcul pur du butin et capacité** | Après S3 et **D1-D2**. Nouveau `src/domain/loot.ts` et son test ; `convex/constants.ts`, `scripts/generate-a-mesurer.mjs`. Aucun ordre ni mutation de stock. | Quantités bornées, répartition selon D1-D2, capacité des survivants, zéro production hors réseau, réserve de base protégée du prélèvement. Tests purs `loot.test.ts`, `scripts/a-mesurer.test.mjs` si le générateur change. |
-| **S5a — cibles autorisées et relevés** | Après S4. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
-| **S5b — combat, présence et désactivation** | Après S5a et **D3 et D5**. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage si utile. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts` (nouveau), `production.test.ts`, cas combat/mouvements concernés. |
-| **S6a — retour chargé** | Après S5b et **D4**. `convex/movement/arrival.ts`, `convex/{movements,resources,schema,holding,routes}.ts`, domaine `loot.ts`. Livraison, interception, perte et destination ; faits durables pour S8. | Crédit unique, pertes partielles, destination perdue/impossible, ancien mouvement sans charge, stock déjà excédentaire préservé. `convex/plunder.test.ts`, `movements.test.ts`, `detection.test.ts`, tests purs touchés. |
+| **S4 — calcul pur du butin et capacité** ; terminé localement (09/09) | Après S3 et **D2**. Nouveau `src/domain/loot.ts` et son test ; `convex/constants.ts`, `scripts/generate-a-mesurer.mjs`. Aucun ordre ni mutation de stock. | Surplus réels bornés par la capacité, répartition automatique au prorata, contribution par troupe au ratio `strength / nominalStrength`, réserve de base protégée ; aucun rendement industriel créé ni effet sur `LIFT_CAPACITY`. Tests purs `loot.test.ts`, `scripts/a-mesurer.test.mjs`. |
+| **S4b — abaque et capacité du groupe** | Après S4. `GunneryWindow.tsx`, `GarrisonStack.tsx`, domaine pur de capacité, règles de mouvement existantes, `fr.ts`. Affichage seulement. | Fiche troupe : portée existante, capacité nominale, vitesse/milieux issus du moteur ; sélection : somme effective du groupe choisi, pas de toute la garnison. Tests ciblés domaine/composants ; aucune duplication de portée ou vitesse. |
+| **S5a — cibles autorisées et relevés** | Après S4b. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
+| **S5b — combat, présence et désactivation de l'entrepôt** | Après S5a et **D3** ; D5 est acquise. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage si utile. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts` (nouveau), `production.test.ts`, cas combat/mouvements concernés. |
+| **S5c — sabotage de production** | Après S5b. Réutiliser défense, présence, désactivation et restauration pour mines et usines ; aucun butin, stock local ou rendement créé. | Site actif ou momentanément arrêté interrompu pour la durée retenue ; stocks inchangés, aucun retour chargé. Cas ciblés dans `convex/plunder.test.ts` et `production.test.ts`. |
+| **S6a — retour chargé** | Après S5c et **D4**. `convex/movement/arrival.ts`, `convex/{movements,resources,schema,holding,routes}.ts`, domaine `loot.ts`. Livraison, interception, perte et destination ; faits durables pour S8. | Crédit unique, pertes partielles, destination perdue/impossible, ancien mouvement sans charge, stock déjà excédentaire préservé. `convex/plunder.test.ts`, `movements.test.ts`, `detection.test.ts`, tests purs touchés. |
 | **S6b — récupération après interception** | Après S6a et **D6**. `convex/movements.ts`, `convex/movement/arrival.ts`, `convex/combat.ts`, domaine `loot.ts`, schéma si nécessaire. Transfert de la charge après destruction, puis retour du nouveau porteur ; faits pour S8. | Charge précédente consommée une fois, transport borné en tenant compte de la charge existante, aucun crédit distant ; nouvelle interception et livraison unique. Déroute, plusieurs bénéficiaires et excédent selon D6. Tests `convex/plunder.test.ts`, `movements.test.ts` et `src/domain/loot.test.ts`. |
-| **S7 — interface et aperçu** | Après S6b. Lire fiche 11. `src/routes/plateau.tsx`, `-plateau/{MovementPreview,TroopBadge}.tsx`, `src/domain/{movement-orders,compass-rose,player-view}.ts`, `convex/{movements,view}.ts`, adaptateur `src/data/loadGame.ts`, `fr.ts`. Raccordement sous fermeture serveur. | Rose conforme aux refus, durée/retour servis, estimation sans fuite de stock adverse, charge à soi seulement. Tests des trois modules domaine, cas aperçu/vue de `convex/plunder.test.ts` ; contrôle visuel avec vrai jeton ou limite explicitée. |
-| **S8 — dépêches et ouverture** | Après S7. `convex/{journal,schema}.ts`, producteurs de faits S5b/S6, `src/domain/{journal,player-view}.ts`, `fr.ts`, `JournalWindow.tsx` si nécessaire ; retirer la fermeture coordonnée serveur/rose. | Prise, récupération par l’intercepteur, livraison, perte, désactivation/écrêtage visibles au bon joueur, sans doublon ; « rien à prendre » lisible. `convex/notices.test.ts`, `src/domain/journal.test.ts` et scénario complet public dans `convex/plunder.test.ts`. |
+| **S7 — interface et aperçu** | Après S6b. Lire fiche 11. `src/routes/plateau.tsx`, `-plateau/{MovementPreview,TroopBadge,GarrisonStack}.tsx`, `src/domain/{movement-orders,compass-rose,player-view}.ts`, `convex/{movements,view}.ts`, adaptateur `src/data/loadGame.ts`, `fr.ts`. Raccordement sous fermeture serveur. | Rose conforme aux refus, durée/retour servis, estimation sans fuite ; force à soi chargée : quantités par ressource et total, sans valeur monétaire inventée. Tests domaine et cas aperçu/vue de `convex/plunder.test.ts` ; contrôle visuel avec vrai jeton ou limite explicitée. |
+| **S8 — dépêches et ouverture** | Après S7. `convex/{journal,schema}.ts`, producteurs de faits S5b/S5c/S6, `src/domain/{journal,player-view}.ts`, `fr.ts`, `JournalWindow.tsx` si nécessaire ; retirer la fermeture coordonnée serveur/rose. | Pillage, sabotage, récupération, livraison, perte et désactivation/écrêtage visibles au bon joueur, sans doublon. `convex/notices.test.ts`, `src/domain/journal.test.ts` et scénario complet public dans `convex/plunder.test.ts`. |
 | **S9 — validation et synthèse** | Après S8. Corriger seulement les régressions du chantier ; vérifier cohérence des ADR, fiches, glossaire, instructions, `a-mesurer.md` et file. | `npm run verifier` complet, contrôle de l'expédition à deux si partie accessible ; rapport des limites et mesures restant à faire. Marquer livré seulement après preuve, puis s'arrêter avant objectifs neutres. |
 
 **Bilan S2 (09/09)** : huit plafonds communs, alias centralisé, nouvelle pose `depot`
@@ -94,6 +102,14 @@ seize couples bâtiment-ressource au lieu de laisser l'affectation non vérifié
 construction/rose/bandeau/manifeste et contrôles du miroir passés ; types, lint et format
 vérifiés. Aucun commit, push, déploiement ou contrôle visuel faute de partie authentifiée.
 La validation globale `npm run verifier` reste au lot S9. Arrêt après S3.
+
+**Bilan S4 (09/09)** : `loot.ts` calcule la capacité effective du seul groupe fourni,
+prélève les surplus positifs au-dessus de `BASE_CAP` au prorata et réduit une charge devenue
+trop lourde selon le même ordre déterministe, sans création par arrondi. La table exhaustive
+des neuf rôles est distincte de `LIFT_CAPACITY` et inscrite au registre `@a-mesurer`.
+Aucun ordre, stock, schéma ou écran n'est raccordé ; le pillage reste non jouable. Tests purs,
+types, lint et format vérifiés dans le lot. Aucun commit, push ni déploiement. Arrêt après S4 ;
+S4b (abaque et capacité du groupe) est le prochain lot.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

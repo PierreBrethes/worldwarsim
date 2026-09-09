@@ -1,5 +1,15 @@
 # Pillage et butin — le trajet de retour comme enjeu (proposition, 31/08/2026)
 
+> **Révision validée le 09/09/2026.** Cette proposition conserve l'historique de la
+> discussion, mais sa règle 1 n'est plus la règle courante. Le butin ne se crée plus à
+> partir d'heures de production : piller un entrepôt prélève des ressources réellement
+> présentes dans le stock national, au-dessus de la réserve de base et dans la limite de
+> transport, réparties automatiquement au prorata. Une mine ou une usine se **sabote** pour
+> interrompre temporairement sa production, même à l'arrêt, sans produire de butin et sans
+> stock local. Un butin transporté peut être récupéré si son porteur est détruit et doit
+> toujours revenir physiquement jusqu'au territoire du nouveau porteur. Le brief courant
+> est [`pillage-et-butin.md`](../../prompts/code/ready/pillage-et-butin.md).
+
 **Idée de Pierre (31/08)** : une colonne d'infanterie posée sur un bâtiment adverse le **détruit et
 emporte l'équivalent de plusieurs heures de sa production**, ou le **capture** au prix d'un temps de
 présence plus long. Modèle de référence assumé : Civilization pour le pillage, OGame pour la

@@ -297,6 +297,24 @@ export function nominalStrength(role: UnitRole, tier: UnitTier): number {
 }
 
 /**
+ * Resource cargo carried by one troop at full strength. This never seats another troop:
+ * `LIFT_CAPACITY` remains the separate passenger rule used by crossings.
+ *
+ * @a-mesurer every role; no season simulation models plunder cargo yet
+ */
+export const CARRY_CAPACITY_BY_ROLE: Readonly<Record<UnitRole, number>> = {
+  infantry: 40,
+  armor: 0,
+  landTransport: 120,
+  fighter: 0,
+  bomber: 0,
+  airTransport: 80,
+  escort: 0,
+  cargo: 240,
+  carrier: 0,
+};
+
+/**
  * Cost and duration of **one tier-1 troop**. A batch is a troop, so nothing here multiplies by
  * a count any more (ADR 0014).
  */

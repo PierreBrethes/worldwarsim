@@ -24,26 +24,37 @@ ci-dessous. La sortie b (entrepôt unique) est retenue.
 
 ## Règles retenues pour ce périmètre
 
-- L'ordre `plunder` exige de l'infanterie ; les autres rôles peuvent escorter. Cibles :
-  bâtiment adverse **déjà relevé**, parmi les quatre extracteurs, les trois chaînes et
-  l'entrepôt (dépôt legacy inclus). Ni QG, projection, cantonnement, station ou avant-poste.
+- L'ordre `plunder` exige de l'infanterie ; les autres rôles peuvent escorter. Sa cible
+  porteuse de butin est l'entrepôt adverse **déjà relevé** (`depot` historique inclus).
+  Ni QG, projection, cantonnement, station ou avant-poste.
 - Aller, vaincre la défense présente, tenir une présence, repartir chargé. Réutiliser la
   passe existante ; pas de combat fictif sur cible vide. Le bâtiment est **désactivé**,
   jamais détruit ou capturé ; son avant-poste n'est pas désactivé par cet ordre.
-- Pour la production, le butin est créé à la fin de présence ; **zéro hors réseau**.
-  **Entrepôt, décision explicite de Pierre le 09/09 : tout le surplus au-dessus de
+- **Le butin provient uniquement de ressources qui existent réellement.** Une mine ou une
+  usine ne crée aucun butin en heures de rendement : elle se **sabote** dans le lot distinct
+  S5c pour interrompre temporairement sa production, même si elle est alors à l'arrêt.
+  Aucun stock local par bâtiment n'est ajouté.
+- **Entrepôt, décision explicite de Pierre le 09/09 : tout le surplus au-dessus de
   `BASE_CAP` est prélevable, avec la capacité de transport de la colonne comme plafond.**
-  La réserve de base est protégée du prélèvement. Le partage entre ressources reste à
-  décider. Prélever avant réduction du plafond et écrêtage ; aucun stock local au bâtiment.
+  La réserve de base est protégée. **La capacité est répartie automatiquement au prorata
+  des surplus positifs pillables, sans sélection manuelle.** Prélever avant réduction du
+  plafond et écrêtage. La désactivation de l'entrepôt et l'écrêtage qui suit restent la
+  règle héritée du brief antérieur ; la décision nouvelle ne les a pas supprimés.
 - **Ressources engagées, décision D5 acceptée par Pierre le 09/09 pour la V1 : le pillage
   touche seulement le stock disponible et préserve les ressources déjà engagées dans les
   recrutements, ainsi que leur remboursement à l'annulation selon les règles existantes.**
   Une file annulable permet donc de mettre des ressources à l'abri : c'est une limite
   assumée de cette V1, pas un contournement à corriger dans ce chantier.
-- Points de départ non équilibrés de l'ancien brief : `PLUNDER_HOURS_PRESENT = 2`,
-  `PLUNDER_YIELD_HOURS = 12`, `PLUNDER_DISABLED_HOURS = 12` ; table
-  `CARRY_CAPACITY_BY_ROLE` : infanterie 40, transport terrestre 150, autres 0.
-  Annoter `@a-mesurer` à l'ajout ; la table ne compte pas comme une seule valeur scalaire.
+- Points de départ non équilibrés de l'ancien brief : `PLUNDER_HOURS_PRESENT = 2` et
+  `PLUNDER_DISABLED_HOURS = 12`. **D2, validée par Pierre le 09/09 :** la capacité nominale
+  de butin vaut 40 pour l'infanterie, 120 pour le transport terrestre, 80 pour le transport
+  aérien et 240 pour le cargo ; blindé, chasseur, bombardier, escorteur et porte-avions valent
+  zéro. La table exhaustive `CARRY_CAPACITY_BY_ROLE` reste `@a-mesurer` en partie.
+- **Capacité effective validée par Pierre le 09/09 : chaque troupe contribue selon
+  `strength / nominalStrength`.** Une troupe à moitié d'effectif fournit la moitié de sa
+  capacité nominale de butin ; la capacité du groupe est la somme de ces contributions.
+  Ce ratio ne réduit pas en plus `LIFT_CAPACITY`, qui concerne le transport de troupes et
+  reste une mécanique distincte.
 - Le retour est créé par la résolution. **Livraison validée par Pierre le 09/09 : le
   butin est crédité dès le franchissement de la bordure d'une région tenue par le porteur,
   sans devoir atteindre son pôle/centre ni sa capitale.** Cette règle vaut pour le retour
@@ -53,9 +64,11 @@ ci-dessous. La sortie b (entrepôt unique) est retenue.
   de transport. Le butin doit encore voyager jusqu'à son territoire : aucun crédit
   direct à un stock distant. Cela remplace l'ancienne perte sans reprise sur destruction,
   et appartient à cette V1, indépendamment de la capture de bâtiments.
-- **Pertes sans défaite, décision explicite de Pierre le 09/09 : la colonne conserve
-  seulement le butin transportable par les survivants ; l'excédent est perdu.** Cela ne
-  fixe ni un coefficient de santé ni la répartition de cette perte entre ressources.
+- **Pertes sans défaite, D2 validée par Pierre le 09/09 : la colonne conserve seulement le
+  butin transportable par les survivants ; l'excédent est perdu.** Chaque ressource baisse
+  au prorata de la charge transportée. L'ordre stable des huit ressources attribue à la
+  dernière ressource positive le seul résidu flottant encore disponible : aucun arrondi ne
+  peut créer de butin ni dépasser une quantité source.
 - **Aucun sélecteur ou champ de posture, aucun coefficient de discrétion.** Marcher et
   rentrer observent sans engager ; une force attaquée riposte. Pendant la présence,
   la force posée défend sa position sans intercepter à distance. **Pierre valide le 09/09
@@ -80,11 +93,17 @@ ordre. Ne pas imposer `troops` / `stationedAt` inchangés avant vérification. T
 sur document existant est optionnel avec défaut, ou accompagné d'un backfill.
 
 À l'échéance, dans une transaction : relire saison/cible/survivants ; régler les stocks à
-l'ancien état ; calculer le butin, débiter la victime si stockage ; désactiver ; recalculer
+l'ancien état ; calculer le butin réel, débiter la victime ; désactiver l'entrepôt ; recalculer
 les plafonds et appeler `clipToStorage` ; créer le retour chargé. Les extracteurs et chaînes
-ne produisent pas pendant la désactivation. Restaurer à `disabledUntil` même si le job est
-en retard, sans effet rétroactif. Préserver repos, capitulation et clôture existants ;
+relèvent du sabotage S5c, sans butin. Restaurer l'entrepôt à `disabledUntil` même si le job
+est en retard. Préserver repos, capitulation et clôture existants ;
 `seasonStillPlays` garde les jobs. « Désactivé » et « hors réseau » restent deux causes.
+
+**Sabotage (S5c).** Une expédition distincte vise une mine ou une usine déjà relevée et
+interrompt temporairement sa production, même si le site est momentanément à l'arrêt.
+Elle ne prélève ni ne crée aucune ressource, ne touche pas les stocks et ne produit aucun
+retour chargé. Réutiliser la défense, la présence, la désactivation et la restauration de
+S5b ; la durée reste celle retenue pour la désactivation, sans en inventer une autre ici.
 
 **Retour (S6a).** `movements.loot` optionnel, absent = aucune charge. Un seul mouvement porte
 la charge ; chaque transition consomme l'état précédent une seule fois. Couvrir les
@@ -110,7 +129,19 @@ et la rose ensemble après validation ciblée du cycle et des dépêches. Cacher
 seul ne sécurise pas une mutation. Aucun système générique de fonctionnalités à créer.
 Lire `WWS/docs/design/11-brief-ui.md` avant S7 : rose sur cible connue, refus partagés,
 aperçu serveur de présence/retour/capacité, prévisions identifiées comme estimations.
-Charge visible sur sa pile seulement ; rien de nouveau dans « à faire maintenant ».
+La capacité de mission est celle des troupes choisies dans `GarrisonStack` pour former le
+groupe envoyé, pas celle de toute la garnison du site. Afficher le cumul effectif de la
+sélection ; pour une force chargée à soi, afficher les quantités par ressource et le
+chargement total. Il n'existe ni stock de garnison ni « coût » monétaire du butin à inventer.
+Rien de nouveau dans « à faire maintenant ».
+
+**Abaque et composition (S4b).** Dans la fiche dépliée de `GunneryWindow`, conserver la
+portée de détection déjà servie par `detectionRangeOf([role])`, puis ajouter la capacité
+nominale de butin du rôle et sa vitesse telle que les règles actuelles la déterminent.
+La vitesse dépend du milieu et de la composition (`routeModeOf`, `motorized`, `landCostOf`,
+`COST_BY_MEDIUM`) : afficher ces règles/valeurs réellement employées, sans créer une vitesse
+autonome par véhicule ni recopier les portées. Dans `GarrisonStack`, montrer la capacité
+effective du seul groupe sélectionné, calculée par la même fonction pure que S4.
 
 Prévoir dès S5b-S6 les faits durables nécessaires au journal, même si leur rendu attend S8 :
 victime `sitePlundered` (désactivation et perte de stockage), pilleur `lootTaken`
@@ -121,16 +152,6 @@ Ni double dépêche ni fait réservé à un autre observateur. Textes via `src/i
 
 ## Décisions nécessaires — recommandations non validées
 
-- **D1 — Partage et rendement, avant S4.** Le surplus prélevable et le plafond de transport de
-   l'entrepôt sont validés ci-dessus, **pas le partage entre ressources ni le rendement
-   des chaînes inactives**. Recommandation : partager la capacité au prorata des surplus
-   positifs ; prendre le débit effectif du seul site pour les chaînes, nul à sec/sans lot
-   (le zéro hors réseau est déjà retenu).
-- **D2 — Calcul de capacité et partage des pertes, avant S4.** La perte de l'excédent après
-   pertes sans défaite est validée ci-dessus. Recommandation encore à décider : sommer les
-   capacités des unités survivantes sans coefficient de santé, puis répartir la perte au
-   prorata des ressources transportées. S4 fixe une convention numérique déterministe
-   sans création par arrondi.
 - **D3 — Présence, avant S5b.** Le comportement en route est validé ci-dessus. Restent les
    recommandations : encore de l'infanterie à la prise, sinon retour vide ; refuser un
    site encore désactivé et revalider à l'arrivée/prise, y compris deux expéditions
@@ -148,12 +169,12 @@ Ni double dépêche ni fait réservé à un autre observateur. Textes via `src/i
 ## Acceptation et arrêt
 
 Les suites ciblées sont dans la file. Cas indispensables : infanterie absente/escortée ;
-cible inconnue/QG/entrepôt legacy ; mine reliée à 9/h → `min(108, capacité)` avec les
-valeurs provisoires, hors réseau → zéro ; chaîne inactive selon arbitrage ; prélèvement
-avant écrêtage ; ressources engagées dans les recrutements protégées et remboursement
+cible inconnue/QG/entrepôt legacy ; surplus réels répartis au prorata sans toucher
+`BASE_CAP` ; mine/usine sabotée sans aucun butin, y compris à l'arrêt ; prélèvement avant
+écrêtage ; ressources engagées dans les recrutements protégées et remboursement
 préservé après pillage ; présence interrompue/double échéance ; livraison unique dès le franchissement
 de la bordure tenue, sans atteindre le centre, pour le pilleur et le récupérateur ; pertes
-partielles ; contrôle changé/route impossible selon D4 ; destruction puis transfert borné, porteur déjà chargé,
+partielles avec capacité au ratio d'effectif et répartition selon D2 ; contrôle changé/route impossible selon D4 ; destruction puis transfert borné, porteur déjà chargé,
 nouvelle interception et livraison par le vainqueur sans double crédit ; déroute, plusieurs
 bénéficiaires et excédent selon D6 ; saison conclue sans effet ; même forme adverse pour une
 colonne vide ou chargée.
