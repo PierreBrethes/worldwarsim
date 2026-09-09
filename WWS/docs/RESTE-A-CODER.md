@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S4b terminés localement le 09/09. S5a est le prochain lot. Aucun pillage jouable livré.**
+**S1-S5a terminés localement le 09/09. S5b est le prochain lot, après décision D3. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -76,7 +76,7 @@ distincte de `LIFT_CAPACITY`, qui transporte des troupes.
 | **S3 — stockage interface et simulateur** ; terminé localement (09/09) | Après S2. `src/routes/plateau.tsx`, `-plateau/{ConstructionPanel,EconomyWindow}.tsx`, `src/domain/{construction,compass-rose}.ts`, manifeste des bâtiments, `fr.ts`, `WWS/simulation/opening/{constants,engine,verify}.mjs`. | Une entrée entrepôt, ancien dépôt rendu correctement, huit plafonds identiques dans le simulateur. Tests construction/rose ; `node WWS/simulation/opening/verify.mjs` et vérification de l'affectation des huit ressources. Contrôle visuel si partie accessible. |
 | **S4 — calcul pur du butin et capacité** ; terminé localement (09/09) | Après S3 et **D2**. Nouveau `src/domain/loot.ts` et son test ; `convex/constants.ts`, `scripts/generate-a-mesurer.mjs`. Aucun ordre ni mutation de stock. | Surplus réels bornés par la capacité, répartition automatique au prorata, contribution par troupe au ratio `strength / nominalStrength`, réserve de base protégée ; aucun rendement industriel créé ni effet sur `LIFT_CAPACITY`. Tests purs `loot.test.ts`, `scripts/a-mesurer.test.mjs`. |
 | **S4b — abaque et capacité du groupe** ; terminé localement (09/09) | Après S4. `GunneryWindow.tsx`, `GarrisonStack.tsx`, domaine pur de capacité, règles de mouvement existantes, `fr.ts`. Affichage seulement. | Fiche troupe : portée existante, capacité nominale, vitesse/milieux issus du moteur ; sélection : somme effective du groupe choisi, pas de toute la garnison. Tests ciblés domaine/composants ; aucune duplication de portée ou vitesse. |
-| **S5a — cibles autorisées et relevés** | Après S4b. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
+| **S5a — cibles autorisées et relevés** ; terminé localement (09/09) | Après S4b. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
 | **S5b — combat, présence et désactivation de l'entrepôt** | Après S5a et **D3** ; D5 est acquise. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage si utile. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts` (nouveau), `production.test.ts`, cas combat/mouvements concernés. |
 | **S5c — sabotage de production** | Après S5b. Réutiliser défense, présence, désactivation et restauration pour mines et usines ; aucun butin, stock local ou rendement créé. | Site actif ou momentanément arrêté interrompu pour la durée retenue ; stocks inchangés, aucun retour chargé. Cas ciblés dans `convex/plunder.test.ts` et `production.test.ts`. |
 | **S6a — retour chargé** | Après S5c et **D4**. `convex/movement/arrival.ts`, `convex/{movements,resources,schema,holding,routes}.ts`, domaine `loot.ts`. Livraison, interception, perte et destination ; faits durables pour S8. | Crédit unique, pertes partielles, destination perdue/impossible, ancien mouvement sans charge, stock déjà excédentaire préservé. `convex/plunder.test.ts`, `movements.test.ts`, `detection.test.ts`, tests purs touchés. |
@@ -117,8 +117,15 @@ S4b (abaque et capacité du groupe) est terminé localement ; S5a est le prochai
 `carryCapacityOf` sur les seules troupes cochées, sans toucher aux places de `LIFT_CAPACITY`.
 Tests ciblés domaine et rendus statiques des deux composants passés, ainsi que types, lint,
 format et contrôle du diff. Aucun ordre, mutation, schéma, commit, push ou déploiement ; le
-pillage reste non jouable. Arrêt après S4b ; S5a (cibles autorisées et relevés) est le prochain
-lot.
+pillage reste non jouable. Arrêt après S4b ; S5a (cibles autorisées et relevés) est terminé.
+
+**Bilan S5a (09/09)** : `regionSightings` garde un instantané optionnel et indexé des
+installations adverses réellement observées. Les anciens relevés sans inventaire ne révèlent
+rien ; `warehouse` et `depot` historique convergent vers la même cible. Une porte interne refuse
+uniformément les identifiants inconnus, d'une autre saison, amis ou non pillables, et une seconde
+porte revalide la vérité à l'arrivée sans la servir. `PlayerView` n'expose que l'identité, la clé
+canonique et la région relevées — jamais stock, garnison ou vérité adverse recalculée. Le type
+`plunder` reste absent des ordres publics et de la rose. S5b est le prochain lot après D3.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

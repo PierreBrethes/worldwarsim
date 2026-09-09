@@ -10,6 +10,7 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
+import { canonicalBuildingKey } from '../../src/domain/ids';
 import {
   movementSlots,
   refusalDetails,
@@ -137,6 +138,47 @@ type Aimed = {
    *  does not carry it: only the geometry knows. The open sea alone answers `''`. */
   readonly host: string;
 };
+
+/**
+ * Resolve only a warehouse identity frozen in this observer's survey. Every truth check keeps
+ * the same opaque refusal; arrival uses the narrower revalidation below without serving it.
+ */
+export async function surveyedPlunderTarget(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<Doc<'buildings'>> {
+  const building = await revalidatePlunderTarget(ctx, player, buildingId);
+  const survey = await ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerRegion', (q) =>
+      q.eq('playerId', player._id).eq('regionId', building.regionId),
+    )
+    .unique();
+  if (!(survey?.installations ?? []).some((seen) => seen.buildingId === buildingId)) {
+    fail('UNKNOWN_BUILDING');
+  }
+  return building;
+}
+
+/** Arrival revalidation is internal state handling: it never returns a reason or a target view. */
+export async function revalidatePlunderTarget(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  buildingId: Id<'buildings'>,
+): Promise<Doc<'buildings'>> {
+  const building = await ctx.db.get(buildingId);
+  if (
+    building === null ||
+    building.seasonId !== player.seasonId ||
+    building.playerId === player._id ||
+    canonicalBuildingKey(building.key) !== 'warehouse'
+  ) {
+    fail('UNKNOWN_BUILDING');
+  }
+
+  return building;
+}
 
 export async function aimOf(
   ctx: QueryCtx,

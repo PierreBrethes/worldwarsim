@@ -6,7 +6,7 @@ Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4 et son lot d'affichage S4b sont terminés localement le 09/09 ; S5a est le prochain lot.
+S4, S4b et S5a sont terminés localement le 09/09 ; S5b est le prochain lot après décision D3.
 
 ## Sources et acquis
 

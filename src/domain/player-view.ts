@@ -776,6 +776,12 @@ export type PlayerView = {
   };
   /** Level-one price list, served by the server: balance numbers have one home, `constants.ts`. */
   readonly buildCatalog: Readonly<Record<BuildingKey, BuildSpec>>;
+  /** Installation identities frozen in the observer's last regional survey. */
+  readonly surveyedInstallations: ReadonlyArray<{
+    readonly id: string;
+    readonly key: Exclude<BuildingKey, 'depot'>;
+    readonly regionId: string;
+  }>;
   readonly arcs: ReadonlyArray<ArcView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */

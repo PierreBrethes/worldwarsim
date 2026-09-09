@@ -116,6 +116,20 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     specializationLocked: locked.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
+  const surveyedInstallations = (
+    await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerHasInstallations', (q) =>
+        q.eq('playerId', player._id).eq('hasInstallations', true),
+      )
+      .collect()
+  ).flatMap((survey) =>
+    (survey.installations ?? []).map((installation) => ({
+      id: installation.buildingId,
+      key: canonicalBuildingKey(installation.key),
+      regionId: survey.regionId,
+    })),
+  );
   /** The very set the settlement priced a moment ago (`economyOf`), not a second reading of
    *  "who is far from home": one arbitration, one answer. */
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
@@ -595,6 +609,7 @@ export async function viewOf(ctx: QueryCtx, token: string) {
      * they belong — `convex/constants.ts`, never a second table in the bundle.
      */
     buildCatalog,
+    surveyedInstallations,
     /**
      * **Mine only, and that is the whole design of this field.** An enemy movement is exactly
      * what the fog exists to hide (ADR 0005): the way not to leak it is not to fetch it, and

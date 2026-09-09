@@ -9,6 +9,7 @@ import {
   movementBehavior,
   movementSlots,
   ORDERABLE_TYPES,
+  plunderRefusalOf,
   refusalDetails,
   refusalOf,
   routeModeOf,
@@ -83,6 +84,22 @@ describe('what a column may ask for', () => {
 });
 
 describe('refusals', () => {
+  const warehouse = {
+    kind: 'building',
+    buildingId: 'warehouse-1',
+    key: 'warehouse',
+  } as const;
+
+  it('keeps plunder closed publicly while defining its future target rule', () => {
+    expect(ORDERABLE_TYPES).not.toContain('plunder');
+    expect(plunderRefusalOf(warehouse, ['infantry'], false)).toBeNull();
+    expect(plunderRefusalOf(warehouse, ['armor'], false)).toBe('INFANTRY_REQUIRED');
+    expect(plunderRefusalOf(warehouse, ['infantry'], true)).toBe('FRIENDLY_TARGET');
+    expect(plunderRefusalOf({ ...warehouse, key: 'hq' }, ['infantry'], false)).toBe(
+      'WAREHOUSE_TARGET_ONLY',
+    );
+  });
+
   it('names the ground as friendly rather than the column as wrong', () => {
     const held = column(['infantry'], { myOutpostIds: new Set(['op1']) });
     expect(refusalOf('raid', outpost, held)).toBe('FRIENDLY_TARGET');

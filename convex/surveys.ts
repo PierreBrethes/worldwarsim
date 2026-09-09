@@ -16,7 +16,7 @@ import { coveredRegions, surveyStops, type Observer } from '../src/domain/contro
 import type { LonLat } from '../src/domain/geo';
 import type { UnitRole } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
-import { playerBuildings } from './buildings';
+import { playerBuildings, seasonBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
   DETECTION_RANGE_KM,
@@ -150,6 +150,16 @@ export async function fileSurvey(
 
   const seen = over.filter((region) => covered.has(region.id));
   const truth = await heldOver(ctx, player.seasonId, seen, at);
+  const installationsByRegion = new Map<
+    string,
+    Array<{ buildingId: Id<'buildings'>; key: Doc<'buildings'>['key'] }>
+  >();
+  for (const building of await seasonBuildings(ctx, player.seasonId)) {
+    if (building.playerId === playerId || !covered.has(building.regionId)) continue;
+    const installations = installationsByRegion.get(building.regionId) ?? [];
+    installations.push({ buildingId: building._id, key: building.key });
+    installationsByRegion.set(building.regionId, installations);
+  }
 
   const home = homeCountryOf(player.nation);
   const staleAfter = SURVEY_REFRESH_HOURS * 3_600_000;
@@ -157,24 +167,40 @@ export async function fileSurvey(
   for (const region of seen) {
     if (region.country === home) continue;
     const owner = (truth.get(region.id) ?? null) as Id<'players'> | null;
+    const installations = installationsByRegion.get(region.id) ?? [];
     const row = await ctx.db
       .query('regionSightings')
       .withIndex('byPlayerRegion', (q) => q.eq('playerId', playerId).eq('regionId', region.id))
       .unique();
 
     if (row === null) {
-      if (owner === null) continue;
+      if (owner === null && installations.length === 0) continue;
       await ctx.db.insert('regionSightings', {
         playerId,
         regionId: region.id,
         ownerId: owner,
         seenAt: at,
+        installations,
+        hasInstallations: installations.length > 0,
       });
       written += 1;
       continue;
     }
-    if (row.ownerId === owner && at - row.seenAt < staleAfter) continue;
-    await ctx.db.patch(row._id, { ownerId: owner, seenAt: at });
+    const previous = row.installations ?? [];
+    const sameInstallations =
+      previous.length === installations.length &&
+      installations.every(
+        (installation, index) =>
+          previous[index]?.buildingId === installation.buildingId &&
+          previous[index]?.key === installation.key,
+      );
+    if (row.ownerId === owner && sameInstallations && at - row.seenAt < staleAfter) continue;
+    await ctx.db.patch(row._id, {
+      ownerId: owner,
+      seenAt: at,
+      installations,
+      hasInstallations: installations.length > 0,
+    });
     written += 1;
   }
   return written;

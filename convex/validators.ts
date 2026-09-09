@@ -42,6 +42,11 @@ export const BUILDING_KEY = v.union(
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
 );
 
+export const SURVEYED_INSTALLATION = v.object({
+  buildingId: v.id('buildings'),
+  key: BUILDING_KEY,
+});
+
 export const RESOURCE_KEY = v.union(
   v.literal('food'),
   v.literal('textile'),

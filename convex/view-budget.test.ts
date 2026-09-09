@@ -185,6 +185,30 @@ describe('la vue du plateau tient dans un budget', () => {
     expect(view.notices[0]!.at).toBe(MIDDAY.getTime());
   });
 
+  it('ne relit pas les anciens relevés sans inventaire d’installations', async () => {
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      const me = (await ctx.db
+        .query('players')
+        .withIndex('byToken', (q) => q.eq('token', token))
+        .unique())!;
+      for (let index = 0; index < 500; index += 1) {
+        await ctx.db.insert('regionSightings', {
+          playerId: me._id,
+          regionId: `legacy-${index}`,
+          ownerId: null,
+          seenAt: MIDDAY.getTime(),
+        });
+      }
+    });
+
+    const view = await t.query(api.view.playerView, { token });
+
+    expect(view.surveyedInstallations).toEqual([]);
+    expect(bytes(view)).toBeLessThan(VIEW_BYTES);
+  });
+
   it('pèse un ordre de grandeur sous le plafond de lecture, en octets comme en documents', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);

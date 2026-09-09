@@ -129,6 +129,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       })),
     },
     buildCatalog: server.buildCatalog,
+    surveyedInstallations: server.surveyedInstallations ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta
      *  reconstitué côté client aurait besoin de l'édition précédente, que la vue ne sert pas et
      *  ne servira pas (contrat 07 P3 : pas d'historique). Un déploiement d'une version de retard

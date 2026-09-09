@@ -107,6 +107,27 @@ export type OrderRefusal =
   | 'NOT_A_GARRISON_FOR'
   | 'NOT_ORDERABLE';
 
+export type PlunderAim = {
+  readonly kind: 'building';
+  readonly buildingId: string;
+  readonly key: BuildingKey;
+};
+
+export type PlunderRefusal =
+  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
+
+/** S5a defines the future mission without adding it to `ORDERABLE_TYPES`. */
+export function plunderRefusalOf(
+  aim: PlunderAim,
+  roles: ReadonlyArray<UnitRole>,
+  isMine: boolean,
+): PlunderRefusal | null {
+  if (roles.length === 0) return 'EMPTY_MOVEMENT';
+  if (aim.key !== 'warehouse' && aim.key !== 'depot') return 'WAREHOUSE_TARGET_ONLY';
+  if (isMine) return 'FRIENDLY_TARGET';
+  return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
+}
+
 /**
  * **The movement slots, carried by the headquarters** (ADR 0006, reindexed by 0015). One slot
  * outlives the building: a nation always has one movement to make, even with its capital

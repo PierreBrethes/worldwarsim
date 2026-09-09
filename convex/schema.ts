@@ -13,6 +13,7 @@ import {
   RESOURCE_KEY,
   SEASON_STATUS,
   SPECIALIZATION,
+  SURVEYED_INSTALLATION,
   STRIKE,
   TROOP_STATE,
   UNIT_ROLE,
@@ -644,8 +645,13 @@ export default defineSchema({
     regionId: v.string(),
     ownerId: v.union(v.id('players'), v.null()),
     seenAt: v.number(),
+    /** Snapshot at `seenAt`. Absent rows predate installation surveys and reveal nothing. */
+    installations: v.optional(v.array(SURVEYED_INSTALLATION)),
+    /** Indexed read gate for PlayerView; absent legacy rows are the same as false. */
+    hasInstallations: v.optional(v.boolean()),
   })
     .index('byPlayer', ['playerId'])
+    .index('byPlayerHasInstallations', ['playerId', 'hasInstallations'])
     /** L'écriture relit sa propre ligne avant de décider s'il y a quelque chose à écrire : sans
      *  cet index elle balaierait tout le relevé du joueur par région observée. */
     .index('byPlayerRegion', ['playerId', 'regionId']),
