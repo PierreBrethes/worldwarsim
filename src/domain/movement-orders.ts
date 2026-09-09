@@ -1,3 +1,4 @@
+import { produces } from './economy';
 import type { BuildingKey, MovementType, UnitRole } from './ids';
 import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
@@ -75,11 +76,14 @@ export type Column = {
   readonly departureBuildings: ReadonlySet<BuildingKey>;
   /**
    * **Whether the column is already in the water it would be asked to embark on.** Read off the
-   * departure point and nowhere else — the open sea is the one place `hostAtPoint` answers the
-   * empty string — and **never stored**: a column is a reading made at the moment an order is
-   * weighed, and a troop's address is the only durable fact behind it. A persisted flag would be
-   * a second truth to keep in step with `stationedAt`, which is exactly the divergence ADR 0015
-   * exists to forbid.
+   * departure point and nowhere else, **on the routing grid** — the same cell the aim's `onLand`
+   * was read on, so a point the fan accepted as water is water when the column leaves it again.
+   * It was read off the polygon (`hostAtPoint === ''`) until 09/09, and the two geometries
+   * disagree on every shore narrower than half a cell: a hull sent there sailed in and never
+   * out. **Never stored** either: a column is a reading made at the moment an order is weighed,
+   * and a troop's address is the only durable fact behind it. A persisted flag would be a second
+   * truth to keep in step with `stationedAt`, which is exactly the divergence ADR 0015 exists to
+   * forbid.
    */
   readonly afloat: boolean;
   /**
@@ -116,6 +120,9 @@ export type PlunderAim = {
 export type PlunderRefusal =
   'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'INFANTRY_REQUIRED' | 'WAREHOUSE_TARGET_ONLY';
 
+export const isPlunderTarget = (key: BuildingKey): boolean =>
+  key === 'warehouse' || key === 'depot' || produces(key);
+
 /** S5a defines the future mission without adding it to `ORDERABLE_TYPES`. */
 export function plunderRefusalOf(
   aim: PlunderAim,
@@ -123,7 +130,7 @@ export function plunderRefusalOf(
   isMine: boolean,
 ): PlunderRefusal | null {
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
-  if (aim.key !== 'warehouse' && aim.key !== 'depot') return 'WAREHOUSE_TARGET_ONLY';
+  if (!isPlunderTarget(aim.key)) return 'WAREHOUSE_TARGET_ONLY';
   if (isMine) return 'FRIENDLY_TARGET';
   return roles.includes('infantry') ? null : 'INFANTRY_REQUIRED';
 }

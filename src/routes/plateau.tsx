@@ -1305,10 +1305,11 @@ function armedColumn(
               .filter((building) => building.regionId === departure.regionId)
               .map((building) => building.key),
       ),
-      /** The same reading the server makes with `hostAtPoint`: the station carries the host the
-       *  view already resolved, and the open sea is the one that comes back empty. Nothing is
-       *  recomputed here — a second geometry on the client is a second answer. */
-      afloat: station.kind === 'point' && station.country === '',
+      /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
+       *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
+       *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté
+       *  client est une seconde réponse. */
+      afloat: station.kind === 'point' && station.afloat,
       /** Servi avec l'adresse, jamais recalculé ici — même raison que `afloat` juste au-dessus,
        *  et c'est la grille de routage du serveur qui l'a lu (ADR 0019 §2, révision du 04/09). */
       coastal: station.kind === 'point' && station.coastal,

@@ -1,12 +1,12 @@
 # pillage-et-butin — piller, porter, rentrer
 
-**Clarifié le 09/09/2026 ; S5b livré en interne, pillage non jouable.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
+**Clarifié le 09/09/2026 ; S5c livré en interne, pillage non jouable.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
 dans la [file centrale](../../../RESTE-A-CODER.md#petits-lots-stockage-et-pillage--0909).
 Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree, commit ni
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4, S4b, S5a et S5b sont terminés localement le 09/09 ; S5c est le prochain lot.
+S4, S4b, S5a, S5b et S5c sont terminés localement le 09/09 ; S6a attend D4.
 
 ## Sources et acquis
 
@@ -110,7 +110,7 @@ prolongation cumulée. La première arrivée ne dispense jamais des 2 h de prés
 présence et 12 h de désactivation restent des points de départ `@a-mesurer`, sans preuve
 d'équilibrage.
 
-**Sabotage (S5c).** Une expédition distincte vise une mine ou une usine déjà relevée et
+**Sabotage (S5c, livré en interne le 09/09).** Une expédition distincte vise une mine ou une usine déjà relevée et
 interrompt temporairement sa production, même si le site est momentanément à l'arrêt.
 Elle ne prélève ni ne crée aucune ressource, ne touche pas les stocks et ne produit aucun
 retour chargé. Réutiliser la défense, la présence, la désactivation et la restauration de

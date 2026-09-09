@@ -10,8 +10,8 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
-import { canonicalBuildingKey } from '../../src/domain/ids';
 import {
+  isPlunderTarget,
   movementSlots,
   refusalDetails,
   refusalOf,
@@ -54,8 +54,14 @@ type Departure = {
   readonly stationId: TroopAddress;
   /** What a return walks back to — an outpost keeps its garrison on the spot and needs none. */
   readonly fromBuildingId: Id<'buildings'> | null;
-  /** **Read off the point, once, here** — `hostAtPoint` answers the empty string on the open sea
-   *  and nowhere else. A building and an outpost stand on ground by construction. */
+  /**
+   * **Read off the point, once, here, on the routing grid** — the very cell `onLand` was read on
+   * when the point was aimed at. It used to be read off the polygon (`hostAtPoint === ''`), and
+   * the two disagree on every coastal strip narrower than half a cell: land for the polygon, sea
+   * for the grid. A hull sent there was accepted — the target is not on land — and never left,
+   * asked for a quay on water. One geometry per question, and this question is the grid's.
+   * A building and an outpost stand on ground by construction.
+   */
   readonly afloat: boolean;
   /**
    * **La plage d'où une coque repart** (ADR 0019 §2, révision du 04/09). Une colonne débarquée
@@ -90,14 +96,13 @@ export async function departureOf(
     /** **A place is not a thing, so there is nothing to own here**: what makes the order
      *  legitimate is that `march` checks the troops address by address. No building, no gate. */
     const point = pointOf(origin.point);
-    const host = hostAtPoint(point);
     return {
       point,
-      name: host,
+      name: hostAtPoint(point),
       regionId: null,
       stationId: origin.point,
       fromBuildingId: null,
-      afloat: host === '',
+      afloat: !landAtPoint(point),
       coastal: coastAtPoint(point),
     };
   }
@@ -140,7 +145,7 @@ type Aimed = {
 };
 
 /**
- * Resolve only a warehouse identity frozen in this observer's survey. Every truth check keeps
+ * Resolve only an expedition target frozen in this observer's survey. Every truth check keeps
  * the same opaque refusal; arrival uses the narrower revalidation below without serving it.
  */
 export async function surveyedPlunderTarget(
@@ -186,7 +191,7 @@ export async function plunderTargetAt(
     building === null ||
     building.seasonId !== player.seasonId ||
     building.playerId === player._id ||
-    canonicalBuildingKey(building.key) !== 'warehouse' ||
+    !isPlunderTarget(building.key) ||
     (building.disabledUntil !== undefined && building.disabledUntil >= at)
   ) {
     return null;

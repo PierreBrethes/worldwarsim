@@ -2026,6 +2026,53 @@ describe('the door of the sea, read on the pile', () => {
     ).resolves.toBeDefined();
   });
 
+  /**
+   * **Deux géométries, deux réponses — et une coque échouée entre les deux.** La visée lisait
+   * « à terre » sur la grille de routage (`onLand`) ; le départ lisait « à flot » sur le polygone
+   * (`hostAtPoint`). Toute bande côtière plus étroite qu'une demi-cellule est de la terre pour
+   * l'un et de la mer pour l'autre : la coque y était envoyée sans refus — la cible n'est pas à
+   * terre — puis n'en repartait plus, ni à flot ni sur une plage, un quai réclamé à un point
+   * que Dijkstra tient pour de l'eau. Le *mouvement fantôme*, une troisième fois. `afloat` se lit
+   * désormais sur la grille, la même lecture que la visée, et la porte répond ce que la visée a
+   * promis (ADR 0015).
+   */
+  it('lets a hull sail again from a shoreline the polygon calls land and the grid calls water', async () => {
+    /** Sussex shore: inside the British polygon, in a cell whose centre is in the Channel. */
+    const SUSSEX: LonLat = [0.1, 50.78];
+    expect(hostAtPoint(SUSSEX)).toBe('GBR');
+    expect(landAtPoint(SUSSEX)).toBe(false);
+    expect(coastAtPoint(SUSSEX)).toBe(false);
+
+    const t = boot();
+    const { token } = await launchedSeason(t);
+    const quay = await raise(t, token, 'port', NORD);
+    const cargo = await form(t, token, 'cargo', quay);
+    const shore = { lon: SUSSEX[0], lat: SUSSEX[1] };
+    await t.mutation(api.movements.marchTo, {
+      token,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [cargo],
+      point: shore,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(cargo)))!.stationedAt).toEqual(shore);
+
+    const origin = { kind: 'point' as const, point: shore };
+    const target = { kind: 'point' as const, point: { lon: DOGGER[0], lat: DOGGER[1] } };
+    expect(
+      await t.query(api.movements.preview, {
+        token,
+        origin,
+        troopIds: [cargo],
+        type: 'march',
+        target,
+      }),
+    ).not.toBeNull();
+    await expect(
+      t.mutation(api.movements.marchTo, { token, origin, troopIds: [cargo], point: target.point }),
+    ).resolves.toBeDefined();
+  });
+
   it('refuses the landed infantry a sea destination in both preview and send', async () => {
     const t = boot();
     const { token } = await launchedSeason(t);

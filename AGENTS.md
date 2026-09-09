@@ -203,11 +203,12 @@ Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée
 classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
 `costKey ?? key` détermine leur tarif. Le stock reste national. L'interface, le bandeau et le
 simulateur ne présentent plus qu'un entrepôt ; une clé `depot` historique reprend son nom et
-son sprite. Le miroir vérifie les huit plafonds. **S5b est livré en interne** : une expédition
+son sprite. Le miroir vérifie les huit plafonds. **S5b-S5c sont livrés en interne** : une expédition
 victorieuse tient 2 h, exige encore de l'infanterie à la prise, prélève le surplus disponible
 avant la désactivation de 12 h et l'écrêtage, puis crée un retour chargé et un fait durable. Les
-deux durées restent `@a-mesurer`. L'ordre public, le sabotage, la livraison, les dépêches et
-l'interface ne sont pas livrés : le pillage reste non jouable.
+deux durées restent `@a-mesurer`. Les producteurs relevés suivent désormais la même défense et
+la même présence, puis sont désactivés sans butin ni écrêtage. L'ordre public, la livraison, les
+dépêches et l'interface ne sont pas livrés : le pillage reste non jouable.
 
 ## Schéma Convex
 

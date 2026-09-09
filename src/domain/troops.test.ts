@@ -27,6 +27,7 @@ describe('the exact address of a posted pile', () => {
       kind: 'point',
       lonLat: [142.123, 47.012],
       country: 'RUS',
+      afloat: false,
       coastal: true,
     };
     const nearby: TroopStation = { ...beach, lonLat: [142.129, 47.014] };
@@ -61,6 +62,7 @@ const me = {
       kind: 'point',
       lonLat: [46.7, 24.6],
       country: 'SAU',
+      afloat: false,
       coastal: false,
     }),
   ],
@@ -147,6 +149,7 @@ describe('what stands still', () => {
       kind: 'point',
       lonLat: [46.7, 24.6],
       country: 'SAU',
+      afloat: false,
       coastal: false,
     });
   });

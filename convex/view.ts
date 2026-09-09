@@ -3,6 +3,7 @@ import { query } from './_generated/server';
 import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
+import type { LonLat } from '../src/domain/geo';
 import { canonicalBuildingKey, BUILDINGS, type BuildingKey } from '../src/domain/ids';
 import { nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
@@ -28,7 +29,7 @@ import { heldOver } from './holding';
 import { restHold } from './movements';
 import { foundationOwed, homeCountryOf, regionFacts, regionOfOutpost, regionsOf } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { coastAtPoint, hostAtPoint } from './routes';
+import { coastAtPoint, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import {
   concludeOpensAt,
@@ -151,11 +152,13 @@ export async function viewOf(ctx: QueryCtx, token: string) {
     const address = troop.stationedAt;
     if (address === null) return { kind: 'home' };
     if (typeof address !== 'string') {
+      const point: LonLat = [address.lon, address.lat];
       return {
         kind: 'point',
-        lonLat: [address.lon, address.lat],
-        country: hostAtPoint([address.lon, address.lat]),
-        coastal: coastAtPoint([address.lon, address.lat]),
+        lonLat: point,
+        country: hostAtPoint(point),
+        afloat: !landAtPoint(point),
+        coastal: coastAtPoint(point),
       };
     }
     if (garrisoned.has(address)) return { kind: 'outpost', outpostId: address };

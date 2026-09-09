@@ -123,7 +123,16 @@ export type TroopStation =
   | {
       readonly kind: 'point';
       readonly lonLat: LonLat;
+      /** Whose ground, read on the polygon — for the sentence (« postée en Arabie »), never for
+       *  a rule: the two readings below answer the rules, on the routing grid. */
       readonly country: string;
+      /**
+       * **La pile est-elle sur l'eau ?** Lu sur la grille de routage, la même cellule que
+       * `onLand` à la visée — et non déduit de `country === ''` : le polygone et la grille se
+       * contredisent sur toute bande côtière plus étroite qu'une demi-cellule, et une coque posée
+       * là était à flot pour la visée et à terre pour le départ, sans quai pour la saison.
+       */
+      readonly afloat: boolean;
       /**
        * **Le sol sous elle est-il une plage ?** Servi par le serveur comme `country` l'est, et
        * pour la même raison : le client ne tient aucune géométrie, et une seconde lecture de la

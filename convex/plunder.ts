@@ -1,6 +1,8 @@
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
+import { emptyStocks } from '../src/domain/economy';
+import { canonicalBuildingKey } from '../src/domain/ids';
 import { carryCapacityOf, lootFromSurplus } from '../src/domain/loot';
 import {
   BASE_CAP,
@@ -145,24 +147,26 @@ export async function completePresence(
   }
 
   await settleBeforeChange(ctx, movement.seasonId, now);
-  const victim = await economyOf(ctx, target.playerId, now);
-  const taken = lootFromSurplus(
-    victim.stocks,
-    BASE_CAP,
-    carryCapacityOf(
-      troops.map((troop) => ({
-        role: troop.role,
-        strength: troop.currentStrength,
-        nominalStrength: troop.nominalStrength,
-      })),
-      CARRY_CAPACITY_BY_ROLE,
-    ),
-  );
-  await debit(ctx, target.playerId, taken, now);
+  const isWarehouse = canonicalBuildingKey(target.key) === 'warehouse';
+  const taken = isWarehouse
+    ? lootFromSurplus(
+        (await economyOf(ctx, target.playerId, now)).stocks,
+        BASE_CAP,
+        carryCapacityOf(
+          troops.map((troop) => ({
+            role: troop.role,
+            strength: troop.currentStrength,
+            nominalStrength: troop.nominalStrength,
+          })),
+          CARRY_CAPACITY_BY_ROLE,
+        ),
+      )
+    : emptyStocks();
+  if (isWarehouse) await debit(ctx, target.playerId, taken, now);
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
   await ctx.db.patch(target._id, { disabledUntil });
-  const storageLost = await clipToStorage(ctx, target.playerId, now);
+  const storageLost = isWarehouse ? await clipToStorage(ctx, target.playerId, now) : emptyStocks();
   const reportId = await ctx.db.insert('plunderReports', {
     seasonId: movement.seasonId,
     attackerId: movement.playerId,
@@ -177,14 +181,18 @@ export async function completePresence(
     taken,
     storageLost,
   });
-  const [returnMovementId] = await walkHome(
-    ctx,
-    { winners: troops, beaten: [] },
-    pointOf(movement.to),
-    now,
-    { playerId: movement.playerId, loot: taken, plunderReportId: reportId },
-  );
-  if (returnMovementId !== undefined) await ctx.db.patch(reportId, { returnMovementId });
+  if (isWarehouse) {
+    const [returnMovementId] = await walkHome(
+      ctx,
+      { winners: troops, beaten: [] },
+      pointOf(movement.to),
+      now,
+      { playerId: movement.playerId, loot: taken, plunderReportId: reportId },
+    );
+    if (returnMovementId !== undefined) await ctx.db.patch(reportId, { returnMovementId });
+  } else {
+    await walkHome(ctx, { winners: troops, beaten: [] }, pointOf(movement.to), now);
+  }
   await forgetMovement(ctx, movement._id);
   await scheduleRestore(ctx, movement.seasonId, disabledUntil);
 }

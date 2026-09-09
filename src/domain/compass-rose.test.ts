@@ -419,7 +419,13 @@ describe('aiming at a point', () => {
  * elle-même, parce qu'on fonde où l'on se tient (ADR 0019 §1).
  */
 describe('joining a transport from the map', () => {
-  const beach = { kind: 'point', lonLat: [142.1, 47], country: 'RUS', coastal: true } as const;
+  const beach = {
+    kind: 'point',
+    lonLat: [142.1, 47],
+    country: 'RUS',
+    afloat: false,
+    coastal: true,
+  } as const;
   const origin = { ...beach, lonLat: [142.3, 47] } as const;
   const target = {
     kind: 'force',
@@ -526,7 +532,7 @@ describe('founding from the map', () => {
     country: 'LBY',
     name: '2 INF',
     headcount: 2,
-    station: { kind: 'point', lonLat: [12, 20], country: 'LBY', coastal: false },
+    station: { kind: 'point', lonLat: [12, 20], country: 'LBY', afloat: false, coastal: false },
     regionId: 'LBY-001',
   } as const;
 
@@ -538,7 +544,13 @@ describe('founding from the map', () => {
         troops: roles.map((role, rank) => ({
           id: `T-${rank}`,
           role,
-          stationedAt: { kind: 'point', lonLat: [12, 20], country: 'LBY', coastal: false },
+          stationedAt: {
+            kind: 'point',
+            lonLat: [12, 20],
+            country: 'LBY',
+            afloat: false,
+            coastal: false,
+          },
         })),
       },
     }) as unknown as PlayerView;

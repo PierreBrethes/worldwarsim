@@ -372,8 +372,8 @@ export default defineSchema({
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
 
-  /** Durable facts consumed by the S8 dispatch wiring. One successful take creates one row;
-   * callbacks and later reads never reconstruct it from current stocks. */
+  /** Durable facts consumed by the S8 dispatch wiring. One successful expedition creates one
+   * row; callbacks and later reads never reconstruct it from current stocks. */
   plunderReports: defineTable({
     seasonId: v.id('seasons'),
     attackerId: v.id('players'),

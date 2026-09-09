@@ -74,6 +74,17 @@ mouvement terrestre, lui, ne demande plus rien.
 > `stationedAt`. Implémentée le 27/08 (`src/domain/movement-orders.ts`, `closedGate` et
 > `embarking` ; `Column.afloat` rempli par `convex/movement/orders.ts` et par `plateau.tsx`).
 
+> ⚠️ **Révision (09/09/2026) : « à flot » se lit sur la grille de routage, plus sur le polygone.**
+> Deux géométries répondaient à une même question : la visée lisait « à terre » sur la grille
+> (`onLand`, révision du 08/09), le départ lisait « à flot » sur le polygone (`hostAtPoint === ''`).
+> Elles se contredisent sur toute bande côtière plus étroite qu'une demi-cellule (~14 km) : terre
+> pour le polygone, mer pour la grille. Une coque envoyée là était acceptée — la cible n'est pas
+> à terre — puis n'en repartait plus, ni à flot ni sur une plage : un quai réclamé à un point que
+> Dijkstra tient pour de l'eau. Le mouvement fantôme, une troisième fois, par le rivage.
+> `afloat` = `!landAtPoint(point)` désormais, des deux côtés du fil (`departureOf`, `view.ts` qui
+> le sert avec l'adresse, `plateau.tsx` qui ne le déduit plus de `country`). `country` reste lu
+> sur le polygone, pour la phrase seulement. La règle ne change pas, sa lecture si.
+
 ### 3. Une troupe peut rester sur la carte, et elle y défend son sol
 
 **Amendé le 18/08/2026.** La première rédaction disait « une cible, jamais un attaquant » et
