@@ -14,6 +14,7 @@ import { firstMobileEncounter } from '../src/domain/interception';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
+import { stationMovementLoot } from './cargo';
 import { resolveContact } from './combat';
 import { outpostReachKm, routeMinutes } from './constants';
 import { fail } from './errors';
@@ -428,7 +429,10 @@ export const arrive = internalMutation({
     /** **Un leurre encore en vol le 29/08/2026 finit ici, et n'y fait rien** : il ne porte
      *  personne, donc `attachHome` ne rattache rien et `forgetMovement` l'efface. Une branche
      *  pour lui serait du code de leurre remis dans un jeu qui n'en a plus. */
-    else await attachHome(ctx, movement);
+    else {
+      const home = await attachHome(ctx, movement);
+      if (movement.type === 'return') await stationMovementLoot(ctx, movement, home);
+    }
 
     /** **The three arrivals nothing else accounts for**: the others leave an engagement or file
      *  their own notice. Without this a player came back to "rien à signaler" after eight quiet

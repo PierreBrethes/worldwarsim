@@ -33,7 +33,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | Terme | Définition |
 |---|---|
 | **Raid** | Désactive temporairement un avant-poste. Ne le capture jamais. |
-| **Pillage** | Expédition dirigée contre un entrepôt adverse déjà relevé : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site et doit ramener sa charge. S5b-S5c livrent en interne le cycle jusqu'au retour chargé et le sabotage sans butin des producteurs ; ordre public et livraison restent fermés. |
+| **Pillage** | Expédition dirigée contre un entrepôt adverse déjà relevé : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site et doit ramener sa charge. S5b-S6a-1 livrent en interne le cycle jusqu'au retour chargé, le sabotage sans butin et la conservation d'une charge posée ; ordre public et livraison restent fermés. |
 | **Sonde** | Révèle les mouvements sortants d'un joueur pendant une durée. |
 | **Agent dormant** | Posé dans un pays neutre. Révèle les arcs proches et peut saboter. |
 | **Embargo** | Outil d'Hégémonie. Plafonne la production militaire d'une cible. |

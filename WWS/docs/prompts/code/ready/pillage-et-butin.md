@@ -6,7 +6,7 @@ Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
 
-S4, S4b, S5a, S5b et S5c sont terminés localement le 09/09 ; S6a attend D4.
+S4 à S6a-1 sont terminés localement le 09/09 ; S6a-2 est le prochain lot.
 
 ## Sources et acquis
 
@@ -116,8 +116,9 @@ Elle ne prélève ni ne crée aucune ressource, ne touche pas les stocks et ne p
 retour chargé. Réutiliser la défense, la présence, la désactivation et la restauration de
 S5b ; la durée reste celle retenue pour la désactivation, sans en inventer une autre ici.
 
-**Retour (S6a).** `movements.loot` optionnel, absent = aucune charge. Un seul mouvement porte
-la charge ; chaque transition consomme l'état précédent une seule fois. Couvrir les
+**Retour (S6a).** `movements.loot` optionnel, absent = aucune charge ; `stationedLoot` porte
+depuis S6a-1 la charge d'une force posée. Une seule forme porte la charge à un instant donné ;
+chaque transition consomme l'état précédent une seule fois. Couvrir les
 effacements, combats successifs et jobs périmés. `walkHome` ramène actuellement à une
 adresse/ancre, pas à une frontière : adapter ce retour à la livraison au franchissement
 de la bordure d'une région tenue par le porteur, selon la décision ci-dessus.
@@ -131,8 +132,8 @@ transportable à la force victorieuse. Compter sa charge déjà portée dans la 
 disponible. La nouvelle charge reste exposée à une interception suivante, puis se livre
 par le même cycle que S6a. Prévoir son retour effectif : ne pas rattacher simplement la
 charge à un mouvement d'attaque dont l'arrivée actuelle l'effacerait. Aucun nouveau choix
-de posture ni ordre d'interception. La déroute sans destruction, plusieurs bénéficiaires
-et l'excédent attendent D6. Ces cas bloquent l'ouverture publique, pas la clarification.
+de posture ni ordre d'interception. La déroute, la priorité stable et la caisse du reliquat
+suivent D6 acquise ci-dessous.
 
 **Ouverture et surfaces (S7-S8).** S5-S6 restent internes et testés par fixtures : ordre
 public refusé côté serveur. S7 raccorde la rose sous la même fermeture ; S8 ouvre l'ordre
@@ -161,17 +162,34 @@ S6b conserve aussi le fait de récupération pour une dépêche au nouveau porte
 quantité réellement emportée ; S8 la branche sans annoncer une livraison anticipée.
 Ni double dépêche ni fait réservé à un autre observateur. Textes via `src/i18n/fr.ts`.
 
-## Décisions encore nécessaires — recommandations non validées
+## Décisions D4 et D6 acquises — 09/09
 
-- **D4 — Changement de contrôle et absence de route, avant S6a.** La livraison à la bordure
-   est validée ci-dessus ; la recommandation de rejoindre un pôle de région est retirée.
-   Le comportement si le contrôle territorial change pendant le retour ou si aucune route
-   n'est possible reste **non tranché**, pour le pilleur comme pour le récupérateur de butin.
-- **D6 — Limites de la récupération, avant S6b.** La récupération après destruction est
-   validée, pas le sort du butin en cas de simple déroute, de plusieurs bénéficiaires ou
-   de capacité insuffisante. Recommandation : déroute sans destruction → perte sans
-   transfert ; plusieurs bénéficiaires → partage au prorata des capacités disponibles ;
-   excédent non transportable → perdu. À valider avant d'implémenter ces branches.
+- **D4 — contrôle et route.** Un retour engagé continue vers la région choisie au départ. Si
+  elle n'est plus tenue à l'arrivée, les survivants s'y posent, sans détour, et la charge est
+  perdue : cette fin est la précision d'implémentation minimale annoncée. Si la zone est déjà
+  perdue avant que le retour ne soit enclenché, Pierre valide explicitement la même fin sur
+  place, sans départ. Si aucune route n'existe, la force reste au point de prise **avec** sa
+  charge. La livraison exige toujours une région tenue au franchissement.
+- **D6 — pertes et récupération.** Une déroute n'est pas une destruction : les survivants
+  gardent la part que leur capacité effective porte, le surplus suivant la réduction
+  proportionnelle D2. Après destruction, le premier récupérateur selon l'arrivée serveur prend
+  dans sa capacité libre ; égalité départagée par ancienneté d'ordre puis clé stable. Aucun
+  partage au prorata entre récupérateurs. Le reliquat devient une caisse réelle au point de
+  destruction, collectable jusqu'à son échéance initiale.
+
+## Caisses et signalement mondial retenus pour essai
+
+Une caisse dure 2 h. Après 10 min, tous reçoivent une rumeur sans combattants ni minuteur précis :
+un cercle de rayon 200 km dont le centre, tiré une fois uniformément dans le disque autour de la
+caisse, reste identique pour tous. La caisse appartient toujours au cercle ; géométrie et
+enroulement sont ceux de la carte. Le clic vise le centre et cadre le cercle, jamais le point réel.
+La position et le contenu exacts ne sortent dans `PlayerView` qu'après détection par une portée
+existante. Une collecte ne retire pas immédiatement la rumeur mondiale : son terme public suit
+l'échéance prévue, afin de ne pas signaler à distance la présence du récupérateur. Le délai fixe
+masque l'instant immédiat, pas toute déduction sur l'heure passée.
+
+Le découpage exécutable S6a-1 à S8 est tenu dans `RESTE-A-CODER.md`. Aucun lot n'ouvre le geste
+avant le raccordement coordonné final.
 
 ## Acceptation et arrêt
 
@@ -183,7 +201,7 @@ préservé après pillage ; présence interrompue/double échéance ; livraison 
 de la bordure tenue, sans atteindre le centre, pour le pilleur et le récupérateur ; pertes
 partielles avec capacité au ratio d'effectif et répartition selon D2 ; contrôle changé/route impossible selon D4 ; destruction puis transfert borné, porteur déjà chargé,
 nouvelle interception et livraison par le vainqueur sans double crédit ; déroute, plusieurs
-bénéficiaires et excédent selon D6 ; saison conclue sans effet ; même forme adverse pour une
+bénéficiaires, priorité stable et caisse du reliquat selon D6 ; saison conclue sans effet ; même forme adverse pour une
 colonne vide ou chargée.
 
 Les changements de règle sont documentés **dans leur lot**, dans les ADR concernés et les

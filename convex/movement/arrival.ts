@@ -13,6 +13,7 @@ import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { isNation } from '../../src/domain/nations';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
+import { stationLoot } from '../cargo';
 import { resolveContact } from '../combat';
 import { OUTPOST_DISABLED_HOURS, OUTPOST_IMMUNITY_HOURS, detectionRangeOf } from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
@@ -256,12 +257,16 @@ export async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Pr
 
 /** A building razed while its troops were away leaves them standing where they arrived rather
  *  than hanging from nothing (rule 3, ADR 0019 §1). */
-export async function attachHome(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
+export async function attachHome(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<TroopAddress> {
   const home = await homeOf(ctx, movement);
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
     if (troop) await ctx.db.patch(troopId, { stationedAt: home });
   }
+  return home;
 }
 
 async function homeOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<TroopAddress> {
@@ -445,12 +450,29 @@ export async function walkHome(
   }
 
   const roads = new Map<string, { home: HomeRoad; group: Array<Doc<'troops'>> }>();
+  const staying = new Map<string, { address: TroopAddress; group: Array<Doc<'troops'>> }>();
   const filed: Array<Id<'movements'>> = [];
   for (const { troop, routed } of homeward.values()) {
     const home = await homeFor(ctx, troop, routed, from);
-    if (home === null) continue;
+    if (home === null) {
+      const key = `home:${troop.playerId}`;
+      const stay = staying.get(key) ?? { address: troop.stationedAt, group: [] };
+      stay.group.push(troop);
+      staying.set(key, stay);
+      continue;
+    }
     if (home.kind === 'stays') {
       await ctx.db.patch(troop._id, { stationedAt: home.address });
+      const address = home.address;
+      const key =
+        address === null
+          ? `home:${troop.playerId}`
+          : typeof address === 'string'
+            ? `station:${troop.playerId}:${address}`
+            : `point:${troop.playerId}:${address.lon},${address.lat}`;
+      const stay = staying.get(key) ?? { address, group: [] };
+      stay.group.push(troop);
+      staying.set(key, stay);
       continue;
     }
     const road = roads.get(home.key) ?? { home, group: [] };
@@ -458,10 +480,37 @@ export async function walkHome(
     roads.set(home.key, road);
   }
 
+  let cargoAttached = false;
+  for (const { address, group } of staying.values()) {
+    if (cargo === undefined || cargoAttached || group[0]?.playerId !== cargo.playerId) continue;
+    await stationLoot(ctx, {
+      seasonId: group[0].seasonId,
+      playerId: cargo.playerId,
+      troopIds: group.map((troop) => troop._id),
+      stationedAt: address,
+      loot: cargo.loot,
+      plunderReportId: cargo.plunderReportId,
+    });
+    cargoAttached = true;
+  }
+
   for (const { home, group } of roads.values()) {
     /** **Already standing on it**, and it never left — the address it has is the one it would
      *  come back to. */
-    if (home.point[0] === from[0] && home.point[1] === from[1]) continue;
+    if (home.point[0] === from[0] && home.point[1] === from[1]) {
+      if (cargo !== undefined && !cargoAttached && group[0]?.playerId === cargo.playerId) {
+        await stationLoot(ctx, {
+          seasonId: group[0].seasonId,
+          playerId: cargo.playerId,
+          troopIds: group.map((troop) => troop._id),
+          stationedAt: group[0].stationedAt,
+          loot: cargo.loot,
+          plunderReportId: cargo.plunderReportId,
+        });
+        cargoAttached = true;
+      }
+      continue;
+    }
 
     /** A column coming home from overseas has a sea to recross; `'land'` would find no route at
      *  all. A return is not an order, so it owes no port. */
@@ -470,6 +519,17 @@ export async function walkHome(
     /** No road home — a landing whose transports sank, and nothing else. */
     if (route === null) {
       for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: home.stranded });
+      if (cargo !== undefined && !cargoAttached && group[0]?.playerId === cargo.playerId) {
+        await stationLoot(ctx, {
+          seasonId: group[0].seasonId,
+          playerId: cargo.playerId,
+          troopIds: group.map((troop) => troop._id),
+          stationedAt: home.stranded,
+          loot: cargo.loot,
+          plunderReportId: cargo.plunderReportId,
+        });
+        cargoAttached = true;
+      }
       continue;
     }
 
@@ -493,10 +553,13 @@ export async function walkHome(
       troopIds: group.map((troop) => troop._id),
       departedAt: now,
       arrivesAt,
-      ...(cargo !== undefined && group[0]!.playerId === cargo.playerId && filed.length === 0
+      ...(cargo !== undefined && group[0]!.playerId === cargo.playerId && !cargoAttached
         ? { loot: cargo.loot, plunderReportId: cargo.plunderReportId }
         : {}),
     });
+    if (cargo !== undefined && group[0]!.playerId === cargo.playerId && !cargoAttached) {
+      cargoAttached = true;
+    }
     filed.push(movementId);
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   }

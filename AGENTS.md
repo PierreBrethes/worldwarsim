@@ -207,8 +207,9 @@ son sprite. Le miroir vérifie les huit plafonds. **S5b-S5c sont livrés en inte
 victorieuse tient 2 h, exige encore de l'infanterie à la prise, prélève le surplus disponible
 avant la désactivation de 12 h et l'écrêtage, puis crée un retour chargé et un fait durable. Les
 deux durées restent `@a-mesurer`. Les producteurs relevés suivent désormais la même défense et
-la même présence, puis sont désactivés sans butin ni écrêtage. L'ordre public, la livraison, les
-dépêches et l'interface ne sont pas livrés : le pillage reste non jouable.
+la même présence, puis sont désactivés sans butin ni écrêtage. **S6a-1 conserve désormais une
+charge sans route ou arrivée dans `stationedLoot`**, sans la créditer. L'ordre public, la
+livraison, les dépêches et l'interface ne sont pas livrés : le pillage reste non jouable.
 
 ## Schéma Convex
 

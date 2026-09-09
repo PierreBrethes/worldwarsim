@@ -610,6 +610,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'outposts'
       | 'sightings'
       | 'regionSightings'
+      | 'stationedLoot'
       | 'notices'
       | 'messages',
   ) =>
@@ -666,6 +667,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('outposts')),
     ...(await byPlayer('sightings')),
     ...(await byPlayer('regionSightings')),
+    ...(await byPlayer('stationedLoot')),
     ...(await byPlayer('notices')),
     ...(await byPlayer('messages')),
     ...accounts,

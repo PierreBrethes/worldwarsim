@@ -18,6 +18,7 @@ import {
   SURVEYED_INSTALLATION,
   STRIKE,
   TROOP_STATE,
+  TROOP_ADDRESS,
   UNIT_ROLE,
   UNIT_TIER,
 } from './validators';
@@ -256,7 +257,7 @@ export default defineSchema({
     tier: UNIT_TIER,
     nominalStrength: v.number(),
     currentStrength: v.number(),
-    stationedAt: v.union(v.id('buildings'), v.id('outposts'), LON_LAT, v.null()),
+    stationedAt: TROOP_ADDRESS,
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -264,6 +265,20 @@ export default defineSchema({
      *  hangs from this outpost", and the answer must not be a scan of every troop in the game.
      *  A point is asked by distance instead — see the note above. */
     .index('byStation', ['stationedAt']),
+
+  /** A load whose carrier is standing rather than represented by a movement. Loads in transit
+   * stay on `movements.loot`; this second form prevents an arrival or an impossible return from
+   * deleting real resources merely because the movement row disappears. */
+  stationedLoot: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    troopIds: v.array(v.id('troops')),
+    stationedAt: TROOP_ADDRESS,
+    loot: RESOURCE_AMOUNTS,
+    plunderReportId: v.optional(v.id('plunderReports')),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId']),
 
   /**
    * One sequential queue **per projection building**, ordered by `rank`: two barracks form in

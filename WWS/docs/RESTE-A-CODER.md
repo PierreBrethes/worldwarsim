@@ -36,16 +36,15 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S5c terminés localement le 09/09. S6a attend D4. Aucun pillage jouable livré.**
+**S1-S6a-1 terminés localement le 09/09. S6a-2 est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
 
 Contrats : [stockage](prompts/code/ready/stockage-unique.md) et
 [pillage](prompts/code/ready/pillage-et-butin.md). Les décisions encore ouvertes sont listées
-dans le brief pillage : **D4** changement de contrôle territorial/absence de route et
-**D6** limites de la récupération après interception. Leurs recommandations restent
-**non validées** et ne bloquent pas S3. Les identifiants D sont conservés pour les références.
+dans le brief pillage. **D4 et D6 sont acquises le 09/09** : elles sont détaillées dans le
+découpage ci-dessous. Les identifiants D sont conservés pour les références.
 **D5 est acceptée pour la V1** : seul le stock disponible est pillable ; les ressources
 engagées dans les recrutements et leur remboursement sont protégés. La mise à l'abri dans
 une file annulable est une limite assumée.
@@ -54,7 +53,7 @@ au-dessus de `BASE_CAP`, répartis automatiquement au prorata dans la capacité 
 Les mines et usines se sabotent sans créer de butin ; D1 est donc retirée. La livraison dès
 le franchissement de la bordure d'une région tenue par le porteur est
 également acquise, pour le pilleur comme pour le récupérateur, sans atteindre centre ou
-capitale ; seuls le changement de contrôle et l'absence de route restent ouverts dans D4.
+capitale ; le changement de contrôle et l'absence de route suivent désormais D4 ci-dessous.
 Pierre a validé le 09/09 le prélèvement de tout le surplus de l'entrepôt au-dessus de
 `BASE_CAP`, borné par la capacité de transport ; la réserve de base est protégée du
 prélèvement. Il a aussi validé la perte du butin excédant ce que les survivants peuvent
@@ -79,8 +78,8 @@ distincte de `LIFT_CAPACITY`, qui transporte des troupes.
 | **S5a — cibles autorisées et relevés** ; terminé localement (09/09) | Après S4b. `convex/{schema,validators,surveys,view}.ts`, `convex/movement/orders.ts`, `src/domain/{movement-orders,player-view}.ts`. Relevé minimal d'installations par observateur ; aucun pillage public. | Bâtiment inconnu, autre saison, ami ou non pillable refusé ; relevé ancien sans inventaire ne révèle rien. Tests `convex/{control,detection,view-budget}.test.ts`, `src/domain/movement-orders.test.ts`, nouveaux cas ciblés dans `convex/plunder.test.ts`. |
 | **S5b — combat, présence et désactivation de l'entrepôt** ; terminé localement (09/09) | Après S5a et **D3**, désormais acquise ; D5 est acquise. `convex/movements.ts`, `convex/movement/{arrival,forces,detection}.ts`, `convex/{combat,resources,production,schema}.ts` ; module local de pillage. Cycle interne jusqu'à la prise ; faits durables pour S8. | Défense existante, présence indisponible, prise unique, stocks réglés avant coupure, prélèvement avant écrêtage, restauration datée, jobs périmés/clôture sans effet. `convex/plunder.test.ts`, `production.test.ts`, cas combat/mouvements concernés. |
 | **S5c — sabotage de production** ; terminé localement (09/09) | Après S5b. Réutiliser défense, présence, désactivation et restauration pour mines et usines ; aucun butin, stock local ou rendement créé. | Site actif ou momentanément arrêté interrompu pour la durée retenue ; stocks inchangés hors règlement normal à la coupure, aucun retour chargé. Contrôles ciblés existants seulement ; les cas dédiés seront ajoutés après selon la consigne du lot. |
-| **S6a — retour chargé** | Après S5c et **D4**. `convex/movement/arrival.ts`, `convex/{movements,resources,schema,holding,routes}.ts`, domaine `loot.ts`. Livraison, interception, perte et destination ; faits durables pour S8. | Crédit unique, pertes partielles, destination perdue/impossible, ancien mouvement sans charge, stock déjà excédentaire préservé. `convex/plunder.test.ts`, `movements.test.ts`, `detection.test.ts`, tests purs touchés. |
-| **S6b — récupération après interception** | Après S6a et **D6**. `convex/movements.ts`, `convex/movement/arrival.ts`, `convex/combat.ts`, domaine `loot.ts`, schéma si nécessaire. Transfert de la charge après destruction, puis retour du nouveau porteur ; faits pour S8. | Charge précédente consommée une fois, transport borné en tenant compte de la charge existante, aucun crédit distant ; nouvelle interception et livraison unique. Déroute, plusieurs bénéficiaires et excédent selon D6. Tests `convex/plunder.test.ts`, `movements.test.ts` et `src/domain/loot.test.ts`. |
+| **S6a — retour chargé** | Après S5c et **D4 acquise**. Découpé en S6a-1 à S6a-3 ci-dessous. | Charge durable, crédit unique à la première entrée tenue, cas sans route et destination perdue. |
+| **S6b — récupération après interception** | Après S6a et **D6 acquise**. Découpé en S6b-1 à S6b-3 ci-dessous. | Charge consommée une fois, capacité libre, priorité stable, caisse du reliquat. |
 | **S7 — interface et aperçu** | Après S6b. Lire fiche 11. `src/routes/plateau.tsx`, `-plateau/{MovementPreview,TroopBadge,GarrisonStack}.tsx`, `src/domain/{movement-orders,compass-rose,player-view}.ts`, `convex/{movements,view}.ts`, adaptateur `src/data/loadGame.ts`, `fr.ts`. Raccordement sous fermeture serveur. | Rose conforme aux refus, durée/retour servis, estimation sans fuite ; force à soi chargée : quantités par ressource et total, sans valeur monétaire inventée. Tests domaine et cas aperçu/vue de `convex/plunder.test.ts` ; contrôle visuel avec vrai jeton ou limite explicitée. |
 | **S8 — dépêches et ouverture** | Après S7. `convex/{journal,schema}.ts`, producteurs de faits S5b/S5c/S6, `src/domain/{journal,player-view}.ts`, `fr.ts`, `JournalWindow.tsx` si nécessaire ; retirer la fermeture coordonnée serveur/rose. | Pillage, sabotage, récupération, livraison, perte et désactivation/écrêtage visibles au bon joueur, sans doublon. `convex/notices.test.ts`, `src/domain/journal.test.ts` et scénario complet public dans `convex/plunder.test.ts`. |
 | **S9 — validation et synthèse** | Après S8. Corriger seulement les régressions du chantier ; vérifier cohérence des ADR, fiches, glossaire, instructions, `a-mesurer.md` et file. | `npm run verifier` complet, contrôle de l'expédition à deux si partie accessible ; rapport des limites et mesures restant à faire. Marquer livré seulement après preuve, puis s'arrêter avant objectifs neutres. |
@@ -144,7 +143,48 @@ règlement normal s'arrête à l'instant de coupure, puis le site est désactiv�
 l'échéance existante. Le rapport durable enregistre des quantités prises et perdues nulles ; le
 retour ordinaire ne porte ni `loot` ni lien de livraison. Aucun débit, écrêtage, stock local,
 rendement créé, vue ou ordre public n'est ajouté. Types et 99 tests existants ciblés passés ; pas
-de nouveaux tests dans ce lot selon la consigne, pas de vérificateur global. S6a attend D4.
+de nouveaux tests dans ce lot selon la consigne, pas de vérificateur global. S6a-1 suit.
+
+### Petits lots après S5c — retour, récupération et caisses
+
+Les décisions D4/D6 sont désormais acquises. Un retour déjà engagé garde sa destination. Si elle
+est encore adverse à l'arrivée, les survivants s'y posent sans détour et le butin est perdu :
+c'est la précision minimale annoncée, distincte du cas validé où la zone est déjà perdue avant le
+départ. Dans ce dernier cas, il n'y a pas de départ : survivants sur place, butin perdu. Sans route
+géométrique, ils restent au point de prise **avec** le butin. Une déroute conserve la charge dans
+la capacité effective des survivants ; elle n'est ni détruite ni transférée par elle-même.
+
+1. **S6a-1 — charge posée** ; terminé localement (09/09) : conserver une charge quand aucun
+   retour ne part et quand un retour finit, sans crédit ni vue nouvelle ; compatibilité des
+   mouvements `loot` existants.
+2. **S6a-2 — frontière et destination** : choisir et dater la région de retour au départ, livrer
+   une seule fois à la première entrée alors tenue ; poser/perdre selon D4, sans détour.
+3. **S6a-3 — pertes partielles** : réduire la charge à la capacité effective restante après
+   chaque passe ; une simple déroute garde la part transportable.
+4. **S6b-1 — transfert sur destruction** : consommer l'ancienne charge une fois, remplir la
+   capacité libre du vainqueur et départager plusieurs récupérateurs par arrivée, ancienneté puis
+   clé stable — jamais par ordre de callback.
+5. **S6b-2 — caisse persistante** : déposer le reliquat réel au point de destruction pour 2 h ;
+   collecte partielle sans repousser l'échéance, disparition du restant à terme.
+6. **S6b-3 — détection privée** : révéler position et contenu exacts seulement à portée selon les
+   détecteurs existants, par événements et rendez-vous annulables.
+7. **S6c — ramassage** : ordre vers une caisse connue, capacité et route compatibles, retour
+   physique ; cible vide ou expirée = retour ordinaire avec toute charge déjà portée.
+8. **S7a — signalement mondial** : publier après 10 min une zone fixe de rayon 200 km, centre
+   tiré une fois dans un disque qui contient la caisse ; la rumeur vit jusqu'à son terme public.
+9. **S7b — journal mondial et carte** : section française, caméra sur le centre, cercle entier
+   cadré et brume ; jamais le point réel avant détection.
+10. **S7c — lecture et aperçu** : charge à soi, estimations et dépêches de prise, perte,
+    récupération et livraison sans vérité adverse supplémentaire.
+11. **S8 — ouverture coordonnée** : ouvrir ensemble pillage et ramassage seulement quand le
+    cycle, les vues et les dépêches sont raccordés ; aucun drapeau générique.
+
+**Bilan S6a-1 (09/09)** : une charge en trajet reste portée par `movements.loot`. Si aucun trajet
+de retour n'existe, ou quand un retour chargé finit avant le raccordement de la livraison,
+`stationedLoot` conserve les ressources, le groupe porteur et son adresse exacte. Une charge
+nulle ne crée aucune ligne. La table suit le reset et la destruction de saison ; aucun crédit,
+calcul de frontière, vue ou ordre public n'est ajouté. Types et 163 tests existants ciblés passés ;
+aucun nouveau scénario métier dans ce lot, pas de vérificateur global. S6a-2 suit.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

@@ -335,6 +335,8 @@ export const MOVEMENT_TYPE = v.union(
  */
 export const LON_LAT = v.object({ lon: v.number(), lat: v.number() });
 
+export const TROOP_ADDRESS = v.union(v.id('buildings'), v.id('outposts'), LON_LAT, v.null());
+
 /**
  * Where a column stands when it is ordered out. It no longer says what the column may ask for
  * (ADR 0019 §1) — only which ground the domain gates are read on, and which address the troops

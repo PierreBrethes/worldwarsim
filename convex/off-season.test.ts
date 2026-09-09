@@ -913,6 +913,18 @@ describe('scrapping a season', () => {
           taken: empty,
           storageLost: empty,
         });
+        const carrier = await ctx.db
+          .query('troops')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .first();
+        if (carrier === null) throw new Error('carrier not found');
+        await ctx.db.insert('stationedLoot', {
+          seasonId: player.seasonId,
+          playerId,
+          troopIds: [carrier._id],
+          stationedAt: carrier.stationedAt,
+          loot: { ...empty, food: 1 },
+        });
         await ctx.db.insert('recruitments', {
           playerId,
           buildingId: barracks,
