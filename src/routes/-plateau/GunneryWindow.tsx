@@ -3,13 +3,20 @@ import { Fragment, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
   DAMAGE_TABLE,
+  CARRY_CAPACITY_BY_ROLE,
   DEFENDER_BONUS,
   DRY_AMMUNITION_FACTOR,
   detectionRangeOf,
 } from '../../../convex/constants';
 import { aBuilding, fr, profileAbbreviation, profileLabel, roleLabel } from '@/i18n/fr';
 import { COMBAT_PROFILES, TRANSPORT_PROFILES, type CombatProfile } from '@/domain/combat';
-import { gunneryRows, PROFILE_UNITS, type Band, type GunneryShot } from '@/domain/gunnery';
+import {
+  gunneryRows,
+  movementSheetOf,
+  PROFILE_UNITS,
+  type Band,
+  type GunneryShot,
+} from '@/domain/gunnery';
 import { DOMAIN_BY_ROLE, tierLabel } from '@/domain/troops';
 import type { UnitTier } from '@/domain/troops';
 import type { UnitRole } from '@/domain/ids';
@@ -142,7 +149,7 @@ export function GunneryWindow({ token, onClose, ...windowProps }: WindowProps & 
                           colSpan={columns.length + 2}
                           className="border-t border-dashed border-[rgba(42,33,24,.45)] border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
-                          <Sheet profile={row.attacker} workshop={workshop} />
+                          <GunnerySheet profile={row.attacker} workshop={workshop} />
                         </td>
                       </tr>
                     )}
@@ -176,7 +183,7 @@ type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.wor
  * Les deux marques d'un rôle se lisent **côte à côte** : la comparaison est la question qu'on
  * vient poser, et la faire payer un second pli l'aurait tuée.
  */
-function Sheet({
+export function GunnerySheet({
   profile,
   workshop,
 }: {
@@ -189,6 +196,7 @@ function Sheet({
   const nation = workshop?.nation ?? null;
   const marks: ReadonlyArray<UnitTier> = marked ? [1, 2] : [1];
   const [rangeHover, setRangeHover] = useState<StatHover | null>(null);
+  const movement = movementSheetOf([role]);
 
   return (
     <div className="flex items-stretch">
@@ -217,6 +225,11 @@ function Sheet({
             <StatGlyph stat="range" onHover={setRangeHover} />
             {fr.gunnery.detectionRange(detectionRangeOf([role]))}
           </span>
+        </div>
+
+        <div className="flex flex-wrap gap-x-[24px] gap-y-1 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+          <span>{fr.gunnery.nominalLootCapacity(CARRY_CAPACITY_BY_ROLE[role])}</span>
+          <span>{fr.gunnery.movementRule(movement)}</span>
         </div>
 
         {rangeHover !== null && (

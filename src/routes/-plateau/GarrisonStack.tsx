@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
+  CARRY_CAPACITY_BY_ROLE,
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
+import { carryCapacityOf } from '@/domain/loot';
 import { boards, stackRows, DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST } from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
@@ -56,11 +58,13 @@ export function GarrisonStack({
    * exactement la divergence que l'ADR 0015 interdit à la rose. Pas de transport coché, pas de
    * compteur — `offered` vaut alors zéro et il n'y a rien à dire.
    */
-  const roles = useMemo(
-    () => held.filter((troop) => picked.has(troop.id)).map((troop) => troop.role),
-    [held, picked],
-  );
+  const selected = useMemo(() => held.filter((troop) => picked.has(troop.id)), [held, picked]);
+  const roles = useMemo(() => selected.map((troop) => troop.role), [selected]);
   const lift = useMemo(() => liftOf(roles), [roles]);
+  const carryCapacity = useMemo(
+    () => carryCapacityOf(selected, CARRY_CAPACITY_BY_ROLE),
+    [selected],
+  );
   /**
    * **L'allure se dit en composant.** Le compteur de places répond de l'embarquement ; celle-ci
    * répond du sol, et c'est la seule chose que le transport terrestre fait (note « le transport
@@ -198,6 +202,12 @@ export function GarrisonStack({
       {composes && onLand && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']}
+        </div>
+      )}
+
+      {composes && (
+        <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+          {fr.garrison.lootCapacity(carryCapacity)}
         </div>
       )}
 

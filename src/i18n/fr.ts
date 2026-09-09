@@ -15,6 +15,7 @@ import type { UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
+import type { MovementSheet } from '../domain/gunnery';
 import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -1054,6 +1055,7 @@ export const fr = {
      */
     seats: (needed: number, offered: number) =>
       `${needed} place${plural(needed, '', 's')} demandée${plural(needed, '', 's')} sur ${offered} offerte${plural(offered, '', 's')}`,
+    lootCapacity: (capacity: number) => `capacité de butin : ${num(capacity)}`,
     /**
      * **L'allure se lit en composant, pas à l'arrivée de l'aperçu.** Le compteur de places dit
      * l'embarquement — traverser un milieu qui n'est pas le sien — et il ne dit rien du sol :
@@ -1206,6 +1208,22 @@ export const fr = {
       },
     } satisfies Record<'alloy' | 'training' | 'strength' | 'range', { name: string; note: string }>,
     detectionRange: (km: number) => `${num(km)} km`,
+    nominalLootCapacity: (capacity: number) => `capacité nominale de butin : ${num(capacity)}`,
+    movementRule: ({ mode, pace, costs }: MovementSheet) => {
+      const route = {
+        land: 'par terre',
+        naval: 'par mer',
+        air: 'par air',
+        combined: 'terre et mer',
+      }[mode];
+      const parts = [route];
+      if (pace !== undefined) parts.push(fr.aim.paces[pace]);
+      const indices = [costs.land, costs.sea]
+        .filter((cost): cost is number => cost !== undefined)
+        .map((cost) => String(cost).replace('.', ','));
+      if (indices.length > 0) parts.push(`indice ${indices.join(' / ')}`);
+      return parts.join(' · ');
+    },
     share: (value: number) => value.toFixed(2).replace('.', ','),
     shot: (attacker: string, defender: string, share: string) =>
       `${attacker} sur ${defender} — ${share} de l’effectif nominal par passe`,

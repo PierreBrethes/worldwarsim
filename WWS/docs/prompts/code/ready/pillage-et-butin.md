@@ -1,10 +1,12 @@
 # pillage-et-butin — piller, porter, rentrer
 
-**Clarifié le 09/09/2026 ; non livré.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
+**Clarifié le 09/09/2026 ; pillage non livré.** L'ancien « lot 1 » fonctionnel se découpe en S4-S9
 dans la [file centrale](../../../RESTE-A-CODER.md#petits-lots-stockage-et-pillage--0909).
 Exécuter un seul petit lot demandé, directement dans le dépôt, sans worktree, commit ni
 push ; s'arrêter ensuite. Les arbitrages ci-dessous restent à décider : `ready/` ne les
 rend pas implicitement validés.
+
+S4 et son lot d'affichage S4b sont terminés localement le 09/09 ; S5a est le prochain lot.
 
 ## Sources et acquis
 
@@ -135,7 +137,7 @@ sélection ; pour une force chargée à soi, afficher les quantités par ressour
 chargement total. Il n'existe ni stock de garnison ni « coût » monétaire du butin à inventer.
 Rien de nouveau dans « à faire maintenant ».
 
-**Abaque et composition (S4b).** Dans la fiche dépliée de `GunneryWindow`, conserver la
+**Abaque et composition (S4b, terminé localement le 09/09).** Dans la fiche dépliée de `GunneryWindow`, conserver la
 portée de détection déjà servie par `detectionRangeOf([role])`, puis ajouter la capacité
 nominale de butin du rôle et sa vitesse telle que les règles actuelles la déterminent.
 La vitesse dépend du milieu et de la composition (`routeModeOf`, `motorized`, `landCostOf`,
