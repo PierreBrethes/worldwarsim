@@ -36,7 +36,7 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S6a-3 terminés localement le 09/09. S6a-4 est le prochain lot. Aucun pillage jouable livré.**
+**S1-S6b-1 terminés localement le 09/09. S6b-2 est le prochain lot. Aucun pillage jouable livré.**
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -168,11 +168,12 @@ la capacité effective des survivants ; elle n'est ni détruite ni transférée 
    encore tenue ; à défaut, poser/perdre à l'arrivée sans détour.
 5. **S6a-3 — pertes partielles** ; terminé localement (09/09) : réduire la charge à la capacité
    effective restante après chaque passe ; une simple déroute garde la part transportable.
-6. **S6a-4 — reprise d'une charge posée** : rattacher atomiquement `stationedLoot` au prochain
-   mouvement de son groupe porteur et supprimer la ligne posée, sans duplication ni abandon.
-7. **S6b-1 — transfert sur destruction** : consommer l'ancienne charge une fois, remplir la
-   capacité libre du vainqueur et départager plusieurs récupérateurs par arrivée, ancienneté puis
-   clé stable — jamais par ordre de callback.
+6. **S6a-4 — reprise d'une charge posée** ; terminé localement (09/09) : rattacher atomiquement
+   `stationedLoot` au prochain mouvement de son groupe porteur et supprimer la ligne posée, sans
+   duplication ni abandon.
+7. **S6b-1 — transfert sur destruction** ; terminé localement (09/09) : consommer l'ancienne
+   charge une fois et remplir la capacité libre des groupes réellement debout du vainqueur. Une
+   déroute ou une destruction partielle ne transfère rien à l'adversaire.
 8. **S6b-2 — caisse persistante** : déposer le reliquat réel au point de destruction pour 2 h ;
    collecte partielle sans repousser l'échéance, disparition du restant à terme.
 9. **S6b-3 — détection privée** : révéler position et contenu exacts seulement à portée selon les
@@ -233,7 +234,7 @@ l'asset courant garde sa limite historique sur les trous jusqu'à régénératio
 froid : France 3 ms de cibles + 13 ms de route, Russie 146 + 11 ms, États-Unis 17 + 96 ms. Types,
 lint et 148 tests existants ciblés passent ; une sonde transactionnelle temporaire de livraison
 partielle est passée puis supprimée, aucun nouveau scénario conservé, pas de vérificateur global.
-La charge posée ne repart pas encore avec un mouvement : S6a-4 la raccordera avant S8.
+À ce stade, la charge posée ne repartait pas encore avec un mouvement ; S6a-4 l'a depuis raccordée.
 
 **Bilan S6a-3 (09/09)** : chaque passe photographie d'abord la charge impliquée, puis borne
 atomiquement `movements.loot` et `stationedLoot` à la capacité effective des survivants, calculée
@@ -246,7 +247,42 @@ et consomment la charge du mouvement, ce qui rend un second callback inerte. La 
 pré-perte reste le raccord explicite de S6b, sans transfert ni caisse dans ce lot. Types, lint et
 132 tests existants ciblés passent ; une sonde transactionnelle temporaire de scission et
 d'idempotence est passée puis supprimée, aucun nouveau scénario conservé, pas de vérificateur
-global. S6a-4 doit encore rattacher une charge posée au prochain mouvement de ses porteurs.
+global. S6a-4 a suivi pour rattacher une charge posée au prochain mouvement de ses porteurs.
+
+**Bilan S6a-4 (09/09)** : après validation complète d'un départ, `takeStationedCargo` consomme
+atomiquement la part des seules charges dont les porteurs sélectionnés sont concernés. Une
+sélection partielle partage chaque provenance selon la capacité effective de ceux qui partent et
+de ceux qui restent ; les lignes aux porteurs communs partagent une seule fois leur capacité, les
+groupes disjoints restent indépendants, et les références périmées ou lignes vides sont retirées.
+Plusieurs provenances voyagent dans `movements.lootLoads?`, forme optionnelle sans copie agrégée ;
+le lecteur central garde `loot` et `plunderReportId` legacy compatibles. Marche, regroupement,
+fondation, attaque/raid sans ou avec passe, rappel et retour conservent désormais la charge sans
+crédit implicite. Les arrivées ordinaires la reposent, tandis qu'une livraison estampillée répartit
+son résultat entre les rapports d'origine et cumule chaque fragment. Types, lint et 132 tests
+existants ciblés passent ; une sonde transactionnelle temporaire a couvert refus sans consommation,
+départ partiel, deux provenances, arrivée, fondation et attaque-retour, puis a été supprimée. Aucun
+nouveau scénario conservé, pas de vérificateur global. S6b-1 a suivi.
+
+**Bilan S6b-1 (09/09)** : `resolveContact` part de `combatCargoSnapshot` avant pertes et ne
+transfère une charge que lorsque tous ses porteurs sont réellement détruits. Après règlement des
+charges survivantes S6a-3, le vainqueur reçoit seulement ce que la capacité effective encore libre
+de ses groupes debout peut porter ; une charge déjà portée est donc soustraite. Le transfert reste
+une cargaison de mouvement ou `stationedLoot`, voyage et se livre par le cycle S6a, sans crédit
+national au combat. `lootRecoveries` conserve l'engagement, l'ancien et le nouveau porteur, la
+position, la provenance éventuelle, la quantité emportée et le reliquat. La charge récupérée porte
+`recoveryId` au lieu du rapport de pillage initial : celui-ci inscrit la totalité interceptée en
+perte une fois, tandis qu'une livraison ou une seconde destruction s'accumule sur le fait de
+récupération sans attribuer au vainqueur le pillage du bâtiment source. Le lecteur de combat
+regroupe aussi les lignes `stationedLoot` aux porteurs communs avant de borner leur somme, afin de
+ne jamais compter deux fois leur capacité. Une sonde temporaire a couvert destruction, capacité
+déjà occupée, provenance, seconde destruction et deux charges stationnées sur le même porteur,
+puis a été supprimée. Types, lint et 132 tests existants ciblés passent ; aucun scénario conservé,
+pas de vérificateur global.
+
+**Points d'entrée du reliquat pour S6b-2** : chaque ligne privée `lootRecoveries` expose
+`remainder` avec son `point`, `at`, `engagementId` et ses références de provenance. S6b-2 doit
+matérialiser exactement cette quantité une fois, puis vider/consommer ce champ dans la même
+transaction ; aucune vue ne lit encore cette table et aucune caisse publique n'existe.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

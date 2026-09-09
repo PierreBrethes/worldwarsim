@@ -5,7 +5,12 @@ import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
-import { combatCargoSnapshot, settleCombatCargo, type HomewardCargo } from './cargo';
+import {
+  combatCargoSnapshot,
+  recoverDestroyedCombatCargo,
+  settleCombatCargo,
+  type HomewardCargo,
+} from './cargo';
 
 /**
  * **The pass of resolution, as the board records it.** The rules themselves are in
@@ -125,8 +130,6 @@ export async function resolveContact(
     }
   }
 
-  const routedCargo = await settleCombatCargo(ctx, cargoBefore, engagement.outcomes);
-
   const reducedDefender = !wasReduced && (await isPlayerReduced(ctx, defender.playerId));
 
   const engagementId = await ctx.db.insert('engagements', {
@@ -154,6 +157,29 @@ export async function resolveContact(
       };
     }),
   });
+
+  const recoveringPlayerId =
+    engagement.winner === 'attacker' ? attacker.playerId : defender.playerId;
+  const dispossessedPlayerId =
+    engagement.winner === 'attacker' ? defender.playerId : attacker.playerId;
+  const cargoSettlement = await settleCombatCargo(
+    ctx,
+    cargoBefore,
+    engagement.outcomes,
+    dispossessedPlayerId,
+  );
+  await recoverDestroyedCombatCargo(ctx, {
+    seasonId,
+    engagementId,
+    destroyed: cargoSettlement.destroyed,
+    recoveringPlayerId,
+    standingTroopIds: engagement.outcomes
+      .filter((outcome) => outcome.side === engagement.winner && outcome.state === 'standing')
+      .map((outcome) => outcome.id),
+    point,
+    at,
+  });
+  const routedCargo = cargoSettlement.homeward;
 
   /**
    * **The blow-by-blow hangs from the account, it is not part of it.** The report is read on

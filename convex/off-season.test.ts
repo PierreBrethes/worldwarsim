@@ -47,6 +47,8 @@ async function readyToLaunch(t: ReturnType<typeof boot>) {
 }
 
 describe('creating and joining', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('creates a season and hands out an unambiguous 6-character code', async () => {
     const t = boot();
     const { code, token } = await t.mutation(api.seasons.create, {
@@ -76,6 +78,60 @@ describe('creating and joining', () => {
     expect((await t.query(api.seasons.lobby, { token: creator })).playableRegion).toBe(
       'europe-med',
     );
+  });
+
+  it('still accepts a new seat before launch after the two-hour mark', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+    const t = boot();
+    const { code } = await t.mutation(api.seasons.create, {
+      nickname: 'Pierre',
+      durationHours: 48,
+      compensation: 0.5,
+    });
+    vi.advanceTimersByTime(2 * 60 * 60 * 1000 + 1);
+
+    await expect(t.mutation(api.seasons.join, { code, nickname: 'Léa' })).resolves.toHaveProperty(
+      'token',
+    );
+  });
+
+  it('closes new seats at the launch deadline without inserting one', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    await t.run(async (ctx) => {
+      const season = (await ctx.db.query('seasons').collect())[0]!;
+      await ctx.db.patch(season._id, { launchedAt: 0 });
+    });
+
+    await expect(t.mutation(api.seasons.join, { code, nickname: 'Trop tard' })).rejects.toThrow(
+      'REGISTRATION_CLOSED',
+    );
+    const lobby = await t.query(api.seasons.lobby, { token: creator });
+    expect(lobby.players).toHaveLength(2);
+  });
+
+  it('keeps a seat obtained before closure usable for preparation and entry', async () => {
+    const t = boot();
+    const { code, creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, { token: creator });
+    const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    await t.run(async (ctx) => {
+      const season = (await ctx.db.query('seasons').collect())[0]!;
+      await ctx.db.patch(season._id, { launchedAt: 0 });
+    });
+
+    await t.mutation(api.players.reserveNation, { token: late, nation: 'germany' });
+    await t.mutation(api.seasons.enterWar, { token: late });
+    const view = await t.query(api.view.playerView, { token: late });
+    expect(view.me.nation).toBe('germany');
+    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.food.stock).toBeLessThanOrEqual(KIT.food);
+    expect(view.me.buildings).toHaveLength(1);
+    expect(view.me.troops).toHaveLength(1);
   });
 });
 

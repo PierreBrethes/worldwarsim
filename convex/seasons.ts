@@ -3,7 +3,12 @@ import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { gameCode, playableRegion } from '../src/domain/off-season';
+import {
+  canJoinRegistration,
+  gameCode,
+  playableRegion,
+  registrationDeadline,
+} from '../src/domain/off-season';
 import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
@@ -229,14 +234,10 @@ export const join = mutation({
       .withIndex('byCode', (q) => q.eq('code', code.trim().toUpperCase()))
       .unique();
     if (!season) fail('UNKNOWN_GAME_CODE');
-    /**
-     * **One joins a running season at any hour**, with no window and no switch to open — only a
-     * concluded season closes its door. It is a choice made for the phase of testing between
-     * friends, and it is to be revisited before the game opens any wider: a nation walking in on
-     * the last hour of a seven-day campaign takes the field against armies it could never have
-     * built, and nothing here compensates for that (the latecomer gets the launch kit as it is).
-     */
     if (season.status === 'concluded') fail('SEASON_CONCLUDED');
+    if (!canJoinRegistration(season.status, season.launchedAt, Date.now())) {
+      fail('REGISTRATION_CLOSED');
+    }
     const present = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
@@ -343,6 +344,8 @@ export const lobby = query({
     return {
       code: season.code,
       status: season.status,
+      registrationClosesAt:
+        season.status === 'launched' ? registrationDeadline(season.launchedAt) : null,
       durationHours: season.durationHours,
       compensation: season.compensation,
       /** Frozen at launch, and only widening while the lobby is still open: a latecomer joins a

@@ -103,6 +103,12 @@ export const LOOT_DELIVERY = v.object({
   point: LON_LAT,
 });
 
+export const LOOT_LOAD = v.object({
+  loot: RESOURCE_AMOUNTS,
+  plunderReportId: v.optional(v.id('plunderReports')),
+  recoveryId: v.optional(v.id('lootRecoveries')),
+});
+
 export const PLUNDER_MISSION = v.union(
   v.object({
     phase: v.literal('outbound'),

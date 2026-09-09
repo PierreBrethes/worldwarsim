@@ -31,6 +31,7 @@ import {
   routeMinutes,
 } from '../constants';
 import { fail } from '../errors';
+import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
@@ -395,6 +396,12 @@ export async function march(
   const now = Date.now();
   const minutes = await pacedMinutes(ctx, playerId, route, now);
   const arrivesAt = now + minutes * 60_000;
+  const cargo = await takeStationedCargo(ctx, {
+    seasonId: season._id,
+    playerId,
+    stationedAt: departure.stationId,
+    troops,
+  });
   const movementId = await ctx.db.insert('movements', {
     seasonId: season._id,
     playerId,
@@ -412,6 +419,7 @@ export async function march(
     troopIds: [...troopIds],
     departedAt: now,
     arrivesAt,
+    ...movementCargoFields(cargo),
   });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival

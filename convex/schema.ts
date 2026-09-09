@@ -6,6 +6,7 @@ import {
   DETECTOR,
   LON_LAT,
   LOOT_DELIVERY,
+  LOOT_LOAD,
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
@@ -278,6 +279,7 @@ export default defineSchema({
     stationedAt: TROOP_ADDRESS,
     loot: RESOURCE_AMOUNTS,
     plunderReportId: v.optional(v.id('plunderReports')),
+    recoveryId: v.optional(v.id('lootRecoveries')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
@@ -385,6 +387,8 @@ export default defineSchema({
     plunder: v.optional(PLUNDER_MISSION),
     /** Cargo on a stamped return is delivered at its frontier; an unstamped load stays legacy. */
     loot: v.optional(RESOURCE_AMOUNTS),
+    /** Several recovered or regrouped loads keep their own report without duplicating totals. */
+    lootLoads: v.optional(v.array(LOOT_LOAD)),
     /** New returns carry the immutable frontier they must revalidate; absence is legacy cargo. */
     lootDelivery: v.optional(LOOT_DELIVERY),
     plunderReportId: v.optional(v.id('plunderReports')),
@@ -414,6 +418,27 @@ export default defineSchema({
     .index('bySeason', ['seasonId'])
     .index('byAttacker', ['attackerId'])
     .index('byDefender', ['defenderId']),
+
+  /** A destroyed carrier changes ownership without rewriting the expedition that first took
+   * the goods. The uncarried share deliberately stays on this private fact until S6b-2 gives it
+   * a physical crate; no player view reads this table today. */
+  lootRecoveries: defineTable({
+    seasonId: v.id('seasons'),
+    engagementId: v.id('engagements'),
+    dispossessedPlayerId: v.id('players'),
+    recoveringPlayerId: v.id('players'),
+    point: LON_LAT,
+    at: v.number(),
+    sourcePlunderReportId: v.optional(v.id('plunderReports')),
+    sourceRecoveryId: v.optional(v.id('lootRecoveries')),
+    recovered: RESOURCE_AMOUNTS,
+    remainder: RESOURCE_AMOUNTS,
+    delivered: v.optional(RESOURCE_AMOUNTS),
+    lost: v.optional(RESOURCE_AMOUNTS),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byRecoveringPlayer', ['recoveringPlayerId'])
+    .index('byEngagement', ['engagementId']),
 
   /**
    * **A point, never a polygon** (fiche 03): an outpost sits at a lon/lat, holds no ground, and

@@ -5,20 +5,23 @@ import { carryCapacityOf, trimLootToCapacity, type ResourceAmounts } from '../sr
 import { CARRY_CAPACITY_BY_ROLE } from './constants';
 import type { TroopAddress } from './movement/forces';
 
-type StationedLoad = {
+export type CargoLoad = {
+  readonly loot: ResourceAmounts;
+  readonly plunderReportId?: Id<'plunderReports'>;
+  readonly recoveryId?: Id<'lootRecoveries'>;
+};
+
+type StationedLoad = CargoLoad & {
   readonly seasonId: Id<'seasons'>;
   readonly playerId: Id<'players'>;
   readonly troopIds: ReadonlyArray<Id<'troops'>>;
   readonly stationedAt: TroopAddress;
-  readonly loot: ResourceAmounts;
-  readonly plunderReportId?: Id<'plunderReports'>;
 };
 
 export type HomewardCargo = {
   readonly playerId: Id<'players'>;
   readonly troopIds: ReadonlyArray<Id<'troops'>>;
-  readonly loot: ResourceAmounts;
-  readonly plunderReportId?: Id<'plunderReports'>;
+  readonly loads: ReadonlyArray<CargoLoad>;
 };
 
 export type CombatCargoSnapshot =
@@ -27,17 +30,23 @@ export type CombatCargoSnapshot =
       readonly sourceId: Id<'movements'>;
       readonly playerId: Id<'players'>;
       readonly troopIds: ReadonlyArray<Id<'troops'>>;
-      readonly loot: ResourceAmounts;
-      readonly plunderReportId?: Id<'plunderReports'>;
+      readonly loads: ReadonlyArray<CargoLoad>;
     }
   | {
       readonly kind: 'stationed';
-      readonly sourceId: Id<'stationedLoot'>;
+      readonly sourceIds: ReadonlyArray<Id<'stationedLoot'>>;
       readonly playerId: Id<'players'>;
       readonly troopIds: ReadonlyArray<Id<'troops'>>;
-      readonly loot: ResourceAmounts;
-      readonly plunderReportId?: Id<'plunderReports'>;
+      readonly loads: ReadonlyArray<CargoLoad>;
     };
+
+export type CombatCargoSettlement = {
+  readonly homeward: ReadonlyArray<HomewardCargo>;
+  readonly destroyed: ReadonlyArray<CombatCargoSnapshot>;
+};
+
+const emptyAmounts = (): Record<ResourceKey, number> =>
+  Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
 
 const addAmounts = (left: ResourceAmounts, right: ResourceAmounts): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, left[key] + right[key]])) as Record<
@@ -54,6 +63,82 @@ const hasLoot = (loot: ResourceAmounts): boolean => RESOURCES.some((key) => loot
 const sameAmounts = (left: ResourceAmounts, right: ResourceAmounts): boolean =>
   RESOURCES.every((key) => left[key] === right[key]);
 
+const sameStation = (left: TroopAddress, right: TroopAddress): boolean => {
+  if (left === null || right === null) return left === right;
+  if (typeof left === 'string' || typeof right === 'string') return left === right;
+  return left.lon === right.lon && left.lat === right.lat;
+};
+
+export const cargoTotal = (loads: ReadonlyArray<CargoLoad>): Record<ResourceKey, number> =>
+  loads.reduce((total, load) => addAmounts(total, load.loot), emptyAmounts());
+
+const sameLoads = (left: ReadonlyArray<CargoLoad>, right: ReadonlyArray<CargoLoad>): boolean =>
+  left.length === right.length &&
+  left.every(
+    (load, index) =>
+      load.plunderReportId === right[index]?.plunderReportId &&
+      load.recoveryId === right[index]?.recoveryId &&
+      sameAmounts(load.loot, right[index]!.loot),
+  );
+
+export function movementCargoLoads(movement: Doc<'movements'>): ReadonlyArray<CargoLoad> {
+  if (movement.lootLoads !== undefined) return movement.lootLoads;
+  if (movement.loot === undefined) return [];
+  return [
+    {
+      loot: movement.loot,
+      ...(movement.plunderReportId === undefined
+        ? {}
+        : { plunderReportId: movement.plunderReportId }),
+    },
+  ];
+}
+
+export function movementCargoFields(loads: ReadonlyArray<CargoLoad>) {
+  const kept = loads.filter((load) => hasLoot(load.loot));
+  if (kept.length === 0) return {};
+  if (kept.length === 1 && kept[0]!.recoveryId === undefined) {
+    const [load] = kept;
+    return {
+      loot: load!.loot,
+      ...(load!.plunderReportId === undefined ? {} : { plunderReportId: load!.plunderReportId }),
+    };
+  }
+  return {
+    lootLoads: kept.map((load) => ({
+      loot: load.loot,
+      ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+      ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
+    })),
+  };
+}
+
+async function replaceMovementCargo(
+  ctx: MutationCtx,
+  movementId: Id<'movements'>,
+  loads: ReadonlyArray<CargoLoad>,
+  clearDelivery = false,
+): Promise<void> {
+  await ctx.db.patch(movementId, {
+    loot: undefined,
+    lootLoads: undefined,
+    plunderReportId: undefined,
+    ...(clearDelivery ? { lootDelivery: undefined } : {}),
+    ...movementCargoFields(loads),
+  });
+}
+
+export async function takeMovementCargo(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<ReadonlyArray<CargoLoad>> {
+  const current = await ctx.db.get(movement._id);
+  if (current === null) return [];
+  const loads = movementCargoLoads(current);
+  if (loads.length > 0) await replaceMovementCargo(ctx, current._id, [], true);
+  return loads;
+}
+
 export async function addPlunderLoss(
   ctx: MutationCtx,
   reportId: Id<'plunderReports'> | undefined,
@@ -62,20 +147,46 @@ export async function addPlunderLoss(
   if (reportId === undefined || !hasLoot(lost)) return;
   const report = await ctx.db.get(reportId);
   if (report === null) return;
-  const previous =
-    report.lost ??
-    (Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>);
-  await ctx.db.patch(reportId, { lost: addAmounts(previous, lost) });
+  await ctx.db.patch(reportId, { lost: addAmounts(report.lost ?? emptyAmounts(), lost) });
 }
 
-async function capacityOf(
+async function addPlunderDelivery(
   ctx: MutationCtx,
-  troopIds: ReadonlyArray<Id<'troops'>>,
-): Promise<number> {
-  const troops = (await Promise.all(troopIds.map((troopId) => ctx.db.get(troopId)))).filter(
-    (troop): troop is Doc<'troops'> => troop !== null,
-  );
-  return carryCapacityOf(
+  reportId: Id<'plunderReports'> | undefined,
+  delivered: ResourceAmounts,
+): Promise<void> {
+  if (reportId === undefined || !hasLoot(delivered)) return;
+  const report = await ctx.db.get(reportId);
+  if (report === null) return;
+  await ctx.db.patch(reportId, {
+    delivered: addAmounts(report.delivered ?? emptyAmounts(), delivered),
+  });
+}
+
+async function addRecoveryAmounts(
+  ctx: MutationCtx,
+  recoveryId: Id<'lootRecoveries'> | undefined,
+  field: 'delivered' | 'lost',
+  amounts: ResourceAmounts,
+): Promise<void> {
+  if (recoveryId === undefined || !hasLoot(amounts)) return;
+  const recovery = await ctx.db.get(recoveryId);
+  if (recovery === null) return;
+  await ctx.db.patch(recoveryId, {
+    [field]: addAmounts(recovery[field] ?? emptyAmounts(), amounts),
+  });
+}
+
+async function addCargoLoss(ctx: MutationCtx, load: CargoLoad, lost: ResourceAmounts) {
+  if (load.recoveryId !== undefined) {
+    await addRecoveryAmounts(ctx, load.recoveryId, 'lost', lost);
+  } else {
+    await addPlunderLoss(ctx, load.plunderReportId, lost);
+  }
+}
+
+const capacityOf = (troops: ReadonlyArray<Doc<'troops'>>): number =>
+  carryCapacityOf(
     troops.map((troop) => ({
       role: troop.role,
       strength: troop.currentStrength,
@@ -83,16 +194,96 @@ async function capacityOf(
     })),
     CARRY_CAPACITY_BY_ROLE,
   );
+
+function allocateToLoads(
+  loads: ReadonlyArray<CargoLoad>,
+  target: ResourceAmounts,
+): ReadonlyArray<CargoLoad> {
+  const allocated = loads.map(() => emptyAmounts());
+  for (const key of RESOURCES) {
+    const positive = loads
+      .map((load, index) => ({ index, amount: load.loot[key] }))
+      .filter(({ amount }) => amount > 0);
+    const available = positive.reduce((sum, { amount }) => sum + amount, 0);
+    let assigned = 0;
+    for (const { index, amount } of positive) {
+      const share =
+        index === positive.at(-1)?.index
+          ? Math.min(amount, Math.max(0, target[key] - assigned))
+          : Math.min(amount, available <= 0 ? 0 : (amount / available) * target[key]);
+      allocated[index]![key] = share;
+      assigned += share;
+    }
+  }
+  return loads.map((load, index) => ({
+    loot: allocated[index]!,
+    ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+    ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
+  }));
 }
 
-const shareForCapacity = (
-  loot: ResourceAmounts,
+async function fitCargoLoads(
+  ctx: MutationCtx,
+  loads: ReadonlyArray<CargoLoad>,
   capacity: number,
-  totalCapacity: number,
-): Record<ResourceKey, number> => {
-  const totalLoot = RESOURCES.reduce((sum, key) => sum + loot[key], 0);
-  return trimLootToCapacity(loot, totalCapacity <= 0 ? 0 : (totalLoot * capacity) / totalCapacity);
-};
+): Promise<ReadonlyArray<CargoLoad>> {
+  const fitted = allocateToLoads(loads, trimLootToCapacity(cargoTotal(loads), capacity));
+  for (let index = 0; index < loads.length; index += 1) {
+    await addCargoLoss(ctx, loads[index]!, difference(loads[index]!.loot, fitted[index]!.loot));
+  }
+  return fitted;
+}
+
+export async function recordCargoDelivery(
+  ctx: MutationCtx,
+  loads: ReadonlyArray<CargoLoad>,
+  delivered: ResourceAmounts,
+  lost: ResourceAmounts,
+): Promise<void> {
+  const deliveredByLoad = allocateToLoads(loads, delivered);
+  const lostByLoad = allocateToLoads(loads, lost);
+  for (let index = 0; index < loads.length; index += 1) {
+    const load = loads[index]!;
+    if (load.recoveryId !== undefined) {
+      await addRecoveryAmounts(ctx, load.recoveryId, 'delivered', deliveredByLoad[index]!.loot);
+      await addRecoveryAmounts(ctx, load.recoveryId, 'lost', lostByLoad[index]!.loot);
+    } else {
+      await addPlunderDelivery(ctx, load.plunderReportId, deliveredByLoad[index]!.loot);
+      await addPlunderLoss(ctx, load.plunderReportId, lostByLoad[index]!.loot);
+    }
+  }
+}
+
+export function splitCargoLoads(
+  loads: ReadonlyArray<CargoLoad>,
+  capacities: ReadonlyArray<number>,
+): ReadonlyArray<ReadonlyArray<CargoLoad>> {
+  const totalCapacity = capacities.reduce((sum, capacity) => sum + Math.max(0, capacity), 0);
+  const groups = capacities.map(() => [] as Array<CargoLoad>);
+  for (const load of loads) {
+    const totalLoot = RESOURCES.reduce((sum, key) => sum + load.loot[key], 0);
+    let assigned = emptyAmounts();
+    capacities.forEach((capacity, index) => {
+      const remaining = difference(load.loot, assigned);
+      const share =
+        index === capacities.length - 1
+          ? remaining
+          : trimLootToCapacity(
+              load.loot,
+              totalCapacity <= 0 ? 0 : (totalLoot * Math.max(0, capacity)) / totalCapacity,
+            );
+      assigned = addAmounts(assigned, share);
+      if (hasLoot(share)) {
+        groups[index]!.push({
+          loot: share,
+          ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+          ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
+        });
+      }
+    });
+  }
+  return groups;
+}
 
 /**
  * Read before casualties land. This is deliberately a named boundary: S6b can transfer cargo
@@ -113,32 +304,58 @@ export async function combatCargoSnapshot(
       .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
       .collect(),
   ]);
+  const stationedInCombat = stationed.filter((load) =>
+    load.troopIds.some((id) => troopIds.has(id)),
+  );
+  const remaining = [...stationedInCombat];
+  const stationedComponents: Array<typeof stationedInCombat> = [];
+  while (remaining.length > 0) {
+    const component = [remaining.shift()!];
+    const carrierIds = new Set(component[0]!.troopIds);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (let index = remaining.length - 1; index >= 0; index -= 1) {
+        if (
+          remaining[index]!.playerId !== component[0]!.playerId ||
+          !remaining[index]!.troopIds.some((id) => carrierIds.has(id))
+        ) {
+          continue;
+        }
+        const [joined] = remaining.splice(index, 1);
+        component.push(joined!);
+        for (const id of joined!.troopIds) carrierIds.add(id);
+        grew = true;
+      }
+    }
+    stationedComponents.push(component);
+  }
+
   return [
     ...movements
+      .map((movement) => ({ movement, loads: movementCargoLoads(movement) }))
       .filter(
-        (movement) =>
-          movement.loot !== undefined && movement.troopIds.some((id) => troopIds.has(id)),
+        ({ movement, loads }) =>
+          loads.length > 0 && movement.troopIds.some((id) => troopIds.has(id)),
       )
-      .map((movement) => ({
+      .map(({ movement, loads }) => ({
         kind: 'movement' as const,
         sourceId: movement._id,
         playerId: movement.playerId,
         troopIds: movement.troopIds,
-        loot: movement.loot!,
-        ...(movement.plunderReportId === undefined
-          ? {}
-          : { plunderReportId: movement.plunderReportId }),
+        loads,
       })),
-    ...stationed
-      .filter((load) => load.troopIds.some((id) => troopIds.has(id)))
-      .map((load) => ({
-        kind: 'stationed' as const,
-        sourceId: load._id,
-        playerId: load.playerId,
-        troopIds: load.troopIds,
+    ...stationedComponents.map((component) => ({
+      kind: 'stationed' as const,
+      sourceIds: component.map((load) => load._id),
+      playerId: component[0]!.playerId,
+      troopIds: [...new Set(component.flatMap((load) => load.troopIds))],
+      loads: component.map((load) => ({
         loot: load.loot,
         ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+        ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
       })),
+    })),
   ];
 }
 
@@ -149,58 +366,291 @@ export async function settleCombatCargo(
     readonly id: string;
     readonly state: 'standing' | 'routed' | 'destroyed';
   }>,
-): Promise<ReadonlyArray<HomewardCargo>> {
+  recoverablePlayerId: Id<'players'>,
+): Promise<CombatCargoSettlement> {
   const stateOf = new Map(outcomes.map((outcome) => [outcome.id, outcome.state]));
   const homeward: Array<HomewardCargo> = [];
+  const destroyed: Array<CombatCargoSnapshot> = [];
 
   for (const snapshot of snapshots) {
-    const source = await ctx.db.get(snapshot.sourceId);
-    if (source === null || source.loot === undefined || !sameAmounts(source.loot, snapshot.loot)) {
+    const current = await (async (): Promise<{ loads: ReadonlyArray<CargoLoad> }> => {
+      if (snapshot.kind === 'movement') {
+        const source = await ctx.db.get(snapshot.sourceId);
+        return {
+          loads: source === null ? [] : movementCargoLoads(source),
+        };
+      }
+      const sources = await Promise.all(snapshot.sourceIds.map((sourceId) => ctx.db.get(sourceId)));
+      return {
+        loads: sources.flatMap((source) =>
+          source === null
+            ? []
+            : [
+                {
+                  loot: source.loot,
+                  ...(source.plunderReportId === undefined
+                    ? {}
+                    : { plunderReportId: source.plunderReportId }),
+                  ...(source.recoveryId === undefined ? {} : { recoveryId: source.recoveryId }),
+                },
+              ],
+        ),
+      };
+    })();
+    if (!sameLoads(current.loads, snapshot.loads)) continue;
+
+    if (
+      snapshot.playerId === recoverablePlayerId &&
+      snapshot.troopIds.length > 0 &&
+      snapshot.troopIds.every((id) => stateOf.get(id) === 'destroyed')
+    ) {
+      destroyed.push(snapshot);
       continue;
     }
+
     const standingIds = snapshot.troopIds.filter(
       (id) => stateOf.get(id) !== 'destroyed' && stateOf.get(id) !== 'routed',
     );
     const routedIds = snapshot.troopIds.filter((id) => stateOf.get(id) === 'routed');
-    const [standingCapacity, routedCapacity] = await Promise.all([
-      capacityOf(ctx, standingIds),
-      capacityOf(ctx, routedIds),
+    const [standingTroops, routedTroops] = await Promise.all([
+      Promise.all(standingIds.map((id) => ctx.db.get(id))),
+      Promise.all(routedIds.map((id) => ctx.db.get(id))),
     ]);
-    const totalCapacity = standingCapacity + routedCapacity;
-    const kept = trimLootToCapacity(snapshot.loot, totalCapacity);
-    const standingLoot = shareForCapacity(kept, standingCapacity, totalCapacity);
-    const routedLoot = difference(kept, standingLoot);
-    await addPlunderLoss(ctx, snapshot.plunderReportId, difference(snapshot.loot, kept));
+    const standingCapacity = capacityOf(
+      standingTroops.filter((troop): troop is Doc<'troops'> => troop !== null),
+    );
+    const routedCapacity = capacityOf(
+      routedTroops.filter((troop): troop is Doc<'troops'> => troop !== null),
+    );
+    const fitted = await fitCargoLoads(ctx, snapshot.loads, standingCapacity + routedCapacity);
+    const bySource = fitted.map((load) =>
+      splitCargoLoads([load], [standingCapacity, routedCapacity]),
+    );
+    const standingLoads = bySource.flatMap(([loads = []]) => loads);
+    const routedLoads = bySource.flatMap(([, loads = []]) => loads);
 
     if (snapshot.kind === 'movement') {
-      if (standingIds.length > 0 && hasLoot(standingLoot)) {
-        await ctx.db.patch(snapshot.sourceId, { troopIds: standingIds, loot: standingLoot });
-      } else {
-        await ctx.db.patch(snapshot.sourceId, {
-          loot: undefined,
-          lootDelivery: undefined,
-          plunderReportId: undefined,
-        });
+      await replaceMovementCargo(ctx, snapshot.sourceId, standingLoads, standingLoads.length === 0);
+      if (standingLoads.length > 0) {
+        await ctx.db.patch(snapshot.sourceId, { troopIds: standingIds });
       }
-    } else if (standingIds.length > 0 && hasLoot(standingLoot)) {
-      await ctx.db.patch(snapshot.sourceId, { troopIds: standingIds, loot: standingLoot });
     } else {
-      const load = await ctx.db.get(snapshot.sourceId);
-      if (load !== null) await ctx.db.delete(snapshot.sourceId);
+      for (let index = 0; index < snapshot.sourceIds.length; index += 1) {
+        const [load] = bySource[index]?.[0] ?? [];
+        const source = await ctx.db.get(snapshot.sourceIds[index]!);
+        if (source === null) continue;
+        if (load === undefined) await ctx.db.delete(source._id);
+        else {
+          await ctx.db.patch(source._id, {
+            troopIds: standingIds,
+            loot: load.loot,
+            plunderReportId: load.plunderReportId,
+            recoveryId: load.recoveryId,
+          });
+        }
+      }
     }
 
-    if (routedIds.length > 0 && hasLoot(routedLoot)) {
-      homeward.push({
-        playerId: snapshot.playerId,
-        troopIds: routedIds,
-        loot: routedLoot,
-        ...(snapshot.plunderReportId === undefined
+    if (routedIds.length > 0 && routedLoads.length > 0) {
+      homeward.push({ playerId: snapshot.playerId, troopIds: routedIds, loads: routedLoads });
+    }
+  }
+  return { homeward, destroyed };
+}
+
+type RecoveryCarrierGroup = {
+  readonly troops: ReadonlyArray<Doc<'troops'>>;
+  readonly freeCapacity: number;
+  readonly movement?: Doc<'movements'>;
+  readonly stationedAt?: TroopAddress;
+};
+
+const amountTotal = (amounts: ResourceAmounts): number =>
+  RESOURCES.reduce((sum, key) => sum + amounts[key], 0);
+
+async function recoveryCarrierGroups(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  playerId: Id<'players'>,
+  troopIds: ReadonlyArray<string>,
+): Promise<ReadonlyArray<RecoveryCarrierGroup>> {
+  const standing = (await Promise.all(troopIds.map((id) => ctx.db.get(id as Id<'troops'>)))).filter(
+    (troop): troop is Doc<'troops'> =>
+      troop !== null && troop.seasonId === seasonId && troop.playerId === playerId,
+  );
+  const available = new Map(standing.map((troop) => [troop._id, troop]));
+  const [movements, stationed] = await Promise.all([
+    ctx.db
+      .query('movements')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect(),
+    ctx.db
+      .query('stationedLoot')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect(),
+  ]);
+  const groups: Array<RecoveryCarrierGroup> = [];
+
+  for (const movement of movements
+    .filter((candidate) => candidate.playerId === playerId)
+    .sort(
+      (left, right) => left._creationTime - right._creationTime || (left._id < right._id ? -1 : 1),
+    )) {
+    const troops = movement.troopIds.flatMap((id) => {
+      const troop = available.get(id);
+      return troop === undefined ? [] : [troop];
+    });
+    if (troops.length === 0) continue;
+    for (const troop of troops) available.delete(troop._id);
+    groups.push({
+      troops,
+      movement,
+      freeCapacity: Math.max(
+        0,
+        capacityOf(troops) - amountTotal(cargoTotal(movementCargoLoads(movement))),
+      ),
+    });
+  }
+
+  const stationary: Array<{ stationedAt: TroopAddress; troops: Array<Doc<'troops'>> }> = [];
+  for (const troop of [...available.values()].sort(
+    (left, right) => left._creationTime - right._creationTime || (left._id < right._id ? -1 : 1),
+  )) {
+    const group = stationary.find((candidate) =>
+      sameStation(candidate.stationedAt, troop.stationedAt),
+    );
+    if (group === undefined) stationary.push({ stationedAt: troop.stationedAt, troops: [troop] });
+    else group.troops.push(troop);
+  }
+  for (const group of stationary) {
+    const ids = new Set(group.troops.map((troop) => troop._id));
+    const loads = stationed
+      .filter(
+        (load) =>
+          load.playerId === playerId &&
+          sameStation(load.stationedAt, group.stationedAt) &&
+          load.troopIds.some((id) => ids.has(id)),
+      )
+      .map((load) => ({
+        loot: load.loot,
+        ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+        ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
+      }));
+    groups.push({
+      troops: group.troops,
+      stationedAt: group.stationedAt,
+      freeCapacity: Math.max(0, capacityOf(group.troops) - amountTotal(cargoTotal(loads))),
+    });
+  }
+  return groups.filter((group) => group.freeCapacity > 0);
+}
+
+/** A destroyed enemy carrier releases its intact pre-loss snapshot once. The winner receives
+ * only what its standing groups can still carry; the rest remains at the engagement point on
+ * the private recovery fact for S6b-2. */
+export async function recoverDestroyedCombatCargo(
+  ctx: MutationCtx,
+  {
+    seasonId,
+    engagementId,
+    destroyed,
+    recoveringPlayerId,
+    standingTroopIds,
+    point,
+    at,
+  }: {
+    seasonId: Id<'seasons'>;
+    engagementId: Id<'engagements'>;
+    destroyed: ReadonlyArray<CombatCargoSnapshot>;
+    recoveringPlayerId: Id<'players'>;
+    standingTroopIds: ReadonlyArray<string>;
+    point: { lon: number; lat: number };
+    at: number;
+  },
+): Promise<void> {
+  const groups = await recoveryCarrierGroups(ctx, seasonId, recoveringPlayerId, standingTroopIds);
+  let capacity = groups.reduce((sum, group) => sum + group.freeCapacity, 0);
+  const recoveredLoads: Array<CargoLoad> = [];
+
+  for (const snapshot of destroyed) {
+    const currentMovement =
+      snapshot.kind === 'movement' ? await ctx.db.get(snapshot.sourceId) : null;
+    const currentStationed =
+      snapshot.kind === 'stationed'
+        ? await Promise.all(snapshot.sourceIds.map((sourceId) => ctx.db.get(sourceId)))
+        : [];
+    const currentLoads =
+      snapshot.kind === 'movement'
+        ? currentMovement === null
+          ? []
+          : movementCargoLoads(currentMovement)
+        : currentStationed.flatMap((source) =>
+            source === null
+              ? []
+              : [
+                  {
+                    loot: source.loot,
+                    ...(source.plunderReportId === undefined
+                      ? {}
+                      : { plunderReportId: source.plunderReportId }),
+                    ...(source.recoveryId === undefined ? {} : { recoveryId: source.recoveryId }),
+                  },
+                ],
+          );
+    if (!sameLoads(currentLoads, snapshot.loads)) continue;
+
+    if (snapshot.kind === 'movement') await replaceMovementCargo(ctx, snapshot.sourceId, [], true);
+    else {
+      for (const sourceId of snapshot.sourceIds) await ctx.db.delete(sourceId);
+    }
+
+    for (const load of snapshot.loads) {
+      if (!hasLoot(load.loot)) continue;
+      const recovered = trimLootToCapacity(load.loot, capacity);
+      const remainder = difference(load.loot, recovered);
+      capacity = Math.max(0, capacity - amountTotal(recovered));
+      await addCargoLoss(ctx, load, load.loot);
+      const recoveryId = await ctx.db.insert('lootRecoveries', {
+        seasonId,
+        engagementId,
+        dispossessedPlayerId: snapshot.playerId,
+        recoveringPlayerId,
+        point,
+        at,
+        ...(load.plunderReportId === undefined
           ? {}
-          : { plunderReportId: snapshot.plunderReportId }),
+          : { sourcePlunderReportId: load.plunderReportId }),
+        ...(load.recoveryId === undefined ? {} : { sourceRecoveryId: load.recoveryId }),
+        recovered,
+        remainder,
+      });
+      if (hasLoot(recovered)) recoveredLoads.push({ loot: recovered, recoveryId });
+    }
+  }
+
+  const distributed = splitCargoLoads(
+    recoveredLoads,
+    groups.map((group) => group.freeCapacity),
+  );
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index]!;
+    const loads = distributed[index]!;
+    if (loads.length === 0) continue;
+    if (group.movement !== undefined) {
+      const movement = await ctx.db.get(group.movement._id);
+      if (movement !== null) {
+        await replaceMovementCargo(ctx, movement._id, [...movementCargoLoads(movement), ...loads]);
+      }
+    } else {
+      await stationCargoLoads(ctx, {
+        seasonId,
+        playerId: recoveringPlayerId,
+        troopIds: group.troops.map((troop) => troop._id),
+        stationedAt: group.stationedAt ?? null,
+        loads,
       });
     }
   }
-  return homeward;
 }
 
 /** Zero is a reportable result of an expedition, but it is not cargo to preserve. */
@@ -209,26 +659,135 @@ export async function stationLoot(
   load: StationedLoad,
 ): Promise<Id<'stationedLoot'> | null> {
   if (!hasLoot(load.loot)) return null;
-  return ctx.db.insert('stationedLoot', {
-    ...load,
-    troopIds: [...load.troopIds],
-  });
+  return ctx.db.insert('stationedLoot', { ...load, troopIds: [...load.troopIds] });
+}
+
+export async function stationCargoLoads(
+  ctx: MutationCtx,
+  {
+    seasonId,
+    playerId,
+    troopIds,
+    stationedAt,
+    loads,
+  }: {
+    seasonId: Id<'seasons'>;
+    playerId: Id<'players'>;
+    troopIds: ReadonlyArray<Id<'troops'>>;
+    stationedAt: TroopAddress;
+    loads: ReadonlyArray<CargoLoad>;
+  },
+): Promise<void> {
+  for (const load of loads) {
+    await stationLoot(ctx, { seasonId, playerId, troopIds, stationedAt, ...load });
+  }
 }
 
 export async function stationMovementLoot(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   stationedAt: TroopAddress,
-): Promise<Id<'stationedLoot'> | null> {
-  if (movement.loot === undefined) return null;
-  return stationLoot(ctx, {
+): Promise<void> {
+  await stationCargoLoads(ctx, {
     seasonId: movement.seasonId,
     playerId: movement.playerId,
     troopIds: movement.troopIds,
     stationedAt,
-    loot: movement.loot,
-    ...(movement.plunderReportId === undefined
-      ? {}
-      : { plunderReportId: movement.plunderReportId }),
+    loads: movementCargoLoads(movement),
   });
+}
+
+export async function takeStationedCargo(
+  ctx: MutationCtx,
+  {
+    seasonId,
+    playerId,
+    stationedAt,
+    troops,
+  }: {
+    seasonId: Id<'seasons'>;
+    playerId: Id<'players'>;
+    stationedAt: TroopAddress;
+    troops: ReadonlyArray<Doc<'troops'>>;
+  },
+): Promise<ReadonlyArray<CargoLoad>> {
+  const selected = new Set(troops.map((troop) => troop._id));
+  const marching = new Set(
+    (
+      await ctx.db
+        .query('movements')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).flatMap((movement) => movement.troopIds),
+  );
+  const loads = (
+    await ctx.db
+      .query('stationedLoot')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()
+  ).filter((load) => load.seasonId === seasonId && sameStation(load.stationedAt, stationedAt));
+  const states = await Promise.all(
+    loads.map(async (load) => ({
+      load,
+      carriers: (await Promise.all(load.troopIds.map((troopId) => ctx.db.get(troopId)))).filter(
+        (troop): troop is Doc<'troops'> =>
+          troop !== null &&
+          troop.seasonId === seasonId &&
+          troop.playerId === playerId &&
+          sameStation(troop.stationedAt, stationedAt) &&
+          !marching.has(troop._id),
+      ),
+    })),
+  );
+  const remaining = [...states];
+  const components: Array<typeof states> = [];
+  while (remaining.length > 0) {
+    const component = [remaining.shift()!];
+    const carrierIds = new Set(component[0]!.carriers.map((troop) => troop._id));
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (let index = remaining.length - 1; index >= 0; index -= 1) {
+        if (!remaining[index]!.carriers.some((troop) => carrierIds.has(troop._id))) continue;
+        const [joined] = remaining.splice(index, 1);
+        component.push(joined!);
+        for (const troop of joined!.carriers) carrierIds.add(troop._id);
+        grew = true;
+      }
+    }
+    components.push(component);
+  }
+
+  const departing: Array<CargoLoad> = [];
+  for (const component of components) {
+    const carriers = [
+      ...new Map(
+        component.flatMap(({ carriers }) => carriers).map((troop) => [troop._id, troop]),
+      ).values(),
+    ];
+    const selectedCarriers = carriers.filter((troop) => selected.has(troop._id));
+    const stayingCarriers = carriers.filter((troop) => !selected.has(troop._id));
+    const capacities = [capacityOf(selectedCarriers), capacityOf(stayingCarriers)] as const;
+    const sources = component.map(({ load }) => ({
+      loot: load.loot,
+      ...(load.plunderReportId === undefined ? {} : { plunderReportId: load.plunderReportId }),
+      ...(load.recoveryId === undefined ? {} : { recoveryId: load.recoveryId }),
+    }));
+    const fitted = await fitCargoLoads(ctx, sources, capacities[0] + capacities[1]);
+    for (let index = 0; index < component.length; index += 1) {
+      const [selectedLoads = [], stayingLoads = []] = splitCargoLoads([fitted[index]!], capacities);
+      departing.push(...selectedLoads);
+      const row = component[index]!.load;
+      if (stayingLoads.length === 0) await ctx.db.delete(row._id);
+      else {
+        await ctx.db.patch(row._id, {
+          troopIds: stayingCarriers.map((troop) => troop._id),
+          loot: stayingLoads[0]!.loot,
+          plunderReportId: stayingLoads[0]!.plunderReportId,
+          recoveryId: stayingLoads[0]!.recoveryId,
+        });
+      }
+    }
+  }
+  return departing;
 }

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from '
 import { api } from '../../convex/_generated/api';
 import { fr, clockLabel, nationLabel } from '@/i18n/fr';
 import type { PlayableRegion } from '@/domain/ids';
+import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
 import { DestroyButton } from '@/shell/DestroyButton';
@@ -223,7 +224,9 @@ function ConnectedHome() {
               className="mt-[6px] w-full border border-[var(--ink)] bg-transparent p-[14px] text-center font-(family-name:--font-mono) text-[22px] tracking-[.42em] text-[var(--ink)] uppercase outline-none"
               placeholder={fr.home.codePlaceholder}
             />
-            <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">{fr.home.joinHint}</p>
+            <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
+              {fr.home.joinHint(REGISTRATION_WINDOW_HOURS)}
+            </p>
             <Commit active={nicknameReady && code.length === 6} type="submit">
               {fr.home.joinSubmit}
             </Commit>

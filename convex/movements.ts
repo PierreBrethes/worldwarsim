@@ -14,7 +14,7 @@ import { firstMobileEncounter } from '../src/domain/interception';
 import { windowExit } from '../src/domain/rest-window';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildings';
-import { stationMovementLoot } from './cargo';
+import { stationCargoLoads, stationMovementLoot, takeStationedCargo } from './cargo';
 import { resolveContact } from './combat';
 import { outpostReachKm, routeMinutes } from './constants';
 import { fail } from './errors';
@@ -153,7 +153,20 @@ export const foundOutpostHere = mutation({
       disabledUntil: null,
       immuneUntil: null,
     });
+    const cargo = await takeStationedCargo(ctx, {
+      seasonId: season._id,
+      playerId: player._id,
+      stationedAt: point,
+      troops,
+    });
     for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
+    await stationCargoLoads(ctx, {
+      seasonId: season._id,
+      playerId: player._id,
+      troopIds: troops.map((troop) => troop._id),
+      stationedAt: outpostId,
+      loads: cargo,
+    });
     /** **La fondation est un point d'échantillonnage** (ADR 0020 §5) : le sol autour vient de
      *  changer de main, et le relevé de chacun de ceux qui regardent ce sol-là bouge avec lui. */
     await surveyFoundation(

@@ -277,6 +277,8 @@ export const fr = {
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
+    REGISTRATION_CLOSED: () =>
+      'les nouvelles inscriptions sont closes — cette place n’a pas été créée',
     UNKNOWN_GAME_CODE: () => 'code inconnu — vérifiez les six caractères',
     NO_FREE_GAME_CODE: () => 'impossible de tirer un code de partie libre — réessayez',
     LOBBY_FULL: (d) => `salon complet (${num(d.maximum)} joueurs)`,
@@ -481,7 +483,8 @@ export const fr = {
     joinNote: 'Six caractères reçus d’un fondateur. La cadence est déjà fixée.',
     codeLabel: 'code de partie',
     codePlaceholder: 'ABC234',
-    joinHint: 'Le salon reste ouvert tant que le fondateur n’a pas lancé.',
+    joinHint: (hours: number) =>
+      `Les nouvelles places sont admises avant le lancement et pendant les ${hours} premières heures.`,
     joinSubmit: 'rejoindre le salon',
     footerLeft: 'tour de jeu asynchrone · plage de repos respectée',
     footerRight: 'région fixée au lancement',
@@ -502,10 +505,17 @@ export const fr = {
     regionLabel: (region: string) => `région : ${region}`,
     quit: 'quitter',
     codeLabel: 'code de partie — à partager',
-    codeNote: 'Toute personne qui a ce code peut prendre une nation libre.',
+    codeNote:
+      'Ce code identifie la partie ; les places et les nations disponibles se voient ci-dessous.',
     copyCode: 'copier le code',
     codeCopied: 'code copié',
-    openCount: (count: number) => `salon ouvert · ${count} joueur${plural(count, '', 's')} sur 8`,
+    participantCount: (count: number) =>
+      `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur 8`,
+    registrationBeforeLaunch:
+      'Les nouvelles places sont admises jusqu’au lancement, puis pendant la fenêtre d’arrivée.',
+    registrationUntil: (date: string) => `Nouvelles places admises jusqu’au ${date}.`,
+    registrationClosed: 'Les nouvelles inscriptions sont closes.',
+    registrationConcluded: 'La saison est conclue ; elle peut être relue.',
     nationsHeader: 'nations — premier arrivé, premier servi',
     nationsFree: (count: number) =>
       `${count} nation${plural(count, '', 's')} libre${plural(count, '', 's')}`,
@@ -546,7 +556,7 @@ export const fr = {
      */
     enterWarHeader: 'entrée en guerre — la saison court déjà',
     enterWarNote:
-      'La saison a été lancée sans vous. Vous entrez avec la dotation de départ, sans compensation pour les heures écoulées : les autres ont bâti pendant ce temps-là.',
+      'La saison a été lancée sans vous. Votre siège est conservé : choisissez votre nation et terminez votre préparation quand vous le souhaitez. Vous entrez avec la dotation de départ, sans compensation pour les heures écoulées.',
     enterWar: 'entrer en guerre — irréversible',
     enterWarMissing: (count: number) =>
       `il manque ${count} condition${plural(count, '', 's')} — une nation`,

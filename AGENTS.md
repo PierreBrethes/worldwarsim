@@ -216,10 +216,19 @@ trajet finit au premier franchissement exact et l'arrivée crédite une fois dan
 sans rogner un excès préexistant — ou perd la charge si cette région n'est plus tenue. Les anciens
 retours sans estampille restent du butin posé. Les contours sont indexés une fois par isolat ;
 trous, multipolygones, micro-régions, tangences et enroulement est-ouest sont traités. La reprise
-d'une charge déjà dans `stationedLoot` reste le lot S6a-4 avant l'ouverture publique. **S6a-3**
-borne maintenant toute charge après une passe à la capacité effective des survivants et partage
-la part conservée entre leurs trajectoires ; les pertes et livraisons s'ajoutent au rapport sans
-double comptage.
+d'une charge déjà dans `stationedLoot` est désormais atomique au prochain départ accepté. Plusieurs
+provenances voyagent sans copie agrégée dans `movements.lootLoads?`, avec lecteur compatible des
+anciens `loot` ; les arrivées ordinaires reposent la charge sans crédit. **S6a-3** borne toute
+charge après une passe à la capacité effective des survivants et partage la part conservée entre
+leurs trajectoires ; les pertes et livraisons s'ajoutent au rapport sans double comptage.
+**S6b-1 transfère désormais la charge d'une force entièrement détruite** dans la seule capacité
+libre des groupes debout du vainqueur, après leurs pertes et leur charge existante. Une déroute ou
+une destruction partielle ne transfère rien. Le rapport de pillage initial inscrit l'interception
+en perte ; la cargaison récupérée porte `recoveryId` et ses livraisons/pertes suivantes alimentent
+le fait privé `lootRecoveries`, qui conserve aussi le reliquat et son point exact sans caisse
+publique. Les lignes `stationedLoot` aux porteurs communs partagent une seule capacité au combat.
+S6b-2, la matérialisation privée et idempotente de ce reliquat en caisse, reste le prochain lot
+avant l'ouverture publique.
 
 ## Schéma Convex
 

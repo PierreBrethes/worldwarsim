@@ -17,6 +17,7 @@ import { StaleToken } from '@/shell/StaleToken';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { TelegraphThread } from '@/shell/TelegraphThread';
 import { useTelegraph } from '@/data/telegraph';
+import { asDayAndTime } from '@/domain/duration';
 
 export const Route = createFileRoute('/salon')({
   component: Lobby,
@@ -85,6 +86,14 @@ function ConnectedLobby({ token }: { token: string }) {
   const missing = checks.filter((check) => !check.done).length;
   const freeSeats = entering ? 0 : Math.min(2, 8 - lobby.players.length);
   const freeNations = NATIONS.filter((nation) => holderOf(nation) === undefined).length;
+  const registrationNote =
+    lobby.status === 'lobby'
+      ? fr.lobby.registrationBeforeLaunch
+      : lobby.registrationClosesAt === null
+        ? lobby.status === 'concluded'
+          ? fr.lobby.registrationConcluded
+          : fr.lobby.registrationClosed
+        : fr.lobby.registrationUntil(asDayAndTime(lobby.registrationClosesAt));
 
   const copyCode = () => {
     void navigator.clipboard.writeText(lobby.code).then(() => {
@@ -133,6 +142,7 @@ function ConnectedLobby({ token }: { token: string }) {
                   {lobby.code}
                 </div>
                 <div className="text-[11.5px] text-[var(--ink-note)]">{fr.lobby.codeNote}</div>
+                <div className="mt-1 text-[11.5px] text-[var(--ink-note)]">{registrationNote}</div>
               </div>
               <div className="flex w-[200px] shrink-0 flex-col gap-2">
                 <button
@@ -143,7 +153,7 @@ function ConnectedLobby({ token }: { token: string }) {
                   {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
                 </button>
                 <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
-                  {fr.lobby.openCount(lobby.players.length)}
+                  {fr.lobby.participantCount(lobby.players.length)}
                 </div>
               </div>
             </div>
