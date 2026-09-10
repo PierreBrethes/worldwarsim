@@ -640,6 +640,30 @@ function targetOfLabel(
   if (label.type === 'building' && label.building !== null) {
     return { kind: 'building', ...label.building };
   }
+  /**
+   * **Une installation relevée est une cible d'expédition** (S8) : la poignée est celle du
+   * relevé — identité, clé, région — et jamais le sol sous le curseur, qu'un mât plein cadre
+   * déborde. Elle n'ouvre rien au repos : la rose s'y referme sans colonne armée.
+   */
+  if (label.installation !== null) {
+    return {
+      kind: 'installation',
+      ...label.installation,
+      name: lineText(label, 'nature') ?? fr.buildings[label.installation.key],
+    };
+  }
+  /** La caisse : le relevé possédé, et le sol lu sous son propre point — pas sous le curseur. */
+  if (label.lootSightingId !== null) {
+    return {
+      kind: 'loot',
+      id: label.lootSightingId,
+      point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
+      current: label.lootCurrent,
+      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
+      coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
+      name: lineText(label, 'nature') ?? fr.loot.cardKicker,
+    };
+  }
   if (label.type === 'stack') {
     return {
       kind: 'force',

@@ -26,6 +26,23 @@ export type MapMarker =
       readonly current: boolean;
     }
   | {
+      /**
+       * **Une installation adverse, telle que le dernier relevé l'a figée** — jamais la ligne
+       * vivante : ni stock, ni garnison, ni niveau ne traversent cette forme (ADR 0005). Elle
+       * n'a pas de point à elle : le relevé porte la région, et le mât se pose au centroïde,
+       * comme un gisement.
+       */
+      readonly kind: 'installation';
+      readonly id: string;
+      readonly buildingId: string;
+      readonly key: Exclude<BuildingKey, 'depot'>;
+      readonly regionId: string;
+      readonly name: string;
+      readonly plate: string | null;
+      /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
+      readonly washed: boolean;
+    }
+  | {
       readonly kind: 'outpost';
       readonly id: string;
       readonly lonLat: LonLat;
@@ -152,6 +169,7 @@ export type Reach = {
 
 export type LabelType =
   | 'loot'
+  | 'installation'
   | 'outpost'
   | 'stack'
   | 'construction'
@@ -180,6 +198,17 @@ export type LabelAnchor =
   | { readonly kind: 'movementHead'; readonly arc: string }
   /** Resolved by the region layer, the only holder of a region's interior point. */
   | { readonly kind: 'region'; readonly regionId: string };
+
+/**
+ * **Une installation relevée, telle que le mât la tend à qui agit dessus.** Ce n'est pas un
+ * `BuildingHandle` et ce n'en sera jamais un : un relevé n'a pas de niveau, et l'inventer pour
+ * réutiliser la forme d'à côté ferait dire au brouillard ce qu'il ne sait pas.
+ */
+export type InstallationHandle = {
+  readonly id: string;
+  readonly key: Exclude<BuildingKey, 'depot'>;
+  readonly regionId: string;
+};
 
 /** A standing building, as a label hands it to whoever acts on it. */
 export type BuildingHandle = {
@@ -216,6 +245,8 @@ export type MapLabel = {
   readonly lootSightingId: string | null;
   /** False gives a known crate its stale, dashed treatment. */
   readonly lootCurrent: boolean;
+  /** Le délavé des relevés : ce qui n'est pas su à l'instant se lit plus pâle que le reste. */
+  readonly washed: boolean;
   readonly lines: ReadonlyArray<LabelLine>;
   /** An enemy movement pierced by intelligence — the mockup marks it with a state. */
   readonly identified: boolean;
@@ -240,6 +271,8 @@ export type MapLabel = {
    * stands there yet to be opened or raised.
    */
   readonly building: BuildingHandle | null;
+  /** Le mât adverse relevé, la cible de l'expédition — jamais confondu avec `building`. */
+  readonly installation: InstallationHandle | null;
   /**
    * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
    * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
@@ -269,6 +302,9 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   outpost: 3,
   stack: 2,
   building: 1,
+  /** Le mât d'un autre ne prend jamais la place du sien : à encombrement égal, c'est le joueur
+   *  qui garde la sienne lisible. */
+  installation: 1,
   deposit: 0,
 };
 
@@ -301,7 +337,9 @@ const exists = <T>(value: T | null): value is T => value !== null;
 /** A port hangs from its quay, a deposit and every other building from their region, and
  *  everything that carries a coordinate from that coordinate. */
 function anchorOf(marker: MapMarker): LabelAnchor {
-  if (marker.kind === 'deposit') return { kind: 'region', regionId: marker.regionId };
+  if (marker.kind === 'deposit' || marker.kind === 'installation') {
+    return { kind: 'region', regionId: marker.regionId };
+  }
   if (marker.kind === 'building') {
     return marker.lonLat === null
       ? { kind: 'region', regionId: marker.regionId }
@@ -314,15 +352,20 @@ function markerLabel(marker: MapMarker): MapLabel {
   const common = {
     id: marker.id,
     anchor: anchorOf(marker),
-    ink: marker.kind === 'deposit' || marker.kind === 'loot' ? null : marker.ink,
+    ink:
+      marker.kind === 'deposit' || marker.kind === 'loot' || marker.kind === 'installation'
+        ? null
+        : marker.ink,
     plate: null,
     deposit: null,
     lootSightingId: null,
     lootCurrent: true,
+    washed: marker.kind === 'installation' && marker.washed,
     identified: false,
     offensive: false,
     idle: false,
     building: null,
+    installation: null,
     station: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
@@ -345,6 +388,22 @@ function markerLabel(marker: MapMarker): MapLabel {
             text: marker.current ? fr.loot.markerCurrent : fr.loot.markerStale,
           },
         ],
+      };
+    /**
+     * **Ce qu'on a relevé chez l'autre, et rien de plus.** Le mât porte le dessin du bâtiment et
+     * son nom ; il n'ouvre aucune fenêtre — le clic droit y ouvre la rose de l'expédition, la
+     * lecture du sol reste celle de la région, qui porte déjà la date du relevé.
+     */
+    case 'installation':
+      return {
+        ...common,
+        type: 'installation',
+        priority: PRIORITY.installation,
+        pictogram: null,
+        plate: marker.plate,
+        installation: { id: marker.buildingId, key: marker.key, regionId: marker.regionId },
+        hostCountry: null,
+        lines: [{ role: 'nature', text: marker.name }],
       };
     case 'outpost':
       return {
@@ -454,6 +513,8 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       id: arc.id,
       type: 'my-movement',
       priority: PRIORITY['my-movement'],
+      washed: false,
+      installation: null,
       anchor: { kind: 'movementHead', arc: arc.id },
       reach: null,
       ink: null,
@@ -509,6 +570,8 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     id: arc.id,
     type,
     priority: PRIORITY[type],
+    washed: false,
+    installation: null,
     anchor: { kind: 'movementHead', arc: arc.id },
     reach: null,
     ink: null,

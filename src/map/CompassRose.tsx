@@ -356,6 +356,16 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
       />
     </>
   ),
+  /** « Ramasser » : la caisse cerclée, la même chose que la carte pose sur un butin abandonné —
+   *  quatre montants et la bande de cerclage en diagonale, lisible à quinze pixels. */
+  crate: (
+    <path d="M2.4 4.2 H17.6 V6.2 H2.4 Z M2.4 13.8 H17.6 V15.8 H2.4 Z M2.4 4.2 H4.4 V15.8 H2.4 Z M15.6 4.2 H17.6 V15.8 H15.6 Z M4.8 12.3 L14.3 6.2 L15.3 7.8 L5.8 13.9 Z" />
+  ),
+  /** « Piller » et « saboter » sous un seul dessin — la torche : c'est le même ordre, et seul le
+   *  libellé change avec la nature du site. La flamme, le manchon, le manche. */
+  sabotage: (
+    <path d="M10 0.9 C12.7 3.6 13.7 5.8 13.7 7.7 C13.7 10 11.9 11.6 10 11.6 C8.1 11.6 6.3 10 6.3 7.7 C6.3 5.8 7.3 3.6 10 0.9 Z M7 11.2 H13 V13.2 H7 Z M8.9 13.2 H11.1 V19.1 H8.9 Z" />
+  ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,

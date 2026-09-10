@@ -202,11 +202,24 @@ Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée
 classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
 `costKey ?? key` détermine leur tarif. Le stock reste national. L'interface, le bandeau et le
 simulateur ne présentent plus qu'un entrepôt ; une clé `depot` historique reprend son nom et
-son sprite. Le miroir vérifie les huit plafonds. **S5b est livré en interne** : une expédition
-victorieuse tient 2 h, exige encore de l'infanterie à la prise, prélève le surplus disponible
-avant la désactivation de 12 h et l'écrêtage, puis crée un retour chargé et un fait durable. Les
-deux durées restent `@a-mesurer`. L'ordre public, le sabotage, la livraison, les dépêches et
-l'interface ne sont pas livrés : le pillage reste non jouable.
+son sprite. Le miroir vérifie les huit plafonds.
+
+**Le pillage se joue — S8-S9, 10/09/2026.** Une expédition victorieuse tient 2 h, exige de
+l'infanterie à la prise, prélève le surplus disponible avant la désactivation de 12 h et
+l'écrêtage, puis crée un retour chargé que personne n'ordonne. Les deux durées restent
+`@a-mesurer`. **L'ordre part de la carte, et de nulle part ailleurs** : ce qu'on a relevé chez
+l'autre se tient sur la carte — le mât de l'installation au centroïde de sa région, dans le
+délavé des relevés — et le clic droit y ouvre **une seule branche**, « piller » sur un entrepôt
+(le `depot` historique compris), « saboter » sur les sept producteurs : c'est le même ordre, le
+même dessin, seul le verbe change avec ce que l'expédition rapporte. La caisse relevée ouvre
+« ramasser » ; à capacité libre nulle il n'y a pas de branche, il y a la phrase qui dit pourquoi.
+Rien n'est grisé : la rose et le serveur sortent de **la même fonction**
+(`plunderOrderRefusalOf`, `lootCollectionOrderRefusalOf`, `src/domain/movement-orders.ts`), et
+l'aperçu — durée, capacité libre, présence sur site, **butin estimé au relevé** — vient de
+`movements.previewPlunder` et `previewLootCollection`, jamais d'un stock adverse que le brouillard
+n'a pas servi. La rumeur, la caisse et le sabotage sont jugés à la partie à deux (ADR 0005
+révisée le 10/09). **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la
+preuve tient au scénario public complet de `convex/plunder.test.ts`.
 
 ## Schéma Convex
 
@@ -239,8 +252,10 @@ Bannis : tick, temps réel, micro, base, rush. Glossaire complet dans `WWS/CONTE
 
 Les surfaces 4.7, 4.8 et 4.9 sont maquettées mais pas implémentées — le rail les affiche
 grisées. Les §4.5 et §4.6 de la fiche 11 sont **périmées** : le flux de mouvement en carte a
-remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque encore au schéma de jeu : l'occupation, le pillage et les revenus — le
-dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours pas tranché.
+remplacé la première, la modale de site la seconde (contrats de vue 03 et 06). Ce qui manque
+encore au schéma de jeu : l'occupation et les revenus — le pillage, lui, se joue depuis le
+10/09. Le dernier point bloquant du design (l'avantage d'isolement géographique) n'est toujours
+pas tranché.
 
 **Et un bâtiment ne produit que relié** (ADR 0020 §6, `src/domain/economy.ts` pour la règle —
 `isLinked`, une comparaison et rien d'autre). Sa région porte la couleur de son propriétaire ou il
@@ -293,7 +308,7 @@ survol donne la date en clair, « relevé du 12 août ».
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
 désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
 qu'il disputait ; la **destruction** après
-plusieurs raids attend le pillage, et rien ne les compte. Il ouvre autour de son point un rayon qui
+plusieurs raids n'existe toujours pas, et rien ne les compte — le pillage est passé sans elle. Il ouvre autour de son point un rayon qui
 **suit son niveau** (`outpostReachKm`, révision du 31/08), où l'on bâtit comme chez soi (le puits
 en Arabie), et
 **héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient

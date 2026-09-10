@@ -301,7 +301,7 @@ export function MapLabels({
             }}
             onContextMenu={(event) => {
               event.preventDefault();
-              if (label.lootSightingId === null) onContextMenu(label, event.clientX, event.clientY);
+              onContextMenu(label, event.clientX, event.clientY);
             }}
           >
             <div
@@ -415,6 +415,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
+    label.washed ? 'label--washed' : '',
     selected ? 'label--selected' : '',
     label.hostCountry === null &&
     label.building === null &&

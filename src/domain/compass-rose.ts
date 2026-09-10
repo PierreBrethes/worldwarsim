@@ -2,7 +2,7 @@ import { countryLabel, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
 import { availabilityOf, buildOptionsAt, upgradeHold, type UpgradeHold } from './construction';
 import { asDuration } from './duration';
 import { PRODUCER_OF } from './economy';
-import { DEPOSITS, RESOURCES } from './ids';
+import { canonicalBuildingKey, DEPOSITS, RESOURCES } from './ids';
 import {
   foundingRefusal,
   legalMovementTypes,
@@ -14,6 +14,7 @@ import {
   type Column,
   type MovementAim,
   type OrderRefusal,
+  type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
 import {
@@ -85,15 +86,24 @@ export type CompassTarget =
       readonly name: string;
     }
   | {
-      /** The exact private crate sighting selected under the pointer. */
+      /**
+       * The exact private crate sighting selected under the pointer. **Son âge n'est pas ici** :
+       * la rose ne marche pas vers une caisse, elle marche vers un relevé — la date se lit sur
+       * le marqueur et sur son cartouche, et aucune branche n'en dépend.
+       */
       readonly kind: 'loot';
       readonly id: string;
       readonly point: LonLat;
+      /** Ce que le mât dit de lui-même : couvert à l'instant, ou dernier relevé. */
       readonly current: boolean;
-      readonly seenAt: number;
-      readonly onLand: boolean;
-      readonly coastal: boolean;
-      readonly name: string;
+      /**
+       * Le sol et la côte sous le relevé, lus sur la grille de routage au moment du clic — le
+       * relevé n'en porte rien. Absents, la marche est jugée sur terre ferme : c'est le cas du
+       * dézoom, où la carte n'a pas de cellule à interroger.
+       */
+      readonly onLand?: boolean;
+      readonly coastal?: boolean;
+      readonly name?: string;
     }
   /**
    * The map itself, wherever it carries nothing clickable — the open sea, and every scale above
@@ -158,8 +168,11 @@ export type CompassPictogram =
   /** « Entrer en garnison » (64b, 69a) : la hutte de la marche, **porte ouverte** — la même
    *  famille que `cabin`, et ce qui les sépare est exactement ce qui sépare les deux ordres :
    *  une marche s'arrête devant, celle-ci entre. */
-  | 'doorway';
+  | 'doorway'
+  /** Le ramassage : la caisse cerclée, ce que la carte pose déjà sur un butin abandonné. */
   | 'crate'
+  /** La prise et le sabotage sous un seul dessin — la pince coupante : c'est le même ordre, seul
+   *  le libellé change avec la nature du bâtiment visé. */
   | 'sabotage';
 
 /**
@@ -238,6 +251,35 @@ export type CompassAction =
         readonly reason: string;
         readonly availability: string | null;
       } | null;
+    }
+  /**
+   * **Piller, saboter — un seul ordre sous deux mots** (S8). Ce que le verbe change est ce que
+   * l'expédition rapporte : un entrepôt rend du butin, un producteur ne rend que son arrêt. La
+   * branche ne paraît que si `plunderOrderRefusalOf` la laisse passer, la même fonction que la
+   * mutation refuse avec (ADR 0015) — et elle ne dit jamais un stock adverse, que le relevé n'a
+   * pas.
+   */
+  | {
+      readonly key: 'plunder';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly buildingId: string;
+      readonly aim: PlunderAim;
+    }
+  /**
+   * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
+   * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
+   */
+  | {
+      readonly key: 'collect';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly sightingId: string;
+      readonly point: LonLat;
     };
 
 type Fan = {
@@ -339,6 +381,84 @@ const buildOn = (regionId: string, regionName: string): CompassAction => ({
 });
 
 /**
+ * **L'expédition sur une installation relevée** (S8). Le libellé seul sépare la prise du sabotage
+ * — un entrepôt rend du butin, un producteur ne rend que son arrêt — et c'est le même ordre sur
+ * le fil (`movements.plunder`). Le refus vient de `plunderOrderRefusalOf`, la fonction que la
+ * mutation relit : sans branche, la rose s'ouvre en motif et dit la phrase du serveur (ADR 0015).
+ *
+ * Rien ici ne lit un stock adverse : le relevé n'en porte aucun, et c'est le sujet.
+ */
+function plunderFan(
+  target: Extract<CompassTarget, { kind: 'installation' }>,
+  view: PlayerView,
+  column: Column,
+): Compass {
+  const aimed: PlunderAim = { kind: 'building', buildingId: target.id, key: target.key };
+  const isMine = view.me.buildings.some((standing) => standing.id === target.id);
+  const refused = plunderOrderRefusalOf(aimed, column, isMine);
+  const label =
+    canonicalBuildingKey(target.key) === 'warehouse' ? fr.compass.plunder : fr.compass.sabotage;
+  return {
+    kicker: fr.compass.installation,
+    name: target.name,
+    actions:
+      refused === null
+        ? [
+            {
+              key: 'plunder',
+              pictogram: 'sabotage',
+              label,
+              cost: slotCost(view),
+              consequence: fr.compass.plunderConsequence(label),
+              buildingId: target.id,
+              aim: aimed,
+            },
+          ]
+        : [],
+    refusal: refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)),
+  };
+}
+
+/**
+ * **Ramasser ce qu'on a relevé**, et jamais ce qui est là : la cible est le relevé possédé, même
+ * périmé. La capacité libre est la seule condition propre à cet ordre — une pile pleine ne
+ * rapporte rien — et elle passe par `lootCollectionOrderRefusalOf`, comme le serveur.
+ */
+function collectFan(
+  target: Extract<CompassTarget, { kind: 'loot' }>,
+  column: Column,
+  freeCapacity: number,
+): Compass {
+  const aimed = {
+    kind: 'point',
+    lon: target.point[0],
+    lat: target.point[1],
+    onLand: target.onLand ?? true,
+    coastal: target.coastal ?? false,
+  } as const;
+  const refused = lootCollectionOrderRefusalOf(aimed, column, freeCapacity);
+  return {
+    kicker: target.current ? fr.loot.markerCurrent : fr.loot.markerStale,
+    name: target.name ?? fr.loot.cardKicker,
+    actions:
+      refused === null
+        ? [
+            {
+              key: 'collect',
+              pictogram: 'crate',
+              label: fr.compass.collect,
+              cost: null,
+              consequence: fr.compass.collectConsequence,
+              sightingId: target.id,
+              point: target.point,
+            },
+          ]
+        : [],
+    refusal: refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)),
+  };
+}
+
+/**
  * A target's compass, or `null` when there is nothing to say — the right click then stays inert
  * rather than opening an empty fan.
  *
@@ -354,6 +474,9 @@ export function compassOf(
   column: Column | null = null,
   objectiveKnown = false,
   origin: TroopStation | null = null,
+  /** Ce que la pile armée peut encore charger, une fois sa charge en cours déduite : le seul
+   *  chiffre qui décide si « ramasser » existe (`carryCapacityOf`, lu par l'appelant). */
+  freeCapacity = 0,
 ): Compass | null {
   /**
    * **Un observateur regarde, il ne vise plus** (décision de Pierre, 31/08) : le clic droit ne
@@ -375,7 +498,9 @@ export function compassOf(
       return joinTransport(target, station, view, column);
     }
   }
-  if (column !== null && target.kind !== 'force') return aim(target, view, column, objectiveKnown);
+  if (column !== null && target.kind !== 'force') {
+    return aim(target, view, column, objectiveKnown, freeCapacity);
+  }
   const fan = build(target, view);
   /** Un motif sans branche reste une rose : c'est ce qui sépare « rien à faire ici » — le clic
    *  droit inerte — de « pas maintenant, et voilà pourquoi ». */
@@ -398,7 +523,10 @@ function aim(
   view: PlayerView,
   column: Column,
   objectiveKnown: boolean,
+  freeCapacity: number,
 ): Compass | null {
+  if (target.kind === 'installation') return plunderFan(target, view, column);
+  if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
     return fanOf(
       target.name,
@@ -636,6 +764,15 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         actions: foundHere(target, view),
         refusal: null,
       };
+    /**
+     * **Au repos, ce qui appartient à l'autre ne se fait rien.** Une installation relevée et une
+     * caisse relevée sont des cibles de la visée et d'elle seule : sans colonne armée il n'y a
+     * pas d'ordre à donner là, et le clic droit reste inerte comme sur un pays (décision du
+     * 31/08). La lecture, elle, se fait au clic gauche — la popin lit, la carte agit.
+     */
+    case 'installation':
+    case 'loot':
+      return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
      * and a coordinate is neither. Over water there is nothing to offer and the fan stays shut,

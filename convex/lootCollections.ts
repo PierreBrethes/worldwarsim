@@ -28,8 +28,8 @@ const capacityOf = (troops: ReadonlyArray<Doc<'troops'>>): number =>
     CARRY_CAPACITY_BY_ROLE,
   );
 
-/** Internal seam for S8. The target is read only from the observer's ledger: filing the order
- * never asks whether the crate still exists, so a stale sighting cannot become a remote probe. */
+/** The target is read only from the observer's ledger: filing the order never asks whether the
+ * crate still exists, so a stale sighting cannot become a remote probe. */
 export async function startLootCollectionMission(
   ctx: MutationCtx,
   {

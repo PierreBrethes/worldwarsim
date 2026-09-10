@@ -141,13 +141,20 @@ export function plunderRefusalOf(
 export const lootCollectionRefusalOf = (freeCapacity: number): LootCollectionRefusal | null =>
   freeCapacity > 0 ? null : 'NO_CARGO_CAPACITY';
 
-/** Whole public-order gate, shared by the rose and filing after the target has been authorised. */
+/**
+ * Whole public-order gate, shared by the rose and filing after the target has been authorised.
+ *
+ * **L'allégeance se tranche ici et nulle part ailleurs** : `refusalOf('attack')` la redemanderait
+ * à `mine()`, qui tient tout bâtiment visé pour sien — l'hypothèse de la garnison (`aimOf` ne
+ * résout que les mâts du joueur), fausse dès qu'un mât adverse devient une cible. Ce qui reste
+ * du gabarit d'une marche est la porte de départ, et c'est exactement `closedGate`.
+ */
 export function plunderOrderRefusalOf(
   aim: PlunderAim,
   column: Column,
   isMine: boolean,
 ): PlunderRefusal | OrderRefusal | null {
-  return plunderRefusalOf(aim, column.roles, isMine) ?? refusalOf('attack', aim, column);
+  return plunderRefusalOf(aim, column.roles, isMine) ?? closedGate(aim, column);
 }
 
 /** A collection walks like a march and must retain positive capacity after existing cargo. */

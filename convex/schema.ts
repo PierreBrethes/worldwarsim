@@ -401,9 +401,9 @@ export default defineSchema({
     /** Pairs already resolved while both movements remain in flight. This prevents a
      * reassessment immediately after a pass from scheduling the same encounter again. */
     encounteredMovementIds: v.optional(v.array(v.id('movements'))),
-    /** Internal until S8 opens the order. While present, the manifest stays unavailable to a
-     * second order because it still belongs to this movement. Its optional return region is the
-     * automatic plan fixed before the return; absence keeps pre-S6a documents readable. */
+    /** While present, the manifest stays unavailable to a second order because it still
+     * belongs to this movement. Its optional return region is the automatic plan fixed before
+     * the return; absence keeps pre-S6a documents readable. */
     plunder: v.optional(PLUNDER_MISSION),
     /** Cargo on a stamped return is delivered at its frontier; an unstamped load stays legacy. */
     loot: v.optional(RESOURCE_AMOUNTS),

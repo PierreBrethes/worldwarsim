@@ -9,7 +9,26 @@ import type { MovementAim } from '@/domain/movement-orders';
 import { landPaceOf, routeMedium } from '@/domain/routing';
 import type { MarchStation } from '@/domain/troops';
 import { handleError } from '@/data/errors';
-import type { MovementPreviewed } from '@/data/serverView';
+import type {
+  LootCollectionPreviewed,
+  MovementPreviewed,
+  PlunderPreviewed,
+} from '@/data/serverView';
+import { ResourceAmounts } from './CargoReadout';
+
+/**
+ * **Une seule carte de confirmation pour trois missions.** Les trois aperçus du serveur portent
+ * la même route et les mêmes heures ; ce qui les sépare — le relais, la reconnaissance, la
+ * charge, la présence sur site — se lit là où il existe et se tait ailleurs, plutôt que d'ouvrir
+ * une seconde carte qui redirait le reste mot pour mot.
+ */
+export type Previewed = MovementPreviewed | PlunderPreviewed | LootCollectionPreviewed;
+
+/** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
+export type PreviewMission =
+  | { readonly kind: 'march' }
+  | { readonly kind: 'plunder'; readonly buildingId: string }
+  | { readonly kind: 'collect'; readonly sightingId: string };
 
 /**
  * The aim in the shape the mutations take. The point is passed through as it was named — the
@@ -58,6 +77,7 @@ export function MovementPreview({
   label,
   at,
   preview,
+  mission,
   freeSlots,
   onClose,
 }: {
@@ -69,7 +89,8 @@ export function MovementPreview({
   label: string;
   at: { x: number; y: number };
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
-  preview: MovementPreviewed | undefined;
+  preview: Previewed | undefined;
+  mission: PreviewMission;
   freeSlots: number;
   onClose: () => void;
 }) {
@@ -79,6 +100,8 @@ export function MovementPreview({
   const enterGarrison = useMutation(api.movements.enterGarrison);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
+  const plunder = useMutation(api.movements.plunder);
+  const collectLoot = useMutation(api.movements.collectLoot);
 
   const send = () => {
     setError(null);
@@ -88,37 +111,52 @@ export function MovementPreview({
     // them: the call itself.
     const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
     const from = wireOrigin(origin);
-    /** Trois ordres et pas un quatrième : la fondation n'en est plus un — c'est ce qu'une colonne
-     *  fait là où elle se tient (`foundOutpostHere`) — et le leurre a été retiré du jeu le
-     *  29/08/2026. Entrer en garnison est une marche sur un mât à soi (64b), pas un ordre de plus. */
+    /** **La mission décide de la mutation avant le type** : l'expédition et le ramassage
+     *  marchent tous deux, et c'est leur cible — un mât adverse, un relevé de caisse — qui les
+     *  sépare, jamais un type de plus sur le fil. Reste la fondation, qui n'est plus un ordre
+     *  (`foundOutpostHere`), et le leurre, retiré du jeu le 29/08/2026. */
     const order =
-      type === 'march' && aim.kind === 'point'
-        ? marchTo({
+      mission.kind === 'plunder'
+        ? plunder({
             token,
             origin: from,
             troopIds: ids,
-            point: { lon: aim.lon, lat: aim.lat },
+            buildingId: mission.buildingId as Id<'buildings'>,
           })
-        : type === 'march' && aim.kind === 'building'
-          ? enterGarrison({
+        : mission.kind === 'collect'
+          ? collectLoot({
               token,
               origin: from,
               troopIds: ids,
-              buildingId: aim.buildingId as Id<'buildings'>,
+              sightingId: mission.sightingId as Id<'lootCrateSightings'>,
             })
-          : type === 'raid' && aim.kind === 'outpost'
-            ? raid({
+          : type === 'march' && aim.kind === 'point'
+            ? marchTo({
                 token,
                 origin: from,
                 troopIds: ids,
-                outpostId: aim.outpostId as Id<'outposts'>,
+                point: { lon: aim.lon, lat: aim.lat },
               })
-            : attack({
-                token,
-                origin: from,
-                troopIds: ids,
-                target: wireTarget(aim),
-              });
+            : type === 'march' && aim.kind === 'building'
+              ? enterGarrison({
+                  token,
+                  origin: from,
+                  troopIds: ids,
+                  buildingId: aim.buildingId as Id<'buildings'>,
+                })
+              : type === 'raid' && aim.kind === 'outpost'
+                ? raid({
+                    token,
+                    origin: from,
+                    troopIds: ids,
+                    outpostId: aim.outpostId as Id<'outposts'>,
+                  })
+                : attack({
+                    token,
+                    origin: from,
+                    troopIds: ids,
+                    target: wireTarget(aim),
+                  });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);
@@ -165,16 +203,24 @@ export function MovementPreview({
                     a hull routes `combined` even when the road gets there dry, and the card
                     would then promise a crossing to the next region. */}
                 <div>
-                  {fr.aim.duration(asDuration(preview.minutes), preview.troops)} ·{' '}
+                  {fr.aim.duration(asDuration(preview.minutes), troopIds.length)} ·{' '}
                   {legOf(preview.route)}
                 </div>
                 <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
                 {/* La seule ligne de la carte qui explique une durée plutôt que de l'annoncer :
                     sans elle, le relais est un cadeau anonyme. */}
-                {preview.relayed > 0 && (
+                {'relayed' in preview && preview.relayed > 0 && (
                   <div className="text-[var(--valid)]">
                     {fr.aim.relayed(asDuration(preview.relayed))}
                   </div>
+                )}
+                {/* Ce que la pile peut ramener, et rien du stock d'en face : le relevé n'en
+                    porte aucun, et l'aperçu n'en invente pas (ADR 0005). */}
+                {'cargo' in preview && (
+                  <div>{fr.loot.freeCapacity(Math.round(preview.cargo.free))}</div>
+                )}
+                {'presenceHours' in preview && (
+                  <div>{fr.aim.presence(asDuration(preview.presenceHours * 60))}</div>
                 )}
               </div>
               {preview.holdUntil !== null && (
@@ -191,7 +237,15 @@ export function MovementPreview({
               {/* What the player does not know, said before he pays for it (ADR 0019 §6). It is
                   a statement about his own eyes, never about the ground — the note underneath is
                   there so it cannot be read as a guarantee the other way round. */}
-              {!preview.recognised && (
+              {'estimatedLoot' in preview && (
+                <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+                  <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+                    {fr.aim.estimatedLoot}
+                  </div>
+                  <ResourceAmounts amounts={preview.estimatedLoot} />
+                </div>
+              )}
+              {'recognised' in preview && !preview.recognised && (
                 <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
                   <div className="text-[10.5px] tracking-[.1em] text-[var(--notable)] uppercase">
                     {fr.aim.unscouted}
@@ -235,7 +289,7 @@ export function MovementPreview({
  * The medium, and the pace when the trip touches the ground at all. A crossing that never sets a
  * boot down has no pace to name, and saying "à pied" of a flight would be a word too many.
  */
-function legOf(route: NonNullable<MovementPreviewed>['route']): string {
+function legOf(route: NonNullable<Previewed>['route']): string {
   const medium = routeMedium(route.legs);
   if (medium === 'air' || medium === 'sea') return fr.aim.mediums[medium];
   return `${fr.aim.mediums[medium]}, ${fr.aim.paces[landPaceOf(route)]}`;
@@ -246,7 +300,7 @@ function legOf(route: NonNullable<MovementPreviewed>['route']): string {
  * holds the index; a **point** has no name to give — so it is written as what it is, a pair of
  * coordinates, rather than borrowed from the country it happens to fall in (ADR 0019 §1).
  */
-function destinationOf(aim: MovementAim, preview: MovementPreviewed | undefined): string {
+function destinationOf(aim: MovementAim, preview: Previewed | undefined): string {
   if (aim.kind === 'point') return fr.aim.pointAt(aim.lon, aim.lat);
   /** The building, then the region the server names — « Port · Nord », the address the journal
    *  will print when the column enters it (`station-name.ts` writes it the same way). */

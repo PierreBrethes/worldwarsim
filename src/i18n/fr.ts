@@ -1192,6 +1192,12 @@ export const fr = {
      */
     relayed: (duration: string) => `relais logistiques — ${duration} de moins`,
     restBite: (time: string) => `mord la fenêtre de repos — libre à ${time}`,
+    /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
+     *  joueur décide, et elle se dit avant qu'il paie le slot. */
+    presence: (duration: string) => `présence sur site — ${duration}`,
+    /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
+     *  et c'est le sujet. */
+    estimatedLoot: 'butin estimé au relevé',
     /**
      * **Le milieu du trajet, lu sur les tronçons** (fiche 04). Il se lit à côté de la durée
      * parce que c'est la même question : ce que le joueur s'apprête à payer. Le mot du code est
@@ -1881,6 +1887,17 @@ export const fr = {
      *  réserve. Le stock à côté du prix est ce qui transforme un chiffre en décision. */
     upgradeBill: (resource: string, needed: number, held: number) =>
       `${resource} ${needed} / ${held}`,
+    /** **Un seul ordre, deux mots** (S8) : ce que le verbe change est ce que l'expédition
+     *  rapporte — un entrepôt rend du butin, un producteur ne rend que son arrêt. En minuscules
+     *  comme les marches, parce que c'en est une. */
+    plunder: 'piller',
+    sabotage: 'saboter',
+    plunderConsequence: (verb: string) =>
+      `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.`,
+    installation: 'installation relevée',
+    collect: 'ramasser',
+    collectConsequence:
+      'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',

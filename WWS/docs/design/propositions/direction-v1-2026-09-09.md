@@ -6,6 +6,17 @@ développement comme livré et ne remplace pas les contrats des chantiers en cou
 Pour ces sujets, les arbitrages ci-dessous priment sur les propositions antérieures
 non réalisées. Les autres règles existantes restent en place.
 
+> **Arbitrage du 10/09/2026 (décisions 86a, 87a).** Trois lignes de ce tableau rouvraient des
+> décisions closes sans le dire ; Pierre les classe **pistes, pas décisions** : « sept jours avec
+> une échéance effective » (l'accueil fonde sans horloge depuis le 31/08, `FOUNDED_CLOCK = null`,
+> ADR 0017 révisée — l'horloge reste optionnelle), « nucléaire comme mécanique » (ADR 0007 tient,
+> 1945 borne haute — la question 81 du Bulletin reste ouverte, réponse « Millennium » en
+> attente), « les joueurs plus présents obtiennent une information plus fraîche en déplaçant leurs
+> agents » (pilier 1 : la présence n'est pas un axe de compétence — les agents restent au Registre
+> des idées et devront dire comment ils ne récompensent pas la connexion). La fenêtre d'inscription
+> de deux heures est **gardée en `@a-mesurer`** (86a) : à rouvrir si un retardataire se présente
+> pendant la partie de contrôle — `rejoindre-en-guerre` (24/08) l'admettait toute la saison.
+
 ## Décisions retenues
 
 | Sujet | Direction retenue | Détail encore ouvert |

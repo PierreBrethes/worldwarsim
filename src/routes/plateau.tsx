@@ -21,6 +21,8 @@ import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
+import { carryCapacityOf } from '@/domain/loot';
+import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
@@ -52,13 +54,19 @@ import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
 import { usePresence } from '@/data/presence';
-import { adaptServerView, type MovementPreviewed } from '@/data/serverView';
+import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
 import { notify } from '@/shell/notifications';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
-import { MovementPreview, wireOrigin, wireTarget } from './-plateau/MovementPreview';
+import {
+  MovementPreview,
+  wireOrigin,
+  wireTarget,
+  type PreviewMission,
+  type Previewed,
+} from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { NextActions } from './-plateau/NextActions';
 import { BriefingSheet } from './-plateau/BriefingSheet';
@@ -108,13 +116,23 @@ type PostedForce = {
 };
 
 /** An aim named on the map: what the preview card sits on and what the mutation will carry. */
+/**
+ * **Ce que la carte a déjà décidé, en attente de la confirmation au bout de l'arc.** Trois
+ * missions et pas une de plus : la marche ordinaire, l'expédition sur un site relevé, le
+ * ramassage d'une caisse relevée. Chacune a son aperçu et sa mutation — un seul objet à champs
+ * optionnels aurait laissé au rendu le soin de deviner laquelle.
+ */
 type Order = {
   readonly aim: MovementAim;
   readonly type: MovementType;
   readonly label: string;
   readonly x: number;
   readonly y: number;
-};
+} & (
+  | { readonly mission: 'march' }
+  | { readonly mission: 'plunder'; readonly buildingId: string }
+  | { readonly mission: 'collect'; readonly sightingId: string }
+);
 
 /** The three buildings that station a column — their mast opens a garrison. Since ADR 0019 they
  *  no longer decide what it may ask for, only where a domain gate is read. */
@@ -569,6 +587,25 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * The fan the right click opens. Armed, it holds **only** the marches the server will accept
    * for that target — same function, same rule (ADR 0015). Unarmed, it is the ordinary fan.
    */
+  /**
+   * **Ce que la pile armée peut encore charger**, sa charge en cours déduite : le seul chiffre
+   * qui décide si « ramasser » existe. `carryCapacityOf` est la fonction que le serveur mesure
+   * avec (`convex/cargo.ts`) — une seconde table de ce qui tient à bord serait exactement la
+   * divergence que l'ADR 0015 interdit à la rose.
+   */
+  const freeCapacity = useMemo(() => {
+    if (column === null) return 0;
+    const picked = new Set(column.troopIds);
+    const capacity = carryCapacityOf(
+      view.me.troops.filter((troop) => picked.has(troop.id)),
+      CARRY_CAPACITY_BY_ROLE,
+    );
+    const carried = view.me.stationedCargo
+      .filter((group) => group.troopIds.some((troopId) => picked.has(troopId)))
+      .reduce((total, group) => total + group.cargo.carried, 0);
+    return Math.max(0, capacity - carried);
+  }, [column, view.me.troops, view.me.stationedCargo]);
+
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
       compassOf(
@@ -577,8 +614,9 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         column?.rule ?? null,
         objectiveUnder(target, view),
         column?.station ?? null,
+        freeCapacity,
       ),
-    [view, column],
+    [view, column, freeCapacity],
   );
 
   const foundHere = useMutation(api.movements.foundOutpostHere);
@@ -607,7 +645,47 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         case 'aim':
-          setOrder({ aim: action.aim, type: action.type, label: action.label, x: at.x, y: at.y });
+          setOrder({
+            mission: 'march',
+            aim: action.aim,
+            type: action.type,
+            label: action.label,
+            x: at.x,
+            y: at.y,
+          });
+          return;
+        /**
+         * **Piller ou saboter — un seul ordre, la même carte de confirmation** (S8). Le type sur
+         * le fil reste `march` : l'expédition marche jusqu'au site, et ce qui la distingue est ce
+         * qu'elle y fait, que le serveur seul écrit (`movements.plunder`).
+         */
+        case 'plunder':
+          setOrder({
+            mission: 'plunder',
+            buildingId: action.buildingId,
+            aim: action.aim,
+            type: 'march',
+            label: action.label,
+            x: at.x,
+            y: at.y,
+          });
+          return;
+        case 'collect':
+          setOrder({
+            mission: 'collect',
+            sightingId: action.sightingId,
+            aim: {
+              kind: 'point',
+              lon: action.point[0],
+              lat: action.point[1],
+              onLand: true,
+              coastal: false,
+            },
+            type: 'march',
+            label: action.label,
+            x: at.x,
+            y: at.y,
+          });
           return;
         /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
@@ -869,6 +947,24 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
      */
     const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
 
+    /**
+     * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
+     * n'avait aucune poignée — un ordre existait côté serveur que rien à l'écran ne pouvait
+     * nommer. Le point exact d'un site adverse n'est pas servi : le relevé porte la région, et
+     * le mât se pose à son centroïde, comme un gisement. Il suit le même interrupteur que les
+     * mâts à soi, parce que c'est le même encombrement.
+     */
+    const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
+      kind: 'installation' as const,
+      id: `installation-${installation.id}`,
+      buildingId: installation.id,
+      key: installation.key,
+      regionId: installation.regionId,
+      name: fr.buildings[installation.key],
+      plate: buildingSprite(installation.key),
+      washed: knownRegionById.get(installation.regionId)?.state !== 'current',
+    }));
+
     if (!toggles.buildings) return [...deposits, ...loot, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
@@ -923,8 +1019,17 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...loot, ...outposts, ...stacks, ...standing, ...raising];
-  }, [marching, view.me, view.loadedAt, view.lootSightings, toggles.buildings, toggles.deposits]);
+    return [...deposits, ...loot, ...surveyed, ...outposts, ...stacks, ...standing, ...raising];
+  }, [
+    marching,
+    view.me,
+    view.loadedAt,
+    view.lootSightings,
+    view.surveyedInstallations,
+    knownRegionById,
+    toggles.buildings,
+    toggles.deposits,
+  ]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
@@ -1089,18 +1194,45 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     });
   }, [windows, view.journal, navigate]);
 
-  const preview = useQuery(
-    api.movements.preview,
+  /**
+   * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
+   * parce qu'aucune ne sait refuser à la place des autres : celle qui ne sert pas est en `skip`,
+   * et la carte lit celle de l'ordre en cours.
+   */
+  const dispatch =
     column === null || order === null
-      ? 'skip'
+      ? null
       : {
           token,
           origin: wireOrigin(column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
-          target: wireTarget(order.aim),
-          type: order.type,
-        },
+        };
+  const marchPreview = useQuery(
+    api.movements.preview,
+    dispatch === null || order === null || order.mission !== 'march'
+      ? 'skip'
+      : { ...dispatch, target: wireTarget(order.aim), type: order.type },
   );
+  const plunderPreview = useQuery(
+    api.movements.previewPlunder,
+    dispatch === null || order === null || order.mission !== 'plunder'
+      ? 'skip'
+      : { ...dispatch, buildingId: order.buildingId as Id<'buildings'> },
+  );
+  const collectPreview = useQuery(
+    api.movements.previewLootCollection,
+    dispatch === null || order === null || order.mission !== 'collect'
+      ? 'skip'
+      : { ...dispatch, sightingId: order.sightingId as Id<'lootCrateSightings'> },
+  );
+  const preview =
+    order === null
+      ? undefined
+      : order.mission === 'plunder'
+        ? plunderPreview
+        : order.mission === 'collect'
+          ? collectPreview
+          : marchPreview;
 
   /**
    * **The aimed arc is the route the server just computed**, drawn with the board's own thread
@@ -1222,6 +1354,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
             type={order.type}
             at={order}
             preview={preview}
+            mission={missionOf(order)}
             freeSlots={view.me.slots.total - view.me.slots.used}
             onClose={() => {
               setOrder(null);
@@ -1372,6 +1505,14 @@ function Loading() {
  * `station` is the address the garrison panel was opened on, whichever of its two doors — the
  * ground under it is only consulted for the domain gates, and a point carries none.
  */
+/** L'ordre dit déjà quelle mutation il vise ; la carte n'a qu'à le relire. */
+const missionOf = (order: Order): PreviewMission =>
+  order.mission === 'plunder'
+    ? { kind: 'plunder', buildingId: order.buildingId }
+    : order.mission === 'collect'
+      ? { kind: 'collect', sightingId: order.sightingId }
+      : { kind: 'march' };
+
 function armedColumn(
   view: PlayerView,
   station: MarchStation,
@@ -1418,11 +1559,7 @@ function armedColumn(
  * stack, and the union makes that the only thing it can be. It is a preview and nothing on the
  * board treats it otherwise — it disappears with the card that describes it.
  */
-function previewArc(
-  column: ArmedColumn,
-  order: Order,
-  preview: NonNullable<MovementPreviewed>,
-): ArcView {
+function previewArc(column: ArmedColumn, order: Order, preview: NonNullable<Previewed>): ArcView {
   const points = preview.route.points.map((point) => [point.lon, point.lat] as LonLat);
   return {
     state: 'mine',

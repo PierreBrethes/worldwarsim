@@ -36,7 +36,8 @@ portées passives sont livrées ; viennent stockage, pillage complet avec dépê
 objectifs neutres et victoire territoriale selon leurs propres prérequis. Les autres
 points de la vision V1 restent dans la file ; la salve d'allonge reste hors de ce chantier.
 
-**S1-S7c-2 terminés localement le 09/09. S8 est le prochain lot. Aucun pillage jouable livré.**
+**S1-S9 terminés localement le 10/09. Le pillage se joue** — ordre public, aperçu, rose, mât
+relevé, ramassage et dépêches. Le prochain lot est hors de cette séquence : objectifs neutres.
 Exécuter une tâche à la fois dans le projet sauvegardé, sans worktree, commit ni push.
 Pas d'enchaînement automatique. Chaque clôture donne fichiers modifiés, tests réellement
 passés, limites et prochain lot dans un bref compte rendu réutilisable.
@@ -81,8 +82,8 @@ distincte de `LIFT_CAPACITY`, qui transporte des troupes.
 | **S6a — retour chargé** | Après S5c et **D4 acquise**. Découpé en S6a-1 à S6a-3 ci-dessous. | Charge durable, crédit unique à la première entrée tenue, cas sans route et destination perdue. |
 | **S6b — récupération après interception** | Après S6a et **D6 acquise**. Découpé en S6b-1 à S6b-3 ci-dessous. | Charge consommée une fois, capacité libre, priorité stable, caisse du reliquat. |
 | **S7 — interface et aperçu** | Après S6b. Lire fiche 11. `src/routes/plateau.tsx`, `-plateau/{MovementPreview,TroopBadge,GarrisonStack}.tsx`, `src/domain/{movement-orders,compass-rose,player-view}.ts`, `convex/{movements,view}.ts`, adaptateur `src/data/loadGame.ts`, `fr.ts`. Raccordement sous fermeture serveur. | Rose conforme aux refus, durée/retour servis, estimation sans fuite ; force à soi chargée : quantités par ressource et total, sans valeur monétaire inventée. Tests domaine et cas aperçu/vue de `convex/plunder.test.ts` ; contrôle visuel avec vrai jeton ou limite explicitée. |
-| **S8 — dépêches et ouverture** | Après S7. `convex/{journal,schema}.ts`, producteurs de faits S5b/S5c/S6, `src/domain/{journal,player-view}.ts`, `fr.ts`, `JournalWindow.tsx` si nécessaire ; retirer la fermeture coordonnée serveur/rose. | Pillage, sabotage, récupération, livraison, perte et désactivation/écrêtage visibles au bon joueur, sans doublon. `convex/notices.test.ts`, `src/domain/journal.test.ts` et scénario complet public dans `convex/plunder.test.ts`. |
-| **S9 — validation et synthèse** | Après S8. Corriger seulement les régressions du chantier ; vérifier cohérence des ADR, fiches, glossaire, instructions, `a-mesurer.md` et file. | `npm run verifier` complet, contrôle de l'expédition à deux si partie accessible ; rapport des limites et mesures restant à faire. Marquer livré seulement après preuve, puis s'arrêter avant objectifs neutres. |
+| **S8 — dépêches et ouverture** ; terminé localement (10/09) | Après S7. `convex/{journal,schema}.ts`, producteurs de faits S5b/S5c/S6, `src/domain/{journal,player-view}.ts`, `fr.ts`, `JournalWindow.tsx` si nécessaire ; retirer la fermeture coordonnée serveur/rose. | Pillage, sabotage, récupération, livraison, perte et désactivation/écrêtage visibles au bon joueur, sans doublon. `convex/notices.test.ts`, `src/domain/journal.test.ts` et scénario complet public dans `convex/plunder.test.ts`. |
+| **S9 — validation et synthèse** ; terminé localement (10/09) | Après S8. Corriger seulement les régressions du chantier ; vérifier cohérence des ADR, fiches, glossaire, instructions, `a-mesurer.md` et file. | `npm run verifier` complet, contrôle de l'expédition à deux si partie accessible ; rapport des limites et mesures restant à faire. Marquer livré seulement après preuve, puis s'arrêter avant objectifs neutres. |
 
 **Bilan S2 (09/09)** : huit plafonds communs, alias centralisé, nouvelle pose `depot`
 refusée, vue `warehouse`, bâtiments et chantiers historiques préservés. Le champ optionnel
@@ -409,9 +410,22 @@ qui se chevauchent se parcourent par clics successifs. Un relevé d'absence reti
 ferme sa lecture. La rumeur publique ne crée jamais ce marqueur et les gestes existants de
 mouvement gardent leur état.
 
-**Point d'entrée exact pour S8** : ouvrir de manière coordonnée l'ordre public côté serveur, les
-aperçus déjà servis et les entrées d'interface de pillage et de ramassage. Aucun de ces trois
-éléments ne doit être ouvert seul.
+**Bilan S8-S9 (10/09)** : les trois entrées se sont ouvertes ensemble. Le mât d'une installation
+relevée se pose au centroïde de sa région, délavé tant que le relevé n'est pas à jour, et le clic
+droit y ouvre une rose à une branche — « piller » sur un entrepôt, « saboter » sur un producteur,
+un seul ordre et un seul dessin. Le clic droit sur une caisse relevée ouvre « ramasser », qui
+disparaît à capacité nulle et dit alors pourquoi. Les deux refus sortent de
+`plunderOrderRefusalOf` et `lootCollectionOrderRefusalOf`, les fonctions mêmes que les mutations
+relisent. La carte de confirmation est celle des autres ordres, avec la capacité libre, la
+présence sur site et le butin estimé **au relevé** — jamais un stock adverse. Deux correctifs
+étaient dus : l'union `CompassPictogram` laissée ouverte par `d379260` empêchait toute
+compilation, et `plunderOrderRefusalOf` déléguait l'allégeance à `refusalOf('attack')`, dont
+`mine()` tient tout mât visé pour sien — l'ordre public échouait en `FRIENDLY_TARGET`. Il ne
+reste de la fermeture coordonnée que des commentaires, retirés.
+
+**Limite S9 assumée** : le contrôle de l'expédition à deux joueurs sur une partie réelle n'a pas
+été fait — la preuve tient au scénario public complet de `convex/plunder.test.ts` et au miroir
+local. `PLUNDER_HOURS_PRESENT` et `PLUNDER_DISABLED_HOURS` restent `@a-mesurer`.
 
 S5 est scindé car les relevés actuels ne donnent pas encore de cibles bâtiment adverses.
 S5b s'arrête avec des fixtures internes ; **aucun ordre public de pillage n'est accepté

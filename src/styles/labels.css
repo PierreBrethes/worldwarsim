@@ -197,6 +197,12 @@
   outline-offset: 2px;
 }
 
+/** Le délavé des relevés : ce qui n'est pas su à l'instant se lit plus pâle, sans changer de
+ *  forme — la région sous le mât porte déjà la date. */
+.label--washed {
+  opacity: 0.62;
+}
+
 .label--loot-stale .label-loot {
   border-style: dashed;
   opacity: 0.58;

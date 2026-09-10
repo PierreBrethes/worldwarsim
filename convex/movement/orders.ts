@@ -407,11 +407,7 @@ export async function march(
   const refusal =
     plunder === undefined
       ? refusalOf(type, aim.aim, column)
-      : plunderOrderRefusalOf(
-          aim.aim as Extract<MovementAim, { kind: 'building' }>,
-          column,
-          false,
-        );
+      : plunderOrderRefusalOf(aim.aim as Extract<MovementAim, { kind: 'building' }>, column, false);
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
 
   const route = routeBetween(

@@ -477,7 +477,8 @@ const previewTroopsAt = async (
     : null;
 };
 
-/** S7c-1 preview only. Filing remains absent until S8 opens the server and the rose together. */
+/** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
+ *  `plunderOrderRefusalOf` l'a laissée passer, la même fonction que la mutation relit. */
 export const previewPlunder = query({
   args: {
     token: v.string(),
