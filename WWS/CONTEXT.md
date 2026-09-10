@@ -8,8 +8,8 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | Terme | Définition |
 |---|---|
 | **Saison** | Une partie complète, de la création au wipe. |
-| **Compte** | Identité durable : pseudo unique et mot de passe, conservée après suppression des saisons. Serveur C2 livré localement ; rattachement aux places et interface encore absents. |
-| **Session** | Accès à un compte par un jeton de 32 octets aléatoires. Plusieurs sessions indépendantes, sans expiration ; déconnexion de la session ou révocation de toutes les sessions lors d'une récupération admin. Distincte du jeton de partie encore utilisé par le jeu. |
+| **Compte** | Identité durable : pseudo unique et mot de passe, conservée après la suppression des saisons. Le serveur existe ; le rattachement aux places et l'interface, non. |
+| **Session** | Accès à un compte par un jeton de 32 octets aléatoires. Plusieurs sessions indépendantes, sans expiration ; on déconnecte une session, ou on les révoque toutes lors d'une récupération admin. Distincte du jeton de partie, que le jeu utilise encore. |
 | **Horloge** | La durée d'une saison : 48 h, 7 jours, ou **sans horloge**. Une saison sans horloge se clôt à la main par son fondateur, et aucun écran n'y affiche de compte à rebours. *(révision du 27/08 de l'ADR 0017)* |
 | **Graine de saison** | Aléa fixé à la création. Détermine la richesse des pays. Deux saisons ne se ressemblent pas. |
 | **Nation** | Le pays d'origine d'un joueur. Ne change jamais. Ne peut pas être annexé. |
@@ -27,7 +27,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
-| **Entrepôt** | Stockage national unique livré depuis S2-S3 (09/09/2026) : chaque niveau relève les huit plafonds. C'est la seule entrée de l'interface et du simulateur ; `depot` est une clé historique rendue comme un entrepôt, jamais une nouvelle pose, dont prix et chantiers anciens sont conservés. |
+| **Entrepôt** | Le seul stockage national : chaque niveau relève les huit plafonds, et c'est la seule entrée de l'interface et du simulateur. `depot` est une clé **historique** — rendue comme un entrepôt, jamais posée à neuf, prix et chantiers anciens conservés. *(unifié le 09/09/2026)* |
 | **Ressources** | Huit (ADR 0015) : nourriture, textile, charbon, pétrole, minerai, alliage, munitions, bandages — les quatre premières sortent de gisements localisés, les quatre autres se transforment (`convex/validators.ts`, `RESOURCE_KEY`). Les trois anciennes (ravitaillement, acier, effectifs) sont mortes depuis le 15/08 ; le plafond de troupes (`TROOP_CAP_TARGET`) a remplacé les effectifs comme pivot. *(révisé 25/08)* |
 
 ## Actions
@@ -35,17 +35,21 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | Terme | Définition |
 |---|---|
 | **Raid** | Désactive temporairement un avant-poste. Ne le capture jamais. |
-| **Pillage** | Expédition dirigée contre un entrepôt adverse déjà relevé : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site et doit ramener sa charge. S5b-S6a-1 livrent en interne le cycle jusqu'au retour chargé, le sabotage sans butin et la conservation d'une charge posée ; ordre public et livraison restent fermés. |
-| **Sonde** | Révèle les mouvements sortants d'un joueur pendant une durée. |
-| **Agent dormant** | Posé dans un pays neutre. Révèle les arcs proches et peut saboter. |
-| **Embargo** | Outil d'Hégémonie. Plafonne la production militaire d'une cible. |
-| **Exposition** | Outil d'Influence. Révèle la doctrine d'une cible et gèle sa progression. |
-| **Interception** | Combat déclenché quand un mouvement traverse le rayon d'une force adverse. |
+| **Pillage** | Expédition dirigée contre une installation adverse **déjà relevée** : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site, puis rentre. Sur un entrepôt elle rapporte ; sur un producteur c'est un **sabotage**, le même ordre sans butin. La charge se crédite au premier franchissement d'une région tenue ; ce qui tombe en route devient une **caisse**, ramassable par qui l'a relevée. |
+| **Interception** | Combat déclenché en route par un mouvement **offensif** — `attack` ou `raid` — qui rencontre un mouvement adverse dans le même milieu. Une force **posée** voit sans intercepter : détecter et engager sont deux choses depuis la révision de l'ADR 0021 (08/09/2026). |
 | **Cap d'arrivée** | Direction depuis laquelle une force atteint sa cible. Modificateur de combat. |
 | **Rejeu** | Vue rapprochée d'un combat déjà résolu. Spectacle, jamais interaction. |
-| **Occupation** | État d'une nation vaincue. Production réduite de moitié. Jamais définitif. |
-| **Revanchisme** | Compensation d'un joueur très en retard. Dépensable en offensive uniquement. |
 | **Plage de repos** | 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver. |
+
+## Retiré du vocabulaire
+
+> **Le 10/09/2026 : la sonde, l'agent dormant, l'embargo, l'exposition, l'occupation, le
+> revanchisme.** Six mots qui nommaient des outils jamais codés, et que le jeu ne prépare plus.
+> L'embargo et l'exposition appartenaient aux doctrines, mode unique depuis l'ADR 0020 §9 ;
+> l'occupation et le revanchisme attendaient une part de carte qui ne sera pas celle-là. La sonde
+> et l'agent dormant nommaient une seconde façon de voir : la détection suit désormais le rôle des
+> troupes et rien d'autre (ADR 0021). Ils ne s'emploient plus, et **un terme du glossaire qui ne
+> désigne rien coûte plus qu'il ne rapporte** — c'est ce qu'on a appris avec le leurre.
 
 > **Retiré du vocabulaire le 29/08/2026 : le leurre.** Il était « un mouvement à zéro unité, un
 > slot, indiscernable d'un vrai ». Conçu par la fiche 04, codé, puis retiré sans avoir jamais été

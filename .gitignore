@@ -8,3 +8,6 @@ vite.config.ts.timestamp-*.mjs
 .env
 .env.local
 .env.docker
+
+.claude/settings.local.json
+_wws_snapshot.tgz

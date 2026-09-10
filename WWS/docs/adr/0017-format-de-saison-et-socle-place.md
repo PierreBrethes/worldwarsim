@@ -1,29 +1,12 @@
 # ADR 0017 — Format de saison, socle placé, et ce que borne un plafond de stockage
 
-**Stockage unifié livré — S2-S3, 09/09/2026.** Chaque niveau d'entrepôt ajoute
-`STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
-porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
-historique compte comme un entrepôt et sa vue sert `warehouse`. Son identité, son niveau
-et son rattachement restent conservés, sans migration massive ni écrêtage de fusion.
-Les chantiers historiques gardent prix, durée et remboursement ; leur fin crée un
-`warehouse` avec `buildings.costKey?: 'depot'` pour conserver le tarif historique au
-classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent leur clé ;
-`costKey ?? key` détermine leur tarif. Le stock reste national. L'interface ne propose et ne
-recense qu'un entrepôt ; une clé `depot` historique reprend son nom et son sprite. Le bandeau
-lit les huit réserves comme un groupe unique et le simulateur applique puis vérifie le même
-plafond sur chacune. **S5b (09/09) raccorde la désactivation interne de l'entrepôt** : son
-`disabledUntil` optionnel retire temporairement son niveau des huit plafonds. À la prise, le
-serveur règle d'abord les stocks à l'ancien état, prélève le surplus disponible au-dessus de
-`BASE_CAP`, désactive ensuite le site, puis appelle l'écrêtage sur les plafonds réduits. Le
-`depot` historique suit exactement cette règle. La restauration se règle à `disabledUntil`,
-même si le travail se réveille plus tard. L'ordre public, la livraison du butin et l'interface
-restent fermés dans ce lot : le pillage complet n'est pas livré.
-
-Cette révision remplace la séparation entrepôt/dépôt décrite plus bas. La règle de
-l'ADR 0017 reste entière : plafond sur les entrées, remboursement intégral, écrêtage
-ponctuel uniquement à une perte effective de capacité. La fusion ne fait pas cette perte.
-L'ancien regroupement `STORED_BY` a disparu avec sa dernière lecture d'affichage. Le miroir
-vérifie l'entrepôt et le dépôt legacy sur chacune des huit ressources.
+> **Révisée le 09/09/2026 — stockage unique, et la désactivation d'un entrepôt.** L'entrepôt est
+> le seul stockage national, `depot` n'est plus qu'une clé historique, et un entrepôt désactivé
+> retire temporairement son niveau des huit plafonds : le serveur règle les stocks à l'ancien
+> état, prélève, désactive, puis écrête. La règle est écrite au [§3](#3-le-plafond-de-stockage-borne-ce-qui-entre-jamais-ce-qui-est-détenu)
+> ci-dessous, qu'elle ne change pas — plafond sur les entrées, remboursement intégral, écrêtage
+> ponctuel à une perte effective de capacité ; l'état livré est décrit dans `CLAUDE.md`
+> § « Ce qui existe ».
 
 **Statut :** acceptée — **révisée le 18/08/2026 par l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md)**
 

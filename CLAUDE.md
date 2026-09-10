@@ -30,9 +30,11 @@ documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survi
 
 **Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
 (`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
-modificateurs dans `convex/constants.ts`). L'**interception** en route inverse l'initiative ; son
-rayon est un placeholder assumé et non simulé, le trou le plus béant du modèle (fiche 08 §11). Un
-raid gagné **désactive** l'avant-poste, jamais ne le prend. Chaque engagement laisse un **compte
+modificateurs dans `convex/constants.ts`). Le **contact mobile** se réévalue aux événements : la
+portée maximale des rôles détecte, mais seuls `attack` et `raid` engagent un mouvement adverse dans
+le même milieu — une force posée voit sans intercepter (ADR 0021, révisée le 08/09/2026). Les neuf
+portées sont des placeholders `@a-mesurer`. Un raid gagné **désactive** l'avant-poste, jamais ne le
+prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
 sur ce compte rendu, sans re-résoudre.
 
@@ -81,15 +83,15 @@ fermé. L'ordre de mobilisation en est devenu la première ligne, dépliable
 (`FoundationRows.tsx`) ; la liste complète des troupes est passée dans la fenêtre Nation, où
 chaque ligne recentre.
 
-**Une seule détection existe, et c'est une troupe posée** (ADR 0019 §5) : elle révèle à son
-propriétaire les mouvements adverses qui passent dans `SCOUT_RADIUS_KM` (60 km) — un fil, un cap,
-un horaire estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé
-se calcule **au départ du mouvement, une seule fois**, et se dénormalise dans la table
-`sightings` (`observateur, mouvement, tDébut, tFin`) : chaque joueur lit son propre index, jamais
-un filtre sur la table des mouvements (`WWS/docs/technique/brouillard-et-fanout.md`). Conséquence
-assumée et affichée : une troupe posée **après** un départ ne verra jamais ce mouvement. Le relevé
-se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches ; la station
-d'écoute, l'agent dormant et la sonde n'existent toujours pas.
+**La détection est passive et suit le rôle** (ADR 0021, révisée le 08/09/2026) : posée ou en
+mouvement, une pile relève à la plus grande portée de ses rôles — un fil, un cap, un horaire
+estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé se réévalue
+aux événements et se dénormalise dans la table `sightings` (`observateur, mouvement, tDébut,
+tFin`) : chaque joueur lit son propre index, jamais un filtre sur la table des mouvements
+(`WWS/docs/technique/brouillard-et-fanout.md`). Une fenêtre à venir est annulable et ne produit ni
+arc ni dépêche avant son ouverture ; une fenêtre déjà vue devient la dernière position connue. Le
+relevé se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches. La
+station d'écoute et l'avant-poste d'écoute existent aussi ; l'agent dormant et la sonde non.
 
 **Le recrutement se fait dans la modale d'un site, et de nulle part ailleurs** (décisions 59a,
 60b, 61a du 01/09). La fenêtre Production générale et son onglet « prod. » sont **morts** : le
@@ -192,7 +194,7 @@ ici et coûterait un modèle mental de plus.
 **La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
 géométrie plate et le clic tombe à côté sur les bords de la carte.
 
-**Stockage unifié livré — S2-S3, 09/09/2026.** Chaque niveau d'entrepôt ajoute
+**Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
 porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
 historique compte comme un entrepôt et sa vue sert `warehouse`. Son identité, son niveau
@@ -204,22 +206,31 @@ classement et aux élévations suivantes. Les bâtiments déjà `depot` gardent 
 simulateur ne présentent plus qu'un entrepôt ; une clé `depot` historique reprend son nom et
 son sprite. Le miroir vérifie les huit plafonds.
 
-**Le pillage se joue — S8-S9, 10/09/2026.** Une expédition victorieuse tient 2 h, exige de
-l'infanterie à la prise, prélève le surplus disponible avant la désactivation de 12 h et
-l'écrêtage, puis crée un retour chargé que personne n'ordonne. Les deux durées restent
-`@a-mesurer`. **L'ordre part de la carte, et de nulle part ailleurs** : ce qu'on a relevé chez
-l'autre se tient sur la carte — le mât de l'installation au centroïde de sa région, dans le
-délavé des relevés — et le clic droit y ouvre **une seule branche**, « piller » sur un entrepôt
-(le `depot` historique compris), « saboter » sur les sept producteurs : c'est le même ordre, le
-même dessin, seul le verbe change avec ce que l'expédition rapporte. La caisse relevée ouvre
-« ramasser » ; à capacité libre nulle il n'y a pas de branche, il y a la phrase qui dit pourquoi.
-Rien n'est grisé : la rose et le serveur sortent de **la même fonction**
-(`plunderOrderRefusalOf`, `lootCollectionOrderRefusalOf`, `src/domain/movement-orders.ts`), et
-l'aperçu — durée, capacité libre, présence sur site, **butin estimé au relevé** — vient de
-`movements.previewPlunder` et `previewLootCollection`, jamais d'un stock adverse que le brouillard
-n'a pas servi. La rumeur, la caisse et le sabotage sont jugés à la partie à deux (ADR 0005
-révisée le 10/09). **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la
-preuve tient au scénario public complet de `convex/plunder.test.ts`.
+**Le pillage se joue — 10/09/2026.** Une expédition victorieuse tient le site
+`PLUNDER_HOURS_PRESENT` (2 h), exige de l'infanterie à la prise, prélève le surplus disponible
+avant la désactivation de `PLUNDER_DISABLED_HOURS` (12 h) et l'écrêtage, puis crée un **retour
+chargé que personne n'ordonne**. Sur un producteur c'est le même ordre sans butin : la présence,
+puis l'arrêt. Les deux durées restent `@a-mesurer`. Le retour vise un plan gravé **avant** la
+présence — un seul Dijkstra vers les cellules des régions tenues — et la charge se crédite **au
+premier franchissement exact**, une fois, dans la place libre ; la région perdue entre-temps perd
+la charge. Une passe borne la charge à la capacité des survivants ; une force entièrement détruite
+la cède à la capacité libre du vainqueur (`recoveryId`), et le reliquat tombe en **caisse**
+(`lootCrates`, `LOOT_CRATE_HOURS` = 2 h, échéance fixe depuis le combat). Six dépêches — prise,
+perte, récupération, ramassage, livraison, sabotage — chez le seul joueur concerné.
+
+**L'ordre part de la carte, et de nulle part ailleurs.** Ce qu'on a relevé chez l'autre se tient
+sur la carte — le mât de l'installation au centroïde de sa région, dans le délavé des relevés — et
+le clic droit y ouvre **une seule branche**, « piller » sur un entrepôt (le `depot` historique
+compris), « saboter » sur les sept producteurs : c'est le même ordre et le même dessin, seul le
+verbe change avec ce que l'expédition rapporte. La caisse relevée ouvre « ramasser » ; à capacité
+libre nulle il n'y a pas de branche, il y a la phrase qui dit pourquoi. Rien n'est grisé : la rose
+et le serveur sortent de **la même fonction** (`plunderOrderRefusalOf`,
+`lootCollectionOrderRefusalOf`, `src/domain/movement-orders.ts`), et l'aperçu — durée, capacité
+libre, présence sur site, **butin estimé au relevé** — vient de `movements.previewPlunder` et
+`previewLootCollection`, jamais d'un stock adverse que le brouillard n'a pas servi. La rumeur, la
+caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 10/09).
+**Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
+scénario public complet de `convex/plunder.test.ts`.
 
 ## Schéma Convex
 
@@ -393,6 +404,9 @@ Avant de coder une surface, **lire `WWS/docs/design/11-brief-ui.md`** : chaque �
 spécifié. L'oublier coûte une réécriture.
 
 ## Instructions
+
+Les tâches de développement travaillent directement dans le dépôt monté sous WSL. Ne crée pas de
+worktree séparé sauf demande explicite de Pierre (préférence du 08/09/2026).
 
 Git : 
 Ne commit pas
