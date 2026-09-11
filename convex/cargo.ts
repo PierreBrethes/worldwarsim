@@ -6,7 +6,7 @@ import { CARRY_CAPACITY_BY_ROLE } from './constants';
 import { materializeRecoveryRemainder } from './lootCrates';
 import type { TroopAddress } from './movement/forces';
 import { creditToStorage } from './resources';
-import { planCargoReturn, startCargoReturn } from './movement/cargo-return';
+import { planCargoReturn, startCargoReturn } from './movement/cargoReturn';
 import { hostAtPoint } from './routes';
 
 export type CargoLoad = {

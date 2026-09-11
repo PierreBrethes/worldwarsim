@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import {
@@ -74,5 +76,39 @@ describe('les deux verrous d’un rôle', () => {
       expect(level, role).toBeGreaterThanOrEqual(1);
       expect(level, role).toBeLessThanOrEqual(MAX_HQ_LEVEL);
     }
+  });
+});
+
+/**
+ * **Le runtime Convex refuse un tiret dans un chemin de module** : `npx convex deploy` s'arrête
+ * sur `InvalidConfig` avant même de pousser, alors que `tsc`, `eslint` et `convex-test` ne
+ * regardent pas le nom du fichier — le dépôt était vert et ne se déployait pas. Le tiret vient
+ * de `src/domain/`, où il reste la règle ; il n'entre pas ici. Les `*.test.ts` sont exclus du
+ * bundle par le CLI, donc hors de portée de cette règle.
+ */
+describe('les noms de modules de convex/', () => {
+  const CONVEX_PATH_SEGMENT = /^[A-Za-z0-9_.]+$/;
+
+  const modulePathsUnder = (directory: string, prefix = ''): ReadonlyArray<string> =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        return entry.name === '_generated'
+          ? []
+          : modulePathsUnder(join(directory, entry.name), relative);
+      }
+      if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) return [];
+      return [relative];
+    });
+
+  it('n’emploient que des lettres, des chiffres, des points et des tirets bas', () => {
+    const offenders = modulePathsUnder(import.meta.dirname).filter((path) =>
+      path.split('/').some((segment) => !CONVEX_PATH_SEGMENT.test(segment)),
+    );
+
+    expect(
+      offenders,
+      `Le runtime Convex refuse ces chemins : chaque segment sous convex/ ne peut porter que des caractères alphanumériques, des tirets bas ou des points. Renommer en camelCase.`,
+    ).toEqual([]);
   });
 });

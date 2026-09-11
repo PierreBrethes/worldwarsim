@@ -49,6 +49,12 @@ Le nom porte l'intention ; on doit comprendre un appel sans ouvrir la définitio
 - Les booléens s'énoncent : `isMine`, `cappedByHq`, `crossesAntimeridian`
 - Pas d'abréviation sauf si elle appartient au domaine (`lonLat`, `km`)
 
+**Un module de `convex/` ne porte pas de tiret** : le runtime refuse un chemin qui n'est pas
+alphanumérique, tiret bas ou point, et `npx convex deploy` s'arrête sur `InvalidConfig` alors que
+les types, le lint et les tests sont verts. Donc camelCase sous `convex/` (`cargoReturn.ts`,
+`regionGeometry.ts`), kebab-case sous `src/domain/` (`movement-orders.ts`) où rien ne l'interdit.
+Un invariant le vérifie (`convex/invariants.test.ts`).
+
 **Le nom d'un type est un garde-fou.** `PlayerView`, jamais `GameState` : le client ne reçoit pas le
 monde, seulement ce qu'un joueur a le droit d'en voir. Le jour où quelqu'un écrit
 `gameState.opponents[0].army`, il est trop tard.

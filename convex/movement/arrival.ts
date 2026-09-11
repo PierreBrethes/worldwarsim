@@ -45,7 +45,7 @@ import {
 import { surveyFromPoint } from '../surveys';
 import { pacedMinutes } from './orders';
 import { creditToStorage } from '../resources';
-import { planCargoReturn, startCargoReturn } from './cargo-return';
+import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
 /** A sighting left behind is an arc the map is asked to draw from nothing. The movement
  *  disappears in three places, and all three go through here. */
