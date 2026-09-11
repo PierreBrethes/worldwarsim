@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import {
   COST_BY_ROLE,
@@ -111,4 +111,66 @@ describe('les noms de modules de convex/', () => {
       `Le runtime Convex refuse ces chemins : chaque segment sous convex/ ne peut porter que des caractères alphanumériques, des tirets bas ou des points. Renommer en camelCase.`,
     ).toEqual([]);
   });
+});
+
+/**
+ * **Un module de `convex/` ne travaille pas à l'import.** Le déploiement charge chaque module
+ * dans un isolat pour y découvrir les fonctions, avec quatre secondes pour l'ensemble : une
+ * préparation de contours au niveau du module a suffi à faire refuser le push
+ * (`InvalidModules — Function execution timed out`). Le modèle est celui de la grille de
+ * `routes.ts` — `let grid = null` puis `grid ??= buildGrid(world)`.
+ *
+ * La mesure porte sur l'**exécution** et non sur le premier import : celui-ci paie la
+ * transformation de `public/regions.json` par Vite et la lecture de 2,6 Mo à travers le pont
+ * WSL, deux coûts que le serveur ne paie pas. D'où la passe de chauffe, puis `resetModules` avant
+ * chaque module — ce qui reste est le travail que l'isolat, lui, refera.
+ */
+describe('le travail à l’import des modules de convex/', () => {
+  const IMPORT_BUDGET_MS = 300;
+
+  it('ne dépasse jamais le budget d’un isolat de déploiement', async () => {
+    const modules = import.meta.glob('./**/*.ts');
+    const paths = Object.keys(modules).filter(
+      (path) => !path.includes('/_generated/') && !path.endsWith('.test.ts'),
+    );
+    expect(paths.length).toBeGreaterThan(0);
+
+    for (const path of paths) await modules[path]!();
+
+    const overBudget: string[] = [];
+    for (const path of paths) {
+      vi.resetModules();
+      const started = performance.now();
+      await modules[path]!();
+      const elapsed = performance.now() - started;
+      if (elapsed > IMPORT_BUDGET_MS) overBudget.push(`${path} (${Math.round(elapsed)} ms)`);
+    }
+
+    expect(
+      overBudget,
+      `Ces modules travaillent à l’import : le déploiement a ${IMPORT_BUDGET_MS} ms par module, et une machine de développement est bien plus rapide que l’isolat qui évalue le push. Mettre le calcul derrière une mémoïsation, comme la grille de convex/routes.ts.`,
+    ).toEqual([]);
+  }, 120000);
+});
+
+/**
+ * **Le chiffre qui décide de la suite** : tant que la préparation des 4 589 contours admin-1 tient
+ * sous une demi-seconde, elle peut rester en ligne derrière sa mémoïsation. Au-dessus, elle part
+ * hors ligne dans `scripts/generer-regions.mjs`, cuite en asset, et le module ne fait plus que
+ * relire. Mesurée à 41 ms le 11/09/2026.
+ */
+describe('la préparation des contours de région', () => {
+  it('se construit à la première demande, et assez vite pour y rester', async () => {
+    vi.resetModules();
+    const { regionAtRoutePoint } = await import('./regionGeometry');
+
+    const started = performance.now();
+    regionAtRoutePoint([2.35, 48.85]);
+    const elapsed = performance.now() - started;
+
+    expect(
+      elapsed,
+      `La première demande de contour coûte ${Math.round(elapsed)} ms. Au-dessus d’une demi-seconde, la préparation part hors ligne dans scripts/generer-regions.mjs.`,
+    ).toBeLessThan(500);
+  }, 120000);
 });

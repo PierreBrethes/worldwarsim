@@ -49,11 +49,16 @@ Le nom porte l'intention ; on doit comprendre un appel sans ouvrir la définitio
 - Les booléens s'énoncent : `isMine`, `cappedByHq`, `crossesAntimeridian`
 - Pas d'abréviation sauf si elle appartient au domaine (`lonLat`, `km`)
 
-**Un module de `convex/` ne porte pas de tiret** : le runtime refuse un chemin qui n'est pas
-alphanumérique, tiret bas ou point, et `npx convex deploy` s'arrête sur `InvalidConfig` alors que
-les types, le lint et les tests sont verts. Donc camelCase sous `convex/` (`cargoReturn.ts`,
+**Un module de `convex/` porte un nom sans tiret et ne travaille pas à l'import.** Ce sont les
+deux règles que le runtime impose et que `tsc`, `eslint` et `convex-test` ignorent — le vérifieur
+est vert et le déploiement refuse. Le nom d'abord : un chemin qui n'est pas alphanumérique, tiret
+bas ou point s'arrête sur `InvalidConfig`, donc camelCase sous `convex/` (`cargoReturn.ts`,
 `regionGeometry.ts`), kebab-case sous `src/domain/` (`movement-orders.ts`) où rien ne l'interdit.
-Un invariant le vérifie (`convex/invariants.test.ts`).
+Le travail ensuite : le push évalue chaque module dans un isolat pour y découvrir les fonctions,
+avec quatre secondes pour l'ensemble, et un calcul au niveau du module s'arrête sur
+`InvalidModules — Function execution timed out`. Un asset se prépare donc derrière une
+mémoïsation (`let grid = null` puis `grid ??= buildGrid(world)`, `convex/routes.ts`), jamais à
+l'import. Deux invariants les vérifient (`convex/invariants.test.ts`).
 
 **Le nom d'un type est un garde-fou.** `PlayerView`, jamais `GameState` : le client ne reçoit pas le
 monde, seulement ce qu'un joueur a le droit d'en voir. Le jour où quelqu'un écrit

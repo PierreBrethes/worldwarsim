@@ -21,11 +21,15 @@ type RegionAsset = {
   readonly p: ReadonlyArray<ReadonlyArray<PlanePoint>>;
 };
 
-const world = {
-  sphere: worldAsset.meta.sphere,
-  outline: worldAsset.meta.outline,
-  countries: [],
-} as unknown as World;
+const BUCKET_SIZE = 1;
+const BUCKET_COLUMNS = Math.ceil(WIDTH / BUCKET_SIZE);
+
+type RegionIndex = {
+  readonly world: World;
+  readonly outlines: ReadonlyArray<PreparedRegionOutline>;
+  readonly outlineById: ReadonlyMap<string, PreparedRegionOutline>;
+  readonly buckets: ReadonlyMap<number, ReadonlyArray<PreparedRegionOutline>>;
+};
 
 const isProjectionFrame = (ring: ReadonlyArray<PlanePoint>): boolean => {
   let minX = Infinity;
@@ -41,33 +45,55 @@ const isProjectionFrame = (ring: ReadonlyArray<PlanePoint>): boolean => {
   return maxX - minX > WIDTH * 0.9 && maxY - minY > worldAsset.meta.sphere.maxY * 0.9;
 };
 
-/** Parsed and boxed once per isolate; mutations reuse the same generated region asset. */
-const outlines = prepareRegionOutlines(
-  (regionsAsset.regions as unknown as ReadonlyArray<RegionAsset>).map((region): RegionOutline => ({
-    id: region.id,
-    /** Natural Earth occasionally projects a degenerate islet as the whole frame. */
-    rings: region.p.filter((ring) => !isProjectionFrame(ring)),
-  })),
-);
+/**
+ * **Rien de tout ceci ne se fait à l'import** : le déploiement charge chaque module dans son
+ * isolat pour y découvrir les fonctions, avec quatre secondes pour l'ensemble, et une préparation
+ * de 4 589 contours qui coûte 41 ms à chaud en coûte plusieurs à froid, sans JIT. C'est le modèle
+ * de la grille de `routes.ts` : la plupart des mutations d'une saison ne demandent jamais un
+ * contour de région, elles ne doivent pas le payer.
+ */
+function buildIndex(): RegionIndex {
+  const outlines = prepareRegionOutlines(
+    (regionsAsset.regions as unknown as ReadonlyArray<RegionAsset>).map(
+      (region): RegionOutline => ({
+        id: region.id,
+        /** Natural Earth occasionally projects a degenerate islet as the whole frame. */
+        rings: region.p.filter((ring) => !isProjectionFrame(ring)),
+      }),
+    ),
+  );
 
-const outlineById = new Map(outlines.map((outline) => [outline.id, outline]));
-const BUCKET_SIZE = 1;
-const BUCKET_COLUMNS = Math.ceil(WIDTH / BUCKET_SIZE);
-const buckets = new Map<number, Array<PreparedRegionOutline>>();
-for (const outline of outlines) {
-  const firstColumn = Math.max(0, Math.floor(outline.box[0] / BUCKET_SIZE));
-  const lastColumn = Math.min(BUCKET_COLUMNS - 1, Math.floor(outline.box[2] / BUCKET_SIZE));
-  const firstRow = Math.max(0, Math.floor(outline.box[1] / BUCKET_SIZE));
-  const lastRow = Math.floor(outline.box[3] / BUCKET_SIZE);
-  for (let row = firstRow; row <= lastRow; row += 1) {
-    for (let column = firstColumn; column <= lastColumn; column += 1) {
-      const key = row * BUCKET_COLUMNS + column;
-      const candidates = buckets.get(key) ?? [];
-      candidates.push(outline);
-      buckets.set(key, candidates);
+  const buckets = new Map<number, Array<PreparedRegionOutline>>();
+  for (const outline of outlines) {
+    const firstColumn = Math.max(0, Math.floor(outline.box[0] / BUCKET_SIZE));
+    const lastColumn = Math.min(BUCKET_COLUMNS - 1, Math.floor(outline.box[2] / BUCKET_SIZE));
+    const firstRow = Math.max(0, Math.floor(outline.box[1] / BUCKET_SIZE));
+    const lastRow = Math.floor(outline.box[3] / BUCKET_SIZE);
+    for (let row = firstRow; row <= lastRow; row += 1) {
+      for (let column = firstColumn; column <= lastColumn; column += 1) {
+        const key = row * BUCKET_COLUMNS + column;
+        const candidates = buckets.get(key) ?? [];
+        candidates.push(outline);
+        buckets.set(key, candidates);
+      }
     }
   }
+
+  return {
+    world: {
+      sphere: worldAsset.meta.sphere,
+      outline: worldAsset.meta.outline,
+      countries: [],
+    } as unknown as World,
+    outlines,
+    outlineById: new Map(outlines.map((outline) => [outline.id, outline])),
+    buckets,
+  };
 }
+
+/** Prepared once per isolate, on the first crossing rather than at import. */
+let index: RegionIndex | null = null;
+const indexOf = (): RegionIndex => (index ??= buildIndex());
 
 function regionAtProjected(point: PlanePoint): string | null {
   const x = ((point[0] % WIDTH) + WIDTH) % WIDTH;
@@ -78,7 +104,7 @@ function outlinesAtProjected(point: PlanePoint): ReadonlyArray<PreparedRegionOut
   const x = ((point[0] % WIDTH) + WIDTH) % WIDTH;
   const column = Math.min(BUCKET_COLUMNS - 1, Math.max(0, Math.floor(x / BUCKET_SIZE)));
   const row = Math.floor(point[1] / BUCKET_SIZE);
-  return buckets.get(row * BUCKET_COLUMNS + column) ?? [];
+  return indexOf().buckets.get(row * BUCKET_COLUMNS + column) ?? [];
 }
 
 function crossingsAt(outline: PreparedRegionOutline, y: number): number[] {
@@ -117,6 +143,7 @@ export function goalCellsForRegions(
   regions: ReadonlyArray<{ readonly id: string; readonly point: LonLat }>,
   grid: RouteGrid,
 ): ReadonlyMap<number, { readonly regionId: string; readonly point?: LonLat }> {
+  const { world, outlineById } = indexOf();
   const regionIds = new Set(regions.map((region) => region.id));
   const goals = new Map<number, { regionId: string; point?: LonLat }>();
   const targets = regions
@@ -195,10 +222,12 @@ export function goalCellsForRegions(
 }
 
 export function regionAtRoutePoint(point: LonLat): string | null {
+  const { world } = indexOf();
   return regionAtProjected(projectLonLat(world.outline, world.sphere, point));
 }
 
 export function isRouteEntryPoint(point: LonLat, regionId: string): boolean {
+  const { world, outlines } = indexOf();
   return pointOnRegionBoundary(
     outlines,
     regionId,
@@ -211,6 +240,7 @@ export function firstRouteEntryInRegion(
   points: ReadonlyArray<LonLat>,
   regionId: string,
 ): { readonly point: LonLat; readonly segmentIndex: number; readonly fraction: number } | null {
+  const { world, outlines } = indexOf();
   for (let segmentIndex = 0; segmentIndex < points.length - 1; segmentIndex += 1) {
     const from = points[segmentIndex]!;
     const to = points[segmentIndex + 1]!;
