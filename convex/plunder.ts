@@ -18,7 +18,7 @@ import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
 import { regionFacts } from './regions';
-import { isRouteEntryPoint } from './region-geometry';
+import { isRouteEntryPoint } from './regionGeometry';
 import { seasonStillPlays } from './seasons';
 import {
   canFollowCargoReturnPlan,

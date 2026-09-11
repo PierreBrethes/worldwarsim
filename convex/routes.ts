@@ -17,7 +17,7 @@ import {
   firstRouteEntryInRegion,
   goalCellsForRegions,
   regionAtRoutePoint,
-} from './region-geometry';
+} from './regionGeometry';
 
 /**
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
@@ -27,7 +27,7 @@ import {
  * than assumed: `world.json` weighs 1.27 MB, the raster comes out at 1600×832 = 1.33 M cells
  * in 31 ms, and a Dijkstra pass costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los
  * Angeles by land and sea. Admin-1 contours stay out of this grid; the plunder return crossing
- * loads them separately in `region-geometry.ts`, once per isolate.
+ * loads them separately in `regionGeometry.ts`, once per isolate.
  *
  * Built once per isolate, on the first movement rather than at import: a season spends most of
  * its life in mutations that never route anything, and they should not pay for the raster. If
