@@ -300,7 +300,9 @@ export const fr = {
     BAD_CREDENTIALS: () => 'pseudo ou mot de passe incorrect',
     ACCOUNT_NOT_FOUND: () => 'compte introuvable',
     SESSION_TOKEN_COLLISION: () => 'impossible de créer la session — réessayez',
-    UNKNOWN_TOKEN: () => 'jeton inconnu — redemandez le code de partie',
+    UNKNOWN_SESSION: () => 'session expirée — reconnectez-vous',
+    NO_SEAT: () => 'vous n’avez pas de place dans cette partie',
+    SEAT_TAKEN: () => 'vous avez déjà une place dans cette partie — elle est à l’accueil',
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
@@ -475,6 +477,31 @@ export const fr = {
     title: 'WorldWarSim',
   },
 
+  auth: {
+    dateline: 'bureau des engagements',
+    loginTagline: 'reprendre ses parties',
+    registerTagline: 'ouvrir un dossier',
+    nicknameLabel: 'pseudo',
+    nicknamePlaceholder: 'votre nom de guerre',
+    passwordLabel: 'mot de passe',
+    passwordPlaceholder: '••••••••',
+    /** **Il n'y a pas d'e-mail** (ADR 0022), donc pas de « mot de passe oublié » : la phrase
+     *  le dit avant la perte, pas après. */
+    passwordNote:
+      'aucun e-mail n’est demandé — un mot de passe perdu se remet à zéro par le tenancier du serveur',
+    loginSubmit: 'entrer',
+    registerSubmit: 'ouvrir le dossier',
+    pending: 'en ligne…',
+    toRegister: 'pas encore de dossier ? en ouvrir un',
+    toLogin: 'déjà un dossier ? se connecter',
+    signedIn: (nickname: string) => `dossier de ${nickname}`,
+    logout: 'se déconnecter',
+    logoutNote:
+      'la place reste au compte — on ferme un appareil, on ne rend pas son siège. Reconnectez-vous et la partie est là.',
+    noBackend:
+      'Aucun backend configuré (VITE_CONVEX_URL absent). Lancez la pile locale avec docker compose up — voir deploiement/README.md.',
+  },
+
   home: {
     edition: 'édition du jour',
     audience: '2 à 8 joueurs — entre amis',
@@ -482,7 +509,7 @@ export const fr = {
     stampTitle: 'état-major',
     stampSub: 'bureau des cartes',
     gamesHeader: 'mes parties',
-    gamesNote: 'reprendre, ou faire le ménage',
+    gamesNote: 'les parties de votre dossier',
     gamesCount: (count: number) => `${count} partie${plural(count, '', 's')}`,
     resume: 'reprendre',
     resumeLobby: (code: string) => `salon ${code}`,
@@ -494,13 +521,6 @@ export const fr = {
     endsIn: 'fin dans',
     open: 'ouvert',
     finished: 'terminée',
-    leave: 'retirer de ma liste',
-    leaveConfirm: 'confirmer — jeton perdu',
-    leaveNote:
-      'la partie continue sans vous. Le jeton est perdu : rejoindre avec le code formerait un nouveau joueur, et la nation jouée reste orpheline.',
-    nicknameLabel: 'pseudo',
-    nicknameNote: 'pas de compte — le pseudo suffit, il meurt avec la saison',
-    nicknamePlaceholder: 'votre nom de guerre',
     foundTitle: 'Fonder une saison',
     /**
      * **Fonder ne demande plus rien** (décision du 31/08) : plus de choix d'horloge ni de

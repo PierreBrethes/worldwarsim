@@ -12,6 +12,7 @@ import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
 import { GarrisonStack } from './GarrisonStack';
 import { Panel } from './Panel';
+import type { Seat } from '@/data/session';
 
 const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
@@ -33,7 +34,7 @@ const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTI
  */
 export function GarrisonPanel({
   view,
-  token,
+  seat,
   station,
   at,
   preselect,
@@ -41,7 +42,7 @@ export function GarrisonPanel({
   onPrepare,
 }: {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   /** `home` is the address of a troop whose building is gone: the game cannot place it, so
    *  nothing can march it (ADR 0019 §1). */
   station: TroopStation;
@@ -187,7 +188,7 @@ export function GarrisonPanel({
                       setError(null);
                       if (outpost.specialization === key) return;
                       respecialize({
-                        token,
+                        ...seat,
                         outpostId: outpost.id as Id<'outposts'>,
                         specialization: key,
                       }).catch((problem: unknown) => handleError(problem, setError));

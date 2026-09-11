@@ -13,6 +13,7 @@ import type {
 } from '@/domain/player-view';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import type { Seat } from '@/data/session';
 
 /** L'ordre des colonnes est celui de la gravité, jamais celui des dépêches : ce qui range la
  *  page est la sorte, et le journal sert déjà chaque liste dans son ordre d'heure. */
@@ -34,7 +35,7 @@ export type LootRumor = {
 
 export function JournalWindow({
   view,
-  token,
+  seat,
   rumors,
   selectedRumorId,
   onSelectRumor,
@@ -42,7 +43,7 @@ export function JournalWindow({
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   rumors: ReadonlyArray<LootRumor> | undefined;
   selectedRumorId: string | null;
   onSelectRumor: (rumor: LootRumor) => void;
@@ -57,9 +58,9 @@ export function JournalWindow({
    * la pire suite est un compteur qui reste allumé, jamais une action perdue.
    */
   const close = useCallback(() => {
-    void markRead({ token }).catch(() => undefined);
+    void markRead(seat).catch(() => undefined);
     onClose();
-  }, [markRead, token, onClose]);
+  }, [markRead, seat, onClose]);
   const revealRumor = useCallback(
     (rumor: LootRumor) => {
       onSelectRumor(rumor);

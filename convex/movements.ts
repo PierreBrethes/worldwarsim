@@ -68,7 +68,7 @@ import { nearestRegion, pointOfBuilding, regionFacts, regionOfOutpost } from './
 import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
-import { playerByToken, requirePlayable, seasonStillPlays } from './seasons';
+import { playerOf, requirePlayable, seasonStillPlays } from './seasons';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
@@ -96,6 +96,7 @@ import {
 export const foundOutpostHere = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     point: LON_LAT,
     /**
      * **La région sous le point, nommée par la carte** (`regionAtPoint`, précision de l'ADR 0020
@@ -108,8 +109,8 @@ export const foundOutpostHere = mutation({
     specialization: SPECIALIZATION,
     troopIds: v.array(v.id('troops')),
   },
-  handler: async (ctx, { token, point, regionId, specialization, troopIds }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, point, regionId, specialization, troopIds }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
@@ -225,11 +226,12 @@ export const foundOutpostHere = mutation({
 export const respecialize = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     outpostId: v.id('outposts'),
     specialization: SPECIALIZATION,
   },
-  handler: async (ctx, { token, outpostId, specialization }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, outpostId, specialization }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     const outpost = await ctx.db.get(outpostId);
@@ -248,12 +250,13 @@ export const respecialize = mutation({
 export const marchTo = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     point: LON_LAT,
   },
-  handler: async (ctx, { token, origin, troopIds, point }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, point }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     return march(ctx, {
@@ -278,12 +281,13 @@ export const marchTo = mutation({
 export const enterGarrison = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     buildingId: v.id('buildings'),
   },
-  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     return march(ctx, {
@@ -300,12 +304,13 @@ export const enterGarrison = mutation({
 export const attack = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     target: ATTACK_TARGET,
   },
-  handler: async (ctx, { token, origin, troopIds, target }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     return march(ctx, {
@@ -324,12 +329,13 @@ export const attack = mutation({
 export const raid = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     outpostId: v.id('outposts'),
   },
-  handler: async (ctx, { token, origin, troopIds, outpostId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, outpostId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     return march(ctx, {
@@ -347,12 +353,13 @@ export const raid = mutation({
 export const plunder = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     buildingId: v.id('buildings'),
   },
-  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     return march(ctx, {
       playerId: player._id,
@@ -370,12 +377,13 @@ export const plunder = mutation({
 export const collectLoot = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     sightingId: v.id('lootCrateSightings'),
   },
-  handler: async (ctx, { token, origin, troopIds, sightingId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, sightingId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     return startLootCollectionMission(ctx, {
       playerId: player._id,
@@ -394,13 +402,14 @@ export const collectLoot = mutation({
 export const preview = query({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     target: ATTACK_TARGET,
     type: MOVEMENT_TYPE,
   },
-  handler: async (ctx, { token, origin, troopIds, target, type }) => {
-    const { player } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, target, type }) => {
+    const { player } = await playerOf(ctx, token, seasonId);
     if (type === 'decoy') return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
@@ -482,12 +491,13 @@ const previewTroopsAt = async (
 export const previewPlunder = query({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     buildingId: v.id('buildings'),
   },
-  handler: async (ctx, { token, origin, troopIds, buildingId }) => {
-    const { player } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player } = await playerOf(ctx, token, seasonId);
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
     const troops = await previewTroopsAt(ctx, player._id, troopIds, departure);
@@ -538,12 +548,13 @@ export const previewPlunder = query({
 export const previewLootCollection = query({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     sightingId: v.id('lootCrateSightings'),
   },
-  handler: async (ctx, { token, origin, troopIds, sightingId }) => {
-    const { player } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, origin, troopIds, sightingId }) => {
+    const { player } = await playerOf(ctx, token, seasonId);
     const sighting = await ctx.db.get(sightingId);
     if (
       sighting === null ||

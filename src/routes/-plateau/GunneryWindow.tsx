@@ -27,6 +27,7 @@ import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import type { Seat } from '@/data/session';
 
 /**
  * **L'abaque de tir, et le catalogue au pli** (ADR 0018 §4, décisions du 31/08 et 60b du 01/09).
@@ -44,10 +45,10 @@ import { FloatingWindow, type WindowProps } from './Window';
  * **Aucune action, aucun stock.** On ne forme pas depuis l'abaque : un coût nu suffit, et un
  * « 18 / 320 » y serait la réserve imprimée une fois de plus (contrat 06 P3).
  */
-export function GunneryWindow({ token, onClose, ...windowProps }: WindowProps & { token: string }) {
+export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & { seat: Seat }) {
   const rows = gunneryRows(DAMAGE_TABLE);
   const columns = COMBAT_PROFILES;
-  const workshop = useQuery(api.troops.workshop, { token });
+  const workshop = useQuery(api.troops.workshop, seat);
   const [open, setOpen] = useState<CombatProfile | null>(null);
 
   return (

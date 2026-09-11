@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
-import { playerByToken, requireStarted } from './seasons';
+import { playerOf, requireStarted } from './seasons';
 
 /**
  * **Lu, c'est ce qu'on a eu le temps de voir.** The hour is stamped when the window is *closed*,
@@ -17,9 +17,9 @@ import { playerByToken, requireStarted } from './seasons';
  * and closing its journal is reading, not playing.
  */
 export const markRead = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     await ctx.db.patch(player._id, { journalReadAt: Date.now() });
   },

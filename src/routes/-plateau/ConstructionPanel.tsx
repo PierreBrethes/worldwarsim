@@ -23,6 +23,7 @@ import { RESOURCES, type BuildingKey } from '@/domain/ids';
 import type { Cost, PlayerView, SiteRef } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { Panel } from './Panel';
+import type { Seat } from '@/data/session';
 
 const MIN_WIDTH = 260;
 const MIN_HEIGHT = 200;
@@ -45,14 +46,14 @@ const GEOMETRY = 'construction';
  */
 export function ConstructionPanel({
   view,
-  token,
+  seat,
   regionId,
   at,
   onClose,
   onPlace,
 }: {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   regionId: string;
   at: { x: number; y: number };
   onClose: () => void;
@@ -135,7 +136,7 @@ export function ConstructionPanel({
       return;
     }
     setError(null);
-    start({ token, building: option.key, regionId }).then(
+    start({ ...seat, building: option.key, regionId }).then(
       () => {
         if (!option.free) notify(fr.construction.queued(fr.buildings[option.key]), 'info');
         onClose();

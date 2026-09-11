@@ -13,6 +13,8 @@ import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Two seasons stand at the same time, and neither may read the other.** Since the multi-game
@@ -37,35 +39,27 @@ const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 /** A whole season of its own, launched, with its two seats named — so that a test can hold two
  *  of them at once and tell every row apart by the season it was written in. */
 async function launchedSeason(t: ReturnType<typeof boot>, host: string, visitor: string) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: host,
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: visitor });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest };
+  const { seat, code } = await foundSeat(t, host, 48, 0.5);
+  const guest = await joinSeat(t, code, visitor);
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest };
 }
 
-async function playerOf(t: ReturnType<typeof boot>, token: string) {
+async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
   return t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player;
   });
 }
 
 /** The endowment taken back, so every soldier in the case was put there by the case. */
-async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArray<string>) {
-  for (const token of tokens) {
-    const { _id: playerId } = await playerOf(t, token);
+async function disbandTheGift(t: ReturnType<typeof boot>, ...seats: ReadonlyArray<Seat>) {
+  for (const seat of seats) {
+    const { _id: playerId } = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const held = await ctx.db
         .query('troops')
@@ -76,8 +70,8 @@ async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArr
   }
 }
 
-async function raise(t: ReturnType<typeof boot>, token: string, regionId: string) {
-  const { _id: playerId, seasonId } = await playerOf(t, token);
+async function raise(t: ReturnType<typeof boot>, seat: Seat, regionId: string) {
+  const { _id: playerId, seasonId } = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('buildings', { seasonId, playerId, key: 'barracks', regionId, level: 1 }),
   );
@@ -85,10 +79,10 @@ async function raise(t: ReturnType<typeof boot>, token: string, regionId: string
 
 async function form(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   stationedAt: Doc<'troops'>['stationedAt'],
 ) {
-  const { _id: playerId, seasonId } = await playerOf(t, token);
+  const { _id: playerId, seasonId } = await playerOf(t, seat);
   const strength = nominalStrength('infantry', 1);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
@@ -105,11 +99,11 @@ async function form(
 
 async function plant(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   point: LonLat,
   specialization: Doc<'outposts'>['specialization'],
 ) {
-  const { _id: playerId, seasonId } = await playerOf(t, token);
+  const { _id: playerId, seasonId } = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId,
@@ -136,7 +130,7 @@ describe('a season reads its own board and no other', () => {
     const t = boot();
     const here = await launchedSeason(t, 'Pierre', 'Léa');
     const elsewhere = await launchedSeason(t, 'Camille', 'Nour');
-    await disbandTheGift(t, here.token, here.guest, elsewhere.token, elsewhere.guest);
+    await disbandTheGift(t, here.seat, here.guest, elsewhere.seat, elsewhere.guest);
 
     /**
      * **Everything the other season could contaminate this one with**, planted on the very road
@@ -153,12 +147,12 @@ describe('a season reads its own board and no other', () => {
     const theirSentries = await form(t, elsewhere.guest, theirOutpost);
     const theirCamp = await form(t, elsewhere.guest, asPoint(halfway));
     await plant(t, elsewhere.guest, halfway, 'listening');
-    await plant(t, elsewhere.token, halfway, 'relay');
+    await plant(t, elsewhere.seat, halfway, 'relay');
 
-    const barracks = await raise(t, here.token, MARNE);
-    const troop = await form(t, here.token, barracks);
+    const barracks = await raise(t, here.seat, MARNE);
+    const troop = await form(t, here.seat, barracks);
     const sent = await t.mutation(api.movements.attack, {
-      token: here.token,
+      ...here.seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PRAHOVA },
@@ -172,7 +166,7 @@ describe('a season reads its own board and no other', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const theirs = new Set([
-      (await playerOf(t, elsewhere.token))._id,
+      (await playerOf(t, elsewhere.seat))._id,
       (await playerOf(t, elsewhere.guest))._id,
     ]);
     const engagements = await t.run(async (ctx) => ctx.db.query('engagements').collect());
@@ -203,17 +197,17 @@ describe('a season reads its own board and no other', () => {
    */
   it('still files the relevé when the sentry stands in the same season', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t, 'Pierre', 'Léa');
-    await disbandTheGift(t, token, guest);
+    const { seat, guest } = await launchedSeason(t, 'Pierre', 'Léa');
+    await disbandTheGift(t, seat, guest);
 
     const road = routeBetween(pointOf(MARNE), pointOf(PRAHOVA), 'land', landCostOf(['infantry']))!;
     const halfway = road.points[Math.floor(road.points.length / 2)]!;
     await form(t, guest, asPoint(halfway));
 
-    const barracks = await raise(t, token, MARNE);
-    const troop = await form(t, token, barracks);
+    const barracks = await raise(t, seat, MARNE);
+    const troop = await form(t, seat, barracks);
     await t.mutation(api.movements.attack, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'region', regionId: PRAHOVA },

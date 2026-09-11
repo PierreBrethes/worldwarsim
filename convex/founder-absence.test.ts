@@ -5,6 +5,8 @@ import type { Id } from './_generated/dataModel';
 import { FOUNDER_ABSENCE_HOURS, PRESENCE_THROTTLE_MIN } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Une saison dont le fondateur ne revient plus reste clôturable.** La capitulation transmettait
@@ -22,41 +24,28 @@ const HOUR = 3_600_000;
 const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: null,
-    compensation: 0.5,
-  });
-  const tokens = [token];
-  for (let seat = 1; seat < players; seat += 1) {
-    const joined = await t.mutation(api.seasons.join, { code, nickname: `Joueur ${seat}` });
-    tokens.push(joined.token);
+  const { seat, code } = await foundSeat(t, 'Pierre', null, 0.5);
+  const seats = [seat];
+  for (let rank = 1; rank < players; rank += 1) {
+    seats.push(await joinSeat(t, code, `Joueur ${rank}`));
   }
-  for (const [seat, seated] of tokens.entries()) {
-    await t.mutation(api.players.reserveNation, { token: seated, nation: NATIONS[seat]! });
-    await t.mutation(api.players.declareReady, { token: seated, ready: true });
+  for (const [rank, seated] of seats.entries()) {
+    await t.mutation(api.players.reserveNation, { ...seated, nation: NATIONS[rank]! });
+    await t.mutation(api.players.declareReady, { ...seated, ready: true });
   }
-  await t.mutation(api.seasons.launch, { token });
-  return tokens;
+  await t.mutation(api.seasons.launch, seat);
+  return seats;
 }
 
-const playerOf = (t: ReturnType<typeof boot>, token: string) =>
-  t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
-    return player;
-  });
+const playerOf = (t: ReturnType<typeof boot>, seat: Seat) => seatDoc(t, seat);
 
 const seasonOf = (t: ReturnType<typeof boot>) =>
   t.run(async (ctx) => (await ctx.db.query('seasons').collect())[0]!);
 
 /** On antidate la présence plutôt que d'avancer l'horloge de plusieurs jours : c'est la même
  *  distance, et le reste de la saison ne vieillit pas sous les pieds du test. */
-async function seenHoursAgo(t: ReturnType<typeof boot>, token: string, hours: number) {
-  const player = await playerOf(t, token);
+async function seenHoursAgo(t: ReturnType<typeof boot>, seat: Seat, hours: number) {
+  const player = await playerOf(t, seat);
   await t.run(async (ctx) =>
     ctx.db.patch(player._id as Id<'players'>, { lastSeenAt: Date.now() - hours * HOUR }),
   );
@@ -83,9 +72,7 @@ describe('fondateur absent', () => {
     const [founder, elder] = await launchedSeason(t, 3);
     await seenHoursAgo(t, founder!, FOUNDER_ABSENCE_HOURS - 1);
 
-    expect(await codeOf(t.mutation(api.seasons.conclude, { token: elder! }))).toBe(
-      'FOUNDER_STILL_PRESENT',
-    );
+    expect(await codeOf(t.mutation(api.seasons.conclude, elder!))).toBe('FOUNDER_STILL_PRESENT');
     expect((await seasonOf(t)).status).toBe('launched');
   });
 
@@ -94,9 +81,9 @@ describe('fondateur absent', () => {
     const [founder, elder, cadet] = await launchedSeason(t, 3);
     await seenHoursAgo(t, founder!, FOUNDER_ABSENCE_HOURS + 1);
 
-    expect(await codeOf(t.mutation(api.seasons.conclude, { token: cadet! }))).toBe('CREATOR_ONLY');
+    expect(await codeOf(t.mutation(api.seasons.conclude, cadet!))).toBe('CREATOR_ONLY');
 
-    await t.mutation(api.seasons.conclude, { token: elder! });
+    await t.mutation(api.seasons.conclude, elder!);
     const season = await seasonOf(t);
     expect(season.status).toBe('concluded');
     /** Le comportement de `conclude` est inchangé : personne n'a gagné, et la porte n'a fait
@@ -112,12 +99,10 @@ describe('fondateur absent', () => {
     const t = boot();
     const [, elder] = await launchedSeason(t, 3);
 
-    expect(await codeOf(t.mutation(api.seasons.conclude, { token: elder! }))).toBe(
-      'FOUNDER_STILL_PRESENT',
-    );
+    expect(await codeOf(t.mutation(api.seasons.conclude, elder!))).toBe('FOUNDER_STILL_PRESENT');
 
     vi.setSystemTime(MIDDAY.getTime() + (FOUNDER_ABSENCE_HOURS + 1) * HOUR);
-    await t.mutation(api.seasons.conclude, { token: elder! });
+    await t.mutation(api.seasons.conclude, elder!);
     expect((await seasonOf(t)).status).toBe('concluded');
   });
 
@@ -125,13 +110,13 @@ describe('fondateur absent', () => {
     const t = boot();
     const [founder, elder, cadet] = await launchedSeason(t, 3);
     /** Le titre passe au doyen ; le doyen du *nouveau* fondateur est le cadet. */
-    await t.mutation(api.players.surrender, { token: founder! });
+    await t.mutation(api.players.surrender, founder!);
     await seenHoursAgo(t, elder!, FOUNDER_ABSENCE_HOURS + 1);
 
     /** Le fondateur d'hier a beau être absent depuis toujours, il n'est plus la mesure. */
     await seenHoursAgo(t, founder!, FOUNDER_ABSENCE_HOURS * 4);
 
-    await t.mutation(api.seasons.conclude, { token: cadet! });
+    await t.mutation(api.seasons.conclude, cadet!);
     expect((await seasonOf(t)).status).toBe('concluded');
   });
 
@@ -139,32 +124,28 @@ describe('fondateur absent', () => {
     const t = boot();
     const [founder] = await launchedSeason(t, 3);
 
-    await t.mutation(api.players.touch, { token: founder! });
+    await t.mutation(api.players.touch, founder!);
     const first = (await playerOf(t, founder!)).lastSeenAt;
     expect(first).toBe(MIDDAY.getTime());
 
     vi.setSystemTime(MIDDAY.getTime() + 10 * 60_000);
-    await t.mutation(api.players.touch, { token: founder! });
+    await t.mutation(api.players.touch, founder!);
     expect((await playerOf(t, founder!)).lastSeenAt).toBe(first);
 
     vi.setSystemTime(MIDDAY.getTime() + (PRESENCE_THROTTLE_MIN + 1) * 60_000);
-    await t.mutation(api.players.touch, { token: founder! });
+    await t.mutation(api.players.touch, founder!);
     expect((await playerOf(t, founder!)).lastSeenAt).toBe(Date.now());
   });
 
   it('ne se tait ni sur un salon ni sur un défait', async () => {
     const t = boot();
-    const { token: lobby } = await t.mutation(api.seasons.create, {
-      nickname: 'Pierre',
-      durationHours: null,
-      compensation: 0.5,
-    });
-    await t.mutation(api.players.touch, { token: lobby });
+    const { seat: lobby } = await foundSeat(t, 'Pierre', null, 0.5);
+    await t.mutation(api.players.touch, lobby);
     expect((await playerOf(t, lobby)).lastSeenAt).toBeUndefined();
 
     const [, guest] = await launchedSeason(t, 3);
-    await t.mutation(api.players.surrender, { token: guest! });
-    await t.mutation(api.players.touch, { token: guest! });
+    await t.mutation(api.players.surrender, guest!);
+    await t.mutation(api.players.touch, guest!);
     expect((await playerOf(t, guest!)).lastSeenAt).toBeUndefined();
   });
 
@@ -173,7 +154,7 @@ describe('fondateur absent', () => {
     const [founder, elder] = await launchedSeason(t, 3);
     await seenHoursAgo(t, founder!, 100);
 
-    expect(await codeOf(t.mutation(api.seasons.destroy, { token: elder! }))).toBe('CREATOR_ONLY');
+    expect(await codeOf(t.mutation(api.seasons.destroy, elder!))).toBe('CREATOR_ONLY');
     expect(await seasonOf(t)).not.toBeUndefined();
   });
 
@@ -183,17 +164,17 @@ describe('fondateur absent', () => {
 
     /** Loin de la porte : pas de ligne, et le doyen n'a pas de bouton. */
     await seenHoursAgo(t, founder!, 1);
-    const quiet = await t.query(api.view.playerView, { token: elder! });
+    const quiet = await t.query(api.view.playerView, elder!);
     expect(quiet.me.founderAbsence).toBeNull();
     expect(quiet.me.mayConclude).toBe(false);
 
     await seenHoursAgo(t, founder!, FOUNDER_ABSENCE_HOURS - 3);
-    const near = await t.query(api.view.playerView, { token: elder! });
+    const near = await t.query(api.view.playerView, elder!);
     expect(near.me.founderAbsence?.hours).toBeCloseTo(FOUNDER_ABSENCE_HOURS - 3, 3);
     expect(near.me.mayConclude).toBe(false);
 
     await seenHoursAgo(t, founder!, FOUNDER_ABSENCE_HOURS + 1);
-    const open = await t.query(api.view.playerView, { token: elder! });
+    const open = await t.query(api.view.playerView, elder!);
     expect(open.me.founderAbsence?.concludeOpensAt).toBeLessThanOrEqual(Date.now());
     expect(open.me.mayConclude).toBe(true);
   });
@@ -202,10 +183,10 @@ describe('fondateur absent', () => {
     const t = boot();
     const [founder, elder, cadet] = await launchedSeason(t, 3);
     for (const seat of [founder!, elder!, cadet!]) {
-      await t.mutation(api.players.touch, { token: seat });
+      await t.mutation(api.players.touch, seat);
     }
 
-    const view = await t.query(api.view.playerView, { token: cadet! });
+    const view = await t.query(api.view.playerView, cadet!);
     expect(JSON.stringify(view)).not.toContain('lastSeenAt');
   });
 });

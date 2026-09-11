@@ -3,7 +3,7 @@ import { mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
-import { concludeSeason, isAtWar, playerByToken, requirePlayable } from './seasons';
+import { concludeSeason, isAtWar, playerOf, requirePlayable } from './seasons';
 
 /**
  * **Il est là.** La seule écriture de présence du jeu, et elle n'a qu'un lecteur : le fondateur
@@ -21,9 +21,9 @@ import { concludeSeason, isAtWar, playerByToken, requirePlayable } from './seaso
  * (`surrender` passe le titre) n'a rien à retenir.
  */
 export const touch = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (season.status !== 'launched') return;
     if (player.defeated === true) return;
 
@@ -48,9 +48,9 @@ function requireStillChoosing(player: Doc<'players'>, season: Doc<'seasons'>): v
 }
 
 export const reserveNation = mutation({
-  args: { token: v.string(), nation: v.union(v.string(), v.null()) },
-  handler: async (ctx, { token, nation }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), nation: v.union(v.string(), v.null()) },
+  handler: async (ctx, { token, seasonId, nation }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requireStillChoosing(player, season);
     if (nation === null) {
       await ctx.db.patch(player._id, { nation: null, ready: false });
@@ -70,9 +70,9 @@ export const reserveNation = mutation({
 });
 
 export const declareReady = mutation({
-  args: { token: v.string(), ready: v.boolean() },
-  handler: async (ctx, { token, ready }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), ready: v.boolean() },
+  handler: async (ctx, { token, seasonId, ready }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requireStillChoosing(player, season);
     if (ready && player.nation === null) fail('NATION_REQUIRED');
     await ctx.db.patch(player._id, { ready });
@@ -89,9 +89,9 @@ export const declareReady = mutation({
  * The cost, assumed: over a 7-day season, a player whose real schedule changes cannot follow.
  */
 export const setRestWindow = mutation({
-  args: { token: v.string(), startMinutes: v.number() },
-  handler: async (ctx, { token, startMinutes }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), startMinutes: v.number() },
+  handler: async (ctx, { token, seasonId, startMinutes }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (isAtWar(player, season)) fail('REST_WINDOW_FROZEN');
     if (!Number.isInteger(startMinutes) || startMinutes < 0 || startMinutes >= 1440) {
       fail('INVALID_REST_WINDOW');
@@ -122,9 +122,9 @@ export const setRestWindow = mutation({
  * il n'y a donc rien à débloquer, seulement rien à ajouter.
  */
 export const surrender = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     /** On ne capitule que d'une guerre où l'on est entré : un siège qui choisit encore son
      *  drapeau n'a pas d'armes à déposer, et il ne compte dans aucune fin de saison. */

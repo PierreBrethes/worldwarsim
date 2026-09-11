@@ -158,3 +158,7 @@ const points = countries.reduce((sum, candidate) => sum + candidate.p.flat().len
 console.log(
   `${countries.length} countries, ${points} points, ${(JSON.stringify(output).length / 1024).toFixed(0)} Ko (${detail})`,
 );
+
+/** The routing raster is cut from these very polygons: a new world leaves a stale grid, and the
+ *  server reads the grid rather than rebuilding it. One command, the two files. */
+await import('./generate-grid.mjs');

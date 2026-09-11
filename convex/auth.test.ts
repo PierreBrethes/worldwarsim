@@ -25,7 +25,7 @@ describe('account registration', () => {
 
     expect(result).toEqual({ token: expect.stringMatching(tokenPattern) });
     expect(Object.keys(result)).toEqual(['token']);
-    expect(await t.query(api.accounts.me, result)).toEqual({ nickname: 'Léa' });
+    expect(await t.query(api.accounts.me, result)).toEqual({ nickname: 'Léa', seats: [] });
     expect(
       await t.run(async (ctx) => {
         const account = (await ctx.db.query('accounts').first())!;
@@ -56,7 +56,7 @@ describe('account registration', () => {
 
     const initialLastSeenAt = Date.now();
     vi.advanceTimersByTime(60_000);
-    expect(await t.query(api.accounts.me, result)).toEqual({ nickname: 'Léa' });
+    expect(await t.query(api.accounts.me, result)).toEqual({ nickname: 'Léa', seats: [] });
     expect(await t.run(async (ctx) => (await ctx.db.query('sessions').first())!.lastSeenAt)).toBe(
       initialLastSeenAt,
     );
@@ -120,7 +120,7 @@ describe('account login and sessions', () => {
     expect(loggedIn).toEqual({ token: expect.stringMatching(tokenPattern) });
     expect(Object.keys(loggedIn)).toEqual(['token']);
     expect(loggedIn.token).not.toBe(registered.token);
-    expect(await t.query(api.accounts.me, loggedIn)).toEqual({ nickname: 'Pièrre' });
+    expect(await t.query(api.accounts.me, loggedIn)).toEqual({ nickname: 'Pièrre', seats: [] });
   });
 
   it.each([
@@ -152,7 +152,7 @@ describe('account login and sessions', () => {
     await t.mutation(api.accounts.logout, first);
 
     expect(await t.query(api.accounts.me, first)).toBeNull();
-    expect(await t.query(api.accounts.me, second)).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.me, second)).toEqual({ nickname: 'Pierre', seats: [] });
   });
 
   it('returns null for unknown and orphaned sessions', async () => {
@@ -182,7 +182,7 @@ describe('account login and sessions', () => {
     await expect(
       t.mutation(internal.accounts.createSession, { ...snapshot, token: first.token }),
     ).rejects.toThrow('SESSION_TOKEN_COLLISION');
-    expect(await t.query(api.accounts.me, first)).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.me, first)).toEqual({ nickname: 'Pierre', seats: [] });
     expect(await t.run(async (ctx) => ctx.db.query('sessions').collect())).toHaveLength(1);
   });
 
@@ -237,7 +237,7 @@ describe('password recovery and login races', () => {
       nickname: 'Pierre',
       password: 'nouveau secret',
     });
-    expect(await t.query(api.accounts.me, replacement)).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.me, replacement)).toEqual({ nickname: 'Pierre', seats: [] });
   });
 
   it('refuses invalid recovery input and an unknown account without creating one', async () => {
@@ -306,16 +306,20 @@ describe('identity persistence across game purges', () => {
       nickname: 'Pierre',
       password: 'mot de passe solide',
     });
-    const { token: gameToken } = await t.mutation(api.seasons.create, {
-      nickname: 'Pierre',
+    const { seasonId } = await t.mutation(api.seasons.create, {
+      ...session,
       durationHours: 48,
       compensation: 0.5,
     });
+    expect(await t.query(api.accounts.me, session)).toEqual({
+      nickname: 'Pierre',
+      seats: [expect.objectContaining({ seasonId })],
+    });
 
-    await t.mutation(api.seasons.destroy, { token: gameToken });
-    expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre' });
+    await t.mutation(api.seasons.destroy, { ...session, seasonId });
+    expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre', seats: [] });
 
     await t.mutation(internal.dev.reset, {});
-    expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.me, session)).toEqual({ nickname: 'Pierre', seats: [] });
   });
 });

@@ -26,16 +26,48 @@ import {
   nominalStrength,
 } from './constants';
 
-export async function playerByToken(ctx: QueryCtx, token: string) {
-  const player = await ctx.db
-    .query('players')
-    .withIndex('byToken', (q) => q.eq('token', token))
-    .unique();
-  if (!player) fail('UNKNOWN_TOKEN');
+/**
+ * **L'unique porte du jeu** (ADR 0022) : un jeton de session, une saison, et la place que le
+ * compte y tient. Le jeton de partie est mort avec le wipe du 10/09 — il valait identité,
+ * place et saison à la fois, et c'est ce triple emploi qui interdisait à un joueur de retrouver
+ * ses parties depuis un second appareil.
+ *
+ * Les trois refus disent trois choses différentes, et le client en fait trois écrans : la
+ * session est inconnue (on se reconnecte), le compte n'a pas de place dans cette saison-là (on
+ * rentre à l'accueil), la saison n'existe plus. Un seul code pour les trois aurait renvoyé à la
+ * page de connexion quelqu'un qui n'avait qu'une saison détruite.
+ */
+export async function playerOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
+  const account = await accountOf(ctx, token);
+  if (!account) fail('UNKNOWN_SESSION');
+  const player = await seatOf(ctx, account, seasonId);
+  if (!player) fail('NO_SEAT');
   const season = await ctx.db.get(player.seasonId);
   if (!season) fail('SEASON_GONE');
   return { player, season };
 }
+
+/** Le compte derrière un jeton de session, `null` si personne ne répond — une session
+ *  inconnue, ou orpheline d'un compte effacé, ce que le lecteur ne distingue pas. */
+export async function accountOf(ctx: QueryCtx, token: string): Promise<Doc<'accounts'> | null> {
+  const session = await ctx.db
+    .query('sessions')
+    .withIndex('byToken', (q) => q.eq('token', token))
+    .unique();
+  return session === null ? null : await ctx.db.get(session.accountId);
+}
+
+/** **Au plus une place par compte et par saison** (ADR 0022) : l'index le dit, et `unique()`
+ *  le fait échouer bruyamment si une seconde s'écrivait un jour. */
+const seatOf = (
+  ctx: QueryCtx,
+  account: Doc<'accounts'>,
+  seasonId: Id<'seasons'>,
+): Promise<Doc<'players'> | null> =>
+  ctx.db
+    .query('players')
+    .withIndex('byAccountSeason', (q) => q.eq('accountId', account._id).eq('seasonId', seasonId))
+    .unique();
 
 /**
  * **What a season has to be for an order to be given on it, and who may give one.** A concluded
@@ -179,11 +211,13 @@ async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Prom
  */
 export const create = mutation({
   args: {
-    nickname: v.string(),
+    token: v.string(),
     durationHours: SEASON_CLOCK_HOURS,
     compensation: v.number(),
   },
-  handler: async (ctx, { nickname, durationHours, compensation }) => {
+  handler: async (ctx, { token, durationHours, compensation }) => {
+    const account = await accountOf(ctx, token);
+    if (!account) fail('UNKNOWN_SESSION');
     const code = await freeCode(ctx);
     const seasonId = await ctx.db.insert('seasons', {
       code,
@@ -196,20 +230,30 @@ export const create = mutation({
       winnerId: null,
       concludedAt: null,
     });
-    const token = crypto.randomUUID();
-    await ctx.db.insert('players', {
-      seasonId,
-      token,
-      nickname: nickname.trim(),
-      creator: true,
-      nation: null,
-      ready: false,
-      restWindow: DEFAULT_REST_WINDOW,
-      enteredWarAt: null,
-    });
-    return { code, token };
+    await seat(ctx, account, seasonId, true);
+    return { code, seasonId };
   },
 });
+
+/** **Une place, et le pseudo du compte copié dessus** — la seule écriture de `players` du jeu,
+ *  partagée par les deux portes d'entrée pour qu'un champ neuf ne puisse pas en manquer une. */
+async function seat(
+  ctx: MutationCtx,
+  account: Doc<'accounts'>,
+  seasonId: Id<'seasons'>,
+  creator: boolean,
+): Promise<void> {
+  await ctx.db.insert('players', {
+    seasonId,
+    accountId: account._id,
+    nickname: account.nickname,
+    creator,
+    nation: null,
+    ready: false,
+    restWindow: DEFAULT_REST_WINDOW,
+    enteredWarAt: null,
+  });
+}
 
 /**
  * **No rate limiting here, deliberately.** A game code is 6 characters over a 32-letter
@@ -221,19 +265,25 @@ export const create = mutation({
  * The mitigations available are all worse than that exposure. Convex mutations do not see
  * the client IP, so a counter has to key on something else: per season it becomes a griefing
  * lever (a stranger locks your friends out of their own lobby), and per nickname it keys on
- * a value the attacker picks. `previews` needs none either — it takes tokens, 122-bit
- * UUIDs that are not guessed.
+ * a value the attacker picks. **Le compte n'y change rien** : il faut toujours le code, et le
+ * refus par `SEAT_TAKEN` ne dit rien qu'un joueur déjà assis ne sache.
  *
  * What would change this: public lobbies, or codes shared beyond a group of friends.
  */
 export const join = mutation({
-  args: { code: v.string(), nickname: v.string() },
-  handler: async (ctx, { code, nickname }) => {
+  args: { token: v.string(), code: v.string() },
+  handler: async (ctx, { token, code }) => {
+    const account = await accountOf(ctx, token);
+    if (!account) fail('UNKNOWN_SESSION');
     const season = await ctx.db
       .query('seasons')
       .withIndex('byCode', (q) => q.eq('code', code.trim().toUpperCase()))
       .unique();
     if (!season) fail('UNKNOWN_GAME_CODE');
+    /** **Avant tout autre refus**, y compris la fenêtre d'inscription : celui qui a déjà sa
+     *  place la garde, et lui dire que les inscriptions sont closes l'enverrait la chercher
+     *  ailleurs qu'à l'accueil, où elle est. */
+    if (await seatOf(ctx, account, season._id)) fail('SEAT_TAKEN');
     if (season.status === 'concluded') fail('SEASON_CONCLUDED');
     if (!canJoinRegistration(season.status, season.launchedAt, Date.now())) {
       fail('REGISTRATION_CLOSED');
@@ -257,48 +307,22 @@ export const join = mutation({
       fail('NO_FREE_NATION');
     }
     if (present.length >= MAX_PLAYERS) fail('LOBBY_FULL', { maximum: MAX_PLAYERS });
-    const token = crypto.randomUUID();
-    await ctx.db.insert('players', {
-      seasonId: season._id,
-      token,
-      nickname: nickname.trim(),
-      creator: false,
-      nation: null,
-      ready: false,
-      restWindow: DEFAULT_REST_WINDOW,
-      enteredWarAt: null,
-    });
-    return { token };
+    await seat(ctx, account, season._id, false);
+    return { seasonId: season._id };
   },
 });
 
 /**
- * **Every game this browser still holds a seat in.** The home screen keeps a list of tokens
- * (`src/data/token.ts`), and a player accumulates seasons — one lobby open, one running, one
- * already won.
+ * **Une ligne d'accueil, pour une place du compte** (ADR 0022). Elle se lit depuis le compte
+ * désormais (`accounts.me`) et non plus depuis une liste de jetons tenue par le navigateur :
+ * c'est tout le bénéfice du compte — le même joueur retrouve ses parties sur un second
+ * appareil, sans redemander le code à personne.
  *
- * A token nobody answers for is **silently dropped** rather than reported: the season it named
- * was destroyed, and an entry screen that turned a scrapped game into an error would condemn
- * itself over a row the player cannot fix. The client sees a shorter list, which is the truth.
+ * Une place dont la saison a disparu est **silencieusement ignorée** plutôt que signalée : la
+ * saison a été mise au rebut, et un écran d'entrée qui en ferait une erreur se condamnerait
+ * sur une ligne que le joueur ne peut pas réparer.
  */
-export const previews = query({
-  args: { tokens: v.array(v.string()) },
-  handler: async (ctx, { tokens }) => {
-    const seats = [];
-    for (const token of tokens) {
-      const seat = await previewOf(ctx, token);
-      if (seat !== null) seats.push(seat);
-    }
-    return seats;
-  },
-});
-
-async function previewOf(ctx: QueryCtx, token: string) {
-  const player = await ctx.db
-    .query('players')
-    .withIndex('byToken', (q) => q.eq('token', token))
-    .unique();
-  if (!player) return null;
+export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
   const season = await ctx.db.get(player.seasonId);
   if (!season) return null;
   const present = await ctx.db
@@ -308,9 +332,9 @@ async function previewOf(ctx: QueryCtx, token: string) {
   const winnerId = season.winnerId ?? null;
   const winner = winnerId === null ? null : await ctx.db.get(winnerId);
   return {
-    // The token travels back so a row can name itself to the mutation it arms — it is the
-    // client's own, it grants nothing it did not already hold.
-    token,
+    /** La saison que la ligne ouvre : c'est elle que le client retient comme place active, et
+     *  elle voyage avec chaque ordre ensuite (`playerOf`). */
+    seasonId: season._id,
     code: season.code,
     status: season.status,
     durationHours: season.durationHours,
@@ -334,9 +358,9 @@ async function previewOf(ctx: QueryCtx, token: string) {
 }
 
 export const lobby = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     const present = await ctx.db
       .query('players')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
@@ -379,9 +403,9 @@ export const lobby = query({
 });
 
 export const launch = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
     const present = await ctx.db
@@ -425,9 +449,9 @@ export const launch = mutation({
  * him. What he has to have is what a seat needs to become a nation — a free flag.
  */
 export const enterWar = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     /** Twice-clicked is not an error: the second call finds a belligerent and hands out
      *  nothing. Answering with a refusal would be telling him his own entry failed. */
@@ -542,9 +566,9 @@ export function concludeRefusal(
  * (`seasonStillPlays`).
  */
 export const conclude = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
 
     const now = Date.now();
@@ -572,9 +596,9 @@ export const conclude = mutation({
  * nothing to read and returns. That is already how a cancelled batch behaves.
  */
 export const destroy = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
 
     const present = await ctx.db

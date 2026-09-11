@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
@@ -14,16 +15,17 @@ import {
 } from '@/data/settings';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import { forgetSession, type Seat } from '@/data/session';
 
 export function SettingsWindow({
-  token,
+  seat,
   mayConclude,
   defeated,
   onClose,
   onShowBriefing,
   ...windowProps
 }: WindowProps & {
-  token: string;
+  seat: Seat;
   mayConclude: boolean;
   defeated: boolean;
   onShowBriefing: () => void;
@@ -32,6 +34,8 @@ export function SettingsWindow({
   const [sound, setSound] = useState(telegraphSoundOn);
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
+  const logout = useMutation(api.accounts.logout);
+  const navigate = useNavigate();
 
   const set = (value: number) => {
     const clamped = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, value));
@@ -147,7 +151,7 @@ export function SettingsWindow({
                 label={fr.settingsWindow.conclude}
                 confirm={fr.settingsWindow.concludeConfirm}
                 note={fr.settingsWindow.concludeWarning}
-                onDestroy={() => void conclude({ token }).catch(() => undefined)}
+                onDestroy={() => void conclude(seat).catch(() => undefined)}
               />
             </div>
           )}
@@ -173,10 +177,31 @@ export function SettingsWindow({
                   label={fr.settingsWindow.surrender}
                   confirm={fr.settingsWindow.surrenderConfirm}
                   note={fr.settingsWindow.surrenderWarning}
-                  onDestroy={() => void surrender({ token }).catch(() => undefined)}
+                  onDestroy={() => void surrender(seat).catch(() => undefined)}
                 />
               </>
             )}
+          </div>
+
+          {/* **Se déconnecter n'est pas quitter la partie** (ADR 0022) : la place reste au
+              compte, et c'est tout ce qui change avec le jeton de partie — on ferme un
+              appareil, on ne rend pas son siège. D'où le clic simple, à côté de deux gestes
+              qui, eux, en demandent deux. */}
+          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="text-[13.5px] text-[var(--ink)]">{fr.auth.logout}</div>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">{fr.auth.logoutNote}</p>
+            <button
+              type="button"
+              onClick={() =>
+                void logout({ token: seat.token }).finally(() => {
+                  forgetSession();
+                  void navigate({ to: '/connexion' });
+                })
+              }
+              className="mt-[8px] w-full cursor-pointer border border-[var(--ink)] py-[9px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            >
+              {fr.auth.logout}
+            </button>
           </div>
         </div>
       </div>

@@ -6,6 +6,8 @@ import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **The test victory — scaffolding under test, not a design decision** (`src/domain/victory.ts`).
@@ -25,23 +27,18 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const NATIONS = ['france', 'ussr', 'germany', 'japan'] as const;
 
 async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const tokens = [token];
-  for (let seat = 1; seat < players; seat += 1) {
-    const joined = await t.mutation(api.seasons.join, { code, nickname: `Joueur ${seat}` });
-    tokens.push(joined.token);
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const seats = [seat];
+  for (let rank = 1; rank < players; rank += 1) {
+    seats.push(await joinSeat(t, code, `Joueur ${rank}`));
   }
-  for (const [seat, seated] of tokens.entries()) {
-    await t.mutation(api.players.reserveNation, { token: seated, nation: NATIONS[seat]! });
-    await t.mutation(api.players.declareReady, { token: seated, ready: true });
+  for (const [rank, seated] of seats.entries()) {
+    await t.mutation(api.players.reserveNation, { ...seated, nation: NATIONS[rank]! });
+    await t.mutation(api.players.declareReady, { ...seated, ready: true });
   }
-  await t.mutation(api.seasons.launch, { token });
-  await disbandTheGift(t, ...tokens);
-  return tokens;
+  await t.mutation(api.seasons.launch, seat);
+  await disbandTheGift(t, ...seats);
+  return seats;
 }
 
 /**
@@ -50,9 +47,9 @@ async function launchedSeason(t: ReturnType<typeof boot>, players: number) {
  * rather than added to twenty expectations. What it *is* is graved in `off-season.test.ts`,
  * where the endowment itself is under test.
  */
-async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArray<string>) {
-  for (const token of tokens) {
-    const playerId = await playerOf(t, token);
+async function disbandTheGift(t: ReturnType<typeof boot>, ...seats: ReadonlyArray<Seat>) {
+  for (const seat of seats) {
+    const playerId = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const held = await ctx.db
         .query('troops')
@@ -63,19 +60,15 @@ async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArr
   }
 }
 
-async function playerOf(t: ReturnType<typeof boot>, token: string) {
+async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
   return t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player._id;
   });
 }
 
-async function raise(t: ReturnType<typeof boot>, token: string, regionId: string) {
-  const playerId = await playerOf(t, token);
+async function raise(t: ReturnType<typeof boot>, seat: Seat, regionId: string) {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('buildings', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -90,10 +83,10 @@ async function raise(t: ReturnType<typeof boot>, token: string, regionId: string
 /** A troop formed without paying for it: what is under test is the bar, not the production. */
 async function form(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   stationedAt: Id<'buildings'> | Id<'outposts'> | null,
 ): Promise<Id<'troops'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -108,8 +101,8 @@ async function form(
 }
 
 /** A column left standing on the map — the third form of an address (ADR 0019 §1). */
-async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
-  const playerId = await playerOf(t, token);
+async function post(t: ReturnType<typeof boot>, seat: Seat, point: LonLat) {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -123,8 +116,8 @@ async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
   );
 }
 
-async function plant(t: ReturnType<typeof boot>, token: string, point: LonLat) {
-  const playerId = await playerOf(t, token);
+async function plant(t: ReturnType<typeof boot>, seat: Seat, point: LonLat) {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -148,7 +141,7 @@ async function seasonOf(t: ReturnType<typeof boot>) {
  * France walks three columns onto the garrison the victim planted in Romania — enough men that
  * the pass leaves the defence well under half of what it was formed at.
  */
-async function overrun(t: ReturnType<typeof boot>, attacker: string, victim: string) {
+async function overrun(t: ReturnType<typeof boot>, attacker: Seat, victim: Seat) {
   const barracks = await raise(t, attacker, MARNE);
   const column = [
     await form(t, attacker, barracks),
@@ -159,7 +152,7 @@ async function overrun(t: ReturnType<typeof boot>, attacker: string, victim: str
   await form(t, victim, outpost);
 
   await t.mutation(api.movements.attack, {
-    token: attacker,
+    ...attacker,
     origin: { kind: 'building', buildingId: barracks },
     troopIds: column,
     target: { kind: 'outpost', outpostId: outpost },
@@ -189,7 +182,7 @@ describe('the simplified Domination', () => {
     expect(season.concludedAt).toBe(engagement!.at);
 
     // Public and named — the departure from design sheet 05 the scaffold makes on purpose.
-    const board = (await t.query(api.view.playerView, { token: victim! })).season.reduction;
+    const board = (await t.query(api.view.playerView, victim!)).season.reduction;
     expect(board.target).toBe(1);
     expect(board.winnerNation).toBe('france');
     expect(board.standings.find((seat) => seat.nation === 'france')!.reduced).toBe(1);
@@ -206,15 +199,15 @@ describe('the simplified Domination', () => {
     const t = boot();
     const [creator] = await launchedSeason(t, 3);
     const targetNow = async () =>
-      (await t.query(api.view.playerView, { token: creator! })).season.reduction.target;
+      (await t.query(api.view.playerView, creator!)).season.reduction.target;
     expect(await targetNow()).toBe(1);
 
     const { code } = await seasonOf(t);
-    const { token: late } = await t.mutation(api.seasons.join, { code, nickname: 'Tard' });
+    const late = await joinSeat(t, code, 'Tard');
     expect(await targetNow()).toBe(1);
 
-    await t.mutation(api.players.reserveNation, { token: late, nation: 'japan' });
-    await t.mutation(api.seasons.enterWar, { token: late });
+    await t.mutation(api.players.reserveNation, { ...late, nation: 'japan' });
+    await t.mutation(api.seasons.enterWar, late);
     expect(await targetNow()).toBe(2);
   });
 
@@ -237,7 +230,7 @@ describe('the simplified Domination', () => {
     await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
 
     await t.mutation(api.movements.marchTo, {
-      token: walker!,
+      ...walker!,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [worn],
       point: { lon: point[0], lat: point[1] },
@@ -248,7 +241,7 @@ describe('the simplified Domination', () => {
     expect(engagement!.attackerId).toBe(await playerOf(t, camper!));
     expect(engagement!.reducedDefender).toBe(true);
     /** Nothing was ordered on that side: the camp is still the only movement-free force there. */
-    expect((await t.query(api.view.playerView, { token: camper! })).me.slots.used).toBe(0);
+    expect((await t.query(api.view.playerView, camper!)).me.slots.used).toBe(0);
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.playerId).toBe(
       await playerOf(t, camper!),
     );
@@ -266,7 +259,7 @@ describe('the simplified Domination', () => {
     await overrun(t, attacker!, victim!);
 
     const tallyOf = async () => {
-      const board = (await t.query(api.view.playerView, { token: attacker! })).season.reduction;
+      const board = (await t.query(api.view.playerView, attacker!)).season.reduction;
       return board.standings.find((seat) => seat.nation === 'france')!.reduced;
     };
 
@@ -285,7 +278,7 @@ describe('the simplified Domination', () => {
     });
 
     expect(await tallyOf()).toBe(0);
-    const board = (await t.query(api.view.playerView, { token: attacker! })).season.reduction;
+    const board = (await t.query(api.view.playerView, attacker!)).season.reduction;
     expect(board.target).toBe(2);
     expect(board.standings.find((seat) => seat.nation === 'ussr')!.isReduced).toBe(false);
   });
@@ -297,7 +290,7 @@ describe('the simplified Domination', () => {
     expect((await seasonOf(t)).status).toBe('concluded');
 
     // The board still answers: the wipe is manual, and one reads the game back before erasing it.
-    const view = await t.query(api.view.playerView, { token: victim! });
+    const view = await t.query(api.view.playerView, victim!);
     expect(view.season.reduction.winnerNation).toBe('france');
     expect(view.journal ?? []).toBeDefined();
 
@@ -306,7 +299,7 @@ describe('the simplified Domination', () => {
 
     await expect(
       t.mutation(api.movements.attack, {
-        token: victim!,
+        ...victim!,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [troop],
         target: { kind: 'region', regionId: PRAHOVA },
@@ -314,12 +307,12 @@ describe('the simplified Domination', () => {
     ).rejects.toThrow('SEASON_CONCLUDED');
 
     await expect(
-      t.mutation(api.constructions.start, { token: victim!, building: 'farm', regionId: MARNE }),
+      t.mutation(api.constructions.start, { ...victim!, building: 'farm', regionId: MARNE }),
     ).rejects.toThrow('SEASON_CONCLUDED');
 
     await expect(
       t.mutation(api.troops.recruit, {
-        token: victim!,
+        ...victim!,
         buildingId: barracks,
         role: 'infantry',
         tier: 1,

@@ -5,7 +5,7 @@ import type { MutationCtx } from './_generated/server';
 import { internalMutation, query } from './_generated/server';
 import { destinationPoint, type LonLat } from '../src/domain/geo';
 import { LOOT_CRATE_HOURS, LOOT_RUMOR_DELAY_MINUTES, LOOT_RUMOR_RADIUS_KM } from './constants';
-import { playerByToken } from './seasons';
+import { playerOf } from './seasons';
 
 export function approximateLootCenter(
   point: LonLat,
@@ -115,9 +115,9 @@ export const end = internalMutation({
 });
 
 export const list = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { season } = await playerOf(ctx, token, seasonId);
     const rumors = await ctx.db
       .query('lootRumors')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))

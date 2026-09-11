@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { fail } from './errors';
+import { accountOf, previewOf } from './seasons';
 
 const digestArgs = {
   passwordHash: v.string(),
@@ -118,16 +119,33 @@ export const resetPassword = internalMutation({
   },
 });
 
+/**
+ * **Qui est là, et à quelles tables il est assis** (ADR 0022). Les deux en une lecture parce
+ * que c'est une seule question : l'accueil n'a rien à afficher d'un compte sans ses parties, et
+ * une seconde requête aurait fait clignoter la liste sous le pseudo.
+ *
+ * `null` est la session inconnue ou orpheline, et c'est ce que le client lit pour renvoyer à la
+ * page de connexion — jamais un refus, qui aurait fait un écran d'erreur d'une simple
+ * déconnexion.
+ */
 export const me = query({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
-    const session = await ctx.db
-      .query('sessions')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!session) return null;
-    const account = await ctx.db.get(session.accountId);
-    return account ? { nickname: account.nickname } : null;
+    const account = await accountOf(ctx, token);
+    if (!account) return null;
+    const seats = await ctx.db
+      .query('players')
+      .withIndex('byAccountSeason', (q) => q.eq('accountId', account._id))
+      .collect();
+    /** L'ordre d'entrée : le rang d'insertion est le seul que l'index ne donne pas, et c'est
+     *  celui qui a un sens pour une liste de parties. */
+    const ordered = [...seats].sort((left, right) => left._creationTime - right._creationTime);
+    const previews = [];
+    for (const seat of ordered) {
+      const preview = await previewOf(ctx, seat);
+      if (preview !== null) previews.push(preview);
+    }
+    return { nickname: account.nickname, seats: previews };
   },
 });
 

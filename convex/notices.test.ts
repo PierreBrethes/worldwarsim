@@ -9,6 +9,8 @@ import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Le journal dit ce qui s'est passé, et c'est le job qui l'écrit.** Une notice par événement,
@@ -36,35 +38,27 @@ const eastOf = (point: LonLat, km: number): LonLat => [
 ];
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest };
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest };
 }
 
-async function playerOf(t: ReturnType<typeof boot>, token: string) {
+async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
   return t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player._id;
   });
 }
 
 /** Only what the job under test filed: the launch endowment leaves none, but a second event in
  *  the same run would, and a test that read the whole table would drift with the game. */
-async function noticesOf(t: ReturnType<typeof boot>, token: string, kind: Doc<'notices'>['kind']) {
-  const playerId = await playerOf(t, token);
+async function noticesOf(t: ReturnType<typeof boot>, seat: Seat, kind: Doc<'notices'>['kind']) {
+  const playerId = await playerOf(t, seat);
   const filed = await t.run(async (ctx) =>
     ctx.db
       .query('notices')
@@ -76,11 +70,11 @@ async function noticesOf(t: ReturnType<typeof boot>, token: string, kind: Doc<'n
 
 async function raise(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: BuildingKey,
   regionId: string,
 ): Promise<Id<'buildings'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
     return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level: 1 });
@@ -89,11 +83,11 @@ async function raise(
 
 async function form(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   role: UnitRole,
   stationedAt: Id<'buildings'> | null,
 ): Promise<Id<'troops'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   const strength = nominalStrength(role, 1);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
@@ -109,8 +103,8 @@ async function form(
   });
 }
 
-async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
-  const troopId = await form(t, token, 'infantry', null);
+async function post(t: ReturnType<typeof boot>, seat: Seat, point: LonLat) {
+  const troopId = await form(t, seat, 'infantry', null);
   await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(point) }));
   return troopId;
 }
@@ -124,9 +118,9 @@ describe('what the jobs file for the journal', () => {
 
   it('files a delivery when a batch becomes a company, with the site it came out of', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const playerId = await playerOf(t, token);
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const playerId = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const recruitmentId = await ctx.db.insert('recruitments', {
         playerId,
@@ -141,7 +135,7 @@ describe('what the jobs file for the journal', () => {
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    expect(await noticesOf(t, token, 'recruitmentDelivered')).toMatchObject([
+    expect(await noticesOf(t, seat, 'recruitmentDelivered')).toMatchObject([
       { role: 'infantry', site: { building: 'barracks', regionId: MARNE } },
     ]);
     expect(await noticesOf(t, guest, 'recruitmentDelivered')).toEqual([]);
@@ -149,26 +143,26 @@ describe('what the jobs file for the journal', () => {
 
   it('files an arrival for a march, and none for the attack an engagement accounts for', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     const sent = await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       point: asPoint(pointOf(PRAHOVA)),
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    expect(await noticesOf(t, token, 'columnArrived')).toMatchObject([
+    expect(await noticesOf(t, seat, 'columnArrived')).toMatchObject([
       { movementType: 'march', hostCountry: 'ROU', troops: 1 },
     ]);
 
     await t.mutation(api.movements.attack, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       target: { kind: 'region', regionId: PRAHOVA },
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -176,7 +170,7 @@ describe('what the jobs file for the journal', () => {
      *  nothing of a march made for nothing — and only its **walk back** is an arrival the
      *  journal owes. Saying the arrival twice is exactly what the type list here prevents. */
     expect(
-      (await noticesOf(t, token, 'columnArrived')).map((notice) =>
+      (await noticesOf(t, seat, 'columnArrived')).map((notice) =>
         notice.kind === 'columnArrived' ? notice.movementType : null,
       ),
     ).toEqual(['march', 'return']);
@@ -189,18 +183,18 @@ describe('what the jobs file for the journal', () => {
    */
   it('files the honest nothing of a column that arrived on empty ground', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     await t.mutation(api.movements.attack, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       target: { kind: 'region', regionId: PRAHOVA },
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    expect(await noticesOf(t, token, 'columnFoundNothing')).toMatchObject([
+    expect(await noticesOf(t, seat, 'columnFoundNothing')).toMatchObject([
       { movementType: 'attack', hostCountry: 'ROU', troops: 1 },
     ]);
     /** Personne d'autre : il n'y avait personne, justement. */
@@ -211,7 +205,7 @@ describe('what the jobs file for the journal', () => {
    *  l'heure à laquelle elle passera est le seul fait qui mérite une manchette. */
   it('files the hour a column held by a rest window will go through', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     // The Soviet sleeps across the hour the column would land in, so the border holds it.
     const guestId = await playerOf(t, guest);
     await t.run(async (ctx) =>
@@ -221,17 +215,17 @@ describe('what the jobs file for the journal', () => {
     );
     vi.setSystemTime(new Date(2026, 7, 17, 1, 0, 0));
 
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       point: asPoint(pointOf(PSKOV)),
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    const [stalled] = await noticesOf(t, token, 'movementStalled');
+    const [stalled] = await noticesOf(t, seat, 'movementStalled');
     expect(stalled).toMatchObject({ kind: 'movementStalled', hostCountry: 'RUS' });
     if (stalled?.kind !== 'movementStalled') throw new Error('no stall filed');
     expect(stalled.resolvesAt).toBeGreaterThan(Date.now());
@@ -239,17 +233,17 @@ describe('what the jobs file for the journal', () => {
 
   it('files a founding for the player who planted the point', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const desert = pointOf(PRAHOVA);
     await t.mutation(api.movements.foundOutpostHere, {
       regionId: null,
-      token,
+      ...seat,
       point: asPoint(desert),
       specialization: 'relay',
-      troopIds: [await post(t, token, desert)],
+      troopIds: [await post(t, seat, desert)],
     });
 
-    expect(await noticesOf(t, token, 'outpostFounded')).toMatchObject([
+    expect(await noticesOf(t, seat, 'outpostFounded')).toMatchObject([
       { hostCountry: 'ROU', specialization: 'relay' },
     ]);
     expect(await noticesOf(t, guest, 'outpostFounded')).toEqual([]);
@@ -262,7 +256,7 @@ describe('what the jobs file for the journal', () => {
    */
   it('files a deactivation for the owner of the point a raid put out of service', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const point = pointOf(PRAHOVA);
     const guestId = await playerOf(t, guest);
     await t.run(async (ctx) =>
@@ -287,11 +281,11 @@ describe('what the jobs file for the journal', () => {
       )
     )[0]!._id;
 
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await t.mutation(api.movements.raid, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       outpostId,
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
@@ -300,7 +294,7 @@ describe('what the jobs file for the journal', () => {
     expect(await noticesOf(t, guest, 'outpostDisabled')).toMatchObject([
       { hostCountry: 'ROU', specialization: 'relay' },
     ]);
-    expect(await noticesOf(t, token, 'outpostDisabled')).toEqual([]);
+    expect(await noticesOf(t, seat, 'outpostDisabled')).toEqual([]);
   });
 
   /**
@@ -309,7 +303,7 @@ describe('what the jobs file for the journal', () => {
    */
   it('files a sighting for the sentry that saw a thread, and for nobody else', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const road = routeBetween(pointOf(MARNE), pointOf(PRAHOVA), 'land')!;
     const halfway = road.points[Math.floor(road.points.length / 2)]!;
     const camp = eastOf(halfway, 40);
@@ -318,16 +312,16 @@ describe('what the jobs file for the journal', () => {
     ).toBeLessThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
 
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
     await t.mutation(api.movements.attack, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       target: { kind: 'region', regionId: PRAHOVA },
     });
 
     expect(await noticesOf(t, guest, 'movementSighted')).toEqual([]);
-    expect((await t.query(api.view.playerView, { token: guest })).detected).toEqual([]);
+    expect((await t.query(api.view.playerView, guest)).detected).toEqual([]);
     const guestPlayer = await playerOf(t, guest);
     const [window] = await t.run(async (ctx) =>
       ctx.db
@@ -341,7 +335,7 @@ describe('what the jobs file for the journal', () => {
 
     const [sighted] = await noticesOf(t, guest, 'movementSighted');
     expect(sighted).toBeDefined();
-    const [detected] = (await t.query(api.view.playerView, { token: guest })).detected;
+    const [detected] = (await t.query(api.view.playerView, guest)).detected;
     expect(detected).toBeDefined();
     expect(detected).not.toHaveProperty('type');
     expect(detected).not.toHaveProperty('stack');
@@ -361,11 +355,11 @@ describe('what the jobs file for the journal', () => {
       ].sort(),
     );
     expect(sighted).toMatchObject({ detector: 'troop', detectorRegion: null });
-    expect(await noticesOf(t, token, 'movementSighted')).toEqual([]);
+    expect(await noticesOf(t, seat, 'movementSighted')).toEqual([]);
 
     vi.advanceTimersByTime(window!.to - Date.now() + 1);
     await t.finishInProgressScheduledFunctions();
-    const [memory] = (await t.query(api.view.playerView, { token: guest })).detected;
+    const [memory] = (await t.query(api.view.playerView, guest)).detected;
     expect(memory).toBeDefined();
     expect(memory!.seenTo).toBeLessThan(Date.now());
     expect(memory).not.toHaveProperty('type');
@@ -378,8 +372,8 @@ describe('what the jobs file for the journal', () => {
    */
   it('files a dry pass for the side whose magazine could not cover it', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const dry = await playerOf(t, token);
+    const { seat, guest } = await launchedSeason(t);
+    const dry = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const held = await ctx.db
         .query('resources')
@@ -391,17 +385,17 @@ describe('what the jobs file for the journal', () => {
 
     const point = pointOf(PRAHOVA);
     await post(t, guest, point);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await t.mutation(api.movements.attack, {
-      token,
+      ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [await form(t, token, 'infantry', barracks)],
+      troopIds: [await form(t, seat, 'infantry', barracks)],
       target: { kind: 'point', point: asPoint(point) },
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect(await noticesOf(t, token, 'firedDry')).toMatchObject([{ hostCountry: 'ROU' }]);
+    expect(await noticesOf(t, seat, 'firedDry')).toMatchObject([{ hostCountry: 'ROU' }]);
     expect(await noticesOf(t, guest, 'firedDry')).toEqual([]);
   });
 });
@@ -420,15 +414,15 @@ describe('read and unread', () => {
 
   it('stamps the hour the window was closed, and nothing before that', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    expect((await t.query(api.view.playerView, { token })).journalReadAt).toBeNull();
+    const { seat } = await launchedSeason(t);
+    expect((await t.query(api.view.playerView, seat)).journalReadAt).toBeNull();
 
-    await t.mutation(api.journal.markRead, { token });
-    const stamped = (await t.query(api.view.playerView, { token })).journalReadAt;
+    await t.mutation(api.journal.markRead, seat);
+    const stamped = (await t.query(api.view.playerView, seat)).journalReadAt;
     expect(stamped).toBe(Date.now());
 
     vi.advanceTimersByTime(3_600_000);
-    await t.mutation(api.journal.markRead, { token });
-    expect((await t.query(api.view.playerView, { token })).journalReadAt).toBeGreaterThan(stamped!);
+    await t.mutation(api.journal.markRead, seat);
+    expect((await t.query(api.view.playerView, seat)).journalReadAt).toBeGreaterThan(stamped!);
   });
 });

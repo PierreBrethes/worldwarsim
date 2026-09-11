@@ -9,7 +9,11 @@ connexion et aucune expiration automatique des sessions. Des tentatives répét�
 consommer du calcul PBKDF2 et tester des mots de passe ; le cercle d'amis ne constitue pas
 un contrôle réseau. Réévaluer avant exposition élargie. La déconnexion révoque une session ;
 la récupération admin révoque toutes celles du compte. Les performances et le runtime du
-VPS n'ont pas été validés par les tests locaux. Aucun parcours client C2 n'est activé.
+VPS n'ont pas été validés par les tests locaux.
+
+**C3 a ouvert le parcours client (11/09)** : la page `/connexion` appelle ces mêmes actions, le
+risque n'est donc plus théorique — il est en ligne dès le déploiement. Rien n'a été ajouté pour
+le réduire, c'est le choix assumé du brief.
 
 ## 🔴 Le ratio temps de trajet ÷ temps de construction
 

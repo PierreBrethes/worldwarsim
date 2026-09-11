@@ -13,8 +13,8 @@ applyHudScale(readHudScale());
  * **Un déploiement efface les chunks du précédent.** Un onglet resté ouvert garde l'index
  * d'avant en mémoire ; le premier `lazy()` qu'il ouvre demande un fichier que le nouveau build
  * ne contient plus, et rien ne peut le rattraper au rendu — le module n'existe pas. Recharger
- * reprend l'index courant, donc les bons hachages, et le joueur retombe sur sa partie : le
- * jeton vit dans `localStorage` et la carte se relit depuis le serveur.
+ * reprend l'index courant, donc les bons hachages, et le joueur retombe sur sa partie : la
+ * session vit dans `localStorage` et la carte se relit depuis le serveur.
  *
  * L'autre moitié du correctif est côté serveur (`deploiement/nginx.conf`) : un `index.html`
  * caché par heuristique redemanderait les mêmes fichiers morts et ce rechargement tournerait

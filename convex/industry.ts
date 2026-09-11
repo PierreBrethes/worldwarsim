@@ -4,7 +4,7 @@ import { playerBuildings, totalLevelOf } from './buildings';
 import { isCommanded } from './constants';
 import { fail } from './errors';
 import { maxOrderOf, settle } from './resources';
-import { playerByToken, requirePlayable } from './seasons';
+import { playerOf, requirePlayable } from './seasons';
 import { BUILDING_KEY } from './validators';
 
 /**
@@ -16,9 +16,9 @@ import { BUILDING_KEY } from './validators';
  * scheduled job would be a second authority on the same figure.
  */
 export const order = mutation({
-  args: { token: v.string(), chain: BUILDING_KEY, quantity: v.number() },
-  handler: async (ctx, { token, chain, quantity }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), chain: BUILDING_KEY, quantity: v.number() },
+  handler: async (ctx, { token, seasonId, chain, quantity }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     if (!isCommanded(chain)) fail('CHAIN_NOT_COMMANDED', { chain });
 
@@ -67,9 +67,9 @@ export const order = mutation({
  * not started costs nothing.
  */
 export const cancelOrder = mutation({
-  args: { token: v.string(), chain: BUILDING_KEY },
-  handler: async (ctx, { token, chain }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), chain: BUILDING_KEY },
+  handler: async (ctx, { token, seasonId, chain }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     const now = Date.now();

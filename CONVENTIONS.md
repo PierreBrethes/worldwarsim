@@ -49,16 +49,22 @@ Le nom porte l'intention ; on doit comprendre un appel sans ouvrir la définitio
 - Les booléens s'énoncent : `isMine`, `cappedByHq`, `crossesAntimeridian`
 - Pas d'abréviation sauf si elle appartient au domaine (`lonLat`, `km`)
 
-**Un module de `convex/` porte un nom sans tiret et ne travaille pas à l'import.** Ce sont les
-deux règles que le runtime impose et que `tsc`, `eslint` et `convex-test` ignorent — le vérifieur
-est vert et le déploiement refuse. Le nom d'abord : un chemin qui n'est pas alphanumérique, tiret
+**Un module de `convex/` porte un nom sans tiret, ne travaille pas à l'import, et ne calcule pas
+dans une query ce qu'un script peut cuire.** Ce sont les règles que le runtime impose et que
+`tsc`, `eslint` et `convex-test` ignorent — le vérifieur est vert et le déploiement refuse, ou
+bien la query expire une fois sur trois en production. Le nom d'abord : un chemin qui n'est pas alphanumérique, tiret
 bas ou point s'arrête sur `InvalidConfig`, donc camelCase sous `convex/` (`cargoReturn.ts`,
 `regionGeometry.ts`), kebab-case sous `src/domain/` (`movement-orders.ts`) où rien ne l'interdit.
 Le travail ensuite : le push évalue chaque module dans un isolat pour y découvrir les fonctions,
 avec quatre secondes pour l'ensemble, et un calcul au niveau du module s'arrête sur
 `InvalidModules — Function execution timed out`. Un asset se prépare donc derrière une
-mémoïsation (`let grid = null` puis `grid ??= buildGrid(world)`, `convex/routes.ts`), jamais à
-l'import. Deux invariants les vérifient (`convex/invariants.test.ts`).
+mémoïsation (`let grid = null` puis `grid ??= decodeGrid(gridAsset, world)`, `convex/routes.ts`),
+jamais à l'import. Le budget ensuite : une query a **une seconde**, et rasteriser 1,33 M de
+cellules la dépasse à froid, sans JIT — d'où `public/grid.json`, cuit par
+`scripts/generate-grid.mjs`, dont l'égalité avec `buildGrid` est vérifiée octet à octet. Ce qui
+ne dépend que des assets se cuit hors ligne ; la fonction de référence reste dans
+`src/domain/`, seule et testée. Quatre invariants les vérifient (`convex/invariants.test.ts`,
+`convex/view-budget.test.ts`).
 
 **Le nom d'un type est un garde-fou.** `PlayerView`, jamais `GameState` : le client ne reçoit pas le
 monde, seulement ce qu'un joueur a le droit d'en voir. Le jour où quelqu'un écrit

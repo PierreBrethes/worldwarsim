@@ -16,7 +16,7 @@ import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
-import { StaleToken } from '@/shell/StaleToken';
+import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
 import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
@@ -54,6 +54,7 @@ import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
 import { usePresence } from '@/data/presence';
+import type { Seat } from '@/data/session';
 import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
@@ -268,7 +269,7 @@ export const Route = createFileRoute('/plateau')({
     if (typeof raw.building === 'string' && raw.building.length > 0) search.building = raw.building;
     return search;
   },
-  // The loader only fetches the world and the token; the view comes from the subscription,
+  // The loader only fetches the world and the seat; the view comes from the subscription,
   // so the errors that used to surface here now surface at render — see `BoardError`.
   loader: loadGame,
   pendingComponent: Loading,
@@ -279,20 +280,20 @@ export const Route = createFileRoute('/plateau')({
 /**
  * The outcomes of a failed board subscription. Three are ordinary and get a route of their own:
  * a season still in the lobby and a seat whose owner has not entered the war both send the
- * player back to the lobby, and a token the server does not know gets dropped. Everything else
+ * player back to the lobby, and a seat the server does not know gets dropped. Everything else
  * is a genuine failure and says so.
  */
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
   if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') return <Navigate to="/salon" />;
-  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') return <StaleToken to="/accueil" />;
+  if (code === 'NO_SEAT' || code === 'SEASON_GONE') return <StaleSeat to="/accueil" />;
   return <ErrorScreen error={error} reset={reset} />;
 }
 
 function Board() {
   const entry = Route.useLoaderData();
   if (entry.state === 'none') return <NoGame />;
-  return <LiveBoard world={entry.world} token={entry.token} />;
+  return <LiveBoard world={entry.world} seat={entry.seat} />;
 }
 
 function NoGame() {
@@ -319,9 +320,9 @@ function NoGame() {
   );
 }
 
-function LiveBoard({ world, token }: { world: World; token: string }) {
-  const server = useQuery(api.view.playerView, { token });
-  usePresence(token);
+function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
+  const server = useQuery(api.view.playerView, seat);
+  usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
   // it on each render would redo the labels and the compass on every keystroke elsewhere.
   const view = useMemo(
@@ -329,10 +330,10 @@ function LiveBoard({ world, token }: { world: World; token: string }) {
     [world, server],
   );
   if (view === null) return <Loading />;
-  return <BoardContent world={world} view={view} token={token} />;
+  return <BoardContent world={world} view={view} seat={seat} />;
 }
 
-function BoardContent({ world, view, token }: { world: World; view: PlayerView; token: string }) {
+function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {
   const { country, windows = [], building: focused } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
@@ -388,7 +389,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
-  const lootRumors = useQuery(api.lootRumors.list, { token });
+  const lootRumors = useQuery(api.lootRumors.list, seat);
   const searchArea = useMemo(() => {
     const rumor = lootRumors?.find((candidate) => candidate.id === selectedRumorId);
     if (rumor === undefined) return null;
@@ -639,7 +640,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         case 'upgrade':
           setOrderError(null);
           startConstruction({
-            token,
+            ...seat,
             building: action.buildingKey,
             regionId: action.regionId,
           }).catch((problem: unknown) => handleError(problem, setOrderError));
@@ -696,7 +697,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         case 'found':
           setOrderError(null);
           foundHere({
-            token,
+            ...seat,
             point: { lon: action.point[0], lat: action.point[1] },
             /** Le sol sous la pile, tel que la carte le dessine : le serveur n'a pas les
              *  polygones et ne peut que vérifier le pays. Au dézoom il n'y a pas de région, et
@@ -713,7 +714,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           );
       }
     },
-    [foundHere, startConstruction, token],
+    [foundHere, startConstruction, seat],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -760,7 +761,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
       setPlacing(null);
       setOrderError(null);
       startConstruction({
-        token,
+        ...seat,
         building: ordered.key,
         regionId: ordered.regionId,
         point: { lon: point[0], lat: point[1] },
@@ -769,7 +770,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         (problem: unknown) => handleError(problem, setOrderError),
       );
     },
-    [placing, startConstruction, token],
+    [placing, startConstruction, seat],
   );
 
   /**
@@ -810,11 +811,11 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
        * make the second placement a fresh hunt through the card. It disarms on its own when the
        * debt is paid: `armed` is read off `me.foundation`, which the placement empties.
        */
-      place({ token, building: armed, regionId }).catch((problem: unknown) =>
+      place({ ...seat, building: armed, regionId }).catch((problem: unknown) =>
         handleError(problem, setMobilizeError),
       );
     },
-    [armed, designated, place, token],
+    [armed, designated, place, seat],
   );
 
   const inkByCountry = useMemo(
@@ -830,7 +831,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    * d'une colonne. Les coudre ensemble ferait recalculer 4 589 régions pour une troupe qui
    * marche. Le temps que la première réponse arrive, la carte est simplement sans teinte.
    */
-  const heldRaw = useQuery(api.control.held, { token });
+  const heldRaw = useQuery(api.control.held, seat);
   /**
    * **L'ancienneté d'un relevé se voit sur la carte, pas au survol** (ADR 0020 §5) : une région à
    * jour est franche, un relevé ancien est délavé. Le battement est à la minute — `surveyWash`
@@ -1169,7 +1170,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
    */
   /** **Le canal général se tient au plateau, fenêtre ouverte ou non** : le badge du rail compte
    *  et le tic-tac sonne quand on regarde ailleurs (`telegraph.ts`). */
-  const telegraph = useTelegraph(token);
+  const telegraph = useTelegraph(seat);
 
   const [briefing, setBriefing] = useState(() => !briefingSeen());
 
@@ -1203,7 +1204,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
     column === null || order === null
       ? null
       : {
-          token,
+          ...seat,
           origin: wireOrigin(column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
         };
@@ -1298,7 +1299,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
           <ConstructionPanel
             key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
             view={view}
-            token={token}
+            seat={seat}
             regionId={buildingSite.regionId}
             at={buildingSite}
             onClose={() => setBuildingSite(null)}
@@ -1324,7 +1325,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                station and must arrive with *its* troops ticked, not the previous card's. */
             key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}-${garrison.preselect.join()}`}
             view={view}
-            token={token}
+            seat={seat}
             station={garrison.station}
             at={garrison}
             preselect={garrison.preselect}
@@ -1347,7 +1348,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
         {column && order && (
           <MovementPreview
             label={order.label}
-            token={token}
+            seat={seat}
             origin={column.station}
             troopIds={column.troopIds}
             aim={order.aim}
@@ -1414,7 +1415,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <JournalWindow
                   key={name}
                   view={view}
-                  token={token}
+                  seat={seat}
                   rumors={lootRumors}
                   selectedRumorId={selectedRumorId}
                   onSelectRumor={selectRumor}
@@ -1423,7 +1424,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
               );
             case 'telegraph':
               return (
-                <TelegraphWindow key={name} telegraph={telegraph} token={token} {...windowProps} />
+                <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />
               );
             case 'site':
               /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
@@ -1432,7 +1433,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <SiteModal
                   key={name}
                   view={view}
-                  token={token}
+                  seat={seat}
                   buildingId={focused}
                   onOpenGunnery={() => openWindow('gunnery')}
                   onPrepare={prepareColumn}
@@ -1444,7 +1445,7 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <EconomyWindow
                   key={name}
                   view={view}
-                  token={token}
+                  seat={seat}
                   focused={focused ?? null}
                   {...windowProps}
                 />
@@ -1454,14 +1455,14 @@ function BoardContent({ world, view, token }: { world: World; view: PlayerView; 
                 <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />
               );
             case 'gunnery':
-              return <GunneryWindow key={name} token={token} {...windowProps} />;
+              return <GunneryWindow key={name} seat={seat} {...windowProps} />;
             case 'press':
               return <PressWindow key={name} press={view.press} {...windowProps} />;
             case 'settings':
               return (
                 <SettingsWindow
                   key={name}
-                  token={token}
+                  seat={seat}
                   mayConclude={view.me.mayConclude}
                   defeated={view.me.defeated}
                   onShowBriefing={() => setBriefing(true)}

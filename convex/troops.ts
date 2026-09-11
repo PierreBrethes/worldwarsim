@@ -22,7 +22,7 @@ import { fail } from './errors';
 import { regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf } from './resources';
 import {
-  playerByToken,
+  playerOf,
   playingSeason,
   requirePlayable,
   requireStarted,
@@ -43,9 +43,9 @@ const DOMAIN_OF_PROJECTION = new Map<BuildingKey, UnitDomain>(
  * `PlayerView`, which describes the board and has no reason to carry a cost grid.
  */
 export const workshop = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     const now = Date.now();
 
@@ -117,12 +117,13 @@ export const workshop = query({
 export const recruit = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     buildingId: v.id('buildings'),
     role: UNIT_ROLE,
     tier: UNIT_TIER,
   },
-  handler: async (ctx, { token, buildingId, role, tier }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, buildingId, role, tier }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     const building = await ctx.db.get(buildingId);
@@ -187,9 +188,9 @@ export const recruit = mutation({
  * time, and cancelling it midway would open a free round trip between matter and time.
  */
 export const cancel = mutation({
-  args: { token: v.string(), recruitmentId: v.id('recruitments') },
-  handler: async (ctx, { token, recruitmentId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), recruitmentId: v.id('recruitments') },
+  handler: async (ctx, { token, seasonId, recruitmentId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     const batch = await ctx.db.get(recruitmentId);
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');

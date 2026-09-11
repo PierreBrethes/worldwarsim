@@ -2,6 +2,7 @@ import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
 import { telegraphSoundOn } from './settings';
+import type { Seat } from './session';
 
 export type TelegraphMessage = {
   readonly id: string;
@@ -29,8 +30,8 @@ const QUIET: Telegraph = { messages: [], unread: 0 };
  * qu'un afficheur. Au salon il n'y a ni rail ni badge, mais le même abonnement et le même
  * tic-tac — d'où la remontée hors de `-plateau/`.
  */
-export function useTelegraph(token: string): Telegraph {
-  const served = useQuery(api.messages.recent, { token });
+export function useTelegraph(seat: Seat): Telegraph {
+  const served = useQuery(api.messages.recent, seat);
   const telegraph = useMemo<Telegraph>(
     () =>
       served === undefined

@@ -1,0 +1,145 @@
+import { convexTest } from 'convex-test';
+import { describe, expect, it } from 'vitest';
+import { api } from './_generated/api';
+import schema from './schema';
+import { foundSeat, joinSeat, signIn } from './seats.fixture';
+import { modules } from './test.setup';
+
+const boot = () => convexTest(schema, modules);
+
+/**
+ * **Le compte possède ses places** (ADR 0022). Ce que cette suite tient, c'est la porte
+ * elle-même : qui entre, avec quoi, et ce que trois refus différents disent. Les règles du jeu,
+ * elles, sont testées derrière — chacune dans son fichier, toutes par le même helper de place.
+ */
+describe('une place par compte et par saison', () => {
+  it('refuse la seconde place du même compte dans la même saison', async () => {
+    const t = boot();
+    const { code } = await foundSeat(t);
+    const token = await signIn(t, 'Léa');
+
+    await t.mutation(api.seasons.join, { token, code });
+    await expect(t.mutation(api.seasons.join, { token, code })).rejects.toThrow('SEAT_TAKEN');
+  });
+
+  it('en donne deux dans deux saisons, et les liste avec leur aperçu', async () => {
+    const t = boot();
+    const token = await signIn(t, 'Pierre');
+    const first = await t.mutation(api.seasons.create, {
+      token,
+      durationHours: 48,
+      compensation: 0.5,
+    });
+    const second = await t.mutation(api.seasons.create, {
+      token,
+      durationHours: null,
+      compensation: 0.5,
+    });
+
+    const me = await t.query(api.accounts.me, { token });
+    expect(me).toEqual({
+      nickname: 'Pierre',
+      seats: [
+        expect.objectContaining({ seasonId: first.seasonId, code: first.code, creator: true }),
+        expect.objectContaining({ seasonId: second.seasonId, code: second.code, creator: true }),
+      ],
+    });
+  });
+
+  /** Le pseudo du compte, copié à l'entrée : c'est lui que le salon montre, sans qu'on l'ait
+   *  redemandé. */
+  it('assoit le joueur sous le pseudo de son compte', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    expect((await t.query(api.seasons.lobby, seat)).me.nickname).toBe('Pierre');
+  });
+});
+
+describe('les trois refus de la porte', () => {
+  it('refuse une session inconnue', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t);
+    await expect(t.query(api.seasons.lobby, { ...seat, token: 'inconnu' })).rejects.toThrow(
+      'UNKNOWN_SESSION',
+    );
+  });
+
+  it('refuse une session valide sans place dans la saison demandée', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    const outsider = await signIn(t, 'Léa');
+    await expect(
+      t.query(api.seasons.lobby, { token: outsider, seasonId: seat.seasonId }),
+    ).rejects.toThrow('NO_SEAT');
+  });
+
+  /** **Une place dans une autre saison n'ouvre pas celle-ci.** C'est le cloisonnement que le
+   *  jeton de partie tenait par accident, et que la paire session + saison doit tenir exprès. */
+  it('refuse une place prise dans une autre saison', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    const elsewhere = await foundSeat(t, 'Léa');
+    await expect(
+      t.query(api.seasons.lobby, { token: elsewhere.seat.token, seasonId: seat.seasonId }),
+    ).rejects.toThrow('NO_SEAT');
+  });
+});
+
+describe('la place et l’appareil', () => {
+  /**
+   * **Ce pour quoi le compte existe** (ADR 0022) : la place obtenue le matin au bureau se joue
+   * le soir au téléphone. Une seconde session du même compte est un second appareil, et elle
+   * ouvre la même place.
+   */
+  it('se joue depuis une seconde session du même compte', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    const guest = await joinSeat(t, code, 'Léa');
+    await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+
+    const phone = await t.run(async (ctx) => {
+      const session = await ctx.db
+        .query('sessions')
+        .withIndex('byToken', (q) => q.eq('token', seat.token))
+        .unique();
+      const now = Date.now();
+      await ctx.db.insert('sessions', {
+        accountId: session!.accountId,
+        token: 'téléphone',
+        createdAt: now,
+        lastSeenAt: now,
+      });
+      return 'téléphone';
+    });
+
+    const from = { token: phone, seasonId: seat.seasonId };
+    expect((await t.query(api.seasons.lobby, from)).me.nation).toBe('france');
+    await t.mutation(api.players.declareReady, { ...from, ready: true });
+    expect((await t.query(api.seasons.lobby, guest)).me.creator).toBe(false);
+    expect((await t.query(api.seasons.lobby, from)).me.ready).toBe(true);
+  });
+});
+
+describe('ce que la vue ne sert jamais', () => {
+  /**
+   * **Le compte ne traverse pas la frontière.** `PlayerView` est le nom qui dit ce qu'un joueur
+   * a le droit de voir ; un `accountId` ou un jeton qui s'y glisserait serait une identité
+   * durable servie à un adversaire, et rien dans l'écran ne l'aurait montré.
+   */
+  it('ne sert ni compte, ni jeton, ni empreinte de mot de passe', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    const guest = await joinSeat(t, code, 'Léa');
+    await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+    await t.mutation(api.players.declareReady, { ...seat, ready: true });
+    await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+    await t.mutation(api.players.declareReady, { ...guest, ready: true });
+    await t.mutation(api.seasons.launch, seat);
+
+    const served = JSON.stringify(await t.query(api.view.playerView, seat));
+    for (const secret of ['accountId', 'passwordHash', 'salt', 'iterations', seat.token]) {
+      expect(served).not.toContain(secret);
+    }
+    expect(JSON.stringify(await t.query(api.seasons.lobby, seat))).not.toContain(seat.token);
+  });
+});

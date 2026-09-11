@@ -40,6 +40,8 @@ import { clipToStorage, settle } from './resources';
 import regionIndex from '../public/region-index.json';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
 
@@ -67,23 +69,19 @@ async function launchedSeason(
   durationHours: 48 | 168 = 48,
   nation = 'france',
 ) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation });
-  await t.mutation(api.players.declareReady, { token, ready: true });
+  const { seat, code } = await foundSeat(t, 'Pierre', durationHours, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
   // Two seats, two flags: the guest takes anything but the one under test.
   await t.mutation(api.players.reserveNation, {
-    token: guest,
+    ...guest,
     nation: nation === 'ussr' ? 'japan' : 'ussr',
   });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  await disbandTheGift(t, token);
-  return token;
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  await disbandTheGift(t, seat);
+  return seat;
 }
 
 /**
@@ -91,13 +89,9 @@ async function launchedSeason(
  * measures is an economy, and the endowment eats: cleared at the door, so a figure here still
  * says what the ground produces. The gift itself is under test in `off-season.test.ts`.
  */
-async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
+async function disbandTheGift(t: ReturnType<typeof boot>, seat: Seat) {
   await t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     const held = await ctx.db
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
@@ -113,17 +107,13 @@ async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
  */
 async function raise(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: BuildingKey,
   regionId: string,
   level = 1,
 ) {
   await t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     await ctx.db.insert('buildings', {
       seasonId: player.seasonId,
       playerId: player._id,
@@ -137,13 +127,9 @@ async function raise(
 /** Puts a stock where the test needs it. Reaching a ceiling by waiting is not an option: a
  *  single settlement window clamps the inputs at their own ceiling first, so a foundry left
  *  alone for a week converts less than the same foundry read every hour. */
-async function fill(t: ReturnType<typeof boot>, token: string, key: ResourceKey, stock: number) {
+async function fill(t: ReturnType<typeof boot>, seat: Seat, key: ResourceKey, stock: number) {
   await t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     const row = (
       await ctx.db
         .query('resources')
@@ -156,13 +142,9 @@ async function fill(t: ReturnType<typeof boot>, token: string, key: ResourceKey,
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */
-async function promoteHq(t: ReturnType<typeof boot>, token: string, level: number) {
+async function promoteHq(t: ReturnType<typeof boot>, seat: Seat, level: number) {
   await t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     const hq = (
       await ctx.db
         .query('buildings')
@@ -180,11 +162,11 @@ describe('exploitation', () => {
 
   it('feeds the nation from the deposit under the building, and from nothing else', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'farm', MARNE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'farm', MARNE);
     vi.advanceTimersByTime(2 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.food.ratePerHour).toBe(EXTRACTION_PER_HOUR.food);
     expect(view.me.resources.food.stock).toBe(KIT.food + 2 * EXTRACTION_PER_HOUR.food);
     // The farm sits on food; it produces nothing of what the region does not hold.
@@ -193,12 +175,12 @@ describe('exploitation', () => {
 
   it('gives the mine the resource of its region — coal here, ore there', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'mine', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'mine', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE);
     vi.advanceTimersByTime(3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.coal.ratePerHour).toBe(EXTRACTION_PER_HOUR.coal);
     expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore);
   });
@@ -218,12 +200,12 @@ describe('transformation', () => {
    */
   it('converts on its own and stops when an input runs out', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await fill(t, token, 'alloy', 0);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await fill(t, seat, 'alloy', 0);
     vi.advanceTimersByTime(10 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.ore.stock).toBe(0);
     expect(view.me.resources.alloy.stock).toBe(KIT.ore / 2);
     expect(view.me.resources.coal.stock).toBe(KIT.coal - KIT.ore / 2);
@@ -231,16 +213,16 @@ describe('transformation', () => {
 
   it('keeps going as long as a mine feeds it', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     // One building per region (ADR 0015): the second mine digs its coal on the shore, since
     // the foundry already holds Moselle.
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE);
-    await raise(t, token, 'mine', PAS_DE_CALAIS);
-    await fill(t, token, 'alloy', 0);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE);
+    await raise(t, seat, 'mine', PAS_DE_CALAIS);
+    await fill(t, seat, 'alloy', 0);
     vi.advanceTimersByTime(10 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.stock).toBeGreaterThan(KIT.ore / 2);
     expect(view.me.resources.ore.stock).toBeGreaterThan(0);
   });
@@ -260,27 +242,27 @@ describe('what the industry window reads', () => {
    *  the answer is a resource name. */
   it('names the coal a foundry runs out of', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE); // ore, and no coal mine anywhere
-    await fill(t, token, 'alloy', 0);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE); // ore, and no coal mine anywhere
+    await fill(t, seat, 'alloy', 0);
     vi.advanceTimersByTime(20 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.coal.stock).toBe(0);
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
   });
 
   it('calls a full output overflowing, not starved', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE);
-    await raise(t, token, 'mine', PAS_DE_CALAIS);
-    await fill(t, token, 'alloy', BASE_CAP);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE);
+    await raise(t, seat, 'mine', PAS_DE_CALAIS);
+    await fill(t, seat, 'alloy', BASE_CAP);
     vi.advanceTimersByTime(3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.stock).toBe(view.me.resources.alloy.cap);
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing', missing: null });
   });
@@ -293,14 +275,14 @@ describe('what the industry window reads', () => {
    */
   it('serves the rate the chains hold, not the mines alone', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE); // ore, 9/h
-    await raise(t, token, 'mine', PAS_DE_CALAIS); // coal, 10/h
-    await fill(t, token, 'alloy', 0);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE); // ore, 9/h
+    await raise(t, seat, 'mine', PAS_DE_CALAIS); // coal, 10/h
+    await fill(t, seat, 'alloy', 0);
     vi.advanceTimersByTime(3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     const cast = CHAINS.foundry.perHourPerLevel;
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'running' });
     // Ce que la fonderie coule, et ce qu'elle prélève sur les deux mines qui la nourrissent.
@@ -313,13 +295,13 @@ describe('what the industry window reads', () => {
    *  redevient celui de la mine, faute de quoi le joueur lirait une saignée qui n'a pas lieu. */
   it('takes nothing off the mines while the output has nowhere to go', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE);
-    await fill(t, token, 'alloy', BASE_CAP);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE);
+    await fill(t, seat, 'alloy', BASE_CAP);
     vi.advanceTimersByTime(3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'overflowing' });
     expect(view.me.resources.alloy.ratePerHour).toBe(0);
     expect(view.me.resources.ore.ratePerHour).toBe(EXTRACTION_PER_HOUR.ore);
@@ -328,9 +310,9 @@ describe('what the industry window reads', () => {
   /** An absent chain is information; an absent line is a hole. */
   it('serves the three chains even when nothing is built, extinguished', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.chains.map((chain) => chain.by)).toEqual([
       'foundry',
       'arsenal',
@@ -343,11 +325,11 @@ describe('what the industry window reads', () => {
 
   it('reports the site of every exploitation, mute ones included', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'farm', MARNE);
-    await raise(t, token, 'mine', ARDENNES); // no deposit at all under it
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'farm', MARNE);
+    await raise(t, seat, 'mine', ARDENNES); // no deposit at all under it
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.extraction).toEqual([
       {
         key: 'farm',
@@ -373,17 +355,17 @@ describe('what the industry window reads', () => {
    */
   it('still names the missing input right after a spend has reset the window', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await raise(t, token, 'mine', MEURTHE);
-    await fill(t, token, 'alloy', 100);
-    await promoteHq(t, token, unlockLevel('billets'));
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await raise(t, seat, 'mine', MEURTHE);
+    await fill(t, seat, 'alloy', 100);
+    await promoteHq(t, seat, unlockLevel('billets'));
     vi.advanceTimersByTime(20 * 3_600_000);
     // The billets, not the farm: the farm belongs to the foundation, and a free placement
     // spends nothing — so it would reset no window.
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: MARNE });
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: MARNE });
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'foundry')).toMatchObject({ state: 'starved', missing: 'coal' });
   });
 });
@@ -391,13 +373,13 @@ describe('what the industry window reads', () => {
 describe('storage', () => {
   it('raises all eight resource ceilings', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const before = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    const before = await t.query(api.view.playerView, seat);
     expect(before.me.resources.alloy.cap).toBe(BASE_CAP);
 
-    await raise(t, token, 'warehouse', MOSELLE);
+    await raise(t, seat, 'warehouse', MOSELLE);
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.resources.alloy.cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
     for (const key of RESOURCES) {
       expect(after.me.resources[key].cap).toBe(BASE_CAP + STORAGE_CAP_PER_LEVEL);
@@ -419,8 +401,8 @@ describe('storage', () => {
     const tall = await launchedSeason(stacked);
     await raise(stacked, tall, 'warehouse', MOSELLE, 2);
 
-    const twoSites = await spread.query(api.view.playerView, { token: scattered });
-    const oneSite = await stacked.query(api.view.playerView, { token: tall });
+    const twoSites = await spread.query(api.view.playerView, scattered);
+    const oneSite = await stacked.query(api.view.playerView, tall);
     expect(twoSites.me.resources.alloy.cap).toBe(oneSite.me.resources.alloy.cap);
     expect(twoSites.me.resources.alloy.cap).toBe(BASE_CAP + 2 * STORAGE_CAP_PER_LEVEL);
   });
@@ -436,13 +418,9 @@ describe('what a ceiling bounds', () => {
   afterEach(() => vi.useRealTimers());
 
   /** Removes the store, then clips — that order is the contract of `clipToStorage`. */
-  async function raze(t: ReturnType<typeof boot>, token: string, key: BuildingKey) {
+  async function raze(t: ReturnType<typeof boot>, seat: Seat, key: BuildingKey) {
     return t.run(async (ctx) => {
-      const player = await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique();
-      if (!player) throw new Error('player not found');
+      const player = await seatIn(ctx, seat);
       const store = (
         await ctx.db
           .query('buildings')
@@ -457,57 +435,53 @@ describe('what a ceiling bounds', () => {
 
   it('leaves a stock above its ceiling alone, reading after reading', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     // The kit opens above the ceiling of a nation without a warehouse: the difference is the
     // player's until he spends it.
     expect(KIT.alloy).toBeGreaterThan(BASE_CAP);
 
     vi.advanceTimersByTime(10 * 3_600_000);
     await t.run(async (ctx) => {
-      const player = await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique();
-      if (!player) throw new Error('player not found');
+      const player = await seatIn(ctx, seat);
       await settle(ctx, player._id, Date.now());
     });
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.cap).toBe(BASE_CAP);
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
   });
 
   it('takes the surplus the instant the capacity falls, and takes it once', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'warehouse', MOSELLE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'warehouse', MOSELLE);
     const held = BASE_CAP + STORAGE_CAP_PER_LEVEL;
-    for (const key of RESOURCES) await fill(t, token, key, held);
+    for (const key of RESOURCES) await fill(t, seat, key, held);
 
-    const lost = await raze(t, token, 'warehouse');
+    const lost = await raze(t, seat, 'warehouse');
     expect(lost.alloy).toBe(held - BASE_CAP);
     for (const key of RESOURCES) expect(lost[key]).toBe(STORAGE_CAP_PER_LEVEL);
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.resources.alloy.cap).toBe(BASE_CAP);
     expect(after.me.resources.alloy.stock).toBe(BASE_CAP);
 
     // Once, and not by instalments: ten hours later the reading takes nothing more.
     vi.advanceTimersByTime(10 * 3_600_000);
-    const later = await t.query(api.view.playerView, { token });
+    const later = await t.query(api.view.playerView, seat);
     expect(later.me.resources.alloy.stock).toBe(BASE_CAP);
   });
 
   it('takes nothing when the capacity that falls was not holding anything', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'warehouse', MOSELLE);
-    await fill(t, token, 'alloy', BASE_CAP - 100);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'warehouse', MOSELLE);
+    await fill(t, seat, 'alloy', BASE_CAP - 100);
 
-    const lost = await raze(t, token, 'warehouse');
+    const lost = await raze(t, seat, 'warehouse');
     expect(RESOURCES.every((key) => lost[key] === 0)).toBe(true);
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.resources.alloy.stock).toBe(BASE_CAP - 100);
   });
 });
@@ -515,26 +489,26 @@ describe('what a ceiling bounds', () => {
 describe('placement', () => {
   it('refuses a mine where there is no deposit', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'mine', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: ARDENNES }),
     ).rejects.toThrow('DEPOSIT_REQUIRED');
   });
 
   it('refuses a port away from the coast and takes it on the shore', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, unlockLevel('port'));
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, unlockLevel('port'));
     await expect(
       t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'port',
         regionId: MOSELLE,
         point: CALAIS_SHORE,
       }),
     ).rejects.toThrow('NOT_COASTAL');
     await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'port',
       regionId: PAS_DE_CALAIS,
       point: CALAIS_SHORE,
@@ -552,10 +526,10 @@ describe('placement', () => {
 
     it('is refused on anything that is not a port', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
+      const seat = await launchedSeason(t);
       await expect(
         t.mutation(api.constructions.start, {
-          token,
+          ...seat,
           building: 'mine',
           regionId: MOSELLE,
           point: CALAIS_SHORE,
@@ -565,11 +539,11 @@ describe('placement', () => {
 
     it('is required of a port', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await promoteHq(t, token, unlockLevel('port'));
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, unlockLevel('port'));
       await expect(
         t.mutation(api.constructions.start, {
-          token,
+          ...seat,
           building: 'port',
           regionId: PAS_DE_CALAIS,
         }),
@@ -578,11 +552,11 @@ describe('placement', () => {
 
     it('is refused inland, where no ship could reach it', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await promoteHq(t, token, unlockLevel('port'));
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, unlockLevel('port'));
       await expect(
         t.mutation(api.constructions.start, {
-          token,
+          ...seat,
           building: 'port',
           regionId: PAS_DE_CALAIS,
           point: { lon: MOSELLE_POINT[0], lat: MOSELLE_POINT[1] },
@@ -592,11 +566,11 @@ describe('placement', () => {
 
     it('is refused on the shore of another country', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await promoteHq(t, token, unlockLevel('port'));
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, unlockLevel('port'));
       await expect(
         t.mutation(api.constructions.start, {
-          token,
+          ...seat,
           building: 'port',
           regionId: PAS_DE_CALAIS,
           point: ENGLISH_SHORE,
@@ -608,21 +582,21 @@ describe('placement', () => {
      *  stands on the quay from the order to the end of the season. */
     it('travels from the queue to the standing building and out to the board', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await promoteHq(t, token, unlockLevel('port'));
-      for (const key of RESOURCES) await fill(t, token, key, BASE_CAP);
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, unlockLevel('port'));
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
       await t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'port',
         regionId: PAS_DE_CALAIS,
         point: CALAIS_SHORE,
       });
 
-      const queued = await t.query(api.view.playerView, { token });
+      const queued = await t.query(api.view.playerView, seat);
       expect(queued.me.construction?.point).toEqual([CALAIS_SHORE.lon, CALAIS_SHORE.lat]);
 
       await vi.advanceTimersByTimeAsync(buildMinutes('port', 1) * 60_000 + 1000);
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       const port = view.me.buildings.find((building) => building.key === 'port');
       expect(port?.point).toEqual([CALAIS_SHORE.lon, CALAIS_SHORE.lat]);
     });
@@ -630,20 +604,20 @@ describe('placement', () => {
     /** A raise does not move a quay, so it does not ask for one either — nor does it take one. */
     it('is neither asked for nor accepted when the port is only being raised', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await promoteHq(t, token, MAX_HQ_LEVEL);
-      await raise(t, token, 'port', PAS_DE_CALAIS);
-      for (const key of RESOURCES) await fill(t, token, key, BASE_CAP);
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, MAX_HQ_LEVEL);
+      await raise(t, seat, 'port', PAS_DE_CALAIS);
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
       await expect(
         t.mutation(api.constructions.start, {
-          token,
+          ...seat,
           building: 'port',
           regionId: PAS_DE_CALAIS,
           point: CALAIS_SHORE,
         }),
       ).rejects.toThrow('POINT_FOR_PORT_ONLY');
       await t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'port',
         regionId: PAS_DE_CALAIS,
       });
@@ -653,9 +627,9 @@ describe('placement', () => {
      *  and no backfill anywhere (`pointOfBuilding`). */
     it('leaves a port written before the field standing at its centroid', async () => {
       const t = boot();
-      const token = await launchedSeason(t);
-      await raise(t, token, 'port', PAS_DE_CALAIS);
-      const view = await t.query(api.view.playerView, { token });
+      const seat = await launchedSeason(t);
+      await raise(t, seat, 'port', PAS_DE_CALAIS);
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.buildings.find((building) => building.key === 'port')?.point).toBeNull();
       expect(pointOfBuilding({ regionId: PAS_DE_CALAIS })).toEqual(
         regionFacts(PAS_DE_CALAIS)!.point,
@@ -670,9 +644,9 @@ describe('placement', () => {
    */
   it('refuses a key above the headquarters tier, and names the level it wants', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { token, building: 'airfield', regionId: ARDENNES })
+      .mutation(api.constructions.start, { ...seat, building: 'airfield', regionId: ARDENNES })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
@@ -683,9 +657,9 @@ describe('placement', () => {
       hqLevel: HQ_LEVEL_AT_LAUNCH,
     });
 
-    await promoteHq(t, token, unlockLevel('airfield'));
+    await promoteHq(t, seat, unlockLevel('airfield'));
     const started = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'airfield',
       regionId: ARDENNES,
     });
@@ -696,11 +670,11 @@ describe('placement', () => {
    *  headquarters reaches it, and nothing else changes. */
   it('opens a tier as soon as the headquarters reaches it', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     expect(unlockLevel('listening')).toBeGreaterThan(HQ_LEVEL_AT_LAUNCH);
-    await promoteHq(t, token, unlockLevel('listening'));
+    await promoteHq(t, seat, unlockLevel('listening'));
     const started = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'listening',
       regionId: ARDENNES,
     });
@@ -724,8 +698,8 @@ describe('placement', () => {
   /** The panel prices its lines off the served catalogue; it must lock them off the same one. */
   it('serves the tier of every key beside its price', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const view = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    const view = await t.query(api.view.playerView, seat);
     for (const key of BUILDINGS) {
       expect(view.buildCatalog[key].unlockedAtHqLevel).toBe(unlockLevel(key));
     }
@@ -733,9 +707,9 @@ describe('placement', () => {
 
   it('refuses a second headquarters', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'hq', regionId: MARNE }),
+      t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE }),
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
 
@@ -743,19 +717,19 @@ describe('placement', () => {
    *  `movements.test.ts` holds the other half, the region an outpost does open. */
   it('refuses to build outside the nation with no outpost in reach', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'mine', regionId: RUHR }),
+      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: RUHR }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
   it('refuses an unknown region', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'farm', regionId: 'XXX-1' }),
+      t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: 'XXX-1' }),
     ).rejects.toThrow('UNKNOWN_REGION');
   });
 });
@@ -878,17 +852,17 @@ describe('the foundation the season owes', () => {
   const FRENCH_FOUNDATION: ReadonlyArray<BuildingKey> = ['mine', 'mine', 'farm', 'mill'];
 
   /** Places what the season **still** owes, one key at a time, and hands back what it cost. */
-  async function placeFoundation(t: ReturnType<typeof boot>, token: string) {
+  async function placeFoundation(t: ReturnType<typeof boot>, seat: Seat) {
     const bills: Array<Record<string, number>> = [];
     // The widest ground of the eight is owed five, and the loop is a guard, not a count.
     for (let guard = 0; guard < 8; guard += 1) {
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       const key = view.me.foundation[0];
       if (key === undefined) break;
       const regionId = freeRegionFor(view, key);
       if (regionId === null) throw new Error(`nowhere to place ${key}`);
       const { cost } = await t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: key,
         regionId,
       });
@@ -899,13 +873,13 @@ describe('the foundation the season owes', () => {
 
   it('stands whole once placed, for nothing and with nothing to wait for', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const opening = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    const opening = await t.query(api.view.playerView, seat);
     expect(opening.me.foundation).toEqual(FRENCH_FOUNDATION);
 
-    const bills = await placeFoundation(t, token);
+    const bills = await placeFoundation(t, seat);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(bills.every((bill) => Object.keys(bill).length === 0)).toBe(true);
     expect(view.me.foundation).toEqual([]);
     expect(view.me.construction).toBeNull();
@@ -926,25 +900,25 @@ describe('the foundation the season owes', () => {
    */
   it('places what the season owes while a paid construction runs', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, unlockLevel('barracks'));
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, unlockLevel('barracks'));
     const paid = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'barracks',
       regionId: ARDENNES,
     });
     expect(paid.finishesAt).toBeGreaterThan(Date.now());
-    const spent = (await t.query(api.view.playerView, { token })).me.resources.alloy.stock;
+    const spent = (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
 
     const placed = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'farm',
       regionId: JURA,
     });
     expect(placed.cost).toEqual({});
     expect(placed.finishesAt).toBe(Date.now());
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.map((building) => building.key)).toContain('farm');
     expect(view.me.resources.alloy.stock).toBe(spent);
     // The paid site is untouched: what moved is what the offered placement is allowed to skip.
@@ -958,11 +932,15 @@ describe('the foundation the season owes', () => {
    */
   it('refuses an offered placement on the region a construction is rising on', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, unlockLevel('barracks'));
-    await t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, unlockLevel('barracks'));
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+    });
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'foundry', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, { ...seat, building: 'foundry', regionId: ARDENNES }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -972,19 +950,19 @@ describe('the foundation the season owes', () => {
    */
   it('keeps an offered placement out of the queue, however long the queue is', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, unlockLevel('billets'));
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: JURA });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, unlockLevel('billets'));
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     const placed = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'farm',
       regionId: MARNE,
     });
     expect(placed).toMatchObject({ cost: {}, rank: null, finishesAt: Date.now() });
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.map((building) => building.key)).toContain('farm');
     // The queue is exactly what it was: the offered placement passed beside it.
     expect(view.me.construction?.key).toBe('billets');
@@ -1001,15 +979,15 @@ describe('the foundation the season owes', () => {
     for (const first of BUILDINGS) {
       if (first === 'hq') continue; // a second headquarters is refused, and it is not a first move
       const t = boot();
-      const token = await launchedSeason(t);
-      const opening = await t.query(api.view.playerView, { token });
+      const seat = await launchedSeason(t);
+      const opening = await t.query(api.view.playerView, seat);
       const regionId = freeRegionFor(opening, first);
       if (regionId === null) continue; // nothing in France takes it: not a first move either
 
       // A bill the kit cannot cover is not a first move: the season refuses it before the
       // player can make it. Anything else the server refuses would be a hole, and fails here.
       const paid = await t
-        .mutation(api.constructions.start, { token, building: first, regionId })
+        .mutation(api.constructions.start, { ...seat, building: first, regionId })
         .then(
           () => true,
           (refusal: { data?: { code?: string } }) => {
@@ -1022,11 +1000,11 @@ describe('the foundation the season owes', () => {
       // so the placements below wait for it exactly as a player would.
       vi.advanceTimersByTime(24 * 3_600_000);
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      await promoteHq(t, token, MAX_HQ_LEVEL);
+      await promoteHq(t, seat, MAX_HQ_LEVEL);
 
-      const bills = await placeFoundation(t, token);
+      const bills = await placeFoundation(t, seat);
       expect(bills.every((bill) => Object.keys(bill).length === 0)).toBe(true);
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.foundation).toEqual([]);
     }
   });
@@ -1041,10 +1019,10 @@ describe('the foundation the season owes', () => {
   it('opens on exactly two free placements at home, whatever the ground is worth', async () => {
     for (const nation of NATIONS) {
       const t = boot();
-      const token = await launchedSeason(t, 168, nation);
-      await placeFoundation(t, token);
+      const seat = await launchedSeason(t, 168, nation);
+      await placeFoundation(t, seat);
 
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.foundation).toEqual([]);
       const home = view.me.siteSlots.find((budget) => budget.site.outpostId === null)!;
       expect(home.total - home.taken).toBe(homeSlots(HQ_LEVEL_AT_LAUNCH));
@@ -1080,10 +1058,10 @@ describe('the foundation the season owes', () => {
 describe('the headquarters at launch', () => {
   it('stands on the capital at the level the season plants it, and nothing else stands', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     const level = HQ_LEVEL_AT_LAUNCH;
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', regionId: PARIS, level }),
     ]);
@@ -1093,8 +1071,8 @@ describe('the headquarters at launch', () => {
   /** The point of the whole rule: the first construction of a season is a choice again. */
   it('lets a fresh player raise his first farm without building it first', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await t.mutation(api.constructions.start, { token, building: 'farm', regionId: MARNE });
+    const seat = await launchedSeason(t);
+    await t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE });
   });
 
   it('gives every playable nation a capital that exists, at home', () => {
@@ -1136,25 +1114,25 @@ describe('the construction queue', () => {
     { building: 'barracks' as const, regionId: MEURTHE },
   ];
 
-  const alloyOf = async (t: ReturnType<typeof boot>, token: string) =>
-    (await t.query(api.view.playerView, { token })).me.resources.alloy.stock;
+  const alloyOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
 
   it('bills every entry at the enqueue and runs them one at a time, in order', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    const opening = await alloyOf(t, token);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    const opening = await alloyOf(t, seat);
 
-    for (const site of SITES) await t.mutation(api.constructions.start, { token, ...site });
+    for (const site of SITES) await t.mutation(api.constructions.start, { ...seat, ...site });
 
     // Not one stone laid, and the three bills are already settled.
     const spent = SITES.reduce(
       (total, site) => total + (buildCost(site.building, 1).alloy ?? 0),
       0,
     );
-    expect(await alloyOf(t, token)).toBe(opening - spent);
+    expect(await alloyOf(t, seat)).toBe(opening - spent);
 
-    const queued = await t.query(api.view.playerView, { token });
+    const queued = await t.query(api.view.playerView, seat);
     expect(queued.me.construction?.key).toBe('billets');
     expect(queued.me.constructionQueue.map((entry) => entry.key)).toEqual([
       'warehouse',
@@ -1170,13 +1148,13 @@ describe('the construction queue', () => {
     vi.advanceTimersByTime(buildMinutes('billets', 1) * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    const midway = await t.query(api.view.playerView, { token });
+    const midway = await t.query(api.view.playerView, seat);
     expect(midway.me.buildings.map((building) => building.key)).toContain('billets');
     expect(midway.me.construction?.key).toBe('warehouse');
     expect(midway.me.constructionQueue.map((entry) => entry.key)).toEqual(['barracks']);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const done = await t.query(api.view.playerView, { token });
+    const done = await t.query(api.view.playerView, seat);
     expect(done.me.construction).toBeNull();
     expect(done.me.constructionQueue).toEqual([]);
     for (const site of SITES) {
@@ -1190,17 +1168,17 @@ describe('the construction queue', () => {
    *  buildings on it, and the door that refuses it is the enqueue — never the start. */
   it('refuses a second entry on a region the queue already aims at', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: JURA });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     // Against the head, and against a follower alike.
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'barracks', regionId: ARDENNES }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: ARDENNES }),
     ).rejects.toThrow('REGION_TAKEN');
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'barracks', regionId: JURA }),
+      t.mutation(api.constructions.start, { ...seat, building: 'barracks', regionId: JURA }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -1208,25 +1186,25 @@ describe('the construction queue', () => {
    *  keeps the buildings it is not allowed to hold. */
   it('counts what is queued against the placements of the site', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    await fill(t, token, 'alloy', 100_000);
-    await fill(t, token, 'food', 100_000);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'food', 100_000);
     const slots = homeSlots(2);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     const free = view.me.regions.filter((region) => region.buildings.length === 0);
     // The headquarters eats no placement, so the queue may take them all and not one more.
     for (const region of free.slice(0, slots)) {
       await t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'billets',
         regionId: region.id,
       });
     }
     await expect(
       t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'billets',
         regionId: free[slots]!.id,
       }),
@@ -1243,30 +1221,30 @@ describe('the construction queue', () => {
    */
   it('cancels a head whose right has gone, refunds it whole and files a notice', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    const opening = await alloyOf(t, token);
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: JURA });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    const opening = await alloyOf(t, seat);
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
     // The placements go under the queue: the buildings below are put up without paying, and
     // what is under test is what the *start* of the follower does about it.
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     const spare = view.me.regions.filter(
       (region) => region.buildings.length === 0 && region.id !== ARDENNES && region.id !== JURA,
     );
     for (const region of spare.slice(0, homeSlots(2) - 1))
-      await raise(t, token, 'warehouse', region.id);
+      await raise(t, seat, 'warehouse', region.id);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.buildings.map((building) => building.key)).toContain('billets');
     // The follower never rose, and its matter came back whole — only the head's bill stands.
     expect(after.me.constructionQueue).toEqual([]);
     expect(after.me.construction).toBeNull();
     expect(after.me.buildings.some((building) => building.regionId === JURA)).toBe(false);
-    expect(await alloyOf(t, token)).toBe(opening - (buildCost('billets', 1).alloy ?? 0));
+    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('billets', 1).alloy ?? 0));
 
     // The head that did rise files its own line: the journal owes a player the site he built
     // as much as the one the world took back.
@@ -1284,26 +1262,26 @@ describe('the construction queue', () => {
    *  matter is handed back untouched — the very rule `troops.cancel` writes for a batch. */
   it('refunds a follower in full and refuses to cancel the head', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: JURA });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
 
-    const before = await t.query(api.view.playerView, { token });
+    const before = await t.query(api.view.playerView, seat);
     const head = before.me.construction!;
     const follower = before.me.constructionQueue[0]!;
 
     await expect(
-      t.mutation(api.constructions.cancel, { token, constructionId: head.id }),
+      t.mutation(api.constructions.cancel, { ...seat, constructionId: head.id }),
     ).rejects.toThrow('CONSTRUCTION_ALREADY_STARTED');
 
     const { refunded } = await t.mutation(api.constructions.cancel, {
-      token,
+      ...seat,
       constructionId: follower.id,
     });
     expect(refunded).toEqual(buildCost('warehouse', 1));
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.constructionQueue).toEqual([]);
     expect(after.me.construction?.key).toBe('billets');
     for (const [resource, amount] of Object.entries(refunded) as ReadonlyArray<
@@ -1321,12 +1299,12 @@ describe('the construction queue', () => {
    */
   it('debits and refunds exactly as the recruitment queue does', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    await fill(t, token, 'alloy', 100_000);
-    await fill(t, token, 'ammunition', 100_000);
-    await fill(t, token, 'food', 100_000);
-    await raise(t, token, 'barracks', MARNE);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'ammunition', 100_000);
+    await fill(t, seat, 'food', 100_000);
+    await raise(t, seat, 'barracks', MARNE);
     const barracks = await t.run(
       async (ctx) =>
         (await ctx.db.query('buildings').collect()).find((row) => row.key === 'barracks')!._id,
@@ -1334,11 +1312,11 @@ describe('the construction queue', () => {
 
     /** What one enqueue takes and what its cancellation gives back, whichever queue it was. */
     const measure = async (enqueue: () => Promise<unknown>, withdraw: () => Promise<unknown>) => {
-      const before = await t.query(api.view.playerView, { token });
+      const before = await t.query(api.view.playerView, seat);
       await enqueue();
-      const paid = await t.query(api.view.playerView, { token });
+      const paid = await t.query(api.view.playerView, seat);
       await withdraw();
-      const back = await t.query(api.view.playerView, { token });
+      const back = await t.query(api.view.playerView, seat);
       return {
         debited: RESOURCES.map(
           (key) => before.me.resources[key].stock - paid.me.resources[key].stock,
@@ -1351,29 +1329,34 @@ describe('the construction queue', () => {
 
     // Both queues get a head first, so what is measured is a *follower* on either side.
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: ARDENNES });
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: ARDENNES });
 
     const troops = await measure(
       () =>
-        t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 }),
+        t.mutation(api.troops.recruit, {
+          ...seat,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+        }),
       async () => {
         const waiting = await t.run(async (ctx) =>
           (await ctx.db.query('recruitments').collect()).find((row) => row.finishesAt === null),
         );
-        await t.mutation(api.troops.cancel, { token, recruitmentId: waiting!._id });
+        await t.mutation(api.troops.cancel, { ...seat, recruitmentId: waiting!._id });
       },
     );
     const sites = await measure(
-      () => t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: JURA }),
+      () => t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA }),
       async () => {
-        const waiting = (await t.query(api.view.playerView, { token })).me.constructionQueue[0]!;
+        const waiting = (await t.query(api.view.playerView, seat)).me.constructionQueue[0]!;
         await t.mutation(api.constructions.cancel, {
-          token,
+          ...seat,
           constructionId: waiting.id as Id<'constructions'>,
         });
       },
@@ -1390,14 +1373,14 @@ describe('the construction queue', () => {
 describe('one building per region, and a global ceiling', () => {
   it('refuses a second building on a region that already carries one', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'warehouse', MARNE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'warehouse', MARNE);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'farm', regionId: MARNE }),
+      t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE }),
     ).rejects.toThrow('REGION_TAKEN');
     // Including the capital: the headquarters holds its region like any other building.
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'billets', regionId: PARIS }),
+      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: PARIS }),
     ).rejects.toThrow('REGION_TAKEN');
   });
 
@@ -1405,10 +1388,10 @@ describe('one building per region, and a global ceiling', () => {
    *  neither rule has anything to say about it. */
   it('lets a building already there rise a level', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 2);
-    await raise(t, token, 'mine', MOSELLE);
-    await t.mutation(api.constructions.start, { token, building: 'mine', regionId: MOSELLE });
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 2);
+    await raise(t, seat, 'mine', MOSELLE);
+    await t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE });
   });
 
   /**
@@ -1417,22 +1400,22 @@ describe('one building per region, and a global ceiling', () => {
    */
   it('refuses a paid placement on a full national ground, and says what would lift it', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
     const hqLevel = unlockLevel('billets');
-    await promoteHq(t, token, hqLevel);
+    await promoteHq(t, seat, hqLevel);
     const slots = homeSlots(hqLevel);
     expect(slots).toBe(4);
 
     // The headquarters eats none of them: the placements below are the whole of the budget.
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     const free = view.me.regions
       .filter((region) => region.buildings.length === 0 && region.id !== JURA)
       .slice(0, slots);
     expect(free.length).toBe(slots);
-    for (const region of free) await raise(t, token, 'warehouse', region.id);
+    for (const region of free) await raise(t, seat, 'warehouse', region.id);
 
     const refused: Record<string, unknown> = await t
-      .mutation(api.constructions.start, { token, building: 'billets', regionId: JURA })
+      .mutation(api.constructions.start, { ...seat, building: 'billets', regionId: JURA })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
     const next = hqLevel + 1;
@@ -1449,8 +1432,8 @@ describe('one building per region, and a global ceiling', () => {
     });
 
     // The same order goes through once the headquarters carries a wider ground.
-    await promoteHq(t, token, MAX_HQ_LEVEL);
-    await t.mutation(api.constructions.start, { token, building: 'billets', regionId: JURA });
+    await promoteHq(t, seat, MAX_HQ_LEVEL);
+    await t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: JURA });
   });
 
   /**
@@ -1463,7 +1446,7 @@ describe('one building per region, and a global ceiling', () => {
    */
   it('places every owed key on a national ground already full', async () => {
     const t = boot();
-    const token = await launchedSeason(t, 168, 'usa');
+    const seat = await launchedSeason(t, 168, 'usa');
 
     const owed = foundationOwed('usa', []);
     expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
@@ -1471,20 +1454,20 @@ describe('one building per region, and a global ceiling', () => {
 
     // Filled on bare American regions: a deposit region would starve the debt of ground, and
     // what has to be full here is the *count*, never the map.
-    const opening = await t.query(api.view.playerView, { token });
+    const opening = await t.query(api.view.playerView, seat);
     const bare = opening.me.regions
       .filter((region) => region.deposit === null && region.buildings.length === 0)
       .slice(0, slots);
     expect(bare.length).toBe(slots);
-    for (const region of bare) await raise(t, token, 'warehouse', region.id);
+    for (const region of bare) await raise(t, seat, 'warehouse', region.id);
 
-    const full = await t.query(api.view.playerView, { token });
+    const full = await t.query(api.view.playerView, seat);
     const budget = (view: typeof full) =>
       view.me.siteSlots.find((held) => held.site.outpostId === null)!;
     expect(budget(full).taken).toBe(slots);
 
     for (let placed = 0; placed < owed.length; placed += 1) {
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       const key = view.me.foundation[0]!;
       const regionId = view.me.regions.find(
         (region) =>
@@ -1503,14 +1486,14 @@ describe('one building per region, and a global ceiling', () => {
       )?.id;
       if (regionId === undefined) throw new Error(`nowhere to place ${key}`);
       const { cost } = await t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: key,
         regionId,
       });
       expect(cost).toEqual({});
     }
 
-    const done = await t.query(api.view.playerView, { token });
+    const done = await t.query(api.view.playerView, seat);
     expect(done.me.foundation).toEqual([]);
     /**
      * **The foundation costs nothing in freedom either.** It stands, and the budget has not
@@ -1532,18 +1515,14 @@ describe('the placements a site carries', () => {
   afterEach(() => vi.useRealTimers());
 
   /** Puts an outpost of the player on the map, at a point, at the level asked. */
-  async function found(
+  async function plantOutpost(
     t: ReturnType<typeof boot>,
-    token: string,
+    seat: Seat,
     point: { lon: number; lat: number },
     level = 1,
   ): Promise<Id<'outposts'>> {
     return t.run(async (ctx) => {
-      const player = await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique();
-      if (!player) throw new Error('player not found');
+      const player = await seatIn(ctx, seat);
       return ctx.db.insert('outposts', {
         seasonId: player.seasonId,
         playerId: player._id,
@@ -1581,11 +1560,11 @@ describe('the placements a site carries', () => {
 
   it('carries its own level at an outpost, and two per headquarters level at home', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const one = await found(t, token, EL_TARF, 1);
-    const three = await found(t, token, { lon: 45, lat: 25 }, 3);
+    const seat = await launchedSeason(t);
+    const one = await plantOutpost(t, seat, EL_TARF, 1);
+    const three = await plantOutpost(t, seat, { lon: 45, lat: 25 }, 3);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(budgetOf(view, null)?.total).toBe(homeSlots(HQ_LEVEL_AT_LAUNCH));
     expect(budgetOf(view, one)?.total).toBe(1);
     expect(budgetOf(view, three)?.total).toBe(3);
@@ -1595,37 +1574,37 @@ describe('the placements a site carries', () => {
    *  that has stopped building — it is a nation that has to go out. */
   it('refuses on the site that is full and accepts on the next one', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const outpostId = await found(t, token, EL_TARF, 1);
-    await fill(t, token, 'alloy', 100_000);
-    await fill(t, token, 'food', 100_000);
+    const seat = await launchedSeason(t);
+    const outpostId = await plantOutpost(t, seat, EL_TARF, 1);
+    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'food', 100_000);
 
-    const opening = await t.query(api.view.playerView, { token });
+    const opening = await t.query(api.view.playerView, seat);
     const home = opening.me.regions
       .filter((region) => region.buildings.length === 0)
       .slice(0, homeSlots(HQ_LEVEL_AT_LAUNCH));
-    for (const region of home) await raise(t, token, 'warehouse', region.id);
+    for (const region of home) await raise(t, seat, 'warehouse', region.id);
 
-    const filled = await t.query(api.view.playerView, { token });
+    const filled = await t.query(api.view.playerView, seat);
     const spare = filled.me.regions.find((region) => region.buildings.length === 0)!;
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: spare.id }),
+      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: spare.id }),
     ).rejects.toThrow('SITE_SLOTS_FULL');
 
     // The Algerian point carries one placement of its own, and the full home ground is no part
     // of that reading.
     await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'warehouse',
       regionId: NEAR_EL_TARF,
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(budgetOf(after, outpostId)?.taken).toBe(1);
     // And that point is full in its turn: one level, one placement.
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: ALSO_NEAR }),
+      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: ALSO_NEAR }),
     ).rejects.toThrow('SITE_SLOTS_FULL');
   });
 
@@ -1636,12 +1615,12 @@ describe('the placements a site carries', () => {
    */
   it('accepts no placement once the outpost that carried the ground is gone', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const outpostId = await found(t, token, EL_TARF, 3);
-    await fill(t, token, 'alloy', 100_000);
-    await fill(t, token, 'food', 100_000);
+    const seat = await launchedSeason(t);
+    const outpostId = await plantOutpost(t, seat, EL_TARF, 3);
+    await fill(t, seat, 'alloy', 100_000);
+    await fill(t, seat, 'food', 100_000);
     await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'warehouse',
       regionId: NEAR_EL_TARF,
     });
@@ -1649,11 +1628,11 @@ describe('the placements a site carries', () => {
 
     await t.run(async (ctx) => ctx.db.delete(outpostId));
 
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.buildings.some((building) => building.regionId === NEAR_EL_TARF)).toBe(true);
     expect(after.me.siteSlots.map((held) => held.site.outpostId)).toEqual([null]);
     await expect(
-      t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: ALSO_NEAR }),
+      t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: ALSO_NEAR }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
 
@@ -1664,12 +1643,12 @@ describe('the placements a site carries', () => {
    */
   it('debits the national stock by the level of every outpost held', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const before = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    const before = await t.query(api.view.playerView, seat);
     expect(before.me.upkeep.outposts).toBe(0);
 
-    await found(t, token, EL_TARF, 3);
-    const after = await t.query(api.view.playerView, { token });
+    await plantOutpost(t, seat, EL_TARF, 3);
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.upkeep.outposts).toBe(1);
     expect(after.me.upkeep.outpostFoodPerHour).toBe(
       3 * (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.food ?? 0),
@@ -1705,11 +1684,11 @@ describe('the arsenal is commanded', () => {
    */
   it('takes nothing until it is told to, and says so rather than reading as broken', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'arsenal', MOSELLE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
     vi.advanceTimersByTime(20 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition);
     expect(chainOf(view, 'arsenal')).toMatchObject({ state: 'idle', commanded: true, order: null });
@@ -1718,25 +1697,25 @@ describe('the arsenal is commanded', () => {
   /** The foundry keeps running on its own: its inputs are spent nowhere else. */
   it('leaves the uncommanded chains alone', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
-    await fill(t, token, 'alloy', 0);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
+    await fill(t, seat, 'alloy', 0);
     vi.advanceTimersByTime(10 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'foundry')).toMatchObject({ commanded: false });
     expect(view.me.resources.alloy.stock).toBeGreaterThan(0);
   });
 
   it('converts exactly the lot, once, and then falls silent again', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'arsenal', MOSELLE);
-    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 12 });
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 12 });
 
     // Four hours at three an hour would make twelve; twenty hours make twelve all the same.
     vi.advanceTimersByTime(20 * 3_600_000);
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition + 12);
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy - 12);
     expect(chainOf(view, 'arsenal')).toMatchObject({
@@ -1751,28 +1730,28 @@ describe('the arsenal is commanded', () => {
    */
   it('serves the real rate, with the nominal beside it', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'arsenal', MOSELLE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
 
-    const idle = chainOf(await t.query(api.view.playerView, { token }), 'arsenal');
+    const idle = chainOf(await t.query(api.view.playerView, seat), 'arsenal');
     expect(idle).toMatchObject({ perHour: 0, nominalPerHour: 3 });
 
-    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 60 });
-    const running = chainOf(await t.query(api.view.playerView, { token }), 'arsenal');
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 60 });
+    const running = chainOf(await t.query(api.view.playerView, seat), 'arsenal');
     expect(running).toMatchObject({ perHour: 3, nominalPerHour: 3, state: 'running' });
   });
 
   /** Nothing is taken in advance, so dropping a lot returns nothing — and owes nothing. */
   it('leaves the unconverted matter where it was when a lot is dropped', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'arsenal', MOSELLE);
-    await t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 90 });
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+    await t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 90 });
     vi.advanceTimersByTime(2 * 3_600_000);
-    await t.mutation(api.industry.cancelOrder, { token, chain: 'arsenal' });
+    await t.mutation(api.industry.cancelOrder, { ...seat, chain: 'arsenal' });
     vi.advanceTimersByTime(20 * 3_600_000);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     // Six made in two hours, and not one more after the drop.
     expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition + 6);
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy - 6);
@@ -1781,24 +1760,24 @@ describe('the arsenal is commanded', () => {
 
   it('refuses a lot the input reserve cannot cover, and names the ceiling', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'arsenal', MOSELLE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
 
     await expect(
-      t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: KIT.alloy + 1 }),
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: KIT.alloy + 1 }),
     ).rejects.toThrow(/ORDER_ABOVE_RESERVE/);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(chainOf(view, 'arsenal').maxOrder).toBe(KIT.alloy);
   });
 
   it('refuses to command a chain that runs on its own', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'foundry', MOSELLE);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'foundry', MOSELLE);
 
     await expect(
-      t.mutation(api.industry.order, { token, chain: 'foundry', quantity: 10 }),
+      t.mutation(api.industry.order, { ...seat, chain: 'foundry', quantity: 10 }),
     ).rejects.toThrow(/CHAIN_NOT_COMMANDED/);
   });
 });
@@ -1829,12 +1808,12 @@ describe('legacy depot compatibility', () => {
 
   async function legacy(
     t: ReturnType<typeof boot>,
-    token: string,
+    seat: Seat,
     level = 1,
     finishesAt: number | null = null,
   ) {
     return t.run(async (ctx) => {
-      const player = (await ctx.db.query('players').collect()).find((p) => p.token === token)!;
+      const player = await seatIn(ctx, seat);
       const id = await ctx.db.insert('constructions', {
         playerId: player._id,
         building: 'depot',
@@ -1849,27 +1828,27 @@ describe('legacy depot compatibility', () => {
 
   it('rejects direct new depot placement without spending or queueing', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const before = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    const before = await t.query(api.view.playerView, seat);
     await expect(
       t.mutation(api.constructions.start, {
-        token,
+        ...seat,
         building: 'depot',
         regionId: JURA,
       }),
     ).rejects.toThrow('UNKNOWN_BUILDING');
-    const after = await t.query(api.view.playerView, { token });
+    const after = await t.query(api.view.playerView, seat);
     expect(after.me.resources).toEqual(before.me.resources);
     expect(after.me.construction).toBeNull();
   });
 
   it('adds legacy and current levels for all eight caps without clipping existing stocks', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'warehouse', MOSELLE, 2);
-    await raise(t, token, 'depot', JURA, 3);
-    for (const key of RESOURCES) await fill(t, token, key, 5000);
-    const view = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'warehouse', MOSELLE, 2);
+    await raise(t, seat, 'depot', JURA, 3);
+    for (const key of RESOURCES) await fill(t, seat, key, 5000);
+    const view = await t.query(api.view.playerView, seat);
     for (const key of RESOURCES) {
       expect(view.me.resources[key]).toMatchObject({ cap: 3400, stock: 5000 });
     }
@@ -1884,23 +1863,23 @@ describe('legacy depot compatibility', () => {
 
   it('raises a standing depot through warehouse while preserving identity, anchor and tariff', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await promoteHq(t, token, 3);
-    await fill(t, token, 'coal', 100);
-    await raise(t, token, 'depot', JURA);
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 3);
+    await fill(t, seat, 'coal', 100);
+    await raise(t, seat, 'depot', JURA);
     const before = await t.run(async (ctx) => {
       const b = (await ctx.db.query('buildings').collect()).find((b) => b.key === 'depot')!;
       await ctx.db.patch(b._id, { outpostId: null });
       return (await ctx.db.get(b._id))!;
     });
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.find((b) => b.id === before._id)).toMatchObject({
       key: 'warehouse',
       nextLevelCost: { alloy: 72, coal: 27 },
       nextLevelMinutes: 54,
     });
     const started = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'warehouse',
       regionId: JURA,
     });
@@ -1913,10 +1892,14 @@ describe('legacy depot compatibility', () => {
 
   it('starts and finishes a queued depot using its paid duration and preserves its industry value', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: MOSELLE });
-    const { id, playerId } = await legacy(t, token);
-    const queued = await t.query(api.view.playerView, { token });
+    const seat = await launchedSeason(t);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: MOSELLE,
+    });
+    const { id, playerId } = await legacy(t, seat);
+    const queued = await t.query(api.view.playerView, seat);
     expect(queued.me.constructionQueue[0]).toMatchObject({ key: 'warehouse' });
     vi.advanceTimersByTime(25 * 60_000);
     await t.finishInProgressScheduledFunctions();
@@ -1924,7 +1907,7 @@ describe('legacy depot compatibility', () => {
     expect(running?.finishesAt).toBe(Date.now() + 30 * 60_000);
     vi.advanceTimersByTime(30 * 60_000);
     await t.finishInProgressScheduledFunctions();
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     const building = view.me.buildings.find((b) => b.regionId === JURA)!;
     expect(building).toMatchObject({
       key: 'warehouse',
@@ -1944,10 +1927,10 @@ describe('legacy depot compatibility', () => {
     );
     // Headquarters (60), warehouse (30), legacy depot (40).
     expect(edition?.industry).toBe(130);
-    await promoteHq(t, token, 2);
-    await fill(t, token, 'coal', 100);
+    await promoteHq(t, seat, 2);
+    await fill(t, seat, 'coal', 100);
     const raised = await t.mutation(api.constructions.start, {
-      token,
+      ...seat,
       building: 'warehouse',
       regionId: JURA,
     });
@@ -1964,31 +1947,35 @@ describe('legacy depot compatibility', () => {
 
   it('finishes an already running legacy raise without duplicating or moving the building', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await raise(t, token, 'depot', JURA);
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'depot', JURA);
     const before = await t.run(async (ctx) =>
       (await ctx.db.query('buildings').collect()).find((b) => b.key === 'depot')!,
     );
-    const { id } = await legacy(t, token, 2, Date.now());
+    const { id } = await legacy(t, seat, 2, Date.now());
     await t.mutation(internal.constructions.finish, { constructionId: id });
     await t.mutation(internal.constructions.finish, { constructionId: id });
     expect(await t.run((ctx) => ctx.db.get(before._id))).toEqual({ ...before, level: 2 });
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings.filter((b) => b.regionId === JURA)).toHaveLength(1);
   });
 
   it('refunds a legacy entry at its own price when its ground is lost before it starts', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await t.mutation(api.constructions.start, { token, building: 'warehouse', regionId: MOSELLE });
-    const { id } = await legacy(t, token);
-    await raise(t, token, 'farm', JURA);
-    await fill(t, token, 'alloy', 2000);
-    await fill(t, token, 'coal', 2000);
+    const seat = await launchedSeason(t);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: MOSELLE,
+    });
+    const { id } = await legacy(t, seat);
+    await raise(t, seat, 'farm', JURA);
+    await fill(t, seat, 'alloy', 2000);
+    await fill(t, seat, 'coal', 2000);
     vi.advanceTimersByTime(25 * 60_000);
     await t.finishInProgressScheduledFunctions();
     expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.stock).toBe(2040);
     expect(view.me.resources.coal.stock).toBe(2015);
     expect(view.me.buildings.filter((b) => b.regionId === JURA).map((b) => b.key)).toEqual([
@@ -1998,19 +1985,19 @@ describe('legacy depot compatibility', () => {
 
   it('refunds the exact legacy bill above capacity and refuses cancelling a running entry', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await fill(t, token, 'alloy', 2000);
-    await fill(t, token, 'coal', 2000);
-    const { id } = await legacy(t, token, 2);
-    expect(await t.mutation(api.constructions.cancel, { token, constructionId: id })).toEqual({
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 2000);
+    await fill(t, seat, 'coal', 2000);
+    const { id } = await legacy(t, seat, 2);
+    expect(await t.mutation(api.constructions.cancel, { ...seat, constructionId: id })).toEqual({
       refunded: { alloy: 72, coal: 27 },
     });
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.stock).toBe(2072);
     expect(view.me.resources.coal.stock).toBe(2027);
-    const running = await legacy(t, token, 1, Date.now() + 60_000);
+    const running = await legacy(t, seat, 1, Date.now() + 60_000);
     await expect(
-      t.mutation(api.constructions.cancel, { token, constructionId: running.id }),
+      t.mutation(api.constructions.cancel, { ...seat, constructionId: running.id }),
     ).rejects.toThrow('CONSTRUCTION_ALREADY_STARTED');
   });
 });

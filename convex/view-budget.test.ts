@@ -3,10 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { NOTICES_SERVED, REPORTS_SERVED } from '../src/domain/player-view';
+import { buildGrid } from '../src/domain/routing';
+import { nominalStrength } from './constants';
 import { specializationServed, specializationsServed } from './movement/forces';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Le plateau se recharge à chaque pas d'une colonne, et `playerView` n'a longtemps eu aucune
@@ -28,6 +32,7 @@ import { modules } from './test.setup';
 const boot = () => convexTest(schema, modules);
 
 const MARNE = 'FRA-5323';
+const PRAHOVA = 'ROU-310'; // le sol de personne, 1 800 km à l'est
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 /** La saison écrite par le banc : bien au-delà de ce qu'une partie de 48 heures produit, pour que
@@ -65,18 +70,14 @@ const REPORT_BYTES = 6 * 1024;
 const bytes = (value: unknown): number => JSON.stringify(value)!.length;
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest };
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest };
 }
 
 /**
@@ -84,12 +85,9 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
  * cents passes en un test ; ce qui compte ici n'est pas comment les lignes sont nées mais combien
  * il y en a, et qu'aucune ne parte de la vue sans fenêtre.
  */
-async function ageSeason(t: ReturnType<typeof boot>, token: string) {
+async function ageSeason(t: ReturnType<typeof boot>, seat: Seat) {
   await t.run(async (ctx) => {
-    const me = (await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique())!;
+    const me = await seatIn(ctx, seat);
     const foe = (
       await ctx.db
         .query('players')
@@ -173,10 +171,10 @@ describe('la vue du plateau tient dans un budget', () => {
 
   it('sert une fenêtre de la saison, jamais la saison', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await ageSeason(t, token);
+    const { seat } = await launchedSeason(t);
+    await ageSeason(t, seat);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
 
     expect(view.reports).toHaveLength(REPORTS_SERVED);
     expect(view.notices).toHaveLength(NOTICES_SERVED);
@@ -187,12 +185,9 @@ describe('la vue du plateau tient dans un budget', () => {
 
   it('ne relit pas les anciens relevés sans inventaire d’installations', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await t.run(async (ctx) => {
-      const me = (await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique())!;
+      const me = await seatIn(ctx, seat);
       for (let index = 0; index < 500; index += 1) {
         await ctx.db.insert('regionSightings', {
           playerId: me._id,
@@ -203,7 +198,7 @@ describe('la vue du plateau tient dans un budget', () => {
       }
     });
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
 
     expect(view.surveyedInstallations).toEqual([]);
     expect(bytes(view)).toBeLessThan(VIEW_BYTES);
@@ -211,10 +206,10 @@ describe('la vue du plateau tient dans un budget', () => {
 
   it('pèse un ordre de grandeur sous le plafond de lecture, en octets comme en documents', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await ageSeason(t, token);
+    const { seat } = await launchedSeason(t);
+    await ageSeason(t, seat);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
 
     const served =
       view.reports.length +
@@ -229,8 +224,8 @@ describe('la vue du plateau tient dans un budget', () => {
 
   it('ne relit pas le détail frappe par frappe pour afficher deux totaux', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await ageSeason(t, token);
+    const { seat } = await launchedSeason(t);
+    await ageSeason(t, seat);
 
     const written = await t.run(async (ctx) => ({
       passes: (await ctx.db.query('engagements').collect()).map(bytes),
@@ -252,13 +247,10 @@ describe('la vue du plateau tient dans un budget', () => {
 
   it('répond des métiers scellés en une lecture, et la même chose qu’une par point', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
 
     const answers = await t.run(async (ctx) => {
-      const me = (await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique())!;
+      const me = await seatIn(ctx, seat);
       const point = regionFacts(MARNE)!.point;
       for (let index = 0; index < 12; index += 1) {
         await ctx.db.insert('outposts', {
@@ -310,5 +302,77 @@ describe('la vue du plateau tient dans un budget', () => {
     // Et la question a une réponse des deux côtés : un point servi, les autres non.
     expect(answers.filter(([bulk]) => bulk)).not.toHaveLength(0);
     expect(answers.filter(([bulk]) => !bulk)).not.toHaveLength(0);
+  });
+});
+
+/**
+ * **Une query n'a qu'une seconde, et la rasterisation du monde la dépassait.** La vue lit
+ * `afloat` et `coastal` sur la grille de routage pour chaque pile posée sur un point, et cette
+ * grille se construisait à la première demande de l'isolat : 1,33 M de cellules tirées des
+ * polygones de pays, 31 ms à chaud sur une machine de développement, des secondes à froid sans
+ * JIT. D'où les « Function execution timed out » **par intermittence** sur `view:playerView` —
+ * le premier appel d'un isolat neuf payait le raster, le second passait.
+ *
+ * La grille est cuite depuis (`public/grid.json`, décodée par `convex/routes.ts`) et cet espion
+ * est ce qui l'empêche de revenir : `buildGrid` est la référence hors ligne, elle n'a plus rien à
+ * faire dans le chemin d'une query. Le même budget porte `movements.preview`.
+ */
+vi.mock('../src/domain/routing', { spy: true });
+
+describe('aucune query ne rasterise le monde', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('sert la vue et l’aperçu sur la grille cuite', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = regionFacts(MARNE)!.point;
+
+    const { barracks, marching } = await t.run(async (ctx) => {
+      const me = await seatIn(ctx, seat);
+      const barracks = await ctx.db.insert('buildings', {
+        seasonId: me.seasonId,
+        playerId: me._id,
+        key: 'barracks' as const,
+        regionId: MARNE,
+        level: 1,
+      });
+      const troop = async (stationedAt: Id<'buildings'> | { lon: number; lat: number }) =>
+        ctx.db.insert('troops', {
+          seasonId: me.seasonId,
+          playerId: me._id,
+          role: 'infantry' as const,
+          tier: 1 as const,
+          nominalStrength: nominalStrength('infantry', 1),
+          currentStrength: nominalStrength('infantry', 1),
+          stationedAt,
+        });
+      // Une pile posée sur un point : c'est elle qui fait lire la grille à la vue.
+      await troop({ lon: point[0], lat: point[1] });
+      return { barracks, marching: await troop(barracks) };
+    });
+
+    vi.mocked(buildGrid).mockClear();
+
+    const view = await t.query(api.view.playerView, seat);
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [marching],
+      target: { kind: 'region', regionId: PRAHOVA },
+      type: 'attack',
+    });
+
+    // Les deux lectures ont bien eu lieu : sans elles, l'espion serait muet pour rien.
+    expect(view.me.troops.some((troop) => troop.stationedAt.kind === 'point')).toBe(true);
+    expect(preview?.route.points.length).toBeGreaterThan(1);
+
+    expect(
+      vi.mocked(buildGrid),
+      `buildGrid est appelée dans une query : la grille doit venir de public/grid.json, décodée par convex/routes.ts.`,
+    ).not.toHaveBeenCalled();
   });
 });

@@ -18,11 +18,24 @@ Traefik, puis la clé d'admin Convex (§ Dashboard).
 
 ## Dev local (Windows, Docker Desktop)
 
-### Comptes C2 — récupération administrateur
+### Comptes — le wipe de C3, et son ordre
 
-Le serveur des comptes est livré localement ; il n'est pas encore raccordé aux places ou
-à l'interface du jeu. Ces ajouts de tables ne demandent aucun wipe. Aucun déploiement n'a
-été effectué pour C2.
+**C3 demande un wipe, et il n'est pas négociable** (décision 85a) : `players.accountId` est
+obligatoire et `players.token` a disparu, donc les places déjà écrites ne passent plus la
+validation du schéma. Aucune reprise, aucune migration — la saison en cours est perdue, c'est
+le prix accepté pour que le compte possède ses places. Dans cet ordre, jamais l'inverse :
+
+```bash
+npx convex run dev:reset      # sur l'ANCIEN déploiement : les fonctions en place le portent
+npx convex deploy             # ensuite seulement — sinon la poussée est refusée
+```
+
+Poussé d'abord, `convex deploy` échouerait sur les `players` sans `accountId`, et `dev:reset`
+ne serait plus déployé pour les effacer. **Les comptes et les sessions survivent** : ils sont
+hors de `GAME_TABLES` (`convex/dev.ts`), et un joueur retrouve son dossier après le wipe — il
+n'y retrouve simplement aucune partie.
+
+### Comptes — récupération administrateur
 
 Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction
 **interne** `auth:resetPassword` depuis la console Convex, avec les arguments
@@ -34,8 +47,9 @@ du compte dans une transaction ; les autres appareils doivent se reconnecter. El
 crée pas de session et refuse un compte absent avec `ACCOUNT_NOT_FOUND`.
 
 Les portes publiques sont les actions Node `auth:register` et `auth:login`, la query
-`accounts:me` (`{nickname}` ou `null`) et la mutation `accounts:logout`, idempotente.
-La présence `sessions.lastSeenAt` est seulement initialisée ; son branchement attend C3.
+`accounts:me` (`{nickname, seats}` ou `null` pour une session inconnue) et la mutation
+`accounts:logout`, idempotente. La présence du jeu se tient sur la place (`players.lastSeenAt`,
+`players:touch`) ; `sessions.lastSeenAt` reste seulement initialisée, personne ne la lit.
 
 Pour C2, `npx convex codegen --typecheck disable` a échoué faute de backend local joignable
 sur `127.0.0.1:3210`. Les deux références `accounts` et `auth` ont été ajoutées mécaniquement

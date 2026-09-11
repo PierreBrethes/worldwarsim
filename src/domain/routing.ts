@@ -217,6 +217,18 @@ export function buildGrid(world: World, step = 0.25): RouteGrid {
     engravePassage(gate.passage, world, step, width, height, cells);
   }
 
+  return {
+    width,
+    height,
+    step,
+    cells,
+    edges: rowEdges(cells, width, height),
+    sphere: world.sphere,
+    outline: world.outline,
+  };
+}
+
+function rowEdges(cells: Uint8Array, width: number, height: number): Int32Array {
   const edges = new Int32Array(height * 2).fill(-1);
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -226,8 +238,70 @@ export function buildGrid(world: World, step = 0.25): RouteGrid {
       edges[row * 2 + 1] = cell;
     }
   }
+  return edges;
+}
 
-  return { width, height, step, cells, edges, sphere: world.sphere, outline: world.outline };
+/**
+ * **The raster, baked.** Rasterising the country polygons is a few dozen milliseconds warm on a
+ * development machine and seconds cold without a JIT — and a Convex query has one second, which
+ * `view:playerView` was intermittently losing on the first call of a fresh isolate. Land and sea
+ * are flats, so run-length pairs take the 1.33 M cells down to 65 Ko of JSON, and decoding them
+ * is a handful of `fill` calls.
+ *
+ * `buildGrid` stays the reference: the bake is checked against it byte for byte in the verifier,
+ * so a changed `SEA_GATES` or a regenerated `world.json` breaks the build rather than lying in
+ * production.
+ */
+export type GridAsset = {
+  readonly step: number;
+  readonly width: number;
+  readonly height: number;
+  /** Runs over the cells, in reading order: value, length, value, length… */
+  readonly cells: ReadonlyArray<number>;
+};
+
+export function encodeGrid(grid: RouteGrid): GridAsset {
+  const cells: number[] = [];
+  let value = grid.cells[0]!;
+  let length = 0;
+  for (const cell of grid.cells) {
+    if (cell === value) {
+      length += 1;
+      continue;
+    }
+    cells.push(value, length);
+    value = cell;
+    length = 1;
+  }
+  cells.push(value, length);
+  return { step: grid.step, width: grid.width, height: grid.height, cells };
+}
+
+/**
+ * The sphere and the outline come from the world rather than from the asset: they are already in
+ * the bundle for the country containment, and two copies of the same frame could disagree.
+ */
+export function decodeGrid(asset: GridAsset, world: World): RouteGrid {
+  const cells = new Uint8Array(asset.width * asset.height);
+  let at = 0;
+  for (let run = 0; run < asset.cells.length; run += 2) {
+    const value = asset.cells[run]!;
+    const length = asset.cells[run + 1]!;
+    if (value !== EMPTY) cells.fill(value, at, at + length);
+    at += length;
+  }
+  if (at !== cells.length) {
+    throw new Error(`baked grid covers ${at} cells, expected ${cells.length}`);
+  }
+  return {
+    width: asset.width,
+    height: asset.height,
+    step: asset.step,
+    cells,
+    edges: rowEdges(cells, asset.width, asset.height),
+    sphere: world.sphere,
+    outline: world.outline,
+  };
 }
 
 export function computeRoute(

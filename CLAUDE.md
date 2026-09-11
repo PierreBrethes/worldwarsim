@@ -18,9 +18,10 @@ git config core.hooksPath .githooks   # une fois par clone : active le pre-push
 Les surfaces 4.1 à 4.4 : le plateau (carte 3D, bandeau nation, rail, panneaux d'angle), le
 journal d'événements, et **le flux de mouvement en carte** — panneau de garnison, visée, rose
 des vents de mouvement, aperçu d'arc et envoi. Les données
-viennent **uniquement** du backend Convex, par le jeton de partie (accueil → salon → saison
-réelle, carte vierge) ; sans jeton, `/plateau` affiche « aucune partie en cours » et renvoie à
-l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le hors-saison et
+viennent **uniquement** du backend Convex, par la **session et la place** — un compte, une
+saison (ADR 0022) : connexion → accueil → salon → saison réelle, carte vierge. Sans session,
+toute surface renvoie à `/connexion` (`__root.tsx`) ; sans place, `/plateau` affiche « aucune
+partie en cours » et renvoie à l'accueil. Le fixture de démonstration a été retiré. Le backend couvre le hors-saison et
 l'état de nation (ADR 0009, 0010). **Trois mouvements terrestres existent côté serveur**
 (`convex/movements.ts`) : la marche qui fonde un avant-poste, l'attaque et le raid — plus le
 **retour**, que personne n'ordonne et que la résolution crée seule. Pas de naval, pas d'aérien,
@@ -121,6 +122,17 @@ mention, pas de modération. Un tic-tac synthétisé en Web Audio sonne à l'arr
 autres, coupable dans Réglages et muet quand l'onglet est caché ; le badge du rail compte depuis
 la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 
+**Le compte possède ses places** (ADR 0022, livré le 11/09/2026). Un pseudo unique et un mot de
+passe, sans e-mail : `/connexion` ouvre un dossier ou en reprend un, et l'accueil liste les
+parties du **compte** — le même joueur les retrouve depuis un second appareil, ce que le jeton de
+partie interdisait. Une seule porte côté serveur (`playerOf`, `convex/seasons.ts`) : un jeton de
+session, une saison, et la place que le compte y tient ; chaque fonction de jeu prend
+`{ token, seasonId }` et trois refus distincts disent trois choses — `UNKNOWN_SESSION` (on se
+reconnecte), `NO_SEAT` (on rentre à l'accueil), `SEASON_GONE`. **Au plus une place par compte et
+par saison** (`SEAT_TAKEN`) ; le pseudo se copie sur la place à l'entrée et y est figé pour la
+saison. `players.token` est mort avec le wipe du 11/09 — aucune reprise, aucune migration
+(décision 85a). La déconnexion se prend aux Réglages du plateau et à l'accueil.
+
 **Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.
@@ -160,16 +172,22 @@ obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif 
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
-canaux gravés (`SEA_GATES`). **Le serveur l'appelle** (`convex/routes.ts`, grille construite une
-fois par isolat depuis `world.json` : 1,33 M de cellules en 31 ms, un Dijkstra entre 13 et
-125 ms) — pour l'instant en mode terrestre seul ; le droit de passage par les pays neutres
-n'est toujours pas tranché.
+canaux gravés (`SEA_GATES`). **Le serveur l'appelle** (`convex/routes.ts`, un Dijkstra entre 13
+et 125 ms) — pour l'instant en mode terrestre seul ; le droit de passage par les pays neutres
+n'est toujours pas tranché. **La grille n'est plus calculée en ligne** : `buildGrid` reste la
+référence, mais les 1,33 M de cellules sont cuites en plages par `scripts/generate-grid.mjs`
+(chaîné par `generate-world.mjs`, `public/grid.json`, 65 Ko) et **décodées à la première
+demande** de l'isolat, en 2 ms. Les « 31 ms » étaient mesurées à chaud sur une machine de
+développement ; à froid sans JIT elles valaient des secondes, et une query n'a qu'une seconde —
+`playerView` lit `afloat` et `coastal` sur cette grille et tombait par intermittence. Trois
+garde-fous : l'égalité octet à octet de la cuisson et de `buildGrid`, un espion qui refuse
+`buildGrid` dans une query, et le chrono du décodage.
 
 ## Architecture
 
 ```
 src/domain/      TS pur. Aucune importation React ni Convex (sauf src/i18n/fr, ADR 0016). Testé.
-src/data/        adaptateur Convex vers PlayerView, jeton, réglages, client Convex.
+src/data/        adaptateur Convex vers PlayerView, session et place, réglages, client Convex.
 src/i18n/        table de traduction unique (fr.ts) — tout texte affiché au joueur.
 convex/          schéma + fonctions serveur (hors-saison, nation, production, combat). Testé.
 src/emblems/     drapeaux, icônes de ressources, sprites d'unités par nation + manifeste typé.

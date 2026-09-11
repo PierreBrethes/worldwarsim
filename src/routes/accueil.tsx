@@ -13,7 +13,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
-import { forgetToken, keepToken, useTokens } from '@/data/token';
+import { forgetSession, keepSeat, useSession } from '@/data/session';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
 
@@ -91,18 +91,19 @@ function ConnectedHome() {
   const create = useMutation(api.seasons.create);
   const join = useMutation(api.seasons.join);
   const destroy = useMutation(api.seasons.destroy);
-  const [nickname, setNickname] = useState('');
+  const logout = useMutation(api.accounts.logout);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState<Seat | null>(null);
-  const tokens = useTokens();
-  const asked = useMemo(() => [...tokens], [tokens]);
-  const seats = useQuery(api.seasons.previews, { tokens: asked });
+  /** Le compte est déjà garanti par la racine (`__root.tsx`) : sans session valide, cette
+   *  feuille n'est pas montée. La chaîne vide n'arme donc rien, elle satisfait le type. */
+  const token = useSession() ?? '';
+  const me = useQuery(api.accounts.me, { token });
 
   // Newest first: the game one just founded is the one one comes back for.
   const mine = useMemo(
-    () => [...(seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
-    [seats],
+    () => [...(me?.seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
+    [me],
   );
 
   const toLobby = () => turn(() => void navigate({ to: '/salon' }));
@@ -116,7 +117,7 @@ function ConnectedHome() {
    * reading the game back is exactly what the season is kept for.
    */
   const resume = (seat: Seat) => {
-    keepToken(seat.token);
+    keepSeat(seat.seasonId);
     /** A seat on a running season whose owner has not entered the war goes back to the lobby
      *  too: he holds no nation yet, and it is there that he enters (`seasons.enterWar`). */
     if (seat.status === 'lobby' || !seat.atWar) toLobby();
@@ -126,12 +127,12 @@ function ConnectedHome() {
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const { token } = await create({
-        nickname,
+      const { seasonId } = await create({
+        token,
         durationHours: FOUNDED_CLOCK,
         compensation: 0.5,
       });
-      keepToken(token);
+      keepSeat(seasonId);
       toLobby();
     } catch (problem) {
       handleError(problem, setError);
@@ -141,15 +142,13 @@ function ConnectedHome() {
   const submitJoin = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const { token } = await join({ code, nickname });
-      keepToken(token);
+      const { seasonId } = await join({ token, code });
+      keepSeat(seasonId);
       toLobby();
     } catch (problem) {
       handleError(problem, setError);
     }
   };
-
-  const nicknameReady = nickname.trim().length > 1;
 
   return (
     <>
@@ -163,33 +162,19 @@ function ConnectedHome() {
             <ul className="mt-3 flex flex-col gap-3">
               {mine.map((seat) => (
                 <GameRow
-                  key={seat.token}
+                  key={seat.seasonId}
                   seat={seat}
                   onResume={() => resume(seat)}
                   onDestroy={() =>
-                    void destroy({ token: seat.token })
-                      .then(() => forgetToken(seat.token))
-                      .catch((problem: unknown) => handleError(problem, setError))
+                    void destroy({ token, seasonId: seat.seasonId }).catch((problem: unknown) =>
+                      handleError(problem, setError),
+                    )
                   }
-                  onLeave={() => forgetToken(seat.token)}
                 />
               ))}
             </ul>
           </div>
         )}
-
-        <div className="mx-[30px] mt-5">
-          <div className="flex items-baseline justify-between">
-            <span className="eyebrow">{fr.home.nicknameLabel}</span>
-            <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.home.nicknameNote}</span>
-          </div>
-          <input
-            value={nickname}
-            onChange={(event) => setNickname(event.target.value)}
-            className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none"
-            placeholder={fr.home.nicknamePlaceholder}
-          />
-        </div>
 
         <div className="mx-[30px] mt-6 flex items-stretch border-t border-[var(--ink)]">
           <form onSubmit={submitCreate} className="flex-1 pt-4 pr-[26px] pb-1">
@@ -198,7 +183,7 @@ function ConnectedHome() {
               {fr.home.foundNote(regionNameOf(FOUNDED_REGION))}
             </p>
 
-            <Commit active={nicknameReady} type="submit">
+            <Commit active type="submit">
               {fr.home.foundSubmit}
             </Commit>
           </form>
@@ -227,7 +212,7 @@ function ConnectedHome() {
             <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
               {fr.home.joinHint(REGISTRATION_WINDOW_HOURS)}
             </p>
-            <Commit active={nicknameReady && code.length === 6} type="submit">
+            <Commit active={code.length === 6} type="submit">
               {fr.home.joinSubmit}
             </Commit>
           </form>
@@ -239,7 +224,25 @@ function ConnectedHome() {
           </p>
         )}
 
-        <div className="mx-[30px] mt-[26px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+        {/** **La déconnexion vit aussi ici**, et pas seulement dans les Réglages du plateau :
+         *   un compte sans partie n'a pas de plateau, et il serait enfermé sur cette feuille. */}
+        <div className="mx-[30px] mt-[22px] flex items-baseline justify-between gap-4">
+          <span className="eyebrow">{fr.auth.signedIn(me?.nickname ?? '')}</span>
+          <button
+            type="button"
+            onClick={() =>
+              void logout({ token }).finally(() => {
+                forgetSession();
+                void navigate({ to: '/connexion' });
+              })
+            }
+            className="cursor-pointer text-[11px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+          >
+            {fr.auth.logout}
+          </button>
+        </div>
+
+        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
           <span>{fr.home.footerLeft}</span>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
             {fr.home.footerRight}
@@ -259,22 +262,18 @@ function ConnectedHome() {
   );
 }
 
-type Seat = FunctionReturnType<typeof api.seasons.previews>[number];
+type Seat = NonNullable<FunctionReturnType<typeof api.accounts.me>>['seats'][number];
 
-/**
- * One seat, one row. The founder scraps the season for everybody; anybody else only drops his
- * own token — the two clicks are the same, what they cost is not, and only the note can say so.
- */
+/** Une place, une ligne. Le fondateur seul y porte un geste : mettre la saison au rebut, pour
+ *  tout le monde. */
 function GameRow({
   seat,
   onResume,
   onDestroy,
-  onLeave,
 }: {
   seat: Seat;
   onResume: () => void;
   onDestroy: () => void;
-  onLeave: () => void;
 }) {
   return (
     <li className="flex items-start gap-3">
@@ -322,23 +321,20 @@ function GameRow({
         </span>
       </button>
 
-      <div className="w-[164px] shrink-0">
-        {seat.creator ? (
+      {/** **Une place ne se range plus dans un coin** : elle appartient au compte, pas au
+       *   navigateur, et un bouton « retirer de ma liste » aurait effacé une ligne que la
+       *   prochaine lecture aurait ramenée. Seul le fondateur a encore un geste : mettre la
+       *   saison au rebut, pour tout le monde. */}
+      {seat.creator && (
+        <div className="w-[164px] shrink-0">
           <DestroyButton
             label={fr.lobby.destroy}
             confirm={fr.lobby.destroyConfirm}
             note={fr.lobby.destroyNote}
             onDestroy={onDestroy}
           />
-        ) : (
-          <DestroyButton
-            label={fr.home.leave}
-            confirm={fr.home.leaveConfirm}
-            note={fr.home.leaveNote}
-            onDestroy={onLeave}
-          />
-        )}
-      </div>
+        </div>
+      )}
     </li>
   );
 }

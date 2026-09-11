@@ -45,7 +45,7 @@ export async function startLootCollectionMission(
   },
 ) {
   const player = await ctx.db.get(playerId);
-  if (player === null) fail('UNKNOWN_TOKEN');
+  if (player === null) fail('NO_SEAT');
   const season = await ctx.db.get(player.seasonId);
   if (season === null) fail('SEASON_GONE');
   requirePlayable(player, season);

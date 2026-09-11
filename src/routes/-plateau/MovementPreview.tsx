@@ -15,6 +15,7 @@ import type {
   PlunderPreviewed,
 } from '@/data/serverView';
 import { ResourceAmounts } from './CargoReadout';
+import type { Seat } from '@/data/session';
 
 /**
  * **Une seule carte de confirmation pour trois missions.** Les trois aperçus du serveur portent
@@ -69,7 +70,7 @@ export const wireOrigin = (station: MarchStation) =>
  * one entitled to date a movement (`convex/movements.ts`, `preview`).
  */
 export function MovementPreview({
-  token,
+  seat,
   origin,
   troopIds,
   aim,
@@ -81,7 +82,7 @@ export function MovementPreview({
   freeSlots,
   onClose,
 }: {
-  token: string;
+  seat: Seat;
   origin: MarchStation;
   troopIds: ReadonlyArray<string>;
   aim: MovementAim;
@@ -118,41 +119,41 @@ export function MovementPreview({
     const order =
       mission.kind === 'plunder'
         ? plunder({
-            token,
+            ...seat,
             origin: from,
             troopIds: ids,
             buildingId: mission.buildingId as Id<'buildings'>,
           })
         : mission.kind === 'collect'
           ? collectLoot({
-              token,
+              ...seat,
               origin: from,
               troopIds: ids,
               sightingId: mission.sightingId as Id<'lootCrateSightings'>,
             })
           : type === 'march' && aim.kind === 'point'
             ? marchTo({
-                token,
+                ...seat,
                 origin: from,
                 troopIds: ids,
                 point: { lon: aim.lon, lat: aim.lat },
               })
             : type === 'march' && aim.kind === 'building'
               ? enterGarrison({
-                  token,
+                  ...seat,
                   origin: from,
                   troopIds: ids,
                   buildingId: aim.buildingId as Id<'buildings'>,
                 })
               : type === 'raid' && aim.kind === 'outpost'
                 ? raid({
-                    token,
+                    ...seat,
                     origin: from,
                     troopIds: ids,
                     outpostId: aim.outpostId as Id<'outposts'>,
                   })
                 : attack({
-                    token,
+                    ...seat,
                     origin: from,
                     troopIds: ids,
                     target: wireTarget(aim),

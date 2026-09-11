@@ -27,6 +27,7 @@ import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
 import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
+import type { Seat } from '@/data/session';
 
 /**
  * **La modale d'un site de production : ce bâtiment-là, et rien des autres** (décisions 59a,
@@ -43,7 +44,7 @@ import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
  */
 export function SiteModal({
   view,
-  token,
+  seat,
   buildingId,
   onOpenGunnery,
   onPrepare,
@@ -51,7 +52,7 @@ export function SiteModal({
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   buildingId: string;
   /** L'abaque de tir, ouvert d'ici : c'est au moment où l'on choisit quoi former que « qui bat
    *  qui » est une question (ADR 0018 §4). Muet — le libellé est l'infobulle. */
@@ -69,7 +70,7 @@ export function SiteModal({
         <Site
           key={building.id}
           view={view}
-          token={token}
+          seat={seat}
           building={building}
           onOpenGunnery={onOpenGunnery}
           onPrepare={onPrepare}
@@ -84,14 +85,14 @@ type Building = PlayerView['me']['buildings'][number];
 
 function Site({
   view,
-  token,
+  seat,
   building,
   onOpenGunnery,
   onPrepare,
   onClose,
 }: {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   building: Building;
   onOpenGunnery: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
@@ -100,7 +101,7 @@ function Site({
   const now = useClock();
   const sized = useWindowSized();
   const nation = view.me.nation;
-  const workshop = useQuery(api.troops.workshop, { token });
+  const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
   const cancel = useMutation(api.troops.cancel);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +145,7 @@ function Site({
           <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
         )}
         <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
-        <UpgradeControl building={building} view={view} token={token} now={now} />
+        <UpgradeControl building={building} view={view} seat={seat} now={now} />
         <button
           type="button"
           onClick={onClose}
@@ -222,7 +223,7 @@ function Site({
                           : () => {
                               setError(null);
                               void recruit({
-                                token,
+                                ...seat,
                                 buildingId: building.id as Id<'buildings'>,
                                 role: entry.role,
                                 tier: tiers[entry.role] ?? 1,
@@ -291,7 +292,7 @@ function Site({
                             ? null
                             : () => {
                                 setError(null);
-                                void cancel({ token, recruitmentId: batch.id }).catch(onFailure);
+                                void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
                               }
                         }
                       />

@@ -9,6 +9,7 @@ import { asDuration } from '@/domain/duration';
 import { DEPOSITS, RESOURCES } from '@/domain/ids';
 import { currentStock, type Building, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourcePlate } from '@/emblems/Plate';
+import type { Seat } from '@/data/session';
 
 /**
  * Raising a level, on the line of the building itself — in Industry, in Production and on the
@@ -27,12 +28,12 @@ import { ResourcePlate } from '@/emblems/Plate';
 export function UpgradeControl({
   building,
   view,
-  token,
+  seat,
   now,
 }: {
   building: Building;
   view: PlayerView;
-  token: string;
+  seat: Seat;
   now: number;
 }) {
   const start = useMutation(api.constructions.start);
@@ -66,7 +67,7 @@ export function UpgradeControl({
           title={held ?? fr.upgrade.title(building.name, next)}
           onClick={() => {
             setError(null);
-            start({ token, building: building.key, regionId: building.regionId }).catch(
+            start({ ...seat, building: building.key, regionId: building.regionId }).catch(
               (problem: unknown) => handleError(problem, setError),
             );
           }}

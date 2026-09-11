@@ -10,10 +10,10 @@ import type { PlayableRegion } from '@/domain/ids';
 import { FlagBanner, Flag } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { errorCode, handleError } from '@/data/errors';
-import { forgetToken, useToken } from '@/data/token';
+import { forgetSeat, useSeat, type Seat } from '@/data/session';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { ErrorScreen } from '@/shell/ErrorScreen';
-import { StaleToken } from '@/shell/StaleToken';
+import { StaleSeat } from '@/shell/StaleSeat';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { TelegraphThread } from '@/shell/TelegraphThread';
 import { useTelegraph } from '@/data/telegraph';
@@ -25,25 +25,25 @@ export const Route = createFileRoute('/salon')({
   errorComponent: ({ error, reset }) => <LobbyError error={error} reset={reset} />,
 });
 
-/** A dead token at the lobby is no outage: drop it and go back home. */
+/** Une place morte au salon n'est pas une panne : on l'oublie et on rentre à l'accueil. */
 function LobbyError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
-  if (code === 'UNKNOWN_TOKEN' || code === 'SEASON_GONE') return <StaleToken to="/accueil" />;
+  if (code === 'NO_SEAT' || code === 'SEASON_GONE') return <StaleSeat to="/accueil" />;
   return <ErrorScreen error={error} reset={reset} />;
 }
 
 const WIDTH = 760;
 
 function Lobby() {
-  const token = useToken();
-  if (!convexClient || !token) return <Navigate to="/accueil" />;
-  return <ConnectedLobby token={token} />;
+  const seat = useSeat();
+  if (!convexClient || !seat) return <Navigate to="/accueil" />;
+  return <ConnectedLobby seat={seat} />;
 }
 
-function ConnectedLobby({ token }: { token: string }) {
+function ConnectedLobby({ seat }: { seat: Seat }) {
   const navigate = useNavigate();
   const { turning, turn } = usePageTurn();
-  const lobby = useQuery(api.seasons.lobby, { token });
+  const lobby = useQuery(api.seasons.lobby, seat);
   const reserve = useMutation(api.players.reserveNation);
   const declareReady = useMutation(api.players.declareReady);
   const launch = useMutation(api.seasons.launch);
@@ -125,7 +125,7 @@ function ConnectedLobby({ token }: { token: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  forgetToken(token);
+                  forgetSeat();
                   turn(() => void navigate({ to: '/accueil' }));
                 }}
                 className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
@@ -181,7 +181,7 @@ function ConnectedLobby({ token }: { token: string }) {
                         key={nation}
                         type="button"
                         onClick={() =>
-                          act(() => reserve({ token, nation: isMine ? null : nation }))
+                          act(() => reserve({ ...seat, nation: isMine ? null : nation }))
                         }
                         disabled={taken}
                         title={fr.nationPowers[nation]}
@@ -303,7 +303,7 @@ function ConnectedLobby({ token }: { token: string }) {
                 <div className="eyebrow mt-4 border-b border-[var(--ink)] pb-[7px]">
                   {fr.lobby.restHeader}
                 </div>
-                <RestWindowForm token={token} declared={lobby.me.restWindow} onError={setError} />
+                <RestWindowForm seat={seat} declared={lobby.me.restWindow} onError={setError} />
                 <p className="mt-2 text-[11px] leading-[1.5] text-[var(--ink-note)]">
                   {fr.lobby.restNote}
                 </p>
@@ -333,7 +333,7 @@ function ConnectedLobby({ token }: { token: string }) {
                     <button
                       type="button"
                       disabled={missing > 0}
-                      onClick={() => act(() => enterWar({ token }))}
+                      onClick={() => act(() => enterWar(seat))}
                       className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         missing === 0
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
@@ -351,7 +351,7 @@ function ConnectedLobby({ token }: { token: string }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => act(() => declareReady({ token, ready: !lobby.me.ready }))}
+                    onClick={() => act(() => declareReady({ ...seat, ready: !lobby.me.ready }))}
                     className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
                       lobby.me.ready
                         ? 'bg-[var(--ink)] text-[var(--paper)]'
@@ -367,7 +367,7 @@ function ConnectedLobby({ token }: { token: string }) {
                     <button
                       type="button"
                       disabled={!allReady}
-                      onClick={() => act(() => launch({ token }))}
+                      onClick={() => act(() => launch(seat))}
                       className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         allReady
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
@@ -385,8 +385,8 @@ function ConnectedLobby({ token }: { token: string }) {
                       note={fr.lobby.destroyNote}
                       onDestroy={() =>
                         act(async () => {
-                          await destroy({ token });
-                          forgetToken(token);
+                          await destroy(seat);
+                          forgetSeat();
                           turn(() => void navigate({ to: '/accueil' }));
                         })
                       }
@@ -402,7 +402,7 @@ function ConnectedLobby({ token }: { token: string }) {
 
             <ThickRuleInverse />
 
-            <LobbyTelegraph token={token} />
+            <LobbyTelegraph seat={seat} />
 
             {error && (
               <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
@@ -443,14 +443,14 @@ function ConnectedLobby({ token }: { token: string }) {
  * lire. C'est la même règle que la fermeture d'une fenêtre, appliquée au seul geste qui existe
  * ici.
  */
-function LobbyTelegraph({ token }: { token: string }) {
-  const telegraph = useTelegraph(token);
+function LobbyTelegraph({ seat }: { seat: Seat }) {
+  const telegraph = useTelegraph(seat);
   const markRead = useMutation(api.messages.markRead);
   useEffect(
     () => () => {
-      void markRead({ token }).catch(() => undefined);
+      void markRead(seat).catch(() => undefined);
     },
-    [markRead, token],
+    [markRead, seat],
   );
 
   return (
@@ -459,7 +459,7 @@ function LobbyTelegraph({ token }: { token: string }) {
         <span className="eyebrow">{fr.telegraph.header}</span>
         <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.telegraph.channel}</span>
       </div>
-      <TelegraphThread telegraph={telegraph} token={token} height={220} />
+      <TelegraphThread telegraph={telegraph} seat={seat} height={220} />
     </section>
   );
 }
@@ -471,11 +471,11 @@ function LobbyTelegraph({ token }: { token: string }) {
  * start rather than as a second thing to choose.
  */
 function RestWindowForm({
-  token,
+  seat,
   declared,
   onError,
 }: {
-  token: string;
+  seat: Seat;
   declared: { startMinutes: number; endMinutes: number };
   onError: (message: string | null) => void;
 }) {
@@ -502,7 +502,7 @@ function RestWindowForm({
         type="button"
         onClick={() => {
           onError(null);
-          setRestWindow({ token, startMinutes: asMinutes(start) })
+          setRestWindow({ ...seat, startMinutes: asMinutes(start) })
             .then(() => setSaved(true))
             .catch((problem: unknown) => handleError(problem, onError));
         }}

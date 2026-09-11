@@ -21,6 +21,8 @@ import {
 } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
 
@@ -34,19 +36,15 @@ const MEUSE = 'FRA-5326';
 const PAS_DE_CALAIS = 'FRA-5334'; // coastal, for the port
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  await disbandTheGift(t, token);
-  return token;
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  await disbandTheGift(t, seat);
+  return seat;
 }
 
 /**
@@ -55,9 +53,9 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
  * rather than added to twenty expectations. What it *is* is graved in `off-season.test.ts`,
  * where the endowment itself is under test.
  */
-async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArray<string>) {
-  for (const token of tokens) {
-    const playerId = await playerOf(t, token);
+async function disbandTheGift(t: ReturnType<typeof boot>, ...seats: ReadonlyArray<Seat>) {
+  for (const seat of seats) {
+    const playerId = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const held = await ctx.db
         .query('troops')
@@ -68,13 +66,9 @@ async function disbandTheGift(t: ReturnType<typeof boot>, ...tokens: ReadonlyArr
   }
 }
 
-async function playerOf(t: ReturnType<typeof boot>, token: string) {
+async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
   return t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player._id;
   });
 }
@@ -82,12 +76,12 @@ async function playerOf(t: ReturnType<typeof boot>, token: string) {
 /** Puts a building up without paying for it: what is under test is what a standing one does. */
 async function raise(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: 'barracks' | 'airfield' | 'port' | 'billets',
   regionId: string,
   level = 1,
 ): Promise<Id<'buildings'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
     return ctx.db.insert('buildings', { seasonId, playerId, key, regionId, level });
@@ -95,8 +89,8 @@ async function raise(
 }
 
 /** The headquarters is not raised, it is promoted: one already stands on the capital. */
-async function setHqLevel(t: ReturnType<typeof boot>, token: string, level: number) {
-  const playerId = await playerOf(t, token);
+async function setHqLevel(t: ReturnType<typeof boot>, seat: Seat, level: number) {
+  const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
     const hq = (
       await ctx.db
@@ -116,8 +110,8 @@ async function raze(t: ReturnType<typeof boot>, buildingId: Id<'buildings'>) {
 }
 
 /** The starting kit does not pay for a season's worth of troops; this saves building a foundry. */
-async function credit(t: ReturnType<typeof boot>, token: string, stock: number) {
-  const playerId = await playerOf(t, token);
+async function credit(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
+  const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
     const rows = await ctx.db
       .query('resources')
@@ -139,8 +133,8 @@ async function credit(t: ReturnType<typeof boot>, token: string, stock: number) 
  * (`consommation-continue.md` D3) est une règle correcte qui n'a rien à voir avec ce qui est
  * mesuré ici : le plafond d'effectifs.
  */
-async function feed(t: ReturnType<typeof boot>, token: string, stock: number) {
-  const playerId = await playerOf(t, token);
+async function feed(t: ReturnType<typeof boot>, seat: Seat, stock: number) {
+  const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
     const rows = await ctx.db
       .query('resources')
@@ -153,30 +147,30 @@ async function feed(t: ReturnType<typeof boot>, token: string, stock: number) {
 }
 
 /** The ammunition stock, read the way the board reads it — the workshop no longer serves it. */
-async function ammunitionOf(t: ReturnType<typeof boot>, token: string): Promise<number> {
-  const view = await t.query(api.view.playerView, { token });
+async function ammunitionOf(t: ReturnType<typeof boot>, seat: Seat): Promise<number> {
+  const view = await t.query(api.view.playerView, seat);
   return view.me.resources.ammunition.stock;
 }
 
 describe('a queue per projection building', () => {
   it('only starts the head batch and leaves the followers waiting', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
     // The tank opens at the level that arms its counter, one above what the season plants —
     // and, since 67b, on a barracks raised to its own level.
-    await setHqLevel(t, token, ROLE_SITE_LEVEL.armor);
-    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    await setHqLevel(t, seat, ROLE_SITE_LEVEL.armor);
+    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
 
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 });
+    await t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 });
 
-    const workshop = await t.query(api.troops.workshop, { token });
+    const workshop = await t.query(api.troops.workshop, seat);
     const queue = workshop.facilities.find((facility) => facility.id === barracks)!.queue;
     expect(queue.map((batch) => [batch.role, batch.started])).toEqual([
       ['infantry', true],
@@ -187,15 +181,20 @@ describe('a queue per projection building', () => {
 
   it('gives two barracks two independent queues', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    const first = await raise(t, token, 'barracks', MARNE);
-    const second = await raise(t, token, 'barracks', MOSELLE);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    const first = await raise(t, seat, 'barracks', MARNE);
+    const second = await raise(t, seat, 'barracks', MOSELLE);
 
-    await t.mutation(api.troops.recruit, { token, buildingId: first, role: 'infantry', tier: 1 });
-    await t.mutation(api.troops.recruit, { token, buildingId: second, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, { ...seat, buildingId: first, role: 'infantry', tier: 1 });
+    await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: second,
+      role: 'infantry',
+      tier: 1,
+    });
 
-    const workshop = await t.query(api.troops.workshop, { token });
+    const workshop = await t.query(api.troops.workshop, seat);
     const heads = workshop.facilities.map((facility) =>
       facility.queue.map((batch) => batch.started),
     );
@@ -204,44 +203,44 @@ describe('a queue per projection building', () => {
 
   it('refuses a role the building does not form', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    const port = await raise(t, token, 'port', PAS_DE_CALAIS);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    const port = await raise(t, seat, 'port', PAS_DE_CALAIS);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: port, role: 'infantry', tier: 1 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: port, role: 'infantry', tier: 1 }),
     ).rejects.toThrow('WRONG_PROJECTION_BUILDING');
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'escort', tier: 1 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'escort', tier: 1 }),
     ).rejects.toThrow('WRONG_PROJECTION_BUILDING');
   });
 
   it('refunds a waiting batch in full and refuses to cancel the one that started', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    await setHqLevel(t, token, ROLE_SITE_LEVEL.armor);
-    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    await setHqLevel(t, seat, ROLE_SITE_LEVEL.armor);
+    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
-    await t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 });
+    await t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 });
 
-    const before = await t.query(api.troops.workshop, { token });
+    const before = await t.query(api.troops.workshop, seat);
     const queue = before.facilities.find((facility) => facility.id === barracks)!.queue;
     const cost = recruitmentCost('armor', 1, before.hqLevel);
 
     await expect(
-      t.mutation(api.troops.cancel, { token, recruitmentId: queue[0]!.id }),
+      t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[0]!.id }),
     ).rejects.toThrow('BATCH_ALREADY_STARTED');
 
-    await t.mutation(api.troops.cancel, { token, recruitmentId: queue[1]!.id });
+    await t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[1]!.id });
 
-    const after = await t.query(api.troops.workshop, { token });
+    const after = await t.query(api.troops.workshop, seat);
     expect(after.troopsQueued).toBe(1);
     expect(after.alloy.stock).toBe(before.alloy.stock + cost.alloy);
   });
@@ -252,11 +251,11 @@ describe('a finished batch is a troop', () => {
     vi.useFakeTimers();
     try {
       const t = boot();
-      const token = await launchedSeason(t);
-      await credit(t, token, 4000);
-      const barracks = await raise(t, token, 'barracks', MARNE);
+      const seat = await launchedSeason(t);
+      await credit(t, seat, 4000);
+      const barracks = await raise(t, seat, 'barracks', MARNE);
       await t.mutation(api.troops.recruit, {
-        token,
+        ...seat,
         buildingId: barracks,
         role: 'infantry',
         tier: 1,
@@ -264,7 +263,7 @@ describe('a finished batch is a troop', () => {
 
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.troops).toHaveLength(1);
       expect(view.me.troops[0]).toMatchObject({
         role: 'infantry',
@@ -283,11 +282,11 @@ describe('a finished batch is a troop', () => {
     vi.useFakeTimers();
     try {
       const t = boot();
-      const token = await launchedSeason(t);
-      await credit(t, token, 4000);
-      const barracks = await raise(t, token, 'barracks', MARNE);
+      const seat = await launchedSeason(t);
+      await credit(t, seat, 4000);
+      const barracks = await raise(t, seat, 'barracks', MARNE);
       await t.mutation(api.troops.recruit, {
-        token,
+        ...seat,
         buildingId: barracks,
         role: 'infantry',
         tier: 1,
@@ -296,7 +295,7 @@ describe('a finished batch is a troop', () => {
 
       await raze(t, barracks);
 
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.troops).toHaveLength(1);
       /** No address the game can place — `home`, and the schema says in writing what that
        *  means: on national ground, hanging from nothing that stands (ADR 0019 §1). */
@@ -325,8 +324,8 @@ describe('the troop ceiling', () => {
     const tall = await launchedSeason(u);
     await raise(u, tall, 'billets', ARDENNES, 2);
 
-    const twoSites = await t.query(api.troops.workshop, { token: spread });
-    const oneSite = await u.query(api.troops.workshop, { token: tall });
+    const twoSites = await t.query(api.troops.workshop, spread);
+    const oneSite = await u.query(api.troops.workshop, tall);
     expect(twoSites.troopCap).toBe(oneSite.troopCap);
     expect(twoSites.troopCap).toBe(troopCap(2));
   });
@@ -343,25 +342,25 @@ describe('the troop ceiling', () => {
 
   it('counts the queue against the ceiling and refuses the batch past it', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 40_000);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 40_000);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     for (let index = 0; index < TROOP_CAP_BASE; index += 1) {
       await t.mutation(api.troops.recruit, {
-        token,
+        ...seat,
         buildingId: barracks,
         role: 'infantry',
         tier: 1,
       });
     }
 
-    const workshop = await t.query(api.troops.workshop, { token });
+    const workshop = await t.query(api.troops.workshop, seat);
     expect(workshop.troopsQueued).toBe(TROOP_CAP_BASE);
     expect(workshop.troopCap).toBe(TROOP_CAP_BASE);
 
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 1 }),
     ).rejects.toThrow('TROOP_CAP_REACHED');
   });
 
@@ -369,19 +368,19 @@ describe('the troop ceiling', () => {
     vi.useFakeTimers();
     try {
       const t = boot();
-      const token = await launchedSeason(t);
-      await credit(t, token, 40_000);
-      await feed(t, token, 40_000);
-      const barracks = await raise(t, token, 'barracks', MARNE);
-      const billets = await raise(t, token, 'billets', ARDENNES, 2);
-      await raise(t, token, 'billets', MEUSE, 2);
+      const seat = await launchedSeason(t);
+      await credit(t, seat, 40_000);
+      await feed(t, seat, 40_000);
+      const barracks = await raise(t, seat, 'barracks', MARNE);
+      const billets = await raise(t, seat, 'billets', ARDENNES, 2);
+      await raise(t, seat, 'billets', MEUSE, 2);
 
-      const raised = await t.query(api.troops.workshop, { token });
+      const raised = await t.query(api.troops.workshop, seat);
       expect(raised.troopCap).toBe(troopCap(4));
 
       for (let index = 0; index < 10; index += 1) {
         await t.mutation(api.troops.recruit, {
-          token,
+          ...seat,
           buildingId: barracks,
           role: 'infantry',
           tier: 1,
@@ -393,20 +392,25 @@ describe('the troop ceiling', () => {
 
       // Ten troops stand under a ceiling that fell back to twelve: nothing is disbanded, the
       // nation simply cannot recruit while it sits above.
-      const view = await t.query(api.view.playerView, { token });
+      const view = await t.query(api.view.playerView, seat);
       expect(view.me.troops).toHaveLength(10);
       expect(view.me.troopCap).toBe(troopCap(2));
 
       for (let index = 0; index < 2; index += 1) {
         await t.mutation(api.troops.recruit, {
-          token,
+          ...seat,
           buildingId: barracks,
           role: 'infantry',
           tier: 1,
         });
       }
       await expect(
-        t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 1 }),
+        t.mutation(api.troops.recruit, {
+          ...seat,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+        }),
       ).rejects.toThrow('TROOP_CAP_REACHED');
     } finally {
       vi.useRealTimers();
@@ -428,9 +432,9 @@ describe('tiers', () => {
 
   it('serves the threshold to the workshop, rather than leaving it to a constant', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
+    const seat = await launchedSeason(t);
 
-    const shop = await t.query(api.troops.workshop, { token });
+    const shop = await t.query(api.troops.workshop, seat);
     expect(shop.requiredHqLevel).toBe(TIER_2_HQ_LEVEL);
     // The headquarters the season plants is one short of it: locked at the first minute.
     expect(shop.hqLevel).toBe(HQ_LEVEL_AT_LAUNCH);
@@ -439,17 +443,17 @@ describe('tiers', () => {
 
   it('rejects a tier the role does not have and tier 2 without the headquarters level', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    await setHqLevel(t, token, TIER_2_HQ_LEVEL - 1);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const port = await raise(t, token, 'port', PAS_DE_CALAIS);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    await setHqLevel(t, seat, TIER_2_HQ_LEVEL - 1);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const port = await raise(t, seat, 'port', PAS_DE_CALAIS);
 
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'infantry', tier: 2 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'infantry', tier: 2 }),
     ).rejects.toThrow('TIER_2_LOCKED');
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: port, role: 'carrier', tier: 2 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: port, role: 'carrier', tier: 2 }),
     ).rejects.toThrow('SINGLE_TIER_ROLE');
   });
 
@@ -460,20 +464,20 @@ describe('tiers', () => {
    */
   it('holds the tank at the level that opens its counter, and lets the infantry through', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    const barracks = await raise(t, token, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    const barracks = await raise(t, seat, 'barracks', MARNE, ROLE_SITE_LEVEL.armor);
 
     // Mark-1 infantry is the age of the barracks: recruitable the minute one stands.
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
 
     const refused: Record<string, unknown> = await t
-      .mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 })
+      .mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
     expect(refused).toMatchObject({
@@ -482,9 +486,9 @@ describe('tiers', () => {
       requiredLevel: TIER_2_HQ_LEVEL,
     });
 
-    await setHqLevel(t, token, TIER_2_HQ_LEVEL);
+    await setHqLevel(t, seat, TIER_2_HQ_LEVEL);
     const { rank } = await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'armor',
       tier: 1,
@@ -500,13 +504,18 @@ describe('tiers', () => {
    */
   it('holds a role until the site that forms it is raised to its level', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    await credit(t, token, 4000);
-    await setHqLevel(t, token, MAX_HQ_LEVEL);
-    const barracks = await raise(t, token, 'barracks', MARNE);
+    const seat = await launchedSeason(t);
+    await credit(t, seat, 4000);
+    await setHqLevel(t, seat, MAX_HQ_LEVEL);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
 
     const refused: Record<string, unknown> = await t
-      .mutation(api.troops.recruit, { token, buildingId: barracks, role: 'landTransport', tier: 1 })
+      .mutation(api.troops.recruit, {
+        ...seat,
+        buildingId: barracks,
+        role: 'landTransport',
+        tier: 1,
+      })
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
     expect(refused).toMatchObject({
@@ -519,7 +528,7 @@ describe('tiers', () => {
       await ctx.db.patch(barracks, { level: roleSiteLevel('landTransport') });
     });
     const { rank } = await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'landTransport',
       tier: 1,
@@ -528,14 +537,14 @@ describe('tiers', () => {
 
     // The headquarters is at its maximum and the barracks is not: the tank still waits.
     await expect(
-      t.mutation(api.troops.recruit, { token, buildingId: barracks, role: 'armor', tier: 1 }),
+      t.mutation(api.troops.recruit, { ...seat, buildingId: barracks, role: 'armor', tier: 1 }),
     ).rejects.toThrow('SITE_LEVEL_LOCKED');
   });
 
   it('serves the tank’s threshold to the workshop, and nothing for the roles their building carries', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const shop = await t.query(api.troops.workshop, { token });
+    const seat = await launchedSeason(t);
+    const shop = await t.query(api.troops.workshop, seat);
     for (const entry of shop.grid) {
       expect(entry.unlockedAtHqLevel).toBe(roleHqLevel(entry.role));
       expect(entry.unlockedAtSiteLevel).toBe(roleSiteLevel(entry.role));
@@ -565,13 +574,13 @@ describe('tiers', () => {
 describe('what a recruitment costs', () => {
   it('debits the alloy of the announced price and not one round', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const before = await t.query(api.troops.workshop, { token });
+    const seat = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const before = await t.query(api.troops.workshop, seat);
     const shown = before.grid.find((entry) => entry.role === 'infantry')!.unit;
 
     const { cost } = await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
@@ -579,38 +588,38 @@ describe('what a recruitment costs', () => {
 
     // The price on the card, the price the mutation answers, the alloy that actually left.
     expect(cost.alloy).toBe(shown.alloy);
-    const after = await t.query(api.troops.workshop, { token });
+    const after = await t.query(api.troops.workshop, seat);
     expect(after.alloy.stock).toBe(before.alloy.stock - shown.alloy);
-    expect(await ammunitionOf(t, token)).toBe(KIT.ammunition);
+    expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
 
   it('hands the same alloy back and takes no round back when a waiting batch is withdrawn', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const before = await t.query(api.troops.workshop, { token });
+    const seat = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const before = await t.query(api.troops.workshop, seat);
 
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
-    const queue = (await t.query(api.troops.workshop, { token })).facilities.find(
+    const queue = (await t.query(api.troops.workshop, seat)).facilities.find(
       (facility) => facility.id === barracks,
     )!.queue;
-    await t.mutation(api.troops.cancel, { token, recruitmentId: queue[1]!.id });
+    await t.mutation(api.troops.cancel, { ...seat, recruitmentId: queue[1]!.id });
 
-    const after = await t.query(api.troops.workshop, { token });
+    const after = await t.query(api.troops.workshop, seat);
     const one = before.grid.find((entry) => entry.role === 'infantry')!.unit.alloy;
     expect(after.alloy.stock).toBe(before.alloy.stock - one);
-    expect(await ammunitionOf(t, token)).toBe(KIT.ammunition);
+    expect(await ammunitionOf(t, seat)).toBe(KIT.ammunition);
   });
 });
 
@@ -623,27 +632,27 @@ describe('what a recruitment costs', () => {
 describe('a fresh nation', () => {
   it('forms its first troop out of the starting kit', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks', MARNE);
-    const workshop = await t.query(api.troops.workshop, { token });
+    const seat = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const workshop = await t.query(api.troops.workshop, seat);
 
     expect(workshop.alloy.stock).toBe(KIT.alloy);
     expect(workshop.grid.every((entry) => entry.unit.alloy > 0)).toBe(true);
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
     });
 
-    const after = await t.query(api.troops.workshop, { token });
+    const after = await t.query(api.troops.workshop, seat);
     expect(after.troopsQueued).toBe(1);
   });
 
   it('has no line at all before a projection building stands', async () => {
     const t = boot();
-    const token = await launchedSeason(t);
-    const workshop = await t.query(api.troops.workshop, { token });
+    const seat = await launchedSeason(t);
+    const workshop = await t.query(api.troops.workshop, seat);
     expect(workshop.facilities).toHaveLength(0);
   });
 });

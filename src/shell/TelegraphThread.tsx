@@ -5,6 +5,7 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import type { Telegraph, TelegraphMessage } from '@/data/telegraph';
 import { MESSAGE_MAX_CHARS } from '@/domain/telegraph';
+import type { Seat } from '@/data/session';
 
 /** À partir d'où le décompte paraît : plus tôt, il compterait par-dessus l'épaule du joueur. */
 const COUNTDOWN_FROM = 60;
@@ -22,12 +23,12 @@ const COUNTDOWN_FROM = 60;
  */
 export function TelegraphThread({
   telegraph,
-  token,
+  seat,
   height,
   autoFocus = false,
 }: {
   telegraph: Telegraph;
-  token: string;
+  seat: Seat;
   height: number | 'fill';
   autoFocus?: boolean;
 }) {
@@ -41,11 +42,11 @@ export function TelegraphThread({
     // Le champ se vide tout de suite : le fil est optimiste, et un refus le rend intact.
     setDraft('');
     setRefusal(null);
-    void post({ token, text }).catch((error: unknown) => {
+    void post({ ...seat, text }).catch((error: unknown) => {
       setDraft(text);
       handleError(error, setRefusal);
     });
-  }, [draft, post, token]);
+  }, [draft, post, seat]);
 
   const thread = useRef<HTMLDivElement>(null);
   const last = telegraph.messages.at(-1)?.id ?? null;

@@ -1,9 +1,10 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { coveredRegions, knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
-import { playerByToken } from './seasons';
+import { playerOf } from './seasons';
 import { standingObserversOf } from './surveys';
 
 /**
@@ -27,15 +28,16 @@ import { standingObserversOf } from './surveys';
  * inconnue, jamais neutre.
  */
 export const held = query({
-  args: { token: v.string() },
-  handler: (ctx, { token }) => heldOf(ctx, token),
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: (ctx, { token, seasonId }) => heldOf(ctx, token, seasonId),
 });
 
 /** La même carte, en fonction, pour que l'export de l'état de référence (`dev.snapshot`) serve
  *  ce que le plateau lit et non une seconde lecture qui en divergerait. */
-export async function heldOf(ctx: QueryCtx, token: string) {
-  // Le jeton authentifie et cloisonne : c'est la saison du joueur qu'on lit, jamais la table.
-  const { player, season } = await playerByToken(ctx, token);
+export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
+  // La session authentifie et la place cloisonne : c'est la saison du joueur qu'on lit, jamais
+  // la table.
+  const { player, season } = await playerOf(ctx, token, seasonId);
   const seats = await ctx.db
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', season._id))

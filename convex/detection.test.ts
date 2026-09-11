@@ -20,6 +20,8 @@ import { hostAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Les détecteurs de la fiche 04 font ce qu'ils vendent.** Le territoire, la station d'écoute,
@@ -64,38 +66,30 @@ const nearestApproach = (points: ReadonlyArray<LonLat>, to: LonLat): number => {
 };
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest };
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest };
 }
 
-async function playerOf(t: ReturnType<typeof boot>, token: string): Promise<Id<'players'>> {
+async function playerOf(t: ReturnType<typeof boot>, seat: Seat): Promise<Id<'players'>> {
   return t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player._id;
   });
 }
 
 async function form(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   role: UnitRole,
   stationedAt: Id<'buildings'> | null,
 ): Promise<Id<'troops'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   const strength = nominalStrength(role, 1);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
@@ -113,14 +107,14 @@ async function form(
 
 /** A column standing on plain ground, which is both a legal origin (ADR 0019 §1) and the one
  *  way to draw a road wherever a test needs it rather than wherever geography puts it. */
-async function column(t: ReturnType<typeof boot>, token: string, at: LonLat) {
-  const troopId = await form(t, token, 'infantry', null);
+async function column(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
+  const troopId = await form(t, seat, 'infantry', null);
   await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(at) }));
   return { troopIds: [troopId], origin: { kind: 'point' as const, point: asPoint(at) } };
 }
 
-async function station(t: ReturnType<typeof boot>, token: string, regionId: string) {
-  const playerId = await playerOf(t, token);
+async function station(t: ReturnType<typeof boot>, seat: Seat, regionId: string) {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
     return ctx.db.insert('buildings', { seasonId, playerId, key: 'listening', regionId, level: 1 });
@@ -129,12 +123,12 @@ async function station(t: ReturnType<typeof boot>, token: string, regionId: stri
 
 async function outpost(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   at: LonLat,
   specialization: Doc<'outposts'>['specialization'],
   disabledUntil: number | null = null,
 ) {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
     return ctx.db.insert('outposts', {
@@ -151,8 +145,8 @@ async function outpost(
   });
 }
 
-async function sightingsOf(t: ReturnType<typeof boot>, token: string) {
-  const playerId = await playerOf(t, token);
+async function sightingsOf(t: ReturnType<typeof boot>, seat: Seat) {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db
       .query('sightings')
@@ -163,14 +157,14 @@ async function sightingsOf(t: ReturnType<typeof boot>, token: string) {
 
 async function moving(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   troopId: Id<'troops'>,
   type: 'march' | 'attack' | 'raid' | 'return',
   from: LonLat,
   to: LonLat,
   durationMs: number,
 ) {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
     const distanceUnits = distanceKm(from, to);
@@ -212,7 +206,7 @@ describe('what sees a movement go past', () => {
    */
   it('files a sighting for a listening station the road passes inside of', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     await station(t, guest, PRAHOVA);
 
     const here = pointOf(PRAHOVA);
@@ -222,15 +216,15 @@ describe('what sees a movement go past', () => {
       LISTENING_STATION_RADIUS_KM,
     );
 
-    const { troopIds, origin } = await column(t, token, from);
-    await t.mutation(api.movements.marchTo, { token, origin, troopIds, point: asPoint(to) });
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
 
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'station' }]);
   });
 
   it('files nothing for a station the road stays outside of', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     await station(t, guest, PRAHOVA);
 
     const here = pointOf(PRAHOVA);
@@ -240,8 +234,8 @@ describe('what sees a movement go past', () => {
       LISTENING_STATION_RADIUS_KM,
     );
 
-    const { troopIds, origin } = await column(t, token, from);
-    await t.mutation(api.movements.marchTo, { token, origin, troopIds, point: asPoint(to) });
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
 
     expect(await sightingsOf(t, guest)).toEqual([]);
   });
@@ -254,7 +248,7 @@ describe('what sees a movement go past', () => {
    */
   it('files a sighting for a listening outpost the road passes inside of', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
     await outpost(t, guest, here, 'listening');
 
@@ -264,23 +258,23 @@ describe('what sees a movement go past', () => {
       outpostReachKm(1),
     );
 
-    const { troopIds, origin } = await column(t, token, from);
-    await t.mutation(api.movements.marchTo, { token, origin, troopIds, point: asPoint(to) });
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
 
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
   });
 
   it('files nothing for a listening outpost a raid has put out of service', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
     await outpost(t, guest, here, 'listening', Date.now() + 6 * 3_600_000);
 
     const from = eastOf(northOf(here, 60), -150);
     const to = eastOf(northOf(here, 60), 150);
 
-    const { troopIds, origin } = await column(t, token, from);
-    await t.mutation(api.movements.marchTo, { token, origin, troopIds, point: asPoint(to) });
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
 
     expect(await sightingsOf(t, guest)).toEqual([]);
   });
@@ -292,12 +286,12 @@ describe('what sees a movement go past', () => {
    */
   it('files a sighting for the soil a road crosses, with nothing standing on it', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const soviet = pointOf('RUS-2335');
 
-    const { troopIds, origin } = await column(t, token, eastOf(soviet, -300));
+    const { troopIds, origin } = await column(t, seat, eastOf(soviet, -300));
     await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin,
       troopIds,
       point: asPoint(eastOf(soviet, 300)),
@@ -312,20 +306,20 @@ describe('what sees a movement go past', () => {
    *  l'observateur, et ses propres détecteurs ne se relèvent pas lui-même. */
   it('never files a sighting against the mover himself', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
-    await outpost(t, token, here, 'listening');
+    await outpost(t, seat, here, 'listening');
 
     const from = eastOf(northOf(here, 100), -150);
-    const { troopIds, origin } = await column(t, token, from);
+    const { troopIds, origin } = await column(t, seat, from);
     await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin,
       troopIds,
       point: asPoint(eastOf(northOf(here, 100), 150)),
     });
 
-    expect(await sightingsOf(t, token)).toEqual([]);
+    expect(await sightingsOf(t, seat)).toEqual([]);
     expect(await sightingsOf(t, guest)).toEqual([]);
   });
 });
@@ -339,12 +333,12 @@ describe('event-driven mobile contact', () => {
 
   it('lets an attack initiate one pass against a crossing march, never the same pass twice', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const attacker = await form(t, token, 'fighter', null);
+    const { seat, guest } = await launchedSeason(t);
+    const attacker = await form(t, seat, 'fighter', null);
     const observer = await form(t, guest, 'fighter', null);
     const duration = 4 * 3_600_000;
 
-    const attackId = await moving(t, token, attacker, 'attack', [-2, 0], [2, 0], duration);
+    const attackId = await moving(t, seat, attacker, 'attack', [-2, 0], [2, 0], duration);
     const marchId = await moving(t, guest, observer, 'march', [0, -2], [0, 2], duration);
     const reserved = await t.run(async (ctx) => ctx.db.get(attackId));
     expect(reserved).toMatchObject({
@@ -352,7 +346,7 @@ describe('event-driven mobile contact', () => {
       contactInitiatorId: attackId,
     });
     expect(reserved!.contactAt).toBeGreaterThan(Date.now());
-    expect(await sightingsOf(t, token)).toMatchObject([{ movementId: marchId, detector: 'troop' }]);
+    expect(await sightingsOf(t, seat)).toMatchObject([{ movementId: marchId, detector: 'troop' }]);
     expect(await sightingsOf(t, guest)).toMatchObject([
       { movementId: attackId, detector: 'troop' },
     ]);
@@ -370,12 +364,12 @@ describe('event-driven mobile contact', () => {
 
   it('keeps two crossing marches observational', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    const first = await form(t, token, 'fighter', null);
+    const { seat, guest } = await launchedSeason(t);
+    const first = await form(t, seat, 'fighter', null);
     const second = await form(t, guest, 'fighter', null);
     const duration = 4 * 3_600_000;
 
-    const firstId = await moving(t, token, first, 'march', [-2, 0], [2, 0], duration);
+    const firstId = await moving(t, seat, first, 'march', [-2, 0], [2, 0], duration);
     const secondId = await moving(t, guest, second, 'march', [0, -2], [0, 2], duration);
     const movements = await t.run(async (ctx) =>
       Promise.all([ctx.db.get(firstId), ctx.db.get(secondId)]),
@@ -385,41 +379,41 @@ describe('event-driven mobile contact', () => {
 
   it('adds a future sighting when a detector appears after departure', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const target = await form(t, guest, 'infantry', null);
     const movementId = await moving(t, guest, target, 'march', [0, 0], [4, 0], 4 * 3_600_000);
-    expect(await sightingsOf(t, token)).toEqual([]);
+    expect(await sightingsOf(t, seat)).toEqual([]);
 
-    const detector = await form(t, token, 'infantry', null);
+    const detector = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => {
       await ctx.db.patch(detector, { stationedAt: asPoint([2, 0]) });
       const movement = (await ctx.db.get(movementId))!;
       await reassessDetection(ctx, movement.seasonId);
     });
 
-    const [sighting] = await sightingsOf(t, token);
+    const [sighting] = await sightingsOf(t, seat);
     expect(sighting).toMatchObject({ movementId, detector: 'troop' });
     expect(sighting!.from).toBeGreaterThan(Date.now());
   });
 
   it('cancels a future sighting when its detector leaves before the window', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const target = await form(t, guest, 'infantry', null);
     const movementId = await moving(t, guest, target, 'march', [0, 0], [4, 0], 4 * 3_600_000);
-    const detector = await form(t, token, 'infantry', null);
+    const detector = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => {
       await ctx.db.patch(detector, { stationedAt: asPoint([2, 0]) });
       await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
     });
-    const [future] = await sightingsOf(t, token);
+    const [future] = await sightingsOf(t, seat);
     expect(future).toBeDefined();
 
-    await moving(t, token, detector, 'march', [2, 0], [2, 4], 4 * 3_600_000);
-    expect(await sightingsOf(t, token)).toEqual([]);
+    await moving(t, seat, detector, 'march', [2, 0], [2, 4], 4 * 3_600_000);
+    expect(await sightingsOf(t, seat)).toEqual([]);
     vi.advanceTimersByTime(future!.from - Date.now());
     await t.finishInProgressScheduledFunctions();
-    const playerId = await playerOf(t, token);
+    const playerId = await playerOf(t, seat);
     const notices = await t.run(async (ctx) =>
       ctx.db
         .query('notices')
@@ -450,24 +444,24 @@ describe('what a logistics relay does to a departure', () => {
 
   it('shortens a march whose road it covers, and the preview says the same minute', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     const { from, to, route } = road();
     const plain = routeMinutes(route.costUnits);
 
     /** Standing on the road itself: what a relay covers is measured on the polyline, so a point
      *  the column actually walks past is the honest way to say "this road is watched". */
-    await outpost(t, token, route.points[Math.floor(route.points.length / 2)]!, 'relay');
+    await outpost(t, seat, route.points[Math.floor(route.points.length / 2)]!, 'relay');
 
-    const { troopIds, origin } = await column(t, token, from);
+    const { troopIds, origin } = await column(t, seat, from);
     const previewed = await t.query(api.movements.preview, {
-      token,
+      ...seat,
       origin,
       troopIds,
       target: { kind: 'point', point: asPoint(to) },
       type: 'march',
     });
     const sent = await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin,
       troopIds,
       point: asPoint(to),
@@ -481,17 +475,17 @@ describe('what a logistics relay does to a departure', () => {
 
   it('leaves a march no relay of its owner watches at the ordinary pace', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const { from, to, route } = road();
 
     /** An opponent's relay carries nobody but him, and one of the mover's own standing far off
      *  the road carries nothing at all. */
     await outpost(t, guest, route.points[Math.floor(route.points.length / 2)]!, 'relay');
-    await outpost(t, token, [0, 40], 'relay');
+    await outpost(t, seat, [0, 40], 'relay');
 
-    const { troopIds, origin } = await column(t, token, from);
+    const { troopIds, origin } = await column(t, seat, from);
     const sent = await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin,
       troopIds,
       point: asPoint(to),
@@ -502,19 +496,19 @@ describe('what a logistics relay does to a departure', () => {
 
   it('does not speed up a march a relay out of service was covering', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     const { from, to, route } = road();
     await outpost(
       t,
-      token,
+      seat,
       route.points[Math.floor(route.points.length / 2)]!,
       'relay',
       Date.now() + 6 * 3_600_000,
     );
 
-    const { troopIds, origin } = await column(t, token, from);
+    const { troopIds, origin } = await column(t, seat, from);
     const sent = await t.mutation(api.movements.marchTo, {
-      token,
+      ...seat,
       origin,
       troopIds,
       point: asPoint(to),

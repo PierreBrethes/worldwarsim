@@ -16,6 +16,8 @@ import {
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
  *  tous un avant-poste de niveau 1. */
@@ -34,20 +36,16 @@ const RIYADH: LonLat = [46.72, 24.63]; // Saudi — nobody's home country and no
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  await disbandTheGift(t, token);
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  await disbandTheGift(t, seat);
   await disbandTheGift(t, guest);
-  return { token, guest };
+  return { seat, guest };
 }
 
 /**
@@ -55,13 +53,9 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
  * measures is an economy, and the endowment eats: cleared at the door, so a figure here still
  * says what the ground produces. The gift itself is under test in `off-season.test.ts`.
  */
-async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
+async function disbandTheGift(t: ReturnType<typeof boot>, seat: Seat) {
   await t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     const held = await ctx.db
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
@@ -70,25 +64,21 @@ async function disbandTheGift(t: ReturnType<typeof boot>, token: string) {
   });
 }
 
-const playerOf = async (t: ReturnType<typeof boot>, token: string) =>
+const playerOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
   t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player._id;
   });
 
 /** A troop formed without paying for it: what is under test is what it eats, not what it cost. */
 async function form(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   role: UnitRole,
   stationedAt: Id<'buildings'> | Id<'outposts'> | { lon: number; lat: number } | null,
   strengthFactor = 1,
 ): Promise<Id<'troops'>> {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   const strength = nominalStrength(role, 1);
   return t.run(async (ctx) =>
     ctx.db.insert('troops', {
@@ -103,8 +93,8 @@ async function form(
   );
 }
 
-async function raise(t: ReturnType<typeof boot>, token: string, key: 'farm' | 'barracks') {
-  const playerId = await playerOf(t, token);
+async function raise(t: ReturnType<typeof boot>, seat: Seat, key: 'farm' | 'barracks') {
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('buildings', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -118,11 +108,11 @@ async function raise(t: ReturnType<typeof boot>, token: string, key: 'farm' | 'b
 
 async function plant(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   point: LonLat,
   { disabled = false }: { disabled?: boolean } = {},
 ) {
-  const playerId = await playerOf(t, token);
+  const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
@@ -138,8 +128,8 @@ async function plant(
   );
 }
 
-const upkeepOf = async (t: ReturnType<typeof boot>, token: string) =>
-  (await t.query(api.view.playerView, { token })).me.upkeep;
+const upkeepOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+  (await t.query(api.view.playerView, seat)).me.upkeep;
 
 /** A point a given distance due east of another, at this latitude. */
 const eastOf = (point: LonLat, km: number): LonLat => [
@@ -158,10 +148,10 @@ describe('an army eats a flat rate, whatever it is made of', () => {
 
   it('takes nothing from a nation holding no troop', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'farm');
+    const { seat } = await launchedSeason(t);
+    await raise(t, seat, 'farm');
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.upkeep.troops).toBe(0);
     expect(view.me.upkeep.foodPerHour).toBe(0);
     expect(view.me.resources.food.ratePerHour).toBe(EXTRACTION_PER_HOUR.food);
@@ -172,13 +162,13 @@ describe('an army eats a flat rate, whatever it is made of', () => {
    *  rate reads none of it. Twenty-four of anything eat twenty-four forfaits. */
   it('charges the ceiling of an army as many forfaits as it has troops, roles apart', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     const roles: ReadonlyArray<UnitRole> = ['infantry', 'armor', 'carrier', 'bomber', 'cargo'];
-    for (let seat = 0; seat < TROOP_CAP_TARGET; seat += 1) {
-      await form(t, token, roles[seat % roles.length]!, null);
+    for (let rank = 0; rank < TROOP_CAP_TARGET; rank += 1) {
+      await form(t, seat, roles[rank % roles.length]!, null);
     }
 
-    const upkeep = await upkeepOf(t, token);
+    const upkeep = await upkeepOf(t, seat);
     expect(upkeep.troops).toBe(TROOP_CAP_TARGET);
     expect(upkeep.foodPerHour).toBe(TROOP_CAP_TARGET * FOOD_UPKEEP_PER_TROOP_PER_HOUR);
   });
@@ -186,21 +176,21 @@ describe('an army eats a flat rate, whatever it is made of', () => {
   /** The intention of `chiffrage-combat.md` §5, kept for free: losing men is never an economy. */
   it('charges a troop at a tenth of its strength what it charges a full one', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    await form(t, token, 'infantry', null, 0.1);
+    const { seat, guest } = await launchedSeason(t);
+    await form(t, seat, 'infantry', null, 0.1);
     await form(t, guest, 'infantry', null);
 
-    expect((await upkeepOf(t, token)).foodPerHour).toBe((await upkeepOf(t, guest)).foodPerHour);
+    expect((await upkeepOf(t, seat)).foodPerHour).toBe((await upkeepOf(t, guest)).foodPerHour);
   });
 
   /** Half the point of the mechanism: a nation growing 12 and eating 24 must read −12. */
   it('serves a food rate net of the army, and lets it go negative', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'farm');
-    for (let seat = 0; seat < 24; seat += 1) await form(t, token, 'infantry', null);
+    const { seat } = await launchedSeason(t);
+    await raise(t, seat, 'farm');
+    for (let rank = 0; rank < 24; rank += 1) await form(t, seat, 'infantry', null);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.food.ratePerHour).toBe(
       EXTRACTION_PER_HOUR.food - 24 * FOOD_UPKEEP_PER_TROOP_PER_HOUR,
     );
@@ -219,11 +209,11 @@ describe('where a troop stands decides what it eats', () => {
 
   it('charges the end of the world the multiplier it charges home once', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    await form(t, token, 'infantry', asPoint(homePoint()));
+    const { seat, guest } = await launchedSeason(t);
+    await form(t, seat, 'infantry', asPoint(homePoint()));
     await form(t, guest, 'infantry', asPoint(RIYADH));
 
-    const home = await upkeepOf(t, token);
+    const home = await upkeepOf(t, seat);
     const abroad = await upkeepOf(t, guest);
     expect(home.unsupplied).toBe(0);
     expect(abroad.unsupplied).toBe(1);
@@ -233,22 +223,22 @@ describe('where a troop stands decides what it eats', () => {
   /** **The outpost feeds** (ADR 0019 §4): it does not project force, it supplies it. */
   it('feeds a column standing inside the reach of one of its own points', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, RIYADH);
+    await form(t, seat, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
-    const upkeep = await upkeepOf(t, token);
+    const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(0);
     expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR);
   });
 
   it('charges the raised rate a step beyond that reach', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM + 50)));
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, RIYADH);
+    await form(t, seat, 'infantry', asPoint(eastOf(RIYADH, REACH_KM + 50)));
 
-    expect((await upkeepOf(t, token)).unsupplied).toBe(1);
+    expect((await upkeepOf(t, seat)).unsupplied).toBe(1);
   });
 
   /**
@@ -257,11 +247,11 @@ describe('where a troop stands decides what it eats', () => {
    */
   it('leaves a column standing under somebody else’s point at the raised rate', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     await plant(t, guest, RIYADH);
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
+    await form(t, seat, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
-    const upkeep = await upkeepOf(t, token);
+    const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(1);
     expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER);
   });
@@ -274,24 +264,24 @@ describe('where a troop stands decides what it eats', () => {
    */
   it('stops feeding while the point is out of service, and feeds again when it comes back', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, RIYADH, { disabled: true });
-    await form(t, token, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, RIYADH, { disabled: true });
+    await form(t, seat, 'infantry', asPoint(eastOf(RIYADH, REACH_KM / 2)));
 
-    expect((await upkeepOf(t, token)).unsupplied).toBe(1);
+    expect((await upkeepOf(t, seat)).unsupplied).toBe(1);
 
     vi.advanceTimersByTime((OUTPOST_DISABLED_HOURS + 1) * 3_600_000);
-    expect((await upkeepOf(t, token)).unsupplied).toBe(0);
+    expect((await upkeepOf(t, seat)).unsupplied).toBe(0);
   });
 
   /** The surcharge has to be visible where the player looks at the troop, not on a ledger. */
   it('marks the troop that pays double, on its own card', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const home = await form(t, token, 'infantry', asPoint(homePoint()));
-    const abroad = await form(t, token, 'infantry', asPoint(RIYADH));
+    const { seat } = await launchedSeason(t);
+    const home = await form(t, seat, 'infantry', asPoint(homePoint()));
+    const abroad = await form(t, seat, 'infantry', asPoint(RIYADH));
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.troops.find((troop) => troop.id === home)!.supplied).toBe(true);
     expect(view.me.troops.find((troop) => troop.id === abroad)!.supplied).toBe(false);
   });
@@ -300,12 +290,12 @@ describe('where a troop stands decides what it eats', () => {
    *  game cannot place at all is at home (`null`), never an expedition. */
   it('feeds a garrison off the point it holds, and a homeless troop off the nation', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, RIYADH);
-    await form(t, token, 'infantry', outpostId);
-    await form(t, token, 'infantry', null);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, RIYADH);
+    await form(t, seat, 'infantry', outpostId);
+    await form(t, seat, 'infantry', null);
 
-    expect((await upkeepOf(t, token)).unsupplied).toBe(0);
+    expect((await upkeepOf(t, seat)).unsupplied).toBe(0);
   });
 });
 
@@ -318,17 +308,17 @@ describe('a dry reserve stops the queue and kills nothing', () => {
 
   /** Five mouths and no farm: the starting kit of food is gone well inside the window, and the
    *  army stays under the ceiling of the billets so a batch can still be ordered. */
-  const starve = async (t: ReturnType<typeof boot>, token: string) => {
-    for (let seat = 0; seat < 5; seat += 1) await form(t, token, 'infantry', null);
+  const starve = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    for (let rank = 0; rank < 5; rank += 1) await form(t, seat, 'infantry', null);
     vi.advanceTimersByTime(30 * 3_600_000);
   };
 
   it('floors the reserve, loses no troop, and says so out loud', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await starve(t, token);
+    const { seat } = await launchedSeason(t);
+    await starve(t, seat);
 
-    const view = await t.query(api.view.playerView, { token });
+    const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.food.stock).toBe(0);
     expect(view.me.starving).toBe(true);
     expect(view.me.troops).toHaveLength(5);
@@ -340,12 +330,12 @@ describe('a dry reserve stops the queue and kills nothing', () => {
    */
   it('refuses to date a head while the nation is hungry, and dates it when the food returns', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const barracks = await raise(t, token, 'barracks');
-    await starve(t, token);
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks');
+    await starve(t, seat);
 
     const { recruitmentId } = await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,
@@ -353,7 +343,7 @@ describe('a dry reserve stops the queue and kills nothing', () => {
     expect((await t.run(async (ctx) => ctx.db.get(recruitmentId)))!.finishesAt).toBeNull();
 
     // A convoy of food arrives — here, the hand of a test; in a season, a farm going up.
-    const playerId = await playerOf(t, token);
+    const playerId = await playerOf(t, seat);
     await t.run(async (ctx) => {
       const row = (
         await ctx.db
@@ -363,12 +353,12 @@ describe('a dry reserve stops the queue and kills nothing', () => {
       ).find((candidate) => candidate.key === 'food')!;
       await ctx.db.patch(row._id, { stock: 5_000, updatedAt: Date.now() });
     });
-    expect((await t.query(api.view.playerView, { token })).me.starving).toBe(false);
+    expect((await t.query(api.view.playerView, seat)).me.starving).toBe(false);
 
     // Ordering again is one of the events that restarts a line: `startHead` is idempotent and
     // picks up the head the famine left undated.
     await t.mutation(api.troops.recruit, {
-      token,
+      ...seat,
       buildingId: barracks,
       role: 'infantry',
       tier: 1,

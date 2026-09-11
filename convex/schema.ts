@@ -98,7 +98,17 @@ export default defineSchema({
 
   players: defineTable({
     seasonId: v.id('seasons'),
-    token: v.string(),
+    /**
+     * **Le compte qui tient cette place** (ADR 0022). Obligatoire, sans repli et sans
+     * migration : le jeton de partie est mort avec le wipe qui a posé ce champ (décision 85a),
+     * et un `v.optional` aurait laissé vivre des places que plus aucune porte ne sait ouvrir.
+     */
+    accountId: v.id('accounts'),
+    /**
+     * **Le pseudo du compte, copié à l'entrée et figé pour la saison.** Ce n'est pas une
+     * dénormalisation par confort : une saison se relit après coup, et un compte renommé
+     * réécrirait l'histoire de toutes celles qu'il a jouées.
+     */
     nickname: v.string(),
     creator: v.boolean(),
     nation: v.union(v.string(), v.null()),
@@ -177,7 +187,7 @@ export default defineSchema({
      */
     lastSeenAt: v.optional(v.number()),
   })
-    .index('byToken', ['token'])
+    .index('byAccountSeason', ['accountId', 'seasonId'])
     .index('bySeason', ['seasonId']),
 
   /** No `ratePerHour`: a rate is read off the exploitation buildings and the deposits of the

@@ -22,6 +22,8 @@ import { economyOf, settle } from './resources';
 import schema from './schema';
 import { surveyFoundation } from './surveys';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /**
  * **Un bâtiment ne produit que relié** (ADR 0020 §6). Ce fichier tient la règle par où elle
@@ -46,35 +48,22 @@ const MIDDAY = Date.UTC(2026, 8, 7, 12);
 const HOUR = 3_600_000;
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  await disband(t, token);
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  await disband(t, seat);
   await disband(t, guest);
-  return { token, guest };
+  return { seat, guest };
 }
 
-const seatOf = (t: ReturnType<typeof boot>, token: string) =>
-  t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
-    return player;
-  });
-
+const seatOf = (t: ReturnType<typeof boot>, seat: Seat) => seatDoc(t, seat);
 /** La compagnie offerte au lancement mange : ce qu'on mesure ici est ce que le sol rend. */
-async function disband(t: ReturnType<typeof boot>, token: string) {
-  const player = await seatOf(t, token);
+async function disband(t: ReturnType<typeof boot>, seat: Seat) {
+  const player = await seatOf(t, seat);
   await t.run(async (ctx) => {
     const held = await ctx.db
       .query('troops')
@@ -86,12 +75,12 @@ async function disband(t: ReturnType<typeof boot>, token: string) {
 
 async function raise(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: BuildingKey,
   regionId: string,
   level = 1,
 ): Promise<Id<'buildings'>> {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('buildings', {
       seasonId: player.seasonId,
@@ -107,12 +96,12 @@ async function raise(
  *  couleur et ce qu'elle relie, pas la marche qui plante. */
 async function plant(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   point: LonLat,
   regionId: string,
   level = 1,
 ): Promise<Id<'outposts'>> {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   const ground = { point: { lon: point[0], lat: point[1] }, hostCountry: 'ROU', regionId };
   return t.run(async (ctx) => {
     const outpostId = await ctx.db.insert('outposts', {
@@ -139,11 +128,11 @@ async function plant(
 
 const fill = async (
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: ResourceKey,
   stock: number,
 ): Promise<void> => {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   await t.run(async (ctx) => {
     const rows = await ctx.db
       .query('resources')
@@ -157,33 +146,29 @@ const fill = async (
 
 const stockOf = async (
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: ResourceKey,
 ): Promise<number> => {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   return t.run(async (ctx) => (await economyOf(ctx, player._id, Date.now())).stocks[key]);
 };
 
 const rateOf = async (
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   key: ResourceKey,
 ): Promise<number> => {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   return t.run(async (ctx) => (await economyOf(ctx, player._id, Date.now())).ratePerHour[key]);
 };
 
-const view = async (t: ReturnType<typeof boot>, token: string): Promise<PlayerView> =>
-  (await t.query(api.view.playerView, { token })) as unknown as PlayerView;
+const view = async (t: ReturnType<typeof boot>, seat: Seat): Promise<PlayerView> =>
+  (await t.query(api.view.playerView, seat)) as unknown as PlayerView;
 
 /** Le journal se dérive des notices côté client (`domain/journal.ts`) : ce qu'on tient ici est
  *  la ligne déposée, qui est ce que le serveur doit écrire — et à qui. */
-const noticesOf = async (
-  t: ReturnType<typeof boot>,
-  token: string,
-  kind: Doc<'notices'>['kind'],
-) => {
-  const player = await seatOf(t, token);
+const noticesOf = async (t: ReturnType<typeof boot>, seat: Seat, kind: Doc<'notices'>['kind']) => {
+  const player = await seatOf(t, seat);
   const filed = await t.run(async (ctx) =>
     ctx.db
       .query('notices')
@@ -229,10 +214,10 @@ describe('a building only produces when its region carries its colour', () => {
   /** Cas 1 : le sol national est toujours relié — rien ne le prend (ADR 0004). */
   it('leaves a mine on national soil untouched', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'mine', MEURTHE);
+    const { seat } = await launchedSeason(t);
+    await raise(t, seat, 'mine', MEURTHE);
 
-    const site = (await view(t, token)).me.extraction.find((one) => one.regionId === MEURTHE);
+    const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === MEURTHE);
     expect(site?.linked).toBe(true);
     expect(site?.perHour).toBe(EXTRACTION_PER_HOUR.ore);
   });
@@ -240,11 +225,11 @@ describe('a building only produces when its region carries its colour', () => {
   /** Cas 2, premier temps : sous un avant-poste vivant, le puits rend. */
   it('yields under a living outpost', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'oilWell', PRAHOVA);
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'oilWell', PRAHOVA);
 
-    const site = (await view(t, token)).me.extraction.find((one) => one.regionId === PRAHOVA);
+    const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === PRAHOVA);
     expect(site?.linked).toBe(true);
     expect(site?.perHour).toBe(EXTRACTION_PER_HOUR.oil);
   });
@@ -256,25 +241,25 @@ describe('a building only produces when its region carries its colour', () => {
    */
   it('yields nothing from the hour the outpost goes out of service, and not one hour before', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'oilWell', PRAHOVA);
-    await fill(t, token, 'oil', 0);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'oilWell', PRAHOVA);
+    await fill(t, seat, 'oil', 0);
 
     // Trois heures de plein débit, puis le raid.
     const raidedAt = MIDDAY + 3 * HOUR;
     vi.setSystemTime(raidedAt);
     await disable(t, outpostId, raidedAt);
 
-    const atRaid = await stockOf(t, token, 'oil');
+    const atRaid = await stockOf(t, seat, 'oil');
     expect(atRaid).toBeCloseTo(3 * EXTRACTION_PER_HOUR.oil, 2);
 
     // Cinq heures de plus, hors service : rien n'a bougé, au centième.
     vi.setSystemTime(raidedAt + 5 * HOUR);
-    expect(await rateOf(t, token, 'oil')).toBe(0);
-    expect(await stockOf(t, token, 'oil')).toBeCloseTo(atRaid, 2);
+    expect(await rateOf(t, seat, 'oil')).toBe(0);
+    expect(await stockOf(t, seat, 'oil')).toBeCloseTo(atRaid, 2);
 
-    const site = (await view(t, token)).me.extraction.find((one) => one.regionId === PRAHOVA);
+    const site = (await view(t, seat)).me.extraction.find((one) => one.regionId === PRAHOVA);
     expect(site?.linked).toBe(false);
     expect(site?.perHour).toBe(0);
   });
@@ -287,13 +272,13 @@ describe('a building only produces when its region carries its colour', () => {
    */
   it('gives the colour back at the end of the window, without crediting the hours it lost', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'oilWell', PRAHOVA);
-    await fill(t, token, 'oil', 0);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'oilWell', PRAHOVA);
+    await fill(t, seat, 'oil', 0);
     await disable(t, outpostId, MIDDAY);
 
-    const player = await seatOf(t, token);
+    const player = await seatOf(t, seat);
     const backAt = MIDDAY + OUTPOST_DISABLED_HOURS * HOUR;
     // Le travail se réveille en retard, exprès : c'est le cas que la borne inclusive tient.
     vi.setSystemTime(backAt + 2 * HOUR);
@@ -302,10 +287,10 @@ describe('a building only produces when its region carries its colour', () => {
       at: backAt,
     });
 
-    expect(await noticesOf(t, token, 'productionRestored')).toMatchObject([{ sites: 1 }]);
-    expect((await view(t, token)).me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
+    expect(await noticesOf(t, seat, 'productionRestored')).toMatchObject([{ sites: 1 }]);
+    expect((await view(t, seat)).me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(true);
     // Deux heures de plein débit depuis le retour, et pas une des heures perdues.
-    expect(await stockOf(t, token, 'oil')).toBeCloseTo(2 * EXTRACTION_PER_HOUR.oil, 2);
+    expect(await stockOf(t, seat, 'oil')).toBeCloseTo(2 * EXTRACTION_PER_HOUR.oil, 2);
   });
 
   /**
@@ -314,11 +299,11 @@ describe('a building only produces when its region carries its colour', () => {
    */
   it('cuts the further outpost and files the dispatch at the owner only', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     // Mon point tient la Buzău depuis la Prahova, et j'y bâtis.
-    await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'mine', BUZAU);
-    expect((await view(t, token)).me.regions.find((one) => one.id === BUZAU)?.linked).toBe(true);
+    await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'mine', BUZAU);
+    expect((await view(t, seat)).me.regions.find((one) => one.id === BUZAU)?.linked).toBe(true);
 
     // L'adversaire se plante dans la Buzău même : à distance nulle, il la tient.
     const buzau = regionFacts(BUZAU)!.point;
@@ -341,9 +326,9 @@ describe('a building only produces when its region carries its colour', () => {
       });
     });
 
-    const mine = (await view(t, token)).me.regions.find((one) => one.id === BUZAU);
+    const mine = (await view(t, seat)).me.regions.find((one) => one.id === BUZAU);
     expect(mine?.linked).toBe(false);
-    expect(await noticesOf(t, token, 'productionCut')).toMatchObject([
+    expect(await noticesOf(t, seat, 'productionCut')).toMatchObject([
       { sites: 1, hostCountry: 'ROU' },
     ]);
     expect(await noticesOf(t, guest, 'productionCut')).toEqual([]);
@@ -352,23 +337,23 @@ describe('a building only produces when its region carries its colour', () => {
   /** Cas 4 : une fonderie coupée ne convertit pas, et refuse le lot. */
   it('refuses a lot on a cut chain', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'arsenal', PRAHOVA);
-    await fill(t, token, 'alloy', 500);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'arsenal', PRAHOVA);
+    await fill(t, seat, 'alloy', 500);
 
-    const running = (await view(t, token)).me.chains.find((chain) => chain.by === 'arsenal');
+    const running = (await view(t, seat)).me.chains.find((chain) => chain.by === 'arsenal');
     expect(running?.state).not.toBe('unlinked');
 
     vi.setSystemTime(MIDDAY + HOUR);
     await disable(t, outpostId, MIDDAY + HOUR);
 
-    const cut = (await view(t, token)).me.chains.find((chain) => chain.by === 'arsenal');
+    const cut = (await view(t, seat)).me.chains.find((chain) => chain.by === 'arsenal');
     expect(cut?.state).toBe('unlinked');
     expect(cut?.perHour).toBe(0);
 
     await expect(
-      t.mutation(api.industry.order, { token, chain: 'arsenal', quantity: 4 }),
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: 4 }),
     ).rejects.toThrow(/SITE_UNLINKED/);
   });
 
@@ -378,12 +363,12 @@ describe('a building only produces when its region carries its colour', () => {
    */
   it('paints and links off one and the same reading', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'oilWell', PRAHOVA);
-    const player = await seatOf(t, token);
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'oilWell', PRAHOVA);
+    const player = await seatOf(t, seat);
 
-    const painted = await t.query(api.control.held, { token });
+    const painted = await t.query(api.control.held, seat);
     const mine = painted.find((holder) => holder.playerId === player._id);
     const regions = new Set(mine?.regions.map((region) => region.id));
 
@@ -400,7 +385,7 @@ describe('a building only produces when its region carries its colour', () => {
     const holderOf = new Map(truth);
 
     // La région du point et le sol national : peintes chez lui, tenues par lui, reliées.
-    const seen = await view(t, token);
+    const seen = await view(t, seat);
     for (const regionId of [PRAHOVA, MARNE]) {
       expect(regions.has(regionId)).toBe(true);
       expect(holderOf.get(regionId)).toBe(player._id);
@@ -411,13 +396,13 @@ describe('a building only produces when its region carries its colour', () => {
   /** Cas 6 : un observateur lit le tampon, il n'a rien à cliquer — et la carte reste absente. */
   it('serves the state to an observer and no action', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'oilWell', PRAHOVA);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'oilWell', PRAHOVA);
     await disable(t, outpostId, MIDDAY);
-    await t.mutation(api.players.surrender, { token });
+    await t.mutation(api.players.surrender, seat);
 
-    const seen = await view(t, token);
+    const seen = await view(t, seat);
     expect(seen.me.defeated).toBe(true);
     expect(seen.me.regions.find((one) => one.id === PRAHOVA)?.linked).toBe(false);
     // La carte « à faire maintenant » n'existe pas pour un observateur (décision du 31/08) ;
@@ -428,13 +413,13 @@ describe('a building only produces when its region carries its colour', () => {
   /** La carte « à faire maintenant » compte les sites coupés, et mène au premier. */
   it('raises one line for the cut sites, whatever their number', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    const well = await raise(t, token, 'oilWell', PRAHOVA);
-    await raise(t, token, 'arsenal', BUZAU);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    const well = await raise(t, seat, 'oilWell', PRAHOVA);
+    await raise(t, seat, 'arsenal', BUZAU);
     await disable(t, outpostId, MIDDAY);
 
-    const cut = unlinkedProducers(await view(t, token));
+    const cut = unlinkedProducers(await view(t, seat));
     expect(cut.map((building) => building.id)).toContain(well);
     expect(cut).toHaveLength(2);
   });
@@ -442,24 +427,24 @@ describe('a building only produces when its region carries its colour', () => {
   /** Le stockage, la projection et le QG ne produisent rien : rien ne s'y coupe. */
   it('never cuts what does not produce', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
-    await raise(t, token, 'warehouse', PRAHOVA);
-    await raise(t, token, 'barracks', BUZAU);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'warehouse', PRAHOVA);
+    await raise(t, seat, 'barracks', BUZAU);
     await disable(t, outpostId, MIDDAY);
 
-    expect(unlinkedProducers(await view(t, token))).toHaveLength(0);
+    expect(unlinkedProducers(await view(t, seat))).toHaveLength(0);
   });
 
   /** L'entretien de l'avant-poste ne bouge pas : la désactivation prend ce que le point *donne*,
    *  elle ne fait pas de remise (ADR 0020 §10). */
   it('keeps billing the outpost while it is out of service', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const outpostId = await plant(t, token, PRAHOVA_POINT, PRAHOVA);
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
     await disable(t, outpostId, MIDDAY);
 
-    const player = await seatOf(t, token);
+    const player = await seatOf(t, seat);
     const upkeep = await t.run(async (ctx) => (await economyOf(ctx, player._id, MIDDAY)).upkeep);
     expect(upkeep.outpostPerHour.coal).toBe(OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.coal);
   });
@@ -467,10 +452,10 @@ describe('a building only produces when its region carries its colour', () => {
   /** Rien n'est stocké de la couleur : un règlement de plus ne change pas un chiffre. */
   it('settles twice to the same figure', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await raise(t, token, 'mine', MEURTHE);
-    await fill(t, token, 'ore', 0);
-    const player = await seatOf(t, token);
+    const { seat } = await launchedSeason(t);
+    await raise(t, seat, 'mine', MEURTHE);
+    await fill(t, seat, 'ore', 0);
+    const player = await seatOf(t, seat);
 
     vi.setSystemTime(MIDDAY + 2 * HOUR);
     const once = await t.run(async (ctx) => (await settle(ctx, player._id, Date.now())).stocks.ore);
@@ -482,9 +467,9 @@ describe('a building only produces when its region carries its colour', () => {
 
   it('restores warehouse capacity from its dated deadline when the job wakes late', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    const warehouseId = await raise(t, token, 'warehouse', MARNE);
-    const player = await seatOf(t, token);
+    const { seat } = await launchedSeason(t);
+    const warehouseId = await raise(t, seat, 'warehouse', MARNE);
+    const player = await seatOf(t, seat);
     const disabledUntil = MIDDAY + PLUNDER_DISABLED_HOURS * HOUR;
     await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil }));
 

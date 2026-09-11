@@ -2,6 +2,10 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
+import { buildGrid, decodeGrid } from '../src/domain/routing';
+import type { World } from '../src/domain/world';
+import gridAsset from '../public/grid.json';
+import worldAsset from '../public/world.json';
 import {
   COST_BY_ROLE,
   HQ_LEVEL_AT_LAUNCH,
@@ -118,7 +122,7 @@ describe('les noms de modules de convex/', () => {
  * dans un isolat pour y découvrir les fonctions, avec quatre secondes pour l'ensemble : une
  * préparation de contours au niveau du module a suffi à faire refuser le push
  * (`InvalidModules — Function execution timed out`). Le modèle est celui de la grille de
- * `routes.ts` — `let grid = null` puis `grid ??= buildGrid(world)`.
+ * `routes.ts` — `let grid = null` puis `grid ??= decodeGrid(gridAsset, world)`.
  *
  * La mesure porte sur l'**exécution** et non sur le premier import : celui-ci paie la
  * transformation de `public/regions.json` par Vite et la lecture de 2,6 Mo à travers le pont
@@ -173,4 +177,63 @@ describe('la préparation des contours de région', () => {
       `La première demande de contour coûte ${Math.round(elapsed)} ms. Au-dessus d’une demi-seconde, la préparation part hors ligne dans scripts/generer-regions.mjs.`,
     ).toBeLessThan(500);
   }, 120000);
+});
+
+/**
+ * **La grille de routage est cuite, et la cuisson ne peut pas mentir.** `buildGrid` reste la
+ * référence — elle rasterise les polygones de `world.json` — mais aucune query ne l'appelle :
+ * `public/grid.json` porte les mêmes cellules en plages et `convex/routes.ts` les décode. Les deux
+ * chemins doivent rendre la même grille **octet pour octet**, sans quoi un `SEA_GATES` modifié ou
+ * un `world.json` regénéré laisserait le serveur router sur une géographie périmée, en silence.
+ * C'est le même esprit que le miroir du simulateur : on recuit (`node scripts/generate-grid.mjs`,
+ * chaîné par `generate-world.mjs`) ou la CI refuse.
+ *
+ * Et le chrono, parce que c'est tout l'objet de la cuisson : une query a **une seconde**, et la
+ * rasterisation à froid, sans JIT, la dépassait — d'où les « Function execution timed out » par
+ * intermittence sur `view:playerView`, qui lit `afloat` et `coastal` sur cette grille.
+ */
+describe('la grille de routage cuite', () => {
+  const worldOf = (asset: typeof worldAsset): World =>
+    ({
+      sphere: asset.meta.sphere,
+      outline: asset.meta.outline,
+      countries: asset.countries.map((country) => ({
+        name: country.n,
+        adm0: country.a,
+        representativePoint: country.c,
+        lonLat: country.ll,
+        rings: country.p,
+      })),
+    }) as unknown as World;
+
+  it('rend exactement la grille que rasteriserait le monde', () => {
+    const world = worldOf(worldAsset);
+    const built = buildGrid(world);
+    const decoded = decodeGrid(gridAsset, world);
+
+    expect([decoded.width, decoded.height, decoded.step]).toEqual([
+      built.width,
+      built.height,
+      built.step,
+    ]);
+    expect(
+      decoded.cells,
+      `public/grid.json ne correspond plus à public/world.json : recuire avec node scripts/generate-grid.mjs.`,
+    ).toEqual(built.cells);
+    expect(decoded.edges).toEqual(built.edges);
+  }, 120000);
+
+  it('se décode assez vite pour tenir dans le budget d’une query', () => {
+    const world = worldOf(worldAsset);
+    const started = performance.now();
+    decodeGrid(gridAsset, world);
+    const elapsed = performance.now() - started;
+
+    // Imprimé : c'est le chiffre qui dit si la cuisson tient encore sa promesse.
+    console.log(`grille décodée en ${elapsed.toFixed(1)} ms`);
+    expect(
+      elapsed,
+      `Le décodage de la grille coûte ${Math.round(elapsed)} ms. Au-dessus de 50 ms, il n’a plus sa place dans une query, qui n’a qu’une seconde pour tout le reste.`,
+    ).toBeLessThan(50);
+  });
 });

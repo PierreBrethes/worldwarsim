@@ -39,7 +39,7 @@ import {
   founderOf,
   isAtWar,
   lastSeenOf,
-  playerByToken,
+  playerOf,
   requireStarted,
   warEntryOf,
 } from './seasons';
@@ -48,8 +48,8 @@ import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
 
 export const playerView = query({
-  args: { token: v.string() },
-  handler: (ctx, { token }) => viewOf(ctx, token),
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: (ctx, { token, seasonId }) => viewOf(ctx, token, seasonId),
 });
 
 /**
@@ -59,8 +59,8 @@ export const playerView = query({
  * ajouté, et l'état de référence aurait recommencé à décrire un jeu qui n'existe plus — la panne
  * même que l'ancien simulateur laissait derrière lui.
  */
-export async function viewOf(ctx: QueryCtx, token: string) {
-  const { player, season } = await playerByToken(ctx, token);
+export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons'>) {
+  const { player, season } = await playerOf(ctx, token, seasonId);
   requireStarted(season);
   /** A seat taken on a running season is not a nation yet: its owner holds no flag, and the
    *  board has nothing to draw. He is sent back to the lobby, to enter the war (`enterWar`). */

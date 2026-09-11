@@ -9,6 +9,8 @@ import { regionFacts, regionOfOutpost } from './regions';
 import schema from './schema';
 import { surveyFoundation, surveyFromPoint } from './surveys';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
  *  tous un avant-poste de niveau 1. */
@@ -28,30 +30,22 @@ const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
 const SASKATCHEWAN = 'CAN-631';
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  const { token: third } = await t.mutation(api.seasons.join, { code, nickname: 'Marc' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.players.reserveNation, { token: third, nation: 'usa' });
-  await t.mutation(api.players.declareReady, { token: third, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest, third };
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  const third = await joinSeat(t, code, 'Marc');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.players.reserveNation, { ...third, nation: 'usa' });
+  await t.mutation(api.players.declareReady, { ...third, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest, third };
 }
 
-const seatOf = async (t: ReturnType<typeof boot>, token: string) =>
+const seatOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
   t.run(async (ctx) => {
-    const player = await ctx.db
-      .query('players')
-      .withIndex('byToken', (q) => q.eq('token', token))
-      .unique();
-    if (!player) throw new Error('player not found');
+    const player = await seatIn(ctx, seat);
     return player;
   });
 
@@ -62,14 +56,14 @@ const seatOf = async (t: ReturnType<typeof boot>, token: string) =>
  */
 async function plant(
   t: ReturnType<typeof boot>,
-  token: string,
+  seat: Seat,
   point: LonLat,
   /** La région où il se plante — omise, le point se relit par le repli, comme ceux d'avant le
    *  champ (précision du 04/09). */
   regionId?: string,
   hostCountry = 'ROU',
 ) {
-  const player = await seatOf(t, token);
+  const player = await seatOf(t, seat);
   /** Le sol du point, exactement comme la fondation l'écrit : la région que la carte a nommée,
    *  ou rien — et c'est alors le repli qui répond, ici comme là-bas. */
   const ground = {
@@ -102,8 +96,8 @@ async function plant(
 
 /** **Une troupe posée**, et le relevé qu'elle dresse en se posant — l'autre point
  *  d'échantillonnage, celui qui va voir. */
-async function post(t: ReturnType<typeof boot>, token: string, point: LonLat) {
-  const player = await seatOf(t, token);
+async function post(t: ReturnType<typeof boot>, seat: Seat, point: LonLat) {
+  const player = await seatOf(t, seat);
   return t.run(async (ctx) => {
     const troopId = await ctx.db.insert('troops', {
       seasonId: player.seasonId,
@@ -125,22 +119,22 @@ const leave = (t: ReturnType<typeof boot>, troopId: Id<'troops'>) =>
 const raze = (t: ReturnType<typeof boot>, outpostId: Id<'outposts'>) =>
   t.run(async (ctx) => ctx.db.delete(outpostId));
 
-const heldBy = async (t: ReturnType<typeof boot>, token: string, nickname: string) =>
-  (await t.query(api.control.held, { token })).find((holder) => holder.nickname === nickname);
+const heldBy = async (t: ReturnType<typeof boot>, seat: Seat, nickname: string) =>
+  (await t.query(api.control.held, seat)).find((holder) => holder.nickname === nickname);
 
-const regionIdsOf = async (t: ReturnType<typeof boot>, token: string, nickname: string) =>
-  ((await heldBy(t, token, nickname))?.regions ?? []).map((region) => region.id);
+const regionIdsOf = async (t: ReturnType<typeof boot>, seat: Seat, nickname: string) =>
+  ((await heldBy(t, seat, nickname))?.regions ?? []).map((region) => region.id);
 
-const knownOf = async (t: ReturnType<typeof boot>, token: string, regionId: string) => {
-  for (const holder of await t.query(api.control.held, { token })) {
+const knownOf = async (t: ReturnType<typeof boot>, seat: Seat, regionId: string) => {
+  for (const holder of await t.query(api.control.held, seat)) {
     const region = holder.regions.find((candidate) => candidate.id === regionId);
     if (region) return { holder: holder.nickname, ...region };
   }
   return null;
 };
 
-const surveyRows = async (t: ReturnType<typeof boot>, token: string) => {
-  const player = await seatOf(t, token);
+const surveyRows = async (t: ReturnType<typeof boot>, seat: Seat) => {
+  const player = await seatOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db
       .query('regionSightings')
@@ -159,53 +153,49 @@ const eastOf = (point: LonLat, km: number): LonLat => [
 describe('the home ground is coloured from the launch', () => {
   it('holds the whole country of the caller, up to date and undated', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
 
-    const mine = await heldBy(t, token, 'Pierre');
+    const mine = await heldBy(t, seat, 'Pierre');
     expect(mine?.nation).toBe('france');
     expect((mine?.regions ?? []).map((region) => region.id)).toContain(PARIS);
-    expect(await knownOf(t, token, MARNE)).toMatchObject({ holder: 'Pierre', state: 'current' });
+    expect(await knownOf(t, seat, MARNE)).toMatchObject({ holder: 'Pierre', state: 'current' });
   });
 
   /** Le sol d'un autre est un sol comme un autre : savoir qui joue l'URSS ne dit pas où elle
    *  tient, et une région jamais observée n'a aucune couleur — vierge, jamais neutre. */
   it('says nothing at all of a region nobody went to look at', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
 
-    expect(await knownOf(t, token, RUHR)).toBeNull();
-    expect(await knownOf(t, token, PRAHOVA)).toBeNull();
-    expect(await heldBy(t, token, 'Léa')).toBeUndefined();
+    expect(await knownOf(t, seat, RUHR)).toBeNull();
+    expect(await knownOf(t, seat, PRAHOVA)).toBeNull();
+    expect(await heldBy(t, seat, 'Léa')).toBeUndefined();
     // Et réciproquement : Paris est français, la Russe ne le sait pas encore.
     expect(await knownOf(t, guest, PARIS)).toBeNull();
   });
 
   it('gives each seat its own ink, in the order they entered', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
-    expect((await heldBy(t, token, 'Pierre'))?.ink).toBe(SEAT_INKS[0]);
+    const { seat, guest } = await launchedSeason(t);
+    expect((await heldBy(t, seat, 'Pierre'))?.ink).toBe(SEAT_INKS[0]);
     expect((await heldBy(t, guest, 'Léa'))?.ink).toBe(SEAT_INKS[1]);
   });
 
   it('leaves a seat still choosing out of the answer entirely', async () => {
     const t = boot();
-    const { code, token } = await t.mutation(api.seasons.create, {
-      nickname: 'Pierre',
-      durationHours: 48,
-      compensation: 0.5,
-    });
-    await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-    expect(await t.query(api.control.held, { token })).toEqual([]);
+    const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+    await joinSeat(t, code, 'Léa');
+    expect(await t.query(api.control.held, seat)).toEqual([]);
   });
 });
 
 describe('an outpost colours what it reaches', () => {
   it('takes the neutral regions inside the reach and none beyond it', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, regionFacts(PRAHOVA)!.point);
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, regionFacts(PRAHOVA)!.point);
 
-    const mine = await regionIdsOf(t, token, 'Pierre');
+    const mine = await regionIdsOf(t, seat, 'Pierre');
     expect(mine).toContain(PRAHOVA);
     // Le sol allemand reste allemand : personne ne joue l'Allemagne, mais il est à mille
     // kilomètres de la Valachie et aucun avant-poste ne le couvre.
@@ -218,22 +208,22 @@ describe('an outpost colours what it reaches', () => {
    *  sol : une nation n'est jamais annexée (ADR 0004). */
   it('never takes a nation’s ground from under it', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     await plant(t, guest, regionFacts(PARIS)!.point);
 
-    expect(await knownOf(t, token, PARIS)).toMatchObject({ holder: 'Pierre', state: 'current' });
-    expect(await regionIdsOf(t, token, 'Léa')).not.toContain(PARIS);
+    expect(await knownOf(t, seat, PARIS)).toMatchObject({ holder: 'Pierre', state: 'current' });
+    expect(await regionIdsOf(t, seat, 'Léa')).not.toContain(PARIS);
   });
 
   it('gives a disputed region to the nearest outpost', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
-    await plant(t, token, eastOf(prahova, REACH_KM / 2));
+    await plant(t, seat, eastOf(prahova, REACH_KM / 2));
     await plant(t, guest, eastOf(prahova, -REACH_KM / 4));
 
     // Les deux points regardent la même région : chacun y lit le même tenant, le plus proche.
-    expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
     expect(await knownOf(t, guest, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
   });
 });
@@ -247,11 +237,11 @@ describe('an outpost colours what it reaches', () => {
 describe('an outpost holds the region it stands in', () => {
   it('colours it from the foundation, whatever the distance to its point', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, FORT_MCMURRAY, ALBERTA, 'CAN');
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, ALBERTA, 'CAN');
 
-    expect(await regionIdsOf(t, token, 'Pierre')).toContain(ALBERTA);
-    expect(await knownOf(t, token, ALBERTA)).toMatchObject({
+    expect(await regionIdsOf(t, seat, 'Pierre')).toContain(ALBERTA);
+    expect(await knownOf(t, seat, ALBERTA)).toMatchObject({
       holder: 'Pierre',
       state: 'current',
     });
@@ -261,35 +251,35 @@ describe('an outpost holds the region it stands in', () => {
    *  au pays où il se tient. Le repli part au prochain wipe. */
   it('reads a point planted before the field by its nearest region of the right country', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, FORT_MCMURRAY, undefined, 'CAN');
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, undefined, 'CAN');
 
-    expect(await regionIdsOf(t, token, 'Pierre')).toContain(ALBERTA);
+    expect(await regionIdsOf(t, seat, 'Pierre')).toContain(ALBERTA);
   });
 
   /** La règle métrique ne bouge pas : on ajoute l'évidence qu'elle oubliait, et rien d'autre. */
   it('leaves the neighbouring region, whose point is out of the radius, to nobody', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    await plant(t, token, FORT_MCMURRAY, ALBERTA, 'CAN');
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, ALBERTA, 'CAN');
 
-    expect(await regionIdsOf(t, token, 'Pierre')).not.toContain(SASKATCHEWAN);
-    expect(await knownOf(t, token, SASKATCHEWAN)).toBeNull();
+    expect(await regionIdsOf(t, seat, 'Pierre')).not.toContain(SASKATCHEWAN);
+    expect(await knownOf(t, seat, SASKATCHEWAN)).toBeNull();
   });
 });
 
 describe('a survey is a memory, and it goes stale', () => {
   it('keeps the holder it saw once the truth has changed behind its back', async () => {
     const t = boot();
-    const { token, guest, third } = await launchedSeason(t);
+    const { seat, guest, third } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
 
     // B tient la Valachie, A va la relever, puis s'en va.
     const russian = await plant(t, guest, eastOf(prahova, -REACH_KM / 4));
-    const sentry = await post(t, token, prahova);
-    expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
+    const sentry = await post(t, seat, prahova);
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
     await leave(t, sentry);
-    expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'surveyed' });
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'surveyed' });
 
     // B la perd au profit de C — un point plus proche — et A n'en sait rien.
     await raze(t, russian);
@@ -298,24 +288,24 @@ describe('a survey is a memory, and it goes stale', () => {
     // B non plus n'en sait rien : son point n'est plus là pour regarder, et un relevé ne se
     // corrige qu'en y retournant — fût-il le sien.
     expect(await knownOf(t, guest, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'surveyed' });
-    expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'surveyed' });
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'surveyed' });
 
     // Il y renvoie une troupe : la couleur passe à C, franche.
-    await post(t, token, prahova);
-    expect(await knownOf(t, token, PRAHOVA)).toMatchObject({ holder: 'Marc', state: 'current' });
+    await post(t, seat, prahova);
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Marc', state: 'current' });
   });
 
   it('dates the survey at the moment it was taken, never at the reading', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
     await plant(t, guest, prahova);
 
     const before = Date.now();
-    const sentry = await post(t, token, prahova);
+    const sentry = await post(t, seat, prahova);
     await leave(t, sentry);
 
-    const known = await knownOf(t, token, PRAHOVA);
+    const known = await knownOf(t, seat, PRAHOVA);
     expect(known?.state).toBe('surveyed');
     expect(known?.state === 'surveyed' && known.seenAt).toBeGreaterThanOrEqual(before);
     expect(known?.state === 'surveyed' && known.seenAt).toBeLessThanOrEqual(Date.now());
@@ -324,11 +314,11 @@ describe('a survey is a memory, and it goes stale', () => {
   /** Sinon un mouvement long à travers un continent réécrit des centaines de lignes pour rien. */
   it('writes nothing at all on a second pass that saw the same thing', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
     await plant(t, guest, prahova);
 
-    const player = await seatOf(t, token);
+    const player = await seatOf(t, seat);
     const first = await t.run((ctx) => surveyFromPoint(ctx, player._id, prahova, Date.now()));
     const second = await t.run((ctx) => surveyFromPoint(ctx, player._id, prahova, Date.now()));
 
@@ -340,25 +330,25 @@ describe('a survey is a memory, and it goes stale', () => {
    *  à personne, et une ligne « rien ici » par région traversée copierait le planisphère. */
   it('files no row for ground nobody holds, and puts out the one it corrects', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
 
-    const sentry = await post(t, token, prahova);
-    expect(await surveyRows(t, token)).toHaveLength(0);
+    const sentry = await post(t, seat, prahova);
+    expect(await surveyRows(t, seat)).toHaveLength(0);
 
     const russian = await plant(t, guest, prahova);
     await leave(t, sentry);
-    await post(t, token, prahova);
-    expect((await surveyRows(t, token)).map((row) => row.regionId)).toContain(PRAHOVA);
+    await post(t, seat, prahova);
+    expect((await surveyRows(t, seat)).map((row) => row.regionId)).toContain(PRAHOVA);
 
     await raze(t, russian);
-    await post(t, token, prahova);
-    expect(await knownOf(t, token, PRAHOVA)).toBeNull();
+    await post(t, seat, prahova);
+    expect(await knownOf(t, seat, PRAHOVA)).toBeNull();
   });
 
   it('never lets a player read another’s lines', async () => {
     const t = boot();
-    const { token, guest, third } = await launchedSeason(t);
+    const { seat, guest, third } = await launchedSeason(t);
     const prahova = regionFacts(PRAHOVA)!.point;
     await plant(t, third, prahova);
 
@@ -367,7 +357,7 @@ describe('a survey is a memory, and it goes stale', () => {
 
     // La Russe a relevé, et elle seule : le Français n'a rien vu passer.
     expect(await knownOf(t, guest, PRAHOVA)).toMatchObject({ holder: 'Marc', state: 'surveyed' });
-    expect(await knownOf(t, token, PRAHOVA)).toBeNull();
-    expect(await surveyRows(t, token)).toHaveLength(0);
+    expect(await knownOf(t, seat, PRAHOVA)).toBeNull();
+    expect(await surveyRows(t, seat)).toHaveLength(0);
   });
 });

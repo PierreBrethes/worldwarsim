@@ -8,11 +8,12 @@
  * chiffre qui manque au rendu manque à la vue, ce qui est exactement l'information qu'un lecteur
  * de design vient chercher.
  *
- *     node scripts/exporter-etat-reference.mjs --token=…   # interroge le backend, écrit les deux
- *     node scripts/exporter-etat-reference.mjs             # rend le Markdown depuis le JSON déjà là
+ *     node scripts/exporter-etat-reference.mjs --token=… --saison=…   # interroge le backend
+ *     node scripts/exporter-etat-reference.mjs                        # rend le Markdown du JSON
  *
- * Le jeton est celui d'un joueur, pris dans son URL de plateau. `npx convex run` parle au
- * déploiement configuré du dépôt, donc c'est bien la saison en cours qui sort.
+ * Le jeton est celui d'une **session** et la saison celle de la place à lire (ADR 0022) — les
+ * deux se prennent dans le `localStorage` du joueur, `wws-session` et `wws-season`. `npx convex
+ * run` parle au déploiement configuré du dépôt, donc c'est bien la saison en cours qui sort.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -33,11 +34,12 @@ export function parseRun(stdout) {
   return JSON.parse(stdout.slice(start));
 }
 
-function fetchSnapshot(token) {
-  const stdout = execFileSync('npx', ['convex', 'run', 'dev:snapshot', JSON.stringify({ token })], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+function fetchSnapshot(token, seasonId) {
+  const stdout = execFileSync(
+    'npx',
+    ['convex', 'run', 'dev:snapshot', JSON.stringify({ token, seasonId })],
+    { cwd: root, encoding: 'utf8' },
+  );
   return parseRun(stdout);
 }
 
@@ -513,12 +515,16 @@ export function renderReference(snapshot) {
 /* ---------- la ligne de commande ---------- */
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const token = process.argv
-    .slice(2)
-    .find((arg) => arg.startsWith('--token='))
-    ?.slice('--token='.length);
+  const flag = (name) =>
+    process.argv
+      .slice(2)
+      .find((arg) => arg.startsWith(`--${name}=`))
+      ?.slice(name.length + 3);
+  const token = flag('token');
+  const seasonId = flag('saison');
+  if (token && !seasonId) throw new Error('--saison= manquant : une session ouvre une place');
   const snapshot = token
-    ? fetchSnapshot(token)
+    ? fetchSnapshot(token, seasonId)
     : JSON.parse(readFileSync(root + JSON_PATH, 'utf8'));
   if (token) {
     writeFileSync(root + JSON_PATH, JSON.stringify(snapshot, null, 2) + '\n');

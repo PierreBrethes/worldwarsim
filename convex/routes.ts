@@ -1,17 +1,18 @@
 import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, RouteMode } from '../src/domain/routing';
 import {
-  buildGrid,
   computeRoute,
   computeRouteToAny,
   countryAmong,
   countryAt,
+  decodeGrid,
   isCoastCell,
   isLandCell,
   extendRouteSearch,
   truncateRouteSearch,
 } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
+import gridAsset from '../public/grid.json';
 import worldAsset from '../public/world.json';
 import { firstRouteEntryInRegion, goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
 
@@ -20,15 +21,18 @@ import { firstRouteEntryInRegion, goalCellsForRegions, regionAtRoutePoint } from
  * calculation lives: a client that computes its own routes also picks its own speeds.
  *
  * **This is the one place world geometry enters the routing bundle**, and it is measured rather
- * than assumed: `world.json` weighs 1.27 MB, the raster comes out at 1600×832 = 1.33 M cells
- * in 31 ms, and a Dijkstra pass costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los
- * Angeles by land and sea. Admin-1 contours stay out of this grid; the plunder return crossing
- * loads them separately in `regionGeometry.ts`, once per isolate.
+ * than assumed: `world.json` weighs 1.27 MB, the raster is 1600×832 = 1.33 M cells, and a
+ * Dijkstra pass costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los Angeles by land and
+ * sea. Admin-1 contours stay out of this grid; the plunder return crossing loads them separately
+ * in `regionGeometry.ts`, once per isolate.
  *
- * Built once per isolate, on the first movement rather than at import: a season spends most of
- * its life in mutations that never route anything, and they should not pay for the raster. If
- * the cold start ever shows, the escape hatch is a baked run-length encoding of the cells —
- * measured at 65 Ko, which would take the geometry out of the bundle altogether.
+ * **The raster is no longer computed here — it is baked** (`scripts/generate-grid.mjs`, 65 Ko of
+ * run-length pairs) and decoded at the first demand of the isolate. The 31 ms of `buildGrid` were
+ * measured warm, on a development machine; cold and without a JIT they are seconds, and a query
+ * has one — `view:playerView` reads `afloat` and `coastal` off this grid for every standing
+ * column, and was intermittently timing out on the first call of a fresh isolate. Decoding is a
+ * handful of `fill` calls instead, and the first movement of the season still pays for it rather
+ * than the import: most mutations never route anything.
  */
 const world = {
   sphere: worldAsset.meta.sphere,
@@ -42,7 +46,7 @@ const world = {
   })),
 } as unknown as World;
 
-let grid: ReturnType<typeof buildGrid> | null = null;
+let grid: ReturnType<typeof decodeGrid> | null = null;
 
 export function routeBetween(
   from: LonLat,
@@ -50,7 +54,7 @@ export function routeBetween(
   mode: RouteMode,
   landCost?: number,
 ): ComputedRoute | null {
-  grid ??= buildGrid(world);
+  grid ??= decodeGrid(gridAsset, world);
   return computeRoute(grid, from, to, mode, landCost);
 }
 
@@ -73,7 +77,7 @@ export function routeToRegions(
   if (here !== null && regionIds.has(here))
     return { kind: 'standing', regionId: here, point: from };
 
-  grid ??= buildGrid(world);
+  grid ??= decodeGrid(gridAsset, world);
   const goals = goalCellsForRegions(regions, grid);
   const search = computeRouteToAny(grid, from, new Set(goals.keys()), mode, landCost);
   if (search === null) return null;
@@ -100,12 +104,12 @@ export function routeToRegions(
  * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
  */
 export function coastAtPoint(point: LonLat): boolean {
-  grid ??= buildGrid(world);
+  grid ??= decodeGrid(gridAsset, world);
   return isCoastCell(grid, point);
 }
 
 export function landAtPoint(point: LonLat): boolean {
-  grid ??= buildGrid(world);
+  grid ??= decodeGrid(gridAsset, world);
   return isLandCell(grid, point);
 }
 

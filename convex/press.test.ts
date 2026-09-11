@@ -4,6 +4,7 @@ import { api } from './_generated/api';
 import { PRESS_EDITION_HOURS, nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
+import { foundSeat, joinSeat, seatIn } from './seats.fixture';
 
 /**
  * **L'édition est un rendez-vous, pas un moniteur.** Ce qui est sous test tient en trois
@@ -20,18 +21,14 @@ const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const HOUR = 3_600_000;
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
-  const { code, token } = await t.mutation(api.seasons.create, {
-    nickname: 'Pierre',
-    durationHours: 48,
-    compensation: 0.5,
-  });
-  const { token: guest } = await t.mutation(api.seasons.join, { code, nickname: 'Léa' });
-  await t.mutation(api.players.reserveNation, { token, nation: 'france' });
-  await t.mutation(api.players.declareReady, { token, ready: true });
-  await t.mutation(api.players.reserveNation, { token: guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { token: guest, ready: true });
-  await t.mutation(api.seasons.launch, { token });
-  return { token, guest };
+  const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  const guest = await joinSeat(t, code, 'Léa');
+  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
+  await t.mutation(api.players.declareReady, { ...seat, ready: true });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.seasons.launch, seat);
+  return { seat, guest };
 }
 
 const editions = (t: ReturnType<typeof boot>) =>
@@ -95,11 +92,11 @@ describe('the cadence', () => {
    *  tout travail planifié (`seasonStillPlays`) arrête la chaîne. */
   it('writes a final edition at the conclusion, and nothing after it', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
     expect(await editions(t)).toHaveLength(2);
 
-    await t.mutation(api.seasons.conclude, { token });
+    await t.mutation(api.seasons.conclude, seat);
     const closed = await editions(t);
     expect(closed).toHaveLength(4);
     expect(closed.filter((line) => line.final)).toHaveLength(2);
@@ -112,11 +109,11 @@ describe('the cadence', () => {
    *  balaie aussi — c'est l'invariant que `season-partition.test.ts` tient. */
   it('is purged whole when the founder scraps the season', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
     expect(await editions(t)).toHaveLength(2);
 
-    await t.mutation(api.seasons.destroy, { token });
+    await t.mutation(api.seasons.destroy, seat);
     expect(await editions(t)).toHaveLength(0);
   });
 });
@@ -130,8 +127,8 @@ describe('what the view serves', () => {
 
   it('serves nothing at all before the first edition', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
-    expect((await t.query(api.view.playerView, { token })).press).toBeNull();
+    const { seat } = await launchedSeason(t);
+    expect((await t.query(api.view.playerView, seat)).press).toBeNull();
   });
 
   /**
@@ -141,11 +138,11 @@ describe('what the view serves', () => {
    */
   it('serves an opponent’s general exactly, and neither his industry nor his military', async () => {
     const t = boot();
-    const { token, guest } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
 
-    const mine = (await t.query(api.view.playerView, { token })).press!;
-    const theirs = (await t.query(api.view.playerView, { token: guest })).press!;
+    const mine = (await t.query(api.view.playerView, seat)).press!;
+    const theirs = (await t.query(api.view.playerView, guest)).press!;
 
     expect(mine.others).toHaveLength(1);
     const line = mine.others[0]!;
@@ -169,15 +166,12 @@ describe('what the view serves', () => {
    */
   it('does not move when the board does — it serves the edition, not the state', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
-    const before = (await t.query(api.view.playerView, { token })).press!;
+    const before = (await t.query(api.view.playerView, seat)).press!;
 
     const playerId = await t.run(async (ctx) => {
-      const player = await ctx.db
-        .query('players')
-        .withIndex('byToken', (q) => q.eq('token', token))
-        .unique();
+      const player = await seatIn(ctx, seat);
       return player!._id;
     });
     await t.run(async (ctx) => {
@@ -193,20 +187,20 @@ describe('what the view serves', () => {
       });
     });
 
-    expect((await t.query(api.view.playerView, { token })).press).toEqual(before);
+    expect((await t.query(api.view.playerView, seat)).press).toEqual(before);
   });
 
   /** La variation n'existe qu'à partir de la seconde édition : un « +393 » depuis le néant
    *  serait une progression inventée. */
   it('carries no delta on a first edition, and one on the next', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
-    expect((await t.query(api.view.playerView, { token })).press!.mine!.delta).toBeNull();
-    expect((await t.query(api.view.playerView, { token })).press!.mine!.since).toBeNull();
+    expect((await t.query(api.view.playerView, seat)).press!.mine!.delta).toBeNull();
+    expect((await t.query(api.view.playerView, seat)).press!.mine!.since).toBeNull();
 
     await advance(t, PRESS_EDITION_HOURS);
-    const second = (await t.query(api.view.playerView, { token })).press!;
+    const second = (await t.query(api.view.playerView, seat)).press!;
     expect(second.mine!.delta).not.toBeNull();
     expect(second.mine!.since).toBe(second.at - PRESS_EDITION_HOURS * HOUR);
   });
@@ -215,12 +209,12 @@ describe('what the view serves', () => {
    *  qui n'aura pas lieu. */
   it('promises no next edition once the final one is out', async () => {
     const t = boot();
-    const { token } = await launchedSeason(t);
+    const { seat } = await launchedSeason(t);
     await advance(t, PRESS_EDITION_HOURS);
-    expect((await t.query(api.view.playerView, { token })).press!.next).not.toBeNull();
+    expect((await t.query(api.view.playerView, seat)).press!.next).not.toBeNull();
 
-    await t.mutation(api.seasons.conclude, { token });
-    const closed = (await t.query(api.view.playerView, { token })).press!;
+    await t.mutation(api.seasons.conclude, seat);
+    const closed = (await t.query(api.view.playerView, seat)).press!;
     expect(closed.final).toBe(true);
     expect(closed.next).toBeNull();
   });

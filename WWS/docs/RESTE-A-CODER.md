@@ -144,8 +144,11 @@ le geste complet au navigateur reste à contrôler.
 
 1. **Test de restauration SQLite** — jamais fait, le plus vieux point ouvert.
 2. Contrôle à l'œil : garnison / journal / port (04/09), presse et fondateur absent (06/09).
-3. La bascule **C3 des comptes** : décider du devenir des places historiques avant activation.
-   C2 ajoute le serveur sans les modifier ; aucun wipe n'est autorisé par ces lots.
+3. ~~La bascule **C3 des comptes**~~ — **codée le 11/09**, et elle **demande un wipe** : à
+   passer au déploiement, dans l'ordre de `deploiement/README.md` (`dev:reset` sur l'ancien
+   déploiement, puis `convex deploy`). Tant qu'elle n'est pas déployée, la saison prod du 04/09
+   tient ; une fois déployée, elle est perdue. Décider **avant** si la partie de contrôle se
+   joue sur l'ancienne ou sur une saison neuve.
 
 Livrés et commités les 04-06/09 : entrer-en-garnison · journal-corps-de-texte ·
 port-sur-la-cote · debarquement-sur-la-cote · avant-poste-tient-sa-region · fondateur-absent
@@ -156,14 +159,15 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 
 - ~~etat-de-reference-depuis-une-saison~~ — **livré le 06/09** (`aa2ae63`) : `dev.snapshot`, script
   d'export, ancien simulateur dans `_to_delete/simulation-v1/`. **Reste à Pierre : l'export de la
-  saison Japon** (`node scripts/exporter-etat-reference.mjs --token=…`, le jeton est le
-  `wws-token` du navigateur) — sans lui, `WWS/simulation/` n'a plus d'état de référence du tout.
+  saison Japon** (`node scripts/exporter-etat-reference.mjs --token=… --saison=…`, les deux se
+  prennent dans le `localStorage` du navigateur : `wws-session` et `wws-season`) — sans lui, `WWS/simulation/` n'a plus d'état de référence du tout.
 - **comptes** — C1 et **C2 serveur livrés localement le 09/09** : inscription, connexion,
   sessions indépendantes, lecture du compte, déconnexion et récupération admin interne.
   Comptes et sessions survivent aux purges de jeu. Voir le
-  [rapport C2](rapports/2026-09-09-comptes-c2.md). **C3 reste à cadrer** : rattachement des
-  places, identité des mutations et interface. L'ancien `ready/comptes.md` est un brief
-  historique monolithique, pas une autorisation d'effacer les places actuelles.
+  [rapport C2](rapports/2026-09-09-comptes-c2.md). **C3 est codé le 11/09** : `players.accountId`
+  obligatoire, `playerOf(token, seasonId)` en porte unique, `accounts.me` qui sert les places,
+  page `/connexion`, déconnexion aux Réglages et à l'accueil. Il attend le wipe pour être
+  déployé — les quatre fiches de comptes sont passées dans `done/`.
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (10).
 - **Test e2e de fumée** (Playwright, backend Convex en service CI) — prompt sur demande.
 - Ménage : `_wws_snapshot.tgz` tracké à la racine, à sortir du dépôt lors d'une passe dédiée.

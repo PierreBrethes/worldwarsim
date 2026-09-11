@@ -33,6 +33,7 @@ import { FOCUS_MARK, useFocusRow } from './focus';
 import { UpgradeControl } from './UpgradeControl';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import type { Seat } from '@/data/session';
 
 /**
  * **Everything that goes down and everything that flows.** Industry absorbed the nation
@@ -58,13 +59,13 @@ import { FloatingWindow, type WindowProps } from './Window';
  */
 export function EconomyWindow({
   view,
-  token,
+  seat,
   focused,
   onClose,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   /** The building whose line the window was opened on, `null` when it was opened bare. */
   focused: string | null;
 }) {
@@ -97,7 +98,7 @@ export function EconomyWindow({
           </button>
         </DragHandle>
 
-        <RunningWork view={view} token={token} now={now} />
+        <RunningWork view={view} seat={seat} now={now} />
 
         <div className="flex min-h-0 flex-1 items-stretch">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
@@ -124,7 +125,7 @@ export function EconomyWindow({
                 <LotControl
                   key={chain.by}
                   chain={chain}
-                  token={token}
+                  seat={seat}
                   now={now}
                   observing={view.me.defeated}
                 />
@@ -134,7 +135,7 @@ export function EconomyWindow({
               title={fr.economy.sitesHeader}
               keys={CHAIN_KEYS}
               view={view}
-              token={token}
+              seat={seat}
               now={now}
               focused={focused}
             />
@@ -142,7 +143,7 @@ export function EconomyWindow({
               title={fr.economy.projectionHeader}
               keys={PROJECTION_KEYS}
               view={view}
-              token={token}
+              seat={seat}
               now={now}
               focused={focused}
             />
@@ -150,7 +151,7 @@ export function EconomyWindow({
               title={fr.economy.worksHeader}
               keys={WORK_KEYS}
               view={view}
-              token={token}
+              seat={seat}
               now={now}
               focused={focused}
             />
@@ -164,7 +165,7 @@ export function EconomyWindow({
             <UpkeepFoot view={view} />
           </div>
 
-          <HeadquartersColumn view={view} token={token} now={now} focused={focused} />
+          <HeadquartersColumn view={view} seat={seat} now={now} focused={focused} />
         </div>
       </div>
     </FloatingWindow>
@@ -213,7 +214,7 @@ const placementsOf = (view: PlayerView): Readonly<Record<BuildingKey, Placement>
  * the same reason). Behind the head nothing has started, and a full refund costs the game
  * nothing.
  */
-function RunningWork({ view, token, now }: { view: PlayerView; token: string; now: number }) {
+function RunningWork({ view, seat, now }: { view: PlayerView; seat: Seat; now: number }) {
   const running = view.me.construction;
   const queue = view.me.constructionQueue;
   if (running === null) {
@@ -249,7 +250,7 @@ function RunningWork({ view, token, now }: { view: PlayerView; token: string; no
       </div>
       {queue.length > 0 && (
         <div className="min-w-[300px] flex-1 border-l border-[rgba(42,33,24,.35)]">
-          <QueuedWorks queue={queue} token={token} observing={view.me.defeated} />
+          <QueuedWorks queue={queue} seat={seat} observing={view.me.defeated} />
         </div>
       )}
     </div>
@@ -263,11 +264,11 @@ function RunningWork({ view, token, now }: { view: PlayerView; token: string; no
  */
 function QueuedWorks({
   queue,
-  token,
+  seat,
   observing,
 }: {
   queue: ReadonlyArray<QueuedWork>;
-  token: string;
+  seat: Seat;
   /** Un observateur lit sa file — elle continue de se bâtir — et n'en retire plus rien. */
   observing: boolean;
 }) {
@@ -302,7 +303,7 @@ function QueuedWorks({
               title={fr.economy.queueCancelTitle}
               onClick={() => {
                 setError(null);
-                cancel({ token, constructionId: entry.id as Id<'constructions'> }).catch(
+                cancel({ ...seat, constructionId: entry.id as Id<'constructions'> }).catch(
                   (problem: unknown) => handleError(problem, setError),
                 );
               }}
@@ -866,14 +867,14 @@ function CensusSection({
   title,
   keys,
   view,
-  token,
+  seat,
   now,
   focused,
 }: {
   title: string;
   keys: ReadonlyArray<BuildingKey>;
   view: PlayerView;
-  token: string;
+  seat: Seat;
   now: number;
   focused: string | null;
 }) {
@@ -891,7 +892,7 @@ function CensusSection({
           building={instance}
           region={regionName(view, instance.regionId)}
           view={view}
-          token={token}
+          seat={seat}
           now={now}
           focused={focused === instance.id}
         />
@@ -904,14 +905,14 @@ function EstateRow({
   building,
   region,
   view,
-  token,
+  seat,
   now,
   focused,
 }: {
   building: Building;
   region: string;
   view: PlayerView;
-  token: string;
+  seat: Seat;
   now: number;
   focused: boolean;
 }) {
@@ -945,7 +946,7 @@ function EstateRow({
           {fr.economy.cappedByHq}
         </span>
       )}
-      <UpgradeControl building={building} view={view} token={token} now={now} />
+      <UpgradeControl building={building} view={view} seat={seat} now={now} />
     </div>
   );
 }
@@ -1001,12 +1002,12 @@ function AbsentKeys({
  */
 function HeadquartersColumn({
   view,
-  token,
+  seat,
   now,
   focused,
 }: {
   view: PlayerView;
-  token: string;
+  seat: Seat;
   now: number;
   focused: string | null;
 }) {
@@ -1058,7 +1059,7 @@ function HeadquartersColumn({
 
           {!view.me.defeated && (
             <div className="mt-[10px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
-              <UpgradeControl building={hq} view={view} token={token} now={now} />
+              <UpgradeControl building={hq} view={view} seat={seat} now={now} />
             </div>
           )}
         </div>
@@ -1281,12 +1282,12 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
  */
 function LotControl({
   chain,
-  token,
+  seat,
   now,
   observing,
 }: {
   chain: ChainView;
-  token: string;
+  seat: Seat;
   now: number;
   /** Le lot en cours se lit jusqu'à sa livraison — il court tout seul —, il ne s'annule plus et
    *  il ne s'en commande plus d'autre : le serveur refuse déjà les deux (`requirePlayable`). */
@@ -1354,7 +1355,7 @@ function LotControl({
             {!observing && (
               <button
                 type="button"
-                onClick={() => send(drop({ token, chain: chain.by }))}
+                onClick={() => send(drop({ ...seat, chain: chain.by }))}
                 className="ml-auto cursor-pointer border border-[var(--critical)] px-[11px] py-[5px] text-[9px] tracking-[.16em] text-[var(--critical)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
               >
                 {fr.economy.lot.cancel}
@@ -1413,7 +1414,7 @@ function LotControl({
             <button
               type="button"
               disabled={wanted <= 0}
-              onClick={() => send(place({ token, chain: chain.by, quantity: wanted }))}
+              onClick={() => send(place({ ...seat, chain: chain.by, quantity: wanted }))}
               className="cursor-pointer bg-[var(--ink)] px-[15px] py-[8px] text-[9px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-35"
             >
               {fr.economy.lot.launch}

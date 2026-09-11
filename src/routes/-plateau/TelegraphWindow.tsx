@@ -6,6 +6,7 @@ import type { Telegraph } from '@/data/telegraph';
 import { TelegraphThread } from '@/shell/TelegraphThread';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
+import type { Seat } from '@/data/session';
 
 /**
  * **Le cadre du plateau, et rien de plus** : le fil et son champ d'envoi sont partagés avec le
@@ -15,18 +16,18 @@ import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
  */
 export function TelegraphWindow({
   telegraph,
-  token,
+  seat,
   onClose,
   ...windowProps
-}: WindowProps & { telegraph: Telegraph; token: string }) {
+}: WindowProps & { telegraph: Telegraph; seat: Seat }) {
   const sized = useWindowSized();
   const markRead = useMutation(api.messages.markRead);
 
   /** Lu à la fermeture, comme le journal : ce qu'on a eu le temps de voir est lu. */
   const close = useCallback(() => {
-    void markRead({ token }).catch(() => undefined);
+    void markRead(seat).catch(() => undefined);
     onClose();
-  }, [markRead, token, onClose]);
+  }, [markRead, seat, onClose]);
 
   return (
     <FloatingWindow name="telegraph" onClose={close} {...windowProps} width={460}>
@@ -48,7 +49,7 @@ export function TelegraphWindow({
         <div className="flex min-h-0 flex-1 flex-col px-4 py-2">
           <TelegraphThread
             telegraph={telegraph}
-            token={token}
+            seat={seat}
             height={sized ? 'fill' : 420}
             autoFocus
           />

@@ -23,7 +23,7 @@ import { foundationOwed, regionFacts } from './regions';
 import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit } from './resources';
 import { fileSurvey } from './surveys';
-import { playerByToken, playingSeason, requirePlayable } from './seasons';
+import { playerOf, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY, LON_LAT } from './validators';
 import { reassessDetection } from './movement/detection';
 
@@ -88,13 +88,14 @@ function pointRefusal(
 export const start = mutation({
   args: {
     token: v.string(),
+    seasonId: v.id('seasons'),
     building: BUILDING_KEY,
     regionId: v.string(),
     /** **The port's own coast point, and nobody else's** (ADR 0013, revision of 04/09). */
     point: v.optional(LON_LAT),
   },
-  handler: async (ctx, { token, building, regionId, point }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  handler: async (ctx, { token, seasonId, building, regionId, point }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
     /**
@@ -169,9 +170,9 @@ export const start = mutation({
  * would open a free round trip between matter and time.
  */
 export const cancel = mutation({
-  args: { token: v.string(), constructionId: v.id('constructions') },
-  handler: async (ctx, { token, constructionId }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), constructionId: v.id('constructions') },
+  handler: async (ctx, { token, seasonId, constructionId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     const entry = await ctx.db.get(constructionId);
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');

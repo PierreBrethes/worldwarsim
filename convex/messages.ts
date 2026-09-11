@@ -8,7 +8,7 @@ import {
   TELEGRAPH_DEPTH,
 } from '../src/domain/telegraph';
 import { fail } from './errors';
-import { playerByToken } from './seasons';
+import { playerOf } from './seasons';
 
 /**
  * **On se chambre aussi en attendant le lancement.** The channel opens with the lobby and closes
@@ -21,9 +21,9 @@ function requireOpenChannel(season: Doc<'seasons'>): void {
 }
 
 export const post = mutation({
-  args: { token: v.string(), text: v.string() },
-  handler: async (ctx, { token, text }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons'), text: v.string() },
+  handler: async (ctx, { token, seasonId, text }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     requireOpenChannel(season);
 
     const trimmed = text.trim();
@@ -68,9 +68,9 @@ export const post = mutation({
  * simply carries `null`, which is what the lobby shows.
  */
 export const recent = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player, season } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     const latest = await ctx.db
       .query('messages')
       .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
@@ -108,9 +108,9 @@ export const recent = query({
  * playing.
  */
 export const markRead = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const { player } = await playerByToken(ctx, token);
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player } = await playerOf(ctx, token, seasonId);
     await ctx.db.patch(player._id, { telegraphReadAt: Date.now() });
   },
 });
