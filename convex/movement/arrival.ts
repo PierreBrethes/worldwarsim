@@ -32,6 +32,7 @@ import {
   detectionRangeOf,
 } from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
+import { regionAtRoutePoint } from '../regionGeometry';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
 import {
@@ -87,6 +88,38 @@ async function homewardCargoOf(
     : [{ playerId: current.playerId, troopIds: current.troopIds, loads }];
 }
 
+/**
+ * **Ce que la colonne a sous les yeux en ne trouvant personne** (retours du 11/09, ligne 5). Une
+ * attaque vise un point ou une pile, jamais un bâtiment : arrivée sur une région adverse sans
+ * garnison, elle est bredouille — et en prod le joueur qui venait saboter une mine a relu « n'a
+ * trouvé personne », sans rien qui dise que la mine était là ni par où on l'atteint.
+ *
+ * Rien de neuf ne sort du serveur : c'est **le propre relevé du joueur** qui répond, celui que le
+ * couloir vient d'écrire à l'arrivée. Sans relevé, pas de phrase — la dépêche ne révèle pas un
+ * bâtiment que le brouillard n'a pas servi.
+ *
+ * La région est celle du polygone sous le point d'arrivée, et le repli est la région visée : un
+ * mât adverse se relève par région, et c'est la seule clé que le relevé porte.
+ */
+const surveyedInstallationAt = async (
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<Doc<'buildings'>['key'] | undefined> => {
+  const regionId =
+    regionAtRoutePoint(pointOf(movement.to)) ??
+    (movement.target.kind === 'region' ? movement.target.regionId : null);
+  if (regionId === null) return undefined;
+  const surveyed = await ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerRegion', (q) =>
+      q.eq('playerId', movement.playerId).eq('regionId', regionId),
+    )
+    .unique();
+  /** Une seule est nommée quand la région en porte plusieurs : la dépêche envoie au mât, et
+   *  c'est la carte qui tient l'inventaire. */
+  return (surveyed?.installations ?? [])[0]?.key;
+};
+
 /** **A column that finds nobody has not fought**: buildings are not looted yet, so an attack on
  *  empty ground turns around with no engagement and nothing to show for the walk. */
 export async function engageAt(
@@ -109,6 +142,7 @@ export async function engageAt(
     if (type === 'raid' && outpost !== null) await deactivate(ctx, outpost, now, null);
     /** No pass, therefore no account, therefore nothing in the journal — a player came back to
      *  "rien à signaler" after the longest march of his season. */
+    const installation = await surveyedInstallationAt(ctx, movement);
     await ctx.db.insert('notices', {
       playerId: movement.playerId,
       at: now,
@@ -116,6 +150,7 @@ export async function engageAt(
       movementType: type,
       hostCountry: movement.hostCountry,
       troops: marching.length,
+      ...(installation === undefined ? {} : { installation }),
     });
     await walkHome(
       ctx,

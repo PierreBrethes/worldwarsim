@@ -201,6 +201,53 @@ describe('what the jobs file for the journal', () => {
     expect(await noticesOf(t, guest, 'columnFoundNothing')).toEqual([]);
   });
 
+  /**
+   * **Et elle dit ce qu'elle a sous les yeux** (retours du 11/09, ligne 5). En prod, une colonne
+   * est arrivée sur une région adverse qui portait une mine de charbon : personne à combattre,
+   * « n'a trouvé personne », et rien qui dise que l'ordre « saboter » existait à deux pas. La
+   * dépêche porte la clé du bâtiment que **le relevé de ce couloir-ci** vient d'écrire — c'est
+   * l'ordre des deux écritures qui est sous test autant que la clé.
+   */
+  it('names the installation a bredouille column has just surveyed', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    await raise(t, guest, 'mine', PSKOV);
+
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [await form(t, seat, 'infantry', barracks)],
+      target: { kind: 'region', regionId: PSKOV },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await noticesOf(t, seat, 'columnFoundNothing')).toMatchObject([
+      { movementType: 'attack', hostCountry: 'RUS', installation: 'mine' },
+    ]);
+  });
+
+  /** Sans rien de relevé sur place, la dépêche est celle d'avant : la région roumaine est vide. */
+  it('leaves the dispatch untouched where nothing of the other side stands', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [await form(t, seat, 'infantry', barracks)],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(
+      (await noticesOf(t, seat, 'columnFoundNothing')).map((notice) =>
+        notice.kind === 'columnFoundNothing' ? notice.installation : 'absent',
+      ),
+    ).toEqual([undefined]);
+  });
+
   /** **Ce qu'on découvre au réveil** (fiche 11 §4.1) : la colonne attend à la frontière, et
    *  l'heure à laquelle elle passera est le seul fait qui mérite une manchette. */
   it('files the hour a column held by a rest window will go through', async () => {

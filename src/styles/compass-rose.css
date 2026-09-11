@@ -6,7 +6,7 @@
 .compass-rose {
   position: absolute;
   inset: 0;
-  z-index: 12;
+  z-index: var(--z-rose);
   overflow: hidden;
   pointer-events: none;
 }

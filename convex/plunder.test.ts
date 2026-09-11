@@ -24,6 +24,7 @@ const MIDDAY = new Date(2026, 8, 9, 12, 0, 0).getTime();
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310';
 const RUHR = 'DEU-1572';
+const PSKOV = 'RUS-2335'; // sol soviétique : la région adverse de la partie de contrôle
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
@@ -124,9 +125,11 @@ async function attackArrival(
   t: ReturnType<typeof boot>,
   seat: Seat,
   troopIds: ReadonlyArray<Id<'troops'>>,
+  regionId = PRAHOVA,
+  hostCountry = 'ROU',
 ) {
   const player = await playerOf(t, seat);
-  const to = regionFacts(PRAHOVA)!.point;
+  const to = regionFacts(regionId)!.point;
   const movementId = await t.run((ctx) =>
     ctx.db.insert('movements', {
       seasonId: player.seasonId,
@@ -136,7 +139,7 @@ async function attackArrival(
       target: { kind: 'point', point: { lon: to[0], lat: to[1] } },
       from: { lon: to[0] - 1, lat: to[1] },
       to: { lon: to[0], lat: to[1] },
-      hostCountry: 'ROU',
+      hostCountry,
       points: [
         { lon: to[0] - 1, lat: to[1] },
         { lon: to[0], lat: to[1] },
@@ -150,6 +153,7 @@ async function attackArrival(
     }),
   );
   await t.mutation(internal.movements.arrive, { movementId });
+  return movementId;
 }
 
 async function completePresence(t: ReturnType<typeof boot>, movementId: Id<'movements'>) {
@@ -317,6 +321,58 @@ describe('surveyed plunder targets', () => {
     await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil: Date.now() + HOUR }));
 
     await expect(resolve(t, seat, warehouseId)).rejects.toThrow('UNKNOWN_BUILDING');
+  });
+});
+
+/**
+ * **La colonne qui arrive relève le sol où elle met le pied** — et c'est tout ce qui tenait le
+ * sabotage en prod : un joueur a envoyé « attaquer » sur une région soviétique qui portait une
+ * mine de charbon, n'a vu aucun bâtiment, ni avant ni après l'arrivée, et n'a donc jamais eu le
+ * marqueur d'où part « saboter » (retours du 11/09, lignes 4 et 5). Le relevé du couloir est la
+ * seule chose qui fait apparaître ce mât : s'il ne couvrait pas la région de destination
+ * elle-même, l'ordre existerait côté serveur sans qu'aucun geste ne puisse le nommer.
+ */
+describe('what a column surveys where it lands', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('files the enemy mine of the region it arrives in', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const mine = await building(t, guest, 'mine', undefined, PSKOV);
+
+    await attackArrival(t, seat, [await troop(t, seat, 'infantry', barracks)], PSKOV, 'RUS');
+
+    expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toEqual([
+      { id: mine, key: 'mine', regionId: PSKOV },
+    ]);
+  });
+
+  /** La garde de fraîcheur borne les réécritures, elle ne borne pas les nouvelles : une mine
+   *  posée après un relevé de la même région se relève à l'arrivée suivante, à la minute. */
+  it('files a mine raised after a fresh survey of the same region', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const outpost = await building(t, guest, 'warehouse', undefined, PSKOV);
+    await t.run(async (ctx) => {
+      const me = await seatIn(ctx, seat);
+      await surveyFromPoint(ctx, me._id, regionFacts(PSKOV)!.point, Date.now(), 1);
+    });
+    expect((await t.query(api.view.playerView, seat)).surveyedInstallations).toHaveLength(1);
+
+    const mine = await building(t, guest, 'mine', undefined, PSKOV);
+    await attackArrival(t, seat, [await troop(t, seat, 'infantry', barracks)], PSKOV, 'RUS');
+
+    expect(
+      (await t.query(api.view.playerView, seat)).surveyedInstallations.map(
+        (installation) => installation.id,
+      ),
+    ).toEqual([outpost, mine]);
   });
 });
 

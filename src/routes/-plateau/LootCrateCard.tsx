@@ -24,7 +24,7 @@ export function LootCrateCard({
 
   return (
     <Draggable
-      className="absolute z-20"
+      className="absolute z-[var(--z-popin)]"
       style={{
         left: fromRight ? undefined : at.x + 18,
         right: fromRight ? `calc(100% - ${at.x - 18}px)` : undefined,

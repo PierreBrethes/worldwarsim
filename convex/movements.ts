@@ -650,6 +650,14 @@ export const arrive = internalMutation({
       return;
     }
 
+    /**
+     * **Le couloir se relève avant que la résolution ne parle** (retours du 11/09, ligne 5) : la
+     * dépêche d'une colonne bredouille nomme l'installation adverse que le joueur a sur place, et
+     * elle ne peut la nommer que si le relevé de ce couloir-ci est déjà écrit. C'est l'ordre que
+     * la branche du pillage tient depuis le début, et la polyligne est la même à un pas près.
+     */
+    await surveyAlongRoute(ctx, movement, now);
+
     /** A march that came to garrison a building enters it if it still stands and is still the
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
      *  journal says so in the plain words of an arrival. */
@@ -699,9 +707,6 @@ export const arrive = internalMutation({
       });
     }
 
-    /** **Le couloir se relève à l'arrivée**, avant que le mouvement ne s'efface : c'est là que
-     *  la colonne a vu ce qu'elle a traversé, et il n'y a plus de polyligne à lire ensuite. */
-    await surveyAlongRoute(ctx, movement, now);
     await forgetMovement(ctx, movementId);
     await reassessDetection(ctx, movement.seasonId, now);
   },

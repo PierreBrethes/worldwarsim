@@ -1,7 +1,9 @@
 import { asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
-import { RESOURCES } from './ids';
+import { canonicalBuildingKey, RESOURCES } from './ids';
+import { isPlunderTarget } from './movement-orders';
+import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
 import type {
   CombatReport,
@@ -12,6 +14,24 @@ import type {
   ReductionBoard,
   WarEntry,
 } from './player-view';
+
+/**
+ * **Ce que la colonne bredouille peut encore faire de ce qu'elle a sous les yeux** (retours du
+ * 11/09). La dépêche ne nomme une installation relevée que si un ordre l'atteint — et c'est la
+ * même fonction que la rose et le serveur lisent (`isPlunderTarget`), jamais une seconde liste :
+ * promettre « saboter » là où la rose refuserait serait exactement la faute que l'ADR 0015
+ * interdit. Un entrepôt rend du butin, un producteur ne rend que son arrêt ; une caserne ou un
+ * port ne rendent rien, et la dépêche se tait.
+ */
+const reachableSite = (
+  key: BuildingKey | undefined,
+): { readonly key: BuildingKey; readonly effect: 'loot' | 'sabotage' } | null =>
+  key === undefined || !isPlunderTarget(key)
+    ? null
+    : {
+        key,
+        effect: canonicalBuildingKey(key) === 'warehouse' ? 'loot' : 'sabotage',
+      };
 
 /**
  * **The journal is written here, from the account the server keeps** — never from a second
@@ -264,6 +284,7 @@ function written(notice: Notice): Written {
           notice.movementType,
           notice.troops,
           countryLabel(notice.hostCountry),
+          reachableSite(notice.installation),
         ),
       };
     /** **Une fin sans vainqueur.** Elle partage la sorte de la victoire de test — c'est la même

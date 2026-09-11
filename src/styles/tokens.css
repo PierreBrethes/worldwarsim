@@ -99,6 +99,24 @@
   /* HUD scale — all text and sizing derive from it (CSS zoom) */
   --hud-scale: 1.2;
 
+  /* **Les plans, du fond vers l'avant, et une seule échelle pour tous** (retours du 11/09,
+     ligne 6 : les modales passaient sous le bandeau des ressources). Un `z-index` écrit en dur
+     dans un composant ne se compare à rien — c'est comme ça qu'un cartouche est passé sous une
+     barre d'un autre fichier. L'ordre est la règle : la carte, ce qu'elle épingle, la coque,
+     ce qui s'ouvre par-dessus, puis ce qui s'ouvre par-dessus ça.
+     Les `z-index` locaux d'un en-tête collant *dans* une fenêtre ne sont pas de cette échelle :
+     ils ne se comparent qu'entre eux, dans leur propre contexte d'empilement. */
+  --z-marker: 10;
+  --z-indicator: 11;
+  --z-band: 20;
+  --z-window: 30;
+  --z-rose: 40;
+  --z-popin: 50;
+  --z-hovercard: 55;
+  --z-veil: 60;
+  --z-grain: 70;
+  --z-notice: 80;
+
   /* geometry */
   --topbar-h: 58px;
   --rail-w: 52px;

@@ -6,7 +6,7 @@
 .map-labels {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: var(--z-marker);
   overflow: hidden;
   pointer-events: none;
 }
@@ -385,6 +385,32 @@
 
 .label--stack.label--glyph .label-lines,
 .label--stack.label--glyph .label-bar {
+  display: none;
+}
+
+/* **Un mât relevé se tient comme un bâtiment, parce que c'en est un** (retours du 11/09, lignes
+   4 et 5). Sans ces trois règles, la planche d'une installation adverse héritait du repli
+   générique — `.label--glyph .label-block { opacity: 0 }` — et disparaissait entièrement dès que
+   l'étiquette n'était plus au niveau détaillé : replié par un voisin ou vu de loin, le mât était
+   invisible *et* insensible au pointeur, alors que les mâts à soi gardent leur planche. En prod
+   le joueur n'a jamais vu la mine qu'il venait saboter, et « saboter » ne se prend que là.
+
+   La planche se pose donc sur la tête du mât, comme celle d'un bâtiment, et seuls les mots
+   tombent au repli. Le délavé des relevés reste la seule chose qui la distingue d'un mât à
+   soi — c'est lui qui dit « vu à une date », et il s'applique par-dessus. */
+.label--installation .label-pictogram {
+  top: auto;
+  bottom: -2px;
+  transform: none;
+}
+
+.label--installation.label--glyph .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--installation.label--glyph .label-lines,
+.label--installation.label--glyph .label-bar {
   display: none;
 }
 

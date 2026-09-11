@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isAlarm, journalDispatches } from './journal';
 import { fr } from '@/i18n/fr';
+import type { BuildingKey } from './ids';
 import type { CombatReport, Notice } from './player-view';
 
 /**
@@ -128,6 +129,42 @@ describe('the journal', () => {
     );
     expect(nothing!.text).toContain('personne');
     expect(nothing!.severity).toBe('notable');
+  });
+
+  /**
+   * **Le trou d'affordance de la partie de contrôle** (retours du 11/09, ligne 5) : le joueur
+   * venait saboter une mine, l'attaque est arrivée sur une région sans garnison, et la dépêche
+   * lui a dit « n'a trouvé personne » — rien sur la mine, rien sur l'ordre qui l'atteint. Elle le
+   * dit maintenant, et seulement pour ce qu'un ordre atteint : la même fonction que la rose lit.
+   */
+  it('names the surveyed installation the bredouille column is standing next to', () => {
+    const dispatchOf = (installation?: BuildingKey) =>
+      journalDispatches(
+        [],
+        null,
+        [],
+        [
+          {
+            kind: 'columnFoundNothing',
+            at: NOON,
+            movementType: 'attack',
+            hostCountry: 'ROU',
+            troops: 3,
+            ...(installation === undefined ? {} : { installation }),
+          },
+        ],
+      )[0]!;
+
+    const mine = dispatchOf('mine');
+    expect(mine.text).toContain('mine');
+    expect(mine.text).toContain('saboter');
+
+    const warehouse = dispatchOf('warehouse');
+    expect(warehouse.text).toContain('piller');
+
+    /** Une caserne ne se pille ni ne se sabote : la dépêche se tait plutôt que de promettre un
+     *  ordre que la rose refuserait. */
+    expect(dispatchOf('barracks').text).toBe(dispatchOf().text);
   });
 
   /**

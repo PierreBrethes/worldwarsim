@@ -39,7 +39,7 @@ export function LaunchSequence({
   }, [phase, onEnd]);
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[var(--z-veil)]">
       <div
         className="absolute inset-0 bg-[var(--desk)] transition-opacity duration-700"
         style={{ opacity: phase >= 2 ? 1 : 0 }}

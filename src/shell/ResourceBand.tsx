@@ -67,7 +67,7 @@ export function ResourceBand({ view }: { view: PlayerView }) {
 
   return (
     <div
-      className="hud relative z-30 flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-6"
+      className="hud relative z-[var(--z-band)] flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-6"
       style={{ fontFamily: 'var(--font-body)', height: collapsed ? FOLDED_HEIGHT : BAND_HEIGHT }}
       onMouseLeave={() => setHovered(null)}
     >

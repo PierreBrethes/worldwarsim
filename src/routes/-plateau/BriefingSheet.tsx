@@ -28,7 +28,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label={fr.briefing.header}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,10,4,.72)] p-6"
+      className="fixed inset-0 z-[var(--z-veil)] flex items-center justify-center bg-[rgba(15,10,4,.72)] p-6"
     >
       <div className="hud max-h-full max-w-full overflow-auto">
         <article className="paper-grain w-[880px] max-w-full border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6)]">

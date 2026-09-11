@@ -147,7 +147,7 @@ export function ConstructionPanel({
 
   return (
     <Draggable
-      className="absolute z-20"
+      className="absolute z-[var(--z-popin)]"
       style={{
         left: fromRight ? undefined : at.x,
         right: fromRight ? `calc(100% - ${at.x}px)` : undefined,

@@ -609,6 +609,11 @@ export type Notice =
       readonly movementType: 'attack' | 'raid';
       readonly hostCountry: string;
       readonly troops: number;
+      /** **Ce que la colonne a trouvé debout sans personne pour le garder**, et rien qu'elle
+       *  n'ait déjà relevé (`surveyedInstallations`) : l'attaque ne vise pas un bâtiment, et sans
+       *  cette clé la dépêche laissait le joueur devant « n'a trouvé personne » alors qu'un ordre
+       *  l'attendait sur le mât d'à côté. Absente, la dépêche ne dit rien de plus qu'avant. */
+      readonly installation?: BuildingKey;
     }
   /** La fin d'une saison sans horloge : son fondateur l'a close. Aucun vainqueur ne
    *  l'accompagne, et le journal n'en désigne donc aucun (`seasons.conclude`). */

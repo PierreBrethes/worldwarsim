@@ -398,6 +398,15 @@ export const NOTICE = v.union(
     movementType: v.union(v.literal('attack'), v.literal('raid')),
     hostCountry: v.string(),
     troops: v.number(),
+    /**
+     * **Ce que la colonne a trouvé debout, quand personne ne le gardait** (retours du 11/09,
+     * ligne 5). Une attaque vise un point ou une pile, jamais un bâtiment : sur une région
+     * adverse sans garnison elle est bredouille, et le joueur qui venait pour la mine relit
+     * « n'a trouvé personne » sans savoir que l'ordre qu'il cherchait existe. C'est la clé du
+     * bâtiment **déjà relevé** par cette colonne — rien de neuf ne sort du serveur, le relevé
+     * le sert depuis S8 — et la dépêche dit par où l'atteindre.
+     */
+    installation: v.optional(BUILDING_KEY),
   }),
 );
 

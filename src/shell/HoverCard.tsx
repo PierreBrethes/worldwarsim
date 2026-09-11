@@ -27,7 +27,7 @@ export function HoverCard({
 }) {
   return (
     <div
-      className={`paper-grain pointer-events-none absolute z-40 border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] ${
+      className={`paper-grain pointer-events-none absolute z-[var(--z-hovercard)] border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] ${
         top === undefined ? 'top-full mt-[3px]' : ''
       }`}
       style={{

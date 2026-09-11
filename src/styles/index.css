@@ -221,7 +221,7 @@ body {
 .grain {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-grain);
   pointer-events: none;
   mix-blend-mode: overlay;
   opacity: 0.2;

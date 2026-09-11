@@ -50,6 +50,9 @@ const decimal = (value: number, decimals: number): string =>
 /** Building names are capitalised as titles; mid-sentence they are common nouns again. */
 const lowerFirst = (label: string): string => label.charAt(0).toLowerCase() + label.slice(1);
 
+/** Et l'inverse, quand le nom désigné ouvre la phrase : `La mine y est debout`. */
+const upperFirst = (label: string): string => label.charAt(0).toUpperCase() + label.slice(1);
+
 /** L'élision devant une voyelle — `l’alliage` et jamais `le alliage`. */
 const startsWithVowel = (word: string): boolean => 'aeiouyâàéèêîôû'.includes(word.charAt(0));
 
@@ -1041,11 +1044,26 @@ export const fr = {
        * compte rendu : sans cette ligne, la plus longue marche d'une saison se lit « rien à
        * signaler ».
        */
-      columnFoundNothing: (movementType: 'attack' | 'raid', troops: number, country: string) => {
+      columnFoundNothing: (
+        movementType: 'attack' | 'raid',
+        troops: number,
+        country: string,
+        /**
+         * **Ce qui est debout sur place, et par où on l'atteint** (retours du 11/09, ligne 5).
+         * Une attaque vise un point ou une pile, jamais un bâtiment : le joueur venu saboter une
+         * mine lisait « n'a trouvé personne » et repartait sans savoir que l'ordre existait.
+         * `null` dès qu'aucun ordre ne porte sur ce qui est là, et la dépêche ne change pas.
+         */
+        site: { readonly key: BuildingKey; readonly effect: 'loot' | 'sabotage' } | null = null,
+      ) => {
         const column = `${troops} troupe${plural(troops, '', 's')}`;
-        return movementType === 'raid'
-          ? `Notre raid est arrivé — ${country} — et n’a trouvé personne à l’avant-poste.`
-          : `Notre colonne de ${column} est arrivée — ${country} — et n’a trouvé personne.`;
+        const found =
+          movementType === 'raid'
+            ? `Notre raid est arrivé — ${country} — et n’a trouvé personne à l’avant-poste.`
+            : `Notre colonne de ${column} est arrivée — ${country} — et n’a trouvé personne.`;
+        if (site === null) return found;
+        const order = site.effect === 'loot' ? fr.compass.plunder : fr.compass.sabotage;
+        return `${found} ${upperFirst(theBuilding(site.key))} y est debout : un ordre « ${order} » pris sur son marqueur l’atteint.`;
       },
     },
   },

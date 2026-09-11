@@ -14,7 +14,6 @@ import { followDrag, scaleOf, useDragOffset, type Grab, type Offset } from './dr
 
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 200;
-const BASE_PLANE = 40;
 
 /**
  * **Whether the window has a height of its own**, i.e. the player has dragged its corner. An
@@ -118,7 +117,11 @@ export function FloatingWindow({
       className={`pointer-events-none fixed inset-0 flex justify-center ${
         alignment === 'top' ? 'items-start px-6 py-[34px]' : 'items-center p-8'
       }`}
-      style={{ zIndex: BASE_PLANE + rank }}
+      /** **Le plan des fenêtres vient de l'échelle, pas d'ici** (`--z-window`, `tokens.css`) : un
+       *  40 écrit à la main ne se comparait à rien, et le bandeau des ressources est passé
+       *  par-dessus une modale en prod. Le rang n'empile que les fenêtres entre elles, et il
+       *  reste sous le plan suivant tant qu'on n'en ouvre pas dix. */
+      style={{ zIndex: `calc(var(--z-window) + ${rank})` }}
     >
       <div
         ref={container}

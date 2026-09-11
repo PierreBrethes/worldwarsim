@@ -1483,7 +1483,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       {/* the curtain extends the launch's black until the map's first frame */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-40 bg-[var(--desk)]"
+        className="pointer-events-none fixed inset-0 z-[var(--z-veil)] bg-[var(--desk)]"
         style={{ animation: 'curtain-rise .9s ease forwards' }}
       />
     </Shell>

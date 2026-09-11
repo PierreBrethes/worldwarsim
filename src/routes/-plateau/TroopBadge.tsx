@@ -67,7 +67,7 @@ export function TroopBadge({
     /* Poussé à la main comme la garnison, et sans rien retenir : il est visé sur une pile, et
        restituer la poussée d'hier l'arracherait à la troupe qu'il décrit (`Draggable`). */
     <Draggable
-      className="absolute z-20"
+      className="absolute z-[var(--z-popin)]"
       style={{
         left: fromRight ? undefined : at.x + ANCHOR_GAP,
         right: fromRight ? `calc(100% - ${at.x - ANCHOR_GAP}px)` : undefined,

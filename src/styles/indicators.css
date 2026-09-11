@@ -4,7 +4,7 @@
 .edge-indicators {
   position: absolute;
   inset: 0;
-  z-index: 11;
+  z-index: var(--z-indicator);
   overflow: hidden;
   pointer-events: none;
 }
