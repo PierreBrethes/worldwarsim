@@ -13,11 +13,7 @@ import {
 } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import worldAsset from '../public/world.json';
-import {
-  firstRouteEntryInRegion,
-  goalCellsForRegions,
-  regionAtRoutePoint,
-} from './regionGeometry';
+import { firstRouteEntryInRegion, goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
 
 /**
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
