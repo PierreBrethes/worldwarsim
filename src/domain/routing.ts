@@ -1,6 +1,6 @@
 import type { LonLat } from './geo';
 import type { Medium } from './ids';
-import type { World } from './world';
+import type { ProjectedCountry, World } from './world';
 
 /**
  * Land, naval, air or combined route computation on a grid derived from the projected world
@@ -662,22 +662,42 @@ export const countryAmong = (
 ): string | null => (adm0s.size === 0 ? null : hostAmong(world, lonLat, adm0s));
 
 function hostAmong(world: World, lonLat: LonLat, adm0s: ReadonlySet<string> | null): string | null {
-  const [x, y] = projectLonLat(world.outline, world.sphere, lonLat);
+  const point = projectLonLat(world.outline, world.sphere, lonLat);
   for (const country of world.countries) {
     if (adm0s !== null && !adm0s.has(country.adm0)) continue;
-    let inside = false;
-    for (const ring of country.rings) {
-      for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {
-        const a = ring[i]!;
-        const b = ring[previous]!;
-        if (a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) {
-          inside = !inside;
-        }
-      }
-    }
-    if (inside) return country.adm0;
+    if (ringsContainPoint(country.rings, point)) return country.adm0;
   }
   return null;
+}
+
+/**
+ * **La même containment, sur le plan et sans projeter** — ce dont la cuisson du raster de
+ * `region-raster.ts` a besoin : elle interroge des centres de cellule, qui sont déjà des points
+ * du plan, et un aller-retour par la lon/lat lui ferait répondre à côté de la question qu'elle
+ * pose. L'ordre de la table décide en cas de chevauchement, exactement comme ci-dessus : c'est
+ * le premier pays qui contient le point, jamais le plus petit.
+ */
+export const countryAtPlanePoint = (
+  countries: ReadonlyArray<ProjectedCountry>,
+  point: readonly [x: number, y: number],
+): string | null =>
+  countries.find((country) => ringsContainPoint(country.rings, point))?.adm0 ?? null;
+
+function ringsContainPoint(
+  rings: ProjectedCountry['rings'],
+  [x, y]: readonly [x: number, y: number],
+): boolean {
+  let inside = false;
+  for (const ring of rings) {
+    for (let i = 0, previous = ring.length - 1; i < ring.length; previous = i++) {
+      const a = ring[i]!;
+      const b = ring[previous]!;
+      if (a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0]) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
 }
 
 /* ------------------------------ projection ------------------------------ */

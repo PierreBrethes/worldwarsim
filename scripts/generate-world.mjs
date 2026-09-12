@@ -162,3 +162,7 @@ console.log(
 /** The routing raster is cut from these very polygons: a new world leaves a stale grid, and the
  *  server reads the grid rather than rebuilding it. One command, the two files. */
 await import('./generate-grid.mjs');
+
+/** And the region raster with it — the host channel is cut from these polygons too, and the
+ *  server reads no polygon at all any more (ADR 0023). */
+await import('./generate-region-grid.mjs');
