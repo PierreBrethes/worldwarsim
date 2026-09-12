@@ -60,6 +60,38 @@ export const reset = internalMutation({
 });
 
 /**
+ * **Les deux champs dénormalisés de la saison, posés sur celles d'avant** (12/09) : le nombre de
+ * places et la nation du vainqueur. Sans elle, une saison d'avant la ligne fait retomber
+ * `previewOf` sur le comptage — la lecture même que la dénormalisation supprime — et l'accueil
+ * d'un compte qui joue depuis longtemps garde le délai qu'on est venu corriger.
+ *
+ * Une migration plutôt qu'un wipe parce que ce n'est pas un changement de règle : les saisons
+ * décrivent le même jeu après qu'avant, et l'une d'elles est en cours.
+ *
+ * `npx convex run dev:backfillSeasonPreview`
+ */
+export const backfillSeasonPreview = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let seasons = 0;
+    for (const season of await ctx.db.query('seasons').collect()) {
+      const present = await ctx.db
+        .query('players')
+        .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+        .collect();
+      const winnerId = season.winnerId ?? null;
+      const winner = winnerId === null ? null : await ctx.db.get(winnerId);
+      await ctx.db.patch(season._id, {
+        playerCount: present.length,
+        winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
+      });
+      seasons += 1;
+    }
+    return { seasons };
+  },
+});
+
+/**
  * **L'état de référence, pris sur une saison réellement jouée.** Ce qui sort d'ici est
  * exactement ce que le plateau de cette place reçoit — `viewOf` est la fonction que `playerView`
  * appelle, `heldOf` celle de `control.held` — brouillard compris. Rien n'est ajouté : une vue

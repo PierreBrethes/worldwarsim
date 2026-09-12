@@ -1,11 +1,20 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 import schema from './schema';
-import { foundSeat, joinSeat, signIn } from './seats.fixture';
+import { foundSeat, joinSeat, seatIn, seatsOf, signIn } from './seats.fixture';
 import { modules } from './test.setup';
 
 const boot = () => convexTest(schema, modules);
+type Bench = ReturnType<typeof boot>;
+
+const seasonDoc = (t: Bench, seasonId: Id<'seasons'>) => t.run((ctx) => ctx.db.get(seasonId));
+
+/** Une saison d'avant la dénormalisation du 12/09 : elle ne porte ni le compte des places, ni
+ *  la nation du vainqueur, et rien ne l'y oblige (`v.optional`). */
+const unmigrate = (t: Bench, seasonId: Id<'seasons'>) =>
+  t.run((ctx) => ctx.db.patch(seasonId, { playerCount: undefined, winnerNation: undefined }));
 
 /**
  * **Le compte possède ses places** (ADR 0022). Ce que cette suite tient, c'est la porte
@@ -49,6 +58,85 @@ describe('une place par compte et par saison', () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');
     expect((await t.query(api.seasons.lobby, seat)).me.nickname).toBe('Pierre');
+  });
+});
+
+/**
+ * **La porte ne lit plus les tables de jeu** (révision du 12/09 de l'ADR 0022). `me` ne dit que
+ * le pseudo, et la liste des parties est une requête à part, servie au seul écran d'accueil. Ce
+ * que cette suite tient, c'est que la dénormalisation qui l'a rendue légère dit la même chose
+ * que le comptage qu'elle remplace.
+ */
+describe('les places du compte, sans compter les joueurs', () => {
+  it('tient le compte des places à l’entrée', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    expect((await seasonDoc(t, seat.seasonId))?.playerCount).toBe(1);
+
+    await joinSeat(t, code, 'Léa');
+    expect((await seasonDoc(t, seat.seasonId))?.playerCount).toBe(2);
+    expect((await seatsOf(t, seat))[0]?.players).toBe(2);
+  });
+
+  /** La sortie d'une place est la mise au rebut de sa saison, et elle emporte les deux : ce qui
+   *  se vérifie, c'est qu'il ne reste rien à lister. */
+  it('ne liste plus rien après la mise au rebut', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    const guest = await joinSeat(t, code, 'Léa');
+    await t.mutation(api.seasons.destroy, seat);
+
+    expect(await seatsOf(t, seat)).toEqual([]);
+    expect(await seatsOf(t, guest)).toEqual([]);
+  });
+
+  it('sert la même ligne sur une saison d’avant la dénormalisation', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    await joinSeat(t, code, 'Léa');
+    const migrated = await seatsOf(t, seat);
+
+    await unmigrate(t, seat.seasonId);
+    expect(await seatsOf(t, seat)).toEqual(migrated);
+  });
+
+  it('nomme le vainqueur d’une saison conclue avant que sa nation y soit gravée', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    const guest = await joinSeat(t, code, 'Léa');
+    await t.mutation(api.players.reserveNation, { ...guest, nation: 'france' });
+    await t.run(async (ctx) => {
+      const winner = await seatIn(ctx, guest);
+      await ctx.db.patch(seat.seasonId, {
+        status: 'concluded',
+        winnerId: winner._id,
+        concludedAt: Date.now(),
+      });
+    });
+    await unmigrate(t, seat.seasonId);
+
+    expect((await seatsOf(t, seat))[0]?.winnerNation).toBe('france');
+  });
+
+  it('la migration pose le compte et la nation sur les saisons d’avant', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre');
+    const guest = await joinSeat(t, code, 'Léa');
+    await t.mutation(api.players.reserveNation, { ...guest, nation: 'france' });
+    await t.run(async (ctx) => {
+      const winner = await seatIn(ctx, guest);
+      await ctx.db.patch(seat.seasonId, {
+        status: 'concluded',
+        winnerId: winner._id,
+        concludedAt: Date.now(),
+      });
+    });
+    await unmigrate(t, seat.seasonId);
+
+    expect(await t.mutation(internal.dev.backfillSeasonPreview, {})).toEqual({ seasons: 1 });
+    const season = await seasonDoc(t, seat.seasonId);
+    expect(season?.playerCount).toBe(2);
+    expect(season?.winnerNation).toBe('france');
   });
 });
 

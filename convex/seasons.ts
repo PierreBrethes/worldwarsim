@@ -228,7 +228,9 @@ export const create = mutation({
       playableRegion: null,
       launchedAt: null,
       winnerId: null,
+      winnerNation: null,
       concludedAt: null,
+      playerCount: 0,
     });
     await seat(ctx, account, seasonId, true);
     return { code, seasonId };
@@ -253,6 +255,32 @@ async function seat(
     restWindow: DEFAULT_REST_WINDOW,
     enteredWarAt: null,
   });
+  await countSeat(ctx, seasonId);
+}
+
+/**
+ * **Le compte des places se tient à l'écriture**, parce qu'il se lit une fois par saison du
+ * compte sur l'écran d'accueil (`previewOf`) : recompté à la lecture, il y faisait un `collect()`
+ * par ligne, en série, et c'est ce qui a fini par dépasser la seconde en production (12/09).
+ *
+ * **Il ne décroît jamais, et il n'a pas à le faire** : une place ne se quitte pas, elle
+ * disparaît avec sa saison (`destroy`), qui emporte le compte avec elle.
+ *
+ * Une saison d'avant ce champ se fait compter une fois, ici, plutôt que incrémentée à partir de
+ * rien : le comptage est déjà fait quand on écrit, et la place neuve y est.
+ */
+async function countSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (!season) return;
+  if (season.playerCount === undefined) {
+    const present = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    await ctx.db.patch(seasonId, { playerCount: present.length });
+    return;
+  }
+  await ctx.db.patch(seasonId, { playerCount: season.playerCount + 1 });
 }
 
 /**
@@ -325,12 +353,8 @@ export const join = mutation({
 export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
   const season = await ctx.db.get(player.seasonId);
   if (!season) return null;
-  const present = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-    .collect();
-  const winnerId = season.winnerId ?? null;
-  const winner = winnerId === null ? null : await ctx.db.get(winnerId);
+  const players = season.playerCount ?? (await seatsIn(ctx, season._id)).length;
+  const winnerNation = await winnerNationOf(ctx, season);
   return {
     /** La saison que la ligne ouvre : c'est elle que le client retient comme place active, et
      *  elle voyage avec chaque ordre ensuite (`playerOf`). */
@@ -340,8 +364,8 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
     durationHours: season.durationHours,
     launchedAt: season.launchedAt,
     createdAt: season._creationTime,
-    playableRegion: season.playableRegion ?? playableRegion(present.length),
-    players: present.length,
+    playableRegion: season.playableRegion ?? playableRegion(players),
+    players,
     nickname: player.nickname,
     creator: player.creator,
     nation: player.nation,
@@ -353,8 +377,26 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
     defeated: player.defeated ?? false,
     /** Enough for the home screen to say who took the season without opening the board — the
      *  only end screen the test victory gets, with the journal's headline. */
-    winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
+    winnerNation,
   };
+}
+
+/** Les places d'une saison, à l'index. La seule lecture qui les compte encore, et elle ne sert
+ *  plus que les saisons d'avant `playerCount`. */
+const seatsIn = (ctx: QueryCtx, seasonId: Id<'seasons'>): Promise<Doc<'players'>[]> =>
+  ctx.db
+    .query('players')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+
+/** La nation du vainqueur, gravée à la conclusion — et lue à la place derrière `winnerId` pour
+ *  les seules saisons conclues avant que le champ existe. */
+async function winnerNationOf(ctx: QueryCtx, season: Doc<'seasons'>): Promise<string | null> {
+  if (season.winnerNation !== undefined) return season.winnerNation;
+  const winnerId = season.winnerId ?? null;
+  if (winnerId === null) return null;
+  const winner = await ctx.db.get(winnerId);
+  return winner === null ? null : (winner.nation ?? winner.nickname);
 }
 
 export const lobby = query({
@@ -491,7 +533,15 @@ export async function concludeSeason(
    * tamponne, et il n'y a pas d'écran de fin pour le doubler.
    */
   await publishFinalEdition(ctx, seasonId, at);
-  await ctx.db.patch(seasonId, { status: 'concluded', winnerId, concludedAt: at });
+  /** La nation part avec l'identifiant, dans la même écriture : l'accueil nomme le vainqueur
+   *  sans rouvrir sa place, et la place, elle, peut disparaître au wipe. */
+  const winner = winnerId === null ? null : await ctx.db.get(winnerId);
+  await ctx.db.patch(seasonId, {
+    status: 'concluded',
+    winnerId,
+    winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
+    concludedAt: at,
+  });
 }
 
 /**

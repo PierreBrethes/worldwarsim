@@ -94,6 +94,24 @@ export default defineSchema({
      */
     winnerId: v.optional(v.union(v.id('players'), v.null())),
     concludedAt: v.optional(v.union(v.number(), v.null())),
+    /**
+     * **La nation du vainqueur, écrite avec sa victoire** — pas une seconde vérité mais la même,
+     * figée : `winnerId` désigne une place, et lire la place pour en tirer un nom coûtait un
+     * `get` par saison sur l'écran d'accueil. Ce qui est gravé ici ne bouge plus de toute façon,
+     * une saison conclue ne se rejoue pas.
+     */
+    winnerNation: v.optional(v.union(v.string(), v.null())),
+    /**
+     * **Combien de places la saison porte**, tenu à l'écriture. C'est la dénormalisation qui a
+     * sorti la liste des parties du compte de son délai d'une seconde (12/09) : l'accueil lit
+     * une ligne par saison, et compter les joueurs de chacune y faisait un `collect()` par
+     * saison, en série.
+     *
+     * `v.optional` par la règle du dépôt : une saison ouverte avant cette ligne ne le porte pas,
+     * et son lecteur retombe alors sur le comptage (`previewOf`). La migration
+     * `dev:backfillSeasonPreview` le pose sur les saisons d'avant.
+     */
+    playerCount: v.optional(v.number()),
   }).index('byCode', ['code']),
 
   players: defineTable({

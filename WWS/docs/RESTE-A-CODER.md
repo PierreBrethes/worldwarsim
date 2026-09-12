@@ -165,7 +165,8 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   sessions indépendantes, lecture du compte, déconnexion et récupération admin interne.
   Comptes et sessions survivent aux purges de jeu. Voir le
   [rapport C2](rapports/2026-09-09-comptes-c2.md). **C3 est codé le 11/09** : `players.accountId`
-  obligatoire, `playerOf(token, seasonId)` en porte unique, `accounts.me` qui sert les places,
+  obligatoire, `playerOf(token, seasonId)` en porte unique, `accounts.me` (le pseudo seul depuis
+  la révision du 12/09 ; les places sont dans `accounts.seats`),
   page `/connexion`, déconnexion aux Réglages et à l'accueil. Il attend le wipe pour être
   déployé — les quatre fiches de comptes sont passées dans `done/`.
 - **Frappe de bâtiment** (78a) — proposition `frappe-de-batiment.md` ; **après le pillage** (10).
