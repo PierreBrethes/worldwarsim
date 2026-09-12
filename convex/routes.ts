@@ -79,33 +79,37 @@ export function routeToRegions(
   const goals = goalCellsForRegions(regions);
   const search = computeRouteToAny(grid, from, new Set(goals.keys()), mode, landCost);
   if (search === null) return null;
-  const goal = goals.get(search.goalCell);
-  if (goal === undefined) return null;
+  const reached = goals.get(search.goalCell);
+  if (reached === undefined) return null;
 
   /**
-   * **Une région plus petite qu'une cellule n'a pas de frontière à franchir** : aucune cellule ne
-   * porte son code, elle est visée par son point, et la route prolongée jusque-là *est* l'entrée.
-   * Chercher un franchissement dans le raster n'en trouverait aucun et refuserait la livraison.
+   * **Une cellule d'arrivée peut répondre pour plusieurs régions** (ADR 0023) : la sienne, celle
+   * du canal, et toutes celles qui s'y ancrent faute d'être assez grandes pour une cellule à
+   * elles. On les essaie dans l'ordre servi — le raster d'abord — et la première qui se laisse
+   * atteindre est la destination.
    */
-  if (goal.point !== undefined) {
-    if (mode !== 'air' && !isLandCell(grid, goal.point)) return null;
-    const completed = extendRouteSearch(grid, search, goal.point);
+  for (const goal of reached) {
+    /**
+     * **Une région plus petite qu'une cellule n'a pas de frontière à franchir** : aucune cellule
+     * ne porte son code, elle est ancrée, et la route prolongée jusqu'à son point *est* l'entrée.
+     * Chercher un franchissement dans le raster n'en trouverait aucun et refuserait la livraison.
+     */
+    if (goal.point !== undefined) {
+      if (mode !== 'air' && !isLandCell(grid, goal.point)) continue;
+      const completed = extendRouteSearch(grid, search, goal.point);
+      return { kind: 'route', regionId: goal.regionId, point: goal.point, route: completed.route };
+    }
+
+    const entry = firstRouteEntryInRegion(search.rawPoints, goal.regionId);
+    if (entry === null) continue;
     return {
       kind: 'route',
       regionId: goal.regionId,
-      point: goal.point,
-      route: completed.route,
+      point: entry.point,
+      route: truncateRouteSearch(grid, search, entry.segmentIndex, entry.fraction, entry.point),
     };
   }
-
-  const entry = firstRouteEntryInRegion(search.rawPoints, goal.regionId);
-  if (entry === null) return null;
-  return {
-    kind: 'route',
-    regionId: goal.regionId,
-    point: entry.point,
-    route: truncateRouteSearch(grid, search, entry.segmentIndex, entry.fraction, entry.point),
-  };
+  return null;
 }
 
 /**

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from '../src/domain/geo';
 import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
-import { coastAtPoint, hostAtPoint, routeBetween } from './routes';
+import { goalCellsForRegions } from './regionGeometry';
+import { coastAtPoint, hostAtPoint, routeBetween, routeToRegions } from './routes';
 
 /**
  * The empty string is the open sea and nothing else. It used to mean "no playable nation here"
@@ -125,5 +126,49 @@ describe('a port on the coast', () => {
   /** A port from before the field reads where it always read: nothing is backfilled. */
   it('falls back on its region when it carries no point of its own', () => {
     expect(pointOfBuilding({ regionId: HOKKAIDO })).toEqual(regionFacts(HOKKAIDO)!.point);
+  });
+});
+
+/**
+ * **Une destination plus petite qu'une cellule reste une destination** (ADR 0023). Neuf cent
+ * soixante-et-onze régions n'ont aucune cellule à elles — **Paris en est**, où siège un quartier
+ * général — et la seule chose qui aille vers un identifiant de région plutôt que vers un point
+ * est le retour chargé d'un pillage (`movement/cargoReturn.ts`). Une nation dont la seule région
+ * tenue est l'une de celles-là ne rendait aucune route, et la charge tombait en caisse pour une
+ * raison qui n'est pas une règle du jeu.
+ */
+describe('une route vers des régions', () => {
+  const ORLEANS: LonLat = [1.9, 47.9];
+  const facts = (id: string) => ({ id, point: regionFacts(id)!.point });
+
+  it('atteint Paris, qu’aucune cellule ne porte', () => {
+    const planned = routeToRegions(ORLEANS, [facts('FRA-5333')], 'land');
+
+    expect(planned).not.toBeNull();
+    expect(planned!.regionId).toBe('FRA-5333');
+  });
+
+  /** Malte tient tout entière dans une cellule, et ses quarante-cinq régions s'y ancrent. Sa
+   *  cellule est de l'eau pour la grille de routage, donc on y va par le ciel — ce que
+   *  `routeToRegions` refusait tout net avant l'ancrage. */
+  it('atteint une région maltaise, ancrée avec quarante-quatre autres', () => {
+    const planned = routeToRegions(ORLEANS, [facts('MLT-5950')], 'air');
+
+    expect(planned).not.toBeNull();
+    expect(planned!.regionId).toBe('MLT-5950');
+  });
+
+  /**
+   * **Un ancrage s'ajoute, il n'écrase pas.** Westminster n'a qu'une cellule, et GBR-2079 s'y
+   * ancre : au départage par identifiant, le plus petit gagnait et la capitale du Royaume-Uni
+   * cessait d'être une destination. Cinquante-huit régions étaient dans ce cas.
+   */
+  it('garde le but d’une région d’une seule cellule quand une voisine s’y ancre', () => {
+    const goals = goalCellsForRegions([facts('GBR-2079'), facts('GBR-2080')]);
+    const shared = [...goals.values()].find((cell) =>
+      cell.some((goal) => goal.regionId === 'GBR-2080'),
+    );
+
+    expect(shared?.map((goal) => goal.regionId)).toEqual(['GBR-2080', 'GBR-2079']);
   });
 });

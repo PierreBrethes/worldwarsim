@@ -1,5 +1,6 @@
 import type { LonLat } from '../src/domain/geo';
 import {
+  cellsOfRegion,
   decodeRegionRaster,
   firstRegionEntry,
   goalCellsOfRegions,
@@ -8,13 +9,13 @@ import {
   isRegionBorderCell,
   regionAt,
   type RegionEntry,
+  type RegionGoal,
   type RegionRaster,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
 import type { World } from '../src/domain/world';
 import rasterAsset from '../public/region-grid.json';
 import projectionAsset from '../public/projection.json';
-import { regionFacts } from './regions';
 
 /**
  * **La géographie du serveur, et elle ne porte plus un seul polygone** (ADR 0023). Les contours
@@ -56,20 +57,22 @@ export const firstRouteEntryInRegion = (
 
 export const goalCellsForRegions = (
   regions: ReadonlyArray<{ readonly id: string; readonly point: LonLat }>,
-): ReadonlyMap<number, { readonly regionId: string; readonly point?: LonLat }> =>
-  goalCellsOfRegions(rasterOf(), regions);
+): ReadonlyMap<number, ReadonlyArray<RegionGoal>> => goalCellsOfRegions(rasterOf(), regions);
+
+/** Les cellules d'une région, totales : celles du raster, ou sa cellule d'ancrage (ADR 0023). */
+export const routeCellsOfRegion = (regionId: string): ReadonlyArray<number> =>
+  cellsOfRegion(rasterOf(), regionId);
 
 /**
- * **Le point gravé d'un retour chargé est-il un vrai franchissement ?** (`plunder.ts`) Deux
- * réponses valent oui, parce que le planificateur n'en produit que deux : une cellule de bordure
- * de la région, ce que rend `firstRouteEntryInRegion` ; et le **point de la région elle-même**,
- * quand elle est plus petite qu'une cellule et qu'aucune ne porte son code — neuf cent
- * soixante-et-onze régions sont dans ce cas, dont Westminster, où siège un quartier général.
- * Pour celles-là le point est la seule adresse qu'elles aient, et c'est exactement celui que
- * `goalCellsForRegions` sert.
+ * **Le point gravé d'un retour chargé est-il un vrai franchissement ?** (`plunder.ts`) La
+ * question se pose à la cellule et à rien d'autre depuis l'ancrage : `isRegionBorderCell` lit
+ * `cellsOfRegion`, donc une région plus petite qu'une cellule — neuf cent soixante-et-onze le
+ * sont, les régions maltaises comme les arrondissements d'une capitale — est **toute** bordure
+ * de sa cellule d'ancrage, et y arriver est y entrer.
+ *
+ * Le repli d'égalité exacte sur le point de la région est parti avec elle : il disait la même
+ * chose au flottant près, sur la seule adresse que ces régions avaient, et deux façons de
+ * répondre à une question sont une de trop.
  */
-export function isRouteEntryPoint(point: LonLat, regionId: string): boolean {
-  if (isRegionBorderCell(rasterOf(), point, regionId)) return true;
-  const facts = regionFacts(regionId);
-  return facts !== null && facts.point[0] === point[0] && facts.point[1] === point[1];
-}
+export const isRouteEntryPoint = (point: LonLat, regionId: string): boolean =>
+  isRegionBorderCell(rasterOf(), point, regionId);

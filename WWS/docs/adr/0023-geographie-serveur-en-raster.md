@@ -64,16 +64,57 @@ mesurée :
 - Une bande côtière plus étroite qu'une demi-cellule cesse d'être « de la terre pour le polygone
   et de l'eau pour la grille » : les deux lectures n'en font plus qu'une. C'est une **convergence**
   — le *mouvement fantôme* du 09/09 venait précisément de leur désaccord.
-- **971 régions sur 4 589 sont plus petites qu'une cellule** (arrondissements de capitale,
-  Westminster où siège un quartier général) : aucun centre de cellule ne tombe dedans. Rien n'est
-  forcé pour leur en donner une — les trente arrondissements d'une capitale tiennent dans la même
-  cellule, et leur en attribuer une chacun serait inventer une géographie. Elles restent visées
-  **par leur point**, qui est la seule adresse qu'elles aient jamais eue, et un retour chargé y
-  entre par ce point plutôt que par un franchissement qui n'existe pas.
+- **971 régions sur 4 589 sont plus petites qu'une cellule** (les quarante-cinq régions
+  maltaises, les arrondissements de capitale, et **Paris** — `FRA-5333` — où siège un quartier
+  général) : aucun centre de cellule ne tombe dedans. Rien n'est forcé pour leur en donner une —
+  les trente arrondissements d'une capitale tiennent dans la même cellule, et leur en attribuer
+  une chacun serait inventer une géographie. Elles sont **ancrées** à la cellule de leur point,
+  et un retour chargé y entre par là plutôt que par un franchissement qui n'existe pas (voir
+  « L'ancrage », ci-dessous).
 
 Aucune règle ne change. Ce qui change est la résolution à laquelle elles sont évaluées, et elle
 est désormais **la même pour tout le monde** : la visée, la route, l'hôte et le relevé lisent la
 même maille.
+
+### L'ancrage — la direction région → cellules est totale (13/09/2026)
+
+La direction **cellule → région** ne change pas : elle décide de l'hôte, de la couleur, du
+franchissement, et elle lit le canal, point. C'est la direction inverse — **région → cellules** —
+qui était partielle, et une région sans cellule y était un trou plutôt qu'un cas.
+
+Un **troisième canal** est cuit : pour chaque région qu'aucune cellule ne porte, l'indice de la
+cellule qui contient son **point intérieur** — le pôle d'inaccessibilité que
+`generate-region-index.mjs` calcule déjà, jamais recalculé ici. Une seule fonction le lit,
+`cellsOfRegion(id)` : les cellules du canal qui portent le code, ou, à défaut, la cellule
+d'ancrage. Les deux cas s'excluent — une région est dans l'un ou dans l'autre, jamais dans les
+deux — donc c'est une bascule et non un arbitrage. `firstRegionEntry` et `isRegionBorderCell` en
+sortent toutes deux, et le repli d'égalité au flottant sur le point de la région disparaît avec
+elle : deux façons de répondre à une question étaient une de trop.
+
+**L'ancrage n'est pas une couverture.** La cellule ancrée appartient au raster à une autre région,
+ou à personne. Ce qu'elle dit est *par où l'on entre*, pas *ce qui est là*, et rien de ce qui lit
+le sol ne la regarde.
+
+**Plusieurs régions ancrent la même cellule**, et c'est ce qui a révélé le défaut réel. Un but de
+route était **une** région par cellule, départagée au plus petit identifiant ; ce départage
+perdait des destinations dans les deux sens. Mesuré sur les 4 589 régions :
+
+| | régions sans aucun but |
+|---|---|
+| avant | **646** — 588 ancrées qui s'écrasaient entre elles (971 régions pour 575 cellules d'ancrage), et **58 qui ont une cellule bien à elles** mais une seule, prise par l'ancrage d'une voisine au plus petit identifiant — Westminster en était |
+| après | **0** |
+
+Un but est donc une **liste** : le but du raster d'abord, les ancrages ensuite par identifiant
+croissant, et `routeToRegions` retient le premier qu'il peut suivre. **Un ancrage s'ajoute, il
+n'écrase jamais.**
+
+Ce qui ne bouge pas : **le relevé de couloir reste métrique** (`coveredRegions`,
+`src/domain/control.ts`). Il mesure des kilomètres entre les haltes d'un trajet et le point de
+chaque région, il est total depuis toujours, et le passer à la cellule changerait une règle de
+jeu (ADR 0020 §5) au lieu de boucher un trou.
+
+**Correction.** Les deux textes qui donnaient Westminster (`GBR-2080`) pour une région sans
+cellule étaient faux : elle en a exactement une. La capitale concernée est Paris.
 
 ### Garde-fous
 
@@ -87,7 +128,11 @@ Trois, tous dans `npm run verifier`, donc dans la CI :
 - **L'égalité cuisson/calcul** : sur un échantillon fixe de deux mille cellules, le raster et le
   polygone doivent dire la même région et le même pays (`convex/invariants.test.ts`), plus
   l'identité de maille avec `grid.json` et le chrono de décodage sous 50 ms. Même esprit que
-  l'égalité octet à octet de `grid.json` : on recuit ou la CI refuse.
+  l'égalité octet à octet de `grid.json` : on recuit ou la CI refuse. Et, depuis l'ancrage : la
+  table d'ancrage couvre **exactement** les régions absentes du canal, chaque ancrage est la
+  cellule où `cellAt` fait tomber le point intérieur — la cuisson refait cette arithmétique au
+  lieu de l'importer, le déshabillage de types de Node ne chargeant pas `region-raster.ts` — et
+  **les 4 589 régions ont au moins un but**.
 
 ## Conséquences
 

@@ -3,11 +3,19 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
-import { decodeRegionRaster, type RegionRasterAsset } from '../src/domain/region-raster';
+import {
+  cellAt,
+  cellsOfRegion,
+  decodeRegionRaster,
+  goalCellsOfRegions,
+  type RegionRasterAsset,
+} from '../src/domain/region-raster';
 import { buildGrid, countryAtPlanePoint, decodeGrid } from '../src/domain/routing';
+import type { LonLat } from '../src/domain/geo';
 import type { World } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
 import rasterAsset from '../public/region-grid.json';
+import indexAsset from '../public/region-index.json';
 import regionsAsset from '../public/regions.json';
 import worldAsset from '../public/world.json';
 import {
@@ -284,6 +292,73 @@ describe('le raster de géographie cuit', () => {
       ).toBe(raster.hosts[raster.countries[cell]! - 1] ?? null);
     }
   }, 120000);
+
+  /**
+   * **La direction région → cellules est totale, et c'est le garde-fou** (ADR 0023). Les 971
+   * régions plus petites qu'une cellule sont ancrées ; les autres sont dans le canal ; aucune
+   * n'est dans les deux, et aucune n'est dans ni l'un ni l'autre. Une table d'ancrage qui
+   * dériverait du canal — un recuit partiel, une région qui gagne ou perd sa cellule — laisserait
+   * un retour chargé sans destination, des heures après sa cause.
+   */
+  const points = indexAsset.point as unknown as Readonly<Record<string, LonLat | undefined>>;
+
+  it('ancre exactement les régions qu’aucune cellule ne porte', () => {
+    const inChannel = new Set(raster.regions);
+    const withoutCells = raster.ids.filter((_, rank) => !inChannel.has(rank + 1));
+
+    expect(
+      [...raster.anchorOfRegion.keys()].sort(),
+      `La table d’ancrage de public/region-grid.json ne correspond plus à son canal de régions — recuire avec node scripts/generate-region-grid.mjs.`,
+    ).toEqual([...withoutCells].sort());
+  });
+
+  /**
+   * La cuisson refait l'arithmétique de cellule au lieu de l'importer — le déshabillage de types
+   * de Node ne charge pas `region-raster.ts` — donc c'est ici que les deux se rejoignent : un
+   * ancrage doit être la cellule où **le lecteur du serveur** fait tomber le point intérieur.
+   */
+  it('ancre chaque région sur la cellule où son point intérieur tombe', () => {
+    for (const [regionId, cell] of raster.anchorOfRegion) {
+      const point = points[regionId];
+      expect(point, regionId).toBeDefined();
+      expect(cellAt(raster, point!), regionId).toBe(cell);
+    }
+  });
+
+  /**
+   * Les trois tailles de région, sur la même fonction : un pays entier, une région d'une seule
+   * cellule, une région qui n'en a aucune. `cellsOfRegion` répond pour les trois — c'est ce que
+   * « totale » veut dire, et c'est la seule bascule du dépôt.
+   */
+  it.each([
+    ['FRA-5333', 'Paris'],
+    ['GBR-2080', 'Westminster, une seule cellule'],
+    ['MLT-5950', 'une région maltaise, aucune cellule'],
+  ])('rend au moins une cellule pour %s (%s)', (regionId) => {
+    expect(cellsOfRegion(raster, regionId).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * **Et aucune ne perd son but à l'arrivée d'une autre.** Le départage au plus petit
+   * identifiant en laissait 646 sans aucun but — 588 ancrées qui s'écrasaient entre elles, et 58
+   * qui n'ont qu'une seule cellule, Westminster comprise, dont l'ancrage d'une voisine prenait la
+   * place. Un ancrage s'ajoute désormais ; ce test est la raison pour laquelle il ne peut plus
+   * redevenir un remplacement.
+   */
+  it('sert un but à chacune des 4 589 régions, ancrages compris', () => {
+    const regions = raster.ids.map((id) => ({ id, point: points[id]! }));
+    const served = new Set(
+      [...goalCellsOfRegions(raster, regions).values()].flatMap((goals) =>
+        goals.map((goal) => goal.regionId),
+      ),
+    );
+    const lost = raster.ids.filter((id) => !served.has(id));
+
+    expect(
+      lost,
+      `Ces régions n’ont aucun but de route : un retour chargé ne peut pas y aller.`,
+    ).toEqual([]);
+  });
 
   /**
    * **Le chrono, parce que c'est tout l'objet de la cuisson** : une query a une seconde, et la

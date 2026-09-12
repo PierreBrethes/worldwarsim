@@ -32,6 +32,10 @@ export type RegionRasterAsset = {
   /** Plages sur les cellules, en ordre de lecture : valeur, longueur, valeur, longueur… */
   readonly regionRuns: ReadonlyArray<number>;
   readonly hostRuns: ReadonlyArray<number>;
+  /** **Les régions plus petites qu'une cellule**, par couples `cellule, code` : la cellule qui
+   *  contient leur point intérieur. Plusieurs régions ancrent la même — les quarante-cinq
+   *  régions maltaises tiennent dans une seule. */
+  readonly anchors: ReadonlyArray<number>;
 };
 
 export type RegionRaster = {
@@ -44,6 +48,10 @@ export type RegionRaster = {
   readonly regions: Uint16Array;
   readonly countries: Uint16Array;
   readonly codeOfRegion: ReadonlyMap<string, number>;
+  /** **La cellule d'ancrage d'une région sans cellule**, et rien pour les autres : une région
+   *  y est, ou elle est dans le canal. Les deux ne se recouvrent jamais, ce qui fait de
+   *  `cellsOfRegion` une bascule et non un arbitrage. */
+  readonly anchorOfRegion: ReadonlyMap<string, number>;
   readonly sphere: World['sphere'];
   readonly outline: World['outline'];
 };
@@ -59,6 +67,10 @@ export function encodeRegionRaster(raster: RegionRaster): RegionRasterAsset {
     hosts: raster.hosts,
     regionRuns: runsOf(raster.regions),
     hostRuns: runsOf(raster.countries),
+    anchors: [...raster.anchorOfRegion].flatMap(([id, cell]) => [
+      cell,
+      raster.codeOfRegion.get(id)!,
+    ]),
   };
 }
 
@@ -96,9 +108,19 @@ export function decodeRegionRaster(asset: RegionRasterAsset, world: World): Regi
     regions,
     countries,
     codeOfRegion: new Map(asset.ids.map((id, rank) => [id, rank + 1])),
+    anchorOfRegion: anchorsOf(asset),
     sphere: world.sphere,
     outline: world.outline,
   };
+}
+
+function anchorsOf(asset: RegionRasterAsset): ReadonlyMap<string, number> {
+  const anchored = new Map<string, number>();
+  for (let pair = 0; pair < asset.anchors.length; pair += 2) {
+    const id = asset.ids[asset.anchors[pair + 1]! - 1];
+    if (id !== undefined) anchored.set(id, asset.anchors[pair]!);
+  }
+  return anchored;
 }
 
 function fill(runs: ReadonlyArray<number>, cells: number): Uint16Array {
@@ -152,6 +174,36 @@ export function hostAmong(
 }
 
 /**
+ * **Les cellules d'une région, et la direction région → cellules est totale** (ADR 0023) : celles
+ * du canal qui portent son code, ou — pour les neuf cent soixante-et-onze régions plus petites
+ * qu'une cellule — **sa cellule d'ancrage**, celle qui contient son point intérieur. Les deux cas
+ * s'excluent, c'est une bascule et non un arbitrage : une région est dans le canal ou dans la
+ * table d'ancrage, jamais dans les deux.
+ *
+ * **L'ancrage n'est pas une couverture.** La cellule ancrée appartient au raster à une autre
+ * région, ou à personne ; ce qu'elle dit est *par où l'on entre*, pas *ce qui est là*. La
+ * direction cellule → région n'en sait rien et n'a pas à en savoir — c'est elle qui décide de
+ * l'hôte, de la couleur et du franchissement, et l'ancrage n'y met pas un pied.
+ *
+ * Le balayage du canal est payé à l'appel, jamais retenu : une table cellules-par-région serait
+ * 1,33 M d'entiers sur le tas, c'est-à-dire exactement ce que cette ADR a sorti de l'isolat. Il
+ * coûte quelques millisecondes, sur des chemins qui en coûtent déjà des dizaines.
+ * `goalCellsOfRegions` est sa forme groupée : un seul balayage pour un jeu de régions, la même
+ * bascule au bout.
+ */
+export function cellsOfRegion(raster: RegionRaster, regionId: string): ReadonlyArray<number> {
+  const anchor = raster.anchorOfRegion.get(regionId);
+  if (anchor !== undefined) return [anchor];
+  const code = raster.codeOfRegion.get(regionId);
+  if (code === undefined) return [];
+  const cells: number[] = [];
+  for (let cell = 0; cell < raster.regions.length; cell += 1) {
+    if (raster.regions[cell] === code) cells.push(cell);
+  }
+  return cells;
+}
+
+/**
  * **Une cellule de bordure de la région**, ce que le polygone appelait « le point est sur le
  * contour ». Le raster n'a pas de contour : il a des cellules qui touchent autre chose. C'est le
  * contrôle du point d'entrée gravé d'un retour chargé (`plunder.ts`), et il accepte exactement ce
@@ -160,22 +212,25 @@ export function hostAmong(
  * **Les huit voisines, et pas les quatre** : deux échantillons consécutifs sont distants d'une
  * demi-cellule, donc la cellule d'où l'on vient est au plus en diagonale. À quatre voisines, une
  * entrée exactement diagonale se ferait refuser une livraison légitime.
+ *
+ * Une région ancrée n'a qu'une cellule, donc elle est **toute** bordure : y arriver est y entrer,
+ * ce qui est la seule chose que son point ait jamais voulu dire.
  */
 export function isRegionBorderCell(
   raster: RegionRaster,
   lonLat: LonLat,
   regionId: string,
 ): boolean {
+  const cells = new Set(cellsOfRegion(raster, regionId));
   const cell = cellAt(raster, lonLat);
-  const code = raster.codeOfRegion.get(regionId);
-  if (code === undefined || raster.regions[cell] !== code) return false;
+  if (!cells.has(cell)) return false;
   const column = cell % raster.width;
   const row = Math.floor(cell / raster.width);
   for (const [dx, dy] of NEIGHBOURS) {
     const next = row + dy;
     if (next < 0 || next >= raster.height) return true;
     const across = (column + dx + raster.width) % raster.width;
-    if (raster.regions[next * raster.width + across] !== code) return true;
+    if (!cells.has(next * raster.width + across)) return true;
   }
   return false;
 }
@@ -211,9 +266,9 @@ export function firstRegionEntry(
   path: ReadonlyArray<LonLat>,
   regionId: string,
 ): RegionEntry | null {
-  const code = raster.codeOfRegion.get(regionId);
-  if (code === undefined || path.length < 2) return null;
-  const inside = (point: LonLat): boolean => raster.regions[cellAt(raster, point)] === code;
+  const cells = new Set(cellsOfRegion(raster, regionId));
+  if (cells.size === 0 || path.length < 2) return null;
+  const inside = (point: LonLat): boolean => cells.has(cellAt(raster, point));
 
   for (let segmentIndex = 0; segmentIndex < path.length - 1; segmentIndex += 1) {
     for (const piece of splitAtAntimeridian(path[segmentIndex]!, path[segmentIndex + 1]!)) {
@@ -289,37 +344,56 @@ function splitAtAntimeridian(from: LonLat, to: LonLat): ReadonlyArray<SegmentPie
 }
 
 /**
+ * Un but de route : une région à atteindre, et — pour une région ancrée seulement — le **point**
+ * jusqu'où la route doit être prolongée, parce que la cellule d'arrivée n'est pas elle.
+ */
+export type RegionGoal = { readonly regionId: string; readonly point?: LonLat };
+
+/**
  * **Les cellules des régions visées**, lues à même le canal : un balayage de 1,33 M d'entiers
- * courts, quelques millisecondes, contre une rasterisation de contours par appel. Une région dont
- * aucune cellule ne porte le code — plus petite qu'une cellule, ce qui arrive à Monaco comme aux
- * quartiers d'une capitale — garde son point pour cible, et c'est le seul cas où la route est
- * prolongée jusqu'à un point qui n'est pas un centre de cellule.
+ * courts, quelques millisecondes, contre une rasterisation de contours par appel. C'est la forme
+ * groupée de `cellsOfRegion` — même bascule, un seul balayage pour tout un jeu de régions.
+ *
+ * **Une cellule porte une liste de buts, et c'est la correction du 12/09.** Elle en portait un
+ * seul, départagé au plus petit identifiant, et ce départage perdait des destinations dans les
+ * deux sens : les quarante-cinq régions maltaises ancrées sur la même cellule n'en laissaient
+ * qu'une atteignable, et un ancrage pouvait **écraser un but du raster** — cinquante-huit régions
+ * qui n'ont qu'une seule cellule, Westminster comprise, se retrouvaient sans aucun but, donc sans
+ * destination pour un retour chargé. Sur les 4 589 régions, six cent quarante-six n'en avaient
+ * plus. Un ancrage **s'ajoute**, il ne remplace jamais : le raster passe devant sur sa propre
+ * cellule, et l'appelant lit la liste.
+ *
+ * L'ordre est stable — le but du raster d'abord, les ancrages ensuite par identifiant croissant —
+ * parce que l'appelant retient le premier qu'il peut suivre et qu'une route ne doit pas changer
+ * d'une exécution à l'autre.
  */
 export function goalCellsOfRegions(
   raster: RegionRaster,
   regions: ReadonlyArray<{ readonly id: string; readonly point: LonLat }>,
-): ReadonlyMap<number, { readonly regionId: string; readonly point?: LonLat }> {
+): ReadonlyMap<number, ReadonlyArray<RegionGoal>> {
   const wanted = new Map<number, string>();
   for (const region of regions) {
     const code = raster.codeOfRegion.get(region.id);
     if (code !== undefined) wanted.set(code, region.id);
   }
-  const goals = new Map<number, { regionId: string; point?: LonLat }>();
+  const goals = new Map<number, RegionGoal[]>();
+  const represented = new Set<string>();
   if (wanted.size > 0) {
     for (let cell = 0; cell < raster.regions.length; cell += 1) {
       const regionId = wanted.get(raster.regions[cell]!);
-      if (regionId !== undefined) goals.set(cell, { regionId });
+      if (regionId === undefined) continue;
+      goals.set(cell, [{ regionId }]);
+      represented.add(regionId);
     }
   }
 
-  const represented = new Set([...goals.values()].map((goal) => goal.regionId));
-  for (const region of regions) {
+  for (const region of [...regions].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
     if (represented.has(region.id)) continue;
-    const cell = cellAt(raster, region.point);
-    const existing = goals.get(cell);
-    if (existing === undefined || region.id < existing.regionId) {
-      goals.set(cell, { regionId: region.id, point: region.point });
-    }
+    const cell = raster.anchorOfRegion.get(region.id);
+    if (cell === undefined) continue;
+    const at = goals.get(cell);
+    if (at === undefined) goals.set(cell, [{ regionId: region.id, point: region.point }]);
+    else at.push({ regionId: region.id, point: region.point });
   }
   return goals;
 }
