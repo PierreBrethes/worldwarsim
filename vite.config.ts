@@ -8,7 +8,9 @@ import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [
-    TanStackRouterVite(),
+    // Un `*.test.tsx` sous src/routes/ n'est pas une route : le plugin le signale à chaque
+    // exécution, et le préfixer d'un tiret mettrait le test loin du fichier qu'il teste.
+    TanStackRouterVite({ routeFileIgnorePattern: '\\.test\\.tsx?$' }),
     react(),
     babel({ presets: [reactCompilerPreset({ target: '18' })] }),
     tailwind(),

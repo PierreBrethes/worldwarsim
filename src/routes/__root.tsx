@@ -1,6 +1,6 @@
 import { Navigate, Outlet, createRootRoute, useRouterState } from '@tanstack/react-router';
 import { useQueries } from 'convex/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -51,7 +51,7 @@ function Root() {
  * réinitialisé) y survit très bien. C'est le serveur qui dit si la session vaut encore quelque
  * chose, et `null` de sa part est la réponse, jamais une erreur.
  */
-function SignedIn() {
+export function SignedIn() {
   const token = useSession();
   const me = useAccount(token);
   if (token === null || me === null) return <Navigate to="/connexion" />;
@@ -76,11 +76,21 @@ type Account = { readonly nickname: string };
  * L'erreur n'est tolérée que **par-dessus une réponse** : sans rien de connu, il n'y a pas de
  * porte à tenir ouverte, et l'avaler donnerait une page blanche sans issue. Elle est relevée,
  * l'`errorComponent` de la racine la montre, et « réessayer » est une sortie.
+ *
+ * **Et l'objet de requêtes est mémoïsé, sinon la porte tourne à vide.** `useQueries` compare le
+ * sien par **identité** (`useQueriesHelper`, `node_modules/convex/dist/esm/react/use_queries.js`)
+ * et en tire l'abonnement qu'il tend à `useSubscription` ; un littéral neuf à chaque rendu donne
+ * un abonnement neuf, que `useSubscription` traduit en `setState` **pendant le rendu**, lequel
+ * refait un littéral. C'est la boucle — React #301, sur toutes les pages, le 13/09. `useQuery` ne
+ * l'a jamais eue parce qu'il mémoïse le sien sur les arguments sérialisés ; ici il n'y a pas de
+ * `useQuery` à qui déléguer, parce que c'est précisément sa levée d'erreur qu'on refuse.
  */
 function useAccount(token: string | null): Account | null | undefined {
-  const answers = useQueries(
-    token === null ? {} : { me: { query: api.accounts.me, args: { token } } },
+  const queries = useMemo(
+    () => (token === null ? {} : { me: { query: api.accounts.me, args: { token } } }),
+    [token],
   );
+  const answers = useQueries(queries);
   const answer = answers.me as Account | null | undefined | Error;
   const known = useRef<Account | null | undefined>(undefined);
   if (!(answer instanceof Error)) {
