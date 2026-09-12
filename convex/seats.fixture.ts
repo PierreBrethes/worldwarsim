@@ -89,9 +89,5 @@ export async function seatIn(ctx: QueryCtx, seat: Seat): Promise<Doc<'players'>>
 export const seatDoc = (t: Bench, seat: Seat): Promise<Doc<'players'>> =>
   t.run((ctx) => seatIn(ctx, seat));
 
-/** Les lignes d'accueil du compte qui tient cette place — ce que `accounts.me` sert. */
-export async function seatsOf(t: Bench, seat: Seat) {
-  const me = await t.query(api.accounts.me, { token: seat.token });
-  if (me === null) throw new Error('session not found');
-  return me.seats;
-}
+/** Les lignes d'accueil du compte qui tient cette place — ce que `accounts.seats` sert. */
+export const seatsOf = (t: Bench, seat: Seat) => t.query(api.accounts.seats, { token: seat.token });

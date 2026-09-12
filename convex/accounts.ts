@@ -120,9 +120,12 @@ export const resetPassword = internalMutation({
 });
 
 /**
- * **Qui est là, et à quelles tables il est assis** (ADR 0022). Les deux en une lecture parce
- * que c'est une seule question : l'accueil n'a rien à afficher d'un compte sans ses parties, et
- * une seconde requête aurait fait clignoter la liste sous le pseudo.
+ * **Qui est là, et rien d'autre** (ADR 0022, révision du 12/09). Deux tables, deux documents :
+ * c'est la question que le gardien racine pose à chaque écran (`__root.tsx`), et il n'a besoin
+ * que de la réponse à celle-là. Les places ont suivi (`seats`) parce qu'un abonnement réactif
+ * garde en vue *tout* ce que sa requête a lu : l'accueil et le plateau tenaient ainsi toutes les
+ * places de toutes les saisons du compte, et la porte du jeu est devenue la requête la plus
+ * lourde du jeu — jusqu'au délai d'une seconde en production.
  *
  * `null` est la session inconnue ou orpheline, et c'est ce que le client lit pour renvoyer à la
  * page de connexion — jamais un refus, qui aurait fait un écran d'erreur d'une simple
@@ -132,20 +135,29 @@ export const me = query({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const account = await accountOf(ctx, token);
-    if (!account) return null;
-    const seats = await ctx.db
+    return account === null ? null : { nickname: account.nickname };
+  },
+});
+
+/**
+ * **Les parties du compte**, pour le seul écran qui les liste (`/accueil`). Une session inconnue
+ * n'en a aucune : le refus se dit en un seul endroit — `me` — et deux écrans de déconnexion
+ * concurrents auraient couru l'un contre l'autre.
+ */
+export const seats = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const account = await accountOf(ctx, token);
+    if (!account) return [];
+    const taken = await ctx.db
       .query('players')
       .withIndex('byAccountSeason', (q) => q.eq('accountId', account._id))
       .collect();
     /** L'ordre d'entrée : le rang d'insertion est le seul que l'index ne donne pas, et c'est
      *  celui qui a un sens pour une liste de parties. */
-    const ordered = [...seats].sort((left, right) => left._creationTime - right._creationTime);
-    const previews = [];
-    for (const seat of ordered) {
-      const preview = await previewOf(ctx, seat);
-      if (preview !== null) previews.push(preview);
-    }
-    return { nickname: account.nickname, seats: previews };
+    const ordered = [...taken].sort((left, right) => left._creationTime - right._creationTime);
+    const previews = await Promise.all(ordered.map((seat) => previewOf(ctx, seat)));
+    return previews.filter((preview) => preview !== null);
   },
 });
 

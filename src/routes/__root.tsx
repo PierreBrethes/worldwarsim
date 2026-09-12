@@ -1,6 +1,6 @@
 import { Navigate, Outlet, createRootRoute, useRouterState } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
-import { useEffect } from 'react';
+import { useQueries } from 'convex/react';
+import { useEffect, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -53,10 +53,40 @@ function Root() {
  */
 function SignedIn() {
   const token = useSession();
-  const me = useQuery(api.accounts.me, token === null ? 'skip' : { token });
+  const me = useAccount(token);
   if (token === null || me === null) return <Navigate to="/connexion" />;
   /** Le temps d'un aller-retour, rien : un écran de chargement entre deux feuilles du même
    *  journal se verrait comme un clignotement. */
   if (me === undefined) return null;
   return <Outlet />;
+}
+
+type Account = { readonly nickname: string };
+
+/**
+ * **Une panne de la porte ne ferme pas la maison.** `useQuery` relance ce que le serveur refuse,
+ * et une erreur levée ici — un délai dépassé, le temps d'un déploiement — remontait à
+ * l'`errorComponent` de la racine : le plateau était démonté sous les pieds du joueur pour une
+ * requête qui ne dit qu'un pseudo. `useQueries` rend l'erreur au lieu de la lever, et la
+ * dernière réponse connue tient la porte ouverte en attendant la suivante.
+ *
+ * **Seul un `null` explicite déconnecte** : c'est le serveur qui dit que la session ne vaut plus
+ * rien, et c'est la seule chose qu'une panne ne peut pas dire à sa place.
+ *
+ * L'erreur n'est tolérée que **par-dessus une réponse** : sans rien de connu, il n'y a pas de
+ * porte à tenir ouverte, et l'avaler donnerait une page blanche sans issue. Elle est relevée,
+ * l'`errorComponent` de la racine la montre, et « réessayer » est une sortie.
+ */
+function useAccount(token: string | null): Account | null | undefined {
+  const answers = useQueries(
+    token === null ? {} : { me: { query: api.accounts.me, args: { token } } },
+  );
+  const answer = answers.me as Account | null | undefined | Error;
+  const known = useRef<Account | null | undefined>(undefined);
+  if (!(answer instanceof Error)) {
+    known.current = answer;
+    return answer;
+  }
+  if (known.current === undefined) throw answer;
+  return known.current;
 }

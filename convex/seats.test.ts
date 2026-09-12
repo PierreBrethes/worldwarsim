@@ -36,14 +36,11 @@ describe('une place par compte et par saison', () => {
       compensation: 0.5,
     });
 
-    const me = await t.query(api.accounts.me, { token });
-    expect(me).toEqual({
-      nickname: 'Pierre',
-      seats: [
-        expect.objectContaining({ seasonId: first.seasonId, code: first.code, creator: true }),
-        expect.objectContaining({ seasonId: second.seasonId, code: second.code, creator: true }),
-      ],
-    });
+    expect(await t.query(api.accounts.me, { token })).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.seats, { token })).toEqual([
+      expect.objectContaining({ seasonId: first.seasonId, code: first.code, creator: true }),
+      expect.objectContaining({ seasonId: second.seasonId, code: second.code, creator: true }),
+    ]);
   });
 
   /** Le pseudo du compte, copié à l'entrée : c'est lui que le salon montre, sans qu'on l'ait

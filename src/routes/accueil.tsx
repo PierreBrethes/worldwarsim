@@ -99,11 +99,15 @@ function ConnectedHome() {
    *  feuille n'est pas montée. La chaîne vide n'arme donc rien, elle satisfait le type. */
   const token = useSession() ?? '';
   const me = useQuery(api.accounts.me, { token });
+  /** **La liste des parties est à part de la porte** (révision du 12/09 de l'ADR 0022) : c'est
+   *  le seul écran qui la demande, et elle lit une table de jeu que le gardien racine n'a plus
+   *  à garder en vue. */
+  const seats = useQuery(api.accounts.seats, { token });
 
   // Newest first: the game one just founded is the one one comes back for.
   const mine = useMemo(
-    () => [...(me?.seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
-    [me],
+    () => [...(seats ?? [])].sort((left, right) => right.createdAt - left.createdAt),
+    [seats],
   );
 
   const toLobby = () => turn(() => void navigate({ to: '/salon' }));
@@ -262,7 +266,7 @@ function ConnectedHome() {
   );
 }
 
-type Seat = NonNullable<FunctionReturnType<typeof api.accounts.me>>['seats'][number];
+type Seat = FunctionReturnType<typeof api.accounts.seats>[number];
 
 /** Une place, une ligne. Le fondateur seul y porte un geste : mettre la saison au rebut, pour
  *  tout le monde. */
