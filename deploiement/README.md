@@ -35,6 +35,27 @@ ne serait plus déployé pour les effacer. **Les comptes et les sessions survive
 hors de `GAME_TABLES` (`convex/dev.ts`), et un joueur retrouve son dossier après le wipe — il
 n'y retrouve simplement aucune partie.
 
+### Presse — rallumer une chaîne d'éditions
+
+La presse n'a pas de planificateur au-dessus d'elle : chaque `press:publish` prend le
+rendez-vous du suivant. Une saison dont ce maillon tombe **ne publie plus jamais, et rien ne le
+dit** — c'est arrivé le 12/09 à 23 h 55, l'édition ayant dépassé la seconde d'une mutation et
+emporté sa replanification dans l'annulation. Le travail est scindé depuis le 13/09
+(`press:publish` prend le rendez-vous, `press:writeEditionJob` écrit l'édition), ce qui ferme
+cette cause-là ; la sortie de secours reste :
+
+```bash
+CONVEX_SELF_HOSTED_URL=https://convex.pierrebrethes.cloud \
+CONVEX_SELF_HOSTED_ADMIN_KEY=<la clé du VPS> \
+npx convex run dev:relaunchPress
+```
+
+Elle rend `{ "relaunched": ["<code de saison>", …] }` — la liste vide veut dire que toutes les
+saisons lancées ont déjà un travail en attente. **Idempotente** : elle ne relance que ce qui n'a
+aucun `press:publish` en attente ou en cours, donc la lancer deux fois ne double pas une chaîne
+et ne double pas les lignes d'une édition. Le symptôme à surveiller est la page Presse figée sur
+une édition vieille de plus de trois heures.
+
 ### Comptes — récupération administrateur
 
 Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction

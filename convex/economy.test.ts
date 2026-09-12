@@ -1921,7 +1921,12 @@ describe('legacy depot compatibility', () => {
       level: 1,
       outpostId: null,
     });
+    /** L'édition n'est plus écrite par `publish` mais par le travail qu'il lance (13/09) : le
+     *  rendez-vous et l'édition sont deux mutations, pour qu'une édition qui déborde n'emporte
+     *  plus la chaîne avec elle. */
     await t.mutation(internal.press.publish, { playerId });
+    await vi.advanceTimersByTimeAsync(1);
+    await t.finishInProgressScheduledFunctions();
     const edition = await t.run(async (ctx) =>
       (await ctx.db.query('editions').collect()).find((e) => e.playerId === playerId),
     );

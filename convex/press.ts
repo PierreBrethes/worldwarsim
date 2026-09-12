@@ -13,6 +13,11 @@
  * détruite ne publie plus, et la chaîne s'interrompt d'elle-même sans que rien ait à annuler un
  * travail en attente.
  *
+ * **La chaîne et l'édition sont deux mutations** (13/09) : `publish` prend le rendez-vous suivant
+ * et confie l'édition à `writeEditionJob`. Une édition qui déborde de la seconde d'une mutation
+ * n'emporte plus la replanification avec elle — c'est ce qui a fait taire la presse le 12/09.
+ * `dev:relaunchPress` est la sortie de secours si une chaîne s'arrête quand même.
+ *
  * **La vérité entre ici, et c'est légitime.** Contrairement à `control.held` — une query par
  * joueur, qui ne doit dépendre que de ses propres lignes (`technique/brouillard-et-fanout.md`) —
  * ceci est un travail serveur, exécuté une fois toutes les trois heures pour toute la table : il
@@ -59,24 +64,42 @@ export const publish = internalMutation({
     const season = await playingSeason(ctx, playerId);
     if (season === null) return;
 
-    const now = Date.now();
-    await writeEdition(ctx, season._id, now, false);
-
     /**
      * **La chaîne se tient elle-même**, et deux choses seulement l'arrêtent : la saison qui ne
      * se joue plus (ci-dessus), et **son horloge** — passé la durée annoncée, la partie attend
      * d'être close et une édition de plus n'aurait rien à raconter. Une saison sans horloge n'a
      * pas de fin à connaître : elle publie jusqu'à sa conclusion, qui écrit la dernière.
      *
-     * Rien d'autre ne la relance : une édition ratée n'arrête donc pas la suivante par
-     * accident, elle l'arrête tout court — ce qui est préférable à un second planificateur qui
-     * doublerait les lignes.
+     * **Le maillon se pose avant l'édition, et dans une autre mutation qu'elle** (13/09). Les
+     * deux tenaient dans celle-ci : le 12/09 à 23 h 55, le dépouillement des 4 589 régions a
+     * dépassé la seconde d'une mutation, la transaction a été annulée **avec sa replanification**,
+     * et la chaîne s'est arrêtée en silence — aucune édition depuis, sans rien pour le dire.
+     * Dorénavant une édition ratée reste ratée et la suivante paraît : c'est le rendez-vous qui
+     * est la chaîne, pas ce qu'on y publie. Ce lien-ci ne lit qu'une saison et ne peut pas être
+     * l'appel qui déborde.
      */
+    const now = Date.now();
     const next = now + PRESS_EDITION_HOURS * 3_600_000;
-    if (endsAt(season) !== null && next > endsAt(season)!) return;
-    await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
-      playerId,
-    });
+    const ends = endsAt(season);
+    if (ends === null || next <= ends) {
+      await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
+        playerId,
+      });
+    }
+    await ctx.scheduler.runAfter(0, internal.press.writeEditionJob, { seasonId: season._id });
+  },
+});
+
+/**
+ * **L'édition elle-même, dans sa propre transaction.** Elle lit toute la table — les régions
+ * tenues, les bâtiments, les troupes, les engagements — et c'est le seul endroit de la chaîne qui
+ * puisse coûter une seconde. Qu'elle échoue ne regarde qu'elle : le rendez-vous suivant est déjà
+ * pris quand elle commence.
+ */
+export const writeEditionJob = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    await writeEdition(ctx, seasonId, Date.now(), false);
   },
 });
 

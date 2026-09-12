@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import { PRESS_EDITION_HOURS, nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -34,10 +34,20 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
 const editions = (t: ReturnType<typeof boot>) =>
   t.run(async (ctx) => ctx.db.query('editions').collect());
 
-/** Fait avancer l'horloge et laisse partir tout ce qui était dû — c'est ainsi qu'une chaîne qui
- *  se replanifie se déroule sous test. */
+/**
+ * Fait avancer l'horloge et laisse partir tout ce qui était dû — c'est ainsi qu'une chaîne qui
+ * se replanifie se déroule sous test.
+ *
+ * **Deux passes, parce que la chaîne a deux maillons** (13/09) : `publish` prend le rendez-vous
+ * suivant et confie l'édition à `writeEditionJob`, à `+0`. Ce zéro reste un minuteur sous horloge
+ * factice, et il est posé pendant que la première passe se vide — il faut donc une milliseconde
+ * de plus pour l'atteindre. Elle ne déplace aucune cadence : trois heures se comptent toujours
+ * de rendez-vous à rendez-vous.
+ */
 async function advance(t: ReturnType<typeof boot>, hours: number) {
   await vi.advanceTimersByTimeAsync(hours * HOUR);
+  await t.finishInProgressScheduledFunctions();
+  await vi.advanceTimersByTimeAsync(1);
   await t.finishInProgressScheduledFunctions();
 }
 
@@ -217,5 +227,94 @@ describe('what the view serves', () => {
     const closed = (await t.query(api.view.playerView, seat)).press!;
     expect(closed.final).toBe(true);
     expect(closed.next).toBeNull();
+  });
+});
+
+/**
+ * **Ce qui tient la chaîne debout.** Le 12/09 à 23 h 55, une édition a dépassé la seconde d'une
+ * mutation : la transaction a été annulée **avec sa replanification**, et la presse s'est tue
+ * jusqu'à ce que quelqu'un le remarque. Deux choses répondent à cela, et ce sont elles qui sont
+ * sous test — la séparation du rendez-vous et de l'édition, et la sortie de secours.
+ */
+describe('la chaîne, quand une édition tombe', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** Les travaux planifiés, tels que la relance les lit. */
+  const jobs = (t: ReturnType<typeof boot>, name: string) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name.endsWith(name) && job.state.kind === 'pending',
+      ),
+    );
+
+  /**
+   * **Le rendez-vous est pris avant que l'édition commence**, et c'est toute la correction. On
+   * annule l'édition en attente — la forme testable de celle qui déborde — et la suivante paraît
+   * quand même. Avant la séparation, les deux tenaient dans la même transaction : l'annuler
+   * annulait le rendez-vous avec elle, et la presse se taisait pour de bon.
+   */
+  it('paraît à nouveau après une édition manquée', async () => {
+    const t = boot();
+    await launchedSeason(t);
+
+    await vi.advanceTimersByTimeAsync(PRESS_EDITION_HOURS * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    expect(await editions(t)).toHaveLength(0);
+    expect(await jobs(t, 'press:publish')).toHaveLength(1);
+
+    for (const job of await jobs(t, 'press:writeEditionJob')) {
+      await t.run(async (ctx) => ctx.scheduler.cancel(job._id));
+    }
+    await vi.advanceTimersByTimeAsync(1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await editions(t)).toHaveLength(0);
+
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await editions(t)).toHaveLength(2);
+  });
+
+  it('ne double pas une chaîne vivante', async () => {
+    const t = boot();
+    await launchedSeason(t);
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await editions(t)).toHaveLength(2);
+
+    expect(await t.mutation(internal.dev.relaunchPress, {})).toEqual({ relaunched: [] });
+
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await editions(t)).toHaveLength(4);
+  });
+
+  /**
+   * **Une chaîne morte se rallume, et une seule fois.** On coupe le maillon en annulant le
+   * travail en attente — ce que la panne du 12/09 a fait sans le dire — puis on relance deux
+   * fois de suite : la seconde ne trouve plus rien à relancer.
+   */
+  it('relance une chaîne morte, sans la doubler à la seconde passe', async () => {
+    const t = boot();
+    await launchedSeason(t);
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await editions(t)).toHaveLength(2);
+
+    await t.run(async (ctx) => {
+      for (const job of await ctx.db.system.query('_scheduled_functions').collect()) {
+        if (job.name.endsWith('press:publish')) await ctx.scheduler.cancel(job._id);
+      }
+    });
+    await advance(t, PRESS_EDITION_HOURS * 2);
+    expect(await editions(t)).toHaveLength(2);
+
+    const first = await t.mutation(internal.dev.relaunchPress, {});
+    expect(first.relaunched).toHaveLength(1);
+    await t.finishInProgressScheduledFunctions();
+
+    expect(await t.mutation(internal.dev.relaunchPress, {})).toEqual({ relaunched: [] });
+
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await editions(t)).toHaveLength(6);
   });
 });

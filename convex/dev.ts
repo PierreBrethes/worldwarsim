@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 import { heldOf } from './control';
 import { viewOf } from './view';
@@ -88,6 +90,54 @@ export const backfillSeasonPreview = internalMutation({
       seasons += 1;
     }
     return { seasons };
+  },
+});
+
+/**
+ * **Rallumer la presse là où elle s'est tue.** La chaîne des éditions n'a pas de planificateur
+ * au-dessus d'elle — chaque `press:publish` prend le rendez-vous du suivant (ADR 0020 §4) — donc
+ * une saison dont le maillon est tombé ne publie plus jamais, et rien ne le dit. C'est arrivé le
+ * 12/09 à 23 h 55 : l'édition a dépassé la seconde d'une mutation, la transaction a été annulée
+ * avec sa replanification. La séparation du 13/09 ferme cette cause-là ; ceci est la sortie de
+ * secours pour toutes les autres.
+ *
+ * **Idempotente, et c'est tout son intérêt** : elle lit les travaux en attente et ne relance que
+ * les saisons qui n'en ont aucun. La relancer deux fois de suite ne double pas une chaîne, donc
+ * ne double pas les lignes d'une édition — ce qui serait pire que le silence qu'on répare.
+ *
+ * Un travail **en cours** compte comme vivant : il est en train de prendre le rendez-vous
+ * suivant, et le doubler créerait précisément la seconde chaîne qu'on refuse.
+ *
+ * `npx convex run dev:relaunchPress`
+ */
+export const relaunchPress = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const alive = new Set<Id<'seasons'>>();
+    for (const job of await ctx.db.system.query('_scheduled_functions').collect()) {
+      /** Le nom porte l'extension du module en production (`press.js:publish`) et ne la porte
+       *  pas sous `convex-test`. Les deux formes disent le même travail. */
+      if (job.name !== 'press.js:publish' && job.name !== 'press:publish') continue;
+      if (job.state.kind !== 'pending' && job.state.kind !== 'inProgress') continue;
+      const { playerId } = (job.args[0] ?? {}) as { playerId?: Id<'players'> };
+      const player = playerId === undefined ? null : await ctx.db.get(playerId);
+      if (player !== null) alive.add(player.seasonId);
+    }
+
+    const relaunched: string[] = [];
+    for (const season of await ctx.db.query('seasons').collect()) {
+      if (season.status !== 'launched' || alive.has(season._id)) continue;
+      /** N'importe quel siège fait l'affaire : `publish` ne s'en sert que pour retrouver la
+       *  saison et vérifier qu'elle se joue encore. */
+      const seat = await ctx.db
+        .query('players')
+        .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+        .first();
+      if (seat === null) continue;
+      await ctx.scheduler.runAfter(0, internal.press.publish, { playerId: seat._id });
+      relaunched.push(season.code);
+    }
+    return { relaunched };
   },
 });
 
