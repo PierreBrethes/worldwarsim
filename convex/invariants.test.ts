@@ -2,9 +2,13 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { buildGrid, decodeGrid } from '../src/domain/routing';
+import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing';
+import { decodeRegionRaster, type RegionRasterAsset } from '../src/domain/region-raster';
+import { buildGrid, countryAtPlanePoint, decodeGrid } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
+import rasterAsset from '../public/region-grid.json';
+import regionsAsset from '../public/regions.json';
 import worldAsset from '../public/world.json';
 import {
   COST_BY_ROLE,
@@ -157,26 +161,146 @@ describe('le travail à l’import des modules de convex/', () => {
   }, 120000);
 });
 
-/**
- * **Le chiffre qui décide de la suite** : tant que la préparation des 4 589 contours admin-1 tient
- * sous une demi-seconde, elle peut rester en ligne derrière sa mémoïsation. Au-dessus, elle part
- * hors ligne dans `scripts/generer-regions.mjs`, cuite en asset, et le module ne fait plus que
- * relire. Mesurée à 41 ms le 11/09/2026.
- */
-describe('la préparation des contours de région', () => {
-  it('se construit à la première demande, et assez vite pour y rester', async () => {
-    vi.resetModules();
-    const { regionAtRoutePoint } = await import('./regionGeometry');
+/** Le monde tel que le serveur le montait avant la cuisson — la référence contre laquelle les
+ *  deux rasters sont vérifiés, et la seule chose qui lise encore `world.json` ici. */
+const worldOf = (asset: typeof worldAsset): World =>
+  ({
+    sphere: asset.meta.sphere,
+    outline: asset.meta.outline,
+    countries: asset.countries.map((country) => ({
+      name: country.n,
+      adm0: country.a,
+      representativePoint: country.c,
+      lonLat: country.ll,
+      rings: country.p,
+    })),
+  }) as unknown as World;
 
+/**
+ * **Le raster de géographie est cuit, et la cuisson ne peut pas mentir** (ADR 0023) — le jumeau
+ * du contrôle de la grille, et pour la même raison : `region-grid.json` porte la région admin-1 et
+ * le pays hôte de chaque cellule, cuits hors ligne avec les fonctions polygonales elles-mêmes, et
+ * le serveur ne lit plus un seul polygone. Un `regions.json` régénéré et un raster resté en place
+ * laisseraient le jeu répondre sur une géographie périmée, en silence.
+ *
+ * Un recuit complet coûte quinze secondes : ce qui est vérifié ici est un **échantillon fixe** de
+ * deux mille cellules — mille portant une région, mille portant un pays — où le raster et le
+ * polygone doivent dire la même chose. On recuit (`node scripts/generate-region-grid.mjs`,
+ * chaîné par `generate-world.mjs`) ou la CI refuse.
+ */
+describe('le raster de géographie cuit', () => {
+  const world = worldOf(worldAsset);
+  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
+
+  /** Le même garde-fou que la géométrie du serveur : un anneau dégénéré que Natural Earth
+   *  projette sur tout le cadre n'est pas un contour. */
+  const isProjectionFrame = (ring: ReadonlyArray<readonly [number, number]>): boolean => {
+    const xs = ring.map(([x]) => x);
+    const ys = ring.map(([, y]) => y);
+    return (
+      Math.max(...xs) - Math.min(...xs) > 400 * 0.9 &&
+      Math.max(...ys) - Math.min(...ys) > worldAsset.meta.sphere.maxY * 0.9
+    );
+  };
+
+  const outlines = prepareRegionOutlines(
+    regionsAsset.regions.map((region) => ({
+      id: region.id,
+      rings: (
+        region.p as unknown as ReadonlyArray<ReadonlyArray<readonly [number, number]>>
+      ).filter((ring) => !isProjectionFrame(ring)),
+    })),
+  );
+
+  const boxOf = (country: World['countries'][number]) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const ring of country.rings) {
+      for (const [x, y] of ring) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    return [minX, minY, maxX, maxY] as const;
+  };
+  const boxes = new Map(world.countries.map((country) => [country.adm0, boxOf(country)]));
+
+  const centreOf = (cell: number): readonly [number, number] => [
+    raster.sphere.minX + ((cell % raster.width) + 0.5) * raster.step,
+    raster.sphere.minY + (Math.floor(cell / raster.width) + 0.5) * raster.step,
+  ];
+
+  /** Un échantillon **régulier** plutôt qu'aléatoire : le même à chaque exécution, donc un échec
+   *  se rejoue. Pris parmi les cellules qui portent quelque chose — un océan d'aplats nuls ne
+   *  dirait rien de la frontière. */
+  const sample = (channel: Uint16Array, count: number): ReadonlyArray<number> => {
+    const filled: number[] = [];
+    for (let cell = 0; cell < channel.length; cell += 1) if (channel[cell] !== 0) filled.push(cell);
+    const stride = Math.floor(filled.length / count);
+    return Array.from({ length: count }, (_, rank) => filled[rank * stride]!);
+  };
+
+  /**
+   * **Une cellule, un indice** : les buts servis par `goalCellsForRegions` sont donnés tels quels
+   * à Dijkstra. Une maille qui divergerait de celle de `grid.json` ne ferait pas échouer un
+   * calcul, elle enverrait les colonnes ailleurs.
+   */
+  it('partage la maille de la grille de routage, cellule pour cellule', () => {
+    const grid = decodeGrid(gridAsset, world);
+    expect([raster.width, raster.height, raster.step]).toEqual([
+      grid.width,
+      grid.height,
+      grid.step,
+    ]);
+  });
+
+  it('rend la région que le polygone rendait, sur mille cellules', () => {
+    for (const cell of sample(raster.regions, 1000)) {
+      const point = centreOf(cell);
+      expect(
+        regionAtPlanePoint(outlines, point, 400),
+        `cellule ${cell} : public/region-grid.json ne correspond plus à public/regions.json — recuire avec node scripts/generate-region-grid.mjs.`,
+      ).toBe(raster.ids[raster.regions[cell]! - 1] ?? null);
+    }
+  }, 120000);
+
+  it('rend le pays que le polygone rendait, sur mille cellules', () => {
+    for (const cell of sample(raster.countries, 1000)) {
+      const point = centreOf(cell);
+      /** Le filtre par boîte n'est pas une approximation : un polygone dont la boîte exclut le
+       *  point ne peut pas le contenir, et l'ordre de la table — qui décide en cas de
+       *  chevauchement — est conservé. */
+      const candidates = world.countries.filter((country) => {
+        const box = boxes.get(country.adm0)!;
+        return point[0] >= box[0] && point[0] <= box[2] && point[1] >= box[1] && point[1] <= box[3];
+      });
+      expect(
+        countryAtPlanePoint(candidates, point),
+        `cellule ${cell} : public/region-grid.json ne correspond plus à public/world.json — recuire avec node scripts/generate-region-grid.mjs.`,
+      ).toBe(raster.hosts[raster.countries[cell]! - 1] ?? null);
+    }
+  }, 120000);
+
+  /**
+   * **Le chrono, parce que c'est tout l'objet de la cuisson** : une query a une seconde, et la
+   * préparation des 4 589 contours qu'il remplace coûtait 41 ms à chaud sur une machine de
+   * développement — des secondes à froid, sans JIT, dans l'isolat qui évalue le push.
+   */
+  it('se décode assez vite pour tenir dans le budget d’une query', () => {
     const started = performance.now();
-    regionAtRoutePoint([2.35, 48.85]);
+    decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, world);
     const elapsed = performance.now() - started;
 
+    console.log(`raster de géographie décodé en ${elapsed.toFixed(1)} ms`);
     expect(
       elapsed,
-      `La première demande de contour coûte ${Math.round(elapsed)} ms. Au-dessus d’une demi-seconde, la préparation part hors ligne dans scripts/generer-regions.mjs.`,
-    ).toBeLessThan(500);
-  }, 120000);
+      `Le décodage du raster coûte ${Math.round(elapsed)} ms. Au-dessus de 50 ms, il n’a plus sa place dans une query, qui n’a qu’une seconde pour tout le reste.`,
+    ).toBeLessThan(50);
+  });
 });
 
 /**
@@ -193,19 +317,6 @@ describe('la préparation des contours de région', () => {
  * intermittence sur `view:playerView`, qui lit `afloat` et `coastal` sur cette grille.
  */
 describe('la grille de routage cuite', () => {
-  const worldOf = (asset: typeof worldAsset): World =>
-    ({
-      sphere: asset.meta.sphere,
-      outline: asset.meta.outline,
-      countries: asset.countries.map((country) => ({
-        name: country.n,
-        adm0: country.a,
-        representativePoint: country.c,
-        lonLat: country.ll,
-        rings: country.p,
-      })),
-    }) as unknown as World;
-
   it('rend exactement la grille que rasteriserait le monde', () => {
     const world = worldOf(worldAsset);
     const built = buildGrid(world);

@@ -29,4 +29,5 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée |
 | [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée |
 | [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09 |
-| [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009 |
+| [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009, révisée le 12/09 |
+| [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
