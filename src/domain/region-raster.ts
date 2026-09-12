@@ -156,6 +156,10 @@ export function hostAmong(
  * contour ». Le raster n'a pas de contour : il a des cellules qui touchent autre chose. C'est le
  * contrôle du point d'entrée gravé d'un retour chargé (`plunder.ts`), et il accepte exactement ce
  * que `firstRegionEntry` produit — la première cellule de la région rencontrée sur la route.
+ *
+ * **Les huit voisines, et pas les quatre** : deux échantillons consécutifs sont distants d'une
+ * demi-cellule, donc la cellule d'où l'on vient est au plus en diagonale. À quatre voisines, une
+ * entrée exactement diagonale se ferait refuser une livraison légitime.
  */
 export function isRegionBorderCell(
   raster: RegionRaster,
@@ -178,9 +182,13 @@ export function isRegionBorderCell(
 
 const NEIGHBOURS: ReadonlyArray<readonly [number, number]> = [
   [1, 0],
-  [-1, 0],
+  [1, 1],
   [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [-1, -1],
   [0, -1],
+  [1, -1],
 ];
 
 export type RegionEntry = {

@@ -2027,11 +2027,16 @@ describe('the door of the sea, read on the pile', () => {
    * que Dijkstra tient pour de l'eau. Le *mouvement fantôme*, une troisième fois. `afloat` se lit
    * désormais sur la grille, la même lecture que la visée, et la porte répond ce que la visée a
    * promis (ADR 0015).
+   *
+   * **Les deux géométries n'en font plus qu'une** (ADR 0023) : l'hôte se lit sur la même maille
+   * que la route, et cette bande de Sussex qui était britannique pour le polygone et de l'eau
+   * pour la grille est de l'eau pour les deux. Le scénario reste — une coque s'y pose et doit en
+   * repartir — mais ce qu'il vérifiait au premier chiffre est devenu l'accord des deux lectures.
    */
   it('lets a hull sail again from a shoreline the polygon calls land and the grid calls water', async () => {
     /** Sussex shore: inside the British polygon, in a cell whose centre is in the Channel. */
     const SUSSEX: LonLat = [0.1, 50.78];
-    expect(hostAtPoint(SUSSEX)).toBe('GBR');
+    expect(hostAtPoint(SUSSEX)).toBe('');
     expect(landAtPoint(SUSSEX)).toBe(false);
     expect(coastAtPoint(SUSSEX)).toBe(false);
 

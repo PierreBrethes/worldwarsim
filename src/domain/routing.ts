@@ -626,56 +626,28 @@ export function directRoute(
 
 /**
  * **Which country a point stands in**, straight off the rings the world already carries — as an
- * `adm0_a3`, the code every rule keys on. It is the one question a lon/lat cannot answer alone
- * and that several rules need — the rest window of a destination first of all. The routing
- * world has no admin-1 polygons; the separate plunder crossing module is the one narrow server
- * exception, while `region-index.json` still holds only one point per region.
+ * `adm0_a3`, the code every rule keys on.
  *
  * **Containment, never proximity.** The nearest region's point used to stand in for this, and it
  * answered the wrong country five times out of six along a border: Menton fell to Monaco,
  * Aix-la-Chapelle to Belgium, Saint-Louis to Switzerland. A pole of inaccessibility is not a
  * border, so nothing that keys on a host may be read off a distance to one.
  *
- * Even–odd ray crossing, on the projected plane rather than in degrees: the rings are stored
- * projected, and converting the point once is cheaper and safer than unprojecting a continent.
- * The open sea answers `null`, which is a real answer here and not a failure.
- *
- * It walks every ring of every country. That is one pass over the same geometry the grid is
- * rasterised from, paid once at a departure and never in a loop — the bounding box that would
- * cut it short is not worth its own bugs until a profile asks for it.
+ * **The server does not call it any more** (ADR 0023): it walks every ring of every country, and
+ * the rings alone weighed eleven megabytes of isolate heap. The answer is baked per cell into
+ * `region-grid.json` — from this very containment, one projection away — and read there. What is
+ * left here is the reference the bake is cut from, and the reading the map layer may still want.
  */
 export function countryAt(world: World, lonLat: LonLat): string | null {
-  return hostAmong(world, lonLat, null);
+  return countryAtPlanePoint(world.countries, projectLonLat(world.outline, world.sphere, lonLat));
 }
 
 /**
- * **The same containment, asked of a handful of countries instead of all of them.** The
- * territory detector walks a road sample by sample and only ever cares about the soil of the
- * players in the season — at most eight (`MAX_PLAYERS`), against the hundred and fifty-five the
- * full scan tests. Same projection, same ray, one filter: a second implementation of "is this
- * point in that country" would be a second border.
- */
-export const countryAmong = (
-  world: World,
-  lonLat: LonLat,
-  adm0s: ReadonlySet<string>,
-): string | null => (adm0s.size === 0 ? null : hostAmong(world, lonLat, adm0s));
-
-function hostAmong(world: World, lonLat: LonLat, adm0s: ReadonlySet<string> | null): string | null {
-  const point = projectLonLat(world.outline, world.sphere, lonLat);
-  for (const country of world.countries) {
-    if (adm0s !== null && !adm0s.has(country.adm0)) continue;
-    if (ringsContainPoint(country.rings, point)) return country.adm0;
-  }
-  return null;
-}
-
-/**
- * **La même containment, sur le plan et sans projeter** — ce dont la cuisson du raster de
- * `region-raster.ts` a besoin : elle interroge des centres de cellule, qui sont déjà des points
- * du plan, et un aller-retour par la lon/lat lui ferait répondre à côté de la question qu'elle
- * pose. L'ordre de la table décide en cas de chevauchement, exactement comme ci-dessus : c'est
- * le premier pays qui contient le point, jamais le plus petit.
+ * **La même containment, sur le plan et sans projeter** — ce dont la cuisson du raster a besoin
+ * (`scripts/generate-region-grid.mjs`) : elle interroge des centres de cellule, qui sont déjà des
+ * points du plan, et un aller-retour par la lon/lat lui ferait répondre à côté de la question
+ * qu'elle pose. L'ordre de la table décide en cas de chevauchement : c'est le **premier** pays
+ * qui contient le point, jamais le plus petit — l'inverse de la règle d'enclave des régions.
  */
 export const countryAtPlanePoint = (
   countries: ReadonlyArray<ProjectedCountry>,

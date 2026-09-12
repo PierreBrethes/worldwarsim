@@ -3,8 +3,6 @@ import type { ComputedRoute, RouteMode } from '../src/domain/routing';
 import {
   computeRoute,
   computeRouteToAny,
-  countryAmong,
-  countryAt,
   decodeGrid,
   isCoastCell,
   isLandCell,
@@ -13,18 +11,24 @@ import {
 } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
-import worldAsset from '../public/world.json';
-import { firstRouteEntryInRegion, goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
+import projectionAsset from '../public/projection.json';
+import {
+  firstRouteEntryInRegion,
+  goalCellsForRegions,
+  hostAmongAtRoutePoint,
+  hostAtRoutePoint,
+  regionAtRoutePoint,
+} from './regionGeometry';
 
 /**
  * The routing grid of ADR 0012, on the server side — because that is where the ADR says the
  * calculation lives: a client that computes its own routes also picks its own speeds.
  *
- * **This is the one place world geometry enters the routing bundle**, and it is measured rather
- * than assumed: `world.json` weighs 1.27 MB, the raster is 1600×832 = 1.33 M cells, and a
- * Dijkstra pass costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los Angeles by land and
- * sea. Admin-1 contours stay out of this grid; the plunder return crossing loads them separately
- * in `regionGeometry.ts`, once per isolate.
+ * **No polygon enters this bundle any more** (ADR 0023): `world.json` weighed 1.27 MB of country
+ * rings and 11,5 MiB of isolate heap, for the one question `hostAtPoint` asks. That question is
+ * answered off the baked region raster now, on the very cells this grid is made of, and what is
+ * left of the world here is its frame — `projection.json`, 4 Ko, enough to project a lon/lat.
+ * A Dijkstra pass still costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los Angeles.
  *
  * **The raster is no longer computed here — it is baked** (`scripts/generate-grid.mjs`, 65 Ko of
  * run-length pairs) and decoded at the first demand of the isolate. The 31 ms of `buildGrid` were
@@ -35,15 +39,9 @@ import { firstRouteEntryInRegion, goalCellsForRegions, regionAtRoutePoint } from
  * than the import: most mutations never route anything.
  */
 const world = {
-  sphere: worldAsset.meta.sphere,
-  outline: worldAsset.meta.outline,
-  countries: worldAsset.countries.map((country) => ({
-    name: country.n,
-    adm0: country.a,
-    representativePoint: country.c,
-    lonLat: country.ll,
-    rings: country.p,
-  })),
+  sphere: projectionAsset.sphere,
+  outline: projectionAsset.outline,
+  countries: [],
 } as unknown as World;
 
 let grid: ReturnType<typeof decodeGrid> | null = null;
@@ -78,20 +76,35 @@ export function routeToRegions(
     return { kind: 'standing', regionId: here, point: from };
 
   grid ??= decodeGrid(gridAsset, world);
-  const goals = goalCellsForRegions(regions, grid);
+  const goals = goalCellsForRegions(regions);
   const search = computeRouteToAny(grid, from, new Set(goals.keys()), mode, landCost);
   if (search === null) return null;
   const goal = goals.get(search.goalCell);
   if (goal === undefined) return null;
-  if (goal.point !== undefined && mode !== 'air' && !isLandCell(grid, goal.point)) return null;
-  const completed = goal.point === undefined ? search : extendRouteSearch(grid, search, goal.point);
-  const entry = firstRouteEntryInRegion(completed.rawPoints, goal.regionId);
+
+  /**
+   * **Une région plus petite qu'une cellule n'a pas de frontière à franchir** : aucune cellule ne
+   * porte son code, elle est visée par son point, et la route prolongée jusque-là *est* l'entrée.
+   * Chercher un franchissement dans le raster n'en trouverait aucun et refuserait la livraison.
+   */
+  if (goal.point !== undefined) {
+    if (mode !== 'air' && !isLandCell(grid, goal.point)) return null;
+    const completed = extendRouteSearch(grid, search, goal.point);
+    return {
+      kind: 'route',
+      regionId: goal.regionId,
+      point: goal.point,
+      route: completed.route,
+    };
+  }
+
+  const entry = firstRouteEntryInRegion(search.rawPoints, goal.regionId);
   if (entry === null) return null;
   return {
     kind: 'route',
     regionId: goal.regionId,
     point: entry.point,
-    route: truncateRouteSearch(grid, completed, entry.segmentIndex, entry.fraction, entry.point),
+    route: truncateRouteSearch(grid, search, entry.segmentIndex, entry.fraction, entry.point),
   };
 }
 
@@ -125,12 +138,14 @@ export function landAtPoint(point: LonLat): boolean {
  * expulsion of fiche 03 all key on this string, and none of them can be written on a key that
  * collapses a hundred and fifty-five countries into one.
  *
- * **It is the polygon that answers, never the closest region.** Reading a host off the nearest
+ * **It is containment that answers, never the closest region.** Reading a host off the nearest
  * region point put Menton in Monaco and Aix-la-Chapelle in Belgium: a pole of inaccessibility
- * says where a region *is*, and says nothing whatsoever about where it stops.
+ * says where a region *is*, and says nothing whatsoever about where it stops. The containment is
+ * baked now (ADR 0023) — the cell of the point carries the country whose polygon covered its
+ * centre — so the answer is the polygon's, at the mesh of the grid the movement walks.
  */
 export function hostAtPoint(point: LonLat): string {
-  return countryAt(world, point) ?? '';
+  return hostAtRoutePoint(point) ?? '';
 }
 
 /**
@@ -140,5 +155,5 @@ export function hostAtPoint(point: LonLat): string {
  * countries that can answer rather than to the whole world.
  */
 export function hostAmongCountries(point: LonLat, adm0s: ReadonlySet<string>): string {
-  return countryAmong(world, point, adm0s) ?? '';
+  return hostAmongAtRoutePoint(point, adm0s) ?? '';
 }

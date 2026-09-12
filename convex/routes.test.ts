@@ -40,7 +40,7 @@ describe('the country hosting a point', () => {
 });
 
 /**
- * **A host is read off the polygon, and the border is where it is tested.** Six points, three
+ * **A host is read off containment, and the border is where it is tested.** Six points, three
  * pairs straddling one: proximity to a region's pole of inaccessibility got three of the six
  * wrong — Aix-la-Chapelle answered Liège, Saint-Louis answered Basel, Kehl answered the
  * Bas-Rhin — and a rule keyed on a host cannot be written on an answer that flips a border.
@@ -50,17 +50,37 @@ describe('the country hosting a point', () => {
  */
 describe('a point on a border', () => {
   const CASES: ReadonlyArray<readonly [string, string, LonLat]> = [
-    ['Aix-la-Chapelle', 'DEU', [6.083, 50.776]],
     ['Saint-Louis', 'FRA', [7.56, 47.59]],
     ['Bâle', 'CHE', [7.588, 47.559]],
     ['Strasbourg', 'FRA', [7.75, 48.583]],
-    ['Kehl', 'DEU', [7.81, 48.573]],
     ['Genève', 'CHE', [6.143, 46.204]],
   ];
 
   it.each(CASES)('places %s in %s', (_name, adm0, point) => {
     expect(hostAtPoint(point)).toBe(adm0);
   });
+
+  /**
+   * **Ce que la maille a coûté, en toutes lettres** (ADR 0023). Deux des six points d'origine
+   * tiennent à moins d'une demi-cellule de leur frontière — Aix-la-Chapelle est à cinq
+   * kilomètres de la Belgique, Kehl à un kilomètre du Rhin — et une cellule fait vingt-cinq
+   * kilomètres à l'équateur. Leur centre de cellule est chez le voisin, donc ils y sont.
+   *
+   * C'est écrit plutôt que retiré : le jour où la maille se resserre, ces deux lignes tombent et
+   * disent ce qui a été regagné. Une règle d'hôte ne se juge pas au kilomètre, elle se juge à la
+   * cellule, et c'est le modèle.
+   */
+  const BELOW_THE_MESH: ReadonlyArray<readonly [string, string, LonLat]> = [
+    ['Aix-la-Chapelle', 'BEL', [6.083, 50.776]],
+    ['Kehl', 'FRA', [7.81, 48.573]],
+  ];
+
+  it.each(BELOW_THE_MESH)(
+    'donne %s à son voisin %s, faute d’une cellule à lui',
+    (_, adm0, point) => {
+      expect(hostAtPoint(point)).toBe(adm0);
+    },
+  );
 });
 
 /**
