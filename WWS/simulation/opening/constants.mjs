@@ -197,16 +197,21 @@ export const FOUNDATION_EXTRACTORS = {
   oil: 'oilWell',
 };
 
+/** A debt is a **couple** (building, deposit): the mine owed for iron is only ever settled by
+ *  a mine on iron ground (`convex/constants.ts`). */
 export const foundationFor = (deposits) =>
-  FOUNDATION_ORDER.filter((deposit) => deposits.includes(deposit)).map(
-    (deposit) => FOUNDATION_EXTRACTORS[deposit],
-  );
+  FOUNDATION_ORDER.filter((deposit) => deposits.includes(deposit)).map((deposit) => ({
+    key: FOUNDATION_EXTRACTORS[deposit],
+    deposit,
+  }));
 
 /** What the foundation still owes, in placement order. */
 export function foundationOwed(foundation, standing) {
   const owed = [...foundation];
-  for (const key of standing) {
-    const rank = owed.indexOf(key);
+  for (const held of standing) {
+    const rank = owed.findIndex(
+      (due) => due.key === held.key && due.deposit === (held.deposit ?? null),
+    );
     if (rank >= 0) owed.splice(rank, 1);
   }
   return owed;

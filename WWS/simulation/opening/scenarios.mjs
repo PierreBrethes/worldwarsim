@@ -49,12 +49,9 @@ const FOUNDATION_SITES = {
 export const REFERENCE_GROUND = ['ore', 'coal', 'food', 'textile'];
 
 export function foundationOrders(format, ground = REFERENCE_GROUND) {
-  const used = {};
-  return foundationFor(ground).map((key) => {
-    const rank = used[key] ?? 0;
-    used[key] = rank + 1;
-    const place = FOUNDATION_SITES[key]?.[rank];
-    if (!place) throw new Error(`no site for the ${rank + 1}. ${key} of the ${format} foundation`);
+  return foundationFor(ground).map(({ key, deposit }) => {
+    const place = FOUNDATION_SITES[key]?.find((candidate) => candidate.deposit === deposit);
+    if (!place) throw new Error(`no site for the ${key} on ${deposit} of the ${format} foundation`);
     return { key, ...place };
   });
 }

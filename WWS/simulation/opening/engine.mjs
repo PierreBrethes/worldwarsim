@@ -76,10 +76,18 @@ export const troopCapOf = (s) => troopCap(totalLevelOf(s, 'billets'), s.tuning.t
  * back (`convex/constructions.ts`).
  */
 export const owedByFoundation = (s) =>
-  foundationOwed(s.scenario.foundation?.map((order) => order.key) ?? [], s.sites.map((x) => x.key));
+  foundationOwed(
+    s.scenario.foundation?.map((order) => ({ key: order.key, deposit: order.deposit ?? null })) ??
+      [],
+    s.sites.map((x) => ({ key: x.key, deposit: x.deposit ?? null })),
+  );
 
+/** A debt is settled by its deposit, never by its key alone (`convex/regions.ts`). */
 const owesFirstPlacement = (s, order) =>
-  !siteById(s, order.site) && owedByFoundation(s).includes(order.key);
+  !siteById(s, order.site) &&
+  owedByFoundation(s).some(
+    (due) => due.key === order.key && due.deposit === (order.deposit ?? null),
+  );
 
 export function caps(s) {
   const c = Object.fromEntries(RESOURCES.map((r) => [r, BASE_CAP]));

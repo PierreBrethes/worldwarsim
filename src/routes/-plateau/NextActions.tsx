@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { fr } from '@/i18n/fr';
-import type { BuildingKey } from '@/domain/ids';
-import type { Placement } from '@/domain/construction';
+import type { DepositKey } from '@/domain/ids';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import {
@@ -10,7 +9,7 @@ import {
   type NextActionSurface,
   type NextActionTarget,
 } from '@/domain/next-actions';
-import { FoundationRows } from './FoundationRows';
+import { FoundationRows, type FoundationPlacement } from './FoundationRows';
 
 /**
  * **La carte « à faire maintenant »** (décision Pierre, 30/08). Elle a remplacé le widget de
@@ -32,10 +31,10 @@ export function NextActions({
   onOpenSite,
 }: {
   view: PlayerView;
-  placements: ReadonlyArray<Placement>;
-  armed: BuildingKey | null;
+  placements: ReadonlyArray<FoundationPlacement>;
+  armed: DepositKey | null;
   error: string | null;
-  onArm: (key: BuildingKey | null) => void;
+  onArm: (deposit: DepositKey | null) => void;
   onGoToMap: (point: LonLat) => void;
   onOpenSurface: (surface: NextActionSurface) => void;
   /** Recentrer **et** ouvrir : une caserne au repos se lève sur la carte, pas dans un onglet. */

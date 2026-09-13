@@ -18,7 +18,7 @@ import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { RESOURCES, type BuildingKey, type DepositKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
@@ -26,7 +26,7 @@ import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
-import { DEPOSIT_REGIONS, type RegionIdentity, type World } from '@/domain/world';
+import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
 import { knownObjectiveAt } from '@/domain/objectives';
 import { placementOf } from '@/domain/construction';
@@ -385,7 +385,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * other two map gestures — a construction site and an aim — because it is one of them: a
    * click on the map that means something because of what is armed.
    */
-  const [mobilized, setMobilized] = useState<BuildingKey | null>(null);
+  const [mobilized, setMobilized] = useState<DepositKey | null>(null);
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
@@ -780,18 +780,39 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * highlight ground `constructions.start` would take.
    */
   const foundation = useMemo(
-    () => [...new Set(view.me.foundation)].map((key) => placementOf(view, key)),
+    () =>
+      view.me.foundation.map((due) => {
+        const placement = placementOf(view, due.key);
+        /** **Une dette ne s'acquitte que sur son gisement** (`owedFreely`) : allumer tout le sol
+         *  que la clé accepte ferait poser la mine du fer sur du charbon, et le serveur la
+         *  facturerait plein tarif sans que rien ne l'ait dit. */
+        const regionIds = placement.regionIds.filter(
+          (regionId) => depositOfRegion(regionId) === due.deposit,
+        );
+        return {
+          ...placement,
+          deposit: due.deposit,
+          regionIds,
+          condition:
+            regionIds.length === 0 && placement.condition === null
+              ? ({ kind: 'regionsTaken' } as const)
+              : placement.condition,
+        };
+      }),
     [view],
   );
 
   const designated = useMemo(
-    () => foundation.find((placement) => placement.key === mobilized)?.regionIds ?? [],
+    () => foundation.find((placement) => placement.deposit === mobilized)?.regionIds ?? [],
     [foundation, mobilized],
   );
 
-  // The order disarms itself when its key is paid off: `me.foundation` is what draws the card,
-  // so a key that has left it has no line left to be armed on.
-  const armed = mobilized !== null && view.me.foundation.includes(mobilized) ? mobilized : null;
+  // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
+  // so a couple that has left it has no line left to be armed on.
+  const armed =
+    mobilized !== null && view.me.foundation.some((due) => due.deposit === mobilized)
+      ? mobilized
+      : null;
 
   const place = useMutation(api.constructions.start);
 
@@ -803,7 +824,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const placeFoundation = useCallback(
     (regionId: string | null) => {
-      if (armed === null || regionId === null) return;
+      const due =
+        armed === null ? undefined : view.me.foundation.find((debt) => debt.deposit === armed);
+      if (due === undefined || regionId === null) return;
       if (!designated.includes(regionId)) return;
       setMobilizeError(null);
       /**
@@ -811,11 +834,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        * make the second placement a fresh hunt through the card. It disarms on its own when the
        * debt is paid: `armed` is read off `me.foundation`, which the placement empties.
        */
-      place({ ...seat, building: armed, regionId }).catch((problem: unknown) =>
+      place({ ...seat, building: due.key, regionId }).catch((problem: unknown) =>
         handleError(problem, setMobilizeError),
       );
     },
-    [armed, designated, place, seat],
+    [armed, designated, place, seat, view.me.foundation],
   );
 
   const inkByCountry = useMemo(
@@ -1379,9 +1402,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             placements={foundation}
             armed={armed}
             error={mobilizeError}
-            onArm={(key) => {
+            onArm={(deposit) => {
               setMobilizeError(null);
-              setMobilized(key);
+              setMobilized(deposit);
             }}
             onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
             onOpenSurface={openWindow}

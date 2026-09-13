@@ -66,8 +66,12 @@ export type Site = {
   /** A construction aimed at **this very region**, running or queued: nothing stands yet, but
    *  the ground is taken — the server refuses a second entry on it (`constructions.ts`). */
   readonly constructionHere: boolean;
-  /** What the season still owes (`me.foundation`), served — never re-derived here. */
-  readonly foundation: ReadonlyArray<BuildingKey>;
+  /** What the season still owes (`me.foundation`), served — never re-derived here. Une dette
+   *  est un couple : elle ne s'acquitte que sur le gisement qu'elle nomme. */
+  readonly foundation: ReadonlyArray<{
+    readonly key: BuildingKey;
+    readonly deposit: DepositKey;
+  }>;
 };
 
 /**
@@ -130,7 +134,7 @@ export function buildableOn(
      * site, nor the ceiling since 25/08. The debt of the format outranks the ambition of the
      * player, and the ambition is what waits for the headquarters.
      */
-    const free = site.foundation.includes(key);
+    const free = site.foundation.some((due) => due.key === key && due.deposit === site.deposit);
     const cost = free ? {} : spec.cost;
     const siteFull = !free && asThingsStand === 'SITE_SLOTS_FULL';
 
@@ -432,7 +436,7 @@ export type Placement = {
  */
 export function placementOf(view: PlayerView, key: BuildingKey): Placement {
   const unlockedAtHqLevel = view.buildCatalog[key].unlockedAtHqLevel;
-  const free = view.me.foundation.includes(key);
+  const free = view.me.foundation.some((due) => due.key === key);
   const hqLevel = view.me.hqLevel;
   // Nothing rises above the headquarters, and a level-1 building needs one standing — the same
   // pair of guards `buildableOn` opens on, because it is the same catalogue.
@@ -504,7 +508,7 @@ function conditionOf(
     return { kind: 'locked', hqLevel: Math.max(1, view.buildCatalog[key].unlockedAtHqLevel) };
   }
   // A key the season owes is never held by a full site, so its only remaining excuse is ground.
-  return !view.me.foundation.includes(key) &&
+  return !view.me.foundation.some((due) => due.key === key) &&
     view.me.siteSlots.every((held) => slotsOn(view, held.site).taken >= held.total)
     ? { kind: 'siteFull' }
     : { kind: 'regionsTaken' };

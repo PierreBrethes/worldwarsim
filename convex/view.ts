@@ -7,6 +7,7 @@ import type { LonLat } from '../src/domain/geo';
 import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
 import { nationInk } from '../src/domain/nations';
+import { depositOfRegion } from '../src/domain/world';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
 import { buildingCostKey, cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
@@ -417,7 +418,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        */
       foundation: foundationOwed(
         player.nation,
-        buildings.map((building) => building.key),
+        buildings.map((building) => ({
+          key: building.key,
+          deposit: depositOfRegion(building.regionId),
+        })),
       ),
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that

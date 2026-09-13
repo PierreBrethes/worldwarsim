@@ -821,8 +821,14 @@ export type PlayerView = {
     /**
      * The buildings the season still owes, in placement order — placed for nothing and at
      * once, wherever the player decides. Empty once the foundation stands.
+     *
+     * **Une dette est un couple**, jamais une clé seule : la mine due pour le fer ne s'acquitte
+     * que sur une région de fer, et celle du charbon sur du charbon.
      */
-    readonly foundation: ReadonlyArray<BuildingKey>;
+    readonly foundation: ReadonlyArray<{
+      readonly key: BuildingKey;
+      readonly deposit: DepositKey;
+    }>;
     readonly buildings: ReadonlyArray<Building>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;

@@ -1,6 +1,5 @@
 import { fr } from '@/i18n/fr';
-import type { BuildingKey } from '@/domain/ids';
-import { EXPLOITED_DEPOSITS } from '@/domain/economy';
+import type { DepositKey } from '@/domain/ids';
 import type { Placement, PlacementCondition } from '@/domain/construction';
 import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -19,7 +18,14 @@ import { BuildingPlate } from '@/emblems/Plate';
  * clique la région.** Aucune règle propre — `placementOf` est le refus de pose du serveur, lu
  * deux fois — et aucun état de ce qui a été posé : le corps est dessiné depuis `me.foundation`,
  * donc il se vide à mesure que la saison s'acquitte, et sa ligne disparaît avec.
+ *
+ * **Une ligne par dette, et une dette est un couple** : la mine du fer et celle du charbon sont
+ * deux lignes, chacune n'allumant que le sol qui l'acquitte. Le gisement suffit à les nommer —
+ * le socle n'en doit jamais deux fois le même.
  */
+/** A debt of the foundation, and the ground that would pay it: one entry per owed couple. */
+export type FoundationPlacement = Placement & { readonly deposit: DepositKey };
+
 export function FoundationRows({
   view,
   placements,
@@ -28,24 +34,23 @@ export function FoundationRows({
   onArm,
 }: {
   view: PlayerView;
-  /** One entry per distinct owed key, in the order the foundation owes them. */
-  placements: ReadonlyArray<Placement>;
-  armed: BuildingKey | null;
+  /** One entry per owed couple, in the order the foundation owes them. */
+  placements: ReadonlyArray<FoundationPlacement>;
+  armed: DepositKey | null;
   error: string | null;
-  onArm: (key: BuildingKey | null) => void;
+  onArm: (deposit: DepositKey | null) => void;
 }) {
-  const chosen = placements.find((placement) => placement.key === armed) ?? null;
+  const chosen = placements.find((placement) => placement.deposit === armed) ?? null;
 
   return (
     <div className="border-t border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.05)]">
       <div className="py-[3px]">
         {placements.map((placement) => (
           <KeyRow
-            key={placement.key}
+            key={placement.deposit}
             placement={placement}
-            count={view.me.foundation.filter((key) => key === placement.key).length}
-            armed={placement.key === armed}
-            onArm={() => onArm(placement.key === armed ? null : placement.key)}
+            armed={placement.deposit === armed}
+            onArm={() => onArm(placement.deposit === armed ? null : placement.deposit)}
           />
         ))}
       </div>
@@ -75,12 +80,10 @@ export function FoundationRows({
  */
 function KeyRow({
   placement,
-  count,
   armed,
   onArm,
 }: {
-  placement: Placement;
-  count: number;
+  placement: FoundationPlacement;
   armed: boolean;
   onArm: () => void;
 }) {
@@ -96,13 +99,8 @@ function KeyRow({
     >
       <BuildingPlate building={placement.key} height={24} />
       <span className="text-[13.5px] leading-none font-semibold tracking-[.02em]">
-        {fr.buildings[placement.key]}
+        {fr.mobilization.onDeposit(fr.buildings[placement.key], fr.deposits[placement.deposit])}
       </span>
-      {count > 1 && (
-        <span className="font-(family-name:--font-mono) text-[11px] opacity-70">
-          {fr.mobilization.count(count)}
-        </span>
-      )}
       <span className="flex-1" />
       <span
         className="max-w-[46%] text-right text-[11px] leading-[1.35]"
@@ -114,16 +112,15 @@ function KeyRow({
   );
 }
 
-/** What the region must be for this key to go down — said before it is chosen, never after. */
-function wantsText(placement: Placement): string {
-  const deposits = EXPLOITED_DEPOSITS[placement.key];
-  if (deposits !== undefined) {
-    return fr.mobilization.wants.deposit(deposits.map((deposit) => fr.deposits[deposit]));
-  }
-  return placement.key === 'port' ? fr.mobilization.wants.coastal : fr.mobilization.wants.any;
-}
+/**
+ * What the region must be for this debt to go down — said before it is chosen, never after.
+ * **Le gisement de la dette, pas ceux de la clé** : une mine due pour le fer ne dit pas « fer ou
+ * charbon », sinon le joueur la poserait sur le charbon et la paierait plein tarif.
+ */
+const wantsText = (placement: FoundationPlacement): string =>
+  fr.mobilization.wants.deposit([fr.deposits[placement.deposit]]);
 
-const offerText = (placement: Placement): string =>
+const offerText = (placement: FoundationPlacement): string =>
   placement.regionIds.length === 0
     ? fr.mobilization.noneEligible
     : fr.mobilization.eligible(placement.regionIds.length);
@@ -139,7 +136,7 @@ function Aimed({
   onCancel,
 }: {
   view: PlayerView;
-  placement: Placement;
+  placement: FoundationPlacement;
   onCancel: () => void;
 }) {
   const names = placement.regionIds.flatMap((regionId) => {

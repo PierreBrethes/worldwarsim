@@ -248,17 +248,14 @@ export function ConstructionPanel({
  * five free placements in hand is not held back by anything, and reading "matières
  * insuffisantes" first would send him counting his alloy for buildings he is not paying for.
  */
-function FoundationNotice({ owed }: { owed: ReadonlyArray<BuildingKey> }) {
+function FoundationNotice({ owed }: { owed: PlayerView['me']['foundation'] }) {
   if (owed.length === 0) return null;
-  const counted = [...new Set(owed)].map(
-    (key) => [key, owed.filter((held) => held === key).length] as const,
-  );
 
   return (
     <p className="mt-2 shrink-0 border border-[var(--ink)] px-2 py-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
       {fr.construction.foundationNotice(
-        counted
-          .map(([key, count]) => fr.construction.foundationCount(fr.buildings[key], count))
+        owed
+          .map((due) => fr.mobilization.onDeposit(fr.buildings[due.key], fr.deposits[due.deposit]))
           .join(', '),
       )}
     </p>

@@ -221,13 +221,21 @@ export const FOUNDATION_EXTRACTORS: Readonly<Record<DepositKey, BuildingKey>> = 
   oil: 'oilWell',
 };
 
+/**
+ * **Une dette de socle est un couple, pas une clé** : la mine offerte pour le fer ne s'acquitte
+ * que sur une région de fer. Comptée par clé, deux mines posées sur du charbon soldaient les deux
+ * dettes et le fer se payait ensuite au prix fort — la ressource qui fait tout le reste.
+ */
+export type FoundationDebt = { readonly key: BuildingKey; readonly deposit: DepositKey };
+
 /** It takes the deposits rather than the nation on purpose: **this file is read by the client**,
  *  and reaching for the map here would drag 312 kB of `region-index.json` into the bundle. The
  *  join with a nation is `foundationOwed`, in `regions.ts`. */
-export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<BuildingKey> =>
-  FOUNDATION_ORDER.filter((deposit) => deposits.has(deposit)).map(
-    (deposit) => FOUNDATION_EXTRACTORS[deposit],
-  );
+export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<FoundationDebt> =>
+  FOUNDATION_ORDER.filter((deposit) => deposits.has(deposit)).map((deposit) => ({
+    key: FOUNDATION_EXTRACTORS[deposit],
+    deposit,
+  }));
 
 export const LEVEL_COST_FACTOR = 1.8;
 

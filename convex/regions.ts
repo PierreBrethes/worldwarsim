@@ -1,7 +1,7 @@
 import type { LonLat } from '../src/domain/geo';
 import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
-import { foundationFor } from './constants';
+import { foundationFor, type FoundationDebt } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
 import { DEPOSIT_REGIONS, depositOfRegion } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
@@ -191,7 +191,7 @@ export const homeDepositsOf = (nation: string | null): ReadonlySet<DepositKey> =
 
 /** The whole foundation of a nation, owed or already standing — what `foundationOwed` counts
  *  down from, and what a placement budget leaves out of its count (ADR 0020 §10). */
-export const foundationOf = (nation: string | null): ReadonlyArray<BuildingKey> =>
+export const foundationOf = (nation: string | null): ReadonlyArray<FoundationDebt> =>
   foundationFor(homeDepositsOf(nation));
 
 /**
@@ -202,16 +202,18 @@ export const foundationOf = (nation: string | null): ReadonlyArray<BuildingKey> 
  * screens price and cap against it — and an import of this file from there would put the whole
  * region index in the bundle. Nothing on the client imports `regions.ts`, and nothing should.
  *
- * A key held on several regions consumes one debt each time, so the two mines a country with
- * iron and coal is owed are two free placements and the third is paid for like anything else.
+ * **Une dette s'acquitte sur son gisement, jamais sur sa seule clé.** Les deux mines d'un pays
+ * qui a du fer et du charbon sont deux dettes distinctes : deux mines posées sur du charbon en
+ * soldent une seule, et celle du fer reste offerte. Un bâtiment posé sur une région sans
+ * gisement — hors socle par nature — ne solde rien.
  */
 export function foundationOwed(
   nation: string | null,
-  standing: ReadonlyArray<BuildingKey>,
-): ReadonlyArray<BuildingKey> {
+  standing: ReadonlyArray<{ readonly key: BuildingKey; readonly deposit: DepositKey | null }>,
+): ReadonlyArray<FoundationDebt> {
   const owed = [...foundationOf(nation)];
-  for (const key of standing) {
-    const rank = owed.indexOf(key);
+  for (const held of standing) {
+    const rank = owed.findIndex((due) => due.key === held.key && due.deposit === held.deposit);
     if (rank >= 0) owed.splice(rank, 1);
   }
   return owed;

@@ -54,7 +54,14 @@ describe('what waits for the player', () => {
   });
 
   it('counts the placements the foundation still owes, then stops naming them', () => {
-    const owed = nextActionsOf(board({ foundation: ['mine', 'mine'] }))[0];
+    const owed = nextActionsOf(
+      board({
+        foundation: [
+          { key: 'mine', deposit: 'ore' },
+          { key: 'mine', deposit: 'coal' },
+        ],
+      }),
+    )[0];
     expect(owed?.kind).toBe('foundation');
     expect(owed?.label).toBe('2 poses de fondation offertes');
     expect(owed?.target).toEqual({ kind: 'unfold' });
@@ -177,7 +184,7 @@ describe('what waits for the player', () => {
   /** Rien n'attend un observateur : la carte n'a pas d'état fermé, son absence est cet état. */
   it('disparaît pour un joueur qui a déposé les armes', () => {
     const owing = {
-      foundation: ['mine' as const],
+      foundation: [{ key: 'mine', deposit: 'ore' } as const],
       construction: null,
       recruiting: [],
       slots: { total: 2, used: 1 },
@@ -189,7 +196,7 @@ describe('what waits for the player', () => {
 
   it('holds the reading order: what is owed, then what produces, then what stands', () => {
     const busy = board({
-      foundation: ['mine'],
+      foundation: [{ key: 'mine', deposit: 'ore' }],
       construction: null,
       recruiting: [],
       slots: { total: 2, used: 1 },

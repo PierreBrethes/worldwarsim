@@ -6,6 +6,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
+import { depositOfRegion } from '../src/domain/world';
 import { nearestOutpost } from '../src/domain/outposts';
 import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
 import {
@@ -37,6 +38,9 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
  * so it is asked once and answered here.
  *
  * A first level only: raising a building is never a debt the season owes.
+ *
+ * **La dette se lit sur le gisement de la région visée**, pas sur la seule clé : une seconde
+ * mine posée sur du charbon se paie, et celle du fer reste offerte.
  */
 const owedFreely = (
   nation: string | null,
@@ -47,8 +51,8 @@ const owedFreely = (
   (buildingAt(buildings, building, regionId)?.level ?? 0) === 0 &&
   foundationOwed(
     nation,
-    buildings.map((held) => held.key),
-  ).includes(building);
+    buildings.map((held) => ({ key: held.key, deposit: depositOfRegion(held.regionId) })),
+  ).some((due) => due.key === building && due.deposit === depositOfRegion(regionId));
 
 /**
  * **A point belongs to the port, and to its placement, and to nothing else** (ADR 0013,

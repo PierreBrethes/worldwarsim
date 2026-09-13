@@ -193,10 +193,17 @@ describe('what merely holds a line back', () => {
  * old rule is the ground — one entry per region, standing or queued.
  */
 describe('a placement the foundation owes, beside a queue', () => {
-  const OWED: ReadonlyArray<BuildingKey> = ['foundry', 'warehouse'];
+  /** Une dette est un couple : elle ne s'acquitte que sur son gisement, donc le sol de ces cas
+   *  porte celui qu'elle nomme. */
+  const OWED = [{ key: 'mine', deposit: 'coal' }] as const;
+  const owedSite = (overrides: Partial<Site> = {}): Partial<Site> => ({
+    deposit: 'coal',
+    foundation: OWED,
+    ...overrides,
+  });
 
   it('leaves every line clickable while chantiers are queued elsewhere', () => {
-    const options = buildableOn(site({ foundation: OWED }), CATALOG);
+    const options = buildableOn(site(owedSite()), CATALOG);
     expect(options.length).toBeGreaterThan(0);
     expect(options.every((option) => option.hold === null)).toBe(true);
   });
@@ -208,9 +215,9 @@ describe('a placement the foundation owes, beside a queue', () => {
    * are still held: the debt outranks the ambition, the ambition waits for the headquarters.
    */
   it('lets an offered line through at the building ceiling, and holds the paid ones', () => {
-    const options = buildableOn(site({ foundation: OWED, taken: 5, slots: 5 }), CATALOG);
+    const options = buildableOn(site(owedSite({ taken: 5, slots: 5 })), CATALOG);
     const free = options.filter((option) => option.free);
-    expect(free.map((option) => option.key)).toEqual(expect.arrayContaining([...OWED]));
+    expect(free.map((option) => option.key)).toEqual(['mine']);
     expect(free.every((option) => option.hold === null)).toBe(true);
     expect(
       options.filter((option) => !option.free).every((option) => option.hold === 'siteSlots'),
@@ -220,7 +227,7 @@ describe('a placement the foundation owes, beside a queue', () => {
   /** The ground under an entry of the queue is reserved by it: a free placement there would
    *  leave two buildings on one region once the `finish` lands. */
   it('offers nothing at all on the region an entry of the queue aims at', () => {
-    expect(buildableOn(site({ constructionHere: true, foundation: OWED }), CATALOG)).toEqual([]);
+    expect(buildableOn(site(owedSite({ constructionHere: true })), CATALOG)).toEqual([]);
   });
 });
 
@@ -346,7 +353,7 @@ describe('placement over the whole estate', () => {
     buildings?: ReadonlyArray<{ key: BuildingKey; regionId: string }>;
     hqLevel?: number;
     cap?: number;
-    foundation?: ReadonlyArray<BuildingKey>;
+    foundation?: PlayerView['me']['foundation'];
     construction?: PlayerView['me']['construction'];
     queue?: PlayerView['me']['constructionQueue'];
     unlocked?: Partial<Record<BuildingKey, number>>;
@@ -457,9 +464,12 @@ describe('placement over the whole estate', () => {
   });
 
   it('marks a key the foundation still owes as free', () => {
-    const view = estate({ regions: [region('a')], foundation: ['warehouse'] });
-    expect(placementOf(view, 'warehouse')).toMatchObject({ free: true, condition: null });
-    expect(placementOf(view, 'depot').free).toBe(false);
+    const view = estate({
+      regions: [region('a', { deposit: 'ore' })],
+      foundation: [{ key: 'mine', deposit: 'ore' }],
+    });
+    expect(placementOf(view, 'mine')).toMatchObject({ free: true, condition: null });
+    expect(placementOf(view, 'warehouse').free).toBe(false);
   });
 
   /** The estate reading and the per-region reading are the same rule: whatever `placementOf`
@@ -467,7 +477,7 @@ describe('placement over the whole estate', () => {
   it('agrees with the region panel, region by region', () => {
     const view = estate({
       regions: [region('a', { deposit: 'coal' }), region('b', { coastal: true }), region('c')],
-      foundation: ['mine'],
+      foundation: [{ key: 'mine', deposit: 'coal' }],
     });
     for (const key of BUILDINGS) {
       const offered = new Set(

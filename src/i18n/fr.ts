@@ -1642,7 +1642,10 @@ export const fr = {
       `${andList(regions)} surlignée${plural(regions.length, '', 's')} sur le plateau.`,
     zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
     cancel: 'annuler la sélection de clé',
-    count: (count: number) => `${count} à poser`,
+    /** **Une dette de socle est un couple** : deux mines dues se liraient sinon comme deux fois
+     *  la même ligne, alors que l'une ne s'acquitte que sur du fer et l'autre que sur du
+     *  charbon. */
+    onDeposit: (building: string, deposit: string) => `${building} — ${deposit}`,
     /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
      *  coup : rien d'affiché sans sa condition. */
     wants: {

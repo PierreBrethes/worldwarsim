@@ -270,7 +270,12 @@ describe('joining a running season', () => {
       expect.objectContaining({ key: 'hq', level: HQ_LEVEL_AT_LAUNCH }),
     ]);
     // Germany holds coal, ore, bread and cloth, and no oil: four extractors, no well.
-    expect(view.me.foundation).toEqual(['mine', 'mine', 'farm', 'mill']);
+    expect(view.me.foundation).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'coal' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
     expect(view.me.foundation).toEqual(opening.me.foundation);
     // The theatre was frozen at launch: a latecomer joins it, he does not redraw it.
     expect(view.season.playableRegion).toBe(opening.season.playableRegion);
@@ -408,7 +413,12 @@ describe('launching', () => {
     expect(view.me.buildings).toEqual([
       expect.objectContaining({ key: 'hq', regionId: PARIS, level: hqLevel }),
     ]);
-    expect(view.me.foundation).toEqual(['mine', 'mine', 'farm', 'mill']);
+    expect(view.me.foundation).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'coal' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
     expect(view.me.slots).toEqual({ total: 1 + hqLevel, used: 0 });
     // The home regions that carry a deposit, and only those.
     expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
@@ -558,8 +568,12 @@ describe('constructions', () => {
       expect.objectContaining({ key: 'mine', regionId: MOSELLE, level: 1 }),
     );
     expect(after.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
-    // One mine of the two French ground owes is settled; the rest is still owed.
-    expect(after.me.foundation).toEqual(['mine', 'farm', 'mill']);
+    // La mine du charbon est soldée par une mine sur du charbon ; celle du fer reste due.
+    expect(after.me.foundation).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
   });
 
   /** Nothing rises above the headquarters. The rule used to make the HQ the first building of

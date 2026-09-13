@@ -689,7 +689,7 @@ describe('placement', () => {
    */
   it('never owes a foundation key above the headquarters it plants', () => {
     for (const nation of NATIONS) {
-      for (const key of foundationOwed(nation, [])) {
+      for (const { key } of foundationOwed(nation, [])) {
         expect(unlockLevel(key)).toBeLessThanOrEqual(HQ_LEVEL_AT_LAUNCH);
       }
     }
@@ -742,19 +742,35 @@ describe('placement', () => {
  */
 describe('the foundation a nation is owed', () => {
   it('owes France its two mines, its farm and its mill, and no well', () => {
-    expect(foundationOwed('france', [])).toEqual(['mine', 'mine', 'farm', 'mill']);
+    expect(foundationOwed('france', [])).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'coal' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
   });
 
   /** The one ground that holds all five: the United States is the only nation whose foundation
    *  carries a well, alongside the Soviet Union. */
   it('owes the United States the same, plus the well its oil carries', () => {
-    expect(foundationOwed('usa', [])).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
+    expect(foundationOwed('usa', [])).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'mine', deposit: 'coal' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+      { key: 'oilWell', deposit: 'oil' },
+    ]);
   });
 
   /** Kamaishi, added on 25/08: without it Japan held no ore at all and, with looting not coded,
    *  had no road to any — an unplayable nation rather than a shaped one. */
   it('owes Japan four extractors now that its ore exists, and still no well', () => {
-    expect(foundationOwed('japan', [])).toEqual(['mine', 'mine', 'farm', 'mill']);
+    expect(foundationOwed('japan', []).map((due) => due.key)).toEqual([
+      'mine',
+      'mine',
+      'farm',
+      'mill',
+    ]);
   });
 
   /**
@@ -785,21 +801,67 @@ describe('the foundation a nation is owed', () => {
   /** A key held on several regions consumes one debt each time — two mines are two placements,
    *  and the third is paid for like anything else. */
   it('lets a standing key settle one debt at a time', () => {
-    expect(foundationOwed('france', ['mine'])).toEqual(['mine', 'farm', 'mill']);
-    expect(foundationOwed('france', ['mine', 'mine', 'farm', 'mill'])).toEqual([]);
-    expect(foundationOwed('france', ['barracks', 'foundry'])).toEqual([
-      'mine',
-      'mine',
-      'farm',
-      'mill',
+    expect(foundationOwed('france', [{ key: 'mine', deposit: 'ore' }])).toEqual([
+      { key: 'mine', deposit: 'coal' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
     ]);
+    expect(
+      foundationOwed('france', [
+        { key: 'mine', deposit: 'ore' },
+        { key: 'mine', deposit: 'coal' },
+        { key: 'farm', deposit: 'food' },
+        { key: 'mill', deposit: 'textile' },
+      ]),
+    ).toEqual([]);
+    expect(
+      foundationOwed('france', [
+        { key: 'barracks', deposit: null },
+        { key: 'foundry', deposit: null },
+      ]),
+    ).toEqual(foundationOwed('france', []));
+  });
+
+  /**
+   * **Une dette est un couple, pas une clé** : deux mines posées sur du charbon ne soldent que
+   * la dette du charbon. Comptée par clé, la mine de fer se payait ensuite 500 d'alliage, et le
+   * joueur restait sans la ressource qui fait tout le reste.
+   */
+  it('settles a debt on its deposit and on no other', () => {
+    expect(
+      foundationOwed('france', [
+        { key: 'mine', deposit: 'coal' },
+        { key: 'mine', deposit: 'coal' },
+      ]),
+    ).toEqual([
+      { key: 'mine', deposit: 'ore' },
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
+    expect(
+      foundationOwed('france', [
+        { key: 'mine', deposit: 'coal' },
+        { key: 'mine', deposit: 'ore' },
+      ]),
+    ).toEqual([
+      { key: 'farm', deposit: 'food' },
+      { key: 'mill', deposit: 'textile' },
+    ]);
+  });
+
+  /** Un extracteur posé là où il n'y a rien à extraire n'existe pas — et s'il existait, il ne
+   *  solderait rien : la dette nomme un gisement. */
+  it('settles nothing on ground that carries no deposit', () => {
+    expect(foundationOwed('france', [{ key: 'mine', deposit: null }])).toEqual(
+      foundationOwed('france', []),
+    );
   });
 
   /** The foundry, the warehouse and the arsenal are paid for now — they are what a player
    *  decides to do with his ground, never what the ground carries. */
   it('owes no foundry, warehouse or arsenal to anybody', () => {
     for (const nation of NATIONS) {
-      const owed = foundationOwed(nation, []);
+      const owed = foundationOwed(nation, []).map((due) => due.key);
       for (const key of ['foundry', 'warehouse', 'arsenal'] as const) {
         expect(owed).not.toContain(key);
       }
@@ -830,10 +892,13 @@ describe('the foundation the season owes', () => {
       };
     },
     key: BuildingKey,
+    /** La dette nomme son gisement : la mine du fer ne se pose pas sur du charbon (`owedFreely`). */
+    deposit?: DepositKey,
   ): string | null =>
     view.me.regions.find(
       (region) =>
         region.buildings.length === 0 &&
+        (deposit === undefined || region.deposit === deposit) &&
         placementRefusal(
           key,
           region,
@@ -849,7 +914,12 @@ describe('the foundation the season owes', () => {
 
   /** What France is owed: iron, coal, bread and cloth — and no well, since the country has
    *  no oil. Every test of this file plays France, so this is the reading list. */
-  const FRENCH_FOUNDATION: ReadonlyArray<BuildingKey> = ['mine', 'mine', 'farm', 'mill'];
+  const FRENCH_FOUNDATION = [
+    { key: 'mine', deposit: 'ore' },
+    { key: 'mine', deposit: 'coal' },
+    { key: 'farm', deposit: 'food' },
+    { key: 'mill', deposit: 'textile' },
+  ] as const;
 
   /** Places what the season **still** owes, one key at a time, and hands back what it cost. */
   async function placeFoundation(t: ReturnType<typeof boot>, seat: Seat) {
@@ -857,13 +927,13 @@ describe('the foundation the season owes', () => {
     // The widest ground of the eight is owed five, and the loop is a guard, not a count.
     for (let guard = 0; guard < 8; guard += 1) {
       const view = await t.query(api.view.playerView, seat);
-      const key = view.me.foundation[0];
-      if (key === undefined) break;
-      const regionId = freeRegionFor(view, key);
-      if (regionId === null) throw new Error(`nowhere to place ${key}`);
+      const due = view.me.foundation[0];
+      if (due === undefined) break;
+      const regionId = freeRegionFor(view, due.key, due.deposit);
+      if (regionId === null) throw new Error(`nowhere to place ${due.key}`);
       const { cost } = await t.mutation(api.constructions.start, {
         ...seat,
-        building: key,
+        building: due.key,
         regionId,
       });
       bills.push(cost as Record<string, number>);
@@ -884,12 +954,73 @@ describe('the foundation the season owes', () => {
     expect(view.me.foundation).toEqual([]);
     expect(view.me.construction).toBeNull();
     expect(view.me.buildings).toHaveLength(FRENCH_FOUNDATION.length + 1);
-    for (const key of FRENCH_FOUNDATION) {
+    for (const { key } of FRENCH_FOUNDATION) {
       expect(view.me.buildings.map((building) => building.key)).toContain(key);
     }
     // Not one unit spent, the alloy of the kit included — and it survives the ceiling of a
     // nation that has not placed its warehouse yet.
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+  });
+
+  /**
+   * **Une dette de socle est un couple, et la pose lit le gisement de la région visée.** La
+   * France doit deux mines, l'une au fer et l'autre au charbon : comptée par clé, deux mines
+   * posées sur du charbon soldaient les deux, et le fer se payait ensuite 500 d'alliage — le
+   * joueur restait coincé sur la ressource qui fait tout le reste.
+   */
+  it('offers one mine per deposit and bills the second on the same ground', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+
+    const offered = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: MOSELLE,
+    });
+    expect(offered.cost).toEqual({});
+    expect(offered.finishesAt).toBe(Date.now());
+
+    const billed = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: PAS_DE_CALAIS,
+    });
+    expect(billed.cost).toEqual(buildCost('mine', 1));
+    expect(billed.finishesAt).toBeGreaterThan(Date.now());
+
+    // The debt of the iron is untouched by two placements on coal, and it is still offered.
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'ore' });
+    const iron = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: MEURTHE,
+    });
+    expect(iron.cost).toEqual({});
+  });
+
+  /**
+   * **L'exemption d'emplacement suit la dette, couple par couple** (ADR 0020 §10). Comptée par
+   * clé, la seconde mine de charbon était hors du compte comme la première : le sol national
+   * portait un placement gratuit de plus qu'il n'en devait.
+   */
+  it('leaves one mine per deposit out of the placement count, and no more', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const homeTaken = async () =>
+      (await t.query(api.view.playerView, seat)).me.siteSlots.find(
+        (held) => held.site.outpostId === null,
+      )!.taken;
+
+    await raise(t, seat, 'mine', MOSELLE);
+    expect(await homeTaken()).toBe(0);
+
+    await raise(t, seat, 'mine', PAS_DE_CALAIS);
+    expect(await homeTaken()).toBe(1);
+
+    // The one owed for iron is exempt in its turn, wherever the coal mines stand.
+    await raise(t, seat, 'mine', MEURTHE);
+    expect(await homeTaken()).toBe(1);
   });
 
   /**
@@ -1449,7 +1580,7 @@ describe('one building per region, and a global ceiling', () => {
     const seat = await launchedSeason(t, 168, 'usa');
 
     const owed = foundationOwed('usa', []);
-    expect(owed).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
+    expect(owed.map((due) => due.key)).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
     const slots = homeSlots(HQ_LEVEL_AT_LAUNCH);
 
     // Filled on bare American regions: a deposit region would starve the debt of ground, and
@@ -1468,10 +1599,11 @@ describe('one building per region, and a global ceiling', () => {
 
     for (let placed = 0; placed < owed.length; placed += 1) {
       const view = await t.query(api.view.playerView, seat);
-      const key = view.me.foundation[0]!;
+      const { key, deposit } = view.me.foundation[0]!;
       const regionId = view.me.regions.find(
         (region) =>
           region.buildings.length === 0 &&
+          region.deposit === deposit &&
           placementRefusal(
             key,
             region,
