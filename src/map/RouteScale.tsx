@@ -65,7 +65,8 @@ export function RouteScale({ arc }: { arc: ArcView }) {
 /**
  * `PlayerView` only carries the time left: the total is derived from progress. A frozen arc
  * or sea control has no schedule at all — the scale then shows the breakdown alone, which
- * remains the right answer to "which way does it go".
+ * remains the right answer to "which way does it go". A column held at the border is the same
+ * case: at the end of its thread it has no time left, and a trip of zero minute would be a lie.
  */
 function totalDuration(arc: ArcView): number | null {
   const left =
@@ -74,6 +75,6 @@ function totalDuration(arc: ArcView): number | null {
       : arc.state === 'enemyDetected'
         ? arc.estimatedMinutesLeft
         : null;
-  if (left === null) return null;
-  return arc.progress >= 1 ? Math.max(0, left) : Math.max(0, left) / (1 - arc.progress);
+  if (left === null || arc.progress >= 1) return null;
+  return Math.max(0, left) / (1 - arc.progress);
 }

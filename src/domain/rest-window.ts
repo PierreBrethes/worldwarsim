@@ -16,10 +16,24 @@ export function formatWindow({ startMinutes, endMinutes }: TimeWindow): string {
   return `${hour(startMinutes)} – ${hour(endMinutes)}`;
 }
 
+/**
+ * **La plage se stocke et se juge en minutes UTC** — un entier, pas de table de fuseaux. Le
+ * navigateur lit `Date` à l'heure de Paris, l'isolat Convex la lit en UTC : jugée en heure
+ * locale, une plage déclarée « 23h00 » mordait deux heures plus tard que dite, l'été. Ce qui
+ * reste local est la déclaration et l'affichage, et la conversion se fait aux deux bords.
+ */
 export const minutesSinceMidnight = (instant: number): number => {
-  const local = new Date(instant);
-  return local.getHours() * 60 + local.getMinutes();
+  const utc = new Date(instant);
+  return utc.getUTCHours() * 60 + utc.getUTCMinutes();
 };
+
+/** `offsetMinutes` vaut `-new Date().getTimezoneOffset()`, et vient de l'appelant : le domaine
+ *  ne lit jamais l'horloge. */
+export const toUtcMinutes = (localMinutes: number, offsetMinutes: number): number =>
+  (((localMinutes - offsetMinutes) % 1440) + 1440) % 1440;
+
+export const toLocalMinutes = (utcMinutes: number, offsetMinutes: number): number =>
+  (((utcMinutes + offsetMinutes) % 1440) + 1440) % 1440;
 
 /**
  * A movement that would arrive during its target's rest window stalls at the border: it only

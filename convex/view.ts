@@ -734,8 +734,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           departedAt: movement.departedAt,
           arrivesAt: movement.arrivesAt,
           /** The target's rest window, if the arrival bites it: the column then waits at the
-           *  border until it closes (design sheet 07). */
-          holdUntil: await restHold(ctx, player._id, movement.hostCountry, movement.arrivesAt),
+           *  border until it closes (design sheet 07). **A hold already taken is not recomputed**:
+           *  `arrive` pushed `arrivesAt` to the exit of the window, and that instant sits outside
+           *  it — recomputing would answer `null` and put the column back on the road. */
+          heldAt: movement.heldAt ?? null,
+          holdUntil:
+            movement.heldAt !== undefined
+              ? movement.arrivesAt
+              : await restHold(ctx, player._id, movement.hostCountry, movement.arrivesAt),
         };
       }),
     ),

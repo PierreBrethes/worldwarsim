@@ -6,7 +6,8 @@ import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation } from '@/domain/nations';
 import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
-import { formatWindow } from '@/domain/rest-window';
+import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
+import { arcTiming } from '@/domain/arc-timing';
 import { bearingDegrees, type LonLat } from '@/domain/geo';
 import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
@@ -54,7 +55,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       ink: server.me.ink,
       power: isNation(server.me.nation) ? fr.nationPowers[server.me.nation] : '',
       progress: server.me.progress,
-      restWindow: formatWindow(server.me.restWindow),
+      restWindow: formatWindow(asLocalWindow(server.me.restWindow)),
       resources: server.me.resources,
       slots: server.me.slots,
       hqLevel: server.me.hqLevel,
@@ -155,7 +156,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       ink: opponent.ink,
       power: isNation(opponent.nation) ? fr.nationPowers[opponent.nation] : '',
       bar: { state: 'anonymous', progress: 0 },
-      restWindow: formatWindow(opponent.restWindow),
+      restWindow: formatWindow(asLocalWindow(opponent.restWindow)),
       lastIntel: opponent.lastIntel,
     })),
     coverage: { visible: 0, total: 0 },
@@ -174,8 +175,15 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
  * instant and travels as a countdown, like every other due time on the board.
  */
 function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView {
-  const departed = movement.arrivesAt - movement.departedAt;
-  const now = Date.now();
+  const timing = arcTiming(
+    {
+      departedAt: movement.departedAt,
+      arrivesAt: movement.arrivesAt,
+      heldAt: movement.heldAt,
+      holdUntil: movement.holdUntil,
+    },
+    Date.now(),
+  );
   return {
     state: 'mine',
     id: movement.id,
@@ -191,12 +199,22 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     troopIds: movement.troopIds,
     cargo: movement.cargo ?? emptyCargo(),
     mission: movement.mission ?? null,
-    minutesLeft: Math.max(0, (movement.arrivesAt - now) / 60_000),
-    borderWait:
-      movement.holdUntil === null
-        ? null
-        : { resolutionInMinutes: Math.max(0, (movement.holdUntil - now) / 60_000) },
-    progress: departed <= 0 ? 1 : Math.min(1, Math.max(0, (now - movement.departedAt) / departed)),
+    minutesLeft: timing.minutesLeft,
+    borderWait: timing.borderWait,
+    progress: timing.progress,
+  };
+}
+
+/**
+ * **La plage se stocke en UTC et se lit à la montre du joueur** : le serveur ne connaît qu'un
+ * entier, et c'est ici — au seul endroit qui écrit une heure de plage à l'écran — qu'il redevient
+ * l'heure que l'un a déclarée et que l'autre lit.
+ */
+function asLocalWindow(window: TimeWindow): TimeWindow {
+  const offsetMinutes = -new Date().getTimezoneOffset();
+  return {
+    startMinutes: toLocalMinutes(window.startMinutes, offsetMinutes),
+    endMinutes: toLocalMinutes(window.endMinutes, offsetMinutes),
   };
 }
 

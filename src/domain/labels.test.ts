@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { abbreviateStack, buildLabels, type MapMarker } from './labels';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
+import { asLocalTime } from './duration';
 
 const LOADED_AT = 1_700_000_000_000;
 
@@ -71,6 +72,33 @@ describe('buildLabels', () => {
       dueAt: LOADED_AT + 100 * 60_000,
       prefix: '~',
     });
+  });
+
+  it('says the hold instead of counting down an arrival that will not happen', () => {
+    const [label] = buildLabels(
+      viewWith([
+        mineArc({
+          minutesLeft: 0,
+          progress: 1,
+          borderWait: { resolutionInMinutes: 420 },
+        }),
+      ]),
+      [],
+    );
+    expect(texts(label!.lines)).toEqual([
+      `arrivée retenue · résolution à ${asLocalTime(LOADED_AT + 420 * 60_000)}`,
+    ]);
+  });
+
+  it('keeps the countdown and announces the hold while the column still walks', () => {
+    const [label] = buildLabels(
+      viewWith([mineArc({ minutesLeft: 30, borderWait: { resolutionInMinutes: 180 } })]),
+      [],
+    );
+    expect(texts(label!.lines)).toEqual([
+      'countdown:countdown',
+      `retenue à la frontière jusqu’à ${asLocalTime(LOADED_AT + 180 * 60_000)}`,
+    ]);
   });
 
   it('gives type and composition once intelligence has pierced', () => {

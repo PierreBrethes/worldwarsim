@@ -530,7 +530,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       lines: [
-        { role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' },
+        ...scheduleLines(arc, loadedAt),
         ...(cargoVisible
           ? [
               {
@@ -588,6 +588,27 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     station: null,
     lines: [...schedule, second],
   };
+}
+
+/**
+ * **Une arrivée retenue ne se compte pas à rebours** : la colonne se tient à la frontière, elle
+ * ne marche plus, et l'étiquette dit l'heure de la passe. Tant qu'elle marche vers une plage
+ * déjà connue, le compte à rebours reste et la retenue s'annonce sous lui.
+ */
+function scheduleLines(
+  arc: Extract<ArcView, { state: 'mine' }>,
+  loadedAt: number,
+): ReadonlyArray<LabelLine> {
+  const wait = arc.borderWait;
+  if (wait === null) {
+    return [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }];
+  }
+  const resolvesAt = asLocalTime(loadedAt + wait.resolutionInMinutes * 60_000);
+  if (arc.minutesLeft === 0) return [{ role: 'mention', text: fr.labels.arrivalHeld(resolvesAt) }];
+  return [
+    { role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' },
+    { role: 'mention', text: fr.labels.borderHold(resolvesAt) },
+  ];
 }
 
 /** Striking means attacking a nation or raiding an outpost; the rest infiltrates. */

@@ -622,7 +622,7 @@ export const arrive = internalMutation({
     const now = Date.now();
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
-      await ctx.db.patch(movementId, { arrivesAt: held });
+      await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId });
       /** Fiche 11 §4.1. Filed at the hold, once — the reschedule lands past the window, so it
        *  cannot file a second. */

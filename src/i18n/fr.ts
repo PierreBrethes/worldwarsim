@@ -2030,6 +2030,10 @@ export const fr = {
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',
+    /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la
+     *  passe, jamais un compte à rebours de marche. */
+    arrivalHeld: (time: string) => `arrivée retenue · résolution à ${time}`,
+    borderHold: (time: string) => `retenue à la frontière jusqu’à ${time}`,
   },
 
   unitSheets: {

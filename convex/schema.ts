@@ -417,6 +417,11 @@ export default defineSchema({
     troopIds: v.array(v.id('troops')),
     departedAt: v.number(),
     arrivesAt: v.number(),
+    /** The instant the rest window held this arrival at the border. Present, it says that
+     *  `arrivesAt` no longer dates a walk but the pass that will resolve it — without it the
+     *  view reads a seven-hour push back as a column leaving its barracks again. Written once,
+     *  by `arrive`; a return or a resolution ignores it. */
+    heldAt: v.optional(v.number()),
     /**
      * The next mobile encounter reserved for this column. Optional because movements already in
      * flight predate passive ranges. A reassessment cancels the job before replacing these four

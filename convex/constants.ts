@@ -748,7 +748,9 @@ export const REDUCTION_FACTOR = 0.5;
  *  it lasts, so a player who set its length would set how long he is untouchable. He picks when
  *  he sleeps, never how long. */
 export const REST_WINDOW_MINUTES = 7 * 60;
-export const DEFAULT_REST_START_MINUTES = 23 * 60;
+/** En minutes **UTC**, comme tout ce qui touche la plage côté serveur : 23h00 à Paris l'été,
+ *  22h00 l'hiver — la valeur d'avant, écrite dans le fuseau où le serveur la lit. */
+export const DEFAULT_REST_START_MINUTES = 21 * 60;
 
 export const restWindowFrom = (startMinutes: number) => ({
   startMinutes,

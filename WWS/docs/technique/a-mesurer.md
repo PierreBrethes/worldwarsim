@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ad71814 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : dda8fe8 -->
 
 # Les constantes à mesurer
 
@@ -35,9 +35,9 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:694` | placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
 | `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:719` | shaped so the relay reads as a decision rather than a rounding |
 | `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:745` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
-| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:772` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
-| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:785` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
-| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:799` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
+| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:774` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:787` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
+| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:801` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:75` | assumed against the troop ceiling alone — two cargos lift half an army |

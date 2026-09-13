@@ -18,6 +18,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { TelegraphThread } from '@/shell/TelegraphThread';
 import { useTelegraph } from '@/data/telegraph';
 import { asDayAndTime } from '@/domain/duration';
+import { toLocalMinutes, toUtcMinutes } from '@/domain/rest-window';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 
 export const Route = createFileRoute('/salon')({
@@ -480,7 +481,14 @@ function RestWindowForm({
   onError: (message: string | null) => void;
 }) {
   const setRestWindow = useMutation(api.players.setRestWindow);
-  const [start, setStart] = useState(() => asHtmlTime(declared.startMinutes));
+  /**
+   * **On déclare son sommeil à sa montre, le serveur le juge en UTC** : le champ ne montre et ne
+   * lit que de l'heure locale, la conversion tient aux deux bords de ce formulaire.
+   */
+  const offsetMinutes = -new Date().getTimezoneOffset();
+  const [start, setStart] = useState(() =>
+    asHtmlTime(toLocalMinutes(declared.startMinutes, offsetMinutes)),
+  );
   const [saved, setSaved] = useState(false);
 
   return (
@@ -502,7 +510,7 @@ function RestWindowForm({
         type="button"
         onClick={() => {
           onError(null);
-          setRestWindow({ ...seat, startMinutes: asMinutes(start) })
+          setRestWindow({ ...seat, startMinutes: toUtcMinutes(asMinutes(start), offsetMinutes) })
             .then(() => setSaved(true))
             .catch((problem: unknown) => handleError(problem, onError));
         }}

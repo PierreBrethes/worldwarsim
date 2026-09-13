@@ -260,7 +260,7 @@ describe('what the jobs file for the journal', () => {
         restWindow: { startMinutes: 0, endMinutes: REST_WINDOW_MINUTES },
       }),
     );
-    vi.setSystemTime(new Date(2026, 7, 17, 1, 0, 0));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 1, 0, 0)));
 
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const sent = await t.mutation(api.movements.marchTo, {

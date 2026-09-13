@@ -5,6 +5,7 @@ import type { Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
   ARRIVAL_RADIUS_KM,
+  DEFAULT_REST_START_MINUTES,
   nominalStrength,
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
@@ -429,7 +430,7 @@ describe('the rest window holds an arrival at the border', () => {
   afterEach(() => vi.useRealTimers());
 
   it('waits for the window of the player whose home it reaches', async () => {
-    vi.setSystemTime(new Date(2026, 7, 17, 23, 0, 0));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -448,9 +449,11 @@ describe('the rest window holds an arrival at the border', () => {
     const [held] = await movementsOf(t, seat);
     expect(held).toBeDefined();
     expect(held!.type).toBe('attack');
-    // The guest sleeps from 23h00: the column stands at the border until the window closes.
+    // The guest sleeps from 21h00 UTC: the column stands at the border until the window closes.
     const exit = new Date(held!.arrivesAt);
-    expect(exit.getHours() * 60 + exit.getMinutes()).toBe(23 * 60 + REST_WINDOW_MINUTES - 1440);
+    expect(exit.getUTCHours() * 60 + exit.getUTCMinutes()).toBe(
+      (DEFAULT_REST_START_MINUTES + REST_WINDOW_MINUTES) % 1440,
+    );
 
     // Once it closes, the arrival resolves: empty ground, so the column simply walks back.
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -458,8 +461,36 @@ describe('the rest window holds an arrival at the border', () => {
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toBe(barracks);
   });
 
+  /** La vue relisait `arrivesAt` repoussé comme une date de marche : le pion repartait à 5 % du
+   *  trajet avec sept heures devant lui. `heldAt` est ce qui distingue les deux lectures. */
+  it('serves the hold as taken rather than recomputing it from the pushed arrival', async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+
+    const sent = await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PSKOV },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [held] = await movementsOf(t, seat);
+    expect(held!.heldAt).toBe(Date.now());
+    const [arc] = (await t.query(api.view.playerView, seat)).movements!;
+    expect(arc!.heldAt).toBe(held!.heldAt);
+    expect(arc!.holdUntil).toBe(held!.arrivesAt);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await movementsOf(t, seat)).toHaveLength(0);
+  });
+
   it('lets a column reach neutral ground while its neighbour sleeps', async () => {
-    vi.setSystemTime(new Date(2026, 7, 17, 23, 0, 0));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -863,7 +894,7 @@ describe('the preview says what the march will be', () => {
 
   it('names the hour the column would be let in when the arrival bites a rest window', async () => {
     // The guest's declared window opens at 23h00 — the same clock the border test leans on.
-    vi.setSystemTime(new Date(2026, 7, 17, 23, 0, 0));
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 23, 0, 0)));
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);

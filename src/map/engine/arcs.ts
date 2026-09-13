@@ -131,7 +131,10 @@ export class ArcLayer {
         unrolled: unrollRoute(arc.route),
         pawn,
         headPosition,
-        progress: carried?.get(arc.id) ?? arc.progress,
+        /** A column the server says is at the end of its thread wins over the value the loop
+         *  carried: held at the border, its pace is nil, and a pawn carried to 0,98 would
+         *  otherwise stand there for good. */
+        progress: arc.progress >= 1 ? 1 : (carried?.get(arc.id) ?? arc.progress),
         pace: paceOf(arc),
       });
     }
