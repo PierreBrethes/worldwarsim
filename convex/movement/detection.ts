@@ -7,7 +7,7 @@
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { bearingDegrees, distanceKm, type LonLat } from '../../src/domain/geo';
+import { distanceKm, type LonLat } from '../../src/domain/geo';
 import {
   firstMobileEncounter,
   INTERCEPTION_SAMPLES,
@@ -17,6 +17,7 @@ import {
   type MarchingForce,
   type Watcher,
 } from '../../src/domain/interception';
+import { seenSegment } from '../../src/domain/sighting-segment';
 import { movementBehavior } from '../../src/domain/movement-orders';
 import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
@@ -158,14 +159,17 @@ export async function revealSighting(
     at: sighting.from,
     kind: 'movementSighted',
     hostCountry: sighting.detectorHostCountry ?? hostAtPoint(pointOf(movement.from)),
-    headingDegrees: bearingDegrees(pointOf(movement.from), pointOf(movement.to)),
+    /** The heading the column held **on leaving the radius**, the same one the arc serves: a
+     *  bearing from departure to destination would word a dispatch on the one thing the sighting
+     *  no longer grants (design sheet 04, decision 4a of 13/09/2026). */
+    headingDegrees: seenSegment(marchingForce(movement), sighting.from, sighting.to).headingDegrees,
     detector: sighting.detector,
     detectorRegion: sighting.detectorRegion ?? null,
   });
   await ctx.db.patch(sighting._id, { noticeFiled: true, revealJobId: undefined });
 }
 
-const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
+export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   id: movement._id,
   points: movement.points.map(pointOf),
   legs: movement.legs,

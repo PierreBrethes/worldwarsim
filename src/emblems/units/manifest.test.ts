@@ -160,6 +160,7 @@ describe('movementSprites', () => {
       headingAtMe: false,
       identification: { pierced: false },
       estimatedMinutesLeft: null,
+      watchMinutesLeft: 5,
       progress: 0.1,
     };
     expect(movementSprites(enemy, 'france')).toBeNull();
@@ -183,6 +184,7 @@ describe('movementSprites', () => {
       headingAtMe: true,
       identification: { pierced: true, type: 'attack', stack: { armor: 9 } },
       estimatedMinutesLeft: 30,
+      watchMinutesLeft: 9,
       progress: 0.6,
     };
     expect(movementSprites(identified, 'france')).toBeNull();

@@ -37,13 +37,25 @@ export function positionAt(force: MarchingForce, at: number): LonLat {
   if (first === undefined || last === undefined) throw new Error('a force without a route');
   if (points.length === 1 || at <= force.departedAt) return first;
   if (at >= force.arrivesAt) return last;
+  return pointAtDistanceShare(points, distanceProgressAt(force, at));
+}
+
+/**
+ * The one walk down a polyline in this codebase. It is kept apart from the clock because a
+ * sighting segment asks the same question of a share it computed itself — where does the thread
+ * stand at four tenths of its length — and a second walk would be a second answer.
+ */
+export function pointAtDistanceShare(points: ReadonlyArray<LonLat>, share: number): LonLat {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (first === undefined || last === undefined) throw new Error('a force without a route');
+  if (points.length === 1) return first;
 
   const legs = points.slice(1).map((point, index) => distanceKm(points[index]!, point));
   const total = legs.reduce((sum, leg) => sum + leg, 0);
   if (total === 0) return first;
 
-  const progress = distanceProgressAt(force, at);
-  let walked = progress * total;
+  let walked = Math.min(1, Math.max(0, share)) * total;
   for (const [index, leg] of legs.entries()) {
     if (walked > leg && index < legs.length - 1) {
       walked -= leg;

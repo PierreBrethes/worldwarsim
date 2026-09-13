@@ -8,6 +8,7 @@ import {
   isLandCell,
   extendRouteSearch,
   truncateRouteSearch,
+  KM_PER_UNIT,
 } from '../src/domain/routing';
 import type { World } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
@@ -45,6 +46,14 @@ const world = {
 } as unknown as World;
 
 let grid: ReturnType<typeof decodeGrid> | null = null;
+
+/**
+ * **One cell of the raster, in kilometres.** It is the step a heading is prolonged by when a
+ * truncated sighting has to guess whether a column is coming (`headingReachesMe`): the mesh of
+ * this grid is the finest at which this world can say whose ground a point is, so sampling any
+ * tighter would ask the same cell the same question twice.
+ */
+export const GRID_STEP_KM = gridAsset.step * KM_PER_UNIT;
 
 export function routeBetween(
   from: LonLat,

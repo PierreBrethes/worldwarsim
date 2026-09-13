@@ -50,6 +50,12 @@ la dernière position connue.
   géométrie temporelle, à intégrer à la même réévaluation le jour où l'agent existe.
 - Les détecteurs et les mouvements étant bornés par les troupes et les slots, la réévaluation reste
   un coût d'écriture événementiel ; aucune query de joueur ne balaie le plateau.
+- **Le tronçon servi se taille à la lecture, et ça ne change pas le coût** (décision 4a du
+  13/09/2026). Depuis qu'un relevé ne sert plus le fil entier mais la seule part vue, chaque ligne
+  paie un échantillonnage borné — un point par minute de marche, plafonné, plus les sommets du fil
+  traversés. C'est **par ligne `sightings` et non par mouvement** : la query reste sur l'index du
+  joueur, et elle sert *moins* de points qu'avant, un tronçon n'étant qu'une part du trajet.
+  Mesure du banc, huit mouvements vus par un même guetteur : trente et un points par arc.
 
 ## Le même piège au sol
 

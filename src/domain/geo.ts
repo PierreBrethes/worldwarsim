@@ -40,6 +40,37 @@ export function destinationPoint(origin: LonLat, distance: number, bearing: numb
   return [((toDegrees(longitude) + 540) % 360) - 180, toDegrees(latitude)];
 }
 
+/** The length of a polyline, in kilometres. One summation for the whole codebase: a thread's
+ *  length is read by the sighting segment, by the pawn and by the heading estimate, and three
+ *  loops over the same points are three chances to disagree on where half way is. */
+export const pathLengthKm = (points: ReadonlyArray<LonLat>): number =>
+  points.slice(1).reduce((sum, point, index) => sum + distanceKm(points[index]!, point), 0);
+
+/**
+ * **Where a heading would take a column**, sampled every `stepKm` up to `km` and ending exactly
+ * on the far end. It answers the one question a truncated sighting can still ask — *does this
+ * thing come my way* — without a destination to read: the heading is prolonged, and the answer
+ * is an estimate the label already calls one.
+ *
+ * Zero distance is no point at all rather than the origin: a column with nothing left to walk
+ * has no continuation, and returning where it stands would make the caller test a position it
+ * already holds.
+ */
+export function pointsAhead(
+  from: LonLat,
+  headingDegrees: number,
+  km: number,
+  stepKm: number,
+): ReadonlyArray<LonLat> {
+  if (!(km > 0) || !(stepKm > 0)) return [];
+  const points: LonLat[] = [];
+  for (let walked = stepKm; walked < km; walked += stepKm) {
+    points.push(destinationPoint(from, walked, headingDegrees));
+  }
+  points.push(destinationPoint(from, km, headingDegrees));
+  return points;
+}
+
 export function crossesAntimeridian(a: LonLat, b: LonLat): boolean {
   return Math.abs(b[0] - a[0]) > 180;
 }

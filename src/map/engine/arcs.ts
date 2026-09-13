@@ -247,18 +247,20 @@ export class ArcLayer {
 }
 
 /**
- * How fast a column walks its own thread, as a share of the trip per millisecond — derived from
- * the one thing the server dates, the minutes it has left. **Zero is a still pawn and not a bug**:
- * a last known position is a memory, a sea control is a standing fact, and a detected arc whose
- * heading was never pierced has no arrival to count down to. The fog is why the union answers
- * `null` there, and the map must not invent a pace to fill it.
+ * How fast a column walks its own thread, as a share of the thread per millisecond — derived from
+ * the one thing the server dates. For a movement of mine that is the arrival; **for a sighting it
+ * is the close of the window**, because the thread drawn is the watched stretch and the pawn is
+ * due at its end when the watch ends, not when the column lands somewhere nobody was shown.
+ *
+ * **Zero is a still pawn and not a bug**: a last known position is a memory and a sea control a
+ * standing fact. The map must not invent a pace to fill a `null`.
  */
 function paceOf(arc: ArcView): number {
   const left =
     arc.state === 'mine'
       ? arc.minutesLeft
       : arc.state === 'enemyDetected'
-        ? arc.estimatedMinutesLeft
+        ? arc.watchMinutesLeft
         : null;
   if (left === null || left <= 0 || arc.progress >= 1) return 0;
   return (1 - arc.progress) / (left * 60_000);

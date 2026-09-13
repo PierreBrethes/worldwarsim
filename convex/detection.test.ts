@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { distanceKm, type LonLat } from '../src/domain/geo';
+import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
 import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
@@ -515,5 +515,151 @@ describe('what a logistics relay does to a departure', () => {
     });
 
     expect(sent.minutes).toBe(routeMinutes(route.costUnits));
+  });
+});
+
+/**
+ * **Un relevé sert le tronçon vu, le cap à la sortie et l'arrivée estimée — jamais la
+ * destination** (fiche 04 révisée le 13/09/2026, décision 4a). Avant, `detectedArcs` servait le
+ * fil entier et les deux extrémités déclarées : le premier guetteur venu apprenait où allait la
+ * colonne, c'est-à-dire la seule chose que le brouillard est là pour garder.
+ *
+ * Le fil est droit et posé à la main (`moving`) : ce qui est mesuré ici est la troncature, pas le
+ * zigzag d'un Dijkstra sur raster.
+ */
+describe('what a sighting serves of the thread', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HOUR = 3_600_000;
+  const THREAD_KM = 1200;
+  /** The window opens and closes well inside the trip: a sentry standing thirty kilometres off a
+   *  straight thread sees about a hundred kilometres of it, out of twelve hundred. */
+  const SENTRY_AT_KM = 300;
+  const SENTRY_OFF_KM = 30;
+
+  /** A posted troop rather than an outpost: an outpost of mine is **ground of mine**
+   *  (`isAnchored`), and the detector would then answer the "coming for me" question by itself. */
+  async function sentry(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(at) }));
+    return troopId;
+  }
+
+  async function watchedMarch(t: ReturnType<typeof boot>, seat: Seat, guest: Seat) {
+    const from = pointOf(MARNE);
+    const to = eastOf(from, THREAD_KM);
+    await sentry(t, guest, northOf(eastOf(from, SENTRY_AT_KM), SENTRY_OFF_KM));
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(from) }));
+    const movementId = await moving(t, seat, troopId, 'march', from, to, 6 * HOUR);
+    const [window] = await sightingsOf(t, guest);
+    expect(window).toBeDefined();
+    /** Read inside the window, so the arc is the watched state and not yet a memory. */
+    vi.advanceTimersByTime((window!.from + window!.to) / 2 - Date.now());
+    return { from, to, movementId, window: window! };
+  }
+
+  it('serves the stretch between the two dates of the window, and no further', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { from, to, window } = await watchedMarch(t, seat, guest);
+
+    const [seen] = (await t.query(api.view.playerView, guest)).detected;
+    expect(seen).toBeDefined();
+    const served = seen!.points.map((point): LonLat => [point.lon, point.lat]);
+
+    /** Every point served stands on the thread, between where the column was when the window
+     *  opened and where it was when the window closed. */
+    const thread = {
+      id: 'thread',
+      points: [from, to],
+      departedAt: MIDDAY.getTime(),
+      arrivesAt: MIDDAY.getTime() + 6 * HOUR,
+    };
+    const opened = positionAt(thread, window.from);
+    const closed = positionAt(thread, window.to);
+    expect(distanceKm(served[0]!, opened)).toBeLessThan(1);
+    expect(distanceKm(served[served.length - 1]!, closed)).toBeLessThan(1);
+    /** One step of the measuring walk is the tolerance: `nearestApproach` samples the thread, so
+     *  a point sitting exactly on it still reads half a step away. */
+    const step = THREAD_KM / INTERCEPTION_SAMPLES;
+    for (const point of served) expect(nearestApproach([from, to], point)).toBeLessThan(step);
+
+    /** **The destination is not served.** The far end of what travels is the end of the watch. */
+    expect(distanceKm([seen!.to.lon, seen!.to.lat], to)).toBeGreaterThan(500);
+    expect(distanceKm([seen!.to.lon, seen!.to.lat], closed)).toBeLessThan(1);
+    expect(seen!.distanceUnits).toBeLessThan(THREAD_KM / 4);
+  });
+
+  it('serves the heading the column held on leaving the radius', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await watchedMarch(t, seat, guest);
+
+    const [seen] = (await t.query(api.view.playerView, guest)).detected;
+    const served = seen!.points.map((point): LonLat => [point.lon, point.lat]);
+    expect(seen!.headingDegrees).toBeCloseTo(
+      bearingDegrees(served[served.length - 2]!, served[served.length - 1]!),
+      6,
+    );
+    // Due east, on a thread that runs due east.
+    expect(seen!.headingDegrees).toBeGreaterThan(80);
+    expect(seen!.headingDegrees).toBeLessThan(100);
+  });
+
+  /** « Cap sur moi » sans destination : le cap prolongé sur ce qu'il reste à marcher tombe dans
+   *  le rayon d'un de mes points, ou il ne tombe nulle part. C'est une estimation, et l'étiquette
+   *  le dit déjà. */
+  it('turns critical when the prolonged heading reaches ground of mine', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await outpost(t, guest, eastOf(pointOf(MARNE), 800), 'relay');
+    await watchedMarch(t, seat, guest);
+
+    const [seen] = (await t.query(api.view.playerView, guest)).detected;
+    expect(seen!.headingAtMe).toBe(true);
+  });
+
+  it('stays quiet for a column that passes beside me and points elsewhere', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await outpost(t, guest, northOf(eastOf(pointOf(MARNE), 800), 400), 'relay');
+    await watchedMarch(t, seat, guest);
+
+    const [seen] = (await t.query(api.view.playerView, guest)).detected;
+    expect(seen!.headingAtMe).toBe(false);
+  });
+
+  /**
+   * **Le coût, mesuré.** Le calcul est par ligne `sightings` et non par mouvement : huit
+   * mouvements vus valent huit échantillonnages bornés, et la vue reste du même ordre de
+   * grandeur qu'avant la troncature — elle sert même moins de points, un tronçon n'étant qu'une
+   * part du fil.
+   */
+  it('costs one bounded sampling per row, at eight movements watched', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const from = pointOf(MARNE);
+    await sentry(t, guest, northOf(eastOf(from, SENTRY_AT_KM), SENTRY_OFF_KM));
+    for (let index = 0; index < 8; index += 1) {
+      const troopId = await form(t, seat, 'infantry', null);
+      await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(from) }));
+      await moving(t, seat, troopId, 'march', from, eastOf(from, THREAD_KM), 6 * HOUR);
+    }
+    const [window] = await sightingsOf(t, guest);
+    vi.advanceTimersByTime((window!.from + window!.to) / 2 - Date.now());
+
+    const view = await t.query(api.view.playerView, guest);
+
+    expect(view.detected).toHaveLength(8);
+    const served = view.detected.map((seen) => seen.points.length);
+    /** Une trentaine de points par arc sur une fenêtre d'une demi-heure : ~un échantillon par
+     *  minute de marche, borné à 96 + 1 quelle que soit la durée de la fenêtre. */
+    expect(Math.max(...served)).toBeLessThanOrEqual(97);
+    expect(served.reduce((sum, count) => sum + count, 0)).toBeLessThan(800);
   });
 });

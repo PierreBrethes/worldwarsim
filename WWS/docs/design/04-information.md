@@ -104,6 +104,32 @@ effort/plaisir du design.
 
 ## Ce que révèle un mouvement détecté
 
+> ### ⚠️ Révision du 13/09/2026 — le relevé sert le tronçon vu, jamais la destination
+>
+> **Ce que c'était.** `detectedArcs` servait **le fil entier** et **les deux extrémités
+> déclarées** du mouvement. La section disait « le fil, le cap et un horaire estimé » ; servir le
+> fil entier, c'est servir la destination — et le premier guetteur venu apprenait où allait la
+> colonne, gratuitement, du seul fait d'avoir posé un fantassin au bord d'une route.
+>
+> **Ce que c'est.** Un relevé sert **le tronçon que le détecteur a vu** (la fenêtre `sightings`,
+> sa part future comprise — une fenêtre est déjà une prédiction stockée, et le client la découvre
+> en marchant), **le cap de la colonne à sa sortie de portée**, et **l'arrivée estimée**. Rien
+> avant l'ouverture de la fenêtre, rien après sa fermeture : les deux bouts de l'arc sont les deux
+> bouts du tronçon. La destination et le reste du fil attendent l'identification (règle de
+> l'identification ci-dessous — et aucun système ne perce encore, donc jamais pour l'instant).
+>
+> **Trois conséquences de détail.** Le pion marche le tronçon et s'arrête à son bout quand la
+> fenêtre se ferme ; le tronçon figé devient la dernière position connue de l'ADR 0005. Le cap est
+> lu sur les deux derniers points vus, pas d'un bout à l'autre de la fenêtre — une colonne qui
+> tourne dans la fenêtre serait aplatie. Et **« cap sur moi » devient une estimation** : le cap est
+> prolongé sur ce qu'il reste à marcher, par pas d'une cellule de grille, et l'encre critique
+> s'allume si un de ces points tombe sur mon sol ou dans le rayon d'un de mes avant-postes. Une
+> colonne qui passe à côté de moi sans venir pour moi n'est plus critique : c'est voulu, et
+> l'étiquette dit déjà « estimé ».
+>
+> L'ADR 0021 §6 en sort renforcée, pas contredite ; la règle 2 (« les forces posées ne se voient
+> pas de loin ») ne bouge pas. Le reste de la section est conservé tel quel.
+
 Décidé en session (13/08/2026), à l'occasion de la frise des mouvements et du « fil tendu ».
 
 **Trois familles d'affichage, trois encres.** Mes mouvements (encre de ma nation, tout

@@ -52,7 +52,10 @@ export type MovementIdentification =
  * `route` is present in all four states, enemy included: the medium — land, sea or air — of a
  * detected movement is visible (design sheet 04). The thread would betray it anyway. The type
  * and the composition stay out of reach.
- * `from` and `to` remain alongside: they are the declared endpoints, not the polyline followed.
+ * `from` and `to` remain alongside: on a movement of mine they are the declared endpoints, not the
+ * polyline followed. **On an enemy arc they are the two ends of the stretch that was watched** —
+ * the destination is not served at all (design sheet 04, decision 4a of 13/09/2026), and the two
+ * states below carry nothing that could be mistaken for one.
  */
 export type ArcView =
   | {
@@ -101,11 +104,22 @@ export type ArcView =
        *  sighting into a reason to have built the thing that made it. */
       readonly detector: Detector;
       readonly detectorRegion: string | null;
+      /** Where the column was pointing **as it left the radius**, which is what a window's close
+       *  reveals: the far end of the thread served is not a destination. */
       readonly headingDegrees: number;
-      /** The heading cuts through my territory or one of my outposts: the card turns critical. */
+      /**
+       * The heading, prolonged over what the column has left to walk, falls on my territory or
+       * one of my outposts: the card turns critical. An **estimate** since decision 4a — no
+       * destination is served — and the card already says « estimé ».
+       */
       readonly headingAtMe: boolean;
       readonly identification: MovementIdentification;
+      /** When the arrival is due. It times the label's countdown and nothing else: the arrival
+       *  lies past the end of the thread drawn. */
       readonly estimatedMinutesLeft: number | null;
+      /** How long the watch still runs. **It is what paces the pawn**: the pion must reach the
+       *  end of the watched stretch when the window closes, not when the column lands. */
+      readonly watchMinutesLeft: number;
       readonly progress: number;
     }
   | {

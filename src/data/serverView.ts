@@ -8,7 +8,7 @@ import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
 import { arcTiming } from '@/domain/arc-timing';
-import { bearingDegrees, type LonLat } from '@/domain/geo';
+import type { LonLat } from '@/domain/geo';
 import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
@@ -237,28 +237,31 @@ const emptyCargo = () => ({
  * composition or a nation, because the server sent none — `identification` is nailed to
  * `pierced: false` since no system pierces anything yet (design sheet 04).
  *
- * **The window decides the state.** Inside it, the thread is watched and the pawn walks it; past
+ * **The window decides the state.** Inside it, the stretch is watched and the pawn walks it; past
  * its close the arc freezes into the last known position ADR 0005 demands — the information paid
  * for does not evaporate, it ages. `progress` is read at the instant the sighting closed rather
  * than now, which is exactly what "last known" means.
+ *
+ * **Everything here is measured on the window and not on the trip** (decision 4a of 13/09/2026):
+ * the served thread *is* the watched stretch, so the pawn reaches the end of it at `seenTo` and
+ * stops there. `estimatedMinutesLeft` no longer times that walk — it is the arrival the label
+ * counts down to, and the arrival lies beyond everything drawn.
  */
 function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcView {
   const now = Date.now();
-  const span = seen.arrivesAt - seen.departedAt;
+  const window = seen.seenTo - seen.seenFrom;
   const watched = Math.min(now, seen.seenTo);
-  const from: LonLat = [seen.from.lon, seen.from.lat];
-  const to: LonLat = [seen.to.lon, seen.to.lat];
   const shared = {
     id: seen.id,
-    from,
-    to,
+    from: [seen.from.lon, seen.from.lat] as LonLat,
+    to: [seen.to.lon, seen.to.lat] as LonLat,
     route: routeOf(seen),
     /** The one thing on this card that is about the observer rather than about the column: what
      *  of his caught it. It survives into `lastKnown` — a memory keeps the eye that made it. */
     detector: seen.detector,
     detectorRegion: seen.detectorRegion,
-    headingDegrees: bearingDegrees(from, to),
-    progress: span <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.departedAt) / span)),
+    headingDegrees: seen.headingDegrees,
+    progress: window <= 0 ? 1 : Math.min(1, Math.max(0, (watched - seen.seenFrom) / window)),
   };
 
   if (now > seen.seenTo) {
@@ -273,6 +276,7 @@ function asDetectedArc(seen: NonNullable<ServerView['detected']>[number]): ArcVi
     headingAtMe: seen.headingAtMe,
     identification: { pierced: false },
     estimatedMinutesLeft: Math.max(0, (seen.arrivesAt - now) / 60_000),
+    watchMinutesLeft: Math.max(0, (seen.seenTo - now) / 60_000),
   };
 }
 

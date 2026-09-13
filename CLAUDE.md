@@ -85,12 +85,17 @@ fermé. L'ordre de mobilisation en est devenu la première ligne, dépliable
 chaque ligne recentre.
 
 **La détection est passive et suit le rôle** (ADR 0021, révisée le 08/09/2026) : posée ou en
-mouvement, une pile relève à la plus grande portée de ses rôles — un fil, un cap, un horaire
-estimé, un domaine, **jamais le type ni la composition, jamais la nation**. Le relevé se réévalue
+mouvement, une pile relève à la plus grande portée de ses rôles — **le tronçon vu, le cap à la
+sortie, un horaire estimé — jamais la destination** (décision 4a du 13/09/2026), un domaine, et
+**jamais le type ni la composition, jamais la nation**. Le relevé se réévalue
 aux événements et se dénormalise dans la table `sightings` (`observateur, mouvement, tDébut,
 tFin`) : chaque joueur lit son propre index, jamais un filtre sur la table des mouvements
 (`WWS/docs/technique/brouillard-et-fanout.md`). Une fenêtre à venir est annulable et ne produit ni
-arc ni dépêche avant son ouverture ; une fenêtre déjà vue devient la dernière position connue. Le
+arc ni dépêche avant son ouverture ; une fenêtre déjà vue devient la dernière position connue —
+le tronçon figé, pion au bout. Le tronçon et son cap sortent d'une seule fonction pure
+(`src/domain/sighting-segment.ts`, `seenSegment`), que l'arc et la dépêche lisent tous deux ; et
+« cap sur moi » est devenu une **estimation**, le cap prolongé sur ce qu'il reste à marcher par
+pas d'une cellule de grille. Le
 relevé se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches. La
 station d'écoute et l'avant-poste d'écoute existent aussi ; l'agent dormant et la sonde non.
 

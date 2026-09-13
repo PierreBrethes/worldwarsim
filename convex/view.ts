@@ -3,7 +3,10 @@ import { query } from './_generated/server';
 import { fail } from './errors';
 import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import type { LonLat } from '../src/domain/geo';
+import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
+import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
+import { seenSegment } from '../src/domain/sighting-segment';
+import type { OutpostReach } from '../src/domain/outposts';
 import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
@@ -28,6 +31,7 @@ import { engagementsOf } from './combat';
 import { homeSlotReliefOf, queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
+import { marchingForce } from './movement/detection';
 import { heldOver } from './holding';
 import { restHold } from './movements';
 import {
@@ -39,7 +43,7 @@ import {
   regionsOf,
 } from './regions';
 import { anchorOf, isAnchored } from './upkeep';
-import { coastAtPoint, hostAtPoint, landAtPoint } from './routes';
+import { coastAtPoint, GRID_STEP_KM, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
 import {
   concludeOpensAt,
@@ -991,15 +995,18 @@ function named(notice: Doc<'notices'>) {
  * off his own index — the fog is a ledger per observer, never a filtered scan of the movements
  * table (`WWS/docs/technique/brouillard-et-fanout.md`).
  *
- * What travels is the thread, its two endpoints, the media and the two dates. **Neither the type
- * nor the composition nor the nation is here**, and none of them is fetched: that is what design
- * sheet 04 grants an unidentified movement. A sentry watches a column go past; it does not read
- * its flag.
+ * **What travels is the stretch the window covers**, its media, its heading on leaving the radius
+ * and the estimated arrival (design sheet 04, decision 4a of 13/09/2026). Not the whole thread,
+ * and therefore not the destination: serving both declared endpoints taught the first sentry
+ * where the column was going, which is the one thing the fog is there to keep. **Neither the type
+ * nor the composition nor the nation is here** either, and none of them is fetched. A sentry
+ * watches a column go past; it does not read its flag, and it does not read its orders.
  *
- * `headingAtMe` is the third ink of design sheet 04, decided on the destination alone: the
- * arrival lands on ground the player recognises — his own soil, or the reach of one of his
- * outposts. It is the same reading the aim already gives him (`recognises`, `isAnchored`), so
- * the critical ink and the "recognised ground" marker never disagree.
+ * `headingAtMe` is the third ink of design sheet 04 and, without a destination, an **estimate**:
+ * the heading is prolonged over what the column has left to walk, and the ink turns critical if
+ * any of those points falls on ground the player recognises — his own soil, or the reach of one
+ * of his outposts (`isAnchored`, the same reading the aim already gives him). A column that
+ * passes beside him without coming for him is no longer critical; the label says « estimé ».
  */
 async function detectedArcs(
   ctx: QueryCtx,
@@ -1023,18 +1030,30 @@ async function detectedArcs(
     if (sighting.from > now) continue;
     const movement = await ctx.db.get(sighting.movementId);
     if (movement === null) continue;
+    const force = marchingForce(movement);
+    const segment = seenSegment(force, sighting.from, sighting.to);
+    const exit = segment.points[segment.points.length - 1]!;
     seen.push({
       id: movement._id,
-      from: movement.from,
-      to: movement.to,
-      points: movement.points,
-      legs: movement.legs,
-      distanceUnits: movement.distanceUnits,
-      costUnits: movement.costUnits,
+      from: coordsOf(segment.points[0]!),
+      /** The far end of the **stretch**, not of the trip: on a window that closes before the
+       *  arrival these two differ, and that difference is the whole of decision 4a. */
+      to: coordsOf(exit),
+      points: segment.points.map(coordsOf),
+      legs: segment.legs,
+      distanceUnits: segment.distanceUnits,
+      costUnits: segment.costUnits,
       landCost: movement.landCost,
-      departedAt: movement.departedAt,
       arrivesAt: movement.arrivesAt,
-      headingAtMe: isAnchored([movement.to.lon, movement.to.lat], home, anchors),
+      headingDegrees: segment.headingDegrees,
+      headingAtMe: headingReachesMe(
+        force,
+        exit,
+        segment.headingDegrees,
+        sighting.to,
+        home,
+        anchors,
+      ),
       seenFrom: sighting.from,
       seenTo: sighting.to,
       /** **Ce que le joueur a de lui-même**, jamais de la colonne : le détecteur est une ligne
@@ -1045,6 +1064,28 @@ async function detectedArcs(
     });
   }
   return seen;
+}
+
+const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+/**
+ * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination the question is
+ * answered by prolonging the heading from the last point seen, over the distance the column has
+ * left to walk, at the mesh of the very grid that says whose ground a point is. The point seen
+ * counts too: a column caught standing on my soil is coming for me whatever it does next.
+ */
+function headingReachesMe(
+  force: MarchingForce,
+  exit: LonLat,
+  headingDegrees: number,
+  seenTo: number,
+  home: string | null,
+  anchors: ReadonlyArray<OutpostReach>,
+): boolean {
+  const left = pathLengthKm(force.points) * (1 - distanceProgressAt(force, seenTo));
+  return [exit, ...pointsAhead(exit, headingDegrees, left, GRID_STEP_KM)].some((point) =>
+    isAnchored(point, home, anchors),
+  );
 }
 
 /** The region a station listens from, and nothing for the three other detectors: the ground has
