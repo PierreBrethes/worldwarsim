@@ -1,7 +1,7 @@
 import type { LonLat } from '../src/domain/geo';
 import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
-import { foundationFor, type FoundationDebt } from './constants';
+import { foundationFor, settlesDebt, type FoundationDebt } from './constants';
 import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
 import { DEPOSIT_REGIONS, depositOfRegion } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
@@ -189,10 +189,16 @@ export const homeDepositsOf = (nation: string | null): ReadonlySet<DepositKey> =
   return (country === null ? undefined : DEPOSITS_BY_COUNTRY.get(country)) ?? NOTHING;
 };
 
-/** The whole foundation of a nation, owed or already standing — what `foundationOwed` counts
- *  down from, and what a placement budget leaves out of its count (ADR 0020 §10). */
+/**
+ * The whole foundation of a nation, owed or already standing — what `foundationOwed` counts
+ * down from, and what a placement budget leaves out of its count (ADR 0020 §10).
+ *
+ * **Un drapeau non pris ne doit rien**, pas même son quartier général : le salon lit une place
+ * avant qu'elle ait choisi, et un socle sans sol est une dette impayable. C'est ici que la garde
+ * se pose et non dans `foundationFor`, qui ne connaît que des gisements.
+ */
 export const foundationOf = (nation: string | null): ReadonlyArray<FoundationDebt> =>
-  foundationFor(homeDepositsOf(nation));
+  isNation(nation) ? foundationFor(homeDepositsOf(nation)) : [];
 
 /**
  * **What the season still owes this nation, in placement order.** The join of the two halves:
@@ -205,7 +211,8 @@ export const foundationOf = (nation: string | null): ReadonlyArray<FoundationDeb
  * **Une dette s'acquitte sur son gisement, jamais sur sa seule clé.** Les deux mines d'un pays
  * qui a du fer et du charbon sont deux dettes distinctes : deux mines posées sur du charbon en
  * soldent une seule, et celle du fer reste offerte. Un bâtiment posé sur une région sans
- * gisement — hors socle par nature — ne solde rien.
+ * gisement — hors socle par nature — ne solde rien. La seule dette que le sol ne nomme pas est le
+ * quartier général, et elle se solde par un QG debout **quelle que soit sa région** (`settlesDebt`).
  */
 export function foundationOwed(
   nation: string | null,
@@ -213,7 +220,7 @@ export function foundationOwed(
 ): ReadonlyArray<FoundationDebt> {
   const owed = [...foundationOf(nation)];
   for (const held of standing) {
-    const rank = owed.findIndex((due) => due.key === held.key && due.deposit === held.deposit);
+    const rank = owed.findIndex((due) => settlesDebt(due, held));
     if (rank >= 0) owed.splice(rank, 1);
   }
   return owed;
@@ -232,10 +239,12 @@ export const adm0Of = (worldCountry: string | null): string => {
 };
 
 /**
- * Where the headquarters already stands when a season opens (ADR 0015): the 1940 capital, as
- * an admin-1 code of `region-index.json`. **A nation has a capital, it does not build one** —
- * the single exception to "a building is put up or it does not exist", written here rather
- * than emerging from a floor in `levelOf`.
+ * **La capitale de 1940**, comme code admin-1 de `region-index.json`. Elle ne porte plus aucun
+ * bâtiment : depuis la décision 1b du 13/09, le quartier général se pose (révision de l'ADR
+ * 0015), et ce qui reste à cette table est ce qu'elle a toujours vraiment été — **le seul point
+ * qu'on connaisse d'une nation avant qu'elle ait rien bâti**. Elle sert le repli d'une troupe
+ * sans adresse (`surveys.ts`, `movement/arrival.ts`, `movement/detection.ts`) et le cadrage
+ * d'ouverture d'un joueur dont le QG n'est pas encore debout (`view.ts`).
  *
  * Natural Earth cuts as it pleases, so three of the eight need saying out loud.
  */
@@ -251,9 +260,9 @@ const CAPITAL_REGION: Readonly<Record<Nation, string>> = {
 };
 
 /**
- * A capital that resolves to nothing would hand a player no headquarters, hence no slots and
- * no buildable anything — a symptom appearing hours away from its cause. So it fails at the
- * launch instead, loudly.
+ * Une capitale qui ne résout rien laisserait une colonne sans adresse de repli et un plateau
+ * sans cadrage d'ouverture — un symptôme qui paraît à des heures de sa cause. Elle échoue donc
+ * là où on la lit, bruyamment.
  *
  * The table travels as a parameter for one reason: it is the only way to test that refusal
  * without shipping a broken code.

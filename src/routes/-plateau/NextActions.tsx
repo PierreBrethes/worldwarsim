@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { fr } from '@/i18n/fr';
-import type { DepositKey } from '@/domain/ids';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import {
@@ -32,9 +31,11 @@ export function NextActions({
 }: {
   view: PlayerView;
   placements: ReadonlyArray<FoundationPlacement>;
-  armed: DepositKey | null;
+  /** L'identité de la dette armée (`debtKey`), jamais son gisement seul : le quartier
+   *  général n'en a pas, et deux mines dues ne se distinguent que par le leur. */
+  armed: string | null;
   error: string | null;
-  onArm: (deposit: DepositKey | null) => void;
+  onArm: (debt: string | null) => void;
   onGoToMap: (point: LonLat) => void;
   onOpenSurface: (surface: NextActionSurface) => void;
   /** Recentrer **et** ouvrir : une caserne au repos se lève sur la carte, pas dans un onglet. */

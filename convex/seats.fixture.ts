@@ -3,6 +3,8 @@ import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { nicknameKey } from '../src/domain/account';
+import { isNation } from '../src/domain/nations';
+import { capitalRegionOf } from './regions';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -88,6 +90,32 @@ export async function seatIn(ctx: QueryCtx, seat: Seat): Promise<Doc<'players'>>
 /** La même lecture, depuis le banc. */
 export const seatDoc = (t: Bench, seat: Seat): Promise<Doc<'players'>> =>
   t.run((ctx) => seatIn(ctx, seat));
+
+/**
+ * **Le quartier général, posé.** Depuis la décision 1b du 13/09 il n'est plus planté au
+ * lancement : il est la première dette du socle, et tant qu'il est dû le serveur refuse toute
+ * autre clé (`HQ_FIRST`). Presque toute suite le veut donc debout avant sa première mesure — et
+ * répéter la pose dans dix-huit fichiers serait dix-huit endroits à corriger le jour où elle
+ * change.
+ *
+ * Il va sur la **capitale de 1940** par défaut, là où `endow` le plantait : une suite qui ne
+ * parle pas de lui mesure ainsi exactement ce qu'elle mesurait avant. Celles qui veulent voir la
+ * décision — un gisement sacrifié, un sol refusé — nomment leur région.
+ *
+ * Il amène sa compagnie d'infanterie en garnison, comme la dotation le faisait
+ * (`constructions.garrisonTheGift`).
+ */
+export async function placeHq(t: Bench, seat: Seat, regionId?: string): Promise<string> {
+  const region =
+    regionId ??
+    (await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      if (!isNation(player.nation)) throw new Error('seat without a nation');
+      return capitalRegionOf(player.nation);
+    }));
+  await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: region });
+  return region;
+}
 
 /** Les lignes d'accueil du compte qui tient cette place — ce que `accounts.seats` sert. */
 export const seatsOf = (t: Bench, seat: Seat) => t.query(api.accounts.seats, { token: seat.token });

@@ -27,6 +27,7 @@ import {
   buildCost,
   buildMinutes,
   homeSlots,
+  nominalStrength,
   unlockLevel,
 } from './constants';
 import {
@@ -40,7 +41,7 @@ import { clipToStorage, settle } from './resources';
 import regionIndex from '../public/region-index.json';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
@@ -64,7 +65,12 @@ const CALAIS_SHORE = { lon: 2.31, lat: 50.63 };
 const ENGLISH_SHORE = { lon: -1.95, lat: 50.85 };
 const MOSELLE_POINT = regionFacts(MOSELLE)!.point;
 
-async function launchedSeason(
+/**
+ * **Une saison lancée, et rien de posé** — l'état réel d'un joueur à la première minute depuis la
+ * décision 1b du 13/09. Tout ce qui mesure une économie passe par `launchedSeason`, qui pose le
+ * quartier général aussitôt ; ce qui mesure la **pose elle-même** part d'ici.
+ */
+async function launchedWithoutHq(
   t: ReturnType<typeof boot>,
   durationHours: 48 | 168 = 48,
   nation = 'france',
@@ -80,6 +86,21 @@ async function launchedSeason(
   });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  return seat;
+}
+
+/**
+ * La même, quartier général posé sur la capitale — là où la saison le plantait jusqu'au 13/09.
+ * Rien d'autre ne se bâtit avant lui (`HQ_FIRST`), donc toute suite qui mesure autre chose le
+ * veut debout, et au même endroit qu'avant pour que ses chiffres disent la même chose.
+ */
+async function launchedSeason(
+  t: ReturnType<typeof boot>,
+  durationHours: 48 | 168 = 48,
+  nation = 'france',
+) {
+  const seat = await launchedWithoutHq(t, durationHours, nation);
+  await placeHq(t, seat);
   await disbandTheGift(t, seat);
   return seat;
 }
@@ -741,8 +762,9 @@ describe('placement', () => {
  * the warehouse and the arsenal, which are decisions and not ground.
  */
 describe('the foundation a nation is owed', () => {
-  it('owes France its two mines, its farm and its mill, and no well', () => {
+  it('owes France its headquarters, its two mines, its farm and its mill, and no well', () => {
     expect(foundationOwed('france', [])).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'ore' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
@@ -754,6 +776,7 @@ describe('the foundation a nation is owed', () => {
    *  carries a well, alongside the Soviet Union. */
   it('owes the United States the same, plus the well its oil carries', () => {
     expect(foundationOwed('usa', [])).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'ore' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
@@ -766,6 +789,7 @@ describe('the foundation a nation is owed', () => {
    *  had no road to any — an unplayable nation rather than a shaped one. */
   it('owes Japan four extractors now that its ore exists, and still no well', () => {
     expect(foundationOwed('japan', []).map((due) => due.key)).toEqual([
+      'hq',
       'mine',
       'mine',
       'farm',
@@ -802,12 +826,14 @@ describe('the foundation a nation is owed', () => {
    *  and the third is paid for like anything else. */
   it('lets a standing key settle one debt at a time', () => {
     expect(foundationOwed('france', [{ key: 'mine', deposit: 'ore' }])).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
       { key: 'mill', deposit: 'textile' },
     ]);
     expect(
       foundationOwed('france', [
+        { key: 'hq', deposit: null },
         { key: 'mine', deposit: 'ore' },
         { key: 'mine', deposit: 'coal' },
         { key: 'farm', deposit: 'food' },
@@ -834,6 +860,7 @@ describe('the foundation a nation is owed', () => {
         { key: 'mine', deposit: 'coal' },
       ]),
     ).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'ore' },
       { key: 'farm', deposit: 'food' },
       { key: 'mill', deposit: 'textile' },
@@ -844,6 +871,7 @@ describe('the foundation a nation is owed', () => {
         { key: 'mine', deposit: 'ore' },
       ]),
     ).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'farm', deposit: 'food' },
       { key: 'mill', deposit: 'textile' },
     ]);
@@ -892,13 +920,15 @@ describe('the foundation the season owes', () => {
       };
     },
     key: BuildingKey,
-    /** La dette nomme son gisement : la mine du fer ne se pose pas sur du charbon (`owedFreely`). */
-    deposit?: DepositKey,
+    /** La dette nomme son gisement : la mine du fer ne se pose pas sur du charbon (`owedFreely`).
+     *  `null` est la dette que le sol ne nomme pas — le quartier général, que n'importe quelle
+     *  région libre acquitte. */
+    deposit?: DepositKey | null,
   ): string | null =>
     view.me.regions.find(
       (region) =>
         region.buildings.length === 0 &&
-        (deposit === undefined || region.deposit === deposit) &&
+        (deposit === undefined || deposit === null || region.deposit === deposit) &&
         placementRefusal(
           key,
           region,
@@ -1168,9 +1198,10 @@ describe('the foundation the season owes', () => {
    * cutting starts balancing the season — Germany capped at 16 Länder where the United Kingdom
    * has 232.
    *
-   * The headquarters, the widest foundation (5) and `2 × MAX_HQ_LEVEL` (10) make **exactly**
-   * sixteen. It passes at zero margin: a `MAX_HQ_LEVEL` of 6, or a `PLACEMENTS_PER_HQ_LEVEL`
-   * of 3, would bring it down — and for Germany alone, which is the whole reason it is written.
+   * La plus large fondation (6, quartier général compris depuis la décision 1b du 13/09) et
+   * `2 × MAX_HQ_LEVEL` (10) font **exactement** seize. It passes at zero margin: a `MAX_HQ_LEVEL`
+   * of 6, or a `PLACEMENTS_PER_HQ_LEVEL` of 3, would bring it down — and for Germany alone,
+   * which is the whole reason it is written.
    */
   it('keeps a full national ground inside the region count of the smallest nation', () => {
     const countries = Object.values(regionIndex.country);
@@ -1181,22 +1212,96 @@ describe('the foundation the season owes', () => {
     expect(smallest).toBe(16); // Germany, counted in Länder
 
     const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
-    expect(1 + widest + homeSlots(MAX_HQ_LEVEL)).toBeLessThanOrEqual(smallest);
+    expect(widest + homeSlots(MAX_HQ_LEVEL)).toBeLessThanOrEqual(smallest);
     expect(PLACEMENTS_PER_HQ_LEVEL * MAX_HQ_LEVEL).toBe(10);
   });
 });
 
-describe('the headquarters at launch', () => {
-  it('stands on the capital at the level the season plants it, and nothing else stands', async () => {
+/**
+ * **Le quartier général se pose, il n'est plus planté** (décision 1b du 13/09, révision des ADR
+ * 0015 et 0017 §2). Ce qui a rouvert la question : une bâtisse par région, donc un gisement sous
+ * le QG est un gisement perdu — c'est au joueur de choisir ce qu'il sacrifie.
+ */
+describe('the headquarters the player puts up', () => {
+  it('opens the foundation, and nothing else goes up before it', async () => {
     const t = boot();
-    const seat = await launchedSeason(t);
-    const level = HQ_LEVEL_AT_LAUNCH;
+    const seat = await launchedWithoutHq(t);
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.buildings).toEqual([]);
+    expect(view.me.hqLevel).toBe(0);
+    expect(view.me.foundation[0]).toEqual({ key: 'hq', deposit: null });
+    // La mine est offerte elle aussi, et elle attend quand même : le QG d'abord.
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE }),
+    ).rejects.toThrow('HQ_FIRST');
+  });
+
+  /** Gratuit, immédiat, au niveau du lancement — et il amène sa compagnie, que la dotation
+   *  donnait jusqu'au 13/09. */
+  it('goes down for nothing, standing at once, with the company the launch used to give', async () => {
+    const t = boot();
+    const seat = await launchedWithoutHq(t);
+    const opening = await t.query(api.view.playerView, seat);
+
+    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE });
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.construction).toBeNull();
+    expect(view.me.buildings).toEqual([
+      expect.objectContaining({ key: 'hq', regionId: MARNE, level: HQ_LEVEL_AT_LAUNCH }),
+    ]);
+    expect(view.me.resources.alloy.stock).toBe(opening.me.resources.alloy.stock);
+    expect(view.me.foundation.some((due) => due.key === 'hq')).toBe(false);
+    const hq = view.me.buildings[0]!;
+    expect(view.me.troops).toEqual([
+      expect.objectContaining({
+        role: 'infantry',
+        tier: 1,
+        strength: nominalStrength('infantry', 1),
+      }),
+    ]);
+    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+  });
+
+  it('is refused a second time, wherever it is aimed', async () => {
+    const t = boot();
+    const seat = await launchedWithoutHq(t);
+    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MARNE });
+
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: ARDENNES }),
+    ).rejects.toThrow('HQ_ALREADY_BUILT');
+  });
+
+  /**
+   * **Le sacrifice, exécutable.** Le QG prend la région où il se pose, gisement compris — et la
+   * mine que le socle y devait n'a plus de sol. C'est l'enjeu qui a rouvert la décision, et la
+   * dette du charbon reste due ailleurs plutôt que de disparaître avec la région.
+   */
+  it('takes a deposit region if that is where the player wants it, and the mine loses it', async () => {
+    const t = boot();
+    const seat = await launchedWithoutHq(t);
+    await t.mutation(api.constructions.start, { ...seat, building: 'hq', regionId: MOSELLE });
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.buildings).toEqual([
-      expect.objectContaining({ key: 'hq', regionId: PARIS, level }),
+      expect.objectContaining({ key: 'hq', regionId: MOSELLE, level: HQ_LEVEL_AT_LAUNCH }),
     ]);
-    expect(view.me.hqLevel).toBe(level);
+    expect(view.me.foundation).toContainEqual({ key: 'mine', deposit: 'coal' });
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'mine', regionId: MOSELLE }),
+    ).rejects.toThrow('REGION_TAKEN');
+    // Et le charbon se prend ailleurs : la dette suit le gisement, pas la région perdue.
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'mine',
+      regionId: PAS_DE_CALAIS,
+    });
+    expect((await t.query(api.view.playerView, seat)).me.foundation).not.toContainEqual({
+      key: 'mine',
+      deposit: 'coal',
+    });
   });
 
   /** The point of the whole rule: the first construction of a season is a choice again. */
@@ -1579,13 +1684,15 @@ describe('one building per region, and a global ceiling', () => {
     const t = boot();
     const seat = await launchedSeason(t, 168, 'usa');
 
-    const owed = foundationOwed('usa', []);
-    expect(owed.map((due) => due.key)).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
     const slots = homeSlots(HQ_LEVEL_AT_LAUNCH);
 
     // Filled on bare American regions: a deposit region would starve the debt of ground, and
     // what has to be full here is the *count*, never the map.
     const opening = await t.query(api.view.playerView, seat);
+    /** Ce que la saison doit **encore** : le quartier général ouvre le socle, mais il est déjà
+     *  posé — rien d'autre n'aurait pu l'être avant lui (`HQ_FIRST`). */
+    const owed = opening.me.foundation;
+    expect(owed.map((due) => due.key)).toEqual(['mine', 'mine', 'farm', 'mill', 'oilWell']);
     const bare = opening.me.regions
       .filter((region) => region.deposit === null && region.buildings.length === 0)
       .slice(0, slots);

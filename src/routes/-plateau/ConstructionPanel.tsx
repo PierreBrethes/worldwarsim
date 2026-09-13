@@ -255,7 +255,11 @@ function FoundationNotice({ owed }: { owed: PlayerView['me']['foundation'] }) {
     <p className="mt-2 shrink-0 border border-[var(--ink)] px-2 py-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
       {fr.construction.foundationNotice(
         owed
-          .map((due) => fr.mobilization.onDeposit(fr.buildings[due.key], fr.deposits[due.deposit]))
+          .map((due) =>
+            due.deposit === null
+              ? fr.mobilization.anywhereAtHome(fr.buildings[due.key])
+              : fr.mobilization.onDeposit(fr.buildings[due.key], fr.deposits[due.deposit]),
+          )
           .join(', '),
       )}
     </p>

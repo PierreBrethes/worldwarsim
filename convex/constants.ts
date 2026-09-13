@@ -8,7 +8,7 @@
 
 import type { BuildingKey, DepositKey, ResourceKey, UnitRole } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
-import type { Conversion } from '../src/domain/economy';
+import type { Conversion, FoundationDebt } from '../src/domain/economy';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
 import type { UnitTier } from '../src/domain/troops';
 
@@ -159,7 +159,8 @@ export const homeSlots = (hqLevel: number): number => PLACEMENTS_PER_HQ_LEVEL * 
  * table, jamais une clé de format posée à côté d'un taux d'extraction.
  */
 
-/** Where the headquarters stands from the first minute (ADR 0015). */
+/** Le niveau auquel le quartier général se pose — la première dette du socle depuis la décision
+ *  1b du 13/09, et non plus un bâtiment planté sur la capitale (révision de l'ADR 0015). */
 export const HQ_LEVEL_AT_LAUNCH = 1;
 export const MAX_HQ_LEVEL = 5;
 
@@ -221,21 +222,28 @@ export const FOUNDATION_EXTRACTORS: Readonly<Record<DepositKey, BuildingKey>> = 
   oil: 'oilWell',
 };
 
-/**
- * **Une dette de socle est un couple, pas une clé** : la mine offerte pour le fer ne s'acquitte
- * que sur une région de fer. Comptée par clé, deux mines posées sur du charbon soldaient les deux
- * dettes et le fer se payait ensuite au prix fort — la ressource qui fait tout le reste.
- */
-export type FoundationDebt = { readonly key: BuildingKey; readonly deposit: DepositKey };
+/** La dette et sa règle d'accord vivent dans le domaine pur, où les deux bouts les lisent
+ *  (`src/domain/economy.ts`) ; ce fichier ne garde que la **liste**, qui est un chiffre. */
+export type { FoundationDebt };
+export { settlesDebt } from '../src/domain/economy';
 
-/** It takes the deposits rather than the nation on purpose: **this file is read by the client**,
- *  and reaching for the map here would drag 312 kB of `region-index.json` into the bundle. The
- *  join with a nation is `foundationOwed`, in `regions.ts`. */
-export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<FoundationDebt> =>
-  FOUNDATION_ORDER.filter((deposit) => deposits.has(deposit)).map((deposit) => ({
+/**
+ * It takes the deposits rather than the nation on purpose: **this file is read by the client**,
+ * and reaching for the map here would drag 312 kB of `region-index.json` into the bundle. The
+ * join with a nation is `foundationOwed`, in `regions.ts`.
+ *
+ * **Le quartier général ouvre la liste** (décision 1b du 13/09, révision de l'ADR 0015) : il
+ * n'est plus planté sur la capitale de 1940, il entre dans le socle comme première dette — et
+ * comme rien d'autre ne se bâtit sans lui (`UNLOCKED_AT`, tout à 1), l'ordre n'est pas une
+ * présentation, c'est la seule séquence que le serveur accepte.
+ */
+export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<FoundationDebt> => [
+  { key: 'hq', deposit: null },
+  ...FOUNDATION_ORDER.filter((deposit) => deposits.has(deposit)).map((deposit) => ({
     key: FOUNDATION_EXTRACTORS[deposit],
     deposit,
-  }));
+  })),
+];
 
 export const LEVEL_COST_FACTOR = 1.8;
 

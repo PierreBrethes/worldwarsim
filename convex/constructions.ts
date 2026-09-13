@@ -10,6 +10,7 @@ import { depositOfRegion } from '../src/domain/world';
 import { nearestOutpost } from '../src/domain/outposts';
 import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
 import {
+  HQ_LEVEL_AT_LAUNCH,
   LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
   outpostReachKm,
@@ -17,6 +18,8 @@ import {
   buildCost,
   buildMinutes,
   homeSlots,
+  nominalStrength,
+  settlesDebt,
 } from './constants';
 import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
@@ -40,7 +43,8 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
  * A first level only: raising a building is never a debt the season owes.
  *
  * **La dette se lit sur le gisement de la région visée**, pas sur la seule clé : une seconde
- * mine posée sur du charbon se paie, et celle du fer reste offerte.
+ * mine posée sur du charbon se paie, et celle du fer reste offerte. Le quartier général est la
+ * dette que le sol ne nomme pas (`settlesDebt`) : il s'acquitte où le joueur le pose.
  */
 const owedFreely = (
   nation: string | null,
@@ -52,7 +56,7 @@ const owedFreely = (
   foundationOwed(
     nation,
     buildings.map((held) => ({ key: held.key, deposit: depositOfRegion(held.regionId) })),
-  ).some((due) => due.key === building && due.deposit === depositOfRegion(regionId));
+  ).some((due) => settlesDebt(due, { key: building, deposit: depositOfRegion(regionId) }));
 
 /**
  * **A point belongs to the port, and to its placement, and to nothing else** (ADR 0013,
@@ -135,15 +139,21 @@ export const start = mutation({
      * mill the day it did (19/08).
      */
     if (owedFreely(player.nation, buildings, building, regionId)) {
-      await ctx.db.insert('buildings', {
+      /** **Le QG se pose au niveau du lancement**, les extracteurs au premier — la seule
+       *  différence entre les dettes du socle, et elle vient de l'ADR 0017 §2 : ce que le
+       *  quartier général ouvre (les paliers, les emplacements, les slots) n'a jamais été une
+       *  décision du joueur, seulement l'endroit. */
+      const placed = building === 'hq' ? HQ_LEVEL_AT_LAUNCH : 1;
+      const standingId = await ctx.db.insert('buildings', {
         seasonId: season._id,
         playerId: player._id,
         key: building,
         regionId,
-        level: 1,
+        level: placed,
         ...anchored(await anchorAt(ctx, player, regionId)),
       });
-      return { finishesAt: now, cost: {}, level, rank: null };
+      if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
+      return { finishesAt: now, cost: {}, level: placed, rank: null };
     }
 
     const costKey = standing === undefined ? building : buildingCostKey(standing);
@@ -167,6 +177,39 @@ export const start = mutation({
     return { finishesAt: written?.finishesAt ?? null, cost, level, rank };
   },
 });
+
+/**
+ * **Une compagnie d'infanterie, en garnison au quartier général** (décision du 25/08, déplacée
+ * le 13/09). Une nation qui ouvre sans rien debout n'a aucune réponse à une colonne qui entre
+ * chez elle le premier soir, et une caserne est à trois décisions de là.
+ *
+ * Elle naissait à la dotation ; elle naît maintenant avec le QG, parce que c'est lui qui lui
+ * donne une adresse — et jamais à une élévation : seul le premier QG, celui que le socle offre,
+ * l'amène.
+ *
+ * La conséquence est acceptée plutôt qu'esquivée : cette compagnie compte dans le **nominal**
+ * que la règle de réduction mesure (`src/domain/victory.ts`), donc un joueur qui ne tient que
+ * son infanterie offerte et la perd tombe sous la moitié de son nominal — scalpable par qui la
+ * lui a prise. C'est le prix d'ouvrir avec une défense, et la forme dont la victoire de test doit
+ * être remplacée, jamais rafistolée.
+ */
+async function garrisonTheGift(
+  ctx: MutationCtx,
+  player: Doc<'players'>,
+  seasonId: Id<'seasons'>,
+  hq: Id<'buildings'>,
+): Promise<void> {
+  const strength = nominalStrength('infantry', 1);
+  await ctx.db.insert('troops', {
+    seasonId,
+    playerId: player._id,
+    role: 'infantry',
+    tier: 1,
+    nominalStrength: strength,
+    currentStrength: strength,
+    stationedAt: hq,
+  });
+}
 
 /**
  * Only what has not started gets refunded — the patron of `troops.cancel`, and for the same
@@ -355,6 +398,15 @@ async function refusalFor(
   }
 
   /**
+   * **Le quartier général d'abord** (décision 1b du 13/09). Ce n'est pas une seconde garde : à
+   * niveau 0 `placementRefusal` refuse déjà toute autre clé, puisque `UNLOCKED_AT` les demande
+   * toutes à 1. Ce qu'il en sortait était `BUILDING_LOCKED` — « la mine demande un quartier
+   * général de niveau 1 » —, une phrase qui nomme un palier là où il n'y a qu'un ordre de pose.
+   * Le refus est donc renommé ici, là où la cause est lisible, et pas ajouté.
+   */
+  if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
+
+  /**
    * **One entry per region, standing or queued.** The ground under a pledge is taken though
    * nothing rises on it yet: two entries aiming at the same region would leave two buildings
    * on it once the second `finish` lands, and a raise queued twice would bill a level nobody
@@ -386,8 +438,10 @@ async function refusalFor(
 
   /**
    * **A key the season owes is never refused by the placements** (decision of 25/08). It was,
-   * and it made a debt of the season unpayable by a rule of the season: the headquarters is
-   * planted at 1, which carries two placements, and an American ground is owed five extractors.
+   * and it made a debt of the season unpayable by a rule of the season: an American ground is
+   * owed five extractors where a level-1 headquarters carries two placements. Depuis le 13/09 le
+   * QG lui-même en dépend — `homeSlots(0)` vaut zéro, et sa propre pose serait refusée par le
+   * budget d'un sol qu'il n'a pas encore ouvert.
    *
    * Since ADR 0020 §10 the foundation is out of the count altogether (`sitesOf`), so this only
    * covers the moment of the placement itself — the debt outranks a site already full, and what

@@ -160,6 +160,20 @@ plutôt que par une relecture.
 
 ### Le quartier général existe au lancement
 
+> **Révisé le 13/09/2026 — décision 1b : le joueur pose son quartier général.** Il n'est plus
+> planté sur la capitale de 1940 : il est la **première dette du socle** (ADR 0017 §2),
+> facturée zéro, terminée immédiatement, au niveau du lancement, et posée où le joueur veut
+> **sur son sol national**. Ce qui a rouvert la question, et que la section ci-dessous écartait
+> faute d'enjeu : une bâtisse par région, donc un gisement sous le QG est un gisement perdu — au
+> joueur de choisir ce qu'il sacrifie. Sur les huit capitales une seule en porte un (Chongqing) :
+> l'enjeu est mince, la décision est prise. Ce qui **tient** de la section : le QG plafonne tout
+> le reste, donc rien ne se bâtit avant lui — la règle émergente est devenue un refus qui se lit
+> (`HQ_FIRST`) au lieu d'un palier qui ne dit pas son nom. Ce qui **tombe** : « une nation a une
+> capitale, elle ne la construit pas », et l'adresse connue de tous dès la première minute. La
+> table `CAPITAL_REGION` survit pour ce qu'elle a toujours vraiment été — le seul point qu'on
+> connaisse d'une nation qui n'a rien bâti : le repli d'une troupe sans adresse, et le cadrage
+> d'ouverture du plateau.
+
 Depuis que « niveau 1 est le plancher » a disparu, un bâtiment absent est au niveau 0. Or le QG
 plafonne tous les autres : à zéro, il les bloque tous. **Le premier chantier d'une saison était
 donc forcément le QG, sans qu'aucune règle ne le dise** — une règle émergente, invisible dans la

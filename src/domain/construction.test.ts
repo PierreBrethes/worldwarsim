@@ -229,6 +229,29 @@ describe('a placement the foundation owes, beside a queue', () => {
   it('offers nothing at all on the region an entry of the queue aims at', () => {
     expect(buildableOn(site(owedSite({ constructionHere: true })), CATALOG)).toEqual([]);
   });
+
+  /**
+   * **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). À zéro,
+   * il est la seule chose qu'on offre — et il est offert sur n'importe quelle région, gisement
+   * ou non, ce qui est exactement la liberté que la décision achète.
+   */
+  const HQ_OWED = [{ key: 'hq', deposit: null }] as const;
+
+  it('offers the headquarters alone while it is owed, and on any ground', () => {
+    for (const deposit of [null, 'coal'] as const) {
+      const options = buildableOn(
+        site({ hqLevel: 0, taken: 0, slots: 0, deposit, foundation: HQ_OWED }),
+        CATALOG,
+      );
+      expect(options.map((option) => option.key)).toEqual(['hq']);
+      expect(options[0]).toMatchObject({ free: true, cost: {}, minutes: 0, hold: null });
+    }
+  });
+
+  /** Et plus jamais ensuite : rien ne remplace un quartier général debout. */
+  it('stops offering it the moment one stands', () => {
+    expect(keysOn({ hqLevel: 1, foundation: [] })).not.toContain('hq');
+  });
 });
 
 describe('what holds a raise back', () => {

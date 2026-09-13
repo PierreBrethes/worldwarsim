@@ -21,7 +21,7 @@ import {
 } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
@@ -43,6 +43,7 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await placeHq(t, seat);
   await disbandTheGift(t, seat);
   return seat;
 }

@@ -166,8 +166,18 @@ immédiatement — **toutes les autres règles de pose continuent de s'appliquer
 gisement requis, une bâtisse par région, pays d'origine, plafond de bâtiments porté par le QG,
 chantier unique. Aucune pose automatique : une saison lancée dont le socle n'est pas posé est un
 état normal, et l'écran le dit (`fr.construction.foundationNotice`, en tête du panneau de
-placement). Le QG, lui, reste planté au niveau du format dès le lancement (ADR 0015) : il
-n'entre pas dans ce mécanisme.
+placement).
+
+> **Révisé le 13/09/2026 — décision 1b : le QG entre dans le socle.** Il était planté sur la
+> capitale de 1940 au niveau du lancement et n'entrait pas dans ce mécanisme. Il en est
+> désormais la **première dette** — `{ key: 'hq', deposit: null }` —, facturée zéro, terminée
+> immédiatement, au niveau `HQ_LEVEL_AT_LAUNCH`, et le joueur la pose où il veut **sur son sol
+> national**. L'enjeu qui l'a rouvert : une bâtisse par région, donc un gisement sous le QG est
+> un gisement perdu, et c'est au joueur de choisir ce qu'il sacrifie. Tant qu'il est dû, rien
+> d'autre ne se pose (`HQ_FIRST`) — ce que `UNLOCKED_AT` refusait déjà, mais en nommant un
+> palier au lieu d'un ordre. La compagnie d'infanterie du lancement naît **avec lui**, en
+> garnison, et jamais à une élévation. Sur les huit capitales une seule porte un gisement
+> (Chongqing) : l'enjeu est mince, la décision est prise.
 
 Le pourquoi est mesuré : après le socle, le joueur assidu en 48 h prend **30 actions pour 1
 connexion vide sur 12**, contre 8 actions pour 4 connexions vides avant. Et sur les quinze

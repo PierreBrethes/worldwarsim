@@ -1,5 +1,6 @@
 import { fr } from '@/i18n/fr';
 import type { DepositKey } from '@/domain/ids';
+import type { FoundationDebt } from '@/domain/economy';
 import type { Placement, PlacementCondition } from '@/domain/construction';
 import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -20,11 +21,17 @@ import { BuildingPlate } from '@/emblems/Plate';
  * donc il se vide à mesure que la saison s'acquitte, et sa ligne disparaît avec.
  *
  * **Une ligne par dette, et une dette est un couple** : la mine du fer et celle du charbon sont
- * deux lignes, chacune n'allumant que le sol qui l'acquitte. Le gisement suffit à les nommer —
- * le socle n'en doit jamais deux fois le même.
+ * deux lignes, chacune n'allumant que le sol qui l'acquitte. Le gisement suffisait à les nommer
+ * tant que le socle n'était que des extracteurs ; depuis que **le quartier général ouvre la
+ * liste** (décision 1b du 13/09), une dette se nomme par son couple entier — le QG n'a pas de
+ * gisement, et c'est précisément ce qui le laisse se poser où le joueur veut.
  */
 /** A debt of the foundation, and the ground that would pay it: one entry per owed couple. */
-export type FoundationPlacement = Placement & { readonly deposit: DepositKey };
+export type FoundationPlacement = Placement & { readonly deposit: DepositKey | null };
+
+/** L'identité d'une ligne — le couple, pas la clé ni le gisement seuls : deux mines dues se
+ *  distinguent par leur sol, et le QG par n'en avoir aucun. */
+export const debtKey = (due: FoundationDebt): string => `${due.key}:${due.deposit ?? ''}`;
 
 export function FoundationRows({
   view,
@@ -36,21 +43,21 @@ export function FoundationRows({
   view: PlayerView;
   /** One entry per owed couple, in the order the foundation owes them. */
   placements: ReadonlyArray<FoundationPlacement>;
-  armed: DepositKey | null;
+  armed: string | null;
   error: string | null;
-  onArm: (deposit: DepositKey | null) => void;
+  onArm: (debt: string | null) => void;
 }) {
-  const chosen = placements.find((placement) => placement.deposit === armed) ?? null;
+  const chosen = placements.find((placement) => debtKey(placement) === armed) ?? null;
 
   return (
     <div className="border-t border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.05)]">
       <div className="py-[3px]">
         {placements.map((placement) => (
           <KeyRow
-            key={placement.deposit}
+            key={debtKey(placement)}
             placement={placement}
-            armed={placement.deposit === armed}
-            onArm={() => onArm(placement.deposit === armed ? null : placement.deposit)}
+            armed={debtKey(placement) === armed}
+            onArm={() => onArm(debtKey(placement) === armed ? null : debtKey(placement))}
           />
         ))}
       </div>
@@ -99,7 +106,9 @@ function KeyRow({
     >
       <BuildingPlate building={placement.key} height={24} />
       <span className="text-[13.5px] leading-none font-semibold tracking-[.02em]">
-        {fr.mobilization.onDeposit(fr.buildings[placement.key], fr.deposits[placement.deposit])}
+        {placement.deposit === null
+          ? fr.mobilization.anywhereAtHome(fr.buildings[placement.key])
+          : fr.mobilization.onDeposit(fr.buildings[placement.key], fr.deposits[placement.deposit])}
       </span>
       <span className="flex-1" />
       <span
@@ -115,10 +124,13 @@ function KeyRow({
 /**
  * What the region must be for this debt to go down — said before it is chosen, never after.
  * **Le gisement de la dette, pas ceux de la clé** : une mine due pour le fer ne dit pas « fer ou
- * charbon », sinon le joueur la poserait sur le charbon et la paierait plein tarif.
+ * charbon », sinon le joueur la poserait sur le charbon et la paierait plein tarif. Le quartier
+ * général ne demande rien qu'un sol à soi, et le dit ainsi.
  */
 const wantsText = (placement: FoundationPlacement): string =>
-  fr.mobilization.wants.deposit([fr.deposits[placement.deposit]]);
+  placement.deposit === null
+    ? fr.mobilization.wants.home
+    : fr.mobilization.wants.deposit([fr.deposits[placement.deposit]]);
 
 const offerText = (placement: FoundationPlacement): string =>
   placement.regionIds.length === 0

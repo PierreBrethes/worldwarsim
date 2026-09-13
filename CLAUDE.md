@@ -343,6 +343,22 @@ en Arabie), et
 **héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient
 garnison, et cette garnison est ce qu'une attaque trouve debout.
 
+**Le quartier général se pose, il n'est plus planté — 13/09/2026** (décision 1b, révision des
+ADR 0015 et 0017 §2). Il est la **première dette du socle** (`{ key: 'hq', deposit: null }`,
+`foundationFor`) : gratuite, immédiate, au niveau `HQ_LEVEL_AT_LAUNCH`, posée où le joueur veut
+**sur son sol national** — capitale de 1940 comprise, mais elle n'a plus rien de spécial. Ce qui
+a rouvert la question : une bâtisse par région, donc un gisement sous le QG est un gisement
+perdu, et c'est au joueur de choisir ce qu'il sacrifie. `endow` ne plante donc plus rien — ni
+QG, ni infanterie, seulement le kit — et **la compagnie d'infanterie naît avec le QG**, en
+garnison, jamais à une élévation. Tant qu'il est dû, `constructions.start` refuse toute autre
+clé : `HQ_FIRST`, qui **renomme** le refus que `UNLOCKED_AT` produisait déjà (« demande un QG de
+niveau 1 » nommait un palier là où il n'y a qu'un ordre de pose). Une dette dont le `deposit`
+est `null` s'acquitte quelle que soit la région (`settlesDebt`, `src/domain/economy.ts`, lue par
+les deux bouts). `CAPITAL_REGION` survit pour ce qu'elle a toujours été — le seul point qu'on
+connaisse d'une nation qui n'a rien bâti : le repli d'une troupe sans adresse (`surveys.ts`,
+`movement/arrival.ts`, `movement/detection.ts`, lignes historiques seulement) et le **cadrage
+d'ouverture** du plateau d'un joueur sans QG (`me.capitalPoint`).
+
 **Les emplacements suivent le niveau du site** (ADR 0020 §10, `convex/sites.ts`) : le sol
 national en porte `2 × niveau de QG`, un avant-poste en porte **son niveau**, et il n'y a plus
 aucun total national — `buildingCap` a disparu. La **fondation est hors compte** : pour chaque

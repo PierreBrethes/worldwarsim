@@ -15,6 +15,7 @@ const board = (
     loadedAt: 0,
     me: {
       homePosition: HOME,
+      hqLevel: 1,
       foundation: [],
       construction: { id: 'W-1' },
       buildings: [{ id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 }],
@@ -67,6 +68,24 @@ describe('what waits for the player', () => {
     expect(owed?.target).toEqual({ kind: 'unfold' });
 
     expect(kinds(board({ foundation: [] }))).not.toContain('foundation');
+  });
+
+  /**
+   * **Sans quartier général, une seule ligne** (décision 1b du 13/09). Rien ne se bâtit avant
+   * lui, donc « chantier libre » mènerait à une surface où le joueur ne peut rien commander.
+   */
+  it('shows the foundation alone while the headquarters is owed', () => {
+    const actions = nextActionsOf(
+      board({
+        hqLevel: 0,
+        construction: null,
+        buildings: [],
+        recruiting: [],
+        foundation: [{ key: 'hq', deposit: null }],
+      }),
+    );
+    expect(actions.map((action) => action.kind)).toEqual(['foundation']);
+    expect(actions[0]?.label).toBe('1 pose de fondation offerte');
   });
 
   /**

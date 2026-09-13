@@ -19,7 +19,7 @@ import { routeBetween } from './routes';
 import { GAME_TABLES } from './dev';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn, seatsOf } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, seatsOf } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
@@ -28,9 +28,6 @@ const KIT = STARTING_KIT;
 
 /** Moselle: French, inland, and a coal deposit — enough to build anything the tests raise. */
 const MOSELLE = 'FRA-5328';
-/** Paris: where the headquarters of France stands from the first minute (ADR 0015). */
-const PARIS = 'FRA-5333';
-
 async function seasonWithTwoPlayers(t: ReturnType<typeof boot>) {
   const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
   const guestToken = await joinSeat(t, code, 'Léa');
@@ -168,8 +165,9 @@ describe('registration deadline', () => {
     expect(first.enteredWarAt).toBe(deadline + 1);
     expect(first.resources).toHaveLength(Object.keys(KIT).length);
     expect(Object.fromEntries(first.resources.map(({ key, stock }) => [key, stock]))).toEqual(KIT);
-    expect(first.buildings).toHaveLength(1);
-    expect(first.troops).toHaveLength(1);
+    // Rien n'est planté : la dotation est le kit, et le socle attend ses poses (13/09).
+    expect(first.buildings).toHaveLength(0);
+    expect(first.troops).toHaveLength(0);
     expect((await t.query(api.seasons.lobby, late)).me.restWindow.startMinutes).toBe(300);
     expect((await t.query(api.view.playerView, late)).me.nation).toBe('germany');
     vi.setSystemTime(deadline + 3_600_000);
@@ -266,11 +264,11 @@ describe('joining a running season', () => {
     expect(view.me.nation).toBe('germany');
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
     expect(view.me.resources.food.stock).toBe(KIT.food);
-    expect(view.me.buildings).toEqual([
-      expect.objectContaining({ key: 'hq', level: HQ_LEVEL_AT_LAUNCH }),
-    ]);
+    // Rien n'est planté pour lui non plus : il doit son socle entier, QG compris (13/09).
+    expect(view.me.buildings).toEqual([]);
     // Germany holds coal, ore, bread and cloth, and no oil: four extractors, no well.
     expect(view.me.foundation).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'ore' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
@@ -298,6 +296,7 @@ describe('joining a running season', () => {
     ).rejects.toThrow('REST_WINDOW_FROZEN');
     // Entering twice endows nobody twice: the second call finds a belligerent and returns.
     await t.mutation(api.seasons.enterWar, late);
+    await placeHq(t, late);
     expect((await t.query(api.view.playerView, late)).me.buildings).toHaveLength(1);
   });
 
@@ -400,26 +399,31 @@ describe('launching', () => {
     await expect(t.mutation(api.seasons.launch, creator)).rejects.toThrow('PLAYERS_NOT_READY');
   });
 
-  it('hands out the starting kit, plants the headquarters, and freezes the region', async () => {
+  it('hands out the starting kit, plants nothing, and freezes the region', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
     const view = await t.query(api.view.playerView, creator);
     expect(view.me.nation).toBe('france');
     expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
-    // One building and one only: the headquarters on the capital (ADR 0015), at the level the
-    // season plants it — the foundation is owed, never raised for the player.
-    const hqLevel = HQ_LEVEL_AT_LAUNCH;
-    expect(view.me.buildings).toEqual([
-      expect.objectContaining({ key: 'hq', regionId: PARIS, level: hqLevel }),
-    ]);
+    /**
+     * **Rien n'est planté** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2) : le
+     * quartier général est la première dette du socle, et le joueur la pose où il veut sur son
+     * sol. Une bâtisse par région, donc un gisement sous le QG est un gisement perdu — c'est ce
+     * choix-là que la décision lui rend.
+     */
+    expect(view.me.buildings).toEqual([]);
+    expect(view.me.troops).toEqual([]);
+    expect(view.me.hqLevel).toBe(0);
     expect(view.me.foundation).toEqual([
+      { key: 'hq', deposit: null },
       { key: 'mine', deposit: 'ore' },
       { key: 'mine', deposit: 'coal' },
       { key: 'farm', deposit: 'food' },
       { key: 'mill', deposit: 'textile' },
     ]);
-    expect(view.me.slots).toEqual({ total: 1 + hqLevel, used: 0 });
+    // Un slot survit au bâtiment : une nation a toujours un mouvement à faire (ADR 0006).
+    expect(view.me.slots).toEqual({ total: 1, used: 0 });
     // The home regions that carry a deposit, and only those.
     expect(view.me.regions.some((region) => region.id === MOSELLE)).toBe(true);
     expect(view.season.playableRegion).toBe('europe');
@@ -428,21 +432,26 @@ describe('launching', () => {
   });
 
   /**
-   * **One infantry, garrisoned at the headquarters** (decision of 25/08). A nation that opens
-   * with nothing standing has no answer at all to a column walking in on its first evening.
+   * **Une compagnie d'infanterie, en garnison au quartier général** (décision du 25/08). Elle
+   * naissait à la dotation ; depuis le 13/09 elle naît **avec le QG**, parce que c'est lui qui
+   * lui donne une adresse — et le joueur choisit laquelle.
    *
    * The consequence is accepted and graved here rather than left to be discovered: the company
    * counts in the **nominal** the reduction rule measures against (`domain/victory.ts`), so a
    * player who holds nothing else and loses it falls under half his nominal — reduced, hence
    * scalpable by whoever took it.
    */
-  it('gives one infantry, stationed at the headquarters', async () => {
+  it('gives one infantry with the headquarters, stationed at it', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator, MOSELLE);
 
     const view = await t.query(api.view.playerView, creator);
     const hq = view.me.buildings.find((building) => building.key === 'hq')!;
+    expect(hq).toEqual(
+      expect.objectContaining({ key: 'hq', regionId: MOSELLE, level: HQ_LEVEL_AT_LAUNCH }),
+    );
     expect(view.me.troops).toEqual([
       expect.objectContaining({
         role: 'infantry',
@@ -451,6 +460,31 @@ describe('launching', () => {
       }),
     ]);
     expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+  });
+
+  /** **Une élévation n'amène rien** : seule la première pose, celle que le socle offre, porte
+   *  la compagnie. Sans quoi monter son QG serait la façon la moins chère de lever une armée. */
+  it('gives no second company when the headquarters is raised', async () => {
+    const t = boot();
+    const { creator } = await readyToLaunch(t);
+    await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator, MOSELLE);
+    // L'élévation se paie : la facture n'est pas le sujet, seule la compagnie l'est.
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, creator);
+      for (const held of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()) {
+        await ctx.db.patch(held._id, { stock: 10_000, updatedAt: Date.now() });
+      }
+    });
+    await t.mutation(api.constructions.start, { ...creator, building: 'hq', regionId: MOSELLE });
+
+    const view = await t.query(api.view.playerView, creator);
+    // Une élévation passe par la file : ce qui compte ici est qu'elle n'ait rien enrôlé.
+    expect(view.me.construction).toEqual(expect.objectContaining({ key: 'hq', regionId: MOSELLE }));
+    expect(view.me.troops).toHaveLength(1);
   });
 
   /**
@@ -479,6 +513,8 @@ describe('launching', () => {
     const late = await joinSeat(t, code, 'Tard');
     await t.mutation(api.players.reserveNation, { ...late, nation: 'germany' });
     await t.mutation(api.seasons.enterWar, late);
+    // Même socle, même geste : il pose son quartier général comme les autres (13/09).
+    await placeHq(t, late);
 
     const view = await t.query(api.view.playerView, late);
     const hq = view.me.buildings.find((building) => building.key === 'hq')!;
@@ -499,14 +535,16 @@ describe('lazy accrual', () => {
    * from a stored number, and an empty map produces nothing. What a farm changes is in
    * `economy.test.ts`.
    *
-   * The bread still moves, and only one thing moves it — the company the launch hands out eats
-   * from the first minute (`seasons.endow`, 25/08). So the served rate is the upkeep of that
-   * one troop, net and negative, with nothing at all on the other side of the subtraction.
+   * The bread still moves, and only one thing moves it — la compagnie que le quartier général
+   * amène mange dès sa première minute (`constructions.garrisonTheGift`, 13/09). So the served
+   * rate is the upkeep of that one troop, net and negative, with nothing at all on the other
+   * side of the subtraction. Le QG lui-même n'extrait rien : il n'a jamais rien produit.
    */
   it('extracts nothing as long as nothing is built, and only the given company moves the bread', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator);
     vi.advanceTimersByTime(2 * 3_600_000);
     const view = await t.query(api.view.playerView, creator);
     expect(view.me.upkeep.troops).toBe(1);
@@ -526,6 +564,7 @@ describe('constructions', () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator);
 
     const opening = await t.query(api.view.playerView, creator);
     await t.mutation(api.constructions.start, {
@@ -554,6 +593,7 @@ describe('constructions', () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator);
 
     const opening = await t.query(api.view.playerView, creator);
     await t.mutation(api.constructions.start, {
@@ -576,13 +616,14 @@ describe('constructions', () => {
     ]);
   });
 
-  /** Nothing rises above the headquarters. The rule used to make the HQ the first building of
-   *  a season; now that it stands from the launch, what it governs is how high the rest goes —
-   *  the level of the headquarters the season plants, and not one more. */
+  /** Nothing rises above the headquarters. Le QG est redevenu le premier bâtiment d'une saison
+   *  (décision 1b du 13/09) ; ce que la règle gouverne reste la hauteur du reste — le niveau où
+   *  il se pose, et pas un de plus. */
   it('refuses to raise a building above the headquarters', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
+    await placeHq(t, creator);
     for (let level = 1; level <= HQ_LEVEL_AT_LAUNCH; level += 1) {
       await t.mutation(api.constructions.start, {
         ...creator,

@@ -3,7 +3,7 @@ import type { QueryCtx } from './_generated/server';
 import type { BuildingKey, DepositKey } from '../src/domain/ids';
 import { depositOfRegion } from '../src/domain/world';
 import { reachingOutpost } from '../src/domain/outposts';
-import { homeSlots, outpostReachKm, type FoundationDebt } from './constants';
+import { homeSlots, outpostReachKm, settlesDebt, type FoundationDebt } from './constants';
 import { levelOf, playerBuildings } from './buildings';
 import { outpostsOf, pointOf } from './movement/forces';
 import {
@@ -175,15 +175,16 @@ export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Si
 }
 
 /**
- * **The headquarters and the foundation are outside the count.** The capital is not a placement
- * — a nation has one, it does not build one (ADR 0015) — and what the season *offers* must not
- * be paid for in freedom: a ground owed five extractors would otherwise open with less room than
- * a poor one, which is the exact inversion of the distribution guard rails of ADR 0015.
+ * **The headquarters and the foundation are outside the count.** Le quartier général n'est pas
+ * un emplacement (ADR 0020 §10) : il les **porte**, et se les faire payer par le sol qu'il
+ * ouvre serait une pose impossible depuis qu'il se pose (décision 1b du 13/09). Et ce que la
+ * saison *offre* ne doit pas se payer en liberté : un sol qui doit cinq extracteurs ouvrirait
+ * sinon avec moins de place qu'un pauvre, l'exacte inversion des garde-fous de l'ADR 0015.
  *
  * One free instance per debt, and no more, **et une dette s'acquitte sur son gisement** : une
  * nation qui a du fer et du charbon a sa mine de fer et sa mine de charbon hors du compte, une
- * seconde mine sur du charbon mange un emplacement. Le socle est le même (`foundationOf`), donc
- * l'exemption et la dette ne peuvent pas dire deux choses.
+ * seconde mine sur du charbon mange un emplacement. Le socle est le même (`foundationOf`) et
+ * l'accord aussi (`settlesDebt`), donc l'exemption et la dette ne peuvent pas dire deux choses.
  */
 function takenAtHome(
   placed: ReadonlyArray<{
@@ -193,19 +194,13 @@ function takenAtHome(
   }>,
   foundation: ReadonlyArray<FoundationDebt>,
 ): number {
-  const free = new Map<string, number>();
-  const couple = (key: BuildingKey, deposit: DepositKey | null) => `${key}:${deposit ?? ''}`;
-  for (const due of foundation) {
-    const at = couple(due.key, due.deposit);
-    free.set(at, (free.get(at) ?? 0) + 1);
-  }
+  const free = foundation.map((due) => ({ due, spent: false }));
 
   let taken = 0;
   for (const held of placed) {
     if (held.site === null || held.site.kind !== 'home' || held.key === 'hq') continue;
-    const at = couple(held.key, held.deposit);
-    const owed = free.get(at) ?? 0;
-    if (owed > 0) free.set(at, owed - 1);
+    const owed = free.find((entry) => !entry.spent && settlesDebt(entry.due, held));
+    if (owed) owed.spent = true;
     else taken += 1;
   }
   return taken;

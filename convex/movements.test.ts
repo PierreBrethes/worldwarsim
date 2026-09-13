@@ -28,7 +28,7 @@ import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
@@ -58,6 +58,8 @@ async function launchedSeason(t: ReturnType<typeof boot>) {
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
+  await placeHq(t, seat);
+  await placeHq(t, guest);
   await disbandTheGift(t, seat, guest);
   return { seat, guest };
 }

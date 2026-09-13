@@ -5,7 +5,13 @@ import {
   type DepositKey,
   type ResourceKey,
 } from './ids';
-import { EXPLOITED_DEPOSITS, placementRefusal, type PlacementRefusal } from './economy';
+import {
+  EXPLOITED_DEPOSITS,
+  placementRefusal,
+  settlesDebt,
+  type FoundationDebt,
+  type PlacementRefusal,
+} from './economy';
 import {
   currentStock,
   sameSite,
@@ -67,11 +73,9 @@ export type Site = {
    *  the ground is taken — the server refuses a second entry on it (`constructions.ts`). */
   readonly constructionHere: boolean;
   /** What the season still owes (`me.foundation`), served — never re-derived here. Une dette
-   *  est un couple : elle ne s'acquitte que sur le gisement qu'elle nomme. */
-  readonly foundation: ReadonlyArray<{
-    readonly key: BuildingKey;
-    readonly deposit: DepositKey;
-  }>;
+   *  est un couple : elle ne s'acquitte que sur le gisement qu'elle nomme, sauf celle du
+   *  quartier général, que le sol ne nomme pas (`settlesDebt`). */
+  readonly foundation: ReadonlyArray<FoundationDebt>;
 };
 
 /**
@@ -134,7 +138,7 @@ export function buildableOn(
      * site, nor the ceiling since 25/08. The debt of the format outranks the ambition of the
      * player, and the ambition is what waits for the headquarters.
      */
-    const free = site.foundation.some((due) => due.key === key && due.deposit === site.deposit);
+    const free = site.foundation.some((due) => settlesDebt(due, { key, deposit: site.deposit }));
     const cost = free ? {} : spec.cost;
     const siteFull = !free && asThingsStand === 'SITE_SLOTS_FULL';
 
@@ -213,9 +217,10 @@ function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedR
   if (site.standing !== null) return { kind: 'regionTaken', by: site.standing };
   if (key === 'hq') return { kind: 'unique' };
 
-  // A season plants the headquarters, so level 0 refuses every other key at tier 1 — the
-  // sentence is the same one the tiers say, and saying "il en faut un" instead would name a
-  // second rule where there is one.
+  // Un quartier général à zéro refuse toute autre clé, puisque `UNLOCKED_AT` les demande toutes
+  // à 1 — et depuis la décision 1b du 13/09 c'est l'état d'une saison qui vient de s'ouvrir. La
+  // phrase reste celle des paliers : le seul geste qui la lève est la pose du QG, que l'offre
+  // au-dessus est en train de proposer.
   const needed = Math.max(1, spec.unlockedAtHqLevel);
   if (site.hqLevel < needed) return { kind: 'locked', hqLevel: needed };
 

@@ -18,7 +18,7 @@ import { useClock } from '@/shell/clock';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import { RESOURCES, type BuildingKey, type DepositKey, type UnitRole } from '@/domain/ids';
+import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
@@ -70,6 +70,7 @@ import {
 } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { NextActions } from './-plateau/NextActions';
+import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
 import { LootCrateCard } from './-plateau/LootCrateCard';
@@ -385,7 +386,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * other two map gestures — a construction site and an aim — because it is one of them: a
    * click on the map that means something because of what is armed.
    */
-  const [mobilized, setMobilized] = useState<DepositKey | null>(null);
+  /** La dette armée dans l'ordre de mobilisation, par son couple (`debtKey`) : le quartier
+   *  général n'a pas de gisement, et deux mines dues ne se distinguent que par le leur. */
+  const [mobilized, setMobilized] = useState<string | null>(null);
   const [mobilizeError, setMobilizeError] = useState<string | null>(null);
   const toggles = useIndicatorToggles();
   const hoveredMovement = hoveredLabel ?? hoveredArc;
@@ -785,10 +788,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         const placement = placementOf(view, due.key);
         /** **Une dette ne s'acquitte que sur son gisement** (`owedFreely`) : allumer tout le sol
          *  que la clé accepte ferait poser la mine du fer sur du charbon, et le serveur la
-         *  facturerait plein tarif sans que rien ne l'ait dit. */
-        const regionIds = placement.regionIds.filter(
-          (regionId) => depositOfRegion(regionId) === due.deposit,
-        );
+         *  facturerait plein tarif sans que rien ne l'ait dit. La dette du quartier général ne
+         *  nomme aucun gisement : tout le sol qu'elle accepte l'acquitte (`settlesDebt`). */
+        const regionIds =
+          due.deposit === null
+            ? placement.regionIds
+            : placement.regionIds.filter((regionId) => depositOfRegion(regionId) === due.deposit);
         return {
           ...placement,
           deposit: due.deposit,
@@ -803,14 +808,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   const designated = useMemo(
-    () => foundation.find((placement) => placement.deposit === mobilized)?.regionIds ?? [],
+    () => foundation.find((placement) => debtKey(placement) === mobilized)?.regionIds ?? [],
     [foundation, mobilized],
   );
 
   // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
   // so a couple that has left it has no line left to be armed on.
   const armed =
-    mobilized !== null && view.me.foundation.some((due) => due.deposit === mobilized)
+    mobilized !== null && view.me.foundation.some((due) => debtKey(due) === mobilized)
       ? mobilized
       : null;
 
@@ -825,7 +830,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const placeFoundation = useCallback(
     (regionId: string | null) => {
       const due =
-        armed === null ? undefined : view.me.foundation.find((debt) => debt.deposit === armed);
+        armed === null ? undefined : view.me.foundation.find((debt) => debtKey(debt) === armed);
       if (due === undefined || regionId === null) return;
       if (!designated.includes(regionId)) return;
       setMobilizeError(null);
@@ -1205,6 +1210,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * same battle greeted a player on every visit until the season ended — a paper that reprints
    * yesterday's headline is not an edition.
    */
+  /**
+   * **Un joueur sans quartier général n'a rien sur la carte**, et la carte s'ouvre sur le monde
+   * entier : il lui faudrait trouver son pays avant de pouvoir poser quoi que ce soit. La caméra
+   * va donc à la capitale de 1940 — le seul point qu'on connaisse de lui tant qu'il n'a rien
+   * bâti (décision 1b du 13/09), servi par `me.capitalPoint` parce que la table vit avec l'index
+   * des régions, côté serveur.
+   *
+   * Une seule fois, et jamais après la pose : un recadrage qui reviendrait à chaque vue reprendrait
+   * la caméra des mains du joueur.
+   */
+  const framedOnCapital = useRef(false);
+  useEffect(() => {
+    if (framedOnCapital.current || view.me.hqLevel > 0) return;
+    const capital = view.me.capitalPoint;
+    if (capital === null) return;
+    framedOnCapital.current = true;
+    setFocus({ ids: [], places: [capital], nonce: Date.now() });
+  }, [view.me.hqLevel, view.me.capitalPoint]);
+
   const editionServed = useRef(false);
   useEffect(() => {
     if (editionServed.current) return;
@@ -1402,9 +1426,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             placements={foundation}
             armed={armed}
             error={mobilizeError}
-            onArm={(deposit) => {
+            onArm={(debt) => {
               setMobilizeError(null);
-              setMobilized(deposit);
+              setMobilized(debt);
             }}
             onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
             onOpenSurface={openWindow}

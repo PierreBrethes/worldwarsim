@@ -6,7 +6,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
-import { nationInk } from '../src/domain/nations';
+import { isNation, nationInk } from '../src/domain/nations';
 import { depositOfRegion } from '../src/domain/world';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
@@ -30,7 +30,14 @@ import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
 import { heldOver } from './holding';
 import { restHold } from './movements';
-import { foundationOwed, homeCountryOf, regionFacts, regionOfOutpost, regionsOf } from './regions';
+import {
+  capitalRegionOf,
+  foundationOwed,
+  homeCountryOf,
+  regionFacts,
+  regionOfOutpost,
+  regionsOf,
+} from './regions';
 import { anchorOf, isAnchored } from './upkeep';
 import { coastAtPoint, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
@@ -379,6 +386,19 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // The construction screen needs it to know how high it may offer to build: nothing
       // rises above the headquarters (`cappedByHq`).
       hqLevel,
+      /**
+       * **Le seul point qu'on connaisse d'une nation qui n'a rien bâti** : la capitale de 1940,
+       * servie pour cadrer le plateau d'un joueur dont le quartier général n'est pas encore posé
+       * (décision 1b du 13/09). Le client n'a pas la table — `CAPITAL_REGION` vit avec l'index
+       * des régions, côté serveur — et la position du pays ne convient pas : elle tombe au
+       * centre des États-Unis, à deux mille kilomètres de Washington.
+       *
+       * Servi toujours, lu seulement à `hqLevel === 0` : un cadrage n'est pas un secret, et un
+       * champ qui apparaît et disparaît est un champ qu'un écran oublie de traiter.
+       */
+      capitalPoint: isNation(player.nation)
+        ? (regionFacts(capitalRegionOf(player.nation))?.point ?? null)
+        : null,
       /**
        * **The placements, site by site** (ADR 0020 §10): national soil first, then one line
        * per outpost. Without them the construction screen cannot tell what it may offer, and

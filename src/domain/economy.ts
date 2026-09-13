@@ -25,6 +25,33 @@ export const exploits = (key: BuildingKey, deposit: DepositKey | null): boolean 
   deposit !== null && (EXPLOITED_DEPOSITS[key]?.includes(deposit) ?? false);
 
 /**
+ * **Une dette de socle est un couple, pas une clé** : la mine offerte pour le fer ne s'acquitte
+ * que sur une région de fer. Comptée par clé, deux mines posées sur du charbon soldaient les deux
+ * dettes et le fer se payait ensuite au prix fort — la ressource qui fait tout le reste.
+ *
+ * **`deposit: null` est une dette que le sol ne nomme pas** — le quartier général, et lui seul
+ * (décision 1b du 13/09). Elle se solde par un exemplaire debout où que le joueur l'ait posé, ce
+ * qui est exactement ce que la décision achète : un gisement sous le QG est un gisement perdu, et
+ * c'est au joueur de choisir ce qu'il sacrifie.
+ *
+ * La liste elle-même est une valeur d'équilibrage et vit avec les autres (`foundationFor`,
+ * `convex/constants.ts`) ; ce qui est ici est la **règle d'accord**, parce que les deux bouts la
+ * posent — le serveur pour facturer zéro, l'écran pour allumer le sol.
+ */
+export type FoundationDebt = { readonly key: BuildingKey; readonly deposit: DepositKey | null };
+
+/**
+ * **Est-ce que ce bâtiment acquitte cette dette ?** Quatre règles la posent — ce que la saison
+ * doit encore (`foundationOwed`), ce qui se pose gratuitement (`owedFreely`), ce qui échappe au
+ * compte des emplacements (`takenAtHome`) et ce que la ligne de mobilisation allume — et une
+ * copie qui dérive est une pose facturée plein tarif sans que rien ne l'ait dit.
+ */
+export const settlesDebt = (
+  due: FoundationDebt,
+  held: { readonly key: BuildingKey; readonly deposit: DepositKey | null },
+): boolean => due.key === held.key && (due.deposit === null || due.deposit === held.deposit);
+
+/**
  * Why a region refuses a building — `null` when it takes it. The rule lives here, in the pure
  * domain, because both sides need it and neither may own it: the server refuses the placement
  * with it, and the construction screen offers only what it accepts — the catalogue shelf under

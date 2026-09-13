@@ -13,17 +13,14 @@ import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
 import { publishFinalEdition } from './press';
-import { capitalRegionOf } from './regions';
 import { SEASON_CLOCK_HOURS } from './validators';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
   PRESS_EDITION_HOURS,
-  HQ_LEVEL_AT_LAUNCH,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_LAUNCH,
   STARTING_KIT,
-  nominalStrength,
 } from './constants';
 
 /**
@@ -143,19 +140,18 @@ export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean
   warEntryOf(player, season) !== null;
 
 /**
- * **The kit, one building and one company** — handed out once, by the only two roads that lead
- * to a board: the launch, for everybody standing in the lobby, and the entry into war, for
- * whoever arrives afterwards. One writing of the endowment, so a change to it cannot reach one
- * road and miss the other.
+ * **Le kit, et rien d'autre** — remis une fois, par les deux seules routes qui mènent à un
+ * plateau : le lancement, pour tout le monde au salon, et l'entrée en guerre, pour qui arrive
+ * après. Une seule écriture de la dotation, pour qu'un changement ne puisse pas atteindre une
+ * route et manquer l'autre.
  *
- * The headquarters goes on the region of the 1940 capital (ADR 0015), at the level the season
- * plants it. Everything else is put up or does not exist — but the HQ caps every other building,
- * so leaving it at zero made the first construction of a season forcibly the HQ, without a rule
- * saying so.
+ * **Rien n'est planté ici** (décision 1b du 13/09, révision des ADR 0015 et 0017 §2). Le quartier
+ * général était posé d'office sur la capitale de 1940, et la compagnie d'infanterie avec lui ;
+ * les deux sont passés dans le socle, que le joueur acquitte où il veut sur son sol
+ * (`constructions.start`). Ce qui l'a rouvert : une bâtisse par région, donc un gisement sous le
+ * QG est un gisement perdu — c'est au joueur de choisir ce qu'il sacrifie.
  *
- * The foundation is **not** raised here: nothing is placed for the player. A belligerent whose
- * foundation is still owed is a normal state, and the free placements wait for him to choose
- * his regions (`constructions.start`).
+ * Un belligérant qui n'a encore rien debout est donc un état normal, et le premier de la saison.
  */
 async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Promise<void> {
   if (!isNation(player.nation)) fail('UNKNOWN_NATION', { nickname: player.nickname });
@@ -168,38 +164,6 @@ async function endow(ctx: MutationCtx, player: Doc<'players'>, at: number): Prom
       updatedAt: at,
     });
   }
-  const hq = await ctx.db.insert('buildings', {
-    seasonId: player.seasonId,
-    playerId: player._id,
-    key: 'hq',
-    regionId: capitalRegionOf(player.nation),
-    level: HQ_LEVEL_AT_LAUNCH,
-    /** The capital is national soil by definition, and the one building that eats no placement
-     *  of it (ADR 0020 §10) — a nation has a headquarters, it does not build one. */
-    outpostId: null,
-  });
-
-  /**
-   * **One infantry, garrisoned at the headquarters** (decision of 25/08). A nation that opens
-   * with nothing standing has no answer at all to a column walking in on its first evening, and
-   * a barracks is three decisions away.
-   *
-   * The consequence is accepted rather than dodged: this company counts in the **nominal** the
-   * reduction rule measures against (`src/domain/victory.ts`), so a player who holds nothing but
-   * his given infantry and loses it falls under half his nominal and becomes reduced — hence
-   * scalpable by whoever took it. That is the price of opening with a defence, and it is the
-   * shape the test victory is meant to be replaced from, never patched around.
-   */
-  const strength = nominalStrength('infantry', 1);
-  await ctx.db.insert('troops', {
-    seasonId: player.seasonId,
-    playerId: player._id,
-    role: 'infantry',
-    tier: 1,
-    nominalStrength: strength,
-    currentStrength: strength,
-    stationedAt: hq,
-  });
 
   await ctx.db.patch(player._id, { enteredWarAt: at });
 }
@@ -483,7 +447,8 @@ export const launch = mutation({
 
 /**
  * **The entry into war of a latecomer** — the launch he missed, for him alone. He is endowed
- * exactly as the others were (`endow`): same kit, same headquarters, same foundation still owed,
+ * exactly as the others were (`endow`): same kit, same foundation still owed — headquarters included
+ * since the decision of 13/09 —,
  * and no compensation for the hours he was not there. The measure of that handicap will come
  * from a real case, not from a number invented here.
  *

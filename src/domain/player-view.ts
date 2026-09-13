@@ -799,6 +799,10 @@ export type PlayerView = {
      *  (décision 47a). Rien ici ne se déduit d'une capacité : réduit n'est pas défait. */
     readonly defeated: boolean;
     readonly homePosition: LonLat;
+    /** **La capitale de 1940**, servie pour une seule chose : cadrer le plateau d'un joueur qui
+     *  n'a pas encore posé son quartier général (décision 1b du 13/09) — sans lui, la carte
+     *  s'ouvre sur le monde entier et le joueur va chercher son pays. `null` sans drapeau. */
+    readonly capitalPoint: LonLat | null;
     readonly ink: string;
     readonly power: string;
     readonly progress: number;
@@ -823,11 +827,13 @@ export type PlayerView = {
      * once, wherever the player decides. Empty once the foundation stands.
      *
      * **Une dette est un couple**, jamais une clé seule : la mine due pour le fer ne s'acquitte
-     * que sur une région de fer, et celle du charbon sur du charbon.
+     * que sur une région de fer, et celle du charbon sur du charbon. `deposit: null` est la
+     * dette que le sol ne nomme pas — le quartier général, première de la liste depuis la
+     * décision 1b du 13/09, et la seule qui s'acquitte où le joueur veut.
      */
     readonly foundation: ReadonlyArray<{
       readonly key: BuildingKey;
-      readonly deposit: DepositKey;
+      readonly deposit: DepositKey | null;
     }>;
     readonly buildings: ReadonlyArray<Building>;
     readonly chains: ReadonlyArray<ChainView>;

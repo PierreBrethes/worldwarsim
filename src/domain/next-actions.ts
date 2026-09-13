@@ -64,6 +64,13 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
    *  absence *est* l'état fermé — et c'est exactement ce qu'on doit à un joueur qui a déposé les
    *  armes : pas une liste grisée de ce qu'il ne fera plus. */
   if (view.me.defeated) return [];
+  /**
+   * **Tant que le quartier général est dû, il est la seule chose qui attende** (décision 1b du
+   * 13/09). Rien d'autre ne se bâtit avant lui (`HQ_FIRST`), donc « chantier libre — rien en
+   * file » mènerait à une surface où le joueur ne peut rien commander : une attente qu'on ne
+   * peut pas lever n'est pas une attente, c'est un reproche.
+   */
+  if (view.me.hqLevel === 0) return foundationLine(view);
   const names = stationNames(view);
   const marching = marchingTroopIds(view.arcs);
   const standing = view.me.troops.filter((troop) => !marching.has(troop.id));

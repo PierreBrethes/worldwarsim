@@ -380,6 +380,10 @@ export const fr = {
       `ce rôle demande ${aBuildingName(d.building)} de niveau ${num(d.requiredLevel)}`,
     MAX_LEVEL_REACHED: (d) => `niveau maximal atteint (${num(d.maximum)})`,
     HQ_ALREADY_BUILT: () => 'le quartier général est unique',
+    /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
+     *  l'ordre plutôt qu'un palier — `BUILDING_LOCKED` nommait un niveau 1 que le joueur ne
+     *  pouvait atteindre que par cette pose-là. */
+    HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
@@ -1646,12 +1650,17 @@ export const fr = {
      *  la même ligne, alors que l'une ne s'acquitte que sur du fer et l'autre que sur du
      *  charbon. */
     onDeposit: (building: string, deposit: string) => `${building} — ${deposit}`,
+    /** **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). La
+     *  ligne dit l'absence de condition plutôt qu'un gisement vide — c'est la liberté qui est
+     *  l'information, puisqu'une bâtisse par région fait du sol qu'il prend un sol perdu. */
+    anywhereAtHome: (building: string) => `${building} — à poser sur votre sol`,
     /** Ce que la clé demande à une région — dit avant même qu'elle soit choisie, jamais après
      *  coup : rien d'affiché sans sa condition. */
     wants: {
       deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')} requis`,
       coastal: 'région côtière requise',
       any: 'toute région tenue',
+      home: 'n’importe où sur votre sol',
     },
   },
 
