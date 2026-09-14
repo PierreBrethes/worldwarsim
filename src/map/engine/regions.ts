@@ -76,6 +76,33 @@ export type HeldClaim = {
   readonly regions: ReadonlyArray<{ readonly id: string; readonly wash: number }>;
 };
 
+/**
+ * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
+ * en loin un îlot dégénéré sur tout le cadre, et un `regions.json` cuit avant le filtre du
+ * 09/09 a posé ce cadre en troisième anneau du Maryland : dès qu'une encre lui arrivait, la
+ * carte remplissait la sphère entière, mer comprise. L'actif est vérifié à la cuisson
+ * (`convex/invariants.test.ts`) ; ceci est le cran d'arrêt du dessin.
+ *
+ * Les deux dimensions à la fois : l'Antarctique couvre légitimement les deux tiers du monde en
+ * x, et un dixième en y.
+ */
+const spansTheFrame = (
+  ring: ReadonlyArray<readonly [number, number]>,
+  frame: WorldFrame,
+): boolean => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const [x, y] of ring) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return maxX - minX > frame.width / 2 && maxY - minY > frame.height / 2;
+};
+
 type PreparedRegion = {
   readonly region: DisplayedRegion;
   readonly box: readonly [minX: number, minY: number, maxX: number, maxY: number];
@@ -488,17 +515,28 @@ export class RegionLayer {
 
   /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
   private fillOf(region: DisplayedRegion, lift: number): BufferGeometry {
-    const geometries = region.rings.map((ring) => {
-      const shape = new Shape();
-      ring.forEach(([x, y], index) => {
-        const px = x - this.frame.centerX;
-        const py = -(y - this.frame.centerY);
-        if (index === 0) shape.moveTo(px, py);
-        else shape.lineTo(px, py);
+    const geometries = region.rings
+      .filter((ring) => {
+        if (!spansTheFrame(ring, this.frame)) return true;
+        console.warn(`${region.id} (${region.name}) : anneau à l’échelle du cadre, non rempli`);
+        return false;
+      })
+      .map((ring) => {
+        const shape = new Shape();
+        ring.forEach(([x, y], index) => {
+          const px = x - this.frame.centerX;
+          const py = -(y - this.frame.centerY);
+          if (index === 0) shape.moveTo(px, py);
+          else shape.lineTo(px, py);
+        });
+        return new ShapeGeometry(shape);
       });
-      return new ShapeGeometry(shape);
-    });
-    const geometry = geometries.length > 1 ? mergeGeometries(geometries, false)! : geometries[0]!;
+    const geometry =
+      geometries.length === 0
+        ? new ShapeGeometry(new Shape())
+        : geometries.length > 1
+          ? mergeGeometries(geometries, false)!
+          : geometries[0]!;
     if (geometries.length > 1) geometries.forEach((part) => part.dispose());
     geometry.rotateX(-Math.PI / 2);
 

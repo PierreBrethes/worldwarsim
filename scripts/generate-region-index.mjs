@@ -12,9 +12,15 @@
  * an outer boundary of the whole layer; it is maritime when its midpoint falls close to a
  * country outline that is itself shared with no other country — the same test, one level up,
  * on `world.json`. The second pass is what rules out enclaves (Berlin inside Brandenburg,
- * Vienna inside Lower Austria): their outer boundary is unshared, because a hole in the
- * surrounding region's ring is dropped at bake time, and without the coastline check they
- * would all come out as ports.
+ * Vienna inside Lower Austria): their outer boundary was unshared, and without the coastline
+ * check they would all come out as ports.
+ *
+ * **Le trou est l'autre moitié de la réponse, et il n'est cuit que depuis le 14/09.**
+ * `generate-regions.mjs` ne gardait que l'anneau extérieur de chaque polygone jusqu'à
+ * `cb42ae3` (09/09) ; l'enclave était donc bordée d'un côté seulement et le contrôle de
+ * littoral restait seul à la retenir — il en laissait passer neuf, Séoul et Taipei comprises,
+ * dont le pourtour frôle une côte sans la toucher. Les trous partagent désormais l'arête, et
+ * les deux passes disent la même chose.
  *
  * **The point is a pole of inaccessibility, un-projected** — the same treatment the world gives
  * a country. It is what turns a region into a distance: an outpost's reach is measured in
