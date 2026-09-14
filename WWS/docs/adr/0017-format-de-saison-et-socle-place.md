@@ -141,7 +141,18 @@ de format serait le doublon que la table existe pour interdire.
 | QG au lancement | 2 | 1 |
 | plafond de QG | 3 | 5 |
 | socle | mine, mine, fonderie, entrepôt, ferme, arsenal | mine, mine, fonderie |
-| alliage de départ | 1000 | 500 |
+| alliage de départ | 1000 | ~~500~~ **400** |
+
+> **Révision du 14/09/2026 — l'alliage de campagne passe de 500 à 400.** La grille du simulateur
+> d'ouverture (108 cases, `node run.mjs --grille`) mesure l'ouverture **indifférente au pack entre
+> 250 et 500** une fois la fonderie portée à 8/h : le goulot était la fonte, jamais le
+> portefeuille, et le paragraphe ci-dessous — « au point où les connexions vides cessent de
+> tomber » — ne décrit plus rien de mesurable.
+> Ce qui borne le pack par le bas n'est donc plus une mesure mais la **décision 66a du 04/09** :
+> la première projection par mer (fonderie + QG 2 + caserne + port + cargo = 383 alliage,
+> `invariants.test.ts`) doit tenir dans la dotation, sans quoi une île est tarifée au-dessus de
+> son voisin. À 300 elle casse, à 400 elle tient. Rapport :
+> `WWS/docs/rapports/2026-09-14-chaine-de-l-alliage.md`.
 
 **L'alternative écartée est de multiplier le temps** — compresser une saison longue en 48 h en
 accélérant tout. Elle est refusée parce que **le sommeil ne se compresse pas**. À 3,5×, une nuit

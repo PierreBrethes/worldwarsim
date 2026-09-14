@@ -183,6 +183,61 @@ function foundation() {
   }
 }
 
+/**
+ * **Les trois chaînes.** Elles étaient la plus grosse table non vérifiée du miroir, et la plus
+ * chère à laisser dériver : le débit de la fonderie commande tout ce que l'instrument mesure —
+ * `DEFAULT_TUNING.foundryPerHour` en dérive plutôt que de le recopier, précisément pour que ce
+ * qui suit soit la seule comparaison à faire.
+ *
+ * Lue comme le reste, à la main : le corps équilibré de la clé, puis trois motifs. Pas
+ * d'évaluation — un miroir qui exécuterait le jeu partagerait ses bugs.
+ */
+function chainOf(body, key) {
+  const at = body.search(new RegExp(`(^|[,{\\s])${key}\\s*:\\s*\\{`));
+  if (at < 0) return null;
+  const open = body.indexOf('{', at);
+  let depth = 0;
+  for (let i = open; i < body.length; i += 1) {
+    if (body[i] === '{') depth += 1;
+    else if (body[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return body.slice(open + 1, i);
+    }
+  }
+  return null;
+}
+
+function chains() {
+  const body = bodyOf('CHAINS');
+  if (body === null) return unverified.push('CHAINS (bloc introuvable)');
+  for (const [key, held] of Object.entries(mirror.CHAINS)) {
+    const chain = chainOf(body, key);
+    if (chain === null) { unverified.push(`CHAINS.${key}`); continue; }
+
+    const output = chain.match(/output:\s*'([^']+)'/);
+    if (!output) unverified.push(`CHAINS.${key}.output`);
+    else {
+      checked += 1;
+      if (output[1] !== held.output) {
+        problems.push(`CHAINS.${key}.output : le jeu dit « ${output[1]} », le miroir dit « ${held.output} »`);
+      }
+    }
+
+    const rate = chain.match(/perHourPerLevel:\s*([\d.]+)/);
+    if (!rate) unverified.push(`CHAINS.${key}.perHourPerLevel`);
+    else report(`CHAINS.${key}.perHourPerLevel`, rate[1], held.perHourPerLevel);
+
+    const inputs = chain.match(/inputs:\s*\[([\s\S]*?)\]\s*,\s*(?=perHourPerLevel|output)/)
+      ?? chain.match(/inputs:\s*\[([\s\S]*)\]/);
+    if (!inputs) { unverified.push(`CHAINS.${key}.inputs`); continue; }
+    const pairs = [...inputs[1].matchAll(/\[\s*'([^']+)'\s*,\s*([\d.]+)\s*\]/g)].map(([, r, q]) => [r, Number(q)]);
+    checked += 1;
+    const said = pairs.map(([r, q]) => `${r}×${q}`).join(' + ');
+    const mine = held.inputs.map(([r, q]) => `${r}×${q}`).join(' + ');
+    if (said !== mine) problems.push(`CHAINS.${key}.inputs : le jeu dit « ${said} », le miroir dit « ${mine} »`);
+  }
+}
+
 function storageCaps() {
   const level = 2;
   const expected = mirror.BASE_CAP + mirror.STORAGE_CAP_PER_LEVEL * level;
@@ -230,14 +285,14 @@ specTable('BUILDING_SPEC', mirror.BUILDING_SPEC);
 roleTable('COST_BY_ROLE', mirror.COST_BY_ROLE);
 startingLine();
 foundation();
+chains();
 storageCaps();
 
 /**
- * Left unread on purpose, and said out loud rather than skipped in silence: the chains and the
- * nominal strengths are nested two deep in shapes this file would have to guess at. They are
- * the next thing to cover, not a decision to leave them out.
+ * Left unread on purpose, and said out loud rather than skipped in silence: the nominal
+ * strengths are nested two deep in a shape this file would have to guess at. It is the next
+ * thing to cover, not a decision to leave it out.
  */
-unverified.push('CHAINS (débits et intrants des trois chaînes)');
 unverified.push('NOMINAL_STRENGTH (effectifs par rôle et par palier)');
 
 console.log(`\n${checked} valeurs comparées entre le jeu (convex/constants.ts, src/domain/routing.ts, src/domain/troops.ts) et le miroir.`);

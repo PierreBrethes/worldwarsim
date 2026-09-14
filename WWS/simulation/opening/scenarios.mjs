@@ -5,8 +5,9 @@
  * the first pass of this study report a permanent player.
  *
  * **The foundation is not a starting site.** The season owes it; the player places it, free and
- * standing at once, wherever he decides. So a season starts with its headquarters and nothing
- * else, exactly as `seasons.launch` leaves it.
+ * standing at once, wherever he decides. Since the 13/09 the headquarters is the first of those
+ * debts, so a season starts on bare ground — no building and no troop — exactly as
+ * `seasons.launch` leaves it.
  */
 
 import { SEASON_FORMATS, foundationFor, startingStock, tier2HqLevel } from './constants.mjs';
@@ -27,6 +28,7 @@ export const PROFILES = {
  * player would aim at.
  */
 const FOUNDATION_SITES = {
+  hq: [{ site: 'hq', deposit: null }],
   mine: [
     { site: 'mine-ore', deposit: 'ore' },
     { site: 'mine-coal', deposit: 'coal' },
@@ -47,6 +49,11 @@ const FOUNDATION_SITES = {
  * flag.
  */
 export const REFERENCE_GROUND = ['ore', 'coal', 'food', 'textile'];
+
+/** **Le sol à cinq extracteurs** — les États-Unis, le pétrole en plus. C'est le seul endroit où
+ *  la pose due hors plafond se mesure : sur la France elle ne change rien, la dette y tenant
+ *  sous le plafond. */
+export const REFERENCE_GROUND_OIL = ['ore', 'coal', 'food', 'textile', 'oil'];
 
 export function foundationOrders(format, ground = REFERENCE_GROUND) {
   return foundationFor(ground).map(({ key, deposit }) => {
@@ -104,15 +111,15 @@ export function seasonOf(format, overrides = {}) {
     profileName: profile.name,
     lossesPerDay: overrides.lossesPerDay ?? 0,
     startingStock: { ...startingStock(format), ...(overrides.startingStock ?? {}) },
-    /** The headquarters, and nothing else: the foundation is owed, never handed over. */
-    startingSites: overrides.startingSites ?? [
-      { id: 'hq', key: 'hq', level: spec.hqLevelAtLaunch },
-    ],
-    /** One infantry at the headquarters, the endowment of 25/08 — so an opening is measured
-     *  with the one troop every player actually has on his first evening. */
-    startingTroops: overrides.startingTroops ?? [{ role: 'infantry', tier: 1, from: 'hq' }],
-    foundation: overrides.foundation ?? foundationOrders(format),
+    /**
+     * **Rien n'est planté** (décision 1b du 13/09) : le quartier général est la première dette du
+     * socle, pas un bâtiment du lancement, et la compagnie d'infanterie naît avec lui. Une saison
+     * s'ouvre donc sur un sol nu, exactement comme `seasons.launch` la laisse.
+     */
+    startingSites: overrides.startingSites ?? [],
+    foundation: overrides.foundation ?? foundationOrders(format, overrides.ground),
     tuning: {
+      hqLevelAtLaunch: spec.hqLevelAtLaunch,
       maxHqLevel: spec.maxHqLevel,
       buildingCapBase: spec.buildingCapBase,
       buildingCapPerHqLevel: spec.buildingCapPerHqLevel,

@@ -3,77 +3,104 @@
   "format": "skirmish",
   "alloy": 200,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 10,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 3
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 12,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 4,
-  "deadPct": 33.33333333333333,
-  "busyPct": 11.70138888888889,
-  "longestGap": 570,
-  "hqTimes": {},
+  "totalActions": 10,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 11,
+  "deadPct": 91.66666666666666,
+  "busyPct": 7.395833333333333,
+  "longestGap": 2247,
+  "hqTimes": {
+   "2": 420
+  },
   "finalHq": 2,
   "troops": 1,
   "lost": 0,
   "troopCap": 12,
-  "sites": 10,
+  "sites": 8,
   "stocks": {
-   "food": 462,
+   "food": 400,
    "textile": 368,
-   "coal": 237,
+   "coal": 400,
    "oil": 60,
-   "ore": 426,
-   "alloy": 21,
+   "ore": 400,
+   "alloy": 2,
    "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 102,
+   "textile": 0,
+   "coal": 568,
+   "oil": 0,
+   "ore": 917,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -81,77 +108,104 @@
   "format": "skirmish",
   "alloy": 300,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 12,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 5
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 15,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 1,
-  "deadPct": 8.333333333333332,
-  "busyPct": 19.583333333333332,
-  "longestGap": 570,
-  "hqTimes": {},
+  "totalActions": 12,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 5,
+  "deadSessions": 11,
+  "deadPct": 91.66666666666666,
+  "busyPct": 10.625,
+  "longestGap": 2154,
+  "hqTimes": {
+   "2": 420
+  },
   "finalHq": 2,
   "troops": 1,
   "lost": 0,
-  "troopCap": 16,
+  "troopCap": 12,
   "sites": 9,
   "stocks": {
    "food": 400,
    "textile": 368,
-   "coal": 220,
+   "coal": 400,
    "oil": 60,
-   "ore": 217,
-   "alloy": 31,
+   "ore": 400,
+   "alloy": 6,
    "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 539,
+   "textile": 0,
+   "coal": 548,
+   "oil": 0,
+   "ore": 917,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -159,76 +213,103 @@
   "format": "skirmish",
   "alloy": 420,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 22,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 1,
-  "deadPct": 8.333333333333332,
-  "busyPct": 20.208333333333332,
-  "longestGap": 570,
-  "hqTimes": {},
+  "totalActions": 14,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 6,
+  "deadSessions": 10,
+  "deadPct": 83.33333333333334,
+  "busyPct": 13.993055555555555,
+  "longestGap": 2057,
+  "hqTimes": {
+   "2": 420
+  },
   "finalHq": 2,
-  "troops": 8,
+  "troops": 1,
   "lost": 0,
-  "troopCap": 14,
-  "sites": 10,
+  "troopCap": 12,
+  "sites": 11,
   "stocks": {
-   "food": 405,
+   "food": 939,
    "textile": 368,
-   "coal": 210,
-   "oil": 60,
-   "ore": 217,
-   "alloy": 40,
+   "coal": 938,
+   "oil": 40,
+   "ore": 1000,
+   "alloy": 26,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 317,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -237,77 +318,104 @@
   "format": "skirmish",
   "alloy": 600,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 7,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 2
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 24,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 0,
-  "deadPct": 0,
-  "busyPct": 24.0625,
-  "longestGap": 570,
-  "hqTimes": {},
+  "totalActions": 21,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 6,
+  "deadSessions": 9,
+  "deadPct": 75,
+  "busyPct": 16.52777777777778,
+  "longestGap": 1984,
+  "hqTimes": {
+   "2": 420
+  },
   "finalHq": 2,
-  "troops": 8,
+  "troops": 7,
   "lost": 0,
-  "troopCap": 14,
-  "sites": 10,
+  "troopCap": 12,
+  "sites": 11,
   "stocks": {
-   "food": 400,
+   "food": 885,
    "textile": 368,
-   "coal": 173,
-   "oil": 60,
-   "ore": 234,
-   "alloy": 24,
-   "ammunition": 49,
+   "coal": 938,
+   "oil": 40,
+   "ore": 1000,
+   "alloy": 26,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 317,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -315,78 +423,103 @@
   "format": "skirmish",
   "alloy": 800,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 8,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 2,
+    "queueDepth": 1
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 23,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 0,
-  "deadPct": 0,
-  "busyPct": 29.479166666666668,
-  "longestGap": 570,
+  "totalActions": 25,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 6,
+  "deadSessions": 8,
+  "deadPct": 66.66666666666666,
+  "busyPct": 23.506944444444443,
+  "longestGap": 1783,
   "hqTimes": {
-   "3": 2306
+   "2": 420
   },
-  "finalHq": 3,
+  "finalHq": 2,
   "troops": 8,
   "lost": 0,
   "troopCap": 14,
-  "sites": 8,
+  "sites": 11,
   "stocks": {
-   "food": 315,
+   "food": 813,
    "textile": 368,
-   "coal": 164,
-   "oil": 60,
-   "ore": 400,
-   "alloy": 29,
+   "coal": 884,
+   "oil": 40,
+   "ore": 1317,
+   "alloy": 1,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -395,78 +528,103 @@
   "format": "skirmish",
   "alloy": 1000,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 8,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 3,
+    "queueDepth": 1
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 22,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 1,
-  "deadPct": 8.333333333333332,
-  "busyPct": 30.868055555555557,
-  "longestGap": 570,
+  "totalActions": 28,
+  "foundationPlacements": 5,
+  "medianActions": 0,
+  "medianQueue": 0,
+  "maxQueue": 6,
+  "deadSessions": 8,
+  "deadPct": 66.66666666666666,
+  "busyPct": 27.916666666666668,
+  "longestGap": 1656,
   "hqTimes": {
-   "3": 2006
+   "2": 420
   },
-  "finalHq": 3,
-  "troops": 8,
+  "finalHq": 2,
+  "troops": 10,
   "lost": 0,
   "troopCap": 14,
-  "sites": 8,
+  "sites": 11,
   "stocks": {
-   "food": 189,
+   "food": 813,
    "textile": 368,
-   "coal": 80,
-   "oil": 60,
-   "ore": 400,
-   "alloy": 132,
+   "coal": 884,
+   "oil": 4,
+   "ore": 1317,
+   "alloy": 39,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -475,78 +633,104 @@
   "format": "skirmish",
   "alloy": 1300,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 8,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 5,
+    "queueDepth": 1
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 2
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 22,
-  "foundationPlacements": 4,
+  "totalActions": 38,
+  "foundationPlacements": 5,
   "medianActions": 1,
+  "medianQueue": 0,
+  "maxQueue": 6,
   "deadSessions": 1,
   "deadPct": 8.333333333333332,
-  "busyPct": 33.125,
-  "longestGap": 570,
+  "busyPct": 40.208333333333336,
+  "longestGap": 434,
   "hqTimes": {
-   "3": 2006
+   "2": 420,
+   "3": 1371
   },
   "finalHq": 3,
-  "troops": 8,
+  "troops": 16,
   "lost": 0,
-  "troopCap": 12,
-  "sites": 8,
+  "troopCap": 16,
+  "sites": 13,
   "stocks": {
-   "food": 303,
+   "food": 741,
    "textile": 368,
-   "coal": 37,
-   "oil": 60,
-   "ore": 400,
-   "alloy": 297,
+   "coal": 579,
+   "oil": 4,
+   "ore": 1059,
+   "alloy": 36,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -555,78 +739,104 @@
   "format": "skirmish",
   "alloy": 1800,
   "name": "skirmish — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 5
+    "actions": 13,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 1
+    "actions": 8,
+    "queueDepth": 6
    },
    {
     "minute": 720,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 8
+    "actions": 5,
+    "queueDepth": 1
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 2
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 5
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 3
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 2
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 22,
-  "foundationPlacements": 4,
-  "medianActions": 1,
-  "deadSessions": 1,
-  "deadPct": 8.333333333333332,
-  "busyPct": 33.125,
-  "longestGap": 570,
+  "totalActions": 45,
+  "foundationPlacements": 5,
+  "medianActions": 4,
+  "medianQueue": 2,
+  "maxQueue": 6,
+  "deadSessions": 2,
+  "deadPct": 16.666666666666664,
+  "busyPct": 56.73611111111111,
+  "longestGap": 434,
   "hqTimes": {
-   "3": 2006
+   "2": 420,
+   "3": 1371
   },
   "finalHq": 3,
-  "troops": 8,
+  "troops": 18,
   "lost": 0,
-  "troopCap": 12,
-  "sites": 8,
+  "troopCap": 18,
+  "sites": 13,
   "stocks": {
-   "food": 303,
+   "food": 610,
    "textile": 368,
-   "coal": 119,
-   "oil": 60,
-   "ore": 400,
-   "alloy": 715,
+   "coal": 688,
+   "oil": 4,
+   "ore": 1291,
+   "alloy": 30,
+   "ammunition": 140,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 0,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -635,200 +845,256 @@
   "format": "campaign",
   "alloy": 200,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2340,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3600,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 7920,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 23,
-  "foundationPlacements": 4,
-  "medianActions": 0,
-  "deadSessions": 22,
-  "deadPct": 52.38095238095239,
-  "busyPct": 9.841269841269842,
-  "longestGap": 1386,
+  "totalActions": 51,
+  "foundationPlacements": 5,
+  "medianActions": 1,
+  "medianQueue": 0,
+  "maxQueue": 2,
+  "deadSessions": 14,
+  "deadPct": 33.33333333333333,
+  "busyPct": 23.47222222222222,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 7766
+   "1": 420,
+   "2": 1942,
+   "3": 4887
   },
   "finalHq": 3,
-  "troops": 5,
+  "troops": 20,
   "lost": 0,
-  "troopCap": 14,
-  "sites": 9,
+  "troopCap": 20,
+  "sites": 11,
   "stocks": {
-   "food": 378,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 981,
    "oil": 40,
-   "ore": 400,
-   "alloy": 20,
-   "ammunition": 81,
+   "ore": 749,
+   "alloy": 302,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1326,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -836,199 +1102,255 @@
   "format": "campaign",
   "alloy": 300,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 3
    },
    {
     "minute": 2340,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3600,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 1
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 2
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 26,
-  "foundationPlacements": 4,
+  "totalActions": 51,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 20,
-  "deadPct": 47.61904761904761,
-  "busyPct": 13.343253968253968,
-  "longestGap": 906,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 16,
+  "deadPct": 38.095238095238095,
+  "busyPct": 23.57142857142857,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 5366
+   "1": 420,
+   "2": 1942,
+   "3": 4887
   },
   "finalHq": 3,
-  "troops": 5,
+  "troops": 20,
   "lost": 0,
   "troopCap": 20,
-  "sites": 9,
+  "sites": 11,
   "stocks": {
-   "food": 400,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 981,
    "oil": 40,
-   "ore": 400,
-   "alloy": 75,
+   "ore": 749,
+   "alloy": 402,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1686,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -1037,199 +1359,256 @@
   "format": "campaign",
   "alloy": 420,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 3
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 2
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3600,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 9360,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 27,
-  "foundationPlacements": 4,
+  "totalActions": 49,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 19,
-  "deadPct": 45.23809523809524,
-  "busyPct": 14.305555555555555,
-  "longestGap": 1123,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 14,
+  "deadPct": 33.33333333333333,
+  "busyPct": 28.730158730158728,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 4886
+   "1": 420,
+   "2": 1942,
+   "3": 3447,
+   "4": 9323
   },
-  "finalHq": 3,
-  "troops": 5,
+  "finalHq": 4,
+  "troops": 13,
   "lost": 0,
   "troopCap": 20,
-  "sites": 9,
+  "sites": 12,
   "stocks": {
-   "food": 400,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 854,
    "oil": 40,
-   "ore": 400,
-   "alloy": 98,
+   "ore": 1070,
+   "alloy": 89,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1546,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
    "ammunition": 0,
    "bandages": 0
   }
@@ -1238,200 +1617,257 @@
   "format": "campaign",
   "alloy": 600,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 5
+    "actions": 5,
+    "queueDepth": 3
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3600,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9720,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 28,
-  "foundationPlacements": 4,
+  "totalActions": 56,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 21,
-  "deadPct": 50,
-  "busyPct": 15.605158730158731,
-  "longestGap": 1343,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 30.84325396825397,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 3566
+   "1": 420,
+   "2": 1942,
+   "3": 3447,
+   "4": 9323
   },
-  "finalHq": 3,
-  "troops": 5,
+  "finalHq": 4,
+  "troops": 20,
   "lost": 0,
   "troopCap": 20,
-  "sites": 9,
+  "sites": 12,
   "stocks": {
-   "food": 400,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 410,
    "oil": 40,
-   "ore": 400,
-   "alloy": 101,
-   "ammunition": 14,
+   "ore": 387,
+   "alloy": 141,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 2022,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -1439,200 +1875,257 @@
   "format": "campaign",
   "alloy": 800,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 5
+    "actions": 11,
+    "queueDepth": 3
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3600,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 1
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 28,
-  "foundationPlacements": 4,
+  "totalActions": 58,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 21,
-  "deadPct": 50,
-  "busyPct": 15.238095238095239,
-  "longestGap": 1190,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 31.92460317460317,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 2306
+   "1": 420,
+   "2": 1942,
+   "3": 3447,
+   "4": 8723
   },
-  "finalHq": 3,
-  "troops": 5,
+  "finalHq": 4,
+  "troops": 20,
   "lost": 0,
   "troopCap": 20,
-  "sites": 9,
+  "sites": 13,
   "stocks": {
-   "food": 400,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 337,
    "oil": 40,
-   "ore": 400,
-   "alloy": 213,
-   "ammunition": 14,
+   "ore": 307,
+   "alloy": 126,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1770,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 0,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -1640,200 +2133,257 @@
   "format": "campaign",
   "alloy": 1000,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 7,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 7
+    "actions": 0,
+    "queueDepth": 5
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 11,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3600,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 3960,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 30,
-  "foundationPlacements": 4,
+  "totalActions": 51,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 21,
-  "deadPct": 50,
-  "busyPct": 15.575396825396826,
-  "longestGap": 1310,
+  "medianQueue": 0,
+  "maxQueue": 5,
+  "deadSessions": 17,
+  "deadPct": 40.476190476190474,
+  "busyPct": 32.420634920634924,
+  "longestGap": 1269,
   "hqTimes": {
-   "2": 981,
-   "3": 2306
+   "1": 420,
+   "2": 1942,
+   "3": 3447,
+   "4": 7883
   },
-  "finalHq": 3,
-  "troops": 7,
+  "finalHq": 4,
+  "troops": 12,
   "lost": 0,
-  "troopCap": 20,
-  "sites": 9,
+  "troopCap": 24,
+  "sites": 13,
   "stocks": {
-   "food": 400,
-   "textile": 400,
-   "coal": 400,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 885,
    "oil": 40,
-   "ore": 400,
-   "alloy": 223,
-   "ammunition": 2,
+   "ore": 1160,
+   "alloy": 163,
+   "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1790,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 89,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -1841,201 +2391,257 @@
   "format": "campaign",
   "alloy": 1300,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 11,
+    "queueDepth": 3
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 2160,
-    "actions": 7
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3600,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 6660,
-    "actions": 0
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 2
    },
    {
     "minute": 8280,
-    "actions": 2
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 8460,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 36,
-  "foundationPlacements": 4,
+  "totalActions": 62,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 16,
-  "deadPct": 38.095238095238095,
-  "busyPct": 20.396825396825395,
-  "longestGap": 1463,
+  "medianQueue": 0,
+  "maxQueue": 3,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 38.85912698412699,
+  "longestGap": 900,
   "hqTimes": {
-   "2": 981,
-   "3": 2306,
-   "4": 8002
+   "1": 420,
+   "2": 982,
+   "3": 2007,
+   "4": 7883
   },
   "finalHq": 4,
-  "troops": 7,
+  "troops": 20,
   "lost": 0,
-  "troopCap": 20,
-  "sites": 11,
+  "troopCap": 24,
+  "sites": 13,
   "stocks": {
-   "food": 1465,
-   "textile": 637,
-   "coal": 785,
+   "food": 2200,
+   "textile": 1328,
+   "coal": 634,
    "oil": 40,
-   "ore": 488,
-   "alloy": 113,
+   "ore": 885,
+   "alloy": 119,
    "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 2276,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 65,
+   "ammunition": 0,
    "bandages": 0
   }
  },
@@ -2043,201 +2649,257 @@
   "format": "campaign",
   "alloy": 1800,
   "name": "campaign — assidu",
+  "profileName": "assidu",
   "sessions": [
    {
     "minute": 420,
-    "actions": 4
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 540,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 900,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 1080,
-    "actions": 1
+    "actions": 6,
+    "queueDepth": 0
    },
    {
     "minute": 1260,
-    "actions": 1
+    "actions": 12,
+    "queueDepth": 3
    },
    {
     "minute": 1860,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 7
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1
+    "actions": 7,
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 6
    },
    {
     "minute": 2700,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 5
    },
    {
     "minute": 3300,
-    "actions": 1
+    "actions": 4,
+    "queueDepth": 0
    },
    {
     "minute": 3420,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 3
    },
    {
     "minute": 3600,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 3780,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 0
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 5040,
-    "actions": 1
+    "actions": 3,
+    "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 5400,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 6180,
-    "actions": 2
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 6480,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 6660,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6840,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7020,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 7620,
-    "actions": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 7920,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 8100,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 8280,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 9360,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 9540,
-    "actions": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 9900,
-    "actions": 0
+    "actions": 0,
+    "queueDepth": 0
    }
   ],
-  "totalActions": 38,
-  "foundationPlacements": 4,
+  "totalActions": 66,
+  "foundationPlacements": 5,
   "medianActions": 1,
-  "deadSessions": 14,
-  "deadPct": 33.33333333333333,
-  "busyPct": 22.936507936507937,
-  "longestGap": 900,
+  "medianQueue": 0,
+  "maxQueue": 6,
+  "deadSessions": 12,
+  "deadPct": 28.57142857142857,
+  "busyPct": 45.882936507936506,
+  "longestGap": 517,
   "hqTimes": {
-   "2": 981,
-   "3": 2306,
-   "4": 5002
+   "1": 420,
+   "2": 982,
+   "3": 2307,
+   "4": 5663
   },
   "finalHq": 4,
-  "troops": 7,
+  "troops": 20,
   "lost": 0,
-  "troopCap": 20,
-  "sites": 11,
+  "troopCap": 24,
+  "sites": 13,
   "stocks": {
-   "food": 1875,
-   "textile": 829,
-   "coal": 1312,
+   "food": 2711,
+   "textile": 1328,
+   "coal": 512,
    "oil": 40,
-   "ore": 687,
-   "alloy": 127,
+   "ore": 245,
+   "alloy": 302,
    "ammunition": 120,
+   "bandages": 0
+  },
+  "capped": {
+   "food": 1890,
+   "textile": 0,
+   "coal": 0,
+   "oil": 0,
+   "ore": 0,
+   "alloy": 89,
+   "ammunition": 0,
    "bandages": 0
   }
  }

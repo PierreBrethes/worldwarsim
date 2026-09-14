@@ -7,10 +7,18 @@ formats de `SEASON_FORMATS` sont couverts : `skirmish` (48 h) et `campaign` (7 j
 ```
 node run.mjs             # les deux formats, trois profils de connexion, le journal des connexions
 node run.mjs --sweep     # balayage de l'alliage de départ, format par format
+node run.mjs --grille    # campagne : fonderie × extraction × pack, trois profils → grille.json
+node run.mjs --rapport   # rapport.html à côté — frises, courbes, restes ; s'ouvre en file://
 node run.mjs --json o.json
 node army.mjs            # le prix réel d'une troupe, et ce qui borne l'armée d'une saison
 node verify.mjs          # le miroir dit-il encore ce que dit le jeu ?
 ```
+
+`--grille` croise les trois leviers sur la seule saison que le jeu ait (`campaign`, ADR 0020
+§11) : le balayage à un axe disait « le pack ne suffit pas » sans dire de quoi. Sa sortie est
+suivie (`grille.json`), comme `sweep.json`. `rapport.html` ne l'est pas : c'est une **vue** de la
+dernière exécution et de la dernière grille, un seul fichier sans dépendance ni requête, et une
+vue n'a pas à dériver de ce qu'elle montre.
 
 `verify.mjs` lit `convex/constants.ts` **comme du texte** et compare valeur par valeur. Il
 n'évalue pas de TypeScript et ne le fera pas — il partagerait alors les bugs qu'il doit
@@ -24,9 +32,26 @@ Node nu, aucune dépendance, déterministe : deux exécutions à graine égale s
 
 Les huit ressources, l'extraction par gisement, les trois chaînes (dont l'arsenal **commandé**,
 qui ne tourne que sur lot), les plafonds de stock, le plafond de bâtiments porté par le QG,
-`cappedByHq`, un seul chantier à la fois, le recrutement avec sa file par site de projection, le
-plafond de troupes qui compte la file, et **une infanterie au QG dès la première minute** (la
-dotation du 25/08).
+`cappedByHq`, le recrutement avec sa file par site de projection, et le plafond de troupes qui
+compte la file.
+
+**Le quartier général se pose** (décision 1b du 13/09) : il n'est plus planté au lancement, il
+est la **première dette du socle** — `{ key: 'hq', deposit: null }`, gratuite, immédiate, au
+niveau `HQ_LEVEL_AT_LAUNCH` — et **la compagnie d'infanterie naît avec lui**. Une saison
+s'ouvre donc sur un sol nu. Tant qu'il est dû, rien d'autre ne se pose : `HQ_FIRST` dans la
+colonne « ce qui bloque ». Sur le sol de référence le socle compte donc **cinq** placements
+gratuits, pas quatre.
+
+**La file de chantier est illimitée et prépayée**, comme `convex/constructions.ts` la tient : on
+paie à la mise en file, un seul chantier tourne (la tête), une entrée par région debout *ou* en
+file, et le plafond de bâtiments se lit sur debout + file. La politique enfile à chaque
+connexion tant qu'une clé est légale et payable, sans limite artificielle : la **profondeur de
+file à l'arrivée** (médiane et maximum) dit si le joueur commande sa saison d'un clic.
+
+**Une clé due n'est jamais refusée par le plafond** : `owesFirstPlacement` se lit avant
+`BUILDING_CAP_REACHED`, comme le jeu. Sans effet sur la France, qui doit quatre extracteurs ;
+mesurable sur `REFERENCE_GROUND_OIL` (les États-Unis, cinq extracteurs), que `run.mjs` sort en
+une ligne pour le joueur assidu.
 
 Le **socle** n'est plus une liste de format : depuis le 25/08 il se lit sur les gisements du
 pays, et l'instrument mesure sur un sol de référence nommé — `REFERENCE_GROUND` dans
@@ -38,17 +63,9 @@ Tout cela est **copié** de `convex/constants.ts`, `convex/constructions.ts`, `c
 `convex/resources.ts` et `src/domain/economy.ts` (état du 17/08/2026). Quand ces fichiers
 bougent, `constants.mjs` bouge avec eux, sinon l'instrument ment.
 
-> ⚠️ **Retards connus (25/08/2026)**, décision 3b : la mise à jour du moteur est reportée, pas
-> oubliée. Deux règles du jeu que `engine.mjs` ne dit plus :
+> ⚠️ **Retard connu (25/08/2026)**, décision 3b. La file prépayée et la pose due hors plafond
+> ont été rattrapées le 14/09 ; il reste une règle du jeu que `engine.mjs` ne dit pas :
 >
-> - **la file de chantier prépayée** — le jeu autorise une file illimitée payée à la mise en
->   file ; le moteur refuse toujours `CONSTRUCTION_IN_PROGRESS`. La métrique « actions par
->   connexion » est donc un **plancher** : un joueur qui pourrait enfiler trois chantiers d'une
->   visite n'en pose qu'un ;
-> - **la pose due hors plafond** — une clé du socle n'est plus refusée par le plafond de
->   bâtiments (`buildRefusal` rend encore `BUILDING_CAP_REACHED` avant `owesFirstPlacement`).
->   Sans effet sur le sol de référence, qui doit quatre extracteurs ; un sol à cinq — États-Unis,
->   URSS — serait mesuré une pose trop court en `campaign` ;
 > - **les munitions ne se dépensent plus nulle part** (question 18, tranchée le 25/08). Le
 >   recrutement a cessé de les débiter et c'est la passe de résolution qui les paie — or ce
 >   moteur ne modélise aucun combat. L'arsenal produit donc dans un stock que rien ne vide :
@@ -99,6 +116,7 @@ découpée dans les heures de connexion, jamais simulée comme un état.
 | **actions** | total sur la saison, et médiane par connexion |
 | **connexions vides** | connexions où *aucune* action n'était possible — le vrai défaut |
 | **plus long trou** | plus longue plage sans chantier ni file |
+| **file à l'arrivée** | profondeur de la file de chantier au *départ* de chaque connexion, médiane et maximum : ce que le joueur trouve en s'asseyant, pas ce qu'il laisse |
 | **paliers de QG** | quand le catalogue s'ouvre |
 | **troupes / plafond** | si l'armée bute sur `troopCap` ou sur l'alliage |
 | **restes** | ce qui dort en fin de saison : nomme la ressource qui n'était pas le goulot |
@@ -109,7 +127,7 @@ découpée dans les heures de connexion, jamais simulée comme un état.
 - Les gisements sont supposés disponibles (une région libre porte toujours le bon gisement).
   Tant que `public/deposits.json` n'est pas lu, c'est une hypothèse favorable — et c'est aussi
   pourquoi le sol de référence est écrit à la main plutôt que déduit d'une nation.
-- L'entretien de l'armée n'est pas modélisé : l'infanterie de départ prend une place sous
+- L'entretien de l'armée n'est pas modélisé : la compagnie née avec le QG prend une place sous
   `troopCap`, elle ne mange rien ici.
 - Le plan de jeu est écrit à la main. C'est une *intention*, pas un ordre : la politique saute
   ce qui est refusé. Deux plans sont fournis (`economy`, `army`) précisément pour qu'on voie

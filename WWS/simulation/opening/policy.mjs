@@ -10,7 +10,7 @@
 
 import {
   buildRefusal, startBuild, recruit, recruitRefusal, orderArsenalLot,
-  hqLevel, siteById, totalLevelOf, queueOf, queuedCount, troopCapOf, caps,
+  hqLevel, siteById, totalLevelOf, queueOf, queuedCount, troopCapOf, caps, placedCount,
 } from './engine.mjs';
 import { buildCost, recruitmentCost, buildingCap, PROJECTION_BY_DOMAIN, DOMAIN_BY_ROLE } from './constants.mjs';
 
@@ -70,17 +70,21 @@ export function makePolicy(profile) {
    * finished a level *lower*, having spent on the climb what he owed his economy.
    */
   function raiseHeadquarters(s) {
-    if (s.construction) return false;
     const hq = hqLevel(s);
-    if (hq >= s.tuning.maxHqLevel) return false;
-    const capReached = s.sites.length >= buildingCap(hq, s.tuning);
+    if (hq === 0 || hq >= s.tuning.maxHqLevel) return false;
+    const capReached = placedCount(s) >= buildingCap(hq, s.tuning);
     const blocked = profile.plan.some((o) => buildRefusal(s, o) === 'CAPPED_BY_HQ');
     if (!capReached && !blocked) return false;
     return startBuild(s, { key: 'hq', site: 'hq' });
   }
 
+  /**
+   * **La file est illimitée et prépayée** (25/08) : le joueur enfile tant qu'une clé de ses
+   * envies est légale et payable, et rien ici ne le retient. Si le régime produit des files
+   * absurdes — une saison entière commandée à la première visite — c'est une mesure, pas un
+   * défaut à masquer : la profondeur de file au départ de chaque connexion la porte au rapport.
+   */
   function buildFromPlan(s) {
-    if (s.construction) return false;
     for (const order of profile.plan) {
       if (buildRefusal(s, order) === null) return startBuild(s, order);
     }

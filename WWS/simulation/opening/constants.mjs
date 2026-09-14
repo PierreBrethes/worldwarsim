@@ -9,10 +9,10 @@
 
 export const RESOURCES = ['food', 'textile', 'coal', 'oil', 'ore', 'alloy', 'ammunition', 'bandages'];
 
-export const EXTRACTION_PER_HOUR = { food: 12, textile: 8, coal: 10, oil: 6, ore: 9 };
+export const EXTRACTION_PER_HOUR = { food: 12, textile: 8, coal: 12, oil: 6, ore: 16 };
 
 export const CHAINS = {
-  foundry: { output: 'alloy', inputs: [['ore', 2], ['coal', 1]], perHourPerLevel: 4 },
+  foundry: { output: 'alloy', inputs: [['ore', 2], ['coal', 1]], perHourPerLevel: 8 },
   arsenal: { output: 'ammunition', inputs: [['alloy', 1]], perHourPerLevel: 3 },
   quartermaster: { output: 'bandages', inputs: [['textile', 1]], perHourPerLevel: 3 },
 };
@@ -103,6 +103,8 @@ export const MAX_QUEUED_BATCHES = 12;
  * **The foundation is no longer here** (25/08): it is read off the nation's ground — see
  * `FOUNDATION_EXTRACTORS` below.
  */
+export const HQ_LEVEL_AT_LAUNCH = 1;
+
 export const SEASON_FORMATS = {
   skirmish: {
     defaultDurationHours: 48,
@@ -116,11 +118,11 @@ export const SEASON_FORMATS = {
   },
   campaign: {
     defaultDurationHours: 168,
-    hqLevelAtLaunch: 1,
+    hqLevelAtLaunch: HQ_LEVEL_AT_LAUNCH,
     maxHqLevel: 5,
     buildingCapBase: 5,
     buildingCapPerHqLevel: 2,
-    startingAlloy: 500,
+    startingAlloy: 400,
     startingOil: 40,
     startingAmmunition: 80,
   },
@@ -197,13 +199,22 @@ export const FOUNDATION_EXTRACTORS = {
   oil: 'oilWell',
 };
 
-/** A debt is a **couple** (building, deposit): the mine owed for iron is only ever settled by
- *  a mine on iron ground (`convex/constants.ts`). */
-export const foundationFor = (deposits) =>
-  FOUNDATION_ORDER.filter((deposit) => deposits.includes(deposit)).map((deposit) => ({
+/**
+ * A debt is a **couple** (building, deposit): the mine owed for iron is only ever settled by
+ * a mine on iron ground (`convex/constants.ts`). A debt whose deposit is `null` — the
+ * headquarters, and it alone — is settled wherever it is placed.
+ *
+ * **Le quartier général ouvre la liste** (décision 1b du 13/09) : il n'est plus planté au
+ * lancement, il est la première dette, et comme rien ne se bâtit sans lui l'ordre n'est pas une
+ * présentation mais la seule séquence acceptée.
+ */
+export const foundationFor = (deposits) => [
+  { key: 'hq', deposit: null },
+  ...FOUNDATION_ORDER.filter((deposit) => deposits.includes(deposit)).map((deposit) => ({
     key: FOUNDATION_EXTRACTORS[deposit],
     deposit,
-  }));
+  })),
+];
 
 /** What the foundation still owes, in placement order. */
 export function foundationOwed(foundation, standing) {
@@ -234,10 +245,13 @@ export const REDUCTION_FACTOR = 0.5;
  */
 export const DEFAULT_TUNING = {
   levelCostFactor: 1.8,
-  foundryPerHour: 4,
-  orePerHour: 9,
-  coalPerHour: 10,
-  oreInput: 2,
+  /** Dérivés des tables du miroir, jamais recopiés : sans ça `verify.mjs` peut être vert sur
+   *  `CHAINS` et `EXTRACTION_PER_HOUR` pendant qu'un balayage tourne sur les anciens débits. Ce
+   *  sont des **valeurs par défaut** — une case de grille les remplace, c'est leur métier. */
+  foundryPerHour: CHAINS.foundry.perHourPerLevel,
+  orePerHour: EXTRACTION_PER_HOUR.ore,
+  coalPerHour: EXTRACTION_PER_HOUR.coal,
+  oreInput: CHAINS.foundry.inputs.find(([resource]) => resource === 'ore')[1],
   // The building ceiling belongs to the format now (`SEASON_FORMATS`), and `scenarios.mjs`
   // overrides these two from it. Kept so a bare scenario still has a ceiling, and so a sweep
   // can still ask what widening it buys. The instrument mirrors, it does not propose.

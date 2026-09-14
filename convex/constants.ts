@@ -2,8 +2,14 @@
  * **Every number in this file is a placeholder**, and this is the one place to correct when the
  * simulator takes over — nothing numeric belongs anywhere else. The report calibrated on three
  * resources (ADR 0015) does not carry over. Orders of magnitude were chosen so a fresh nation
- * raises its first buildings within the first hours of a 48-hour season, and so a foundry is
- * worth more than the ore it eats. Nothing more was measured.
+ * raises its first buildings within the first hours of the one season the game has (168 h since
+ * ADR 0020 §11), and so a foundry is worth more than the ore it eats.
+ *
+ * **Première mesure des tables économiques, le 14/09/2026** : la chaîne de l'alliage — le débit
+ * de la fonderie, le fer et le charbon qui la nourrissent, l'alliage de la dotation — est lue sur
+ * la grille du simulateur d'ouverture (`WWS/simulation/opening/`, 108 cases) et non plus posée à
+ * vue. Rapport : `WWS/docs/rapports/2026-09-14-chaine-de-l-alliage.md`. **Placeholder tout de
+ * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
  */
 
 import type { BuildingKey, DepositKey, ResourceKey, UnitRole } from '../src/domain/ids';
@@ -16,13 +22,21 @@ export { NATIONS } from '../src/domain/ids';
 
 export type Costs = Readonly<Partial<Record<ResourceKey, number>>>;
 
-/** Per hour and per level of the exploitation building sitting on the deposit. */
+/**
+ * Per hour and per level of the exploitation building sitting on the deposit.
+ *
+ * **Le fer et le charbon sont l'appétit exact d'une fonderie** (mesure du 14/09) : une fonderie
+ * de niveau 1 mange 16 minerai et 8 charbon par heure, et le sol doit la suivre *dans ces
+ * proportions* — pas d'un même facteur. Une extraction ×1,5 uniforme laissait le minerai à zéro
+ * pendant que le charbon gâchait 2 000 unités au plafond de stock. Le surplus de charbon (12
+ * contre 8) est ce que les chantiers paient à côté de la fonte.
+ */
 export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
   food: 12,
   textile: 8,
-  coal: 10,
+  coal: 12,
   oil: 6,
-  ore: 9,
+  ore: 16,
 };
 
 /**
@@ -42,7 +56,7 @@ export const CHAINS: Readonly<
       ['ore', 2],
       ['coal', 1],
     ],
-    perHourPerLevel: 4,
+    perHourPerLevel: 8,
   },
   arsenal: { output: 'ammunition', inputs: [['alloy', 1]], perHourPerLevel: 3 },
   quartermaster: { output: 'bandages', inputs: [['textile', 1]], perHourPerLevel: 3 },
@@ -169,13 +183,18 @@ export const MAX_HQ_LEVEL = 5;
 export const DEFAULT_DURATION_HOURS = 168;
 
 /**
- * **Measured, not chosen** (`node WWS/simulation/opening/run.mjs --sweep`, assiduous player).
- * The 500 is read on the campaign's first 48 hours, at the point where the empty connections
- * stop falling. **Fragile, and knowingly so**: over the whole season the sweep is not monotonic
- * (35 actions at 420, 28 at 800), because there the order of the clicks weighs more than the
- * parameter. That is a symptom, never a knob.
+ * **Le plus bas où la première projection par mer tient** (383 alliage : fonderie, quartier
+ * général au niveau 2, caserne, port, un cargo — `invariants.test.ts`). Ce n'est plus un chiffre
+ * du simulateur : la grille du 14/09 (`node run.mjs --grille`) le mesure **indifférent entre 250
+ * et 500** une fois la fonderie à 8/h, l'ouverture ne dépendant plus du portefeuille mais de la
+ * fonte. Ce qui fixe la borne est donc la règle de design de la décision 66a du 04/09 — une île
+ * ne doit pas être tarifée au-dessus de son voisin — et rien d'autre.
+ *
+ * À 300 la facture casse ; à 400 elle tient, de justesse. Descendre plus bas demande de rouvrir
+ * 66a (« dans la dotation *plus une journée de fonderie* », par exemple) : ce serait une décision
+ * signalée, pas un réglage.
  */
-export const STARTING_ALLOY = 500;
+export const STARTING_ALLOY = 400;
 
 /**
  * **The fuse.** Oil is the one resource a nation can be born unable to make, so this reserve

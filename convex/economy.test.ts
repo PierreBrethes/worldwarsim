@@ -457,9 +457,15 @@ describe('what a ceiling bounds', () => {
   it('leaves a stock above its ceiling alone, reading after reading', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    // The kit opens above the ceiling of a nation without a warehouse: the difference is the
-    // player's until he spends it.
-    expect(KIT.alloy).toBeGreaterThan(BASE_CAP);
+    /**
+     * A stock can sit above the ceiling of a nation without a warehouse — a kit that opens
+     * higher, a warehouse razed, a delivery that lands. What matters is that the difference stays
+     * the player's until he spends it. Posé ici plutôt que lu sur la dotation : celle-ci est
+     * descendue à `BASE_CAP` le 14/09 (`STARTING_ALLOY`), et une règle ne doit pas cesser d'être
+     * couverte parce qu'un chiffre voisin a bougé.
+     */
+    const above = BASE_CAP + 120;
+    await fill(t, seat, 'alloy', above);
 
     vi.advanceTimersByTime(10 * 3_600_000);
     await t.run(async (ctx) => {
@@ -469,7 +475,7 @@ describe('what a ceiling bounds', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.resources.alloy.cap).toBe(BASE_CAP);
-    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.alloy.stock).toBe(above);
   });
 
   it('takes the surplus the instant the capacity falls, and takes it once', async () => {
