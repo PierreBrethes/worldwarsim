@@ -49,6 +49,15 @@ Sans brouillard, le plus beau du jeu est offert gratuitement à tout le monde et
 
 ## Les forces posées ne se voient pas de loin
 
+> ⚠️ **Révision (13/09/2026, [ADR 0024](../adr/0024-engagement-intentionnel-et-forces-posees-visibles.md)) : cette section est renversée.**
+> Une force posée **se voit dans la portée** de tout détecteur, comme un mouvement — sa position,
+> son milieu, depuis quand — jamais sa composition ni sa nation ; sortie de portée, elle devient
+> une dernière position connue (24 h, `@a-mesurer`). Et **rien ne se bat sans ordre d'attaque** :
+> une colonne qui s'arrête près d'un camp adverse ne le combat pas, l'attaque ne se donne que sur
+> un objet relevé — camp, installation, avant-poste, objectif. Le texte ci-dessous est conservé
+> comme trace de l'argument (l'agent dormant), dont l'ADR 0024 dit ce qui survit.
+
+
 Depuis l'ADR 0019 (18/08), une troupe peut rester posée sur la carte. Elle suit la règle déjà
 écrite pour l'avant-poste adverse — *exactement le genre de chose que le brouillard existe pour
 cacher* : **aucune détection à distance**, ni par le rayon d'un territoire, ni par celui d'une

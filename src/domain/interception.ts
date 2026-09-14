@@ -139,6 +139,11 @@ const legCost = (leg: RouteLeg, landCost = COST_BY_MEDIUM.land): number =>
 /**
  * The first mobile contact that may become a pass. Seeing is asymmetric; initiating is narrower:
  * the force must carry an order that engages and both columns must occupy the same medium.
+ *
+ * ⚠️ **Plus aucun appelant de production depuis le 13/09/2026** (ADR 0024 §3) : la rencontre en
+ * route a été retirée du plateau — une colonne va où on l'envoie. La géométrie reste ici avec ses
+ * tests parce que l'**intercepteur V1** la reprendra : c'est le même calcul, sous un ordre que le
+ * joueur donnera. Ne pas la supprimer en croyant ranger du code mort.
  */
 export function firstMobileEncounter({
   a,

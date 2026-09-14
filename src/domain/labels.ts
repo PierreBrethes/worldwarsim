@@ -1,4 +1,4 @@
-import { asLocalTime } from '@/domain/duration';
+import { asDuration, asLocalTime } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
 import {
@@ -41,6 +41,22 @@ export type MapMarker =
       readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
+    }
+  | {
+      /**
+       * **Un camp adverse relevé** (ADR 0024 §1) — une position, un milieu, deux dates. Il n'a
+       * ni encre, ni effectif, ni portrait : le brouillard ne rend que *où* une force se tient,
+       * jamais *ce qu'elle est*, et la forme est ce qui l'interdit.
+       */
+      readonly kind: 'camp';
+      readonly id: string;
+      readonly campId: string;
+      readonly lonLat: LonLat;
+      readonly medium: 'land' | 'sea' | 'air';
+      /** Perdu de vue : le mât se délave, comme un relevé de région qui date. */
+      readonly lastKnown: boolean;
+      readonly since: number;
+      readonly seenMinutesAgo: number | null;
     }
   | {
       readonly kind: 'outpost';
@@ -170,6 +186,7 @@ export type Reach = {
 export type LabelType =
   | 'loot'
   | 'installation'
+  | 'camp'
   | 'outpost'
   | 'stack'
   | 'construction'
@@ -274,6 +291,12 @@ export type MapLabel = {
   /** Le mât adverse relevé, la cible de l'expédition — jamais confondu avec `building`. */
   readonly installation: InstallationHandle | null;
   /**
+   * **Le camp adverse relevé** (ADR 0024 §1) : ce qu'un clic gauche ouvre en cartouche et ce
+   * qu'un clic droit vise. Il porte son milieu parce que c'est tout son portrait — la
+   * silhouette de domaine, jamais une planche nationale.
+   */
+  readonly camp: { readonly id: string; readonly medium: 'land' | 'sea' | 'air' } | null;
+  /**
    * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
    * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
    * second read-only sheet for the same pile.
@@ -300,6 +323,8 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   construction: 4,
   loot: 3,
   outpost: 3,
+  /** Un camp relevé se lit avant un mât : c'est une force, et elle peut partir. */
+  camp: 3,
   stack: 2,
   building: 1,
   /** Le mât d'un autre ne prend jamais la place du sien : à encombrement égal, c'est le joueur
@@ -353,19 +378,25 @@ function markerLabel(marker: MapMarker): MapLabel {
     id: marker.id,
     anchor: anchorOf(marker),
     ink:
-      marker.kind === 'deposit' || marker.kind === 'loot' || marker.kind === 'installation'
+      marker.kind === 'deposit' ||
+      marker.kind === 'loot' ||
+      marker.kind === 'installation' ||
+      marker.kind === 'camp'
         ? null
         : marker.ink,
     plate: null,
     deposit: null,
     lootSightingId: null,
     lootCurrent: true,
-    washed: marker.kind === 'installation' && marker.washed,
+    washed:
+      (marker.kind === 'installation' && marker.washed) ||
+      (marker.kind === 'camp' && marker.lastKnown),
     identified: false,
     offensive: false,
     idle: false,
     building: null,
     installation: null,
+    camp: null,
     station: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
@@ -404,6 +435,30 @@ function markerLabel(marker: MapMarker): MapLabel {
         installation: { id: marker.buildingId, key: marker.key, regionId: marker.regionId },
         hostCountry: null,
         lines: [{ role: 'nature', text: marker.name }],
+      };
+    /**
+     * **Ce qu'on sait d'un camp, et c'est tout** (ADR 0024 §1) : il se tient là, dans ce
+     * milieu-là, et on l'a relevé à cette heure-là. Aucun pictogramme — c'est la silhouette de
+     * domaine qui en tient lieu, celle qu'un arc adverse porte déjà.
+     */
+    case 'camp':
+      return {
+        ...common,
+        type: 'camp',
+        priority: PRIORITY.camp,
+        pictogram: null,
+        camp: { id: marker.campId, medium: marker.medium },
+        hostCountry: null,
+        lines: [
+          { role: 'nature', text: fr.camps.marker },
+          {
+            role: 'mention',
+            text:
+              marker.seenMinutesAgo === null
+                ? fr.camps.seenAt(asLocalTime(marker.since))
+                : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
+          },
+        ],
       };
     case 'outpost':
       return {
@@ -515,6 +570,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       priority: PRIORITY['my-movement'],
       washed: false,
       installation: null,
+      camp: null,
       anchor: { kind: 'movementHead', arc: arc.id },
       reach: null,
       ink: null,
@@ -546,6 +602,36 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ],
     };
   }
+  /**
+   * **Une dernière position connue se nomme** (ADR 0024 §2) : l'arc figé disait son âge par sa
+   * seule pâleur, et un joueur ne pouvait pas savoir s'il lisait une trace d'il y a dix minutes
+   * ou d'hier soir. Une ligne, la même que celle d'un camp perdu de vue.
+   */
+  if (arc.state === 'lastKnown') {
+    return {
+      id: arc.id,
+      type: 'intel',
+      priority: PRIORITY.intel,
+      washed: true,
+      installation: null,
+      camp: null,
+      anchor: { kind: 'movementHead', arc: arc.id },
+      reach: null,
+      ink: null,
+      pictogram: null,
+      plate: null,
+      deposit: null,
+      lootSightingId: null,
+      lootCurrent: true,
+      identified: false,
+      offensive: false,
+      idle: false,
+      hostCountry: null,
+      building: null,
+      station: null,
+      lines: [{ role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) }],
+    };
+  }
   if (arc.state !== 'enemyDetected') return null;
 
   const type = arc.headingAtMe ? 'inbound-movement' : 'intel';
@@ -572,6 +658,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     priority: PRIORITY[type],
     washed: false,
     installation: null,
+    camp: null,
     anchor: { kind: 'movementHead', arc: arc.id },
     reach: null,
     ink: null,

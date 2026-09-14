@@ -203,6 +203,49 @@
   opacity: 0.62;
 }
 
+/* Un camp adverse relevé (ADR 0024 §1). Comme la caisse, ce n'est pas une possession : pas de
+   mât national, pas d'encre. Ce qu'il porte est la silhouette de domaine d'un arc adverse —
+   le même dessin, en encre sourde — et le délavé général dit la dernière position connue. */
+.label--camp::before,
+.label--camp .label-bar {
+  content: none;
+  display: none;
+}
+
+.label--camp .label-block {
+  bottom: 4px;
+  left: -13px;
+  cursor: pointer;
+}
+
+.label-camp {
+  position: relative;
+  display: flex;
+  color: var(--ink-soft);
+  filter: drop-shadow(0 0 1.4px var(--paper)) drop-shadow(0 0 1.4px var(--paper));
+}
+
+.label-camp::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+
+.label--camp.label--selected .label-camp {
+  color: var(--ink);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.label--camp.label--glyph .label-block {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.label--camp.label--glyph .label-lines {
+  display: none;
+}
+
 .label--loot-stale .label-loot {
   border-style: dashed;
   opacity: 0.58;

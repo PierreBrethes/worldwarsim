@@ -144,6 +144,26 @@ export type ArcView =
     };
 
 /**
+ * **Un camp adverse relevé** (ADR 0024 §1). Le pendant immobile d'un arc adverse, et la même
+ * garantie par la forme : il n'y a **structurellement** ni composition, ni effectif, ni nation à
+ * afficher par distraction. Ce qu'il porte est ce qu'un guetteur peut honnêtement rapporter — un
+ * endroit, un milieu, deux dates — plus le détecteur, qui est un fait du plateau de l'observateur.
+ *
+ * `lastKnown` est le camp perdu de vue : `seenMinutesAgo` le date alors, et il vaut `null` tant
+ * qu'une portée le couvre.
+ */
+export type CampView = {
+  readonly id: string;
+  readonly point: LonLat;
+  readonly medium: 'land' | 'sea' | 'air';
+  readonly since: number;
+  readonly seenMinutesAgo: number | null;
+  readonly detector: Detector;
+  readonly detectorRegion: string | null;
+  readonly lastKnown: boolean;
+};
+
+/**
  * **Where a troop stands, and the map is one of the answers** (ADR 0019 §1): a building, the
  * outpost a column founded, a plain point of the map, or nothing standing at all. A discriminated
  * union rather than an id and a kind beside it — a point carries coordinates no id has, `home`
@@ -498,6 +518,9 @@ export type DispatchKind =
   | 'outpostFounded'
   | 'outpostDisabled'
   | 'sighting'
+  /** Un camp relevé : la même encre que le fil relevé, et un mot distinct pour que le tampon de
+   *  la marge dise lequel des deux on lit. */
+  | 'campSighted'
   | 'firedDry'
   | 'foundNothing'
   | 'surrender'
@@ -608,6 +631,15 @@ export type Notice =
       readonly at: number;
       readonly hostCountry: string;
       readonly headingDegrees: number;
+      readonly detector: Detector;
+      readonly detectorRegion: string | null;
+    }
+  /** La sœur immobile de la précédente (ADR 0024 §1) : un camp, un endroit, et pas de cap — un
+   *  camp ne va nulle part, et c'est tout ce qui les sépare. */
+  | {
+      readonly kind: 'campSighted';
+      readonly at: number;
+      readonly hostCountry: string;
       readonly detector: Detector;
       readonly detectorRegion: string | null;
     }
@@ -908,6 +940,7 @@ export type PlayerView = {
     readonly current: boolean;
   }>;
   readonly arcs: ReadonlyArray<ArcView>;
+  readonly camps: ReadonlyArray<CampView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;

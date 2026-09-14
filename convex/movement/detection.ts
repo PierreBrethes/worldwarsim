@@ -1,7 +1,13 @@
 /**
- * Passive detection and mobile encounters, recomputed on board events rather than on reads.
- * The ledger stays per observer (`sightings`), so `PlayerView` never filters the season's
- * movements and never receives a future window before it opens.
+ * Passive detection, recomputed on board events rather than on reads. The ledgers stay per
+ * observer — `sightings` for a thread that went past, `campSightings` for a force standing —
+ * so `PlayerView` never filters the season's board and never receives a future window before
+ * it opens.
+ *
+ * **Rien ne s'y engage** (ADR 0024 §3, révision du 13/09/2026) : la rencontre en route a été
+ * retirée d'ici — plus de `firstMobileEncounter`, plus de rendez-vous de contact. Détecter est
+ * voir ; se battre demande un ordre, et l'ordre est résolu à l'arrivée (`engageAt`). La
+ * géométrie de l'interception reste dans le domaine, pour l'intercepteur V1.
  */
 
 import { internal } from '../_generated/api';
@@ -9,7 +15,6 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import {
-  firstMobileEncounter,
   INTERCEPTION_SAMPLES,
   mobileSighting,
   positionAt,
@@ -18,14 +23,18 @@ import {
   type Watcher,
 } from '../../src/domain/interception';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { movementBehavior } from '../../src/domain/movement-orders';
-import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
+import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { seasonBuildings } from '../buildings';
-import { detectionRangeOf, LISTENING_STATION_RADIUS_KM, outpostReachKm } from '../constants';
+import {
+  detectionRangeOf,
+  LAST_KNOWN_HOURS,
+  LISTENING_STATION_RADIUS_KM,
+  outpostReachKm,
+} from '../constants';
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
-import { hostAmongCountries, hostAtPoint } from '../routes';
-import { pointOf, seasonMovements, seasonOutposts } from './forces';
+import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
+import { asPoint, pointOf, seasonMovements, seasonOutposts } from './forces';
 
 type Mobile = {
   readonly movement: Doc<'movements'>;
@@ -61,7 +70,6 @@ export async function reassessDetection(
   if (season === null) return;
 
   const movements = await seasonMovements(ctx, seasonId);
-  await cancelContacts(ctx, movements);
 
   const active =
     season.status === 'launched' && season.concludedAt === null
@@ -75,12 +83,13 @@ export async function reassessDetection(
     await syncSightings(ctx, target, await desired, now);
   }
 
+  await forgetStaleSightings(ctx, board, now);
+
   if (season.status === 'launched' && season.concludedAt === null) {
+    await syncCampSightings(ctx, seasonId, board, now);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
   }
-
-  if (active.length > 1) await scheduleContacts(ctx, active, board.mobileById, now);
 }
 
 /** Re-read only the present board. Quantity changes use this seam so an unchanged route keeps
@@ -131,16 +140,6 @@ export async function refreshLootCrateDetection(
   await reassessLootCrateDetection(ctx, prediction.seasonId, now);
 }
 
-/** The callback's fresh reading of one movement, including its current surviving manifest. */
-export async function mobileForceOf(ctx: MutationCtx, movement: Doc<'movements'>): Promise<Mobile> {
-  const roles: UnitRole[] = [];
-  for (const troopId of movement.troopIds) {
-    const troop = await ctx.db.get(troopId);
-    if (troop !== null) roles.push(troop.role);
-  }
-  return { movement, force: marchingForce(movement), rangeKm: detectionRangeOf(roles) };
-}
-
 /** A future sighting files its dispatch only when its window truly opens. */
 export async function revealSighting(
   ctx: MutationCtx,
@@ -179,28 +178,6 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   departedAt: movement.departedAt,
   arrivesAt: movement.arrivesAt,
 });
-
-async function cancelContacts(
-  ctx: MutationCtx,
-  movements: ReadonlyArray<Doc<'movements'>>,
-): Promise<void> {
-  for (const movement of movements) {
-    if (movement.contactJobId !== undefined) await cancelJob(ctx, movement.contactJobId);
-    if (
-      movement.contactJobId !== undefined ||
-      movement.contactWithId !== undefined ||
-      movement.contactAt !== undefined ||
-      movement.contactInitiatorId !== undefined
-    ) {
-      await ctx.db.patch(movement._id, {
-        contactJobId: undefined,
-        contactWithId: undefined,
-        contactAt: undefined,
-        contactInitiatorId: undefined,
-      });
-    }
-  }
-}
 
 async function cancelJob(ctx: MutationCtx, jobId: Id<'_scheduled_functions'>): Promise<void> {
   try {
@@ -323,12 +300,189 @@ async function detectionBoard(
     });
   }
 
-  return { mobileById, watchers, players };
+  return { mobileById, watchers, players, posted };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
 
 type CurrentDetector = { readonly point: LonLat; readonly radiusKm: number };
+
+/**
+ * **Une dernière position connue vieillit, elle ne s'éternise pas** (ADR 0024 §2). Le ménage se
+ * fait ici parce que la réévaluation touche déjà ces deux index : un travail planifié pour
+ * ramasser des souvenirs serait une horloge de plus dans un jeu qui n'en a pas.
+ *
+ * Un arc figé se reconnaît à son mouvement disparu — la ligne n'a plus rien à relire — et un camp
+ * à sa fenêtre fermée. Les deux s'effacent au même délai : ce sont deux souvenirs de la même
+ * sorte.
+ */
+async function forgetStaleSightings(
+  ctx: MutationCtx,
+  board: DetectionBoard,
+  now: number,
+): Promise<void> {
+  const cutoff = now - LAST_KNOWN_HOURS * 3_600_000;
+  for (const player of board.players) {
+    for (const sighting of await ctx.db
+      .query('sightings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect()) {
+      const frozen = sighting.frozen;
+      if (frozen !== undefined && frozen.closedAt <= cutoff) await deleteSighting(ctx, sighting);
+    }
+    for (const camp of await ctx.db
+      .query('campSightings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect()) {
+      if (camp.until !== null && camp.until <= cutoff) await ctx.db.delete(camp._id);
+    }
+  }
+}
+
+/** Ce qui a pris le camp, et le peu que l'observateur en tire sur son propre plateau. */
+type CampDetector = CurrentDetector & {
+  readonly detector: Detector;
+  readonly detectorId: Id<'buildings'> | Id<'outposts'> | null;
+  readonly detectorHostCountry: string;
+  readonly detectorRegion: string | null;
+};
+
+/**
+ * **Une force posée se voit dans la portée** (ADR 0024 §1). Le jumeau immobile de `syncSightings`,
+ * et il obéit aux mêmes deux règles : l'écriture est **événementielle** — la réévaluation relit le
+ * plateau, la lecture ne filtre jamais rien — et la ligne appartient à un observateur, qui lit son
+ * propre index (`brouillard-et-fanout.md`).
+ *
+ * Ce qui est relevé est une **position, un milieu et une date**. Ni la composition, ni l'effectif,
+ * ni la nation : l'agent dormant garde son métier, qui est d'identifier et non de repérer.
+ */
+async function syncCampSightings(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  board: DetectionBoard,
+  now: number,
+): Promise<void> {
+  const detectors = new Map<Id<'players'>, CampDetector[]>();
+  const watch = (playerId: Id<'players'>, detector: CampDetector) => {
+    const held = detectors.get(playerId) ?? [];
+    held.push(detector);
+    detectors.set(playerId, held);
+  };
+  for (const watcher of board.watchers) {
+    watch(watcher.playerId, {
+      point: watcher.point,
+      radiusKm: watcher.radiusKm,
+      detector: watcher.detector,
+      detectorId: watcher.detectorId,
+      detectorHostCountry: watcher.detectorHostCountry,
+      detectorRegion: watcher.detectorRegion,
+    });
+  }
+  /** Une colonne en marche relève aussi — depuis l'endroit où elle se trouve **maintenant**,
+   *  comme pour les caisses : un relevé est un état du plateau, pas une prédiction. */
+  for (const mobile of board.mobileById.values()) {
+    if (mobile.rangeKm <= 0) continue;
+    const point = positionAt(mobile.force, now);
+    watch(mobile.movement.playerId, {
+      point,
+      radiusKm: mobile.rangeKm,
+      detector: 'troop',
+      detectorId: null,
+      detectorHostCountry: hostAtPoint(point),
+      detectorRegion: null,
+    });
+  }
+
+  /** **Le territoire n'a pas de rayon : c'est le sol** (fiche 04). Un camp planté chez moi est vu
+   *  sans que rien de moi n'y soit posé. */
+  const soils = new Map<string, Id<'players'>>();
+  for (const player of board.players) {
+    const home = homeCountryOf(player.nation);
+    if (home !== null) soils.set(home, player._id);
+  }
+
+  const caughtBy = (playerId: Id<'players'>, point: LonLat): CampDetector | null => {
+    const home = soils.get(hostAmongCountries(point, new Set(soils.keys())));
+    const found = (detectors.get(playerId) ?? []).filter(
+      (detector) => distanceKm(detector.point, point) <= detector.radiusKm,
+    );
+    if (home === playerId) {
+      found.push({
+        point,
+        radiusKm: 0,
+        detector: 'territory',
+        detectorId: null,
+        detectorHostCountry: hostAtPoint(point),
+        detectorRegion: null,
+      });
+    }
+    /** Le même classement que le relevé d'un fil : ce qui est nommé est le premier détecteur de
+     *  la fiche 04 qui couvre, jamais un appel de tous. */
+    return (
+      found.sort(
+        (a, b) => DETECTOR_ORDER.indexOf(a.detector) - DETECTOR_ORDER.indexOf(b.detector),
+      )[0] ?? null
+    );
+  };
+
+  for (const player of board.players) {
+    const rows = (
+      await ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).filter((row) => row.seasonId === seasonId);
+    const byStation = new Map(rows.map((row) => [row.stationKey, row]));
+
+    for (const [stationKey, camp] of board.posted) {
+      if (camp.playerId === player._id) continue;
+      const caught = caughtBy(player._id, camp.point);
+      const row = byStation.get(stationKey);
+      if (caught === null) {
+        if (row !== undefined && row.until === null) await ctx.db.patch(row._id, { until: now });
+        continue;
+      }
+      const seen = {
+        point: asPoint(camp.point),
+        medium: landAtPoint(camp.point) ? ('land' as const) : ('sea' as const),
+        until: null,
+        detector: caught.detector,
+        detectorId: caught.detectorId,
+        detectorRegion: caught.detectorRegion,
+      };
+      if (row !== undefined) {
+        await ctx.db.patch(row._id, seen);
+        continue;
+      }
+      await ctx.db.insert('campSightings', {
+        playerId: player._id,
+        seasonId,
+        stationKey,
+        ownerId: camp.playerId,
+        since: now,
+        noticeFiled: true,
+        ...seen,
+      });
+      /** **Une fois par ligne, à l'ouverture** : une réouverture est le même camp retrouvé, et
+       *  une seconde manchette pour lui ferait du journal un compteur de passages. */
+      await ctx.db.insert('notices', {
+        playerId: player._id,
+        at: now,
+        kind: 'campSighted',
+        hostCountry: caught.detectorHostCountry,
+        detector: caught.detector,
+        detectorRegion: caught.detectorRegion,
+      });
+    }
+
+    /** La pile a levé le camp : la fenêtre se ferme, et le souvenir reste jusqu'au lot C. */
+    for (const row of rows) {
+      if (!board.posted.has(row.stationKey) && row.until === null) {
+        await ctx.db.patch(row._id, { until: now });
+      }
+    }
+  }
+}
 
 const emptyLoot = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((resource) => [resource, 0])) as Record<ResourceKey, number>;
@@ -724,58 +878,4 @@ async function scheduleReveal(
 async function deleteSighting(ctx: MutationCtx, sighting: Doc<'sightings'>): Promise<void> {
   if (sighting.revealJobId !== undefined) await cancelJob(ctx, sighting.revealJobId);
   await ctx.db.delete(sighting._id);
-}
-
-async function scheduleContacts(
-  ctx: MutationCtx,
-  movements: ReadonlyArray<Doc<'movements'>>,
-  mobileById: ReadonlyMap<Id<'movements'>, Mobile>,
-  now: number,
-): Promise<void> {
-  const contacts = [];
-  for (let left = 0; left < movements.length; left += 1) {
-    for (let right = left + 1; right < movements.length; right += 1) {
-      const a = mobileById.get(movements[left]!._id);
-      const b = mobileById.get(movements[right]!._id);
-      if (a === undefined || b === undefined || a.movement.playerId === b.movement.playerId)
-        continue;
-      if (
-        a.movement.encounteredMovementIds?.includes(b.movement._id) === true ||
-        b.movement.encounteredMovementIds?.includes(a.movement._id) === true
-      ) {
-        continue;
-      }
-      const contact = firstMobileEncounter({
-        a: a.force,
-        b: b.force,
-        rangeA: a.rangeKm,
-        rangeB: b.rangeKm,
-        engagesA: movementBehavior(a.movement.type) === 'engage',
-        engagesB: movementBehavior(b.movement.type) === 'engage',
-        after: now,
-      });
-      if (contact !== null) contacts.push(contact);
-    }
-  }
-  contacts.sort((a, b) => a.at - b.at);
-
-  const reserved = new Set<string>();
-  for (const contact of contacts) {
-    if (reserved.has(contact.initiatorId) || reserved.has(contact.withId)) continue;
-    const initiatorId = contact.initiatorId as Id<'movements'>;
-    const withId = contact.withId as Id<'movements'>;
-    const contactJobId = await ctx.scheduler.runAt(contact.at, internal.movements.encounter, {
-      initiatorId,
-      withId,
-      expectedAt: contact.at,
-    });
-    await ctx.db.patch(initiatorId, {
-      contactJobId,
-      contactWithId: withId,
-      contactAt: contact.at,
-      contactInitiatorId: initiatorId,
-    });
-    reserved.add(contact.initiatorId);
-    reserved.add(contact.withId);
-  }
 }

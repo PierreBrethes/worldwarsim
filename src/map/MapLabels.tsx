@@ -15,6 +15,7 @@ import {
 } from '@/domain/labels';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
+import { silhouettePaths } from './engine/silhouettes';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
@@ -58,6 +59,7 @@ export function MapLabels({
   onOpenBuilding,
   onOpenStack,
   onOpenLoot,
+  onOpenCamp,
   onContextMenu,
   muted,
 }: {
@@ -85,6 +87,9 @@ export function MapLabels({
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
   /** Coincident private sightings cycle through one shared pointer target. */
   onOpenLoot: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
+  /** **Le cartouche d'un camp relevé** (ADR 0024 §1) : il lit, il ne commande rien — les ordres
+   *  se prennent au clic droit, comme partout ailleurs sur la carte. */
+  onOpenCamp: (campId: string, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
@@ -286,6 +291,8 @@ export function MapLabels({
                 onOpenBuilding(label.building.id, event.clientX, event.clientY);
               } else if (label.station !== null) {
                 onOpenStack(label, event.clientX, event.clientY);
+              } else if (label.camp !== null) {
+                onOpenCamp(label.camp.id, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onKeyDown={(event) => {
@@ -327,6 +334,15 @@ export function MapLabels({
                 <span className="label-loot">
                   <Glyph size={28}>
                     <path d="M3.5 7.5h13v9h-13zM3.5 7.5l3-4h7l3 4M10 7.5v9M6.5 3.5 10 7.5l3.5-4" />
+                  </Glyph>
+                </span>
+              )}
+              {label.camp !== null && (
+                <span className="label-camp">
+                  <Glyph size={26}>
+                    {silhouettePaths(label.camp.medium).map((path) => (
+                      <path key={path} d={path} fill="currentColor" stroke="none" />
+                    ))}
                   </Glyph>
                 </span>
               )}
@@ -420,6 +436,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.hostCountry === null &&
     label.building === null &&
     label.station === null &&
+    label.camp === null &&
     label.lootSightingId === null
       ? ''
       : 'label--clickable',

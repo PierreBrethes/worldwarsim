@@ -7,6 +7,7 @@ import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import {
+  LAST_KNOWN_HOURS,
   LISTENING_STATION_RADIUS_KM,
   RELAY_SPEED_MULTIPLIER,
   DETECTION_RANGE_KM,
@@ -18,6 +19,7 @@ import {
 import { regionFacts } from './regions';
 import { hostAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
+import { forgetMovement } from './movement/arrival';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, seatIn } from './seats.fixture';
@@ -324,57 +326,180 @@ describe('what sees a movement go past', () => {
   });
 });
 
-describe('event-driven mobile contact', () => {
+/**
+ * **Une force posée se voit dans la portée** (ADR 0024 §1). Ce qui est relevé est une position,
+ * un milieu et une date ; ce qui ne l'est jamais est ce que la pile *est*. Le §3 en dépend : sans
+ * ce relevé, un adversaire camperait chez soi sans que rien ne le dise.
+ */
+describe('what sees a camp standing', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
   });
   afterEach(() => vi.useRealTimers());
 
-  it('lets an attack initiate one pass against a crossing march, never the same pass twice', async () => {
+  /** La Roumanie n'est le sol de personne ici : ce qu'on mesure est une portée, pas un territoire. */
+  const NEUTRAL = () => pointOf(PRAHOVA);
+
+  async function campsOf(t: ReturnType<typeof boot>, seat: Seat) {
+    const playerId = await playerOf(t, seat);
+    return t.run(async (ctx) =>
+      ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+  }
+
+  async function post(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(troopId, { stationedAt: asPoint(at) });
+      await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
+    });
+    return troopId;
+  }
+
+  it('gives each camp the other, at thirty kilometres, and neither as a movement', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await post(t, seat, here);
+    await post(t, guest, eastOf(here, 30));
+
+    expect(await campsOf(t, seat)).toMatchObject([{ until: null, medium: 'land' }]);
+    expect(await campsOf(t, guest)).toMatchObject([{ until: null, medium: 'land' }]);
+    expect(await sightingsOf(t, seat)).toEqual([]);
+    expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+
+  it('gives neither anything at seventy, past the infantry range', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await post(t, seat, here);
+    await post(t, guest, eastOf(here, 70));
+
+    expect(await campsOf(t, seat)).toEqual([]);
+    expect(await campsOf(t, guest)).toEqual([]);
+  });
+
+  /** **Levé le camp, la fenêtre se ferme** : la colonne devient un fil relevé, et ce qui reste
+   *  du camp est une dernière position connue (§2). */
+  it('closes the window when the pile marches away, and files the thread instead', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    const troopId = await post(t, seat, here);
+    await post(t, guest, eastOf(here, 30));
+    expect(await campsOf(t, guest)).toMatchObject([{ until: null }]);
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(here) },
+      troopIds: [troopId],
+      point: asPoint(eastOf(here, 600)),
+    });
+
+    const [closed] = await campsOf(t, guest);
+    expect(closed!.until).toBe(Date.now());
+    expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'troop' }]);
+  });
+
+  /** Une garnison d'avant-poste est une pile posée comme une autre, et la station l'entend. */
+  it('relève an outpost garrison standing inside a listening station', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await station(t, guest, PRAHOVA);
+    const outpostId = await outpost(t, seat, northOf(here, 100), 'relay');
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(troopId, { stationedAt: outpostId });
+      await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
+    });
+
+    expect(await campsOf(t, guest)).toMatchObject([{ detector: 'station' }]);
+  });
+
+  /** **La forme est la garantie** : ni propriétaire, ni composition, ni effectif ne traversent. */
+  it('serves a position, a medium and two dates — and nothing of what stands there', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await post(t, seat, here);
+    await post(t, guest, eastOf(here, 30));
+
+    const [camp] = (await t.query(api.view.playerView, guest)).camps;
+    expect(camp).toBeDefined();
+    expect(Object.keys(camp!).sort()).toEqual([
+      'detector',
+      'detectorRegion',
+      'id',
+      'lastKnown',
+      'medium',
+      'point',
+      'seenMinutesAgo',
+      'since',
+    ]);
+    expect(camp!.lastKnown).toBe(false);
+    expect(camp!.seenMinutesAgo).toBeNull();
+  });
+
+  /** **Le coût, mesuré** : une ligne par couple (observateur, camp) couvert, jamais un balayage
+   *  de la table des troupes à la lecture. Huit camps à portée valent huit lignes chez le
+   *  guetteur, et aucune chez personne d'autre. */
+  it('costs one row per covered pair, at eight camps watched', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await post(t, guest, here);
+    for (let index = 0; index < 8; index += 1) {
+      await post(t, seat, eastOf(northOf(here, index), 20));
+    }
+
+    expect(await campsOf(t, guest)).toHaveLength(8);
+    expect(await campsOf(t, seat)).toHaveLength(1);
+  });
+});
+
+/**
+ * **Rien ne se bat en route** (ADR 0024 §3, révision de l'ADR 0021 §2). La rencontre de deux
+ * colonnes a été retirée : une colonne va où on l'envoie, et deux qui se croisent se relèvent
+ * l'une l'autre sans que personne tire. La géométrie de l'interception reste dans le domaine,
+ * pour l'intercepteur de la V1.
+ */
+describe('two columns crossing in flight', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('relève l’une l’autre and opens no pass, attack or not', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const attacker = await form(t, seat, 'fighter', null);
-    const observer = await form(t, guest, 'fighter', null);
+    const other = await form(t, guest, 'fighter', null);
     const duration = 4 * 3_600_000;
 
     const attackId = await moving(t, seat, attacker, 'attack', [-2, 0], [2, 0], duration);
-    const marchId = await moving(t, guest, observer, 'march', [0, -2], [0, 2], duration);
-    const reserved = await t.run(async (ctx) => ctx.db.get(attackId));
-    expect(reserved).toMatchObject({
-      contactWithId: marchId,
-      contactInitiatorId: attackId,
-    });
-    expect(reserved!.contactAt).toBeGreaterThan(Date.now());
-    expect(await sightingsOf(t, seat)).toMatchObject([{ movementId: marchId, detector: 'troop' }]);
+    const crossingId = await moving(t, guest, other, 'attack', [0, -2], [0, 2], duration);
+
+    const movements = await t.run(async (ctx) =>
+      Promise.all([ctx.db.get(attackId), ctx.db.get(crossingId)]),
+    );
+    /** Aucun rendez-vous n'est pris : le champ reste au schéma, jamais écrit. */
+    expect(movements.every((movement) => movement!.contactJobId === undefined)).toBe(true);
+    expect(await sightingsOf(t, seat)).toMatchObject([
+      { movementId: crossingId, detector: 'troop' },
+    ]);
     expect(await sightingsOf(t, guest)).toMatchObject([
       { movementId: attackId, detector: 'troop' },
     ]);
 
-    await t.run(async (ctx) => reassessDetection(ctx, reserved!.seasonId));
-    const refreshed = await t.run(async (ctx) => ctx.db.get(attackId));
-    vi.advanceTimersByTime(refreshed!.contactAt! - Date.now());
-    await t.finishInProgressScheduledFunctions();
-
-    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
-    await t.run(async (ctx) => reassessDetection(ctx, refreshed!.seasonId));
-    await t.finishInProgressScheduledFunctions();
-    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
-  });
-
-  it('keeps two crossing marches observational', async () => {
-    const t = boot();
-    const { seat, guest } = await launchedSeason(t);
-    const first = await form(t, seat, 'fighter', null);
-    const second = await form(t, guest, 'fighter', null);
-    const duration = 4 * 3_600_000;
-
-    const firstId = await moving(t, seat, first, 'march', [-2, 0], [2, 0], duration);
-    const secondId = await moving(t, guest, second, 'march', [0, -2], [0, 2], duration);
-    const movements = await t.run(async (ctx) =>
-      Promise.all([ctx.db.get(firstId), ctx.db.get(secondId)]),
-    );
-    expect(movements.every((movement) => movement!.contactJobId === undefined)).toBe(true);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toEqual([]);
   });
 
   it('adds a future sighting when a detector appears after departure', async () => {
@@ -661,5 +786,122 @@ describe('what a sighting serves of the thread', () => {
      *  minute de marche, borné à 96 + 1 quelle que soit la durée de la fenêtre. */
     expect(Math.max(...served)).toBeLessThanOrEqual(97);
     expect(served.reduce((sum, count) => sum + count, 0)).toBeLessThan(800);
+  });
+});
+
+/**
+ * **Une dernière position connue survit au mouvement** (ADR 0024 §2). Une fenêtre ouverte laisse
+ * une trace quoi qu'il arrive à ce qu'elle a vu — et elle s'efface après `LAST_KNOWN_HOURS`,
+ * parce que le brouillard périme l'information au lieu de l'éterniser.
+ */
+describe('what survives the movement it watched', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HOUR = 3_600_000;
+
+  async function sentry(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(troopId, { stationedAt: asPoint(at) });
+      await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
+    });
+    return troopId;
+  }
+
+  /** La colonne s'arrête à trente kilomètres du guetteur : la fenêtre s'est ouverte, elle se
+   *  ferme avec l'arrivée, et ce qui arrive devient aussi un camp. */
+  async function marchedIn(t: ReturnType<typeof boot>, seat: Seat, guest: Seat) {
+    const here = pointOf(PRAHOVA);
+    const landing = eastOf(here, 30);
+    await sentry(t, guest, here);
+    const troopId = await form(t, seat, 'infantry', null);
+    const from = eastOf(here, 600);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(from) }));
+    const sent = await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(from) },
+      troopIds: [troopId],
+      point: asPoint(landing),
+    });
+    /** À la minute de l'arrivée, et pas une de plus : `runAllTimers` emporterait la presse et
+     *  ses rendez-vous, et le souvenir serait déjà périmé avant d'être lu. */
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    return { landing };
+  }
+
+  it('freezes the thread where the column landed, and reads the camp beside it', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { landing } = await marchedIn(t, seat, guest);
+
+    const view = await t.query(api.view.playerView, guest);
+    const [seen] = view.detected;
+    expect(seen).toBeDefined();
+    /** Le tronçon est coupé à l'arrivée : sa fin est là où la colonne s'est posée. */
+    expect(distanceKm([seen!.to.lon, seen!.to.lat], landing)).toBeLessThan(60);
+    expect(seen!.seenTo).toBe(Date.now());
+    /** Les deux coexistent : l'un est le souvenir du fil, l'autre la vue du camp. */
+    expect(view.camps).toHaveLength(1);
+    expect(view.camps[0]!.lastKnown).toBe(false);
+  });
+
+  it('drops the frozen arc past the delay and keeps the camp it still covers', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await marchedIn(t, seat, guest);
+
+    vi.advanceTimersByTime(LAST_KNOWN_HOURS * HOUR + 60_000);
+    expect((await t.query(api.view.playerView, guest)).detected).toEqual([]);
+    expect((await t.query(api.view.playerView, guest)).camps).toHaveLength(1);
+  });
+
+  /** Une fenêtre qui ne s'est jamais ouverte n'a rien montré : elle part avec le mouvement, et
+   *  il ne reste aucun fantôme. */
+  it('leaves nothing behind for a window that never opened', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const target = await form(t, guest, 'infantry', null);
+    const movementId = await moving(t, guest, target, 'march', [0, 0], [4, 0], 4 * HOUR);
+    const detector = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(detector, { stationedAt: asPoint([2, 0]) });
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+    const [future] = await sightingsOf(t, seat);
+    expect(future!.from).toBeGreaterThan(Date.now());
+
+    await t.run(async (ctx) => forgetMovement(ctx, movementId));
+    expect(await sightingsOf(t, seat)).toEqual([]);
+  });
+
+  /** **Coupé à l'instant de la passe** : le souvenir s'arrête là où la colonne a cessé
+   *  d'exister, jamais au bout d'une route qu'elle n'a pas marchée. */
+  it('cuts the memory at the instant the column stopped existing', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    await sentry(t, guest, here);
+    const troopId = await form(t, seat, 'infantry', null);
+    const from = eastOf(here, 30);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(from) }));
+    const movementId = await moving(t, seat, troopId, 'march', from, eastOf(here, 900), 6 * HOUR);
+    const [window] = await sightingsOf(t, guest);
+    expect(window!.from).toBeLessThanOrEqual(Date.now());
+
+    vi.advanceTimersByTime(HOUR);
+    const cut = Date.now();
+    await t.run(async (ctx) => forgetMovement(ctx, movementId));
+
+    const [frozen] = await sightingsOf(t, guest);
+    expect(frozen!.frozen).toBeDefined();
+    expect(frozen!.frozen!.closedAt).toBe(Math.min(window!.to, cut));
+    const [seen] = (await t.query(api.view.playerView, guest)).detected;
+    expect(seen!.seenTo).toBe(frozen!.frozen!.closedAt);
+    expect(seen!.arrivesAt).toBe(frozen!.frozen!.closedAt);
   });
 });

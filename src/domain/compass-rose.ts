@@ -17,6 +17,7 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
+import { carriesSurveyedInstallation } from './objectives';
 import {
   LAND_SEATS_PER_TRANSPORT,
   LIFT_CAPACITY,
@@ -83,6 +84,19 @@ export type CompassTarget =
       readonly id: string;
       readonly key: BuildingKey;
       readonly regionId: string;
+      readonly name: string;
+    }
+  | {
+      /**
+       * **Un camp adverse relevé** (ADR 0024 §1) : le relevé possédé, jamais la pile vraie — elle
+       * peut avoir levé le camp, et c'est le sujet. On attaque une **position**, celle qu'on a
+       * vue ; ce qui s'y tient encore est l'affaire de l'arrivée.
+       */
+      readonly kind: 'camp';
+      readonly id: string;
+      readonly point: LonLat;
+      /** Le pays sous le relevé, lu au picking — le serveur le relit de son côté. */
+      readonly country: string | null;
       readonly name: string;
     }
   | {
@@ -435,6 +449,8 @@ function collectFan(
     lat: target.point[1],
     onLand: target.onLand ?? true,
     coastal: target.coastal ?? false,
+    /** Un ramassage est une marche : ce qu'on a relevé du sol n'entre pas dans son refus. */
+    surveyed: false,
   } as const;
   const refused = lootCollectionOrderRefusalOf(aimed, column, freeCapacity);
   return {
@@ -472,7 +488,6 @@ export function compassOf(
   target: CompassTarget,
   view: PlayerView,
   column: Column | null = null,
-  objectiveKnown = false,
   origin: TroopStation | null = null,
   /** Ce que la pile armée peut encore charger, une fois sa charge en cours déduite : le seul
    *  chiffre qui décide si « ramasser » existe (`carryCapacityOf`, lu par l'appelant). */
@@ -499,7 +514,7 @@ export function compassOf(
     }
   }
   if (column !== null && target.kind !== 'force') {
-    return aim(target, view, column, objectiveKnown, freeCapacity);
+    return aim(target, view, column, freeCapacity);
   }
   const fan = build(target, view);
   /** Un motif sans branche reste une rose : c'est ce qui sépare « rien à faire ici » — le clic
@@ -522,26 +537,35 @@ function aim(
   target: CompassTarget,
   view: PlayerView,
   column: Column,
-  objectiveKnown: boolean,
   freeCapacity: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
   if (target.kind === 'outpost') {
-    return fanOf(
-      target.name,
-      view,
-      column,
-      [
-        {
-          kind: 'outpost',
-          outpostId: target.id,
-          hostCountry: target.hostCountry,
-          coastal: target.coastal,
-        },
-      ],
-      objectiveKnown,
-    );
+    return fanOf(target.name, view, column, [
+      {
+        kind: 'outpost',
+        outpostId: target.id,
+        hostCountry: target.hostCountry,
+        coastal: target.coastal,
+      },
+    ]);
+  }
+  /**
+   * **Un camp relevé est une cible, et une seule branche y mène** (ADR 0024 §4) : « attaquer ».
+   * Une marche n'y va pas — on ne marche pas *sur* une force — et `refusalOf` le dit du même mot
+   * que le serveur ; la rose n'a pas de seconde table.
+   */
+  if (target.kind === 'camp') {
+    return fanOf(target.name, view, column, [
+      {
+        kind: 'camp',
+        campId: target.id,
+        lon: target.point[0],
+        lat: target.point[1],
+        hostCountry: target.country ?? '',
+      },
+    ]);
   }
   /**
    * **A mast of one's own is a destination in aim** (decision 64b): the column comes to enter
@@ -553,13 +577,9 @@ function aim(
   if (target.kind === 'building') {
     const standing = view.me.buildings.find((candidate) => candidate.id === target.id);
     if (standing === undefined) return null;
-    return fanOf(
-      standing.name,
-      view,
-      column,
-      [{ kind: 'building', buildingId: standing.id, key: standing.key }],
-      objectiveKnown,
-    );
+    return fanOf(standing.name, view, column, [
+      { kind: 'building', buildingId: standing.id, key: standing.key },
+    ]);
   }
   if (target.kind !== 'point') return null;
   /**
@@ -567,32 +587,20 @@ function aim(
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed
    * at and nothing rounds it to a centroid.
    */
-  return fanOf(
-    target.name,
-    view,
-    column,
-    [
-      {
-        kind: 'point',
-        lon: target.lon,
-        lat: target.lat,
-        coastal: target.coastal,
-        onLand: target.onLand,
-      },
-    ],
-    objectiveKnown,
-  );
+  return fanOf(target.name, view, column, [
+    {
+      kind: 'point',
+      lon: target.lon,
+      lat: target.lat,
+      coastal: target.coastal,
+      onLand: target.onLand,
+      /** **Ce que le joueur a relevé sous ce sol**, et la seule chose qui ouvre « attaquer »
+       *  (ADR 0024 §4). Lu dans sa vue et nulle part ailleurs : demander au plateau dirait qu'il
+       *  y a quelque chose là où il croyait viser du vide. */
+      surveyed: carriesSurveyedInstallation(target.regionId, view.surveyedInstallations),
+    },
+  ]);
 }
-
-/**
- * **Ce que la rose propose, parmi ce que le serveur accepterait** — un seul retrait, et rien de
- * grisé pour autant (décision Pierre, 29/08) : **l'attaque demande un objectif identifié.**
- * `objectiveKnown` est lu dans la vue du joueur et nulle part ailleurs (`knownObjectiveAt`) : le
- * renseignement devient le préalable de l'assaut, et l'agression à l'aveugle reste possible par
- * la marche, qui en subit l'interception.
- */
-const offeredInFan = (type: MovementType, objectiveKnown: boolean): boolean =>
-  type !== 'attack' || objectiveKnown;
 
 /**
  * One branch per legal type, and never two for the same type: the first aim that legalises a type
@@ -606,20 +614,18 @@ function fanOf(
   view: PlayerView,
   column: Column,
   aims: ReadonlyArray<MovementAim>,
-  objectiveKnown: boolean,
 ): Compass {
   const taken = new Set<MovementType>();
   const actions = aims.flatMap((aimed) =>
     legalMovementTypes(aimed, column)
-      .filter((type) => offeredInFan(type, objectiveKnown))
       .filter((type) => !taken.has(type) && taken.add(type) !== undefined)
       .map((type) => march(type, aimed, view)),
   );
   /**
-   * **Le motif parle des marches, et une attaque retenue faute d'objectif n'en est pas une
-   * absence.** Tant qu'une marche reste sur la plate, il n'y a rien à expliquer : le joueur a un
-   * ordre à donner là. Le motif ne sort que lorsque la porte du domaine a tout refusé — le cas
-   * qu'aucune carte ne peut dire, et le seul que l'ADR 0019 voulait sortir du silence.
+   * **Le motif ne sort que lorsque la plate est vide de marches.** Tant qu'il reste un ordre à
+   * donner là, il n'y a rien à expliquer ; le motif est pour le cas qu'aucune carte ne peut dire
+   — une porte de domaine fermée, une pile trop lourde — et c'est le seul que l'ADR 0019 voulait
+   * sortir du silence.
    */
   const marches = actions.filter((action) => action.key === 'aim');
   return {
@@ -654,6 +660,8 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',
+  /** En dernier : la carte montre un sol vide, et c'est précisément ce que le joueur y lit. */
+  'NOTHING_TO_ATTACK',
   'NOT_ORDERABLE',
 ];
 
@@ -772,6 +780,7 @@ function build(target: CompassTarget, view: PlayerView): Fan {
      */
     case 'installation':
     case 'loot':
+    case 'camp':
       return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
@@ -820,21 +829,17 @@ function joinTransport(
 
   // A transport is a rendezvous at its current address. Keeping the exact point lets the
   // arriving troops compose one pile with it; its later orders never redirect this march.
-  const fan = fanOf(
-    target.name,
-    view,
-    column,
-    [
-      {
-        kind: 'point',
-        lon: station.lonLat[0],
-        lat: station.lonLat[1],
-        coastal: station.coastal,
-        onLand: target.onLand,
-      },
-    ],
-    false,
-  );
+  const fan = fanOf(target.name, view, column, [
+    {
+      kind: 'point',
+      lon: station.lonLat[0],
+      lat: station.lonLat[1],
+      coastal: station.coastal,
+      onLand: target.onLand,
+      /** Un rendez-vous est une marche, jamais un assaut : le relevé n'y décide de rien. */
+      surveyed: false,
+    },
+  ]);
   return {
     ...fan,
     actions: fan.actions.map((action) =>

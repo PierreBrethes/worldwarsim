@@ -6,7 +6,7 @@ import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatDoc, seatsOf } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatDoc, seatsOf } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -205,7 +205,7 @@ describe('capituler', () => {
 
     await t.mutation(api.players.surrender, victim!);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...attacker!,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: column,

@@ -31,9 +31,12 @@ documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survi
 
 **Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
 (`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
-modificateurs dans `convex/constants.ts`). Le **contact mobile** se réévalue aux événements : la
-portée maximale des rôles détecte, mais seuls `attack` et `raid` engagent un mouvement adverse dans
-le même milieu — une force posée voit sans intercepter (ADR 0021, révisée le 08/09/2026). Les neuf
+modificateurs dans `convex/constants.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
+une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
+marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —
+de déclencheur il est devenu l'**allonge** d'une attaque (`defenceNear`, lu par `engageAt` et par
+lui seul). Ce qui reste automatique est la **riposte** : attaqué, un camp se bat toujours, et
+l'initiative va à qui a donné l'ordre (ADR 0014). Les neuf
 portées sont des placeholders `@a-mesurer`. Un raid gagné **désactive** l'avant-poste, jamais ne le
 prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
@@ -92,12 +95,28 @@ aux événements et se dénormalise dans la table `sightings` (`observateur, mou
 tFin`) : chaque joueur lit son propre index, jamais un filtre sur la table des mouvements
 (`WWS/docs/technique/brouillard-et-fanout.md`). Une fenêtre à venir est annulable et ne produit ni
 arc ni dépêche avant son ouverture ; une fenêtre déjà vue devient la dernière position connue —
-le tronçon figé, pion au bout. Le tronçon et son cap sortent d'une seule fonction pure
+le tronçon figé, pion au bout — et **elle survit au mouvement** (ADR 0024 §2, 13/09/2026) : à sa
+disparition le tronçon est gelé une dernière fois dans `sightings.frozen`, servi tel quel, et
+effacé après `LAST_KNOWN_HOURS` par la réévaluation, qui touche déjà cet index. Elle s'évanouissait
+avec la colonne, ce qui faisait de l'arrivée d'un adversaire une information qu'on perdait à
+l'instant où elle comptait. Le tronçon et son cap sortent d'une seule fonction pure
 (`src/domain/sighting-segment.ts`, `seenSegment`), que l'arc et la dépêche lisent tous deux ; et
 « cap sur moi » est devenu une **estimation**, le cap prolongé sur ce qu'il reste à marcher par
 pas d'une cellule de grille. Le
 relevé se lit sur la carte — le fil adverse y est tracé — et dans le journal, en dépêches. La
 station d'écoute et l'avant-poste d'écoute existent aussi ; l'agent dormant et la sonde non.
+
+**Et une force posée se voit dans la portée** (ADR 0024 §1, 13/09/2026, qui révise l'ADR 0019 §6).
+Une pile adverse — au sol, en garnison d'un avant-poste ou d'un bâtiment — est relevée par les
+mêmes quatre détecteurs et aux mêmes conditions qu'un mouvement, dans la table `campSightings`,
+jumelle immobile de `sightings` et lue sur le même index par observateur. Ce qu'elle sert est **une
+position, un milieu, deux dates** — jamais la composition, jamais l'effectif, jamais la nation :
+l'agent dormant garde son métier, qui est d'**identifier** et non de repérer. Sortie de portée,
+elle devient une dernière position connue et s'efface après `LAST_KNOWN_HOURS`. Sur la carte c'est
+la **silhouette de domaine** d'un arc adverse (`src/map/engine/silhouettes.ts`, une seule source
+pour le pion et pour le mât), en encre sourde, délavée quand le relevé date ; le clic gauche ouvre
+un cartouche qui dit ce qu'on sait, le clic droit la seule branche qui existe — attaquer. Sans ce
+relevé, le §3 serait injouable : un adversaire camperait chez soi sans que rien ne le dise.
 
 **Le recrutement se fait dans la modale d'un site, et de nulle part ailleurs** (décisions 59a,
 60b, 61a du 01/09). La fenêtre Production générale et son onglet « prod. » sont **morts** : le

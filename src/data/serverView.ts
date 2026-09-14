@@ -145,6 +145,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
      *  n'en sert aucune, et la page dit simplement qu'aucune édition n'a paru. */
     press: server.press ?? null,
     arcs: [...(server.movements ?? []).map(asArc), ...(server.detected ?? []).map(asDetectedArc)],
+    /** Un déploiement d'une version de retard n'en sert aucun : la carte ne pose alors aucun
+     *  camp, ce qui est l'état d'avant l'ADR 0024 et jamais un camp inventé ici. */
+    camps: server.camps ?? [],
     journal: journalDispatches(
       server.reports ?? [],
       server.season.reduction ?? null,

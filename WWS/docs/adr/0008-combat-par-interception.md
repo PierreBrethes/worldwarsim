@@ -1,6 +1,13 @@
 # ADR 0008 — Combat par interception et rejeu, plutôt que tour par tour interactif
 
-**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) — **révisée le 08/09/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)**
+**Statut :** acceptée — précisée par l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) — **révisée le 08/09/2026 par l'[ADR 0021](0021-portee-de-detection-et-postures.md)**, **révisée le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md)**
+
+> ⚠️ **Révision (13/09/2026, [ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md)).**
+> **Le contact n'est plus automatique.** Une passe de résolution n'a lieu que si un ordre la vise :
+> la rencontre en route de deux colonnes et la riposte d'une force posée à ce qui s'arrête près
+> d'elle disparaissent ; une attaque vise un objet relevé et engage ce qui se tient à
+> `ARRIVAL_RADIUS_KM` de sa cible à l'arrivée. Attaqué, un camp se bat toujours. Le déterminisme,
+> l'absence d'aléa, le refus du tour par tour et le rejeu sont intacts.
 
 > ⚠️ **Révision (08/09/2026).** Le contact ne se calcule plus à un rayon fixe unique
 > (`INTERCEPTION_RADIUS_KM`, placeholder jamais mesuré) ni une seule fois au départ : il se produit

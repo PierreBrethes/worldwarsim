@@ -6,7 +6,6 @@ import {
   landCostOf,
   legalMovementTypes,
   motorized,
-  movementBehavior,
   movementSlots,
   lootCollectionRefusalOf,
   ORDERABLE_TYPES,
@@ -29,25 +28,77 @@ const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Col
   ...held,
 });
 
-const region: MovementAim = { kind: 'region', regionId: 'TUN-1', country: 'Tunisia' };
+const region: MovementAim = {
+  kind: 'region',
+  regionId: 'TUN-1',
+  country: 'Tunisia',
+  surveyed: true,
+};
 const outpost: MovementAim = {
   kind: 'outpost',
   outpostId: 'op1',
   hostCountry: 'Libya',
   coastal: false,
 };
-const point: MovementAim = { kind: 'point', lon: 11.2, lat: 36.4, coastal: false, onLand: true };
+const point: MovementAim = {
+  kind: 'point',
+  lon: 11.2,
+  lat: 36.4,
+  coastal: false,
+  onLand: true,
+  surveyed: true,
+};
+/** Le même sol, sans rien de relevé dessus : la marche y va, l'assaut n'a rien à viser. */
+const blank: MovementAim = { ...point, surveyed: false };
+/** Un camp relevé : la seule cible mobile d'un ordre, et il se vise comme une position. */
+const camp: MovementAim = {
+  kind: 'camp',
+  campId: 'camp-1',
+  lon: 11.2,
+  lat: 36.4,
+  hostCountry: 'Tunisia',
+};
 /** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
-const shore: MovementAim = { kind: 'point', lon: 10.3, lat: 36.8, coastal: true, onLand: true };
-const sea: MovementAim = { kind: 'point', lon: -30, lat: 40, coastal: false, onLand: false };
+const shore: MovementAim = {
+  kind: 'point',
+  lon: 10.3,
+  lat: 36.8,
+  coastal: true,
+  onLand: true,
+  surveyed: true,
+};
+const sea: MovementAim = {
+  kind: 'point',
+  lon: -30,
+  lat: 40,
+  coastal: false,
+  onLand: false,
+  surveyed: true,
+};
 
-describe('the behavior carried by an order', () => {
-  it('engages only for an attack or a raid', () => {
-    expect(movementBehavior('attack')).toBe('engage');
-    expect(movementBehavior('raid')).toBe('engage');
-    expect(movementBehavior('march')).toBe('observe');
-    expect(movementBehavior('return')).toBe('observe');
-    expect(movementBehavior('decoy')).toBe('observe');
+/**
+ * **Une attaque vise ce qu'on a relevé** (ADR 0024 §4). Un camp et un avant-poste *sont* le
+ * relevé ; un point ne l'est que s'il porte quelque chose. Sur du vide, ce n'est pas une portée
+ * qui manque : il n'y a rien à attaquer, et le mot le dit.
+ */
+describe('what an attack may be aimed at', () => {
+  it('takes a surveyed camp, and only as an assault', () => {
+    expect(legalMovementTypes(camp, column(['infantry']))).toEqual(['attack']);
+  });
+
+  it('takes a point carrying something surveyed', () => {
+    expect(refusalOf('attack', point, column(['infantry']))).toBeNull();
+  });
+
+  it('refuses a point where the observer has seen nothing', () => {
+    expect(refusalOf('attack', blank, column(['infantry']))).toBe('NOTHING_TO_ATTACK');
+    expect(legalMovementTypes(blank, column(['infantry']))).toEqual(['march']);
+  });
+
+  /** On ne marche pas *sur* une force : la seule branche d'un camp est l'assaut. */
+  it('refuses to march at a camp, and to raid it', () => {
+    expect(refusalOf('march', camp, column(['infantry']))).toBe('POINT_TARGET_ONLY');
+    expect(refusalOf('raid', camp, column(['infantry']))).toBe('OUTPOST_TARGET_ONLY');
   });
 });
 
@@ -147,6 +198,7 @@ describe('an empty manifest', () => {
     lat: 44.6,
     coastal: false,
     onLand: true,
+    surveyed: true,
   };
 
   it('is refused for every orderable type, and for the same reason', () => {
@@ -425,6 +477,7 @@ describe('a point as a destination', () => {
     lat: 44.6,
     coastal: false,
     onLand: true,
+    surveyed: true,
   };
 
   it('takes a march, at any scale and with no region drawn', () => {

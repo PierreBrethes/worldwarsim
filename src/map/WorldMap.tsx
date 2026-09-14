@@ -53,6 +53,8 @@ type Props = {
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
   /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
   onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
+  /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
+  onOpenCamp?: (campId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   selectedLootLabel?: string | null;
@@ -134,6 +136,7 @@ export function WorldMap({
   onOpenBuilding,
   onOpenStack,
   onOpenLoot,
+  onOpenCamp,
   selectedLabel = null,
   selectedLootLabel = null,
   reach = null,
@@ -475,6 +478,7 @@ export function WorldMap({
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}
         onOpenLoot={onOpenLoot ?? (() => {})}
+        onOpenCamp={onOpenCamp ?? (() => {})}
         onContextMenu={onLabelMenu}
         muted={placing !== null}
       />
@@ -662,6 +666,20 @@ function targetOfLabel(
       onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
       name: lineText(label, 'nature') ?? fr.loot.cardKicker,
+    };
+  }
+  /**
+   * **Un camp relevé est une cible d'attaque** (ADR 0024 §4) : la poignée est le relevé lui-même
+   * — son identité et son point — et jamais le sol sous le curseur. Au repos il n'ouvre rien :
+   * sans colonne armée il n'y a pas d'ordre à donner là.
+   */
+  if (label.camp !== null) {
+    return {
+      kind: 'camp',
+      id: label.camp.id,
+      point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
+      country,
+      name: fr.camps.marker,
     };
   }
   if (label.type === 'stack') {

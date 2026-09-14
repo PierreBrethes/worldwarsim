@@ -25,6 +25,8 @@ import {
   type HomewardCargo,
 } from '../cargo';
 import { resolveContact } from '../combat';
+import { seenSegment } from '../../src/domain/sighting-segment';
+import { marchingForce } from './detection';
 import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
@@ -48,30 +50,53 @@ import { pacedMinutes } from './orders';
 import { creditToStorage } from '../resources';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
-/** A sighting left behind is an arc the map is asked to draw from nothing. The movement
- *  disappears in three places, and all three go through here. */
-export async function forgetMovement(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
+/**
+ * **Ce que la colonne laisse derrière elle** (ADR 0024 §2). Le mouvement disparaît en trois
+ * endroits, et tous les trois passent par ici.
+ *
+ * Une fenêtre **déjà ouverte** ne s'efface pas avec lui : elle se fige en dernière position
+ * connue — le tronçon vu jusqu'à maintenant, calculé une dernière fois pendant que la route est
+ * encore lisible. Elle s'effaçait avec le mouvement, et un joueur voyait l'arc s'évaporer à
+ * l'instant où la colonne rentrait : le brouillard rend l'information périmée, pas inexistante.
+ *
+ * Une fenêtre **à venir**, elle, part bien : elle n'a rien montré, et rien ne se souvient de ce
+ * qu'on n'a pas vu.
+ */
+export async function forgetMovement(
+  ctx: MutationCtx,
+  movementId: Id<'movements'>,
+  now = Date.now(),
+): Promise<void> {
   const movement = await ctx.db.get(movementId);
-  if (movement?.contactJobId !== undefined) {
-    try {
-      await ctx.scheduler.cancel(movement.contactJobId);
-    } catch {
-      // A running callback validates the movement row before resolving a pass.
-    }
-  }
   const seen = await ctx.db
     .query('sightings')
     .withIndex('byMovement', (q) => q.eq('movementId', movementId))
     .collect();
   for (const sighting of seen) {
-    if (sighting.revealJobId !== undefined) {
-      try {
-        await ctx.scheduler.cancel(sighting.revealJobId);
-      } catch {
-        // A running reveal validates that its row still exists.
+    if (sighting.from > now || movement === null) {
+      if (sighting.revealJobId !== undefined) {
+        try {
+          await ctx.scheduler.cancel(sighting.revealJobId);
+        } catch {
+          // A running reveal validates that its row still exists.
+        }
       }
+      await ctx.db.delete(sighting._id);
+      continue;
     }
-    await ctx.db.delete(sighting._id);
+    const closedAt = Math.min(sighting.to, now);
+    const segment = seenSegment(marchingForce(movement), sighting.from, closedAt);
+    await ctx.db.patch(sighting._id, {
+      to: closedAt,
+      frozen: {
+        points: segment.points.map(asPoint),
+        legs: [...segment.legs],
+        distanceUnits: segment.distanceUnits,
+        costUnits: segment.costUnits,
+        headingDegrees: segment.headingDegrees,
+        closedAt,
+      },
+    });
   }
   await ctx.db.delete(movementId);
 }
@@ -204,54 +229,32 @@ export async function garrisonOf(
   return building !== null && building.playerId === movement.playerId ? building : null;
 }
 
-/** ADR 0019 §3: the column stops walking and stands there. When something *is* waiting, the
- *  standing force is handed to `resolveContact` as the **attacker** — an attack buys initiative by
- *  declaring itself (ADR 0014), a march declares nothing and takes the first blow. What is still
- *  on its feet stays: losing a pass it did not seek does not send it home.
+/**
+ * **La colonne s'arrête où elle arrive, et il ne se passe rien** (ADR 0024 §3, révision de l'ADR
+ * 0019 §3). Elle ne cherche plus de défense : une marche peut désormais s'arrêter à côté d'un camp
+ * adverse, chez lui, dans le rayon de son avant-poste, sur la région de sa mine — tant que
+ * personne n'attaque, il ne se passe rien.
  *
- *  `address` is what the standing troops take — the point reached, or the building they came to
- *  garrison (decision 64b). It answers how many took it, so the journal can tell a garrison
- *  entered from a column that fought its way to a point and lost everything on it. */
+ * Ce que ça retire est l'**embuscade automatique**, et ce qu'elle donnait — punir une marche
+ * imprudente — revient à la main du joueur qui la voit passer : son camp est relevé (§1), et
+ * l'attaque est un ordre qu'il donne.
+ *
+ * `address` is what the standing troops take — the point reached, or the building they came to
+ * garrison (decision 64b). It answers how many took it, so the journal can tell a garrison
+ * entered from a column that fought its way to a point and lost everything on it.
+ */
 export async function standAt(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
-  now: number,
   address: TroopAddress = movement.to,
 ): Promise<number> {
   const owner = await ctx.db.get(movement.playerId);
   const marching = await troopsCarriedBy(ctx, movement);
   if (!owner || marching.length === 0) return 0;
 
-  const defence = await defenceOf(ctx, movement);
-  if (defence === null) {
-    for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
-    await stationMovementLoot(ctx, movement, address);
-    return marching.length;
-  }
-
-  const { engagement, routed, routedCargo } = await resolveContact(ctx, {
-    seasonId: owner.seasonId,
-    attacker: { playerId: defence.playerId, troops: defence.troops },
-    defender: { playerId: movement.playerId, troops: marching },
-    cause: 'arrival',
-    point: movement.to,
-    hostCountry: movement.hostCountry,
-    outpostId: defence.outpostId,
-    disabledUntil: null,
-    at: now,
-  });
-  await retainStandingDefence(ctx, defence.movementId, engagement);
-
-  const stateOf = (troopId: string) =>
-    engagement.outcomes.find((outcome) => outcome.id === troopId)?.state ?? null;
-  const standing = marching.filter((troop) => stateOf(troop._id) === 'standing');
-  for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: address });
-  const current = await ctx.db.get(movement._id);
-  if (current !== null) await stationMovementLoot(ctx, current, address);
-  /** `routed` carries both sides of the pass, so the column that broke contact walks back from
-   *  here just as the camp that held the ground and lost it does (ADR 0019 §3). */
-  await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now, routedCargo);
-  return standing.length;
+  for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
+  await stationMovementLoot(ctx, movement, address);
+  return marching.length;
 }
 
 async function retainStandingDefence(

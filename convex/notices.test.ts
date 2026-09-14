@@ -9,7 +9,7 @@ import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -159,7 +159,7 @@ describe('what the jobs file for the journal', () => {
       { movementType: 'march', hostCountry: 'ROU', troops: 1 },
     ]);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -186,7 +186,7 @@ describe('what the jobs file for the journal', () => {
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -214,7 +214,7 @@ describe('what the jobs file for the journal', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     await raise(t, guest, 'mine', PSKOV);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -233,7 +233,7 @@ describe('what the jobs file for the journal', () => {
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -360,7 +360,7 @@ describe('what the jobs file for the journal', () => {
     await post(t, guest, camp);
 
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -433,7 +433,7 @@ describe('what the jobs file for the journal', () => {
     const point = pointOf(PRAHOVA);
     await post(t, guest, point);
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],

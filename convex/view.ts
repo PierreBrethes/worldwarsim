@@ -22,6 +22,7 @@ import {
   buildCost,
   buildMinutes,
   CARRY_CAPACITY_BY_ROLE,
+  LAST_KNOWN_HOURS,
   isCommanded,
   unlockLevel,
   troopCap,
@@ -792,6 +793,38 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      */
     detected: await detectedArcs(ctx, player, outposts, now),
     /**
+     * **Ce qu'on a relevé de posé** (ADR 0024 §1) : une position, un milieu, deux dates, et ce
+     * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte une composition,
+     * un effectif ni une nation, parce que rien n'en est lu** : le camp est un endroit où quelque
+     * chose se tient, et l'identifier reste le métier de l'agent (fiche 04).
+     *
+     * Une ligne fermée devient une dernière position connue, comme un arc — et s'efface au même
+     * délai (`LAST_KNOWN_HOURS`), parce que le brouillard périme l'information au lieu de
+     * l'éterniser.
+     */
+    camps: (
+      await ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).flatMap((camp) =>
+      camp.seasonId !== season._id ||
+      (camp.until !== null && camp.until <= now - LAST_KNOWN_HOURS * 3_600_000)
+        ? []
+        : [
+            {
+              id: camp._id,
+              point: [camp.point.lon, camp.point.lat] as LonLat,
+              medium: camp.medium,
+              since: camp.since,
+              seenMinutesAgo: camp.until === null ? null : (now - camp.until) / 60_000,
+              detector: camp.detector,
+              detectorRegion: camp.detectorRegion,
+              lastKnown: camp.until !== null,
+            },
+          ],
+    ),
+    /**
      * **Who came in after the launch, and when.** Everybody reads the same list: a new
      * belligerent is not a secret — his flag is on the map from his first hour, and the
      * journal is the only channel that says a nation has entered the war (nothing else on the
@@ -1029,12 +1062,50 @@ async function detectedArcs(
      *  the two states the two dates put it in. */
     if (sighting.from > now) continue;
     const movement = await ctx.db.get(sighting.movementId);
-    if (movement === null) continue;
+    /**
+     * **Le mouvement est fini, le souvenir reste** (ADR 0024 §2). Le tronçon a été figé à la
+     * disparition (`forgetMovement`) : il n'y a plus de route à rejouer, donc rien à
+     * recalculer — l'arc est un souvenir, et un souvenir ne marche pas. Passé
+     * `LAST_KNOWN_HOURS` il n'est plus servi du tout, et la réévaluation le ramasse.
+     */
+    if (movement === null) {
+      const frozen = sighting.frozen;
+      if (frozen === undefined || frozen.closedAt <= now - LAST_KNOWN_HOURS * 3_600_000) continue;
+      seen.push({
+        id: sighting._id as string,
+        from: frozen.points[0] ?? { lon: 0, lat: 0 },
+        to: frozen.points[frozen.points.length - 1] ?? { lon: 0, lat: 0 },
+        points: frozen.points,
+        legs: frozen.legs,
+        distanceUnits: frozen.distanceUnits,
+        costUnits: frozen.costUnits,
+        landCost: undefined,
+        /** Rien n'arrive plus : la date d'arrivée *est* celle de la fermeture, et le pion se
+         *  tient au bout du fil. */
+        arrivesAt: frozen.closedAt,
+        headingDegrees: frozen.headingDegrees,
+        /** Il ne reste rien à marcher : le cap ne se prolonge sur rien, et seul le point vu
+         *  peut encore tomber sur du sol reconnu. */
+        headingAtMe: isAnchored(
+          [
+            frozen.points[frozen.points.length - 1]?.lon ?? 0,
+            frozen.points[frozen.points.length - 1]?.lat ?? 0,
+          ],
+          home,
+          anchors,
+        ),
+        seenFrom: sighting.from,
+        seenTo: frozen.closedAt,
+        detector: sighting.detector,
+        detectorRegion: await regionOfStation(ctx, sighting),
+      });
+      continue;
+    }
     const force = marchingForce(movement);
     const segment = seenSegment(force, sighting.from, sighting.to);
     const exit = segment.points[segment.points.length - 1]!;
     seen.push({
-      id: movement._id,
+      id: movement._id as string,
       from: coordsOf(segment.points[0]!),
       /** The far end of the **stretch**, not of the trip: on a window that closes before the
        *  arrival these two differ, and that difference is the whole of decision 4a. */

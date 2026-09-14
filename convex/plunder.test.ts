@@ -15,7 +15,7 @@ import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { surveyFromPoint } from './surveys';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
@@ -470,7 +470,7 @@ describe('plunder presence', () => {
     await plunderArrival(t, seat, warehouseId, [infantry], barracks);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [infantry],

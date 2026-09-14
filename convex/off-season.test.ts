@@ -19,7 +19,7 @@ import { routeBetween } from './routes';
 import { GAME_TABLES } from './dev';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, seatsOf } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, placeHq, seatIn, seatsOf } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest(schema, modules);
@@ -757,7 +757,7 @@ describe('a concluded season', () => {
         stationedAt: barracks,
       }),
     );
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...creator,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [marching],
@@ -1025,7 +1025,7 @@ describe('scrapping a season', () => {
       await form(t, guest, theirs);
 
       const barracks = await raise(t, creator, MOSELLE);
-      await t.mutation(api.movements.attack, {
+      await attacking(t, {
         ...creator,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [await form(t, creator, barracks)],
@@ -1046,7 +1046,7 @@ describe('scrapping a season', () => {
 
       // And a second column still on the road when the season is scrapped, watched by the
       // same sentry: a live movement, and the sightings that go with it.
-      await t.mutation(api.movements.attack, {
+      await attacking(t, {
         ...creator,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [await form(t, creator, barracks)],
@@ -1141,6 +1141,21 @@ describe('scrapping a season', () => {
           stationedAt: carrier.stationedAt,
           loot: { ...empty, food: 1 },
           collectionId,
+        });
+        /** Un camp relevé : le jumeau immobile du relevé de fil, et une table comme une autre. */
+        await ctx.db.insert('campSightings', {
+          playerId,
+          seasonId: player.seasonId,
+          stationKey: `${playerId}@0,0`,
+          ownerId: playerId,
+          point: { lon: 0, lat: 0 },
+          medium: 'land',
+          since: Date.now(),
+          until: null,
+          detector: 'troop',
+          detectorId: null,
+          detectorRegion: null,
+          noticeFiled: true,
         });
         await ctx.db.insert('recruitments', {
           playerId,

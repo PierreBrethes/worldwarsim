@@ -652,6 +652,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'movements'
       | 'outposts'
       | 'sightings'
+      | 'campSightings'
       | 'lootCrateSightings'
       | 'regionSightings'
       | 'stationedLoot'
@@ -747,6 +748,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('movements')),
     ...(await byPlayer('outposts')),
     ...(await byPlayer('sightings')),
+    ...(await byPlayer('campSightings')),
     ...(await byPlayer('lootCrateSightings')),
     ...(await byPlayer('regionSightings')),
     ...(await byPlayer('stationedLoot')),

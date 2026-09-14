@@ -266,6 +266,24 @@ export const fr = {
   },
 
   /**
+   * **Un camp adverse relevé** (ADR 0024 §1). Rien de ce qu'il est ne se dit ici, parce que rien
+   * ne le traverse : « inconnu » n'est pas une pudeur de rédaction, c'est la forme servie.
+   */
+  camps: {
+    marker: 'camp inconnu',
+    seenAt: (time: string) => `relevé ${time}`,
+    lastKnown: (age: string) => `dernière position · il y a ${age}`,
+    badgeKicker: 'camp relevé',
+    /** Le milieu, c'est-à-dire la silhouette — tout le portrait qu'un relevé accorde. */
+    medium: { land: 'au sol', sea: 'à flot', air: 'en vol' } as const,
+    since: (time: string) => `vu depuis ${time}`,
+    by: (detector: string) => `relevé par ${detector}`,
+    byStation: (region: string) => `relevé par notre station d’écoute de ${region}`,
+    /** Ce que le cartouche ne dira pas, dit une fois : c'est la règle, pas une lacune. */
+    unknown: 'Ni sa composition, ni son effectif, ni sa nation ne sont connus.',
+  },
+
+  /**
    * **Ce que fait une spécialisation, en une phrase et avec son rayon.** L'invité choisissait à
    * l'aveugle : deux mots sur une carte, aucun chiffre, aucun effet. Le rayon est écrit ici
    * plutôt que deviné parce que c'est le seul chiffre qui décide où l'on plante l'avant-poste.
@@ -438,6 +456,10 @@ export const fr = {
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
+    /** ADR 0024 §4 : on attaque un relevé, pas un endroit. La phrase dit ce qu'il faut avoir
+     *  fait avant — regarder — plutôt que de laisser croire à une portée qui manque. */
+    NOTHING_TO_ATTACK: () =>
+      'rien de relevé à cet endroit : un assaut vise un camp, une installation ou un avant-poste',
     /** Decision 70b, said of the first role the door is shut to: the rose borrows this very
      *  sentence before the click, the server answers it after. */
     NOT_A_GARRISON_FOR: (d) => `${aRoleName(d.role)} n’entre pas dans ${aBuildingName(d.building)}`,
@@ -881,6 +903,7 @@ export const fr = {
       outpostFounded: 'avant-poste fondé',
       outpostDisabled: 'avant-poste désactivé',
       sighting: 'relevé',
+      campSighted: 'camp relevé',
       firedDry: 'tir à sec',
       foundNothing: 'bredouille',
       surrender: 'capitulation',
@@ -1041,6 +1064,15 @@ export const fr = {
       /** La station est le seul détecteur que le joueur puisse montrer du doigt sur sa carte. */
       stationSighted: (region: string, country: string, cardinal: string) =>
         `Notre station d’écoute de ${region} a relevé une colonne inconnue — ${country}, cap ${cardinal}.`,
+      /**
+       * **Un camp relevé dans la portée** (ADR 0024 §1). Le même contrat que la colonne : le pays
+       * est celui d'où l'on regarde, et rien ici ne dit ce que le camp est.
+       */
+      campSighted: (detector: string, country: string) =>
+        `${detector} a relevé un camp inconnu — ${country}.`,
+      campOnOurSoil: (country: string) => `Un camp inconnu se tient sur notre sol — ${country}.`,
+      stationCampSighted: (region: string, country: string) =>
+        `Notre station d’écoute de ${region} a relevé un camp inconnu — ${country}.`,
       firedDry: (country: string) =>
         `Nos troupes ont tiré à sec — ${country} : la passe de résolution s’est jouée sans munitions.`,
       /**

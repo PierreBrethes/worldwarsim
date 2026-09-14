@@ -52,6 +52,12 @@ const view = {
     BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
   ) as Record<BuildingKey, BuildSpec>,
   arcs: [],
+  camps: [],
+  /** Un relevé d'installation en Aragon : c'est lui qui ouvre « attaquer » sur ce sol-là. */
+  surveyedInstallations: [
+    { id: 'mine-enemy', key: 'mine', regionId: 'ESP-1234' },
+    { id: 'well-enemy', key: 'oilWell', regionId: 'ROU-310' },
+  ],
   loadedAt: 0,
   opponents: [{ nation: 'italy' }, { nation: 'ussr' }],
 } as unknown as PlayerView;
@@ -170,25 +176,40 @@ describe('in aim', () => {
   } as const;
 
   it('shows the marches and nothing else — no crane, no "view"', () => {
-    const compass = compassOf(aragon, view, column, true);
+    const compass = compassOf(aragon, view, column);
     expect(compass?.actions.map((action) => action.key)).toEqual(['aim', 'aim']);
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
     expect(compass?.kicker).toBe('visée armée · 1 troupe');
   });
 
   /**
-   * **On n'ordonne un assaut que sur un objectif identifié** (décision Pierre, 29/08) : le
-   * renseignement devient le préalable de l'attaque. La marche reste offerte partout — l'agression
-   * à l'aveugle passe par elle, et en subit l'interception.
+   * **On n'attaque que ce qu'on a relevé** (ADR 0024 §4) : sur un sol où le joueur n'a rien vu,
+   * la branche n'existe pas. La marche reste offerte partout — l'agression à l'aveugle passe par
+   * elle, et elle ne déclenche plus rien en arrivant (§3).
    */
-  it('withholds the attack where the player’s view shows nothing to strike', () => {
-    const compass = compassOf(aragon, view, column, false);
+  it('withholds the attack where the player has surveyed nothing', () => {
+    const compass = compassOf({ ...aragon, regionId: 'ESP-0000' }, view, column);
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche']);
     expect(compass?.refusal).toBeNull();
   });
 
+  /** **Un camp relevé est une cible, et la seule branche est l'assaut** : on ne marche pas sur
+   *  une force, on l'attaque — ou on la laisse. */
+  it('offers the assault, and it alone, on a surveyed camp', () => {
+    const compass = compassOf(
+      { kind: 'camp', id: 'camp-1', point: [-0.9, 41.6], country: 'ESP', name: 'camp inconnu' },
+      view,
+      column,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
+    expect(compass?.actions[0]).toMatchObject({
+      type: 'attack',
+      aim: { kind: 'camp', campId: 'camp-1' },
+    });
+  });
+
   it('carries the aim and the type on the action, priced in slots', () => {
-    const compass = compassOf(aragon, view, column, true);
+    const compass = compassOf(aragon, view, column);
     expect(compass?.actions[1]).toMatchObject({
       pictogram: 'rifles',
       type: 'attack',
@@ -200,7 +221,7 @@ describe('in aim', () => {
   /** The plainest order, and the only one that asks nothing of the ground it goes to
    *  (ADR 0019 §7): it walks on my own soil exactly as on somebody else's. */
   it('offers the march on any point, priced like the rest', () => {
-    const compass = compassOf(aragon, view, column, true);
+    const compass = compassOf(aragon, view, column);
     expect(compass?.actions[0]).toMatchObject({
       type: 'march',
       aim: { kind: 'point', lon: -0.9, lat: 41.6 },
@@ -217,7 +238,6 @@ describe('in aim', () => {
       { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais', coastal: false },
       view,
       column,
-      true,
     );
     expect(outpost?.actions).toEqual([]);
     expect(outpost?.refusal).toBe('on ne marche pas sur les siens');
@@ -228,7 +248,7 @@ describe('in aim', () => {
    * map only knows the country, and no aim can be made of it — the player comes closer.
    */
   it('stays shut on a whole country', () => {
-    expect(compassOf({ kind: 'country', country: 'ESP' }, view, column, true)).toBeNull();
+    expect(compassOf({ kind: 'country', country: 'ESP' }, view, column)).toBeNull();
   });
 
   /**
@@ -239,7 +259,7 @@ describe('in aim', () => {
    */
   it('names the shut gate when the column cannot leave the ground it stands on', () => {
     const naval = { ...column, roles: ['cargo' as const] };
-    const compass = compassOf(aragon, view, naval, true);
+    const compass = compassOf(aragon, view, naval);
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toBe(
       'aucun port là d’où part la colonne — on n’embarque pas sans quai',
@@ -266,7 +286,6 @@ describe('in aim', () => {
       },
       view,
       { ...unferried, departureBuildings: new Set<BuildingKey>(['port']) },
-      true,
     );
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il en manque 1');
@@ -278,7 +297,7 @@ describe('in aim', () => {
       roles: ['cargo' as const],
       departureBuildings: new Set<BuildingKey>(['port']),
     };
-    const compass = compassOf({ ...aragon, coastal: true }, view, naval, true);
+    const compass = compassOf({ ...aragon, coastal: true }, view, naval);
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
   });
 
@@ -286,12 +305,7 @@ describe('in aim', () => {
    *  and founding does not go through the rose at all any more. */
   it('offers nothing on a region target — the fan only aims at places', () => {
     expect(
-      compassOf(
-        { kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'ESP' },
-        view,
-        column,
-        true,
-      ),
+      compassOf({ kind: 'region', id: 'ESP-1234', name: 'Aragón', country: 'ESP' }, view, column),
     ).toBeNull();
   });
 
@@ -306,7 +320,6 @@ describe('in aim', () => {
       },
       view,
       column,
-      true,
     );
     expect(warehouse?.actions).toEqual([
       expect.objectContaining({
@@ -327,7 +340,6 @@ describe('in aim', () => {
       },
       view,
       column,
-      true,
     );
     expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
   });
@@ -340,12 +352,12 @@ describe('in aim', () => {
       current: false,
       seenAt: 123,
     };
-    expect(compassOf(target, view, column, true, null, 20)?.actions[0]).toMatchObject({
+    expect(compassOf(target, view, column, null, 20)?.actions[0]).toMatchObject({
       key: 'collect',
       label: 'ramasser',
       sightingId: 'sighting-1',
     });
-    expect(compassOf(target, view, column, true, null, 0)).toMatchObject({
+    expect(compassOf(target, view, column, null, 0)).toMatchObject({
       actions: [],
       refusal: 'aucune capacité libre pour ramener ce butin',
     });
@@ -366,6 +378,8 @@ describe('aiming at a point', () => {
     coastal: false,
   };
 
+  /** Au dézoom la carte ne dessine aucune région, donc le relevé ne répond pas : la marche
+   *  reste, l'assaut se retire — on n'attaque que ce qu'on a vu (ADR 0024 §4). */
   it('opens a fan with no region under it at all — zoomed out, or at sea', () => {
     const compass = compassOf(
       {
@@ -380,13 +394,8 @@ describe('aiming at a point', () => {
       },
       view,
       column,
-      true,
     );
-    expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
-    expect(compass?.actions[1]).toMatchObject({
-      type: 'attack',
-      aim: { kind: 'point', lon: 25.2, lat: 44.6 },
-    });
+    expect(compass?.actions.map((action) => action.label)).toEqual(['marche']);
   });
 
   /**
@@ -408,7 +417,6 @@ describe('aiming at a point', () => {
       },
       view,
       column,
-      true,
     );
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
     expect(compass?.actions[0]).toMatchObject({ aim: { kind: 'point', lon: 25.2, lat: 44.6 } });
@@ -431,7 +439,6 @@ describe('aiming at a point', () => {
       },
       view,
       column,
-      true,
     );
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toBe(
@@ -458,7 +465,6 @@ describe('aiming at a point', () => {
       },
       view,
       naval,
-      true,
     );
     expect(compass).not.toBeNull();
     /** Branches or motive, never silence. Ici, le motif. */
@@ -518,7 +524,7 @@ describe('joining a transport from the map', () => {
     }) as unknown as PlayerView;
 
   it('offers a garrison march to the exact address of a friendly cargo', () => {
-    const compass = compassOf(target, withTransport(), column, false, origin);
+    const compass = compassOf(target, withTransport(), column, origin);
     expect(compass?.actions).toHaveLength(1);
     expect(compass?.actions[0]).toMatchObject({
       key: 'aim',
@@ -530,45 +536,40 @@ describe('joining a transport from the map', () => {
   });
 
   it('does not offer an infantry march to an offshore cargo', () => {
-    const compass = compassOf({ ...target, onLand: false }, withTransport(), column, false, origin);
+    const compass = compassOf({ ...target, onLand: false }, withTransport(), column, origin);
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toContain('une troupe terrestre doit viser la terre');
   });
 
   it('offers no boarding when the cargo has no remaining places', () => {
-    const compass = compassOf(target, withTransport('cargo', 6), column, false, origin);
+    const compass = compassOf(target, withTransport('cargo', 6), column, origin);
     expect(compass?.actions).toEqual([]);
   });
 
   it('offers infantry a truck with a free seat, but never puts armour in it', () => {
     expect(
-      compassOf(target, withTransport('landTransport', 1), column, false, origin)?.actions,
+      compassOf(target, withTransport('landTransport', 1), column, origin)?.actions,
     ).toHaveLength(1);
+    expect(compassOf(target, withTransport('landTransport', 2), column, origin)?.actions).toEqual(
+      [],
+    );
     expect(
-      compassOf(target, withTransport('landTransport', 2), column, false, origin)?.actions,
-    ).toEqual([]);
-    expect(
-      compassOf(
-        target,
-        withTransport('landTransport'),
-        { ...column, roles: ['armor'] },
-        false,
-        origin,
-      )?.actions,
+      compassOf(target, withTransport('landTransport'), { ...column, roles: ['armor'] }, origin)
+        ?.actions,
     ).toEqual([]);
   });
 
   it('offers no transport action on an escort, an unknown stack, or the origin itself', () => {
-    expect(compassOf(target, withTransport('escort'), column, false, origin)).toBeNull();
+    expect(compassOf(target, withTransport('escort'), column, origin)).toBeNull();
     expect(
-      compassOf(target, { ...view, me: { ...view.me, troops: [] } }, column, false, origin),
+      compassOf(target, { ...view, me: { ...view.me, troops: [] } }, column, origin),
     ).toBeNull();
-    expect(compassOf(target, withTransport(), column, false, beach)).toBeNull();
+    expect(compassOf(target, withTransport(), column, beach)).toBeNull();
   });
 
   it('can rejoin a nearby transport without treating it as the origin', () => {
     const nearby = { ...beach, lonLat: [142.101, 47.001] } as const;
-    expect(compassOf(target, withTransport(), column, false, nearby)?.actions).toHaveLength(1);
+    expect(compassOf(target, withTransport(), column, nearby)?.actions).toHaveLength(1);
   });
 
   it('never offers to board a transport already moving', () => {
@@ -576,7 +577,7 @@ describe('joining a transport from the map', () => {
       ...withTransport(),
       arcs: [{ state: 'mine', troopIds: ['transport'] }],
     } as unknown as PlayerView;
-    expect(compassOf(target, moving, column, false, origin)).toBeNull();
+    expect(compassOf(target, moving, column, origin)).toBeNull();
   });
 });
 
@@ -656,7 +657,7 @@ describe('founding from the map', () => {
       afloat: false,
       coastal: false,
     };
-    const compass = compassOf(camp, posted(['infantry']), armed, true);
+    const compass = compassOf(camp, posted(['infantry']), armed);
     expect(compass?.actions.map((action) => action.key)).toEqual(['found']);
   });
 
@@ -679,7 +680,7 @@ describe('founding from the map', () => {
       ...standing,
       me: { ...standing.me, defeated: true },
     } as unknown as PlayerView;
-    expect(compassOf(camp, observing, armed, true)).toBeNull();
+    expect(compassOf(camp, observing, armed)).toBeNull();
     expect(
       compassOf({ kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'FRA' }, observing),
     ).toBeNull();
@@ -838,7 +839,7 @@ describe('raising a level from the map', () => {
       afloat: false,
       coastal: false,
     };
-    const compass = compassOf(mast, standing({}), armed, true);
+    const compass = compassOf(mast, standing({}), armed);
     expect(compass?.kicker).toBe('visée armée · 1 troupe');
     expect(compass?.name).toBe('Mine');
     expect(compass?.actions).toHaveLength(1);
@@ -868,7 +869,7 @@ describe('raising a level from the map', () => {
       afloat: false,
       coastal: false,
     };
-    const onMine = compassOf(mast, standing({}), armour, true);
+    const onMine = compassOf(mast, standing({}), armour);
     expect(onMine?.actions).toEqual([]);
     expect(onMine?.refusal).toBe('un blindé n’entre pas dans une mine');
 
@@ -876,7 +877,6 @@ describe('raising a level from the map', () => {
       { ...mast, key: 'barracks' },
       housing('barracks', 'Caserne'),
       armour,
-      true,
     );
     expect(onBarracks?.actions.map((action) => action.label)).toEqual(['entrer en garnison']);
   });
@@ -894,10 +894,9 @@ describe('raising a level from the map', () => {
       { ...mast, key: 'barracks' },
       housing('barracks', 'Caserne'),
       fleet,
-      true,
     );
     expect(onBarracks?.refusal).toBe('un cargo n’entre pas dans une caserne');
-    const onPort = compassOf({ ...mast, key: 'port' }, housing('port', 'Port'), fleet, true);
+    const onPort = compassOf({ ...mast, key: 'port' }, housing('port', 'Port'), fleet);
     expect(onPort?.actions.map((action) => action.label)).toEqual(['entrer en garnison']);
   });
 
@@ -911,7 +910,7 @@ describe('raising a level from the map', () => {
       afloat: false,
       coastal: false,
     };
-    expect(compassOf({ ...mast, id: 'B-gone' }, standing({}), armed, true)).toBeNull();
+    expect(compassOf({ ...mast, id: 'B-gone' }, standing({}), armed)).toBeNull();
   });
 
   /** Le clic droit reste inerte pour un défait, sur un bâtiment comme partout ailleurs. */

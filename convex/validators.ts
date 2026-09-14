@@ -72,9 +72,12 @@ export const RESOURCE_AMOUNTS = v.object({
   bandages: v.number(),
 });
 
+/** Le sol sous une chose : la route le porte par tronçon, un camp relevé une fois pour toutes. */
+export const MEDIUM = v.union(v.literal('land'), v.literal('sea'), v.literal('air'));
+
 /** One stretch of a route under one medium, shared by movements and immutable return plans. */
 export const ROUTE_LEG = v.object({
-  medium: v.union(v.literal('land'), v.literal('sea'), v.literal('air')),
+  medium: MEDIUM,
   distanceUnits: v.number(),
 });
 
@@ -275,6 +278,18 @@ export const NOTICE = v.union(
      *  can point at on his own map by name. A country would not tell two stations apart. */
     detectorRegion: v.union(v.string(), v.null()),
   }),
+  /**
+   * **Une force posée relevée dans la portée** (ADR 0024 §1). La sœur immobile de la précédente,
+   * et elle en dit encore moins : pas de cap, puisqu'un camp ne va nulle part. Le pays nommé est
+   * celui d'où l'on regarde, jamais la nation de ce qu'on a vu.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('campSighted'),
+    hostCountry: v.string(),
+    detector: DETECTOR,
+    detectorRegion: v.union(v.string(), v.null()),
+  }),
   /** A pass fought at `DRY_AMMUNITION_FACTOR` because the magazine could not cover it. Nothing
    *  else on the board says it, and it is the difference between a defeat and a supply fault. */
   v.object({
@@ -463,11 +478,22 @@ export const MOVEMENT_ORIGIN = v.union(
  * aimed: nothing resolves it into the region it may fall in, so the document says exactly where
  * the player pointed.
  */
-export const ATTACK_TARGET = v.union(
+const STORED_TARGET = v.union(
   v.object({ kind: v.literal('region'), regionId: v.string() }),
   v.object({ kind: v.literal('outpost'), outpostId: v.id('outposts') }),
   v.object({ kind: v.literal('point'), point: LON_LAT }),
   v.object({ kind: v.literal('building'), buildingId: v.id('buildings') }),
+);
+
+/**
+ * **Ce qu'un ordre peut nommer sur le fil**, qui n'est pas ce que le document garde : un camp
+ * relevé (ADR 0024 §4) est une cible **et jamais une cible stockée** — `aimOf` le résout en sa
+ * position, et c'est la position que la colonne marche. Le mettre dans `MOVEMENT_TARGET` aurait
+ * laissé le schéma accepter une forme que rien n'écrit.
+ */
+export const ATTACK_TARGET = v.union(
+  STORED_TARGET,
+  v.object({ kind: v.literal('camp'), campId: v.id('campSightings') }),
 );
 
 /**
@@ -493,7 +519,7 @@ export const CONTACT_FORCE = v.union(
  * the garrison there — a **point** for a column that was standing on plain ground, and `home`
  * for the one anchor that is not a document, the national soil.
  */
-export const MOVEMENT_TARGET = v.union(ATTACK_TARGET, v.object({ kind: v.literal('home') }));
+export const MOVEMENT_TARGET = v.union(STORED_TARGET, v.object({ kind: v.literal('home') }));
 
 export const COMBAT_SIDE = v.union(v.literal('attacker'), v.literal('defender'));
 

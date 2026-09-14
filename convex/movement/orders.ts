@@ -21,6 +21,7 @@ import {
   type Column,
   type MovementAim,
 } from '../../src/domain/movement-orders';
+import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
@@ -33,6 +34,7 @@ import {
 } from '../constants';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
+import { regionAtRoutePoint } from '../regionGeometry';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
@@ -221,11 +223,40 @@ export async function plunderTargetAt(
   return building;
 }
 
+/**
+ * **Ce que le relevé de ce joueur-là porte dans cette région** (ADR 0024 §4). La même question que
+ * la rose pose à `view.surveyedInstallations`, posée ici sur la table qui la sert — et tranchée
+ * par la même fonction pure des deux côtés du fil (`carriesSurveyedInstallation`).
+ */
+async function surveyedIn(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  regionId: string | null,
+): Promise<boolean> {
+  if (regionId === null) return false;
+  const survey = await ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerRegion', (q) => q.eq('playerId', playerId).eq('regionId', regionId))
+    .unique();
+  /** Le relevé range ses installations sous la région de sa ligne ; la vue les sert à plat, une
+   *  par région. C'est la même liste des deux côtés, à la forme près. */
+  return carriesSurveyedInstallation(
+    regionId,
+    (survey?.installations ?? []).map(() => ({ regionId })),
+  );
+}
+
+/** Ce qu'un ordre peut nommer sur le fil. Le camp n'est pas une cible **stockée** : il se résout
+ *  en sa position, et c'est cette position que le document garde (ADR 0024 §4). */
+export type AimTarget =
+  | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
+  | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> };
+
 export async function aimOf(
   ctx: QueryCtx,
   /** Read for one target only: a building is aimed at by its owner and by nobody else. */
   playerId: Id<'players'>,
-  target: Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' },
+  target: AimTarget,
 ): Promise<Aimed> {
   /** **A point is kept as it was aimed** (ADR 0019 §1): nothing looks up what stands there. Only
    *  the country is read off it, because the rest window is owed to whoever owns the ground. */
@@ -239,8 +270,34 @@ export async function aimOf(
         lat: point[1],
         coastal: coastAtPoint(point),
         onLand: landAtPoint(point),
+        surveyed: await surveyedIn(ctx, playerId, regionAtRoutePoint(point)),
       },
       target: { kind: 'point', point: target.point },
+      point,
+      name: country,
+      host: country,
+    };
+  }
+  /**
+   * **Un camp relevé se résout en sa position, et rien d'autre** (ADR 0024 §4). C'est le relevé
+   * du joueur qui répond — jamais la pile vraie : elle peut avoir levé le camp, et c'est le
+   * sujet. Le relevé d'un autre joueur n'existe pas pour celui-ci, et un camp qu'on n'a pas
+   * relevé se refuse du mot d'un point vide.
+   */
+  if (target.kind === 'camp') {
+    const camp = await ctx.db.get(target.campId);
+    if (camp === null || camp.playerId !== playerId) fail('NOTHING_TO_ATTACK');
+    const point = pointOf(camp.point);
+    const country = hostAtPoint(point);
+    return {
+      aim: {
+        kind: 'camp',
+        campId: camp._id,
+        lon: point[0],
+        lat: point[1],
+        hostCountry: country,
+      },
+      target: { kind: 'point', point: camp.point },
       point,
       name: country,
       host: country,
@@ -286,7 +343,12 @@ export async function aimOf(
   const region = regionFacts(target.regionId);
   if (!region) fail('UNKNOWN_REGION', { regionId: target.regionId });
   return {
-    aim: { kind: 'region', regionId: region.id, country: region.country },
+    aim: {
+      kind: 'region',
+      regionId: region.id,
+      country: region.country,
+      surveyed: await surveyedIn(ctx, playerId, region.id),
+    },
     target: { kind: 'region', regionId: region.id },
     point: region.point,
     name: region.name,

@@ -19,7 +19,26 @@ import {
  * must never happen (ADR 0015: contextual, never greyed out).
  */
 export type MovementAim =
-  | { readonly kind: 'region'; readonly regionId: string; readonly country: string }
+  | {
+      readonly kind: 'region';
+      readonly regionId: string;
+      readonly country: string;
+      /** @see the note on the point's own `surveyed`. */
+      readonly surveyed: boolean;
+    }
+  /**
+   * **Un camp adverse relevé** (ADR 0024 §4) : le seul objet mobile qu'un ordre puisse viser, et
+   * il est visé comme une **position**. La colonne marche au point relevé ; à l'arrivée elle
+   * engage ce qui s'y tient à `ARRIVAL_RADIUS_KM`, et si le camp est parti elle est bredouille.
+   * La poursuite est l'intention « intercepter » de la V1, pas celle-ci.
+   */
+  | {
+      readonly kind: 'camp';
+      readonly campId: string;
+      readonly lon: number;
+      readonly lat: number;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'outpost';
       readonly outpostId: string;
@@ -42,6 +61,17 @@ export type MovementAim =
       readonly lat: number;
       /** Read on the routing grid, so an offshore click cannot become a walk on another coast. */
       readonly onLand: boolean;
+      /**
+       * **Le sol porte-t-il quelque chose que j'ai relevé ?** (ADR 0024 §4) — une installation
+       * relevée aujourd'hui, un objectif neutre le jour où ils existeront. C'est ce qui ouvre
+       * « attaquer », et rien d'autre : on n'attaque pas du vide.
+       *
+       * Il voyage avec la visée plutôt que d'être relu ici, pour la raison qui fait voyager
+       * `coastal` : la règle doit répondre **sans base et sans carte** (ADR 0015), et le domaine
+       * ne tient ni relevé ni polygone. Les deux bouts le remplissent avec la même fonction
+       * (`carriesSurveyedInstallation`), donc la rose et le serveur disent le même mot.
+       */
+      readonly surveyed: boolean;
       /**
        * **Whether a hull can reach this exact spot** — `isCoastCell` on the routing grid and
        * nothing else: a coastline read off another source would say "coast" where Dijkstra finds
@@ -108,6 +138,7 @@ export type OrderRefusal =
   | 'NOT_ENOUGH_LIFT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
+  | 'NOTHING_TO_ATTACK'
   | 'NOT_A_GARRISON_FOR'
   | 'NOT_ORDERABLE';
 
@@ -202,15 +233,6 @@ export const movementSlots = (hqLevel: number): number => 1 + hqLevel;
  */
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
-/**
- * **The order is the behaviour** (ADR 0021, revision of 08/09/2026): there is no posture to
- * choose or store. An attack and a raid may start a mobile encounter when their own detector
- * sees another mobile force; every other word observes without reaching for it. Arrival defence
- * is deliberately elsewhere and unchanged.
- */
-export const movementBehavior = (type: MovementType | 'decoy'): 'engage' | 'observe' =>
-  type === 'attack' || type === 'raid' ? 'engage' : 'observe';
-
 export function refusalOf(
   type: MovementType,
   aim: MovementAim,
@@ -239,8 +261,14 @@ export function refusalOf(
           : 'NOT_A_GARRISON_FOR';
       }
       return aim.kind === 'point' ? closedGate(aim, column) : 'POINT_TARGET_ONLY';
+    /**
+     * **On n'attaque que ce qu'on a relevé** (ADR 0024 §4). Un camp et un avant-poste *sont* le
+     * relevé ; un point et une région ne le sont que s'ils portent quelque chose de relevé. Sur
+     * du vide la branche n'existe pas, et le serveur dit le même mot après le clic.
+     */
     case 'attack':
-      return mine(aim, column) ? 'FRIENDLY_TARGET' : closedGate(aim, column);
+      if (mine(aim, column)) return 'FRIENDLY_TARGET';
+      return nothingToAttack(aim) ?? closedGate(aim, column);
     /** A raid marches at an outpost and at nothing else: it comes to put a point out of
      *  service, and a region has no point to disable. */
     case 'raid':
@@ -310,6 +338,21 @@ export function refusalDetails(aim: MovementAim, column: Column): Record<string,
  * own" about a coordinate would mean matching it against my regions, which is the resolution the
  * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
  */
+/** Ce qu'un assaut trouverait, tel que le relevé du joueur le donne — jamais l'état du plateau. */
+const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
+  switch (aim.kind) {
+    case 'camp':
+    case 'outpost':
+      return null;
+    case 'point':
+    case 'region':
+      return aim.surveyed ? null : 'NOTHING_TO_ATTACK';
+    case 'building':
+      /** Toujours sien (`aimOf`) : `mine` a déjà répondu avant d'arriver ici. */
+      return 'NOTHING_TO_ATTACK';
+  }
+};
+
 const mine = (aim: MovementAim, column: Column): boolean =>
   aim.kind === 'outpost'
     ? column.myOutpostIds.has(aim.outpostId)

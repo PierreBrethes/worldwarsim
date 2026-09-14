@@ -262,6 +262,22 @@ function written(notice: Notice): Written {
               : said.movementSighted(fr.detectors[notice.detector], country, cardinal),
       };
     }
+    /** **Un camp, et rien de ce qu'il est** (ADR 0024 §1). La même règle qu'au-dessus, en plus
+     *  pauvre encore : pas de cap, parce qu'un camp ne va nulle part. */
+    case 'campSighted': {
+      const country = countryLabel(notice.hostCountry);
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'campSighted',
+        text:
+          notice.detector === 'territory'
+            ? said.campOnOurSoil(country)
+            : notice.detector === 'station' && notice.detectorRegion !== null
+              ? said.stationCampSighted(notice.detectorRegion, country)
+              : said.campSighted(fr.detectors[notice.detector], country),
+      };
+    }
     case 'firedDry':
       return {
         at: notice.at,

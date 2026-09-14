@@ -42,7 +42,11 @@ export const wireTarget = (aim: MovementAim) =>
       ? ({ kind: 'outpost', outpostId: aim.outpostId as Id<'outposts'> } as const)
       : aim.kind === 'building'
         ? ({ kind: 'building', buildingId: aim.buildingId as Id<'buildings'> } as const)
-        : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+        : /** **Le camp voyage par son relevé, jamais par son point** (ADR 0024 §4) : c'est le
+           *  serveur qui le résout en position, sur la ligne que ce joueur-là possède. */
+          aim.kind === 'camp'
+          ? ({ kind: 'camp', campId: aim.campId as Id<'campSightings'> } as const)
+          : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 /**
  * Where a column stands, in the shape the mutations take — the branded ids go back on at the one

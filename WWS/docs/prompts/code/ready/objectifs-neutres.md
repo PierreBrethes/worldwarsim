@@ -8,6 +8,16 @@ un point), `src/domain/world.ts` (régions, pôles, pays), `convex/schema.ts` (`
 `troops`), `convex/press.ts` (ce qui compte un joueur). **Suppose `pillage-et-butin` livré** —
 le dépôt se ramène par `loot` et le retour. Ne commit pas, ne push pas. Un chantier, un commit.
 
+> ⚠️ **Révision du 13/09/2026 (ADR 0024) — à lire avant la règle.** L'attaque ne se donne plus que
+> sur un objet relevé (`nothingToAttack`, `src/domain/movement-orders.ts`) et `standAt` ne cherche
+> plus de défense : « un ordre attaque sur le point de l'objectif » (§3 ci-dessous) ne marche plus
+> tel quel. Un objectif est **public**, donc la cible est une variante `{ kind: 'objective';
+> objectiveId; lon; lat; hostCountry }` de `MovementAim`, acceptée par `refusalOf('attack')` sans
+> condition de relevé — trois lignes dans `movement-orders.ts`, une branche dans `aimOf`
+> (`convex/movement/orders.ts`, à côté de `camp`), une dans la rose. La prise passe par `engageAt`
+> (la garnison de l'objectif est ce qui se tient à `ARRIVAL_RADIUS_KM` du point visé) ; l'ADR 0019
+> §3 cité en tête est révisé sur ce point. Le §5 (« la rose offre attaquer sur l'objectif ») tient.
+
 ## La règle
 
 Au lancement, la saison pose **`OBJECTIVES_PER_SEASON`** objectifs (`@a-mesurer` : 2 à 3 joueurs,

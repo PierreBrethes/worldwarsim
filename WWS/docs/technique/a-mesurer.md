@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e98ca9d -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 963b253 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-25 valeurs marquées dans `convex/` et `src/domain/`.
+26 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -28,16 +28,17 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:652` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
 | `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:661` | starting points only; no simulation models plunder presence or warehouse downtime |
 | `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:662` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:670` | provisional lifetime; no season simulation models crate discovery or collection |
-| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:678` | provisional disclosure delay and search radius; no season simulation models them |
-| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:679` | provisional disclosure delay and search radius; no season simulation models them |
-| `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` | `{ food: 2, coal: 1 }` | `convex/constants.ts:696` | assumed; nothing measures what an outpost should cost to hold against a farm's yield |
-| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:710` | placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:735` | shaped so the relay reads as a decision rather than a rounding |
-| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:761` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
-| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:790` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
-| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:803` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
-| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:817` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
+| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:675` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
+| `LOOT_CRATE_HOURS` | `2` | `convex/constants.ts:683` | provisional lifetime; no season simulation models crate discovery or collection |
+| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:691` | provisional disclosure delay and search radius; no season simulation models them |
+| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:692` | provisional disclosure delay and search radius; no season simulation models them |
+| `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` | `{ food: 2, coal: 1 }` | `convex/constants.ts:709` | assumed; nothing measures what an outpost should cost to hold against a farm's yield |
+| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:723` | placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:748` | shaped so the relay reads as a decision rather than a rounding |
+| `REDUCTION_FACTOR` | `0.5` | `convex/constants.ts:774` | the bar of a scaffold, measured by nothing — it leaves with the scaffold |
+| `SURVEY_FADED_HOURS` | `24` | `convex/constants.ts:803` | choisi sur la cadence de visite attendue, jamais mesuré en partie |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:816` | une fraction lisible de `SURVEY_FADED_HOURS`, rien de plus |
+| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:830` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:75` | assumed against the troop ceiling alone — two cargos lift half an army |

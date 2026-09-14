@@ -9,7 +9,7 @@ import { specializationServed, specializationsServed } from './movement/forces';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { surveyRegion, foundSeat, joinSeat, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -355,6 +355,9 @@ describe('aucune query ne rasterise le monde', () => {
       return { barracks, marching: await troop(barracks) };
     });
 
+    /** Depuis l'ADR 0024 §4 un assaut vise un relevé : sans lui l'aperçu répond `null`, et
+     *  l'espion n'aurait plus rien à surveiller. */
+    await surveyRegion(t, seat, PRAHOVA);
     vi.mocked(buildGrid).mockClear();
 
     const view = await t.query(api.view.playerView, seat);

@@ -4,7 +4,6 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
-  ARRIVAL_RADIUS_KM,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
@@ -28,7 +27,6 @@ import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
 import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
-import { knownObjectiveAt } from '@/domain/objectives';
 import { placementOf } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import type { Column, MovementAim } from '@/domain/movement-orders';
@@ -74,6 +72,7 @@ import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
 import { LootCrateCard } from './-plateau/LootCrateCard';
+import { CampBadge } from './-plateau/CampBadge';
 import type { LootRumor } from './-plateau/JournalWindow';
 
 type BuildingSite = { regionId: string; x: number; y: number };
@@ -91,6 +90,9 @@ type OpenGarrison = {
 };
 
 type OpenLoot = { readonly id: string; readonly x: number; readonly y: number };
+
+/** Le camp relevé dont le cartouche est ouvert, et le point où il se pose. */
+type OpenCamp = { readonly id: string; readonly x: number; readonly y: number };
 
 /**
  * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
@@ -380,6 +382,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   } | null>(null);
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
+  const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
    * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
@@ -433,6 +436,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [boardPoint],
   );
+
+  const openCamp = useCallback(
+    (campId: string, clientX: number, clientY: number) =>
+      setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) }),
+    [boardPoint],
+  );
+
+  /** Un relevé que le délai a périmé emporte le cartouche qui le lisait : la carte ne garde pas
+   *  ouverte une fiche sur une ligne que le serveur ne sert plus (ADR 0024 §2). */
+  useEffect(() => {
+    setSelectedCamp((previous) =>
+      previous !== null && !view.camps.some((camp) => camp.id === previous.id) ? null : previous,
+    );
+  }, [view.camps]);
 
   /** A negative observation removes the private marker and any card still attached to it. */
   useEffect(() => {
@@ -612,14 +629,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const compassOfTarget = useCallback(
     (target: CompassTarget) =>
-      compassOf(
-        target,
-        view,
-        column?.rule ?? null,
-        objectiveUnder(target, view),
-        column?.station ?? null,
-        freeCapacity,
-      ),
+      compassOf(target, view, column?.rule ?? null, column?.station ?? null, freeCapacity),
     [view, column, freeCapacity],
   );
 
@@ -684,6 +694,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               lat: action.point[1],
               onLand: true,
               coastal: false,
+              /** Un ramassage est une marche : le relevé du sol ne décide de rien pour lui. */
+              surveyed: false,
             },
             type: 'march',
             label: action.label,
@@ -983,6 +995,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * le mât se pose à son centroïde, comme un gisement. Il suit le même interrupteur que les
      * mâts à soi, parce que c'est le même encombrement.
      */
+    /**
+     * **Un camp adverse relevé se tient sur la carte** (ADR 0024 §1) : sans mât, le §3 serait
+     * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
+     * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
+     */
+    const camps: ReadonlyArray<MapMarker> = view.camps.map((camp) => ({
+      kind: 'camp' as const,
+      id: `camp-${camp.id}`,
+      campId: camp.id,
+      lonLat: camp.point,
+      medium: camp.medium,
+      lastKnown: camp.lastKnown,
+      since: camp.since,
+      seenMinutesAgo: camp.seenMinutesAgo,
+    }));
+
     const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
       kind: 'installation' as const,
       id: `installation-${installation.id}`,
@@ -994,7 +1022,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       washed: knownRegionById.get(installation.regionId)?.state !== 'current',
     }));
 
-    if (!toggles.buildings) return [...deposits, ...loot, ...outposts, ...stacks];
+    if (!toggles.buildings) return [...deposits, ...loot, ...camps, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
@@ -1048,12 +1076,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               ink: view.me.ink,
             },
           ];
-    return [...deposits, ...loot, ...surveyed, ...outposts, ...stacks, ...standing, ...raising];
+    return [
+      ...deposits,
+      ...loot,
+      ...camps,
+      ...surveyed,
+      ...outposts,
+      ...stacks,
+      ...standing,
+      ...raising,
+    ];
   }, [
     marching,
     view.me,
     view.loadedAt,
     view.lootSightings,
+    view.camps,
     view.surveyedInstallations,
     knownRegionById,
     toggles.buildings,
@@ -1111,6 +1149,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       km: detectionRangeOf(roles),
     };
   }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
+  const selectedCampView =
+    selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
   const selectedLootSighting =
     selectedLoot === null
       ? null
@@ -1314,6 +1354,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           onOpenBuilding={openBuilding}
           onOpenStack={openStack}
           onOpenLoot={openLoot}
+          onOpenCamp={openCamp}
           selectedLabel={posted?.labelId ?? null}
           selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
           reach={postedReach ?? movementReach}
@@ -1338,6 +1379,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             sighting={selectedLootSighting}
             at={selectedLoot}
             onClose={() => setSelectedLoot(null)}
+          />
+        )}
+        {selectedCamp !== null && selectedCampView !== null && (
+          <CampBadge
+            key={selectedCamp.id}
+            camp={selectedCampView}
+            at={selectedCamp}
+            onClose={() => setSelectedCamp(null)}
           />
         )}
         {buildingSite && (
@@ -1733,17 +1782,3 @@ const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | nu
   key === 'listening' && point !== undefined
     ? { lonLat: point, km: LISTENING_STATION_RADIUS_KM }
     : null;
-
-/**
- * **Ce que la vue du joueur donne pour attaquable sous le clic** — et rien d'autre ne répond à
- * cette question (décision Pierre, 29/08). Un avant-poste cliqué en est un par définition : on ne
- * dessine que les siens, et viser le sien reste refusé par `FRIENDLY_TARGET`, pas par ici.
- *
- * `ARRIVAL_RADIUS_KM` est le rayon parce que c'est celui que l'arrivée lira (`defenceNear`) : un
- * objectif hors de ce cercle est un objectif que l'assaut ne trouverait pas.
- */
-function objectiveUnder(target: CompassTarget, view: PlayerView): boolean {
-  if (target.kind === 'outpost') return true;
-  if (target.kind !== 'point') return false;
-  return knownObjectiveAt(view, [target.lon, target.lat], target.country, ARRIVAL_RADIUS_KM);
-}

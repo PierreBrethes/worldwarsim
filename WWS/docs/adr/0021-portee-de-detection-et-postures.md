@@ -1,6 +1,6 @@
 # ADR 0021 — Portées passives et comportement dérivé de l’ordre
 
-**Statut :** acceptée (31/08/2026), **révisée le 08/09/2026** — révise l’[ADR 0008](0008-combat-par-interception.md), les §3 et §5 de l’[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) et la conséquence du §5 de l’ADR 0019 selon laquelle un détecteur arrivé après un départ ne voit jamais ce mouvement. Le calcul de la passe (ADR 0014, ADR 0018 §1-2-4) reste fermé.
+**Statut :** acceptée (31/08/2026), **révisée le 08/09/2026**, **§2 et §3 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md)** (plus de rencontre en route ni de riposte au rayon d'arrivée sans ordre ; une force posée se voit dans la portée) — révise l’[ADR 0008](0008-combat-par-interception.md), les §3 et §5 de l’[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) et la conséquence du §5 de l’ADR 0019 selon laquelle un détecteur arrivé après un départ ne voit jamais ce mouvement. Le calcul de la passe (ADR 0014, ADR 0018 §1-2-4) reste fermé.
 
 ## Contexte
 
@@ -17,6 +17,12 @@ Chaque rôle possède une portée `P`. Une pile utilise la meilleure portée de 
 Les premières valeurs reprennent les points de départ déjà documentés et restent toutes `@a-mesurer`. Elles ne sont pas présentées comme équilibrées.
 
 ### 2. Détecter n’est pas combattre
+
+> ⚠️ **Révision (13/09/2026, ADR 0024).** « Une force voit une force adverse lorsqu'elle entre dans
+> sa portée » vaut désormais **aussi pour une force posée**. La rencontre en route décrite plus bas
+> **n'existe plus** : seule la cible d'un ordre d'attaque engage, à `ARRIVAL_RADIUS_KM` du point
+> visé, à l'arrivée. Une force posée voit, et se bat seulement si on l'attaque.
+
 
 Une force voit une force adverse lorsqu’elle entre dans **sa** portée. Les portées ne s’additionnent pas. Elles ne deviennent ni une portée de tir ni un modificateur de la passe de résolution.
 
@@ -37,6 +43,8 @@ Il n’existe aucun sélecteur de posture et aucune posture stockée.
 | marche, rappel legacy, retour | voit mais n’engage pas |
 | attaque, raid | engage une force mobile adverse détectée |
 | force immobile | voit et riposte si elle est attaquée à sa position, n’engage pas à distance |
+
+> **Révision du 13/09/2026 ([ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) §3).** La ligne « attaque, raid » ne vaut plus : **aucun ordre n’engage en route.** Les trois lignes se lisent désormais toutes comme la première — en route, on voit et on n’engage pas — et la seule chose qui ouvre une passe est un ordre d’attaque arrivé à destination. La riposte d’une force immobile, elle, est inchangée : attaquée, elle se bat.
 
 Une force attaquée riposte par la passe normale. Aucun ordre de poursuite ni nouvel ordre d’interception n’est introduit par ce lot.
 

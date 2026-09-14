@@ -10,7 +10,6 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { homeCountryOf, pointOfBuilding } from '../regions';
 import { ARRIVAL_RADIUS_KM, outpostReachKm } from '../constants';
-import { seasonBuildings } from '../buildings';
 import { troopsStationedAt } from '../combat';
 import { seasonTroops } from '../troops';
 import { anchorOf, isAnchored } from '../upkeep';
@@ -121,8 +120,18 @@ type Defence = {
   readonly movementId: Id<'movements'> | null;
 };
 
-/** Who answers an arrival. If several nations hold ground in the same region, the one with the
- *  most troops answers: ADR 0014, splitting the column would resolve the same pass twice. */
+/**
+ * **Ce qu'un ordre d'attaque trouve au bout de son allonge** (ADR 0024 §4). Elle n'est plus lue
+ * que là : une marche ne cherche plus personne (`standAt`), et `ARRIVAL_RADIUS_KM` a changé de
+ * sens — de déclencheur il est devenu l'**allonge** de l'ordre.
+ *
+ * Si plusieurs nations tiennent du sol au même endroit, celle qui a le plus de troupes répond :
+ * ADR 0014, couper la colonne résoudrait deux fois la même passe.
+ *
+ * **Une région se lit comme un point** depuis le 13/09 : les garnisons de ses bâtiments *et* les
+ * piles posées à portée du point d'arrivée, en une seule lecture. C'était le trou — une région
+ * ciblée engageait la garnison de ses mâts mais pas la colonne campée à dix kilomètres.
+ */
 export async function defenceOf(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
@@ -146,28 +155,7 @@ export async function defenceOf(
         };
   }
   if (target.kind !== 'region') return null;
-
-  const buildings = (await seasonBuildings(ctx, movement.seasonId)).filter(
-    (building) => building.regionId === target.regionId && building.playerId !== movement.playerId,
-  );
-
-  const byPlayer = new Map<Id<'players'>, Array<Doc<'troops'>>>();
-  for (const building of buildings) {
-    for (const troop of await troopsStationedAt(ctx, building._id)) {
-      const kept = byPlayer.get(troop.playerId) ?? [];
-      if (!kept.some((seen) => seen._id === troop._id)) kept.push(troop);
-      byPlayer.set(troop.playerId, kept);
-    }
-  }
-
-  let defender: Defence | null = null;
-  for (const [playerId, troops] of byPlayer) {
-    if (troops.length === 0) continue;
-    if (defender === null || troops.length > defender.troops.length) {
-      defender = { playerId, troops, outpostId: null, movementId: null };
-    }
-  }
-  return defender;
+  return defenceNear(ctx, movement, pointOf(movement.to));
 }
 
 /**

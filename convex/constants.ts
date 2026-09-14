@@ -662,6 +662,19 @@ export const PLUNDER_HOURS_PRESENT = 2;
 export const PLUNDER_DISABLED_HOURS = 12;
 
 /**
+ * **Combien de temps une dernière position connue survit à ce qu'elle a vu** (ADR 0024 §2). Une
+ * fenêtre de relevé qui s'est ouverte laisse une trace quoi qu'il arrive à la colonne — arrivée,
+ * retour, déroute, destruction, sortie de portée — et cette trace vieillit : le brouillard rend
+ * l'information périmée, pas éternelle, et vingt marches ne laissent pas vingt fantômes.
+ *
+ * Le même délai vaut pour un camp perdu de vue : ce sont deux souvenirs de la même sorte.
+ *
+ * @a-mesurer une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison
+ * de 48 h ; rien ne mesure ce que vaut une information qui date
+ */
+export const LAST_KNOWN_HOURS = 24;
+
+/**
  * A battlefield remainder gets one fixed window from the pass that created it. Collecting part
  * of it never starts a fresh window.
  *

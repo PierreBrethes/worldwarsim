@@ -28,7 +28,15 @@ import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import {
+  attacking,
+  foundSeat,
+  joinSeat,
+  placeHq,
+  seatIn,
+  surveyCamp,
+  surveyRegion,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /** Le rayon d'un point neuf : la portée suit le niveau depuis le 31/08, et ces cas plantent
@@ -377,7 +385,7 @@ describe('a posted column founds an outpost where it stands', () => {
     const point = regionFacts(PRAHOVA)!.point;
     const posted = await post(t, seat, point);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'point', point: asPoint(point) },
       troopIds: [posted],
@@ -438,7 +446,7 @@ describe('the rest window holds an arrival at the border', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -472,7 +480,7 @@ describe('the rest window holds an arrival at the border', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -498,7 +506,7 @@ describe('the rest window holds an arrival at the border', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -672,7 +680,7 @@ describe('an attack marches at somebody', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -695,7 +703,7 @@ describe('an attack marches at somebody', () => {
     const theirs = await raise(t, guest, 'barracks', PRAHOVA);
     const defender = await form(t, guest, 'infantry', theirs);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -728,7 +736,7 @@ describe('an attack marches at somebody', () => {
     const troop = await form(t, seat, 'infantry', barracks);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [troop],
@@ -755,7 +763,7 @@ describe('the pass is what ammunition is spent on', () => {
     const troop = await form(t, seat, 'infantry', barracks);
     const theirs = await raise(t, guest, 'barracks', PRAHOVA);
     const defender = await form(t, guest, 'infantry', theirs);
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -801,7 +809,7 @@ describe('the pass is what ammunition is spent on', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -833,7 +841,7 @@ describe('what the server refuses is what the fan never offers', () => {
     const troop = await form(t, seat, 'infantry', barracks);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [troop],
@@ -848,7 +856,7 @@ describe('what the server refuses is what the fan never offers', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [],
@@ -872,6 +880,7 @@ describe('the preview says what the march will be', () => {
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
+    await surveyRegion(t, seat, PRAHOVA);
 
     const preview = await t.query(api.movements.preview, {
       ...seat,
@@ -885,7 +894,7 @@ describe('the preview says what the march will be', () => {
     expect(preview!.destinationName).toBe(regionFacts(PRAHOVA)!.name);
     expect(preview!.holdUntil).toBeNull();
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -901,6 +910,7 @@ describe('the preview says what the march will be', () => {
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
+    await surveyRegion(t, seat, PSKOV);
 
     const preview = await t.query(api.movements.preview, {
       ...seat,
@@ -939,6 +949,7 @@ describe('a column whose infantry rides goes faster', () => {
     barracks: Id<'buildings'>,
     troopIds: ReadonlyArray<Id<'troops'>>,
   ) => {
+    await surveyRegion(t, seat, RUHR);
     const answer = await t.query(api.movements.preview, {
       ...seat,
       origin: origin(barracks),
@@ -1011,7 +1022,7 @@ describe('a column whose infantry rides goes faster', () => {
     // mutation takes it, and the duration below is the one the card was showing.
     expect(
       legalMovementTypes(
-        { kind: 'region', regionId: RUHR, country: 'Germany' },
+        { kind: 'region', regionId: RUHR, country: 'Germany', surveyed: true },
         {
           roles,
           myRegionIds: new Set(),
@@ -1024,7 +1035,7 @@ describe('a column whose infantry rides goes faster', () => {
     ).toContain('attack');
 
     const preview = await priced(t, seat, barracks, column);
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: origin(barracks),
       troopIds: column,
@@ -1142,7 +1153,7 @@ describe('a garrison marches out of its outpost', () => {
     const outpostId = await plant(t, seat, regionFacts(PRAHOVA)!.point, 'ROU');
     const held = await garrison(t, seat, outpostId);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'outpost', outpostId },
       troopIds: [held],
@@ -1160,7 +1171,7 @@ describe('a garrison marches out of its outpost', () => {
     const outpostId = await plant(t, seat, regionFacts(PRAHOVA)!.point, 'ROU');
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'outpost', outpostId },
         troopIds: [stray],
@@ -1190,7 +1201,7 @@ describe('a march aimed at a point', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1220,7 +1231,7 @@ describe('a march aimed at a point', () => {
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
       target: { kind: 'point', point: { lon: AIMED[0], lat: AIMED[1] } },
-      type: 'attack',
+      type: 'march',
     });
     expect(seen).not.toBeNull();
     const last = seen!.route.points[seen!.route.points.length - 1]!;
@@ -1234,7 +1245,7 @@ describe('a march aimed at a point', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1274,7 +1285,7 @@ describe('an arrival on a point finds who stands there', () => {
     const posted = await post(t, guest, eastOf(AIMED, 10));
     expect(distanceKm(AIMED, regionFacts(PRAHOVA)!.point)).toBeGreaterThan(50);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [first, second],
@@ -1307,7 +1318,7 @@ describe('an arrival on a point finds who stands there', () => {
     const outpostId = await plant(t, guest, eastOf(AIMED, 10), 'ROU');
     await garrison(t, guest, outpostId);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1330,7 +1341,7 @@ describe('an arrival on a point finds who stands there', () => {
     const troop = await form(t, seat, 'infantry', barracks);
     await post(t, guest, eastOf(AIMED, ARRIVAL_RADIUS_KM + 15));
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1349,7 +1360,7 @@ describe('an arrival on a point finds who stands there', () => {
     const point = regionFacts(PRAHOVA)!.point;
     const posted = await post(t, seat, point);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'point', point: { lon: point[0], lat: point[1] } },
       troopIds: [posted],
@@ -1365,7 +1376,7 @@ describe('an arrival on a point finds who stands there', () => {
     const posted = await post(t, seat, point);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'point', point: { lon: point[0] + 1, lat: point[1] } },
         troopIds: [posted],
@@ -1383,7 +1394,7 @@ describe('an arrival on a point finds who stands there', () => {
     const road = routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
     await post(t, guest, road.points[Math.floor(road.points.length / 2)]!);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1403,7 +1414,7 @@ describe('an arrival on a point finds who stands there', () => {
     const troop = await form(t, seat, 'infantry', barracks);
     const road = routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -1467,11 +1478,12 @@ describe('a march goes to a point and the column stays there', () => {
   });
 
   /**
-   * **The initiative goes to whoever was already there.** An attack buys its first blow by
-   * declaring itself (ADR 0014); a march declares nothing, so it takes it. That inversion is
-   * the whole difference between the two at an arrival.
+   * **Rien ne se bat sans ordre** (ADR 0024 §3, révision de l'ADR 0019 §3). L'embuscade
+   * automatique a disparu : une marche s'arrête à dix kilomètres d'un camp adverse et il ne se
+   * passe rien. Ce que les deux gagnent à la place est une information — chacun relève l'autre
+   * (§1), et c'est sur elle que l'attaque se décide.
    */
-  it('gives the first blow to the camp it walks into', async () => {
+  it('stops beside the camp it walks into, and the two only see each other', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1486,16 +1498,14 @@ describe('a march goes to a point and the column stays there', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [account] = await engagementsIn(t);
-    expect(account).toBeDefined();
-    expect(account!.attackerId).toBe(await playerOf(t, guest));
-    expect(account!.defenderId).toBe(await playerOf(t, seat));
-    expect(account!.cause).toBe('arrival');
-    /** The camp struck first: the strike opening the pass is its own. */
-    expect((await strikesIn(t, account!._id))[0]!.bySide).toBe('attacker');
-    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.playerId).toBe(
-      await playerOf(t, guest),
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(AIMED));
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toEqual(
+      asPoint(eastOf(AIMED, 10)),
     );
+    /** Deux camps, et chacun relève l'autre : c'est ce qui rend le §3 jouable. */
+    expect((await t.query(api.view.playerView, seat)).camps).toHaveLength(1);
+    expect((await t.query(api.view.playerView, guest)).camps).toHaveLength(1);
   });
 
   it('finds nobody a step beyond the radius, and simply stands there', async () => {
@@ -1518,12 +1528,11 @@ describe('a march goes to a point and the column stays there', () => {
   });
 
   /**
-   * **The banal order, and the doubled pass it used to buy.** A garrison at the end of the road
-   * stands inside the two hundred kilometres of the interception net *and* inside the twenty-five
-   * of the arrival: it fought the same column twice, on the way in and again on the ground.
-   * One engagement is one pass (ADR 0014), and at a destination it is the arrival's.
+   * **Chez lui, dans le rayon de son avant-poste, et rien ne se passe** (ADR 0024 §3). La
+   * garnison qui attendait au bout de la route ouvrait une passe que personne n'avait voulue ;
+   * elle se contente désormais de voir passer, et c'est à son maître d'ordonner l'assaut.
    */
-  it('meets the garrison waiting at its destination once', async () => {
+  it('stands inside the reach of a garrisoned outpost without opening a pass', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1539,10 +1548,8 @@ describe('a march goes to a point and the column stays there', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const accounts = await engagementsIn(t);
-    expect(accounts).toHaveLength(1);
-    expect(accounts[0]!.cause).toBe('arrival');
-    expect(accounts[0]!.outpostId).toBe(outpostId);
+    expect(await engagementsIn(t)).toHaveLength(0);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(AIMED));
   });
 
   /** A precise posted address remains passive while a movement crosses its detection range. */
@@ -1571,82 +1578,120 @@ describe('a march goes to a point and the column stays there', () => {
   });
 
   /**
-   * **The ground is cleared, whoever loses it** (ADR 0019 §3, ADR 0018 §1). A routed camp used
-   * to stay exactly where it stood: the winner planted himself ten kilometres away and the two
-   * never met again, for the rest of the season. It walks home now — by the return every rout
-   * gets, unordered, and it lands on national soil hanging from nothing that stands.
+   * **L'assaut sur un camp relevé** (ADR 0024 §4) : c'est désormais le seul chemin vers cette
+   * passe-là. L'initiative va à qui a donné l'ordre (ADR 0014), le camp riposte sans que
+   * personne l'ordonne, et le battu reflue par le retour que nul n'a demandé.
    */
-  it('walks the beaten camp home and stands the column on the ground it took', async () => {
+  it('opens the pass on a surveyed camp, initiative to the attacker, riposte from the camp', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
     const camped = await post(t, guest, eastOf(AIMED, 10));
-    // Worn down before the pass: the camp opens it and still breaks under the riposte.
-    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+    await post(t, guest, eastOf(AIMED, 10));
+    const campId = await surveyCamp(t, seat, asPoint(eastOf(AIMED, 10)));
 
-    const sent = await t.mutation(api.movements.marchTo, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [first, second],
-      point: asPoint(AIMED),
+      target: { kind: 'camp', campId },
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    const [going] = await movementsOf(t, guest);
-    expect(going).toBeDefined();
-    expect(going!.type).toBe('return');
-    expect(going!.target.kind).toBe('home');
-    expect(going!.troopIds).toContain(camped);
-    /** No slot spent on it: nobody ordered this march. */
-    expect((await t.query(api.view.playerView, guest)).me.slots.used).toBe(0);
-
-    // And the winner holds the ground it walked to.
-    for (const troop of [first, second]) {
-      expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(AIMED));
-    }
-
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    /** National soil, hanging from nothing that stands — the written meaning of a null address. */
-    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.stationedAt).toBeNull();
+    const [account] = await engagementsIn(t);
+    expect(account).toBeDefined();
+    expect(account!.attackerId).toBe(await playerOf(t, seat));
+    expect(account!.defenderId).toBe(await playerOf(t, guest));
+    expect(account!.cause).toBe('arrival');
+    /** Qui a donné l'ordre frappe le premier, et le camp rend les coups sans que personne
+     *  l'ordonne (ADR 0014, ADR 0024 §3). */
+    const strikes = await strikesIn(t, account!._id);
+    expect(strikes[0]!.bySide).toBe('attacker');
+    expect(strikes.some((strike) => strike.phase === 'riposte')).toBe(true);
+    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.currentStrength).toBeLessThan(
+      nominalStrength('infantry', 1),
+    );
   });
 
-  /** The mirror: the camp holds, and it is the marcher that walks back. A camp that wins has
-   *  not moved — it was standing on its ground and it still is. */
-  it('leaves the winning camp where it stands and sends the beaten column back', async () => {
+  /** **On n'attaque pas du vide** (ADR 0024 §4) : sur un sol où le joueur n'a rien relevé, le
+   *  serveur refuse du mot que la rose aurait dit avant le clic (ADR 0015). */
+  it('refuses an assault on ground the player has surveyed nothing on', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+
+    await expect(
+      t.mutation(api.movements.attack, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        target: { kind: 'point', point: asPoint(AIMED) },
+      }),
+    ).rejects.toThrow('NOTHING_TO_ATTACK');
+    expect(await movementsOf(t, seat)).toHaveLength(0);
+  });
+
+  /**
+   * **L'allonge de l'ordre, et le trou du 13/09 fermé** (ADR 0024 §4). Une région ciblée
+   * engageait la garnison de ses mâts mais pas la pile campée à vingt kilomètres du point
+   * d'arrivée : une seule lecture répond désormais pour les deux.
+   */
+  it('engages the camp standing within the arrival radius of a region aimed at', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    const worn = await form(t, seat, 'infantry', barracks);
-    await t.run(async (ctx) => ctx.db.patch(worn, { currentStrength: 30 }));
-    const camped = await post(t, guest, eastOf(AIMED, 10));
-    const second = await post(t, guest, eastOf(AIMED, 10));
+    const troop = await form(t, seat, 'infantry', barracks);
+    const centroid = regionFacts(PRAHOVA)!.point;
+    await post(t, guest, eastOf(centroid, 20));
 
-    const sent = await t.mutation(api.movements.marchTo, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
-      troopIds: [worn],
-      point: asPoint(AIMED),
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PRAHOVA },
     });
-    vi.advanceTimersByTime(sent.minutes * 60_000);
-    await t.finishInProgressScheduledFunctions();
-
-    const [back] = await movementsOf(t, seat);
-    expect(back).toBeDefined();
-    expect(back!.type).toBe('return');
-    expect(back!.troopIds).toContain(worn);
-    expect(await movementsOf(t, guest)).toHaveLength(0);
-
-    for (const troop of [camped, second]) {
-      expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(
-        asPoint(eastOf(AIMED, 10)),
-      );
-    }
-
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect((await t.run(async (ctx) => ctx.db.get(worn)))!.stationedAt).toBe(barracks);
+
+    const [account] = await engagementsIn(t);
+    expect(account).toBeDefined();
+    expect(account!.attackerId).toBe(await playerOf(t, seat));
+    expect(account!.defenderId).toBe(await playerOf(t, guest));
+  });
+
+  /** **Le camp est parti avant l'arrivée** : l'attaque vise une position, pas une unité, et il
+   *  n'y a pas de poursuite. Elle est bredouille, comme sur une région vide. */
+  it('comes back empty-handed when the camp has struck its tents', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const camped = await post(t, guest, eastOf(AIMED, 10));
+    const campId = await surveyCamp(t, seat, asPoint(eastOf(AIMED, 10)));
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'camp', campId },
+    });
+    /** Levé le camp, bien avant que la colonne arrive. */
+    await t.run(async (ctx) => ctx.db.patch(camped, { stationedAt: asPoint(eastOf(AIMED, 900)) }));
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await engagementsIn(t)).toHaveLength(0);
+    const playerId = await playerOf(t, seat);
+    const notices = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+    expect(notices.some((notice) => notice.kind === 'columnFoundNothing')).toBe(true);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toBe(barracks);
   });
 
   /** A march stays observational even when its road crosses a posted detector. */
@@ -1826,7 +1871,7 @@ describe('the door of the sea, read on the pile', () => {
     const quay = port ? await raise(t, seat, 'port', NORD) : await raise(t, seat, 'depot', NORD);
     const troopIds: Array<Id<'troops'>> = [];
     for (const role of roles) troopIds.push(await form(t, seat, role, quay));
-    return t.mutation(api.movements.attack, {
+    return attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: quay },
       troopIds,
@@ -1935,6 +1980,7 @@ describe('the door of the sea, read on the pile', () => {
       lat: KENT[1],
       coastal: true,
       onLand: true,
+      surveyed: true,
     };
     const quayless: Column = {
       roles: ['infantry', 'cargo'],
@@ -1986,6 +2032,7 @@ describe('the door of the sea, read on the pile', () => {
       lat: KENT[1],
       coastal: true,
       onLand: true,
+      surveyed: true,
     };
     const inland: MovementAim = {
       kind: 'point',
@@ -1993,15 +2040,20 @@ describe('the door of the sea, read on the pile', () => {
       lat: MIDLANDS[1],
       coastal: false,
       onLand: true,
+      surveyed: true,
     };
     expect(coastAtPoint(KENT)).toBe(true);
     expect(coastAtPoint(MIDLANDS)).toBe(false);
     expect(legalMovementTypes(beach, landing)).toEqual(['march', 'attack']);
     expect(legalMovementTypes(inland, landing)).toEqual([]);
     expect(refusalOf('march', inland, landing)).toBe('LANDING_NEEDS_A_COAST');
-    expect(refusalOf('attack', { kind: 'region', regionId: RUHR, country: 'DEU' }, landing)).toBe(
-      'LANDING_NEEDS_A_COAST',
-    );
+    expect(
+      refusalOf(
+        'attack',
+        { kind: 'region', regionId: RUHR, country: 'DEU', surveyed: true },
+        landing,
+      ),
+    ).toBe('LANDING_NEEDS_A_COAST');
   });
 
   /**
@@ -2266,7 +2318,7 @@ describe('the door of the sea, read on the pile', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -2297,7 +2349,7 @@ describe('a posted force never starts a pass at a distance', () => {
     const outpostId = await plant(t, guest, ambush, 'ROU');
     const waiting = await garrison(t, guest, outpostId);
 
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -2369,7 +2421,7 @@ describe('a routed column walks itself home', () => {
     const theirs = await raise(t, guest, 'barracks', PRAHOVA);
     await form(t, guest, 'infantry', theirs);
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [worn],
@@ -2388,7 +2440,7 @@ describe('a routed column walks itself home', () => {
     // It is not an order, so it does not eat the one movement a player may have in flight.
     const other = await form(t, seat, 'infantry', barracks);
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [other],
@@ -2425,14 +2477,18 @@ describe('a rout refluxes to the nearest anchor', () => {
    *  few hundred kilometres away is unambiguously the nearer anchor. */
   const ARABIA: LonLat = [46.72, 24.63];
 
-  /** Two French columns posted next to the camp, enough to break it under the riposte. */
-  async function march(t: ReturnType<typeof boot>, seat: Seat, at: LonLat, onto: LonLat) {
+  /**
+   * **Deux colonnes qui attaquent le camp relevé**, ce qui est le seul chemin vers une passe
+   * depuis l'ADR 0024 §3 : la marche ne heurte plus rien, et c'est l'ordre qui ouvre le feu.
+   */
+  async function assault(t: ReturnType<typeof boot>, seat: Seat, at: LonLat, onto: LonLat) {
     const troopIds = [await post(t, seat, at), await post(t, seat, at)];
-    const sent = await t.mutation(api.movements.marchTo, {
+    const campId = await surveyCamp(t, seat, asPoint(onto));
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'point', point: asPoint(at) },
       troopIds,
-      point: asPoint(onto),
+      target: { kind: 'camp', campId },
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
@@ -2444,10 +2500,13 @@ describe('a rout refluxes to the nearest anchor', () => {
     const { seat, guest } = await launchedSeason(t);
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
     const camped = await post(t, guest, ARABIA);
-    // Worn down before the pass: the camp opens it and still breaks under the riposte.
+    // Worn down before the pass: it ripostes and still breaks.
     await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+    /** Deux compagnies au pays : la déroute ne doit pas conclure la saison sous lui. */
+    await form(t, guest, 'infantry', null);
+    await form(t, guest, 'infantry', null);
 
-    await march(t, seat, eastOf(ARABIA, -200), ARABIA);
+    await assault(t, seat, eastOf(ARABIA, -200), ARABIA);
 
     const [back] = await movementsOf(t, guest);
     expect(back).toBeDefined();
@@ -2473,8 +2532,13 @@ describe('a rout refluxes to the nearest anchor', () => {
     );
     const camped = await post(t, guest, ARABIA);
     await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+    /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
+     *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
+     *  saison que plus personne ne joue (`seasonStillPlays`). */
+    await form(t, guest, 'infantry', null);
+    await form(t, guest, 'infantry', null);
 
-    await march(t, seat, eastOf(ARABIA, -200), ARABIA);
+    await assault(t, seat, eastOf(ARABIA, -200), ARABIA);
 
     const [back] = await movementsOf(t, guest);
     expect(back!.target).toEqual({ kind: 'outpost', outpostId: rally });
@@ -2498,15 +2562,16 @@ describe('a rout refluxes to the nearest anchor', () => {
     // a season nobody plays any more (`seasonStillPlays`).
     await form(t, guest, 'infantry', null);
     await form(t, guest, 'infantry', null);
-    // Two French columns holding the ground it walks onto: they open the pass and it breaks.
+    // Two French columns holding the ground it attacks: it opens the pass and breaks on them.
     await post(t, seat, ARABIA);
     await post(t, seat, ARABIA);
+    const campId = await surveyCamp(t, guest, asPoint(ARABIA));
 
-    const sent = await t.mutation(api.movements.marchTo, {
+    const sent = await attacking(t, {
       ...guest,
       origin: { kind: 'point', point: asPoint(camp) },
       troopIds: [walker],
-      point: asPoint(ARABIA),
+      target: { kind: 'camp', campId },
     });
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
@@ -2537,8 +2602,13 @@ describe('a rout refluxes to the nearest anchor', () => {
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
     const camped = await post(t, guest, ARABIA);
     await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+    /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
+     *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
+     *  saison que plus personne ne joue (`seasonStillPlays`). */
+    await form(t, guest, 'infantry', null);
+    await form(t, guest, 'infantry', null);
 
-    await march(t, seat, eastOf(ARABIA, -200), ARABIA);
+    await assault(t, seat, eastOf(ARABIA, -200), ARABIA);
     expect(await engagementsIn(t)).toHaveLength(1);
 
     // The winner walks up to the rally point while the beaten column is still on the road.
@@ -2557,8 +2627,13 @@ describe('a rout refluxes to the nearest anchor', () => {
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
     const camped = await post(t, guest, ARABIA);
     await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+    /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
+     *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
+     *  saison que plus personne ne joue (`seasonStillPlays`). */
+    await form(t, guest, 'infantry', null);
+    await form(t, guest, 'infantry', null);
 
-    await march(t, seat, eastOf(ARABIA, -200), ARABIA);
+    await assault(t, seat, eastOf(ARABIA, -200), ARABIA);
     const [back] = await movementsOf(t, guest);
     await t.run(async (ctx) => ctx.db.delete(rally));
 
@@ -2592,7 +2667,7 @@ describe('a column that comes out of a pass walks back, winner or beaten', () =>
     // Twenty soldiers: the first strike of the pass clears the ground, so the attack wins it.
     await t.run(async (ctx) => ctx.db.patch(standing, { currentStrength: 20 }));
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'point', point: asPoint(camp) },
       troopIds: column,
@@ -2630,7 +2705,7 @@ describe('a column that comes out of a pass walks back, winner or beaten', () =>
     const standing = await post(t, guest, AIMED);
     await t.run(async (ctx) => ctx.db.patch(standing, { currentStrength: 20 }));
 
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...seat,
       origin: { kind: 'outpost', outpostId },
       troopIds: column,
@@ -2679,7 +2754,7 @@ describe('a posted troop sees what passes within its radius', () => {
   async function marchAcross(t: ReturnType<typeof boot>, seat: Seat) {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
-    return t.mutation(api.movements.attack, {
+    return attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -2765,7 +2840,7 @@ describe('an empty manifest buys nothing', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...seat,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [],

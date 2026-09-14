@@ -13,7 +13,7 @@ import { regionFacts } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -151,7 +151,7 @@ describe('a season reads its own board and no other', () => {
 
     const barracks = await raise(t, here.seat, MARNE);
     const troop = await form(t, here.seat, barracks);
-    const sent = await t.mutation(api.movements.attack, {
+    const sent = await attacking(t, {
       ...here.seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -206,7 +206,7 @@ describe('a season reads its own board and no other', () => {
 
     const barracks = await raise(t, seat, MARNE);
     const troop = await form(t, seat, barracks);
-    await t.mutation(api.movements.attack, {
+    await attacking(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],

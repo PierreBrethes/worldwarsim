@@ -11,6 +11,7 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
+import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -26,51 +27,6 @@ import { faceCamera, textureOf } from './billboard';
  */
 const PAWN_SHARE = 0.031;
 const PAWN_SILHOUETTE_SHARE = 0.018;
-
-/**
- * Three silhouettes, recognizable at a glance without a label: prism on the ground, sailed
- * hull on the water, delta in the sky. They are drawn in the plate's frame — y downward,
- * height around 12 — then flipped and normalized.
- */
-const SILHOUETTES: Readonly<
-  Record<Medium, ReadonlyArray<ReadonlyArray<readonly [number, number]>>>
-> = {
-  land: [
-    [
-      [-9, 2],
-      [0, 6],
-      [9, 2],
-      [0, -2],
-    ],
-  ],
-  sea: [
-    [
-      [-10, 0],
-      [10, 0],
-      [6, 5],
-      [-6, 5],
-    ],
-    [
-      [-1, 0],
-      [-1, -12],
-      [8, -8],
-    ],
-  ],
-  air: [
-    [
-      [-9, 0],
-      [0, -5],
-      [9, 0],
-      [0, 3],
-    ],
-  ],
-};
-
-/**
- * Plate width. The three silhouettes are normalized to it, so they weigh the same on screen:
- * a delta must not look more hurried than a prism because it is thinner.
- */
-const PLATE_WIDTH = 20;
 
 /** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
 type SpriteCostume = {

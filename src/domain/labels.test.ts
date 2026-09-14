@@ -159,7 +159,10 @@ describe('buildLabels', () => {
     expect(order).toEqual(['at-me', 'mine', 'elsewhere', 'construction', 'ap-1', 'stack']);
   });
 
-  it('puts no label on a frozen arc or sea control', () => {
+  /** **Un souvenir se nomme, une maîtrise de la mer non** (ADR 0024 §2) : l'arc figé dit son âge
+   *  en toutes lettres, parce que sa seule pâleur ne disait pas s'il datait de dix minutes ou
+   *  d'hier soir. */
+  it('dates a frozen arc and puts no label on sea control', () => {
     const arcs: ReadonlyArray<ArcView> = [
       {
         state: 'lastKnown',
@@ -182,7 +185,10 @@ describe('buildLabels', () => {
         progress: 0.4,
       },
     ];
-    expect(buildLabels(viewWith(arcs), [])).toHaveLength(0);
+    const labels = buildLabels(viewWith(arcs), []);
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toMatchObject({ type: 'intel', washed: true });
+    expect(labels[0]!.lines[0]).toMatchObject({ role: 'mention' });
   });
 
   it('anchors a movement head on no fixed position', () => {

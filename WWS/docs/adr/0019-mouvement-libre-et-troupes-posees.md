@@ -3,7 +3,7 @@
 **Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
 le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
 objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par
-l'[ADR 0021](0021-portee-de-detection-et-postures.md).**
+l'[ADR 0021](0021-portee-de-detection-et-postures.md). §3 et §6 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md).**
 
 > **Révision S5b (09/09/2026).** Une expédition de pillage arrivée et victorieuse devient une
 > présence durable de 2 h au point du site. Elle reste un mouvement : ses troupes et son slot
@@ -87,6 +87,12 @@ mouvement terrestre, lui, ne demande plus rien.
 
 ### 3. Une troupe peut rester sur la carte, et elle y défend son sol
 
+> ⚠️ **Révision (13/09/2026, ADR 0024).** Une force posée **ne frappe plus ce qui s'arrête près
+> d'elle** : une marche peut s'arrêter à moins de `ARRIVAL_RADIUS_KM` d'un camp adverse sans
+> passe. Elle défend toujours — attaquée, elle riposte, initiative à l'attaquant (ADR 0014). Le
+> rayon d'arrivée devient l'allonge d'un ordre d'attaque, plus un déclencheur.
+
+
 **Amendé le 18/08/2026.** La première rédaction disait « une cible, jamais un attaquant » et
 n'intercepte rien. C'était trop court : on aurait traversé une armée sans conséquence.
 
@@ -160,6 +166,11 @@ le même milieu.
 l'alliance est un objet du jeu.
 
 ### 6. Une force posée ne se voit pas de loin
+
+> ⚠️ **Révision (13/09/2026, ADR 0024) : ce paragraphe est renversé.** Une force posée **se voit
+> dans la portée** de tout détecteur — position, milieu, heure — jamais sa composition ni sa
+> nation. L'agent dormant garde le métier d'identifier, pas de repérer. « Sol non reconnu » tient.
+
 
 `convex/view.ts` le dit déjà d'un avant-poste — *« an opponent's outpost is exactly the kind of
 thing the fog exists to hide »*. Une troupe posée suit la même règle : **aucune détection à

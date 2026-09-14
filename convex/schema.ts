@@ -8,6 +8,7 @@ import {
   LOOT_DELIVERY,
   LOOT_COLLECTION_MISSION,
   LOOT_LOAD,
+  MEDIUM,
   MOVEMENT_TARGET,
   ROUTE_LEG,
   MOVEMENT_TYPE,
@@ -801,9 +802,71 @@ export default defineSchema({
     /** A future window takes one cancellable appointment to file its dispatch at opening. */
     revealJobId: v.optional(v.id('_scheduled_functions')),
     noticeFiled: v.optional(v.boolean()),
+    /**
+     * **Le tronçon, figé quand le mouvement disparaît** (ADR 0024 §2). Une fenêtre ouverte laisse
+     * une dernière position connue quoi qu'il arrive à ce qu'elle a vu — arrivée, retour, déroute,
+     * destruction — et la ligne survivait mal à un `movements` vidé : l'arc était tiré de rien, et
+     * la vue le laissait tomber (bug contre l'ADR 0005, corrigé ici).
+     *
+     * C'est la sortie de `seenSegment`, calculée **une fois**, à l'instant de la disparition :
+     * après, il n'y a plus de route à rejouer. `closedAt` date le souvenir, et il s'efface avec
+     * `LAST_KNOWN_HOURS`. Optionnel parce que les lignes vivantes n'en ont pas — le mouvement
+     * répond encore pour elles.
+     */
+    frozen: v.optional(
+      v.object({
+        points: v.array(LON_LAT),
+        legs: v.array(ROUTE_LEG),
+        distanceUnits: v.number(),
+        costUnits: v.number(),
+        headingDegrees: v.number(),
+        closedAt: v.number(),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
+
+  /**
+   * **Ce qu'un joueur a relevé de posé, et depuis quand** (ADR 0024 §1). Le jumeau immobile de
+   * `sightings` : là où l'un se souvient d'un fil qui est passé, celui-ci se souvient d'un camp
+   * qui se tient là.
+   *
+   * Il existe pour la raison de son jumeau, et il faut la relire avant d'y toucher : une requête
+   * « les piles posées que je vois » qui filtrerait les troupes de la table dépendrait de **toute**
+   * la table, et se recalculerait pour tous à chaque pose (`WWS/docs/technique/brouillard-et-fanout.md`).
+   * Une ligne appartient à un observateur, et il lit son propre index.
+   *
+   * `stationKey` est l'identité de ce qui est vu — la clé que `detectionBoard` fabrique pour ses
+   * `posted`, c'est-à-dire le propriétaire et le point. Une garnison d'avant-poste ou de bâtiment
+   * est une pile posée comme une autre, et elle se relève sous la même clé.
+   *
+   * `ownerId` n'est **jamais servi** : il est là pour que l'écriture sache de quel camp elle parle
+   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni composition, ni effectif.
+   *
+   * `until` à `null` est un camp couvert à l'instant ; daté, c'est l'heure où on l'a perdu de vue,
+   * et la ligne devient une dernière position connue jusqu'à `LAST_KNOWN_HOURS`.
+   */
+  campSightings: defineTable({
+    /** L'observateur, jamais le propriétaire du camp. */
+    playerId: v.id('players'),
+    seasonId: v.id('seasons'),
+    stationKey: v.string(),
+    ownerId: v.id('players'),
+    point: LON_LAT,
+    /** Le milieu de la pile : la mer si elle flotte, la terre sinon. L'air n'est le milieu
+     *  d'aucune pile posée — une aile au sol se tient sur un aérodrome. */
+    medium: MEDIUM,
+    since: v.number(),
+    until: v.union(v.number(), v.null()),
+    detector: DETECTOR,
+    detectorId: v.union(v.id('buildings'), v.id('outposts'), v.null()),
+    detectorRegion: v.union(v.string(), v.null()),
+    /** Une dépêche par ligne, à l'ouverture : une réouverture ne rejoue pas la nouvelle. */
+    noticeFiled: v.boolean(),
+  })
+    .index('byPlayer', ['playerId'])
+    .index('byStation', ['stationKey']),
 
   /**
    * **La carte que ce joueur-là a relevée, et la date de son relevé** (ADR 0020 §5). Le jumeau au

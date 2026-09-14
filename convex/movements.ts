@@ -5,12 +5,10 @@ import { internalMutation, mutation, query } from './_generated/server';
 import {
   foundingRefusal,
   landCostOf,
-  movementBehavior,
   plunderRefusalOf,
   refusalOf,
   routeModeOf,
 } from '../src/domain/movement-orders';
-import { firstMobileEncounter } from '../src/domain/interception';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
@@ -22,7 +20,6 @@ import {
   stationMovementLoot,
   takeStationedCargo,
 } from './cargo';
-import { resolveContact } from './combat';
 import {
   CARRY_CAPACITY_BY_ROLE,
   PLUNDER_DISABLED_HOURS,
@@ -38,16 +35,8 @@ import {
   garrisonOf,
   recallAt,
   standAt,
-  walkHome,
 } from './movement/arrival';
-import {
-  asPoint,
-  movementsOf,
-  pointOf,
-  recognises,
-  specializationServed,
-  troopsCarriedBy,
-} from './movement/forces';
+import { asPoint, movementsOf, pointOf, recognises, specializationServed } from './movement/forces';
 import {
   aimOf,
   columnOf,
@@ -59,11 +48,7 @@ import {
   surveyedPlunderAim,
   troopsAmong,
 } from './movement/orders';
-import {
-  mobileForceOf,
-  reassessDetection,
-  revealSighting as revealScheduledSighting,
-} from './movement/detection';
+import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { surveyAlongRoute, surveyFoundation } from './surveys';
@@ -666,7 +651,7 @@ export const arrive = internalMutation({
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') {
       const garrison = await garrisonOf(ctx, movement);
-      const entered = await standAt(ctx, movement, now, garrison?._id ?? movement.to);
+      const entered = await standAt(ctx, movement, garrison?._id ?? movement.to);
       if (garrison !== null && entered > 0) {
         garrisoned = true;
         await ctx.db.insert('notices', {
@@ -729,8 +714,11 @@ export const revealSighting = internalMutation({
 });
 
 /**
- * One predicted mobile encounter. Both manifests and the order-derived behaviour are reread at
- * the appointment; a stale callback only asks for a fresh assessment.
+ * **Legacy, le temps d'un wipe** : un rendez-vous de contact planifié avant le 13/09 peut encore
+ * se réveiller, et une porte disparue fait échouer le réveil. Elle ne fait **rien** — la rencontre
+ * en route a été retirée du plateau (ADR 0024 §3), et il n'y a plus de passe à ouvrir ni d'état à
+ * rattraper : le champ `contactJobId` n'est plus écrit, donc la prochaine réévaluation venue ne
+ * reprogrammera jamais celui-ci.
  */
 export const encounter = internalMutation({
   args: {
@@ -738,96 +726,7 @@ export const encounter = internalMutation({
     withId: v.id('movements'),
     expectedAt: v.number(),
   },
-  handler: async (ctx, { initiatorId, withId, expectedAt }) => {
-    const initiator = await ctx.db.get(initiatorId);
-    const other = await ctx.db.get(withId);
-    if (initiator === null && other === null) return;
-    if (initiator === null) {
-      await reassessDetection(ctx, other!.seasonId);
-      return;
-    }
-    if (other === null) {
-      await reassessDetection(ctx, initiator.seasonId);
-      return;
-    }
-    if (
-      initiator.contactWithId !== withId ||
-      initiator.contactAt !== expectedAt ||
-      initiator.contactInitiatorId !== initiatorId
-    ) {
-      await reassessDetection(ctx, initiator.seasonId);
-      return;
-    }
-    if (initiator.seasonId !== other.seasonId || initiator.playerId === other.playerId) {
-      await reassessDetection(ctx, initiator.seasonId);
-      return;
-    }
-
-    const [mine, theirs] = await Promise.all([
-      mobileForceOf(ctx, initiator),
-      mobileForceOf(ctx, other),
-    ]);
-    const contact = firstMobileEncounter({
-      a: mine.force,
-      b: theirs.force,
-      rangeA: mine.rangeKm,
-      rangeB: theirs.rangeKm,
-      engagesA: movementBehavior(initiator.type) === 'engage',
-      engagesB: movementBehavior(other.type) === 'engage',
-      after: expectedAt,
-      samples: 1,
-    });
-    if (contact === null || contact.at !== expectedAt || contact.initiatorId !== initiatorId) {
-      await reassessDetection(ctx, initiator.seasonId);
-      return;
-    }
-    const attacking = await troopsCarriedBy(ctx, initiator);
-    const defending = await troopsCarriedBy(ctx, other);
-    if (attacking.length === 0 || defending.length === 0) {
-      await reassessDetection(ctx, initiator.seasonId);
-      return;
-    }
-
-    await ctx.db.patch(initiatorId, {
-      contactJobId: undefined,
-      contactWithId: undefined,
-      contactAt: undefined,
-      contactInitiatorId: undefined,
-    });
-    const now = Date.now();
-    const { engagement, routed, routedCargo } = await resolveContact(ctx, {
-      seasonId: initiator.seasonId,
-      attacker: { playerId: initiator.playerId, troops: attacking },
-      defender: { playerId: other.playerId, troops: defending },
-      cause: 'interception',
-      point: asPoint(contact.point),
-      hostCountry: hostAtPoint(contact.point),
-      outpostId: null,
-      disabledUntil: null,
-      at: now,
-    });
-
-    const standing = new Set(
-      engagement.outcomes
-        .filter((outcome) => outcome.state === 'standing')
-        .map((outcome) => outcome.id),
-    );
-    for (const [movement, met] of [
-      [initiator, other._id],
-      [other, initiator._id],
-    ] as const) {
-      const carriedOn = movement.troopIds.filter((troopId) => standing.has(troopId));
-      if (carriedOn.length === 0) await forgetMovement(ctx, movement._id);
-      else {
-        await ctx.db.patch(movement._id, {
-          troopIds: carriedOn,
-          encounteredMovementIds: [...new Set([...(movement.encounteredMovementIds ?? []), met])],
-        });
-      }
-    }
-    await walkHome(ctx, { winners: [], beaten: routed }, contact.point, now, routedCargo);
-    await reassessDetection(ctx, initiator.seasonId, now);
-  },
+  handler: () => {},
 });
 
 /** Legacy callback kept until the next wipe so already scheduled fixed-radius jobs become a

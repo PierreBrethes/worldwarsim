@@ -6,7 +6,7 @@ import type { LonLat } from '../src/domain/geo';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, seatIn, surveyCamp } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -151,7 +151,7 @@ async function overrun(t: ReturnType<typeof boot>, attacker: Seat, victim: Seat)
   const outpost = await plant(t, victim, regionFacts(PRAHOVA)!.point);
   await form(t, victim, outpost);
 
-  await t.mutation(api.movements.attack, {
+  await attacking(t, {
     ...attacker,
     origin: { kind: 'building', buildingId: barracks },
     troopIds: column,
@@ -212,18 +212,46 @@ describe('the simplified Domination', () => {
   });
 
   /**
-   * **A pass won by a camp counts, and its owner ordered nothing during it** (ADR 0019 §3,
-   * ratified 18/08). `resolveContact` credits the attacker, and at a camp the attacker is the
-   * force that was already standing there — so a player advances his condition while asleep.
-   * That is the payment of the bet: posting the camp was the order, and it cost a slot and a
-   * troop out of twenty-four. This test is here so the next reader finds a decision rather than
-   * a surprise.
+   * **La saison se gagne sur un ordre, et sur rien d'autre** (ADR 0024 §3, révision de l'ADR
+   * 0019 §3). Un camp gagnait autrefois la passe qu'une marche imprudente lui amenait, et son
+   * maître avançait sa condition en dormant. L'embuscade automatique est retirée : ce qui réduit
+   * un joueur est désormais l'assaut que quelqu'un a voulu — et la riposte du camp, elle, reste
+   * automatique, parce qu'un absent n'est jamais sans défense.
    */
-  it('credits the camp that never ordered anything with the pass it won', async () => {
+  it('credits the assault somebody ordered, never a pass nobody wanted', async () => {
+    const t = boot();
+    const [attacker, camper] = await launchedSeason(t, 2);
+    const point = regionFacts(PRAHOVA)!.point;
+    const camped = await post(t, camper!, point);
+    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
+
+    const barracks = await raise(t, attacker!, MARNE);
+    const column = await form(t, attacker!, barracks);
+    const campId = await surveyCamp(t, attacker!, { lon: point[0], lat: point[1] });
+
+    await attacking(t, {
+      ...attacker!,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [column],
+      target: { kind: 'camp', campId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [engagement] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(engagement!.attackerId).toBe(await playerOf(t, attacker!));
+    expect(engagement!.reducedDefender).toBe(true);
+
+    const season = await seasonOf(t);
+    expect(season.status).toBe('concluded');
+    expect(season.winnerId).toBe(await playerOf(t, attacker!));
+  });
+
+  /** **Une marche ne réduit personne** : elle s'arrête à côté du camp, et il ne se passe rien. */
+  it('leaves a march that stops beside a camp without a pass at all', async () => {
     const t = boot();
     const [walker, camper] = await launchedSeason(t, 2);
     const point = regionFacts(PRAHOVA)!.point;
-    const camped = await post(t, camper!, point);
+    await post(t, camper!, point);
 
     const barracks = await raise(t, walker!, MARNE);
     const worn = await form(t, walker!, barracks);
@@ -237,18 +265,8 @@ describe('the simplified Domination', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [engagement] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
-    expect(engagement!.attackerId).toBe(await playerOf(t, camper!));
-    expect(engagement!.reducedDefender).toBe(true);
-    /** Nothing was ordered on that side: the camp is still the only movement-free force there. */
-    expect((await t.query(api.view.playerView, camper!)).me.slots.used).toBe(0);
-    expect((await t.run(async (ctx) => ctx.db.get(camped)))!.playerId).toBe(
-      await playerOf(t, camper!),
-    );
-
-    const season = await seasonOf(t);
-    expect(season.status).toBe('concluded');
-    expect(season.winnerId).toBe(await playerOf(t, camper!));
+    expect(await t.run(async (ctx) => ctx.db.query('engagements').collect())).toEqual([]);
+    expect((await seasonOf(t)).status).toBe('launched');
   });
 
   it('lets a player who rebuilds over the bar leave his executioner’s count', async () => {
@@ -298,7 +316,7 @@ describe('the simplified Domination', () => {
     const troop = await form(t, victim!, barracks);
 
     await expect(
-      t.mutation(api.movements.attack, {
+      attacking(t, {
         ...victim!,
         origin: { kind: 'building', buildingId: barracks },
         troopIds: [troop],
