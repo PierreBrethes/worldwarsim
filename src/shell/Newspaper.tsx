@@ -58,7 +58,10 @@ export function Newspaper({
           what fits and give up the moment it does not, where centred alignment would keep
           eating the top of a page taller than the window and put it out of reach. */}
       <div className="relative flex h-full justify-center overflow-auto px-[clamp(16px,4vw,72px)] py-[26px]">
-        <div className="hud relative m-auto" style={{ width, maxWidth: '100%' }}>
+        {/* `hud-fit` et non `max-width: 100%` : l'échelle d'interface est un `zoom`, qui multiplie
+            aussi le pourcentage — la feuille débordait de vingt pour cent, et sur un téléphone ça
+            se lisait comme un défilement horizontal du journal. */}
+        <div className="hud hud-fit relative m-auto" style={{ width }}>
           <div
             aria-hidden
             className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-[rgba(23,18,8,.6)] bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"

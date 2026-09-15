@@ -52,7 +52,10 @@ export function UpgradeControl({
   const held = hold === null ? null : upgradeHoldText(hold);
 
   return (
-    <div className="flex shrink-0 flex-col items-end gap-[3px]">
+    /* Pleine ligne sous le seuil, bloc rigide au-dessus : le prix, la durée et le bouton font
+       quatre cents pixels, et `shrink-0` les faisait sortir de l'en-tête d'une feuille de
+       téléphone au lieu de les y replier (`md` = le seuil de `shell/viewport.ts`). */
+    <div className="flex w-full min-w-0 flex-col items-end gap-[3px] md:w-auto md:shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-x-[10px] gap-y-[4px]">
         <CostLine cost={building.nextLevelCost} lacking={hold?.kind === 'materials'} />
         <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">

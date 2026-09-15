@@ -7,6 +7,7 @@ import { BAND_GROUPS, marksOf, sourceOf, type Mark, type Marks } from '@/domain/
 import { ResourcePlate } from '@/emblems/Plate';
 import { keepResourceBandCollapsed, readResourceBandCollapsed } from '@/data/settings';
 import { HoverCard } from './HoverCard';
+import { useNarrowScreen } from './viewport';
 import { useClock } from './clock';
 
 /** Thirty pixels: a plate at 20 and its mono figure beside it, not one line more — the band
@@ -20,6 +21,13 @@ const FOLDED_HEIGHT = 20;
  *  turning to mush at a size it was never cut for. */
 const PLATE = 20;
 const FOLDED_PLATE = 14;
+
+/** **Quatre couples par rang sur un téléphone.** Le couple de bureau en demande 136 pixels
+ *  d'écran et il n'en tient alors que deux, ce qui fait quatre rangs et mange le tiers de la
+ *  carte. La planche descend au gabarit du repli et la colonne de chiffres se resserre sur le
+ *  plus grand stock qu'on lise vraiment : deux rangs de quatre, la ligne reste une ligne. */
+const NARROW_PLATE = 13;
+const NARROW_FIGURE_WIDTH = 30;
 
 /**
  * **Le bandeau se lit en colonnes, pas en mots.** Unboxed, the eight plates are all the same
@@ -47,6 +55,11 @@ const FOLDED_FIGURE_WIDTH = 40;
  */
 export function ResourceBand({ view }: { view: PlayerView }) {
   const now = useClock();
+  /** **Sur un écran étroit la ligne devient un pavé** : les huit couples ne tiennent pas côte à
+   *  côte, et les serrer jusqu'à ce qu'ils tiennent rendrait illisible la seule chose que le
+   *  bandeau ait à dire. Ils passent à la ligne — deux ou trois rangs suivant l'appareil — et la
+   *  colonne de chiffres reste la même, donc la lecture d'un coup d'œil aussi. */
+  const narrow = useNarrowScreen();
   const [collapsed, setCollapsed] = useState(readResourceBandCollapsed);
   const [hovered, setHovered] = useState<Hover | null>(null);
   const marks = marksOf(view, now);
@@ -59,20 +72,26 @@ export function ResourceBand({ view }: { view: PlayerView }) {
       view={view}
       now={now}
       mark={marks[resource]}
-      plate={collapsed ? FOLDED_PLATE : PLATE}
-      figureWidth={collapsed ? FOLDED_FIGURE_WIDTH : FIGURE_WIDTH}
+      plate={collapsed ? FOLDED_PLATE : narrow ? NARROW_PLATE : PLATE}
+      figureWidth={collapsed ? FOLDED_FIGURE_WIDTH : narrow ? NARROW_FIGURE_WIDTH : FIGURE_WIDTH}
       onHover={setHovered}
     />
   );
 
   return (
     <div
-      className="hud relative z-[var(--z-band)] flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] px-6"
-      style={{ fontFamily: 'var(--font-body)', height: collapsed ? FOLDED_HEIGHT : BAND_HEIGHT }}
+      className={`hud relative z-[var(--z-band)] flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] ${
+        narrow ? 'px-2 py-[3px]' : 'px-6'
+      }`}
+      style={{
+        fontFamily: 'var(--font-body)',
+        height: narrow && !collapsed ? undefined : collapsed ? FOLDED_HEIGHT : BAND_HEIGHT,
+        minHeight: narrow && !collapsed ? BAND_HEIGHT : undefined,
+      }}
       onMouseLeave={() => setHovered(null)}
     >
       {collapsed ? (
-        <div className="flex flex-1 items-center justify-center gap-[14px]">
+        <div className="flex flex-1 flex-wrap items-center justify-center gap-[14px]">
           {marked.map(figure)}
           {/* Rien de marqué : le filet seul. Il tient la place, et son silence est la nouvelle. */}
           {marked.length === 0 && <span className="h-px flex-1 bg-[var(--ink-quiet)]" />}
@@ -82,7 +101,13 @@ export function ResourceBand({ view }: { view: PlayerView }) {
           {BAND_GROUPS.map((group, rank) => (
             <div key={rank} className="flex items-center">
               {rank > 0 && <DoubleRule />}
-              <div className="flex items-center gap-[14px]">{group.map(figure)}</div>
+              <div
+                className={`flex items-center ${
+                  narrow ? 'flex-wrap justify-center gap-x-[6px] gap-y-[3px]' : 'gap-[14px]'
+                }`}
+              >
+                {group.map(figure)}
+              </div>
             </div>
           ))}
         </div>

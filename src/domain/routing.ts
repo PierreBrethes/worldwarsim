@@ -104,15 +104,40 @@ export const TRANSFER_COST = 8;
 const EMPTY = 0;
 const LAND = 1;
 const SEA = 2;
+/**
+ * **De l'eau et un gué à la fois.** Une cellule n'a qu'un type, et graver Panama ou Suez en
+ * `SEA` remplaçait une bande de terre par de la mer : l'Amérique du Nord se retrouvait coupée
+ * de l'Amérique du Sud, l'Afrique de l'Asie, et aucune colonne ne passait plus l'isthme. Un
+ * canal se navigue *et* se franchit — ferries et ponts tournants existaient à Panama comme à
+ * Suez en 1940 — là où un détroit naturel reste de la mer et rien d'autre.
+ */
+const CANAL = 3;
+
+/** Ce que la recherche a le droit de fouler, par mode. Un canal est des deux côtés. */
+const ALLOWED_BY_MODE: Readonly<Record<'land' | 'naval' | 'combined', ReadonlyArray<number>>> = {
+  land: [LAND, CANAL],
+  naval: [SEA, CANAL],
+  combined: [LAND, SEA, CANAL],
+};
+
+const isWaterType = (type: number): boolean => type === SEA || type === CANAL;
 
 /**
- * Straits and canals thinner than the grid, engraved as sea corridors: without them the
+ * Straits and canals thinner than the grid, engraved as corridors: without them the
  * raster welds Gibraltar shut, closes the Channel and ignores Suez and Panama — rounding
  * Africa would become mandatory again, whereas in 1940 it is a blockade choice, not geometry.
+ *
+ * `kind` says what the engraving writes: a strait is sea, a canal is a canal, and that is the
+ * whole of the difference — the hulls transit both, the columns cross only the second.
  */
-export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<LonLat> }> = [
+export const SEA_GATES: ReadonlyArray<{
+  name: string;
+  kind: 'strait' | 'canal';
+  passage: ReadonlyArray<LonLat>;
+}> = [
   {
     name: 'Pas de Calais',
+    kind: 'strait',
     passage: [
       [1.1, 50.6],
       [1.6, 51.0],
@@ -120,6 +145,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Gibraltar',
+    kind: 'strait',
     passage: [
       [-5.9, 35.9],
       [-5.2, 36.0],
@@ -127,6 +153,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Øresund',
+    kind: 'strait',
     passage: [
       [12.3, 56.1],
       [12.9, 55.5],
@@ -135,6 +162,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Dardanelles and Bosphorus',
+    kind: 'strait',
     passage: [
       [26.0, 40.0],
       [26.7, 40.3],
@@ -146,6 +174,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Suez Canal',
+    kind: 'canal',
     passage: [
       [32.3, 31.3],
       [32.35, 30.6],
@@ -154,6 +183,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Panama Canal',
+    kind: 'canal',
     passage: [
       [-79.9, 9.4],
       [-79.6, 8.9],
@@ -161,6 +191,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Hormuz',
+    kind: 'strait',
     passage: [
       [56.2, 26.6],
       [56.6, 26.3],
@@ -168,6 +199,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Malacca',
+    kind: 'strait',
     passage: [
       [100.0, 6.2],
       [101.3, 4.4],
@@ -178,6 +210,7 @@ export const SEA_GATES: ReadonlyArray<{ name: string; passage: ReadonlyArray<Lon
   },
   {
     name: 'Bab-el-Mandeb',
+    kind: 'strait',
     passage: [
       [43.3, 12.7],
       [43.5, 12.4],
@@ -214,7 +247,15 @@ export function buildGrid(world: World, step = 0.25): RouteGrid {
   fillLand(world, step, width, height, cells);
 
   for (const gate of SEA_GATES) {
-    engravePassage(gate.passage, world, step, width, height, cells);
+    engravePassage(
+      gate.passage,
+      gate.kind === 'canal' ? CANAL : SEA,
+      world,
+      step,
+      width,
+      height,
+      cells,
+    );
   }
 
   return {
@@ -325,15 +366,15 @@ export function computeRoute(
 
   // Snapping may find a neighboring water cell for a quay, never replace the destination
   // with another shore: the arrival records the point the player actually chose.
-  if (mode === 'land' && !isLandCell(grid, to)) return null;
+  const allowed = ALLOWED_BY_MODE[mode];
+  if (mode === 'land' && !allowed.includes(grid.cells[projectOnGrid(grid, to)]!)) return null;
   if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
 
-  const allowed = mode === 'land' ? [LAND] : mode === 'naval' ? [SEA] : [LAND, SEA];
   const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
   const goal = nearestCell(grid, projectOnGrid(grid, to), allowed);
   if (start === null || goal === null) return null;
 
-  const path = dijkstra(grid, start, (cell) => cell === goal, allowed, landCost);
+  const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
   if (path === null) return null;
   return routeSearchOf(grid, path, mode, landCost).route;
 }
@@ -370,12 +411,12 @@ export function computeRouteToAny(
     };
   }
 
-  const allowed = mode === 'land' ? [LAND] : mode === 'naval' ? [SEA] : [LAND, SEA];
+  const allowed = ALLOWED_BY_MODE[mode];
   const usableGoals = new Set([...goalCells].filter((cell) => allowed.includes(grid.cells[cell]!)));
   if (usableGoals.size === 0) return null;
   const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
   if (start === null) return null;
-  const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), allowed, landCost);
+  const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), mode, landCost);
   return path === null ? null : routeSearchOf(grid, path, mode, landCost);
 }
 
@@ -416,7 +457,15 @@ export function extendRouteSearch(
   const from = search.rawPoints[search.rawPoints.length - 1]!;
   if (from[0] === point[0] && from[1] === point[1]) return search;
   const medium: Medium =
-    search.route.mode === 'air' ? 'air' : isLandCell(grid, point) ? 'land' : 'sea';
+    search.route.mode === 'air'
+      ? 'air'
+      : search.route.mode === 'land'
+        ? 'land'
+        : search.route.mode === 'naval'
+          ? 'sea'
+          : isLandCell(grid, point)
+            ? 'land'
+            : 'sea';
   const step: RouteStep = {
     medium,
     distanceUnits:
@@ -443,14 +492,21 @@ function routeSearchOf(
 ): RouteSearch {
   const rawPoints = path.map((cell) => unprojectCell(grid, cell));
   const steps: RouteStep[] = [];
+  const search = mode === 'air' ? 'combined' : mode;
+  let carried = carriedInto(grid, path[0]!, search, null);
   for (let index = 1; index < path.length; index += 1) {
     const previous = path[index - 1]!;
     const cell = path[index]!;
+    const from = grid.cells[previous]!;
+    const to = grid.cells[cell]!;
+    // Le chemin sort de `dijkstra`, qui a déjà refusé les pas sans milieu.
+    const medium = stepMedium(search, from, to, carried) ?? carried;
     steps.push({
-      medium: mediumBetween(grid, previous, cell),
+      medium,
       distanceUnits: distanceBetweenCells(grid, previous, cell),
-      transfer: grid.cells[previous] !== grid.cells[cell],
+      transfer: isTransfer(medium, carried, to),
     });
+    carried = to === SEA ? 'sea' : to === LAND ? 'land' : medium;
   }
   return {
     route: routeOf(mode, rawPoints, steps, landCost),
@@ -495,18 +551,53 @@ function routeOf(
   };
 }
 
+type SearchMode = 'land' | 'naval' | 'combined';
+
 /**
- * **Un pas qui touche l'eau est un pas fait en bateau** (décision 72a, 04/09). Le milieu se lit
- * sur les deux bouts du pas et non sur son arrivée seule : la dernière foulée d'un débarquement
- * part de la mer, et la lire comme une jambe de terre mettait le cargo sur la plage — « les
- * navires ne roulent pas ». Le pas d'embarquement, lui, se lisait déjà en mer par ce bout-là.
+ * **Le milieu d'un pas suit ce que la recherche a autorisé, jamais les seules cellules.** Un
+ * canal est de l'eau et un gué : le même pas `CANAL → CANAL` est un transit pour un navire et
+ * une traversée à pied pour une colonne, et deux types de cellule ne peuvent pas dire laquelle
+ * des deux. Une recherche terrestre ne met donc jamais un pied en mer, une navale ne roule
+ * jamais, et en combiné c'est le **dernier milieu porté** qui tranche l'ambiguïté du canal.
  *
- * Rien d'autre ne change de milieu : `land` n'autorise aucune cellule de mer, `naval` aucune
- * cellule de terre, et l'unique pas mer → terre qu'une route combinée puisse contenir est son
- * débarquement (`dijkstra`).
+ * **Un pas qui touche la mer est un pas fait en bateau** (décision 72a, 04/09) : la dernière
+ * foulée d'un débarquement part de la mer, et la lire comme une jambe de terre mettait le cargo
+ * sur la plage. Elle tient telle quelle — mais on débarque d'une cellule de mer et de nulle part
+ * ailleurs : **un canal n'est pas une plage**, d'où le `null`, qui dit que le pas n'existe pas.
  */
-function mediumBetween(grid: RouteGrid, from: number, to: number): Medium {
-  return grid.cells[to] === SEA || grid.cells[from] === SEA ? 'sea' : 'land';
+function stepMedium(mode: SearchMode, from: number, to: number, carried: Medium): Medium | null {
+  if (mode === 'land') return 'land';
+  if (mode === 'naval') return 'sea';
+  if (to === SEA) return 'sea';
+  if (to === CANAL) return carried;
+  if (carried === 'land') return 'land';
+  return from === SEA ? 'sea' : null;
+}
+
+/** Les deux franchissements de la ligne d'eau se paient : l'embarquement et la mise à terre. */
+const isTransfer = (medium: Medium, carried: Medium, to: number): boolean =>
+  medium !== carried || (medium === 'sea' && to === LAND);
+
+/**
+ * **Ce qui porte la colonne en arrivant sur cette cellule.** La terre et la mer répondent
+ * seules ; un canal ne répond que par où l'on y est entré, donc on remonte le chemin jusqu'à la
+ * première cellule qui ne soit pas un canal. La remontée est bornée par la longueur du canal —
+ * quelques cellules — et non par celle du trajet.
+ *
+ * `previous` absent, c'est le départ : une route combinée est une colonne qui peut embarquer, on
+ * la pose donc à terre quand son point de départ tombe dans un canal.
+ */
+function carriedInto(
+  grid: RouteGrid,
+  cell: number,
+  mode: SearchMode,
+  previous: Int32Array | null,
+): Medium {
+  if (mode === 'land') return 'land';
+  if (mode === 'naval') return 'sea';
+  let at = cell;
+  while (grid.cells[at] === CANAL && previous !== null && previous[at]! !== -1) at = previous[at]!;
+  return grid.cells[at] === SEA ? 'sea' : 'land';
 }
 
 /**
@@ -543,8 +634,9 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
   grid.cells[projectOnGrid(grid, lonLat)] === LAND;
 
 /**
- * **A coast, as the routing knows one** — a land cell touching the sea, and nothing else. It is
- * the only definition that can hold: a port is put up so that a ship leaves from it, and what a
+ * **A coast, as the routing knows one** — a land cell touching water, and nothing else. A canal
+ * counts as that water: Colón, Balboa, Port-Saïd and Suez are ports, and a hull sails from them
+ * on this very grid. It is the only definition that can hold: a port is put up so that a ship leaves from it, and what a
  * ship knows of geography is this grid. A coastline read off another source would say "coastal"
  * where Dijkstra finds no water, and the first cargo formed there would leave by road.
  *
@@ -557,7 +649,7 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   const around: number[] = [];
   const count = neighbors(grid, cell, around);
   for (let i = 0; i < count; i++) {
-    if (grid.cells[around[i]!] === SEA) return true;
+    if (isWaterType(grid.cells[around[i]!]!)) return true;
   }
   return false;
 }
@@ -589,7 +681,8 @@ export function coastCellsIn(
       if (grid.cells[cell] !== LAND) continue;
       const count = neighbors(grid, cell, around);
       let touchesSea = false;
-      for (let i = 0; i < count && !touchesSea; i++) touchesSea = grid.cells[around[i]!] === SEA;
+      for (let i = 0; i < count && !touchesSea; i++)
+        touchesSea = isWaterType(grid.cells[around[i]!]!);
       if (!touchesSea) continue;
       found.push({
         x: grid.sphere.minX + (column + 0.5) * grid.step,
@@ -813,6 +906,7 @@ function fillLand(
 
 function engravePassage(
   passage: ReadonlyArray<LonLat>,
+  value: number,
   world: World,
   step: number,
   width: number,
@@ -832,7 +926,7 @@ function engravePassage(
         for (let dc = -1; dc <= 1; dc++) {
           const r = row + dr;
           const c = column + dc;
-          if (r >= 0 && c >= 0 && r < height && c < width) cells[r * width + c] = SEA;
+          if (r >= 0 && c >= 0 && r < height && c < width) cells[r * width + c] = value;
         }
       }
     }
@@ -910,9 +1004,10 @@ function dijkstra(
   grid: RouteGrid,
   start: number,
   isGoal: (cell: number) => boolean,
-  allowed: ReadonlyArray<number>,
+  mode: SearchMode,
   landCost: number,
 ): number[] | null {
+  const allowed = ALLOWED_BY_MODE[mode];
   const costs = new Float64Array(grid.cells.length).fill(Number.POSITIVE_INFINITY);
   const previous = new Int32Array(grid.cells.length).fill(-1);
   const heap = new BinaryHeap();
@@ -930,10 +1025,13 @@ function dijkstra(
     }
 
     const count = neighbors(grid, cell, buffer);
+    const carried = carriedInto(grid, cell, mode, previous);
     for (let i = 0; i < count; i++) {
       const neighbor = buffer[i]!;
       const type = grid.cells[neighbor]!;
       if (!allowed.includes(type)) continue;
+      const medium = stepMedium(mode, grid.cells[cell]!, type, carried);
+      if (medium === null) continue;
       /**
        * **On ne marche pas après avoir navigué** (décision 72a, 04/09) : le seul pas mer → terre
        * d'une route est son débarquement, donc son dernier. Sans cette porte, Dijkstra posait la
@@ -941,11 +1039,10 @@ function dijkstra(
        * le débarquement cessait d'être une opération qu'on choisit. La visée l'exige déjà côté
        * règle (`LANDING_NEEDS_A_COAST`) : la grille ne fait que refuser de la contourner.
        */
-      if (type !== SEA && grid.cells[cell] === SEA && !isGoal(neighbor)) continue;
+      if (medium === 'sea' && type === LAND && !isGoal(neighbor)) continue;
       const length = distanceBetweenCells(grid, cell, neighbor);
-      const multiplier =
-        mediumBetween(grid, cell, neighbor) === 'sea' ? COST_BY_MEDIUM.sea : landCost;
-      const transfer = grid.cells[cell] !== type ? TRANSFER_COST : 0;
+      const multiplier = medium === 'sea' ? COST_BY_MEDIUM.sea : landCost;
+      const transfer = isTransfer(medium, carried, type) ? TRANSFER_COST : 0;
       const candidate = cost + length * multiplier + transfer;
       if (candidate < costs[neighbor]!) {
         costs[neighbor] = candidate;

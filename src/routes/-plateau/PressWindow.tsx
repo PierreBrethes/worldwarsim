@@ -124,53 +124,59 @@ function Table({
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <div
-        className={`grid ${GRID} items-end gap-x-[14px] border-b border-[var(--ink)] px-3 pb-[6px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase`}
-      >
-        <span>{fr.press.columns.rank}</span>
-        <span />
-        <span />
-        <span>{fr.press.columns.pseudo}</span>
-        <SortHeader column="territory" sort={sort} onSort={onSort} />
-        <SortHeader column="general" sort={sort} onSort={onSort} />
-        <SortHeader column="deeds" sort={sort} onSort={onSort} />
-      </div>
-
-      {ordered.map((row) => (
-        <div key={row.playerId}>
-          <div
-            className={`grid ${GRID} items-center gap-x-[14px] border-b border-[rgba(42,33,24,.16)] px-3 py-[11px] ${
-              row.own === null ? '' : 'bg-[rgba(42,33,24,.06)] outline outline-[var(--ink)]'
-            }`}
-            /* **Le défait reste à son rang, estompé** : il a cessé d'ordonner, pas d'exister —
-               ses positions tiennent et son encre est encore sur la carte. */
-            style={row.defeated ? { opacity: 0.45 } : undefined}
-          >
-            <span className="font-(family-name:--font-display) text-[24px] leading-none font-bold text-[var(--ink)]">
-              {row.rank}
-            </span>
-            <Flag nation={row.nation} width={30} onPaper />
-            <span className="truncate font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold text-[var(--ink)]">
-              {nationLabel(row.nation)}
-            </span>
-            <span className="flex min-w-0 items-center gap-3">
-              <span
-                className={`truncate text-[14px] text-[var(--ink)] ${row.own === null ? '' : 'font-bold'}`}
-              >
-                {row.nickname}
-              </span>
-              {row.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
-            </span>
-            <Figure
-              value={fr.press.percent(row.territory)}
-              lead={row.territory === best.territory}
-            />
-            <Figure value={fr.press.score(row.general)} lead={row.general === best.general} />
-            <Figure value={fr.press.score(row.deeds)} lead={row.deeds === best.deeds} mono />
-          </div>
-          {row.own !== null && <Registers own={row.own} />}
+      {/* **Le classement défile d'un bloc, il ne se comprime pas.** Les sept colonnes tiennent
+          784 px et la fenêtre en a mille : sur un téléphone, sans cette largeur plancher, chaque
+          ligne se serrait pour elle-même — sept grilles qui défilaient chacune de son côté, une
+          part de territoire coupée en deux, et « nos registres » à cinq colonnes superposées. */}
+      <div className="min-w-[784px]">
+        <div
+          className={`grid ${GRID} items-end gap-x-[14px] border-b border-[var(--ink)] px-3 pb-[6px] text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase`}
+        >
+          <span>{fr.press.columns.rank}</span>
+          <span />
+          <span />
+          <span>{fr.press.columns.pseudo}</span>
+          <SortHeader column="territory" sort={sort} onSort={onSort} />
+          <SortHeader column="general" sort={sort} onSort={onSort} />
+          <SortHeader column="deeds" sort={sort} onSort={onSort} />
         </div>
-      ))}
+
+        {ordered.map((row) => (
+          <div key={row.playerId}>
+            <div
+              className={`grid ${GRID} items-center gap-x-[14px] border-b border-[rgba(42,33,24,.16)] px-3 py-[11px] ${
+                row.own === null ? '' : 'bg-[rgba(42,33,24,.06)] outline outline-[var(--ink)]'
+              }`}
+              /* **Le défait reste à son rang, estompé** : il a cessé d'ordonner, pas d'exister —
+               ses positions tiennent et son encre est encore sur la carte. */
+              style={row.defeated ? { opacity: 0.45 } : undefined}
+            >
+              <span className="font-(family-name:--font-display) text-[24px] leading-none font-bold text-[var(--ink)]">
+                {row.rank}
+              </span>
+              <Flag nation={row.nation} width={30} onPaper />
+              <span className="truncate font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold text-[var(--ink)]">
+                {nationLabel(row.nation)}
+              </span>
+              <span className="flex min-w-0 items-center gap-3">
+                <span
+                  className={`truncate text-[14px] text-[var(--ink)] ${row.own === null ? '' : 'font-bold'}`}
+                >
+                  {row.nickname}
+                </span>
+                {row.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
+              </span>
+              <Figure
+                value={fr.press.percent(row.territory)}
+                lead={row.territory === best.territory}
+              />
+              <Figure value={fr.press.score(row.general)} lead={row.general === best.general} />
+              <Figure value={fr.press.score(row.deeds)} lead={row.deeds === best.deeds} mono />
+            </div>
+            {row.own !== null && <Registers own={row.own} />}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -120,6 +120,9 @@
   /* geometry */
   --topbar-h: 58px;
   --rail-w: 52px;
+  /* Le rail passe en bas sous le seuil étroit : il y prend une hauteur au lieu d'une largeur,
+     et c'est sur elle que les feuilles ancrées s'arrêtent (`.hud-dock`). */
+  --rail-h: 52px;
   --dock-w: 430px;
   --panel-ctx-w: 308px;
   --panel-side-w: 250px;

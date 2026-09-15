@@ -10,6 +10,7 @@ import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { Glyph } from './Glyph';
 import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
+import { useNarrowScreen } from './viewport';
 
 export function SurfaceRail({
   season,
@@ -23,6 +24,10 @@ export function SurfaceRail({
   telegraphUnread: number;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
+  /** **Au pied de l'écran, en pictogrammes**, sous le seuil (décision du 15/09) : la même liste,
+   *  la même bascule, les mêmes compteurs — couchée, sans les libellés qui ne tiennent pas sous
+   *  une icône de quarante-quatre pixels, et défilante plutôt que tassée. */
+  const narrow = useNarrowScreen();
   // The season's end counts in days: the minute is enough, and the rail has no reason to
   // repaint every second for a tooltip.
   const now = useClock(60_000);
@@ -88,30 +93,42 @@ export function SurfaceRail({
    */
 
   return (
-    <nav className="hud flex w-[52px] shrink-0 flex-col justify-between bg-[var(--desk)] py-2">
-      <div>
-        <ul>
+    <nav
+      className={
+        narrow
+          ? 'hud rail-bottom flex h-[var(--rail-h)] w-full shrink-0 items-stretch gap-3 overflow-x-auto border-t border-[var(--ink-quiet)] bg-[var(--desk)] px-2'
+          : 'hud flex w-[var(--rail-w)] shrink-0 flex-col justify-between bg-[var(--desk)] py-2'
+      }
+    >
+      <div className={narrow ? 'flex items-stretch' : ''}>
+        <ul className={narrow ? 'flex items-stretch' : ''}>
           {surfaces.map((surface) => (
-            <li key={surface.label}>
-              <SurfaceLink surface={surface} />
+            <li key={surface.label} className={narrow ? 'flex' : ''}>
+              <SurfaceLink surface={surface} narrow={narrow} />
             </li>
           ))}
         </ul>
-        <EdgeToggles playerInk={playerInk} />
+        {/* **Les six destinations d'abord, les bascules ensuite** : couché, le rail déborde et
+            défile, et ce qui sort de l'écran doit être ce qu'on allume une fois par saison —
+            jamais le télégraphe ou les réglages, qu'on cherche à froid. Debout, l'ordre est
+            celui de toujours : les bascules tiennent sous les surfaces. */}
+        {!narrow && <EdgeToggles playerInk={playerInk} narrow={narrow} />}
       </div>
-      <div className="flex flex-col items-center gap-2">
+      <div className={narrow ? 'flex items-stretch gap-2' : 'flex flex-col items-center gap-2'}>
         {/* Le télégraphe descend au pied du rail, contre les réglages — mais il reste une
             surface : même gabarit, même compte de non-lus que ceux d'en haut. */}
-        <SurfaceLink surface={telegraph} />
+        <SurfaceLink surface={telegraph} narrow={narrow} />
         <Link
           to="/plateau"
           search={toggled('settings')}
           title={fr.rail.settings}
-          className={
+          className={`flex items-center justify-center ${
+            narrow ? 'w-[44px] border-t-2' : 'h-[34px] w-full border-l-2'
+          } ${
             windowOpen(search, 'settings')
-              ? 'flex h-[34px] w-full items-center justify-center border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
-              : 'flex h-[34px] w-full items-center justify-center border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
-          }
+              ? 'border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
+              : 'border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
+          }`}
         >
           <SettingsIcon />
         </Link>
@@ -125,11 +142,14 @@ export function SurfaceRail({
                   String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
                 )
           }
-          className="text-center font-(family-name:--font-mono) text-[9px] text-[#6b6252]"
+          className={`flex items-center justify-center text-center font-(family-name:--font-mono) text-[9px] text-[#6b6252] ${
+            narrow ? 'shrink-0 px-1' : ''
+          }`}
         >
           {fr.rail.seasonShort(season.number)}
         </div>
       </div>
+      {narrow && <EdgeToggles playerInk={playerInk} narrow={narrow} />}
     </nav>
   );
 }
@@ -145,20 +165,24 @@ type Surface = {
   unread?: number;
 };
 
-function SurfaceLink({ surface }: { surface: Surface }) {
+function SurfaceLink({ surface, narrow }: { surface: Surface; narrow: boolean }) {
   return (
     <Link
       to="/plateau"
       search={surface.target}
       title={surface.title}
-      className={
+      className={`relative flex flex-col items-center justify-center gap-[3px] ${
+        narrow ? 'w-[52px] shrink-0 border-t-2' : 'h-[46px] w-full border-l-2'
+      } ${
         surface.active
-          ? 'relative flex h-[46px] w-full flex-col items-center justify-center gap-[3px] border-l-2 border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
-          : 'relative flex h-[46px] w-full flex-col items-center justify-center gap-[3px] border-l-2 border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
-      }
+          ? 'border-[var(--notable)] bg-[var(--paper)] text-[var(--ink)]'
+          : 'border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
+      }`}
     >
       {surface.icon}
-      <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>
+      {/* Le libellé cède la place au doigt : sous l'icône il resterait sept pixels d'œil, ce que
+          le seuil est censé faire disparaître de l'écran. Le titre le dit encore. */}
+      {!narrow && <span className="text-[7px] tracking-[.14em] uppercase">{surface.label}</span>}
       {/* Un carré à l'encre critique, pas une pastille : le rail est composé, pas
           notifié. Il compte depuis la dernière fermeture de la fenêtre. */}
       {surface.unread ? (
@@ -175,10 +199,16 @@ function SurfaceLink({ surface }: { surface: Surface }) {
  * this group from the three surfaces, and the absence of a label under the pictograms — six
  * more lines of text would make the rail a list, and the rail is not a list.
  */
-function EdgeToggles({ playerInk }: { playerInk: string }) {
+function EdgeToggles({ playerInk, narrow }: { playerInk: string; narrow: boolean }) {
   const toggles = useIndicatorToggles();
   return (
-    <ul className="mt-2 flex flex-col items-center gap-[1px] border-t border-[var(--ink-quiet)] pt-2">
+    <ul
+      className={
+        narrow
+          ? 'ml-2 flex items-center gap-[1px] border-l border-[var(--ink-quiet)] pl-2'
+          : 'mt-2 flex flex-col items-center gap-[1px] border-t border-[var(--ink-quiet)] pt-2'
+      }
+    >
       {CATEGORIES.map((category) => {
         const on = toggles[category];
         return (
@@ -195,11 +225,13 @@ function EdgeToggles({ playerInk }: { playerInk: string }) {
               }
               onClick={() => toggleIndicator(category)}
               style={on ? { color: LIT_INK[category] ?? playerInk } : undefined}
-              className={
+              className={`flex w-[36px] shrink-0 cursor-pointer items-center justify-center border ${
+                narrow ? '' : 'h-[26px]'
+              } ${
                 on
-                  ? 'flex h-[26px] w-[36px] cursor-pointer items-center justify-center border border-[var(--ink-quiet)] bg-[rgba(228,216,189,.12)]'
-                  : 'flex h-[26px] w-[36px] cursor-pointer items-center justify-center border border-transparent text-[var(--paper-dim)] opacity-45 hover:opacity-80'
-              }
+                  ? 'border-[var(--ink-quiet)] bg-[rgba(228,216,189,.12)]'
+                  : 'border-transparent text-[var(--paper-dim)] opacity-45 hover:opacity-80'
+              }`}
             >
               <IndicatorGlyph category={category} size={16} />
             </button>

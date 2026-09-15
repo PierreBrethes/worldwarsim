@@ -230,7 +230,7 @@ export function ConstructionPanel({
         aria-hidden
         onPointerDown={resize}
         title={fr.window.resize}
-        className={`absolute z-10 h-[16px] w-[16px] ${fromBottom ? 'top-0' : 'bottom-0'} ${
+        className={`resize-corner absolute z-10 h-[16px] w-[16px] ${fromBottom ? 'top-0' : 'bottom-0'} ${
           fromRight ? 'left-0' : 'right-0'
         } ${fromRight === fromBottom ? 'cursor-nwse-resize' : 'cursor-nesw-resize'}`}
         style={{

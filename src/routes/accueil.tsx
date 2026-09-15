@@ -180,8 +180,11 @@ function ConnectedHome() {
           </div>
         )}
 
-        <div className="mx-[30px] mt-6 flex items-stretch border-t border-[var(--ink)]">
-          <form onSubmit={submitCreate} className="flex-1 pt-4 pr-[26px] pb-1">
+        {/* Les deux bureaux côte à côte tant que la page en a la largeur ; l'un sous l'autre
+            sous une feuille étroite, où chacun n'avait plus que cent trente pixels et débordait
+            de la page. */}
+        <div className="mx-[30px] mt-6 flex flex-col items-stretch border-t border-[var(--ink)] @md:flex-row">
+          <form onSubmit={submitCreate} className="flex-1 pt-4 pb-1 @md:pr-[26px]">
             <Title numeral="I" title={fr.home.foundTitle} />
             <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">
               {fr.home.foundNote(regionNameOf(FOUNDED_REGION))}
@@ -194,14 +197,17 @@ function ConnectedHome() {
 
           <div
             aria-hidden
-            className="w-px"
+            className="hidden w-px @md:block"
             style={{
               background:
                 'repeating-linear-gradient(180deg, var(--ink) 0 4px, transparent 4px 9px)',
             }}
           />
 
-          <form onSubmit={submitJoin} className="flex-1 pt-4 pb-1 pl-[26px]">
+          <form
+            onSubmit={submitJoin}
+            className="flex-1 border-t border-dashed border-[var(--ink)] pt-4 pb-1 @md:border-t-0 @md:pl-[26px]"
+          >
             <Title numeral="II" title={fr.home.joinTitle} />
             <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">{fr.home.joinNote}</p>
 
@@ -280,13 +286,15 @@ function GameRow({
   onDestroy: () => void;
 }) {
   return (
-    <li className="flex items-start gap-3">
+    /* La ligne se casse en deux sous une feuille étroite : à 164 px, le bouton du fondateur ne
+       laissait que soixante pixels au pays et sortait de la page. */
+    <li className="flex flex-col items-stretch gap-3 @md:flex-row @md:items-start">
       <button
         type="button"
         onClick={onResume}
         title={fr.home.resume}
-        className={`relative flex min-w-0 flex-1 cursor-pointer items-center gap-4 overflow-hidden bg-[var(--ink)] py-[13px] pr-5 text-left ${
-          seat.nation ? 'pl-[106px]' : 'pl-5'
+        className={`relative flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-2 overflow-hidden bg-[var(--ink)] py-[13px] pr-5 text-left @md:flex-row @md:items-center @md:gap-4 ${
+          seat.nation ? 'pl-[76px] @md:pl-[106px]' : 'pl-5'
         }`}
       >
         <FlagWatermark nation={seat.nation} opacity={0.34} />
@@ -309,7 +317,7 @@ function GameRow({
             )}
           </span>
         </span>
-        <span className="relative shrink-0 text-right">
+        <span className="relative shrink-0 @md:text-right">
           <span className="eyebrow-dark block">
             {seat.status === 'launched' && seat.durationHours !== null
               ? fr.home.endsIn
@@ -330,7 +338,7 @@ function GameRow({
        *   prochaine lecture aurait ramenée. Seul le fondateur a encore un geste : mettre la
        *   saison au rebut, pour tout le monde. */}
       {seat.creator && (
-        <div className="w-[164px] shrink-0">
+        <div className="w-full shrink-0 @md:w-[164px]">
           <DestroyButton
             label={fr.lobby.destroy}
             confirm={fr.lobby.destroyConfirm}

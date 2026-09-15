@@ -20,6 +20,10 @@ html,
 body,
 #root {
   height: 100%;
+  /* La hauteur *dynamique* et non la hauteur de mise en page : clavier virtuel ouvert, un
+     `100vh` laisse le champ de saisie sous l'écran, et c'est le télégraphe qu'on écrit à
+     l'aveugle. Les navigateurs qui ignorent l'unité gardent la ligne du dessus. */
+  height: 100dvh;
 }
 
 body {
@@ -76,6 +80,74 @@ body {
 
 ::-webkit-scrollbar-corner {
   background: var(--scroll-gutter);
+}
+
+/* **Le `zoom` de `.hud` multiplie aussi les pourcentages.** L'échelle d'interface est un `zoom`
+   CSS (`--hud-scale`), et toute longueur écrite *dans* une surface zoomée est rendue à l'échelle
+   — y compris un `100%` résolu sur un parent qui, lui, ne l'est pas. Une feuille en
+   `max-width: 100%` dépasse donc de vingt pour cent, et sur un téléphone ça se lit comme un
+   débordement horizontal. Les trois règles ci-dessous écrivent la mesure d'écran voulue dans
+   l'unité de la surface : elles sont l'inverse exact du zoom, une fois, ici. */
+.hud-fit {
+  max-width: calc(100% / var(--hud-scale));
+}
+
+/* Elle ne vaut que **sous un parent de largeur définie** : dans une boîte dimensionnée par son
+   contenu — un cartouche posé au point cliqué — le pourcentage se résout sur la largeur propre de
+   la carte, et la borne la rétrécit d'un sixième au lieu de ne rien faire. */
+
+/* Une feuille plein écran : ce que devient une fenêtre sous le seuil (`shell/viewport.ts`). */
+.hud-screen {
+  width: calc(100dvw / var(--hud-scale));
+  height: calc(100dvh / var(--hud-scale));
+}
+
+/* Une feuille ancrée en bas, au-dessus du rail : ce que devient un panneau d'angle sous le
+   seuil. Bornée à 60 % de l'écran parce que la carte doit rester visible au-dessus — un panneau
+   de garnison qui la cache ne sert plus la visée. */
+.hud-dock {
+  position: fixed;
+  left: 0;
+  bottom: var(--rail-h);
+  width: calc(100dvw / var(--hud-scale));
+  max-height: calc(60dvh / var(--hud-scale));
+}
+
+/* **Quarante-quatre pixels sous le doigt.** La fonte ne bouge pas — le style presse tient à ses
+   neuf pixels d'œil — c'est le creux autour du mot qui grandit, et seulement là où l'on touche :
+   les feuilles, les panneaux ancrés et le rail du bas. */
+@media (max-width: 767px) {
+  .hud-screen button,
+  .hud-screen a,
+  .hud-dock button,
+  .hud-dock a,
+  .rail-bottom button,
+  .rail-bottom a {
+    min-height: 44px;
+  }
+
+  /* Une popin de survol reste dans l'écran : bornée à ce qui reste à droite de son ancre, et
+     autorisée à passer à la ligne pour cela. Au bureau elle tient sur une ligne, comme avant. */
+  .hover-card {
+    max-width: calc(100dvw / var(--hud-scale) - var(--hover-left, 0px) - 10px);
+    white-space: normal;
+  }
+
+  /* Une surface qui ne se redimensionne plus n'a pas de poignée à offrir. */
+  .resize-corner {
+    display: none;
+  }
+
+  /* **Un pli reste dans l'écran, même sous un tableau qui défile.** L'abaque est plus large que
+     le téléphone : sa ligne dépliée, posée dans une cellule à la largeur du tableau, s'ouvrait
+     là où le doigt avait poussé la grille — la fiche du rôle paraissait déjà à moitié sortie.
+     Sous le seuil la feuille *est* l'écran, donc le pli s'y colle. Au-dessus, la classe ne dit
+     rien : le tableau tient dans sa fenêtre. */
+  .hud-fold {
+    position: sticky;
+    left: 0;
+    width: calc(100dvw / var(--hud-scale));
+  }
 }
 
 /* Pictograms are laid as masks, not images: the PNG cuts, the background color makes the

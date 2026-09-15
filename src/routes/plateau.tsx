@@ -14,6 +14,7 @@ import { ControlsCard } from '@/map/ControlsCard';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import { Shell } from '@/shell/Shell';
 import { useClock } from '@/shell/clock';
+import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
@@ -303,7 +304,7 @@ function NoGame() {
   const navigate = useNavigate();
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
-      <div className="hud paper-grain w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
+      <div className="hud paper-grain hud-fit w-[520px] border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
         <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.board.unavailableKicker}
         </p>
@@ -338,6 +339,13 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
 
 function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {
   const { country, windows = [], building: focused } = Route.useSearch();
+  /**
+   * **Une seule feuille à l'écran sous le seuil** (décision du 15/09) : les autres restent dans
+   * l'URL — fermer celle du dessus révèle la précédente — et le lien partagé s'ouvre des deux
+   * côtés. Une pile de fenêtres n'a de sens que là où il reste du bureau autour.
+   */
+  const narrow = useNarrowScreen();
+  const stacked = narrow ? windows.slice(-1) : windows;
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
@@ -1463,13 +1471,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
             cartouche la porte (décision du 30/08). */}
         {orderError !== null && (
-          <div className="hud absolute top-4 left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]">
+          <div
+            className={`hud absolute left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+              narrow ? 'bottom-4' : 'top-4'
+            }`}
+          >
             {orderError}
           </div>
         )}
         {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
-            remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là. */}
-        <div className="absolute bottom-4 left-4 z-10">
+            remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
+            **Elle échange sa place avec le refus de fondation sous le seuil** : le bas de l'écran
+            étroit appartient au rail et aux panneaux ancrés, qui l'auraient recouverte en
+            permanence dès qu'un pays est désigné. */}
+        <div className={`absolute left-4 z-10 ${narrow ? 'top-4' : 'bottom-4'}`}>
           <NextActions
             view={view}
             placements={foundation}
@@ -1498,10 +1513,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         </div>
       </div>
       <Suspense fallback={null}>
-        {windows.map((name, rank) => {
+        {stacked.map((name, rank) => {
           const windowProps = {
             rank,
-            inFront: rank === windows.length - 1,
+            inFront: rank === stacked.length - 1,
             onBringForward: () => bringForward(name),
             onClose: () => closeWindow(name),
           };

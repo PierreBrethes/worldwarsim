@@ -150,7 +150,9 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
                           colSpan={columns.length + 2}
                           className="border-t border-dashed border-[rgba(42,33,24,.45)] border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
-                          <GunnerySheet profile={row.attacker} workshop={workshop} />
+                          <div className="hud-fold">
+                            <GunnerySheet profile={row.attacker} workshop={workshop} />
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -200,9 +202,12 @@ export function GunnerySheet({
   const movement = movementSheetOf([role]);
 
   return (
-    <div className="flex items-stretch">
+    /* La planche et la fiche côte à côte tant qu'il y a de la place ; l'une sous l'autre sous le
+       seuil, où 190 px de sprite mangeaient la moitié de la largeur et laissaient la fiche se
+       lire en colonne de trois mots (`md` = le seuil de `shell/viewport.ts`). */
+    <div className="flex flex-col md:flex-row md:items-stretch">
       <div
-        className="flex w-[190px] shrink-0 flex-col items-center justify-center gap-[9px] border-r border-[rgba(42,33,24,.22)] px-4 py-[14px]"
+        className="flex shrink-0 flex-col items-center justify-center gap-[9px] border-b border-[rgba(42,33,24,.22)] px-4 py-[14px] md:w-[190px] md:border-r md:border-b-0"
         style={{
           backgroundImage:
             'repeating-linear-gradient(90deg, rgba(42,33,24,.05) 0 1px, transparent 1px 6px)',

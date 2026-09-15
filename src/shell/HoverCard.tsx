@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /**
  * **Une seule façon de faire une popin de survol** (68a). Le bandeau des ressources l'a inventée
@@ -27,16 +27,22 @@ export function HoverCard({
 }) {
   return (
     <div
-      className={`paper-grain pointer-events-none absolute z-[var(--z-hovercard)] border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] ${
+      /* `hover-card` ne dit rien au bureau : sous le seuil, il borne la carte à ce qui reste
+         d'écran à droite de son ancre et lui rend le passage à la ligne — posée près du bord,
+         elle sortait de l'écran et la moitié de la phrase se perdait (`styles/index.css`). */
+      className={`hover-card paper-grain pointer-events-none absolute z-[var(--z-hovercard)] border border-[var(--ink)] px-[8px] py-[4px] text-[11.5px] ${
         top === undefined ? 'top-full mt-[3px]' : ''
       }`}
-      style={{
-        left,
-        top,
-        width,
-        color: ink,
-        whiteSpace: width === undefined ? 'nowrap' : undefined,
-      }}
+      style={
+        {
+          left,
+          top,
+          width,
+          color: ink,
+          whiteSpace: width === undefined ? 'nowrap' : undefined,
+          '--hover-left': `${left}px`,
+        } as CSSProperties
+      }
     >
       {children}
     </div>

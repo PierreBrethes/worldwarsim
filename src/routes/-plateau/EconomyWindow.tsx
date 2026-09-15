@@ -100,8 +100,12 @@ export function EconomyWindow({
 
         <RunningWork view={view} seat={seat} now={now} />
 
-        <div className="flex min-h-0 flex-1 items-stretch">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+        {/* Deux colonnes côte à côte tant qu'il y a de la place ; l'une sous l'autre sous le
+            seuil, et **un seul défileur** alors — imbriqués, la colonne du QG prenait toute la
+            largeur et la filière se lisait dans vingt pixels (`md` = le seuil de
+            `shell/viewport.ts`). */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto md:flex-row md:items-stretch md:overflow-visible">
+          <div className="flex min-h-0 min-w-0 shrink-0 flex-col md:flex-1 md:shrink md:overflow-auto">
             <p className="shrink-0 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
               {fr.economy.lead}
             </p>
@@ -1016,7 +1020,7 @@ function HeadquartersColumn({
   const level = view.me.hqLevel;
 
   return (
-    <div className="flex w-[302px] shrink-0 flex-col overflow-auto border-l border-[var(--ink)] bg-[rgba(42,33,24,.03)]">
+    <div className="flex w-full shrink-0 flex-col border-t-2 border-[var(--ink)] bg-[rgba(42,33,24,.03)] md:w-[302px] md:overflow-auto md:border-t-0 md:border-l">
       <div className="sticky top-0 z-10 border-b border-[rgba(42,33,24,.35)] bg-[var(--paper)] px-4 py-[5px]">
         <span className="eyebrow">{fr.buildings.hq}</span>
       </div>

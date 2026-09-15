@@ -145,7 +145,11 @@ function Site({
           <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
         )}
         <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
-        <UpgradeControl building={building} view={view} seat={seat} now={now} />
+        {/* L'élévation passe **après** la fermeture sous le seuil : pleine ligne, elle repoussait
+            « fermer » à une troisième ligne et l'en-tête mangeait un tiers du téléphone. */}
+        <span className="order-last w-full min-w-0 md:order-none md:w-auto">
+          <UpgradeControl building={building} view={view} seat={seat} now={now} />
+        </span>
         <button
           type="button"
           onClick={onClose}
@@ -190,10 +194,14 @@ function Site({
             </span>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col @4xl:flex-row @4xl:items-stretch">
+          {/* **Deux colonnes larges, une seule feuille étroite.** Sous `@4xl` — un écran de
+              téléphone, jamais le bureau — les cartes et la file s'empilent et **un seul
+              défileur** les porte : deux boîtes qui se disputaient une hauteur fixe laissaient
+              les cartes à zéro pixel, et l'on ne pouvait plus former une compagnie. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto @4xl:flex-row @4xl:items-stretch @4xl:overflow-visible">
             <div
-              className={`flex min-w-0 flex-1 flex-col ${
-                sized ? 'min-h-0 overflow-auto' : 'max-h-[620px] overflow-auto'
+              className={`flex min-w-0 flex-col @4xl:flex-1 ${
+                sized ? '@4xl:min-h-0 @4xl:overflow-auto' : '@4xl:max-h-[620px] @4xl:overflow-auto'
               }`}
             >
               <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3">
@@ -256,13 +264,15 @@ function Site({
               </section>
             </div>
 
-            <aside className="flex min-h-0 w-full min-w-0 flex-col border-t border-[rgba(42,33,24,.35)] @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
+            <aside className="flex w-full min-w-0 flex-col border-t border-[rgba(42,33,24,.35)] @4xl:min-h-0 @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
               <div className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[10px]">
                 <span className="eyebrow">{fr.production.queueHeader}</span>
               </div>
               <div
-                className={`flex flex-1 flex-col ${
-                  sized ? 'min-h-0 overflow-auto' : 'max-h-[520px] overflow-auto'
+                className={`flex flex-col @4xl:flex-1 ${
+                  sized
+                    ? '@4xl:min-h-0 @4xl:overflow-auto'
+                    : '@4xl:max-h-[520px] @4xl:overflow-auto'
                 }`}
               >
                 {facility.queue.length === 0 ? (

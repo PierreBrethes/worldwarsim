@@ -174,7 +174,7 @@ export function MovementPreview({
 
   return (
     <div
-      className="absolute z-[var(--z-popin)] w-[262px]"
+      className="absolute z-[var(--z-popin)] w-[262px] max-w-full"
       style={{
         left: fromRight ? undefined : at.x + 18,
         right: fromRight ? `calc(100% - ${at.x - 18}px)` : undefined,
