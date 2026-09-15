@@ -239,7 +239,13 @@ export class MapEngine {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minPolarAngle = 0.3;
+    /** **L'aplomb est permis** (retour d'Abdul, 15/09) : les 0,3 rad d'avant — dix-sept degrés —
+     *  interdisaient de regarder la carte perpendiculairement, ce qu'un joueur fait pour lire une
+     *  frontière ou viser une région. Les planches sont prévues pour l'angle : elles se couchent
+     *  sur le plateau en pivotant sur leur pied (`billboard.ts`). Le reste de zéro reste au
+     *  plateau et non à la sphère — à polaire nulle, l'azimut d'`OrbitControls` n'a plus de sens
+     *  et la carte tourne sur elle-même au moindre tremblement de la main. */
+    this.controls.minPolarAngle = 0.05;
     this.controls.maxPolarAngle = 1.15;
     this.controls.minDistance = 4;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;

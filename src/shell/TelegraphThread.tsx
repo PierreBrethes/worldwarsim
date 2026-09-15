@@ -10,6 +10,11 @@ import type { Seat } from '@/data/session';
 /** À partir d'où le décompte paraît : plus tôt, il compterait par-dessus l'épaule du joueur. */
 const COUNTDOWN_FROM = 60;
 
+/** **Ce qu'« être en bas » tolère.** Le plateau porte une échelle CSS, et les trois mesures de
+ *  défilement y tombent en fractions de pixel : à l'égalité stricte, le fil se décrochait tout
+ *  seul de son propre dernier message. */
+const NEAR_BOTTOM_PX = 24;
+
 /**
  * **Le canal général, partout où il paraît.** Deux écrans le servent et un seul le compose : la
  * fenêtre du plateau, qu'on ouvre et qu'on pousse, et le salon, où il est posé à demeure — c'est
@@ -20,6 +25,11 @@ const COUNTDOWN_FROM = 60;
  * `height` est la seule chose que le cadre lui dise : un nombre tant que la surface se dimensionne
  * sur son contenu, `fill` dès qu'elle porte une hauteur à elle — un plafond en pixels dans une
  * fenêtre redimensionnée est une boîte qui refuse de grandir avec celle qui l'entoure.
+ *
+ * **Et ce nombre est une hauteur, pas un plafond.** Posé en `max-height`, il laissait le cadre
+ * grandir message après message jusqu'à le toucher : la fenêtre du plateau bougeait sous la main
+ * du joueur à chaque dépêche reçue, ce qui est le retour de Pierre du 15/09. Une boîte de taille
+ * stable qui défile est le comportement d'un fil ; une boîte qui grandit est un document.
  */
 export function TelegraphThread({
   telegraph,
@@ -36,9 +46,24 @@ export function TelegraphThread({
   const [draft, setDraft] = useState('');
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  /**
+   * **Le fil se recolle au dernier message, sauf si on est remonté le lire.** Sans cette
+   * réserve, une dépêche arrivée pendant qu'on relit trois écrans plus haut arrachait la lecture
+   * pour la ramener en bas — le fil décidait où le joueur regarde.
+   */
+  const thread = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  const last = telegraph.messages.at(-1)?.id ?? null;
+  useLayoutEffect(() => {
+    const box = thread.current;
+    if (box && pinned.current) box.scrollTop = box.scrollHeight;
+  }, [last]);
+
   const send = useCallback(() => {
     const text = draft.trim();
     if (text.length === 0) return;
+    // Écrire est un geste qui ramène en bas : on ne poste pas pour rester ailleurs.
+    pinned.current = true;
     // Le champ se vide tout de suite : le fil est optimiste, et un refus le rend intact.
     setDraft('');
     setRefusal(null);
@@ -47,13 +72,6 @@ export function TelegraphThread({
       handleError(error, setRefusal);
     });
   }, [draft, post, seat]);
-
-  const thread = useRef<HTMLDivElement>(null);
-  const last = telegraph.messages.at(-1)?.id ?? null;
-  useLayoutEffect(() => {
-    const box = thread.current;
-    if (box) box.scrollTop = box.scrollHeight;
-  }, [last]);
 
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -69,8 +87,12 @@ export function TelegraphThread({
           bulles alignées à droite raconteraient une conversation de téléphone. */}
       <div
         ref={thread}
-        className={height === 'fill' ? 'min-h-0 flex-1 overflow-auto' : 'flex-1 overflow-auto'}
-        style={height === 'fill' ? undefined : { maxHeight: height }}
+        onScroll={(event) => {
+          const box = event.currentTarget;
+          pinned.current = box.scrollHeight - box.scrollTop - box.clientHeight <= NEAR_BOTTOM_PX;
+        }}
+        className={height === 'fill' ? 'min-h-0 flex-1 overflow-y-auto' : 'min-h-0 overflow-y-auto'}
+        style={height === 'fill' ? undefined : { height }}
       >
         {telegraph.messages.length === 0 ? (
           <p className="py-6 text-center text-[12.5px] text-[var(--ink-soft)] italic">

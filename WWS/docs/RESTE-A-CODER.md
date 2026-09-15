@@ -221,6 +221,23 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 22. Consommation continue — le motorisé qui boit (rend la réserve de pétrole datée).
 23. Charbon de la première projection : 122 pour 20 de dotation + 10/h — mesuré par le lot 2,
     à lire dans son rapport avant de toucher quoi que ce soit.
+24. **Bots qui jouent** (Discord, Taco, 15/09) — même chantier que la refonte du simulateur
+    (un client qui pose des mutations), pas un ajout. Seul usage vital : remplir un siège vide
+    quand un joueur lâche en cours de saison.
+25. **Observateur omniscient** pour Pierre (Discord, 15/09) — outil de mesure et de débogage
+    en prod ; ne vaut que si 24 existe.
+26. **Niveaux d'IA** (Discord, 15/09) — prématuré tant qu'aucun bot ne tient sept jours.
+
+## Acté le 15/09 — retours Discord
+
+- **Fenêtres exploitables sur mobile, carte inchangée** (décision du 15/09, qui révise la 2a
+  du même jour) : sous 768 px, les huit fenêtres en feuilles plein écran une à la fois, les
+  panneaux en feuille basse, cibles tactiles, clavier virtuel ; la carte et les ordres ne
+  bougent pas. Le point 9 de la vision V1 reste exclu. Prompt
+  `prompts/code/ready/fenetres-sur-mobile.md`, après `correctifs-ui-discord`.
+- **Un relais de niveau 1 = un emplacement** (décision 1a) : la règle de l'ADR 0020 §10 tient,
+  la plainte « Allemagne injouable » attend une mesure. Rapport
+  `rapports/2026-09-15-retours-discord.md`.
 
 ## Questions ouvertes qui bloqueront un prompt
 
