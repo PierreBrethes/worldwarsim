@@ -762,7 +762,10 @@ describe('raising a level from the map', () => {
   it('withdraws the branch when a work already stands in that region, and says so', () => {
     const compass = compassOf(
       mast,
-      standing({}, { construction: { regionId: 'FRA-9999', key: 'mine', minutesLeft: 10 } }),
+      standing(
+        {},
+        { construction: { regionId: 'FRA-9999', key: 'mine', outpostId: null, minutesLeft: 10 } },
+      ),
     );
     expect(compass?.actions).toEqual([]);
     expect(compass?.refusal).toBe(

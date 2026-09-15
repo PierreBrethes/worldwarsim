@@ -18,7 +18,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
@@ -573,6 +573,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /**
+   * **La porte d'un avant-poste, ouverte depuis « à faire maintenant »** (précision du 15/09).
+   * Le mât se recadre et le panneau de garnison s'ouvre — c'est là que vit l'élévation, et le
+   * même geste que `openBuilding` donne à une caserne au repos. Il n'y a pas de position d'écran
+   * à viser : la ligne se clique au bas-gauche, le panneau s'ancre au centre.
+   */
+  const openOutpost = useCallback(
+    (outpostId: string) => {
+      const station: TroopStation = { kind: 'outpost', outpostId };
+      openGarrison(station, [], { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    },
+    [openGarrison],
+  );
+
+  /**
    * **La troisième porte de la même garnison** : la pile posée sur la carte. Rien de coché
    * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
    *
@@ -1062,20 +1076,23 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
     // A first level has no building to hang the crane on: the site gets its own mast, and
     // that is the whole point — a region under work reads as such before anything stands.
+    /** **Une élévation d'avant-poste ne plante pas de grue** : le point a déjà son mât, et une
+     *  seconde marque sur sa région en ferait un bâtiment (précision du 15/09). */
+    const site = work === null || isOutpostWork(work.key) ? null : { ...work, key: work.key };
     const raising =
-      work === null || standing.some((building) => building.finishesAt !== null)
+      site === null || standing.some((building) => building.finishesAt !== null)
         ? []
         : [
             {
               kind: 'building' as const,
-              id: `building-${work.regionId}-${work.key}`,
+              id: `building-${site.regionId}-${site.key}`,
               // A first level under the crane opens nothing: no line stands for it yet.
               buildingId: null,
-              key: work.key,
-              regionId: work.regionId,
-              lonLat: work.point,
+              key: site.key,
+              regionId: site.regionId,
+              lonLat: site.point,
               hostCountry: host,
-              name: work.name,
+              name: site.name,
               level: null,
               plate: null,
               finishesAt,
@@ -1407,6 +1424,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             regionId={buildingSite.regionId}
             at={buildingSite}
             onClose={() => setBuildingSite(null)}
+            onRaiseOutpost={(outpostId) => {
+              setBuildingSite(null);
+              openOutpost(outpostId);
+            }}
             onPlace={(option) =>
               setPlacing({
                 regionId: buildingSite.regionId,
@@ -1497,6 +1518,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
             onOpenSurface={openWindow}
             onOpenSite={openBuilding}
+            onOpenOutpost={openOutpost}
           />
         </div>
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
@@ -1558,6 +1580,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   view={view}
                   seat={seat}
                   focused={focused ?? null}
+                  onRaiseOutpost={openOutpost}
                   {...windowProps}
                 />
               );

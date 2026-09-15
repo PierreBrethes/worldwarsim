@@ -12,7 +12,13 @@
  * même** : une grille d'ouverture n'est pas une saison jouée, et rien ici n'a vu un combat.
  */
 
-import type { BuildingKey, DepositKey, ResourceKey, UnitRole } from '../src/domain/ids';
+import type {
+  BuildCostKey,
+  BuildingKey,
+  DepositKey,
+  ResourceKey,
+  UnitRole,
+} from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
 import type { Conversion, FoundationDebt } from '../src/domain/economy';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from '../src/domain/routing';
@@ -266,18 +272,40 @@ export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<
 
 export const LEVEL_COST_FACTOR = 1.8;
 
-export function buildCost(key: BuildingKey, level: number): Costs {
+/**
+ * **Monter un avant-poste se tarife comme un bâtiment de projection du même niveau** (précision
+ * du 15/09 de l'ADR 0020 §10). Le point de comparaison est le port : ce qu'on achète est de la
+ * projection — un rayon, un emplacement, une portée de détection —, pas une filière.
+ *
+ * Ce n'est **pas** le prix de la fondation, qui reste la colonne qui marche (`movements.ts`) :
+ * `buildCost('outpost', 1)` existe pour la file de chantier que `fondation-en-chantier` ouvrira,
+ * et rien ne le lit aujourd'hui — le classement met d'ailleurs le niveau 1 à zéro alliage pour
+ * cette raison (`convex/press.ts`).
+ *
+ * @a-mesurer calé sur le port, jamais mesuré sur une partie
+ */
+export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
+  cost: { alloy: 65, coal: 20 },
+  minutes: 65,
+};
+
+/** Les quinze bâtiments et l'élévation d'un avant-poste, au même barème de niveaux. */
+const COST_SPEC: Readonly<
+  Record<BuildCostKey, { readonly cost: Costs; readonly minutes: number }>
+> = { ...BUILDING_SPEC, outpost: OUTPOST_RAISE_SPEC };
+
+export function buildCost(key: BuildCostKey, level: number): Costs {
   const factor = LEVEL_COST_FACTOR ** (level - 1);
   return Object.fromEntries(
-    Object.entries(BUILDING_SPEC[key].cost).map(([resource, amount]) => [
+    Object.entries(COST_SPEC[key].cost).map(([resource, amount]) => [
       resource,
       Math.round(amount * factor),
     ]),
   );
 }
 
-export function buildMinutes(key: BuildingKey, level: number): number {
-  return Math.round(BUILDING_SPEC[key].minutes * LEVEL_COST_FACTOR ** (level - 1));
+export function buildMinutes(key: BuildCostKey, level: number): number {
+  return Math.round(COST_SPEC[key].minutes * LEVEL_COST_FACTOR ** (level - 1));
 }
 
 /**
@@ -745,7 +773,14 @@ export const OUTPOST_REACH_KM_BY_LEVEL: Readonly<Record<number, number>> = {
   3: 240,
 };
 
-const MAX_REACH_LEVEL = Object.keys(OUTPOST_REACH_KM_BY_LEVEL).length;
+/**
+ * **Jusqu'où un avant-poste se monte** (précision du 15/09). C'est la table des rayons qui le
+ * dit et non une seconde constante : un niveau qu'aucun rayon ne décrit serait un niveau qu'on
+ * paie pour rien.
+ */
+export const OUTPOST_MAX_LEVEL = Object.keys(OUTPOST_REACH_KM_BY_LEVEL).length;
+
+const MAX_REACH_LEVEL = OUTPOST_MAX_LEVEL;
 
 /** Le rayon d'un point, par son niveau. Un niveau au-delà de la table garde le dernier rayon :
  *  une amélioration future ne doit pas rendre un point aveugle en attendant sa ligne. */

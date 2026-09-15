@@ -7,7 +7,14 @@ import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
 import type { OutpostReach } from '../src/domain/outposts';
-import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
+import {
+  canonicalBuildingKey,
+  isOutpostWork,
+  BUILDINGS,
+  RESOURCES,
+  type BuildCostKey,
+  type BuildingKey,
+} from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
 import { coveredRegions } from '../src/domain/control';
 import { isNation, nationInk } from '../src/domain/nations';
@@ -22,6 +29,7 @@ import {
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
+  OUTPOST_MAX_LEVEL,
   outpostReachKm,
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
@@ -62,6 +70,11 @@ import {
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
+
+/** La clé d'une ligne de file telle que l'écran la lit : un `depot` historique reprend son nom
+ *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
+const workKey = (building: BuildCostKey): BuildCostKey =>
+  isOutpostWork(building) ? building : canonicalBuildingKey(building);
 
 export const playerView = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
@@ -522,7 +535,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           ? {
               id: construction._id,
               name: construction.building,
-              key: canonicalBuildingKey(construction.building),
+              key: workKey(construction.building),
+              /** Ce que cette ligne monte quand elle ne bâtit pas : l'écran la range dans la même
+               *  file et n'en plante aucune grue (précision du 15/09). */
+              outpostId: construction.outpostId ?? null,
               regionId: construction.regionId,
               regionName: regionFacts(construction.regionId)?.name ?? construction.regionId,
               /** The crane stands on the quay from the moment the port is enqueued: the point
@@ -543,7 +559,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       constructionQueue: queue.slice(1).map((entry) => ({
         id: entry._id,
         name: entry.building,
-        key: canonicalBuildingKey(entry.building),
+        key: workKey(entry.building),
+        outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: regionFacts(entry.regionId)?.name ?? entry.regionId,
         level: entry.level,
@@ -624,6 +641,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  (`specializationServed`) — servi plutôt que redérivé : l'écran et le refus du
          *  serveur lisent la même réponse. */
         specializationLocked,
+        /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
+         *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a
+         *  pas de suivant — la facture est vide et le panneau dit « niveau maximal ». */
+        nextLevelCost:
+          outpost.level >= OUTPOST_MAX_LEVEL ? {} : buildCost('outpost', outpost.level + 1),
+        nextLevelMinutes:
+          outpost.level >= OUTPOST_MAX_LEVEL ? 0 : buildMinutes('outpost', outpost.level + 1),
+        atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
       })),
     },
     /**
@@ -1025,6 +1050,13 @@ function named(notice: Doc<'notices'>) {
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'lootDelivered':
       return { ...notice, regionName: nameOf(notice.regionId) };
+    /** Un point d'avant le champ de région n'en a aucune : la dépêche se contente alors de son
+     *  pays, qu'elle porte de toute façon. */
+    case 'outpostRaised':
+      return {
+        ...notice,
+        regionName: notice.regionId === null ? null : nameOf(notice.regionId),
+      };
     case 'recruitmentDelivered':
       return {
         ...notice,

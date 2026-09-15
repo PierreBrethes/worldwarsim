@@ -8,7 +8,7 @@
  */
 import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
-import { LISTENING_STATION_RADIUS_KM } from '../../convex/constants';
+import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import { tierLabel } from '../domain/troops';
 import type { UpgradeHold } from '../domain/construction';
@@ -452,6 +452,10 @@ export const fr = {
       )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
+    /** **On ne rénove pas sous le feu** (décision 3a du 15/09). Le refus dit l'état, pas une
+     *  perte : le point revient, et un chantier déjà en file l'attend sans s'annuler. */
+    OUTPOST_DISABLED: () => 'avant-poste hors service — il ne se monte pas tant qu’il l’est',
+    OUTPOST_RAISE_QUEUED: () => 'une élévation de cet avant-poste est déjà en file',
     FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
@@ -901,6 +905,7 @@ export const fr = {
       column: 'colonne',
       stalled: 'arrivée retenue',
       outpostFounded: 'avant-poste fondé',
+      outpostRaised: 'avant-poste élevé',
       outpostDisabled: 'avant-poste désactivé',
       sighting: 'relevé',
       campSighted: 'camp relevé',
@@ -1042,6 +1047,10 @@ export const fr = {
         `Un ${specialization} a été fondé — ${country}.`,
       outpostDisabled: (specialization: string, country: string) =>
         `Notre ${specialization} a été désactivé par un raid — ${country}.`,
+      /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
+       *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
+      outpostRaised: (level: number, place: string) =>
+        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : un emplacement de plus et ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
       /**
        * **La production reliée, quand elle mord** (ADR 0020 §6). Elle est déposée chez le seul
        * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
@@ -1180,6 +1189,10 @@ export const fr = {
       `${count} troupe${plural(count, '', 's')} hors ravitaillement — ${place}`,
     freeSlot: (count: number) =>
       `${count} slot${plural(count, '', 's')} de mouvement libre${plural(count, '', 's')}`,
+    /** **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09) : c'est la seule
+     *  attente que la fiche promettait déjà sans porte pour y aller. */
+    raiseOutpost: (place: string) => `avant-poste plein — montez-le · ${place}`,
+    toOutpost: 'à l’avant-poste',
     unfold: 'déplier',
     fold: 'replier',
   },
@@ -1243,6 +1256,22 @@ export const fr = {
     /** La seule adresse d'où rien ne part : le bâtiment qui logeait ces troupes n'est plus là,
      *  le jeu ne sait plus où elles se tiennent, donc il ne sait pas les router (ADR 0019 §1). */
     unplaceable: 'Ces troupes n’ont plus d’adresse sur la carte — rien ne peut partir d’ici.',
+    /**
+     * **Monter le point** (précision du 15/09 de l'ADR 0020 §10). La phrase dit ce qu'on achète —
+     * un emplacement, un rayon — parce que c'est exactement ce que le refus « avant-poste plein »
+     * promettait sans porte pour y aller.
+     */
+    raiseHeader: 'élévation',
+    /** Le nom que la ligne de file porte : elle n'est dans aucune table de bâtiments. */
+    raiseWork: 'élévation d’avant-poste',
+    raiseAction: 'monter',
+    raiseToLevel: (level: number) => `au niveau ${level}`,
+    raiseTitle: (level: number) => `monter cet avant-poste au niveau ${level}`,
+    raiseCarries: (slots: number, reachKm: number) =>
+      `${slots} emplacement${plural(slots, '', 's')} · rayon ${num(reachKm)} km`,
+    raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
+    raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
+    raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
   },
 
   /** La visée en carte : ce qui remplace la modale d’envoi. */
@@ -1848,6 +1877,7 @@ export const fr = {
           'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
           `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
           `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
+          'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
         ],
       },
       {

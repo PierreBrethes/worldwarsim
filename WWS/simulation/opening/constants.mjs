@@ -163,6 +163,17 @@ export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL = { food: 2, coal: 1 };
 /** Le rayon suit le niveau du point depuis le 31/08 : 400 km couvraient le quart de la France
  *  pour un seul avant-poste de niveau 1. */
 export const OUTPOST_REACH_KM_BY_LEVEL = { 1: 120, 2: 180, 3: 240 };
+
+/**
+ * **Ce que monter un avant-poste coûte** (précision du 15/09) : le jeu le tarife comme un port,
+ * et le barème de niveaux (`LEVEL_COST_FACTOR`) fait le reste. **Le moteur ne modélise ni
+ * avant-poste ni élévation** — comme l'entretien au-dessus, la valeur est miroitée pour
+ * surveiller sa dérive, pas lue par un scénario.
+ *
+ * À plat plutôt qu'en `{ cost, minutes }` : `verify.mjs` compare des tables de nombres, et
+ * l'imbrication n'apporterait qu'un lecteur de plus à écrire.
+ */
+export const OUTPOST_RAISE_SPEC = { alloy: 65, coal: 20, minutes: 65 };
 export const MINUTES_PER_1000_KM_ON_LAND = 14;
 
 /**

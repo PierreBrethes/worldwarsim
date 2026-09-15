@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   BUILDING_KEY,
+  BUILD_COST_KEY,
   COMBAT_SIDE,
   DETECTOR,
   LON_LAT,
@@ -716,8 +717,20 @@ export default defineSchema({
    */
   constructions: defineTable({
     playerId: v.id('players'),
-    building: BUILDING_KEY,
+    /** Un bâtiment, ou `outpost` — l'élévation d'un point, qui prend sa place dans la même file
+     *  et sous le même `rank` (précision du 15/09 de l'ADR 0020 §10). */
+    building: BUILD_COST_KEY,
     regionId: v.string(),
+    /**
+     * **Quel avant-poste cette ligne monte**, et rien d'autre ne la distingue d'un chantier de
+     * bâtiment. `v.optional` sans migration (leçon du 27/08) : les lignes déjà en file n'en
+     * portent aucun, et n'en ont aucun besoin — elles bâtissent.
+     *
+     * `regionId` reste rempli pour l'écran, qui nomme le lieu de tout ce qui est en file ; ce
+     * n'est pas une réservation de sol — une élévation ne prend pas la région de son point, et
+     * la règle « une entrée par région » l'ignore (`constructions.ts`).
+     */
+    outpostId: v.optional(v.id('outposts')),
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),

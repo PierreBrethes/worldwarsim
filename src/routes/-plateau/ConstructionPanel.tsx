@@ -51,6 +51,7 @@ export function ConstructionPanel({
   at,
   onClose,
   onPlace,
+  onRaiseOutpost,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -63,6 +64,9 @@ export function ConstructionPanel({
    * ce qui revient est un clic sur le rivage, jamais une ligne de plus dans ce panneau.
    */
   onPlace: (option: BuildOption) => void;
+  /** **Le refus « avant-poste plein » mène à la porte, pas à un mur** (précision du 15/09) : la
+   *  phrase qui dit « améliorez-le » est désormais ce qui ouvre le panneau du point. */
+  onRaiseOutpost: (outpostId: string) => void;
 }) {
   const now = useClock();
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +197,7 @@ export function ConstructionPanel({
 
         <FoundationNotice owed={view.me.foundation} />
 
-        <HeldNotice view={view} site={site} options={options} />
+        <HeldNotice view={view} site={site} options={options} onRaiseOutpost={onRaiseOutpost} />
 
         <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
           {fr.construction.offerHeader}
@@ -275,13 +279,17 @@ function HeldNotice({
   view,
   site,
   options,
+  onRaiseOutpost,
 }: {
   view: PlayerView;
   site: Site;
   options: ReadonlyArray<BuildOption>;
+  onRaiseOutpost: (outpostId: string) => void;
 }) {
-  const held = options.some((option) => option.hold === 'siteSlots')
-    ? site.site?.outpostId != null
+  const full = options.some((option) => option.hold === 'siteSlots');
+  const outpostId = site.site?.outpostId ?? null;
+  const held = full
+    ? outpostId !== null
       ? fr.construction.heldByOutpostSite(site.slots)
       : fr.construction.heldBySite(fr.construction.siteHome, site.slots, view.me.homeSlotRelief)
     : options.some((option) => option.hold === 'materials')
@@ -289,6 +297,23 @@ function HeldNotice({
       : null;
 
   if (held === null) return null;
+  /**
+   * **La phrase est la porte** (précision du 15/09). « Améliorez-le pour en ouvrir un de plus »
+   * décrivait depuis toujours un geste qui n'existait pas ; maintenant qu'il existe, elle y mène
+   * — le panneau du point s'ouvre, où l'élévation se commande. Le sol national garde sa phrase
+   * seule : ce qui l'élargit est le quartier général, et il a déjà sa ligne ailleurs.
+   */
+  if (full && outpostId !== null) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRaiseOutpost(outpostId)}
+        className="mt-2 shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-left text-[11.5px] leading-[1.4] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+      >
+        {held}
+      </button>
+    );
+  }
   return (
     <p className="mt-2 shrink-0 border border-[var(--ink)] px-2 py-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
       {held}

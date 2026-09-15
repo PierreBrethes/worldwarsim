@@ -230,6 +230,41 @@ Le spam « un bâtiment par région partout » reste borné par quatre règles d
 bâtiment par région, le rayon de pose (`outpostReachKm`), la production reliée (§6), et le coût
 de fondation (une infanterie qui marche, un slot, du temps).
 
+> **Précision du 15/09/2026 — un avant-poste se monte, et le geste existe enfin.**
+>
+> « Ce qui est joli s'achète » décrivait depuis le 31/08 un choix que rien ne codait :
+> `outposts.level` était lu par la portée, les emplacements, l'entretien et la détection, et
+> **aucune mutation ne l'écrivait**. La fiche d'un point plein disait « améliorez-le pour en
+> ouvrir un de plus » — le texte promettait, le jeu ne tenait pas.
+>
+> Un avant-poste se monte donc de 1 à 3, par son propriétaire, **comme un bâtiment** : une entrée
+> dans la file de chantier prépayée, un coût en alliage (`buildCost('outpost', niveau)`, calé sur
+> le port), une durée, annulable avec remboursement selon la règle de la file. À la fin :
+> niveau + 1, donc un emplacement de plus, le rayon suivant, l'entretien du niveau et la
+> détection du niveau — **rien de neuf ne s'ajoute au niveau**, on branche ce qui l'attendait.
+>
+> Trois choses tiennent cette précision :
+>
+> - **La porte est le panneau de garnison du point** (`GarrisonPanel`), le seul cadre qui porte
+>   déjà sa région et son niveau : il ne forme rien, il n'a pas de modale de site. La règle
+>   « peut-on monter » est une fonction pure lue par le bouton **et** par la mutation
+>   (`outpostRaiseHold`, `src/domain/construction.ts`) — rien n'est grisé, la phrase dit pourquoi
+>   (ADR 0015). Les trois refus « avant-poste plein » mènent désormais à cette porte.
+> - **La fin d'une élévation est le quatrième événement de couleur** (§6). Un rayon qui passe de
+>   120 à 180 km relie des bâtiments qui ne l'étaient pas, donc la séquence obligatoire est la
+>   même que pour les trois autres : **régler les stocks à l'ancienne couleur, écrire le niveau,
+>   rapporter**. Le sol neuf du cercle entre dans le relevé du propriétaire par le déclencheur de
+>   la fondation (`surveyFoundation`).
+> - **On ne rénove pas sous le feu.** Un avant-poste désactivé refuse l'élévation
+>   (`OUTPOST_DISABLED`) ; un chantier déjà en file **attend** la fin de la désactivation — il
+>   n'est ni annulé ni remboursé, le point revient et le chantier est payé.
+>
+> `outpost` est une **clé de coût**, jamais une clé de bâtiment : rien ne se pose sur une région
+> sous ce nom, et la ligne de file le dit par `constructions.outpostId`. L'alliage payé pour une
+> élévation tombe en **industrie** au classement (le territoire est une part, pas de l'alliage) ;
+> le niveau 1 y vaut zéro, parce qu'on le fonde en y marchant. Le coût de la fondation, la
+> destruction après plusieurs raids et le niveau 4+ restent hors périmètre.
+
 ### 11. Le format de saison disparaît
 
 `skirmish` et `campaign` sont retirés. Il n'y a plus qu'un jeu de valeurs de départ.

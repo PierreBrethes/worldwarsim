@@ -4,6 +4,7 @@ import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
 import { currentMinutes } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
+import { isOutpostWork } from '@/domain/ids';
 import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/plateau';
 import { Wordmark } from './Masthead';
@@ -155,9 +156,11 @@ function SiteStrip({ view }: { view: PlayerView }) {
       <span className="text-[9px] leading-none tracking-[.16em] text-[var(--paper-dim)] uppercase">
         {fr.banner.site}
       </span>
-      <span className="resource-reserve flex">
-        <BuildingPlate building={site.key} height={PLATE_HEIGHT} />
-      </span>
+      {!isOutpostWork(site.key) && (
+        <span className="resource-reserve flex">
+          <BuildingPlate building={site.key} height={PLATE_HEIGHT} />
+        </span>
+      )}
       <span className="text-[12.5px] font-semibold text-[var(--paper)]">{site.name}</span>
       <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--paper-dim)]">
         {asDuration(currentMinutes(site.minutesLeft, view.loadedAt, now))}

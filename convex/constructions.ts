@@ -1,11 +1,12 @@
 import { v } from 'convex/values';
-import { canonicalBuildingKey } from '../src/domain/ids';
+import { canonicalBuildingKey, isOutpostWork, type BuildingKey } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
+import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
 import { depositOfRegion } from '../src/domain/world';
 import { nearestOutpost } from '../src/domain/outposts';
 import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
@@ -13,6 +14,7 @@ import {
   HQ_LEVEL_AT_LAUNCH,
   LISTENING_STATION_RADIUS_KM,
   MAX_HQ_LEVEL,
+  OUTPOST_MAX_LEVEL,
   outpostReachKm,
   unlockLevel,
   buildCost,
@@ -23,13 +25,15 @@ import {
 } from './constants';
 import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
-import { foundationOwed, regionFacts } from './regions';
+import { foundationOwed, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
-import { credit, debit } from './resources';
-import { fileSurvey } from './surveys';
+import { credit, debit, economyOf } from './resources';
+import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY, LON_LAT } from './validators';
+import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
+import { pointOf } from './movement/forces';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -49,7 +53,7 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
 const owedFreely = (
   nation: string | null,
   buildings: ReadonlyArray<Doc<'buildings'>>,
-  building: Doc<'constructions'>['building'],
+  building: BuildingKey,
   regionId: string,
 ): boolean =>
   (buildingAt(buildings, building, regionId)?.level ?? 0) === 0 &&
@@ -73,7 +77,7 @@ const owedFreely = (
  * region", and the placement, the site budget and the coastal rule are all read off it.
  */
 function pointRefusal(
-  building: Doc<'constructions'>['building'],
+  building: BuildingKey,
   regionId: string,
   raising: boolean,
   point: { readonly lon: number; readonly lat: number } | undefined,
@@ -179,6 +183,83 @@ export const start = mutation({
 });
 
 /**
+ * **Un avant-poste se monte, comme un bâtiment** (précision du 15/09 de l'ADR 0020 §10). Le
+ * niveau existait au schéma depuis toujours — la portée, les emplacements, l'entretien et la
+ * détection le lisaient tous — et rien ne l'écrivait : la fiche d'un point plein disait
+ * « améliorez-le » sans qu'aucun geste ne le permette, ce qui est le pire des deux.
+ *
+ * Une entrée dans la **même file**, sous le même `rank` et le même `finishesAt` : ce n'est pas
+ * une seconde file de chantiers, c'est un chantier. Ce qui la distingue d'un bâtiment est
+ * `outpostId`, et rien d'autre — elle ne prend aucune région, aucun emplacement, et la règle
+ * « une entrée par région » ne la voit pas.
+ *
+ * Rien n'est exigé de la garnison ni du quartier général : l'avant-poste est déjà debout. Ce
+ * qu'un raid interdit, c'est de **rénover sous le feu** (`OUTPOST_DISABLED`).
+ */
+export const raiseOutpost = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), outpostId: v.id('outposts') },
+  handler: async (ctx, { token, seasonId, outpostId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    const outpost = await ctx.db.get(outpostId);
+    if (outpost === null || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST');
+
+    const now = Date.now();
+    const queue = await queueOf(ctx, player._id);
+    const level = outpost.level + 1;
+    const cost = buildCost('outpost', level);
+    const hold = outpostRaiseHold(
+      {
+        level: outpost.level,
+        disabled: disabledAt(outpost, now),
+        queued: queue.some((entry) => entry.outpostId === outpostId),
+        stocks: (await economyOf(ctx, player._id, now)).stocks,
+      },
+      cost,
+      OUTPOST_MAX_LEVEL,
+    );
+    if (hold !== null) refuseRaise(hold);
+
+    await debit(ctx, player._id, cost, now);
+    const last = queue[queue.length - 1];
+    const rank = last ? last.rank + 1 : 0;
+    const constructionId = await ctx.db.insert('constructions', {
+      playerId: player._id,
+      building: 'outpost',
+      outpostId,
+      /** L'écran nomme le lieu de tout ce qui est en file ; ce n'est pas une réservation de sol.
+       *  Un point d'avant le champ de région n'en a pas, et la ligne se lit par son pays. */
+      regionId: regionOfOutpost(outpost) ?? '',
+      level,
+      rank,
+      finishesAt: null,
+    });
+    await startHead(ctx, player._id, now);
+
+    const written = await ctx.db.get(constructionId);
+    return { finishesAt: written?.finishesAt ?? null, cost, level, rank };
+  },
+});
+
+/** Hors service tant que la borne n'est pas passée, **inclusivement** — la même lecture que la
+ *  couleur (`convex/holding.ts`), pour que les deux ne se contredisent pas d'une milliseconde. */
+const disabledAt = (outpost: Doc<'outposts'>, now: number): boolean =>
+  outpost.disabledUntil !== null && outpost.disabledUntil >= now;
+
+/** La phrase du refus, une par empêchement. `materials` double `debit`, qui refuserait de toute
+ *  façon : elle est là pour que le bouton et la mutation lisent la même règle jusqu'au bout. */
+function refuseRaise(hold: OutpostRaiseHold): never {
+  if (hold.kind === 'maxLevel') fail('MAX_LEVEL_REACHED', { maximum: hold.maximum });
+  if (hold.kind === 'disabled') fail('OUTPOST_DISABLED');
+  if (hold.kind === 'alreadyQueued') fail('OUTPOST_RAISE_QUEUED');
+  fail('INSUFFICIENT_RESOURCE', {
+    resource: hold.resource,
+    needed: hold.needed,
+    available: Math.floor(hold.available),
+  });
+}
+
+/**
  * **Une compagnie d'infanterie, en garnison au quartier général** (décision du 25/08, déplacée
  * le 13/09). Une nation qui ouvre sans rien debout n'a aucune réponse à une colonne qui entre
  * chez elle le premier soir, et une caserne est à trois décisions de là.
@@ -240,8 +321,17 @@ export const finish = internalMutation({
     const season = await playingSeason(ctx, construction.playerId);
     if (season === null) return;
 
+    if (isOutpostWork(construction.building)) {
+      await finishRaise(ctx, construction, season._id);
+      return;
+    }
+
     const buildings = await playerBuildings(ctx, construction.playerId);
-    const standing = buildingAt(buildings, construction.building, construction.regionId);
+    const standing = buildingAt(
+      buildings,
+      canonicalBuildingKey(construction.building),
+      construction.regionId,
+    );
     if (standing) {
       await ctx.db.patch(standing._id, { level: construction.level });
     } else {
@@ -293,6 +383,55 @@ export const finish = internalMutation({
 });
 
 /**
+ * **La fin d'une élévation est le quatrième événement de couleur** (ADR 0020 §6, précision du
+ * 15/09). Un rayon qui passe de 120 à 180 km relie des bâtiments qui ne l'étaient pas — les
+ * siens, et ceux d'en face qu'il déborde — donc c'est la même séquence obligatoire que la
+ * fondation, la désactivation et sa fin : **régler à l'ancienne couleur, écrire, rapporter**.
+ * L'ordre inverse appliquerait la nouvelle couleur rétroactivement aux heures déjà tenues.
+ *
+ * Et le sol neuf du cercle entre dans les relevés, par le même déclencheur que la fondation :
+ * un rayon élargi est une portée de plus, et une portée neuve n'a rien relevé tant qu'un
+ * événement ne le lui a pas demandé — il n'y a pas d'horloge dans ce jeu.
+ */
+async function finishRaise(
+  ctx: MutationCtx,
+  construction: Doc<'constructions'>,
+  seasonId: Id<'seasons'>,
+): Promise<void> {
+  const outpostId = construction.outpostId;
+  const outpost = outpostId === undefined ? null : await ctx.db.get(outpostId);
+  await ctx.db.delete(construction._id);
+  if (outpost === null) return;
+
+  const at = Date.now();
+  const before = await settleBeforeChange(ctx, seasonId, at);
+  await ctx.db.patch(outpost._id, { level: construction.level });
+  await reportChange(ctx, seasonId, before, at);
+
+  const ground = regionOfOutpost(outpost);
+  await surveyFoundation(
+    ctx,
+    seasonId,
+    pointOf(outpost.point),
+    outpostReachKm(construction.level),
+    ground,
+    at,
+  );
+  /** Chez le seul propriétaire : un point qui grandit se **relève** — la portée élargie entre
+   *  dans les relevés de qui regarde — il ne s'annonce pas (ADR 0005). */
+  await ctx.db.insert('notices', {
+    playerId: construction.playerId,
+    at,
+    kind: 'outpostRaised',
+    hostCountry: outpost.hostCountry,
+    regionId: ground,
+    level: construction.level,
+  });
+  await reassessDetection(ctx, seasonId);
+  await startHead(ctx, construction.playerId, at);
+}
+
+/**
  * **The second door.** An entry was accepted against the world as it stood at the enqueue; by
  * the time its turn comes the world may have taken the right back — a region lost, a ceiling
  * that came down, a tier that closed. Nothing then starts on a right that no longer exists:
@@ -311,6 +450,32 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
     const head = (await queueOf(ctx, playerId))[0];
     if (!head || head.finishesAt !== null) return;
 
+    /**
+     * **Une élévation en tête attend la fin d'une désactivation, elle ne s'annule pas** (décision
+     * 3a du 15/09). On ne rénove pas sous le feu, mais on n'a pas non plus perdu le droit de
+     * rénover : le point est toujours là et le chantier est payé. La file s'arrête donc derrière
+     * lui, et il prend son propre rendez-vous à la fin de la désactivation — comme celle-ci prend
+     * le sien (`production.scheduleRestore`). Il n'y a pas d'horloge à interroger.
+     *
+     * Le niveau maximal, lui, est un droit qui a disparu : rien ne rouvrirait cette entrée, donc
+     * elle se rembourse comme un chantier de bâtiment refusé.
+     */
+    if (isOutpostWork(head.building)) {
+      const outpost = head.outpostId === undefined ? null : await ctx.db.get(head.outpostId);
+      if (outpost !== null && !disabledAt(outpost, now) && outpost.level < OUTPOST_MAX_LEVEL) {
+        await runHead(ctx, head, now);
+        return;
+      }
+      if (outpost !== null && disabledAt(outpost, now)) {
+        await ctx.scheduler.runAt(outpost.disabledUntil! + 1, internal.constructions.resume, {
+          playerId,
+        });
+        return;
+      }
+      await refundHead(ctx, playerId, head, now);
+      continue;
+    }
+
     // The head is measured against what stands, and against nothing queued: everything else in
     // the queue is behind it and has not happened.
     const refusal = await refusalFor(
@@ -321,26 +486,52 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
       [],
     );
     if (refusal) {
-      await credit(ctx, playerId, buildCost(head.building, head.level), now);
-      await ctx.db.insert('notices', {
-        playerId,
-        at: now,
-        kind: 'constructionCancelled',
-        building: head.building,
-        regionId: head.regionId,
-      });
-      await ctx.db.delete(head._id);
+      await refundHead(ctx, playerId, head, now);
       continue;
     }
 
-    const finishesAt = now + buildMinutes(head.building, head.level) * 60_000;
-    await ctx.db.patch(head._id, { finishesAt });
-    await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
-      constructionId: head._id,
-    });
+    await runHead(ctx, head, now);
     return;
   }
 }
+
+/** Le chantier part : sa date d'échéance est écrite, et son rendez-vous pris. C'est le seul
+ *  endroit du jeu où un chantier est daté — une entrée en attente ne l'est nulle part. */
+async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number): Promise<void> {
+  const finishesAt = now + buildMinutes(head.building, head.level) * 60_000;
+  await ctx.db.patch(head._id, { finishesAt });
+  await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
+    constructionId: head._id,
+  });
+}
+
+/** L'entrée dont le droit a disparu : remboursée entière, dite au journal, effacée. La dépêche
+ *  nomme la clé telle qu'elle a été payée — `outpost` comprise, que le journal sait lire. */
+async function refundHead(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  head: Doc<'constructions'>,
+  now: number,
+): Promise<void> {
+  await credit(ctx, playerId, buildCost(head.building, head.level), now);
+  await ctx.db.insert('notices', {
+    playerId,
+    at: now,
+    kind: 'constructionCancelled',
+    building: head.building,
+    regionId: head.regionId,
+  });
+  await ctx.db.delete(head._id);
+}
+
+/** **Le rendez-vous qu'une élévation en attente prend pour elle-même** : la désactivation finie,
+ *  la file repart. Idempotent comme `startHead`, donc un second réveil ne coûte rien. */
+export const resume = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    await startHead(ctx, playerId, Date.now());
+  },
+});
 
 /**
  * **The whole of the placement rule, read once.** Both doors call it — the enqueue, where it
@@ -354,10 +545,14 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
 async function refusalFor(
   ctx: QueryCtx,
   player: Doc<'players'>,
-  building: Doc<'constructions'>['building'],
+  building: BuildingKey,
   regionId: string,
-  pledged: ReadonlyArray<Doc<'constructions'>>,
+  queued: ReadonlyArray<Doc<'constructions'>>,
 ): Promise<Refusal | null> {
+  /** **Une élévation d'avant-poste ne réserve aucun sol** (précision du 15/09) : elle n'est pas
+   *  une pose, donc ni la règle « une entrée par région » ni le compte des emplacements ne la
+   *  voient — le client la retire de la même façon (`pledgedBuildings`). */
+  const pledged = queued.filter((entry) => entry.outpostId === undefined);
   const region = regionFacts(regionId);
   if (!region) return { code: 'UNKNOWN_REGION', details: { regionId } };
 

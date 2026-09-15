@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { blockedOn, buildableOn, placementOf, upgradeHold, type Site } from './construction';
+import {
+  blockedOn,
+  buildableOn,
+  outpostRaiseHold,
+  placementOf,
+  upgradeHold,
+  type OutpostRaise,
+  type Site,
+} from './construction';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResourceKey } from './ids';
 import { unlockLevel } from '../../convex/constants';
-import type { Building, BuildSpec, PlayerView } from './player-view';
+import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 
 /** Everything open at a headquarters of 1: the tier is under test on its own, below. */
 const CATALOG = Object.fromEntries(
@@ -303,6 +311,7 @@ describe('what holds a raise back', () => {
       key: 'mine' as const,
       regionId: 'FRA-5325',
       regionName: 'Meurthe-et-Moselle',
+      outpostId: null,
       point: null,
       minutesLeft: 20,
     };
@@ -315,6 +324,7 @@ describe('what holds a raise back', () => {
         id: 'construction-2',
         name: 'Fonderie',
         key: 'foundry' as const,
+        outpostId: null,
         regionId: 'FRA-5328',
         regionName: 'Moselle',
         level: 2,
@@ -457,6 +467,7 @@ describe('placement over the whole estate', () => {
         id: 'construction-1',
         name: 'Ferme',
         key: 'farm',
+        outpostId: null,
         regionId: 'a',
         regionName: 'a',
         point: null,
@@ -474,6 +485,7 @@ describe('placement over the whole estate', () => {
         id: 'construction-2',
         name: 'Ferme',
         key: 'farm' as const,
+        outpostId: null,
         regionId: 'a',
         regionName: 'a',
         level: 1,
@@ -531,4 +543,69 @@ it('offers warehouse alone and keeps depot off the reference shelf', () => {
   expect(keysOn()).toContain('warehouse');
   expect(keysOn()).not.toContain('depot');
   expect(blockedOn(site(), CATALOG).map((option) => option.key)).not.toContain('depot');
+});
+
+/**
+ * **Ce qui empêche de monter un avant-poste** (précision du 15/09 de l'ADR 0020 §10). La
+ * fonction est lue par les deux bouts — le bouton du panneau de garnison et la mutation qui met
+ * en file — donc elle se tient ici, seule, avec ses quatre empêchements et leur ordre.
+ */
+describe('raising an outpost', () => {
+  const STOCKED: Record<ResourceKey, number> = Object.fromEntries(
+    RESOURCES.map((key) => [key, 1000]),
+  ) as Record<ResourceKey, number>;
+
+  const point = (over: Partial<OutpostRaise> = {}): OutpostRaise => ({
+    level: 1,
+    disabled: false,
+    queued: false,
+    stocks: STOCKED,
+    ...over,
+  });
+
+  const COST: Cost = { alloy: 117, coal: 36 };
+
+  it('lets a payable raise through', () => {
+    expect(outpostRaiseHold(point(), COST, 3)).toBeNull();
+  });
+
+  it('names the ceiling at the last level, and the figure with it', () => {
+    expect(outpostRaiseHold(point({ level: 3 }), COST, 3)).toEqual({
+      kind: 'maxLevel',
+      maximum: 3,
+    });
+  });
+
+  /** **On ne rénove pas sous le feu** (décision 3a) : l'état, pas une perte — le point revient. */
+  it('refuses a point a raid has put out of service', () => {
+    expect(outpostRaiseHold(point({ disabled: true }), COST, 3)).toEqual({ kind: 'disabled' });
+  });
+
+  /** Une seconde élévation attendrait un niveau que la première n'a pas atteint, donc tarifé
+   *  faux : une seule à la fois, par point. */
+  it('refuses a second raise while the first is queued', () => {
+    expect(outpostRaiseHold(point({ queued: true }), COST, 3)).toEqual({ kind: 'alreadyQueued' });
+  });
+
+  /** Le premier manque dans l'ordre des ressources, jamais une liste : une facture se paie
+   *  entière ou pas du tout. */
+  it('names the first resource short, and only it', () => {
+    const short = point({ stocks: { ...STOCKED, alloy: 40, coal: 0 } });
+    expect(outpostRaiseHold(short, COST, 3)).toEqual({
+      kind: 'materials',
+      resource: 'coal',
+      needed: 36,
+      available: 0,
+    });
+  });
+
+  /** L'ordre compte : un point au maximum n'a pas de facture à présenter, et un point hors
+   *  service ne doit pas s'entendre reprocher sa caisse. */
+  it('puts the ceiling and the disabling ahead of the bill', () => {
+    const broke = {
+      stocks: Object.fromEntries(RESOURCES.map((key) => [key, 0])),
+    } as Partial<OutpostRaise>;
+    expect(outpostRaiseHold(point({ level: 3, ...broke }), COST, 3)?.kind).toBe('maxLevel');
+    expect(outpostRaiseHold(point({ disabled: true, ...broke }), COST, 3)?.kind).toBe('disabled');
+  });
 });

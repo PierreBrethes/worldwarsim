@@ -155,6 +155,10 @@ function startingLine() {
   unverified.push(
     'SEASON_FORMATS.*.buildingCap* (plafond global du miroir — le jeu compte par site)',
   );
+  /** Dérivé de la table des rayons (`Object.keys(...).length`) et non écrit en clair : le miroir
+   *  lit des nombres dans du texte, pas des expressions. Sa valeur est celle de la table, qui est
+   *  comparée juste à côté. */
+  unverified.push('OUTPOST_MAX_LEVEL (dérivé d’OUTPOST_REACH_KM_BY_LEVEL)');
 }
 
 /**
@@ -265,6 +269,7 @@ scalar('DRY_AMMUNITION_FACTOR', mirror.DRY_AMMUNITION_FACTOR);
 flatTable('OUTPOST_REACH_KM_BY_LEVEL', mirror.OUTPOST_REACH_KM_BY_LEVEL);
 scalar('PLACEMENTS_PER_HQ_LEVEL', mirror.PLACEMENTS_PER_HQ_LEVEL);
 flatTable('OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL', mirror.OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL);
+flatTable('OUTPOST_RAISE_SPEC', mirror.OUTPOST_RAISE_SPEC);
 scalar('MINUTES_PER_1000_KM_ON_LAND', mirror.MINUTES_PER_1000_KM_ON_LAND);
 scalar('REDUCTION_FACTOR', mirror.REDUCTION_FACTOR);
 

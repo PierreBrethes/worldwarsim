@@ -3,11 +3,13 @@ import type { World } from './world';
 import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
+  SEA_GATES,
   buildGrid,
   coastCellsIn,
   computeRoute,
   countryAt,
   isCoastCell,
+  landComponentCount,
   routeMedium,
 } from './routing';
 
@@ -298,6 +300,49 @@ describe('les canaux gravés', () => {
     expect(isCoastCell(grid, [-79.176, 9.236])).toBe(true);
     expect(isCoastCell(grid, [-98.5, 38.5])).toBe(false);
   });
+});
+
+/**
+ * **Une porte maritime ne découpe jamais une poche de terre.** Un détroit ajoute de l'eau là où
+ * il y en a : il ne peut donc pas séparer deux terres qui se touchaient, et un canal, qu'on
+ * franchit, ne le peut pas davantage si on le lit comme de la terre. C'est l'invariant, et c'est
+ * la seule chose qui aurait pris Malacca — sa polyligne courait dans le Perak et le Pahang, sa
+ * gravure détachait Kuala Lumpur de la péninsule, et aucun des trajets nommés ne passait par là.
+ * Les portes se relisent une par une pour que l'échec dise laquelle.
+ */
+describe('les portes maritimes', () => {
+  let world: World | null = null;
+  const worldOf = async () => (world ??= await realWorld());
+
+  it('laisse à la terre exactement les morceaux qu’elle avait', async () => {
+    const bare = landComponentCount(buildGrid(await worldOf(), 0.25, []));
+    for (const gate of SEA_GATES) {
+      const engraved = buildGrid(await worldOf(), 0.25, [gate]);
+      expect(
+        landComponentCount(engraved, gate.kind === 'canal'),
+        `la porte « ${gate.name} » découpe une poche de terre : sa polyligne passe dans les terres, ou le chenal est trop étroit pour le pinceau de trois cellules d'engravePassage.`,
+      ).toBe(bare);
+    }
+    expect(landComponentCount(buildGrid(await worldOf()), true)).toBe(bare);
+  }, 120000);
+
+  /** Kuala Lumpur, la poche qu'on avait détachée, se rejoint à pied depuis Bangkok. */
+  it('laisse une colonne descendre la péninsule malaise', async () => {
+    const route = computeRoute(buildGrid(await worldOf()), [100.5, 13.75], [101.7, 3.14], 'land');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+  }, 120000);
+
+  /**
+   * Et le chenal reste navigable sans qu'on le grave : au pas de cette grille il fait quatre à
+   * douze cellules d'eau. Contourner Sumatra passerait par la Sonde, six degrés au sud.
+   */
+  it('laisse un navire aller de Penang à Singapour par le détroit', async () => {
+    const route = computeRoute(buildGrid(await worldOf()), [100.33, 5.41], [103.85, 1.29], 'naval');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
+    expect(Math.min(...route!.points.map(([, lat]) => lat))).toBeGreaterThan(0);
+  }, 120000);
 });
 
 /**

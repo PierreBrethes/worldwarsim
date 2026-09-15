@@ -45,7 +45,14 @@ import { seasonTroops } from './troops';
  * d'équilibrage, et l'écran mentirait alors sur des chiffres que le jeu ne joue plus.
  */
 const ALLOY: AlloyPrices = {
-  ofLevel: (key, level) => buildCost(key as BuildingKey, level).alloy ?? 0,
+  /**
+   * **Le niveau 1 d'un avant-poste ne coûte pas d'alliage** (précision du 15/09) : on le fonde
+   * en y marchant, et seule l'élévation se paie. Compter son prix de barème ici créditerait le
+   * joueur d'une facture que personne n'a réglée — la ligne rouvrira le jour où
+   * `fondation-en-chantier` la fera payer.
+   */
+  ofLevel: (key, level) =>
+    key === 'outpost' && level <= 1 ? 0 : (buildCost(key as BuildingKey, level).alloy ?? 0),
   ofTroop: (role, tier) => COST_BY_ROLE[role as UnitRole].alloy * (tier === 2 ? TIER_2_FACTOR : 1),
 };
 
@@ -146,24 +153,41 @@ async function writeEdition(
 
   const buildings = await seasonBuildings(ctx, seasonId);
   const disabled = await disabledOutposts(ctx, seasonId, at);
+  const outposts = await seasonOutposts(ctx, seasonId);
   const troops = await seasonTroops(ctx, seasonId);
 
   const lines = [];
   for (const player of players) {
     const scores = scoresOf({
-      buildings: buildings
-        .filter((building) => building.playerId === player._id)
-        .map((building) => ({
-          key: buildingCostKey(building),
-          level: building.level,
-          /** **Le rattachement écrit à la pose, jamais redeviné** (ADR 0020 §10). Une ligne
-           *  d'avant le champ n'en porte aucun et compte donc plein : elle est du sol national
-           *  dans tous les cas qui existent, et le repli part au prochain wipe. */
-          disabled:
-            building.outpostId !== undefined &&
-            building.outpostId !== null &&
-            disabled.has(building.outpostId),
-        })),
+      /**
+       * **L'alliage d'une élévation tombe en industrie** (précision du 15/09). Le territoire est
+       * une *part* — régions tenues sur régions tenues — et de l'alliage n'y a pas d'unité ; ce
+       * qu'un point monté ajoute au théâtre, il l'ajoute déjà par les régions qu'il tient, et
+       * cette part-là le compte. Reste ce qu'il a coûté, qui est de la construction, pesée
+       * comme toute construction : la somme des niveaux gravis.
+       */
+      buildings: [
+        ...outposts
+          .filter((outpost) => outpost.playerId === player._id)
+          .map((outpost) => ({
+            key: 'outpost',
+            level: outpost.level,
+            disabled: disabled.has(outpost._id),
+          })),
+        ...buildings
+          .filter((building) => building.playerId === player._id)
+          .map((building) => ({
+            key: buildingCostKey(building),
+            level: building.level,
+            /** **Le rattachement écrit à la pose, jamais redeviné** (ADR 0020 §10). Une ligne
+             *  d'avant le champ n'en porte aucun et compte donc plein : elle est du sol national
+             *  dans tous les cas qui existent, et le repli part au prochain wipe. */
+            disabled:
+              building.outpostId !== undefined &&
+              building.outpostId !== null &&
+              disabled.has(building.outpostId),
+          })),
+      ],
       troops: troops
         .filter((troop) => troop.playerId === player._id)
         .map((troop) => ({

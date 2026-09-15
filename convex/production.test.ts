@@ -13,6 +13,7 @@ import {
   OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
   PLUNDER_DISABLED_HOURS,
   STORAGE_CAP_PER_LEVEL,
+  buildMinutes,
   outpostReachKm,
 } from './constants';
 import { heldOver } from './holding';
@@ -43,6 +44,10 @@ const PRAHOVA = 'ROU-310'; // pétrole roumain, le sol de personne
 const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
 /** Une région roumaine voisine, dans la portée d'un point de Prahova. */
 const BUZAU = 'ROU-314';
+
+/** À 129 km du point de Prahova : **hors** du rayon d'un avant-poste de niveau 1 (120 km),
+ *  **dans** celui d'un niveau 2 (180 km). C'est toute la mesure du quatrième événement. */
+const CALARASI = 'ROU-129'; // nourriture, roumain
 
 const MIDDAY = Date.UTC(2026, 8, 7, 12);
 const HOUR = 3_600_000;
@@ -484,5 +489,96 @@ describe('a building only produces when its region carries its colour', () => {
     expect((await t.run((ctx) => economyOf(ctx, player._id, Date.now()))).cap.food).toBe(
       BASE_CAP + STORAGE_CAP_PER_LEVEL,
     );
+  });
+});
+
+/**
+ * **La fin d'une élévation est le quatrième événement de couleur** (précision du 15/09 de
+ * l'ADR 0020 §6). Les trois premiers — fondation, désactivation, fin de désactivation — ont
+ * leurs cas au-dessus ; celui-ci a la même obligation et pour la même raison : un rayon qui
+ * passe de 120 à 180 km relie des bâtiments qui ne l'étaient pas, et la coupure de la veille ne
+ * doit pas être rachetée rétroactivement.
+ */
+describe('raising an outpost is a colour event', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('links what the new radius covers, and settles the hours before at the old colour', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    await raise(t, seat, 'farm', CALARASI);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+
+    /** Premier temps : à 129 km, la ferme est hors du rayon de 120 km — donc hors réseau. */
+    const cut = (await view(t, seat)).me.extraction.find((one) => one.regionId === CALARASI);
+    expect(cut?.linked).toBe(false);
+    expect(cut?.perHour).toBe(0);
+
+    /**
+     * Deux heures où la ferme ne rend rien : le seul mouvement de la nourriture est l'entretien
+     * du point, et c'est ce que la couleur de l'époque doit laisser derrière elle.
+     */
+    const drain = (level: number, hours: number) =>
+      (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.food ?? 0) * level * hours;
+    const opening = await stockOf(t, seat, 'food');
+    vi.advanceTimersByTime(2 * HOUR);
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(opening - drain(1, 2), 5);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    /** À la minute exacte du chantier, jamais « tous les minuteurs » : ce qui est mesuré est un
+     *  stock, et une horloge lâchée le pousserait au plafond. */
+    vi.advanceTimersByTime(buildMinutes('outpost', 2) * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    const waited = 2 + buildMinutes('outpost', 2) / 60;
+
+    /** Le rayon a grandi : la ferme entre dedans, elle est reliée, elle rend. */
+    const linked = (await view(t, seat)).me.extraction.find((one) => one.regionId === CALARASI);
+    expect(linked?.linked).toBe(true);
+    expect(linked?.perHour).toBe(EXTRACTION_PER_HOUR.food);
+
+    /**
+     * **Et les heures d'avant ne rapportent rien** : le règlement s'est fait à l'ancienne
+     * couleur avant l'écriture du niveau. Le stock ne porte que l'entretien du niveau 1 — pas un
+     * grain de la ferme, qui ne se met à rendre qu'à partir de cet instant.
+     */
+    const settled = await stockOf(t, seat, 'food');
+    expect(settled).toBeCloseTo(opening - drain(1, waited), 3);
+    vi.advanceTimersByTime(HOUR);
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(
+      settled + EXTRACTION_PER_HOUR.food - drain(2, 1),
+      3,
+    );
+  });
+
+  /** Le sol neuf du cercle entre dans le relevé du propriétaire, par le même déclencheur que la
+   *  fondation : une portée neuve n'a rien relevé tant qu'un événement ne le lui a pas demandé. */
+  it('files the new ground of the circle in the owner’s survey', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    const player = await seatOf(t, seat);
+    const surveyed = async () =>
+      t.run(async (ctx) =>
+        (
+          await ctx.db
+            .query('regionSightings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+            .collect()
+        ).map((row) => row.regionId),
+      );
+
+    expect(await surveyed()).not.toContain(CALARASI);
+
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await surveyed()).toContain(CALARASI);
   });
 });

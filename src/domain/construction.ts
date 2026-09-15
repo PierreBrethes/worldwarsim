@@ -1,6 +1,7 @@
 import {
   BUILDABLE_BUILDINGS,
   RESOURCES,
+  type BuildCostKey,
   type BuildingKey,
   type DepositKey,
   type ResourceKey,
@@ -261,15 +262,24 @@ function reasonFor(key: BuildingKey, deposit: DepositKey | null): BuildReason | 
  */
 export const pledgedWork = (
   view: PlayerView,
-): ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }> =>
+): ReadonlyArray<{
+  readonly key: BuildCostKey;
+  readonly regionId: string;
+  readonly outpostId: string | null;
+}> =>
   view.me.construction === null
     ? view.me.constructionQueue
     : [view.me.construction, ...view.me.constructionQueue];
 
+/** Ce que la file bâtit, l'élévation d'un avant-poste retirée : elle ne pose rien sur un sol,
+ *  donc elle ne prend ni région ni emplacement (précision du 15/09). */
+const pledgedBuildings = (view: PlayerView) =>
+  pledgedWork(view).filter((work) => work.outpostId === null);
+
 /** The regions a construction is aimed at. One entry per region, so this is also the set of
  *  regions no further entry may take (`convex/constructions.ts`). */
 export const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
-  new Set(pledgedWork(view).map((work) => work.regionId));
+  new Set(pledgedBuildings(view).map((work) => work.regionId));
 
 /**
  * How many placements of **one site** the queue has already claimed. A pledge on a bare region
@@ -282,7 +292,7 @@ export const pledgedRegions = (view: PlayerView): ReadonlySet<string> =>
 export const pledgedOn = (view: PlayerView, site: SiteRef | null): number =>
   site === null
     ? 0
-    : pledgedWork(view).filter((work) => {
+    : pledgedBuildings(view).filter((work) => {
         if (view.me.buildings.some((building) => building.regionId === work.regionId)) return false;
         const aimed = view.me.regions.find((region) => region.id === work.regionId)?.site ?? null;
         return aimed !== null && sameSite(aimed, site);
@@ -403,6 +413,63 @@ export function upgradeHold(building: Building, view: PlayerView, now: number): 
   }
   return null;
 }
+
+/**
+ * **Ce qui empêche de monter un avant-poste**, `null` quand rien ne l'empêche — la règle de la
+ * précision du 15/09 (ADR 0020 §10), lue par les deux bouts : le bouton du panneau de garnison
+ * et la mutation qui met en file. Deux copies auraient divergé, et la divergence aurait été un
+ * bouton qui offre ce que le serveur refuse (ADR 0015 : rien n'est grisé, la phrase dit
+ * pourquoi).
+ *
+ * Quatre, et pas une de plus : le niveau maximal, la désactivation — *on ne rénove pas sous le
+ * feu* —, une élévation déjà en file sur ce point, et la facture. Aucune garnison n'est exigée
+ * et aucun palier de quartier général : l'avant-poste est déjà debout, monter n'est pas poser.
+ */
+export type OutpostRaiseHold =
+  | { readonly kind: 'maxLevel'; readonly maximum: number }
+  | { readonly kind: 'disabled' }
+  | { readonly kind: 'alreadyQueued' }
+  | {
+      readonly kind: 'materials';
+      readonly resource: ResourceKey;
+      readonly needed: number;
+      readonly available: number;
+    };
+
+/** L'avant-poste tel que la règle le lit — jamais un document, jamais une vue : les deux bouts
+ *  n'ont pas les mêmes en main, et ils doivent poser la même question. */
+export type OutpostRaise = {
+  readonly level: number;
+  readonly disabled: boolean;
+  /** Une élévation de **ce** point déjà payée et en file. Une seconde attendrait un niveau que
+   *  la première n'a pas encore atteint, donc tarifé faux. */
+  readonly queued: boolean;
+  readonly stocks: Readonly<Record<ResourceKey, number>>;
+};
+
+export function outpostRaiseHold(
+  outpost: OutpostRaise,
+  cost: Cost,
+  maximum: number,
+): OutpostRaiseHold | null {
+  if (outpost.level >= maximum) return { kind: 'maxLevel', maximum };
+  if (outpost.disabled) return { kind: 'disabled' };
+  if (outpost.queued) return { kind: 'alreadyQueued' };
+
+  // Le premier manque dans l'ordre des ressources, jamais une liste : une facture se paie
+  // entière ou pas du tout (`debit`), donc en nommer une est nommer le blocage.
+  for (const resource of RESOURCES) {
+    const needed = cost[resource] ?? 0;
+    if (needed === 0) continue;
+    const available = outpost.stocks[resource];
+    if (available < needed) return { kind: 'materials', resource, needed, available };
+  }
+  return null;
+}
+
+/** Les avant-postes qu'une élévation en file vise déjà — la lecture cliente de `queued`. */
+export const pledgedOutposts = (view: PlayerView): ReadonlySet<string> =>
+  new Set(pledgedWork(view).flatMap((work) => (work.outpostId === null ? [] : [work.outpostId])));
 
 /**
  * Why **no region at all** takes a key — `null` when at least one does. Where `BlockedReason`

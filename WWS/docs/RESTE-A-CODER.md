@@ -235,6 +235,18 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   panneaux en feuille basse, cibles tactiles, clavier virtuel ; la carte et les ordres ne
   bougent pas. Le point 9 de la vision V1 reste exclu. Prompt
   `prompts/code/ready/fenetres-sur-mobile.md`, après `correctifs-ui-discord`.
+- ~~Élévation d'un avant-poste~~ — **livré le 15/09** : l'ADR 0020 §10 porte sa « Précision du
+  15/09 ». `constructions.raiseOutpost` met l'élévation dans la file prépayée (clé de coût
+  `outpost`, `constructions.outpostId`), la règle est pure et lue par les deux bouts
+  (`outpostRaiseHold`), la fin est le **quatrième événement de couleur** (régler, patcher,
+  rapporter) et relève le sol neuf du cercle. Porte : le panneau de garnison du point, où les
+  trois refus « avant-poste plein » mènent maintenant. Non commité.
+- **Fondation en chantier, plus d'entretien** (révision ADR 0020 §10, décision 7a du 15/09) : fonder coûte alliage + durée, un point debout ne consomme rien ; prompt
+  `fondation-en-chantier.md`, après l'élévation.
+- **Zone hors service hachurée** (UX) : rendu seul, §7 intact ; prompt
+  `zone-hors-service-hachuree.md`.
+- **Démolition volontaire** (demande du soir) : rose « raser » + confirmation, QG exclu ;
+  prompt `demolir-un-batiment.md` (5a, 6a : ni remboursement ni retour de dette).
 - **Un relais de niveau 1 = un emplacement** (décision 1a) : la règle de l'ADR 0020 §10 tient,
   la plainte « Allemagne injouable » attend une mesure. Rapport
   `rapports/2026-09-15-retours-discord.md`.

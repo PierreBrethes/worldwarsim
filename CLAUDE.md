@@ -202,7 +202,13 @@ la naval le transite — gravés en mer, Panama coupait les deux Amériques et S
 l'Afrique de l'Asie. Le milieu d'un pas suit dès lors **ce que la recherche a autorisé** et non
 la seule couleur des cellules ; une berge de canal est une côte (Colón, Port-Saïd sont des
 ports) ; la 72a tient telle quelle — on débarque d'une cellule de mer, un canal n'est pas une
-plage. **Le serveur l'appelle** (`convex/routes.ts`, un Dijkstra entre 13
+plage. **Et aucune porte ne découpe une poche de terre** (15/09) : un détroit verse de l'eau là
+où il y en a, donc il ne peut pas séparer deux terres qui se touchaient — `landComponentCount`
+compte les morceaux de terre avant et après chaque gravure, et le test l'exige égal. Il a fait
+sortir deux portes : **Malacca**, tracée dans le Perak et le Pahang, détachait Kuala Lumpur de
+la péninsule ; l'**Øresund**, tracé juste, ne tient pas dans le pinceau de trois cellules
+d'`engravePassage`. Aucune n'était nécessaire — les deux chenaux sont déjà de l'eau au pas de
+la grille. Sept portes restent. **Le serveur l'appelle** (`convex/routes.ts`, un Dijkstra entre 13
 et 125 ms) — pour l'instant en mode terrestre seul ; le droit de passage par les pays neutres
 n'est toujours pas tranché. **La grille n'est plus calculée en ligne** : `buildGrid` reste la
 référence, mais les 1,33 M de cellules sont cuites en plages par `scripts/generate-grid.mjs`
@@ -372,6 +378,18 @@ plusieurs raids n'existe toujours pas, et rien ne les compte — le pillage est 
 en Arabie), et
 **héberge la colonne qui l'a fondé** — `stationedAt` accepte un avant-poste, la colonne y devient
 garnison, et cette garnison est ce qu'une attaque trouve debout.
+
+**Et il se monte, depuis le 15/09** (précision de l'ADR 0020 §10) : une entrée dans la **même**
+file de chantier prépayée (`constructions.raiseOutpost`, clé de coût `outpost` et cible
+`constructions.outpostId` — jamais un seizième bâtiment), un prix calé sur le port, une durée,
+annulable comme le reste. La porte est le **panneau de garnison du point**, seul cadre qui porte
+déjà sa région et son niveau, et les trois phrases « améliorez-le pour en ouvrir un de plus » y
+mènent enfin. La règle sort d'**une** fonction pure lue par le bouton et par la mutation
+(`outpostRaiseHold`, `src/domain/construction.ts`) : niveau maximal, désactivé, déjà en file,
+facture. Sa fin est le **quatrième événement de couleur** — régler à l'ancienne, patcher `level`,
+rapporter (`production.ts`) — puisque le rayon suivant relie des bâtiments qui ne l'étaient pas ;
+elle relève aussi le sol neuf du cercle. **On ne rénove pas sous le feu** : un point désactivé
+refuse, et un chantier déjà en file l'attend sans s'annuler.
 
 **Le quartier général se pose, il n'est plus planté — 13/09/2026** (décision 1b, révision des
 ADR 0015 et 0017 §2). Il est la **première dette du socle** (`{ key: 'hq', deposit: null }`,

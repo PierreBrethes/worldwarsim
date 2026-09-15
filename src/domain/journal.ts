@@ -210,6 +210,18 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    /** Encre normale : un point qui monte est une nouvelle du joueur, pas un événement qu'il
+     *  subit — et personne d'autre ne la lit. */
+    case 'outpostRaised':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'outpostRaised',
+        text: said.outpostRaised(
+          notice.level,
+          notice.regionName ?? countryLabel(notice.hostCountry),
+        ),
+      };
     /** **Désactivé, jamais pris** (ADR 0004) — critical, because it is the one thing on the board
      *  that stops paying without the player having done anything. */
     case 'outpostDisabled':

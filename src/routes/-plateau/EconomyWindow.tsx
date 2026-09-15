@@ -16,6 +16,7 @@ import { useClock } from '@/shell/clock';
 import {
   BUILDINGS,
   DEPOSITS,
+  isOutpostWork,
   type BuildingKey,
   type DepositKey,
   type ResourceKey,
@@ -62,12 +63,16 @@ export function EconomyWindow({
   seat,
   focused,
   onClose,
+  onRaiseOutpost,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
   seat: Seat;
   /** The building whose line the window was opened on, `null` when it was opened bare. */
   focused: string | null;
+  /** **Le remède d'un point plein mène à sa porte** (précision du 15/09) : la fenêtre se ferme
+   *  et le panneau du point s'ouvre, où l'élévation se commande. */
+  onRaiseOutpost: (outpostId: string) => void;
 }) {
   const now = useClock();
   // One reading of the placement rule for the whole window: the chart, the projection and the
@@ -169,7 +174,16 @@ export function EconomyWindow({
             <UpkeepFoot view={view} />
           </div>
 
-          <HeadquartersColumn view={view} seat={seat} now={now} focused={focused} />
+          <HeadquartersColumn
+            view={view}
+            seat={seat}
+            now={now}
+            focused={focused}
+            onRaiseOutpost={(outpostId) => {
+              onClose();
+              onRaiseOutpost(outpostId);
+            }}
+          />
         </div>
       </div>
     </FloatingWindow>
@@ -233,7 +247,9 @@ function RunningWork({ view, seat, now }: { view: PlayerView; seat: Seat; now: n
   return (
     <div className="flex shrink-0 flex-wrap items-stretch border-b-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)]">
       <div className="flex min-w-[380px] flex-1 items-center gap-[14px] px-4 py-3">
-        <BuildingPlate building={running.key} height={38} />
+        {/* Une élévation d'avant-poste n'a pas de planche : ce n'est pas un bâtiment, et lui en
+            prêter une le rangerait dans une famille où il n'est pas (précision du 15/09). */}
+        {isOutpostWork(running.key) ? null : <BuildingPlate building={running.key} height={38} />}
         <div className="min-w-0 flex-1">
           <span className="eyebrow block">{fr.economy.constructionHeader}</span>
           <div className="mt-[3px] flex flex-wrap items-baseline gap-x-[10px]">
@@ -293,7 +309,7 @@ function QueuedWorks({
           <span className="w-[22px] shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
             {fr.economy.queueRank(index + 2)}
           </span>
-          <BuildingPlate building={entry.key} height={22} />
+          {isOutpostWork(entry.key) ? null : <BuildingPlate building={entry.key} height={22} />}
           <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--ink)]">
             {entry.name}{' '}
             <span className="text-[11.5px] text-[var(--ink-soft)]">{entry.regionName}</span>
@@ -1009,7 +1025,9 @@ function HeadquartersColumn({
   seat,
   now,
   focused,
+  onRaiseOutpost,
 }: {
+  onRaiseOutpost: (outpostId: string) => void;
   view: PlayerView;
   seat: Seat;
   now: number;
@@ -1069,7 +1087,7 @@ function HeadquartersColumn({
         </div>
       )}
 
-      <OutpostBudgets view={view} />
+      <OutpostBudgets view={view} onRaiseOutpost={onRaiseOutpost} />
 
       <UnlinkedSites view={view} />
     </div>
@@ -1114,11 +1132,15 @@ function SiteBudget({
   site,
   label,
   relief,
+  onRaise = null,
 }: {
   view: PlayerView;
   site: SiteRef;
   label: string;
   relief: boolean;
+  /** `null` pour le sol national : ce qui l'élargit est le quartier général, qui a sa ligne
+   *  ailleurs — seul un avant-poste a une porte à ouvrir ici. */
+  onRaise?: (() => void) | null;
 }) {
   const held = view.me.siteSlots.find((budget) => sameSite(budget.site, site));
   const total = held?.total ?? 0;
@@ -1170,18 +1192,34 @@ function SiteBudget({
           {fr.economy.budgetFree(free)}
         </span>
       </span>
-      {said !== null && (
-        <span className="max-w-[34ch] text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)]">
-          {said}
-        </span>
-      )}
+      {said !== null &&
+        (onRaise === null ? (
+          <span className="max-w-[34ch] text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)]">
+            {said}
+          </span>
+        ) : (
+          /* La phrase promettait un geste ; depuis le 15/09 il existe, donc elle y mène. */
+          <button
+            type="button"
+            onClick={onRaise}
+            className="max-w-[34ch] cursor-pointer text-right text-[10px] leading-[1.35] normal-case text-[var(--ink-quiet)] underline decoration-dotted underline-offset-2 hover:text-[var(--ink)]"
+          >
+            {said}
+          </button>
+        ))}
     </span>
   );
 }
 
 /** One line per outpost, in the headquarters column. A point is a site like the home ground, and
  *  what it carries is its level — which is what makes raising one a legible decision. */
-function OutpostBudgets({ view }: { view: PlayerView }) {
+function OutpostBudgets({
+  view,
+  onRaiseOutpost,
+}: {
+  view: PlayerView;
+  onRaiseOutpost: (outpostId: string) => void;
+}) {
   if (view.me.outposts.length === 0) return null;
   return (
     <div className="flex flex-col items-end gap-[4px] border-t border-[rgba(42,33,24,.35)] px-4 py-[9px]">
@@ -1192,6 +1230,7 @@ function OutpostBudgets({ view }: { view: PlayerView }) {
           site={{ outpostId: outpost.id }}
           label={fr.economy.budgetOutpost(rank + 1, outpost.level)}
           relief={false}
+          onRaise={outpost.atMaxLevel ? null : () => onRaiseOutpost(outpost.id)}
         />
       ))}
     </div>

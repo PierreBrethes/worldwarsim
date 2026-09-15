@@ -1,7 +1,9 @@
 import { fr } from '@/i18n/fr';
+import { outpostRaiseHold, pledgedOutposts, slotsOn } from './construction';
 import { produces } from './economy';
+import type { ResourceKey } from './ids';
 import type { LonLat } from './geo';
-import type { PlayerView, TroopStation, TroopView } from './player-view';
+import { currentStock, type PlayerView, type TroopStation, type TroopView } from './player-view';
 import { PROJECTION_BY_DOMAIN, marchingTroopIds, stationKeyOf } from './troops';
 import { stationNames, type StationNames } from './station-name';
 
@@ -20,6 +22,7 @@ export type NextActionKind =
   | 'idleSite'
   | 'idleBarracks'
   | 'unlinkedSites'
+  | 'raiseOutpost'
   | 'troopWithoutOrder'
   | 'unsupplied'
   | 'freeSlot';
@@ -41,6 +44,10 @@ export type NextActionTarget =
    *  seule destination, celle du clic gauche (59a, 61a). Le point n'est pas porté ici : le
    *  plateau sait cadrer un bâtiment par son marqueur, et un second point diverge. */
   | { readonly kind: 'site'; readonly buildingId: string }
+  /** Un avant-poste : la carte recadre son mât **et** son panneau de garnison s'ouvre — la porte
+   *  de l'élévation est là et nulle part ailleurs (précision du 15/09). Même grammaire que
+   *  `site`, pour une adresse qui n'est pas un bâtiment. */
+  | { readonly kind: 'outpost'; readonly outpostId: string }
   | { readonly kind: 'unfold' };
 
 export type NextAction = {
@@ -78,6 +85,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
   return [
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
+    ...raiseOutpostLines(view),
     ...idleSiteLine(view),
     ...idleProjectionLines(view),
     ...troopsWithoutOrder(view, standing, names),
@@ -136,6 +144,53 @@ export function unlinkedProducers(
   return view.me.buildings.filter(
     (building) => produces(building.key) && cut.has(building.regionId),
   );
+}
+
+/**
+ * **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09 de l'ADR 0020 §10). C'est
+ * la seule attente que le jeu promettait déjà par écrit — « améliorez-le pour en ouvrir un de
+ * plus » — sans qu'aucun geste ne la lève : le texte promettait, le jeu ne tenait pas.
+ *
+ * Deux conditions, et elles sont celles de la promesse : le point est **plein** (sinon il n'y a
+ * rien à ouvrir) et rien ne retient l'élévation — `outpostRaiseHold`, la même fonction que le
+ * bouton et la mutation. Le prix vient de la vue, jamais d'un barème recopié ici.
+ */
+function raiseOutpostLines(view: PlayerView): ReadonlyArray<NextAction> {
+  const queued = pledgedOutposts(view);
+  const stocks = Object.fromEntries(
+    Object.entries(view.me.resources).map(([key, resource]) => [
+      key,
+      currentStock(resource, view.loadedAt, view.loadedAt),
+    ]),
+  ) as Record<ResourceKey, number>;
+
+  return view.me.outposts
+    .filter((outpost) => {
+      if (!outpost.isMine || outpost.atMaxLevel) return false;
+      const budget = slotsOn(view, { outpostId: outpost.id });
+      if (budget.taken < budget.total) return false;
+      return (
+        outpostRaiseHold(
+          {
+            level: outpost.level,
+            disabled: outpost.disabledMinutesLeft !== null,
+            queued: queued.has(outpost.id),
+            stocks,
+          },
+          outpost.nextLevelCost,
+          outpost.level + 1,
+        ) === null
+      );
+    })
+    .map((outpost) => ({
+      id: `raiseOutpost:${outpost.id}`,
+      kind: 'raiseOutpost' as const,
+      label: fr.nextActions.raiseOutpost(
+        view.me.regions.find((region) => region.id === outpost.regionId)?.name ??
+          outpost.hostCountry,
+      ),
+      target: { kind: 'outpost' as const, outpostId: outpost.id },
+    }));
 }
 
 /** La tête de file est la seule entrée datée : sans elle, rien ne se bâtit, quelle que soit la

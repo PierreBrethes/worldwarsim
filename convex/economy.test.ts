@@ -21,7 +21,9 @@ import {
   HQ_LEVEL_AT_LAUNCH,
   MAX_HQ_LEVEL,
   STARTING_KIT,
+  OUTPOST_MAX_LEVEL,
   OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
+  outpostReachKm,
   PLACEMENTS_PER_HQ_LEVEL,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
@@ -2289,5 +2291,198 @@ describe('legacy depot compatibility', () => {
     await expect(
       t.mutation(api.constructions.cancel, { ...seat, constructionId: running.id }),
     ).rejects.toThrow('CONSTRUCTION_ALREADY_STARTED');
+  });
+});
+
+/**
+ * **Un avant-poste se monte, comme un bâtiment** (précision du 15/09 de l'ADR 0020 §10). Le
+ * niveau existait au schéma depuis toujours et rien ne l'écrivait : la fiche d'un point plein
+ * disait « améliorez-le » sans qu'aucun geste ne le permette.
+ *
+ * Ce qui est sous test ici est la **file** — le débit, le tour, le refus, le remboursement. Ce
+ * que le niveau change une fois acquis (la couleur, la portée, le relevé) est mesuré là où ces
+ * choses vivent (`production.test.ts`).
+ */
+describe('raising an outpost', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 8, 15, 12));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const PRAHOVA = 'ROU-310';
+  const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
+
+  /** Planté à la main : ce qui est sous test est l'élévation, jamais la marche qui fonde. */
+  const plant = async (t: ReturnType<typeof boot>, seat: Seat, level = 1) =>
+    t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: { lon: PRAHOVA_POINT[0], lat: PRAHOVA_POINT[1] },
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level,
+        specialization: 'relay',
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+
+  const levelOf = async (t: ReturnType<typeof boot>, outpostId: Id<'outposts'>) =>
+    (await t.run(async (ctx) => ctx.db.get(outpostId)))!.level;
+
+  const alloyOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
+
+  /** Cas 1 et 2 : l'ordre entre dans la file, il est débité, et à son terme le point porte un
+   *  niveau, un emplacement et le rayon de plus. */
+  it('bills the raise at the enqueue and hands the level, the placement and the reach', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+    const opening = await alloyOf(t, seat);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    expect(await alloyOf(t, seat)).toBe(opening - (buildCost('outpost', 2).alloy ?? 0));
+
+    const queued = await t.query(api.view.playerView, seat);
+    expect(queued.me.construction).toMatchObject({ key: 'outpost', outpostId });
+    expect(await levelOf(t, outpostId)).toBe(1);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const done = await t.query(api.view.playerView, seat);
+    expect(await levelOf(t, outpostId)).toBe(2);
+    expect(done.me.construction).toBeNull();
+    expect(done.me.outposts[0]).toMatchObject({ id: outpostId, level: 2 });
+    /** L'emplacement de plus, lu là où toute la pose le lit : le budget du site. */
+    expect(done.me.siteSlots.find((budget) => budget.site.outpostId === outpostId)?.total).toBe(2);
+  });
+
+  /** **Une élévation n'est pas un bâtiment** : elle ne prend pas la région de son point, donc
+   *  elle n'y interdit rien — ni un chantier, ni un emplacement. */
+  it('claims no ground: a construction on the point’s own region still goes through', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: PRAHOVA }),
+    ).resolves.toBeDefined();
+  });
+
+  /** Cas 3 : au dernier niveau il n'y a plus rien à offrir, et le refus nomme son plafond. */
+  it('refuses the raise at the last level', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat, OUTPOST_MAX_LEVEL);
+
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+    ).rejects.toThrow('MAX_LEVEL_REACHED');
+  });
+
+  /** Cas 4 : **on ne rénove pas sous le feu**, et une file déjà lancée **attend** — elle n'est
+   *  ni annulée ni remboursée : le point revient, et le chantier est payé. */
+  it('refuses a raise on a disabled point, and makes a queued one wait for it', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+    const disabledUntil = Date.now() + 4 * 3_600_000;
+
+    await t.run(async (ctx) => ctx.db.patch(outpostId, { disabledUntil }));
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+    ).rejects.toThrow('OUTPOST_DISABLED');
+
+    // Remise en service, mise en file, puis désactivation d'un point dont le chantier est en
+    // tête et pas encore parti : ce que la file fait alors est attendre.
+    await t.run(async (ctx) => ctx.db.patch(outpostId, { disabledUntil: null }));
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.run(async (ctx) => {
+      const head = (await ctx.db.query('constructions').collect())[0]!;
+      await ctx.db.patch(head._id, { finishesAt: null });
+      await ctx.db.patch(outpostId, { disabledUntil });
+    });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }).catch(() => null);
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      await ctx.runMutation(internal.constructions.resume, { playerId: player._id });
+    });
+
+    const waiting = await t.run(async (ctx) => ctx.db.query('constructions').collect());
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]!.finishesAt).toBeNull();
+    expect(await levelOf(t, outpostId)).toBe(1);
+  });
+
+  /** Cas 5 : rien n'a commencé, donc tout se rend — et le niveau n'a pas bougé. */
+  it('refunds a cancelled raise whole and leaves the level alone', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+    // Un chantier de bâtiment prend la tête : derrière lui, l'élévation n'a pas commencé.
+    await t.mutation(api.constructions.start, { ...seat, building: 'warehouse', regionId: JURA });
+    const opening = await alloyOf(t, seat);
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+
+    const queued = await t.query(api.view.playerView, seat);
+    const entry = queued.me.constructionQueue[0]!;
+    expect(entry).toMatchObject({ key: 'outpost', outpostId });
+
+    await t.mutation(api.constructions.cancel, { ...seat, constructionId: entry.id });
+    expect(await alloyOf(t, seat)).toBe(opening);
+    expect(await levelOf(t, outpostId)).toBe(1);
+  });
+
+  /** Cas 6 : une seconde élévation attendrait un niveau que la première n'a pas atteint, donc
+   *  tarifé faux — une seule à la fois, par point. */
+  it('refuses a second raise of the same point while the first is queued', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+    ).rejects.toThrow('OUTPOST_RAISE_QUEUED');
+  });
+
+  /** La dépêche du propriétaire, et de lui seul : un point qui grandit se relève, il ne
+   *  s'annonce pas (ADR 0005). */
+  it('files the dispatch with the region and the level, and nothing at the neighbour', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'alloy', 1000);
+    await fill(t, seat, 'coal', 1000);
+    const outpostId = await plant(t, seat);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const filed = await t.run(async (ctx) => ctx.db.query('notices').collect());
+    const raised = filed.filter((notice) => notice.kind === 'outpostRaised');
+    expect(raised).toHaveLength(1);
+    expect(raised[0]).toMatchObject({ regionId: PRAHOVA, level: 2, hostCountry: 'ROU' });
+  });
+
+  /** Le rayon suit le niveau : c'est la table qui le dit, et rien ici ne la recopie. */
+  it('opens the next radius, straight out of the level table', async () => {
+    expect(outpostReachKm(2)).toBeGreaterThan(outpostReachKm(1));
   });
 });

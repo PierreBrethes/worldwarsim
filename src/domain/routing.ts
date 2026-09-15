@@ -129,6 +129,21 @@ const isWaterType = (type: number): boolean => type === SEA || type === CANAL;
  *
  * `kind` says what the engraving writes: a strait is sea, a canal is a canal, and that is the
  * whole of the difference — the hulls transit both, the columns cross only the second.
+ *
+ * **On n'en grave que là où elles servent**, et une porte de détroit ne peut jamais séparer deux
+ * terres qui se touchaient : elle verse de l'eau là où il y en a déjà. `landComponentCount` le
+ * vérifie, et il a fait sortir deux portes le 15/09.
+ *
+ * **Malacca** se traçait dans les terres — `[101.3, 4.4]` est dans le Perak, `[102.5, 3.0]` dans
+ * le Pahang, la côte est un degré plus à l'ouest — et sa gravure détachait Kuala Lumpur du reste
+ * de la péninsule, injoignable à pied depuis Bangkok. **L'Øresund** se traçait juste, mais le son
+ * ne fait qu'une cellule de large quand le pinceau d'`engravePassage` en fait trois : aucun
+ * tracé, même centré, ne le peint sans manger une rive.
+ *
+ * Aucune des deux n'était nécessaire : au pas de cette grille le chenal de Malacca fait quatre à
+ * douze cellules d'eau — Colombo rejoint Singapour et Madras Hong Kong par le détroit — et le
+ * Kattegat rejoint la Baltique. Une porte qui ne peut que nuire et ne sert à rien ne se retrace
+ * pas, elle s'enlève.
  */
 export const SEA_GATES: ReadonlyArray<{
   name: string;
@@ -149,15 +164,6 @@ export const SEA_GATES: ReadonlyArray<{
     passage: [
       [-5.9, 35.9],
       [-5.2, 36.0],
-    ],
-  },
-  {
-    name: 'Øresund',
-    kind: 'strait',
-    passage: [
-      [12.3, 56.1],
-      [12.9, 55.5],
-      [12.7, 55.0],
     ],
   },
   {
@@ -198,17 +204,6 @@ export const SEA_GATES: ReadonlyArray<{
     ],
   },
   {
-    name: 'Malacca',
-    kind: 'strait',
-    passage: [
-      [100.0, 6.2],
-      [101.3, 4.4],
-      [102.5, 3.0],
-      [103.6, 1.5],
-      [104.2, 1.2],
-    ],
-  },
-  {
     name: 'Bab-el-Mandeb',
     kind: 'strait',
     passage: [
@@ -229,7 +224,17 @@ export type RouteGrid = {
   readonly outline: World['outline'];
 };
 
-export function buildGrid(world: World, step = 0.25): RouteGrid {
+/**
+ * **Les portes se donnent** parce qu'un raster sans elles est une question qu'on pose : une porte
+ * de détroit ajoute de l'eau *là où il y en a* et ne peut donc jamais séparer deux terres qui se
+ * touchaient. `landComponentCount` compare les deux rasters et c'est ce qui manquait le jour où
+ * Malacca, tracée dans les terres, a détaché Kuala Lumpur de la péninsule.
+ */
+export function buildGrid(
+  world: World,
+  step = 0.25,
+  gates: typeof SEA_GATES = SEA_GATES,
+): RouteGrid {
   const width = Math.ceil((world.sphere.maxX - world.sphere.minX) / step);
   const height = Math.ceil((world.sphere.maxY - world.sphere.minY) / step);
   const cells = new Uint8Array(width * height);
@@ -246,7 +251,7 @@ export function buildGrid(world: World, step = 0.25): RouteGrid {
 
   fillLand(world, step, width, height, cells);
 
-  for (const gate of SEA_GATES) {
+  for (const gate of gates) {
     engravePassage(
       gate.passage,
       gate.kind === 'canal' ? CANAL : SEA,
@@ -280,6 +285,45 @@ function rowEdges(cells: Uint8Array, width: number, height: number): Int32Array 
     }
   }
   return edges;
+}
+
+/**
+ * **Combien de morceaux de terre ce raster porte**, au 8-voisinage et avec l'enroulement
+ * est-ouest — la même adjacence que la recherche, parce que c'est elle qui décide si une colonne
+ * passe. Un continent, une île, une poche : un morceau chacun.
+ *
+ * Elle existe pour l'invariant des portes maritimes et pour lui seul : un détroit verse de l'eau
+ * là où il y en a déjà, donc **il ne peut pas changer ce nombre**. Malacca le changeait — sa
+ * polyligne courait dans le Perak et le Pahang, à un degré de la côte, et sa gravure détachait
+ * Kuala Lumpur du reste de la péninsule. Aucun trajet nommé ne l'a vue ; un invariant la voit.
+ *
+ * `canalIsLand` lit les canaux comme de la terre : franchissables, ils ne comptent pas dans le
+ * décompte des détroits, mais ils n'ont pas plus le droit de découper une poche.
+ */
+export function landComponentCount(grid: RouteGrid, canalIsLand = false): number {
+  const walkable = (cell: number): boolean =>
+    grid.cells[cell] === LAND || (canalIsLand && grid.cells[cell] === CANAL);
+  const seen = new Uint8Array(grid.cells.length);
+  const stack: number[] = [];
+  const around: number[] = [];
+  let components = 0;
+  for (let cell = 0; cell < grid.cells.length; cell++) {
+    if (seen[cell] === 1 || !walkable(cell)) continue;
+    components += 1;
+    seen[cell] = 1;
+    stack.push(cell);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      const count = neighbors(grid, current, around);
+      for (let i = 0; i < count; i++) {
+        const neighbor = around[i]!;
+        if (seen[neighbor] === 1 || !walkable(neighbor)) continue;
+        seen[neighbor] = 1;
+        stack.push(neighbor);
+      }
+    }
+  }
+  return components;
 }
 
 /**

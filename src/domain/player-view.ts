@@ -1,5 +1,6 @@
 import type { LonLat } from './geo';
 import type {
+  BuildCostKey,
   BuildingKey,
   DepositKey,
   Detector,
@@ -249,6 +250,15 @@ export type OutpostView = {
    * lisent la même réponse.
    */
   readonly specializationLocked: boolean;
+  /**
+   * **Ce que monter ce point coûterait**, servi comme celui d'un bâtiment (`Building`) et pour
+   * la même raison : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`. Un
+   * point au niveau maximal n'a pas de niveau suivant — `atMaxLevel` le dit plutôt qu'un prix
+   * qu'aucun geste ne paiera (précision du 15/09).
+   */
+  readonly nextLevelCost: Cost;
+  readonly nextLevelMinutes: number;
+  readonly atMaxLevel: boolean;
 };
 
 /**
@@ -476,7 +486,10 @@ export type HomeSlotRelief = { readonly nextHqLevel: number; readonly nextSlots:
 export type RunningWork = {
   readonly id: string;
   readonly name: string;
-  readonly key: BuildingKey;
+  readonly key: BuildCostKey;
+  /** **Le point que cette ligne monte**, `null` pour un chantier de bâtiment (précision du
+   *  15/09). Il est ce qui distingue les deux sortes d'entrées d'une seule file. */
+  readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
   /** The quay a port was ordered on — the crane stands there from the queue, not from the
@@ -488,7 +501,8 @@ export type RunningWork = {
 export type QueuedWork = {
   readonly id: string;
   readonly name: string;
-  readonly key: BuildingKey;
+  readonly key: BuildCostKey;
+  readonly outpostId: string | null;
   readonly regionId: string;
   readonly regionName: string;
   readonly level: number;
@@ -516,6 +530,7 @@ export type DispatchKind =
   | 'column'
   | 'stalled'
   | 'outpostFounded'
+  | 'outpostRaised'
   | 'outpostDisabled'
   | 'sighting'
   /** Un camp relevé : la même encre que le fil relevé, et un mot distinct pour que le tampon de
@@ -603,6 +618,18 @@ export type Notice =
       readonly at: number;
       readonly hostCountry: string;
       readonly specialization: Specialization;
+    }
+  /**
+   * **Un avant-poste qui a grandi** (précision du 15/09). Chez le seul propriétaire : ce qu'un
+   * point élargi change se **relève** — sa portée entre dans celles de qui regarde — il ne
+   * s'annonce pas (ADR 0005).
+   */
+  | {
+      readonly kind: 'outpostRaised';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly regionName: string | null;
+      readonly level: number;
     }
   /**
    * **Ce que la couleur a coupé, et rendu** (ADR 0020 §6). Le compte de sites, jamais leur

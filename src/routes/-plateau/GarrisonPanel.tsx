@@ -2,8 +2,24 @@ import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { outpostReachKm, RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
-import { fr } from '@/i18n/fr';
+import {
+  outpostReachKm,
+  OUTPOST_MAX_LEVEL,
+  RELAY_SPEED_MULTIPLIER,
+} from '../../../convex/constants';
+import { fr, noBuilding } from '@/i18n/fr';
+import { PRODUCER_OF } from '@/domain/economy';
+import { asDuration } from '@/domain/duration';
+import { RESOURCES, type ResourceKey } from '@/domain/ids';
+import {
+  availabilityOf,
+  outpostRaiseHold,
+  pledgedOutposts,
+  type OutpostRaiseHold,
+} from '@/domain/construction';
+import { currentStock, type OutpostView } from '@/domain/player-view';
+import { ResourcePlate } from '@/emblems/Plate';
+import { useClock } from '@/shell/clock';
 import { marchingTroopIds, stationKeyOf, troopsAt, PROJECTION_BY_DOMAIN } from '@/domain/troops';
 import type { BuildingKey } from '@/domain/ids';
 import type { PlayerView, TroopStation } from '@/domain/player-view';
@@ -157,6 +173,10 @@ export function GarrisonPanel({
           />
         </div>
 
+        {outpost !== null && !view.me.defeated && (
+          <OutpostRaise view={view} seat={seat} outpost={outpost} />
+        )}
+
         {/**
          * **Le métier du point se règle sur le point, une fois planté** (décision Pierre, 29/08).
          * Il se choisissait au départ d'une colonne, puis sur la pile qui allait fonder — deux
@@ -226,5 +246,142 @@ export function GarrisonPanel({
         )}
       </Panel>
     </Draggable>
+  );
+}
+
+/**
+ * **Monter le point, là où on lit son niveau** (précision du 15/09 de l'ADR 0020 §10, décision
+ * 1a). Il n'y a pas de modale de site pour un avant-poste — il ne forme rien — et son en-tête
+ * porte déjà sa région et son niveau : la porte de l'élévation ne pouvait être nulle part
+ * ailleurs. C'est le même geste que l'`UpgradeControl` d'un bâtiment, et le même contrat : **le
+ * bouton n'est jamais absent, seulement empêché et expliqué** (ADR 0015) — sauf pour un
+ * observateur, qui n'est pas empêché mais ne décide plus (décision du 31/08, d'où le retrait au
+ * niveau de l'appelant).
+ *
+ * L'empêchement sort de la **même fonction** que la mutation (`outpostRaiseHold`) : deux
+ * lectures auraient fini par offrir ce que le serveur refuse.
+ */
+function OutpostRaise({
+  view,
+  seat,
+  outpost,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  outpost: OutpostView;
+}) {
+  const now = useClock();
+  const raise = useMutation(api.constructions.raiseOutpost);
+  const [error, setError] = useState<string | null>(null);
+
+  const next = outpost.level + 1;
+  /** Le prix et la durée viennent de la vue, jamais d'un second barème ici : c'est le contrat
+   *  de l'élévation d'un bâtiment (`UpgradeControl`), et le seul qui ne puisse pas diverger. */
+  const cost = outpost.nextLevelCost;
+  const stocks = Object.fromEntries(
+    RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
+  ) as Record<ResourceKey, number>;
+  const hold = outpostRaiseHold(
+    {
+      level: outpost.level,
+      disabled: outpost.disabledMinutesLeft !== null,
+      queued: pledgedOutposts(view).has(outpost.id),
+      stocks,
+    },
+    cost,
+    OUTPOST_MAX_LEVEL,
+  );
+  const held = hold === null ? null : raiseHoldText(hold);
+
+  return (
+    <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
+      <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[4px]">
+        <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {fr.garrison.raiseHeader}
+        </span>
+        {hold?.kind !== 'maxLevel' && (
+          <>
+            <span
+              className="flex items-center gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
+              style={{ color: hold?.kind === 'materials' ? 'var(--critical)' : 'var(--ink)' }}
+            >
+              {RESOURCES.filter((key) => (cost[key] ?? 0) > 0).map((key) => (
+                <span key={key} className="flex items-center gap-[4px]">
+                  <ResourcePlate resource={key} height={18} />
+                  {cost[key]}
+                </span>
+              ))}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+              {asDuration(outpost.nextLevelMinutes)}
+            </span>
+          </>
+        )}
+        <button
+          type="button"
+          disabled={held !== null}
+          title={fr.garrison.raiseTitle(next)}
+          onClick={() => {
+            setError(null);
+            raise({ ...seat, outpostId: outpost.id as Id<'outposts'> }).catch((problem: unknown) =>
+              handleError(problem, setError),
+            );
+          }}
+          className="ml-auto cursor-pointer border border-[var(--ink)] px-[10px] py-[4px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
+        >
+          {fr.garrison.raiseAction} {fr.garrison.raiseToLevel(next)}
+        </button>
+      </div>
+      {/* Ce que le niveau ouvre, en chiffres : un emplacement de plus et le rayon suivant. Sans
+          eux « monter au niveau 2 » n'achète rien de lisible. */}
+      {hold?.kind !== 'maxLevel' && (
+        <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+          {fr.garrison.raiseCarries(next, outpostReachKm(next))}
+        </p>
+      )}
+      {held !== null && (
+        <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">{held}</p>
+      )}
+      {hold?.kind === 'materials' && (
+        <RaiseAvailability hold={hold} view={view} stock={stocks[hold.resource]} />
+      )}
+      {error !== null && <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>}
+    </div>
+  );
+}
+
+/** Une phrase par empêchement. La facture se dit déjà en chiffres au-dessus, en encre critique :
+ *  la répéter en toutes lettres serait la dire deux fois. */
+const raiseHoldText = (hold: OutpostRaiseHold): string | null =>
+  hold.kind === 'maxLevel'
+    ? fr.garrison.raiseAtMaximum(hold.maximum)
+    : hold.kind === 'disabled'
+      ? fr.garrison.raiseDisabled
+      : hold.kind === 'alreadyQueued'
+        ? fr.garrison.raiseQueued
+        : null;
+
+/** **Quand la matière sera là** — la même ligne que l'élévation d'un bâtiment, et la même
+ *  raison : un refus qui se date est un plan, un refus qui compte est un mur. */
+function RaiseAvailability({
+  hold,
+  view,
+  stock,
+}: {
+  hold: Extract<OutpostRaiseHold, { kind: 'materials' }>;
+  view: PlayerView;
+  stock: number;
+}) {
+  const when = availabilityOf(hold.needed, view.me.resources[hold.resource], stock);
+  if (when.kind === 'now') return null;
+  return (
+    <p
+      className="mt-[4px] text-[10.5px] leading-[1.4]"
+      style={{ color: when.kind === 'never' ? 'var(--critical)' : 'var(--ink-soft)' }}
+    >
+      {when.kind === 'inMinutes'
+        ? fr.upgrade.availableIn(asDuration(when.minutes))
+        : fr.upgrade.never(noBuilding(PRODUCER_OF[hold.resource]))}
+    </p>
   );
 }

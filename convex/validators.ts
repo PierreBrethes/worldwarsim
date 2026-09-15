@@ -45,6 +45,13 @@ export const BUILDING_KEY = v.union(
   v.literal('depot'), // Persisted buildings, queues and notices remain readable.
 );
 
+/**
+ * **Ce qu'une ligne de file peut tarifer** : un bâtiment, ou l'élévation d'un avant-poste
+ * (précision du 15/09). `outpost` n'est pas un seizième bâtiment — aucune table de pose ne le
+ * connaît — et c'est `constructions.outpostId` qui dit *lequel* (`schema.ts`).
+ */
+export const BUILD_COST_KEY = v.union(BUILDING_KEY, v.literal('outpost'));
+
 export const SURVEYED_INSTALLATION = v.object({
   buildingId: v.id('buildings'),
   key: BUILDING_KEY,
@@ -189,10 +196,12 @@ const NOTICE_HEAD = { playerId: v.id('players'), at: v.number() };
 const NOTICE_SITE = v.union(v.object({ building: BUILDING_KEY, regionId: v.string() }), v.null());
 
 export const NOTICE = v.union(
+  /** L'entrée que le monde a reprise avant son tour, remboursée entière. `BUILD_COST_KEY` parce
+   *  qu'une élévation d'avant-poste se rembourse par la même porte (précision du 15/09). */
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('constructionCancelled'),
-    building: BUILDING_KEY,
+    building: BUILD_COST_KEY,
     regionId: v.string(),
   }),
   v.object({
@@ -318,6 +327,20 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('decoyArrived'),
     hostCountry: v.string(),
+  }),
+  /**
+   * **Un avant-poste qui a grandi** (précision du 15/09 de l'ADR 0020 §10). Chez le seul
+   * propriétaire : un point qui monte se **relève** — son rayon élargi entre dans les portées de
+   * qui regarde — il ne s'annonce pas (ADR 0005).
+   *
+   * `regionId` est `null` pour un point d'avant le champ, que seule la géographie replace.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostRaised'),
+    hostCountry: v.string(),
+    regionId: v.union(v.string(), v.null()),
+    level: v.number(),
   }),
   /** **La saison close à la main par son fondateur** (`seasons.conclude`) — la seule fin qui ne
    *  désigne personne : elle n'a pas de vainqueur, et le journal ne doit pas en inventer un. */

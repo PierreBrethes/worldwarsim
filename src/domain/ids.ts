@@ -111,6 +111,20 @@ export const canonicalBuildingKey = (key: BuildingKey): Exclude<BuildingKey, 'de
 
 export const BUILDABLE_BUILDINGS = BUILDINGS.filter((key) => canonicalBuildingKey(key) === key);
 
+/**
+ * **Ce qui se tarife au barème des chantiers** — les quinze bâtiments, et l'élévation d'un
+ * avant-poste depuis le 15/09 (précision de l'ADR 0020 §10).
+ *
+ * `outpost` est une **clé de coût**, jamais une clé de bâtiment : rien ne se pose sur une région
+ * sous ce nom, il n'a ni gisement, ni côte, ni emplacement, et le tordre en `BuildingKey` aurait
+ * fait entrer un seizième bâtiment dans chaque table exhaustive du jeu. Il ne vit que là où l'on
+ * demande un prix et une durée (`buildCost`, `buildMinutes`) et dans la file qui les paie.
+ */
+export type BuildCostKey = BuildingKey | 'outpost';
+
+/** L'élévation d'un avant-poste, distinguée d'un chantier de bâtiment par sa seule clé. */
+export const isOutpostWork = (key: BuildCostKey): key is 'outpost' => key === 'outpost';
+
 export type PlayableRegion = 'europe' | 'europe-med' | 'world';
 
 export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' | 'tundra';

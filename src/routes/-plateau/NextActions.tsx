@@ -29,6 +29,7 @@ export function NextActions({
   onGoToMap,
   onOpenSurface,
   onOpenSite,
+  onOpenOutpost,
 }: {
   view: PlayerView;
   placements: ReadonlyArray<FoundationPlacement>;
@@ -41,6 +42,9 @@ export function NextActions({
   onOpenSurface: (surface: NextActionSurface) => void;
   /** Recentrer **et** ouvrir : une caserne au repos se lève sur la carte, pas dans un onglet. */
   onOpenSite: (buildingId: string) => void;
+  /** Le même geste pour un point : son mât se recadre et son panneau de garnison s'ouvre, où
+   *  vit la porte de l'élévation (précision du 15/09). */
+  onOpenOutpost: (outpostId: string) => void;
 }) {
   /** Ouvert d'entrée : la fondation est la première chose à faire d'une saison, et la replier
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
@@ -128,6 +132,7 @@ export function NextActions({
                 if (target.kind === 'map') onGoToMap(target.point);
                 else if (target.kind === 'surface') onOpenSurface(target.surface);
                 else if (target.kind === 'site') onOpenSite(target.buildingId);
+                else if (target.kind === 'outpost') onOpenOutpost(target.outpostId);
               }}
             />
           ),
@@ -150,7 +155,9 @@ const destinationWord = (target: NextActionTarget): string =>
       ? SURFACE_WORD[target.surface]
       : target.kind === 'site'
         ? fr.nextActions.toSite
-        : '';
+        : target.kind === 'outpost'
+          ? fr.nextActions.toOutpost
+          : '';
 
 /** Une ligne, une attente, une destination. Le chevron est la promesse que le clic mène quelque
  *  part — la carte ne coche rien et ne range rien, donc il n'y a rien d'autre à presser. */
