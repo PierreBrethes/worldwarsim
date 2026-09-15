@@ -9,6 +9,7 @@ import { seenSegment } from '../src/domain/sighting-segment';
 import type { OutpostReach } from '../src/domain/outposts';
 import { canonicalBuildingKey, BUILDINGS, RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
+import { coveredRegions } from '../src/domain/control';
 import { isNation, nationInk } from '../src/domain/nations';
 import { depositOfRegion } from '../src/domain/world';
 import { movementSlots } from '../src/domain/movement-orders';
@@ -21,6 +22,7 @@ import {
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
+  outpostReachKm,
   CARRY_CAPACITY_BY_ROLE,
   LAST_KNOWN_HOURS,
   isCommanded,
@@ -31,11 +33,12 @@ import {
 import { engagementsOf } from './combat';
 import { homeSlotReliefOf, queueOf } from './constructions';
 import { sitesOf, type Site } from './sites';
-import { movementsOf, outpostsOf, specializationsServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { heldOver } from './holding';
 import { restHold } from './movements';
 import {
+  allRegions,
   capitalRegionOf,
   foundationOwed,
   homeCountryOf,
@@ -92,11 +95,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const construction = queue[0] ?? null;
 
   /**
-   * The ground a player may build on: his home country, plus any region already carrying
-   * one of his buildings. Not the map — what he may act on, which is the whole point of
-   * `PlayerView`. It went from "the regions carrying a deposit" to the entire home country
-   * the day construction moved onto the map: a barracks needs no deposit, so an empty
-   * region is a site now, and the panel cannot offer what it was never told about.
+   * The ground a player may build on: his home country, any region already carrying one of his
+   * buildings, and **the whole circle of each of his outposts** — the reach, not its centre.
+   * Not the map — what he may act on, which is the whole point of `PlayerView`. It went from
+   * "the regions carrying a deposit" to the entire home country the day construction moved onto
+   * the map: a barracks needs no deposit, so an empty region is a site now, and the panel
+   * cannot offer what it was never told about.
    */
   const home = homeCountryOf(player.nation);
   const carrying = new Map(
@@ -110,15 +114,26 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const troops = await troopsOf(ctx, player._id);
   const recruiting = await recruitmentsOf(ctx, player._id);
   const outposts = await outpostsOf(ctx, player._id);
-  /** **Un avant-poste atteint toujours la région où il se tient** (précision de l'ADR 0020 du
-   *  04/09) : sans cette ligne, la seule région qu'un point sibérien rende constructible
-   *  n'était servie à personne, et le panneau ne pouvait rien offrir sur le sol même du
-   *  point. Le reste de sa portée attend la passe qui servira son cercle entier. */
-  for (const outpost of outposts) {
-    const regionId = regionOfOutpost(outpost);
-    const facts = regionId === null ? null : regionFacts(regionId);
-    if (facts) carrying.set(facts.id, facts);
-  }
+  /**
+   * **Le cercle entier d'un avant-poste, pas seulement la région de son point** (ADR 0020 §1 :
+   * là où je tiens est là où je peux bâtir). Servir le seul sol du point laissait le joueur voir
+   * tenu — `heldOver` tient le cercle depuis toujours — ce que la vue ne lui offrait pas :
+   * `siteOf` répond `null` pour une région absente d'ici, et le panneau le lit comme « rien ne
+   * se bâtit là ».
+   *
+   * Les mêmes détecteurs que le relevé du sol (`standingObserversOf`), aux mêmes conditions :
+   * la région du point est couverte quelle que soit sa taille (précision du 04/09), et **un
+   * point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait ce
+   * que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il reste
+   * celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
+   */
+  const reaches = outposts.map((outpost) => ({
+    point: pointOf(outpost.point),
+    radiusKm: outpostReachKm(outpost.level),
+    regionId: regionOfOutpost(outpost),
+  }));
+  const reached = coveredRegions(allRegions(), reaches);
+  for (const facts of allRegions()) if (reached.has(facts.id)) carrying.set(facts.id, facts);
   /**
    * **La couleur du sol qu'il peut bâtir**, lue par la fonction unique (`convex/holding.ts`) que
    * la carte, le classement et le relevé lisent aussi. Elle est servie par région parce que

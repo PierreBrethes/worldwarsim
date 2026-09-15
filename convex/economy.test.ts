@@ -1782,13 +1782,18 @@ describe('the placements a site carries', () => {
     });
   }
 
-  /** El Tarf, on the Algerian coast: two regions inside the reach of a **level-one** point —
-   *  120 km depuis la révision du 31/08, contre 400 avant elle — et pas un pouce de sol français
-   *  alentour, donc ce que le point porte est à lui et le budget national ne lui prête rien.
-   *  Ghardaïa, dans le Sahara, n'avait plus qu'elle-même à moins de cent vingt kilomètres. */
+  /** El Tarf, on the Algerian coast: quatre régions algériennes dans la portée d'un point de
+   *  **niveau un** — 120 km depuis la révision du 31/08, contre 400 avant elle — et pas un pouce
+   *  de sol français alentour, donc ce que le point porte est à lui et le budget national ne lui
+   *  prête rien. Ghardaïa, dans le Sahara, n'avait plus qu'elle-même à moins de cent vingt
+   *  kilomètres. */
   const EL_TARF = { lon: 8.15, lat: 36.72 };
   const NEAR_EL_TARF = 'DZA-2164'; // El Tarf itself
   const ALSO_NEAR = 'DZA-2163'; // Annaba, 57 km away
+  const SOUK_AHRAS = 'DZA-2222'; // 66 km away
+  const GUELMA = 'DZA-2218'; // 76 km away
+  /** Skikda, 133 km : la première voisine que les 120 km d'un point neuf n'atteignent pas. */
+  const OUT_OF_REACH = 'DZA-2166';
 
   const budgetOf = (
     view: {
@@ -1813,6 +1818,41 @@ describe('the placements a site carries', () => {
     expect(budgetOf(view, null)?.total).toBe(homeSlots(HQ_LEVEL_AT_LAUNCH));
     expect(budgetOf(view, one)?.total).toBe(1);
     expect(budgetOf(view, three)?.total).toBe(3);
+  });
+
+  /**
+   * **La vue sert le cercle entier d'un point, pas la seule région de son pied** (ADR 0020 §1 :
+   * là où je tiens est là où je peux bâtir). `heldOver` colorait le cercle depuis toujours,
+   * quand `me.regions` n'offrait que le sol du point : le joueur voyait tenu ce sur quoi la
+   * carte ne lui donnait aucune icône de construction, et le serveur, lui, acceptait déjà.
+   */
+  it('serves every region inside the reach of an outpost, and none beyond it', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const outpostId = await plantOutpost(t, seat, EL_TARF, 1);
+
+    const view = await t.query(api.view.playerView, seat);
+    const served = new Map(view.me.regions.map((region) => [region.id, region]));
+    for (const regionId of [NEAR_EL_TARF, ALSO_NEAR, SOUK_AHRAS, GUELMA]) {
+      expect(served.get(regionId)?.site).toEqual({ outpostId });
+    }
+    expect(served.has(OUT_OF_REACH)).toBe(false);
+  });
+
+  /** **Un point hors service ancre encore** (ADR 0020 §10) : il ne colore plus, et c'est une
+   *  autre question — ce qu'il porte reste à lui, et la vue continue de l'offrir. */
+  it('serves the reach of an outpost out of service', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    const outpostId = await plantOutpost(t, seat, EL_TARF, 1);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpostId, { disabledUntil: Date.now() + 6 * 60 * 60 * 1000 }),
+    );
+
+    const view = await t.query(api.view.playerView, seat);
+    const served = view.me.regions.find((region) => region.id === ALSO_NEAR);
+    expect(served?.site).toEqual({ outpostId });
+    expect(served?.linked).toBe(false);
   });
 
   /** The whole point of a local budget: a nation whose home ground is full is not a nation
