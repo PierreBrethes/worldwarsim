@@ -196,7 +196,13 @@ obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif 
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
-canaux gravés (`SEA_GATES`). **Le serveur l'appelle** (`convex/routes.ts`, un Dijkstra entre 13
+canaux gravés (`SEA_GATES`). **Un canal est de l'eau et un gué** (15/09) : un détroit se grave
+en `SEA`, un canal en `CANAL`, troisième type de cellule que la recherche terrestre foule comme
+la naval le transite — gravés en mer, Panama coupait les deux Amériques et Suez séparait
+l'Afrique de l'Asie. Le milieu d'un pas suit dès lors **ce que la recherche a autorisé** et non
+la seule couleur des cellules ; une berge de canal est une côte (Colón, Port-Saïd sont des
+ports) ; la 72a tient telle quelle — on débarque d'une cellule de mer, un canal n'est pas une
+plage. **Le serveur l'appelle** (`convex/routes.ts`, un Dijkstra entre 13
 et 125 ms) — pour l'instant en mode terrestre seul ; le droit de passage par les pays neutres
 n'est toujours pas tranché. **La grille n'est plus calculée en ligne** : `buildGrid` reste la
 référence, mais les 1,33 M de cellules sont cuites en plages par `scripts/generate-grid.mjs`

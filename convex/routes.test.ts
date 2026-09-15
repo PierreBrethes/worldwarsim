@@ -130,6 +130,33 @@ describe('a port on the coast', () => {
 });
 
 /**
+ * **Un canal gravé ne coupe pas un continent** (15/09). Panama et Suez étaient gravés en mer
+ * comme Gibraltar : la bande de terre disparaissait, l'Amérique du Nord se retrouvait séparée de
+ * l'Amérique du Sud et l'Afrique de l'Asie, et `movements.preview` répondait `NO_ROUTE` à une
+ * compagnie d'infanterie qui voulait simplement passer du Panama à la Colombie. Le serveur route
+ * sur la grille **cuite** : c'est elle, et pas seulement `buildGrid`, qui doit laisser passer.
+ */
+describe('une colonne à l’isthme', () => {
+  const PANAMA: LonLat = [-80.4, 8.8];
+  const BOGOTA: LonLat = [-74.07, 4.71];
+  const SINAI: LonLat = [33.8, 29.5];
+  const NILE_DELTA: LonLat = [31.24, 30.04];
+
+  it('passe du Panama à la Colombie, à pied et sans embarquer', () => {
+    expect(hostAtPoint(PANAMA)).toBe('PAN');
+    const road = routeBetween(PANAMA, BOGOTA, 'land');
+    expect(road).not.toBeNull();
+    expect(road!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+  });
+
+  it('passe d’Égypte au Sinaï de la même façon', () => {
+    const road = routeBetween(NILE_DELTA, SINAI, 'land');
+    expect(road).not.toBeNull();
+    expect(road!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+  });
+});
+
+/**
  * **Une destination plus petite qu'une cellule reste une destination** (ADR 0023). Neuf cent
  * soixante-et-onze régions n'ont aucune cellule à elles — **Paris en est**, où siège un quartier
  * général — et la seule chose qui aille vers un identifiant de région plutôt que vers un point

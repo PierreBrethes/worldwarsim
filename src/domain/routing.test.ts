@@ -57,6 +57,32 @@ const toLonLat = (x: number, y: number): [number, number] => [
 
 const grid = buildGrid(toyWorld(), 1);
 
+/** Le monde cuit, tel que le serveur le lit : ce que le jouet ne peut pas dire — un isthme. */
+const realWorld = async (): Promise<World> => {
+  const { readFileSync } = await import('node:fs');
+  const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
+    meta: { sphere: World['sphere']; outline: World['outline'] };
+    countries: Array<{
+      n: string;
+      a: string;
+      c: [number, number];
+      ll: [number, number];
+      p: [number, number][][];
+    }>;
+  };
+  return {
+    sphere: raw.meta.sphere,
+    outline: raw.meta.outline,
+    countries: raw.countries.map((c) => ({
+      name: c.n,
+      adm0: c.a,
+      representativePoint: c.c,
+      lonLat: c.ll,
+      rings: c.p,
+    })),
+  };
+};
+
 describe('buildGrid', () => {
   it('classifies land, sea and void', () => {
     const cell = (x: number, y: number) => grid.cells[y * grid.width + x];
@@ -210,35 +236,75 @@ describe('on the real world', () => {
 });
 
 /**
+ * **Un canal est de l'eau et un gué.** Gravé en `SEA` comme un détroit, Panama coupait l'Amérique
+ * du Nord de l'Amérique du Sud et Suez l'Afrique de l'Asie — une compagnie d'infanterie ne
+ * passait plus du Panama à la Colombie, et la géométrie tranchait dans le sens exactement
+ * inverse de celui que les portes maritimes promettaient. Les navires transitent, les colonnes
+ * franchissent : ferries et ponts tournants existaient aux deux en 1940.
+ */
+describe('les canaux gravés', () => {
+  let worldGrid: ReturnType<typeof buildGrid> | null = null;
+  const gridOf = async () => {
+    if (worldGrid === null) worldGrid = buildGrid(await realWorld());
+    return worldGrid;
+  };
+
+  it('laisse une colonne franchir l’isthme de Panama', async () => {
+    const route = computeRoute(await gridOf(), [-99.13, 19.43], [-74.07, 4.71], 'land');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+    // Par l'isthme, et non par un détour que le raster inventerait ailleurs.
+    expect(route!.points.some(([lon, lat]) => lon > -81 && lon < -77 && lat > 7 && lat < 10)).toBe(
+      true,
+    );
+  });
+
+  it('laisse une colonne franchir l’isthme de Suez', async () => {
+    const route = computeRoute(await gridOf(), [31.24, 30.04], [35.22, 31.78], 'land');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'land')).toBe(true);
+  });
+
+  /** L'Atlantique rejoint le Pacifique sans le cap Horn, qui vaut plus de cent cinquante unités. */
+  it('fait transiter un navire de Colón à Balboa', async () => {
+    const route = computeRoute(await gridOf(), [-79.9, 9.36], [-79.55, 8.95], 'naval');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
+    expect(route!.distanceUnits).toBeLessThan(5);
+  });
+
+  /** Et la Méditerranée la mer Rouge, sans doubler le Cap. */
+  it('fait transiter un navire de Port-Saïd à Suez', async () => {
+    const route = computeRoute(await gridOf(), [32.3, 31.26], [32.55, 29.97], 'naval');
+    expect(route).not.toBeNull();
+    expect(route!.legs.every((leg) => leg.medium === 'sea')).toBe(true);
+    expect(route!.distanceUnits).toBeLessThan(5);
+  });
+
+  /** Un détroit naturel reste de la mer : c'est toute la différence entre les deux gravures. */
+  it('ne laisse aucune colonne traverser la Manche ni Gibraltar', async () => {
+    const grid = await gridOf();
+    expect(computeRoute(grid, [1.31, 51.13], [1.85, 50.95], 'land')).toBeNull();
+    expect(computeRoute(grid, [-5.6, 36.02], [-5.8, 35.78], 'land')).toBeNull();
+  });
+
+  /**
+   * Le point choisi ne touche **que** le canal — aucune cellule de mer ne le borde — donc il ne
+   * serait pas côtier si la berge d'un canal ne l'était pas. Colón, Balboa, Port-Saïd et Suez
+   * sont des ports.
+   */
+  it('fait de la berge d’un canal une côte, et pas du milieu du Kansas', async () => {
+    const grid = await gridOf();
+    expect(isCoastCell(grid, [-79.176, 9.236])).toBe(true);
+    expect(isCoastCell(grid, [-98.5, 38.5])).toBe(false);
+  });
+});
+
+/**
  * The one question a lon/lat cannot answer alone, and the reason the rings are on the server at
  * all: a destination owes a rest window to whoever holds the ground it lands on.
  */
 describe('the country under a point', () => {
-  const realWorld = async (): Promise<World> => {
-    const { readFileSync } = await import('node:fs');
-    const raw = JSON.parse(readFileSync('public/world.json', 'utf8')) as {
-      meta: { sphere: World['sphere']; outline: World['outline'] };
-      countries: Array<{
-        n: string;
-        a: string;
-        c: [number, number];
-        ll: [number, number];
-        p: [number, number][][];
-      }>;
-    };
-    return {
-      sphere: raw.meta.sphere,
-      outline: raw.meta.outline,
-      countries: raw.countries.map((c) => ({
-        name: c.n,
-        adm0: c.a,
-        representativePoint: c.c,
-        lonLat: c.ll,
-        rings: c.p,
-      })),
-    };
-  };
-
   it('codes the land, and answers nothing at sea', async () => {
     const world = await realWorld();
     expect(countryAt(world, [25.2, 44.6])).toBe('ROU');
