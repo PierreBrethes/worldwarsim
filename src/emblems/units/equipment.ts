@@ -45,10 +45,70 @@ const USA: NationEquipment = {
   carrier: ['USS Essex'],
 };
 
+const USSR: NationEquipment = {
+  infantry: ['Mosin-Nagant', 'fusil antichar PTRS'],
+  armor: ['BT-7', 'T-34'],
+  landTransport: ['ZiS-5'],
+  fighter: ['Yak-1'],
+  bomber: ['Il-2'],
+  airTransport: ['Li-2'],
+  escort: ['destroyer Gnevny'],
+  cargo: ['cargo marchand'],
+};
+
+const GERMANY: NationEquipment = {
+  infantry: ['Kar98k', 'Schießbecher'],
+  armor: ['Panzer II', 'Panzer IV'],
+  landTransport: ['Opel Blitz'],
+  fighter: ['Bf 109'],
+  bomber: ['Ju 87 Stuka'],
+  escort: ['Zerstörer 1934'],
+  cargo: ['Frachter'],
+  carrier: ['Graf Zeppelin'],
+};
+
+const CHINA: NationEquipment = {
+  infantry: ['Hanyang 88', 'mitrailleuse Type 24'],
+  armor: ['Vickers 6-Ton', 'T-26'],
+  landTransport: ['camion'],
+  fighter: ['Polikarpov I-15'],
+  bomber: ['Tupolev SB'],
+  airTransport: ['DC-3 (CNAC)'],
+  escort: ['croiseur Ning Hai'],
+  cargo: ['jonque'],
+};
+
+const ITALY: NationEquipment = {
+  infantry: ['Carcano M91', 'fusil antichar Solothurn'],
+  armor: ['L3/35', 'M13/40'],
+  landTransport: ['Fiat 626'],
+  fighter: ['Macchi C.200'],
+  bomber: ['SM.79 Sparviero'],
+  airTransport: ['SM.82'],
+  escort: ['destroyer Soldati'],
+  cargo: ['cargo marchand'],
+};
+
+const JAPAN: NationEquipment = {
+  infantry: ['Arisaka Type 38', 'canon antichar Type 1'],
+  armor: ['Type 95 Ha-Go', 'Type 97 Chi-Ha'],
+  landTransport: ['Isuzu Type 94'],
+  fighter: ['A6M Zero'],
+  bomber: ['G3M « Nell »'],
+  escort: ['kaibokan'],
+  cargo: ['maru'],
+  carrier: ['Akagi'],
+};
+
 const EQUIPMENT_BY_NATION: Readonly<Partial<Record<Nation, NationEquipment>>> = {
   france: FRANCE,
   uk: UK,
   usa: USA,
+  ussr: USSR,
+  germany: GERMANY,
+  china: CHINA,
+  italy: ITALY,
+  japan: JAPAN,
 };
 
 export function equipmentLabel(

@@ -6,8 +6,9 @@ unités ; la section 7 dit ce que les bâtiments font différemment, et pourquoi
 
 ## Unités
 
-Une planche de **onze visuels** par nation, huit nations. **La France, le Royaume-Uni et les
-États-Unis sont faits et branchés au front** ; les cinq autres nations suivent ce document. L'enjeu n'est pas la beauté d'un sprite isolé :
+Une planche de **onze visuels** par nation, huit nations. **Les huit sont branchées au front**
+(16/09/2026) ; quatre ont un trou nommé `null` dans le manifeste — porte-avions soviétique,
+chinois et italien, transport aérien allemand et japonais. L'enjeu n'est pas la beauté d'un sprite isolé :
 c'est que les quatre-vingt-huit tiennent ensemble sur une même planche, au même angle et sous
 la même lumière. Un seul sujet généré de trois-quarts arrière se voit immédiatement et ne se
 rattrape pas au filtre.
@@ -125,6 +126,18 @@ python WWS/sprites/nettoyer-ombres.py --source WWS/sprites/USA/all_images \
 Mesuré sur la planche américaine : cinq sujets posés au sol perdent 16 000 à 89 000 px, les six
 autres — les navires, les fantassins, le Sherman, le C-47 — moins de 1 400 px de poussière.
 
+### Une planche détourée par un service ne passe pas par le script
+
+Les planches chinoise, italienne et japonaise (16/09) sont sorties de remove.bg : fond retiré,
+**aucune ombre**, ni diffuse ni opaque — le contrôle sur papier le confirme. Passées quand même
+dans `nettoyer-ombres.py`, les deux critères **mangent du sujet** : le critère opaque prend le
+flanc lisse et sombre d'une coque ou d'un char pour un aplat (22 958 px sur le L3/35, 12 551 sur
+l'Isuzu, la moitié du pont du cargo japonais), et le critère diffus prend le **gréement** d'un
+navire — semi-transparent, sombre, loin de la coque — pour une ombre (5 628 px sur le kaibokan,
+tout le haubanage). La règle : une source remove.bg va telle quelle dans `units_<nation>_clean/`,
+et le contrôle sur fond clair remplace le script. Le script reste pour les planches rendues
+sur fond vert ou sur sol.
+
 ## 3. Nommage
 
 Un fichier du front porte la **clé `UnitRole`** de `src/domain/ids.ts`, et rien d'autre — pas
@@ -141,9 +154,12 @@ Le suffixe `-1` / `-2` ne s'écrit que pour les **rôles à palier**, listés pa
 dans `src/domain/troops.ts` : infanterie, blindé et **porte-avions**. Les six autres n'ont
 qu'un visuel et pas de suffixe.
 
-**La France est la seule incomplète.** Elle n'a pas de `cargo` ; le Royaume-Uni est le premier
-du projet à en avoir un, et les États-Unis furent la première planche complète branchée au front.
-Les deux répondent aujourd'hui pour les neuf rôles. Le palier 2 du porte-avions n'existe nulle part
+**Les trous, nommés.** La France n'a pas de `cargo` ; l'URSS, la Chine et l'Italie n'ont pas
+de porte-avions (les deux dernières n'en ont jamais eu — ce n'est pas un dessin manquant) ;
+l'Allemagne et le Japon n'ont pas de transport aérien. Le Royaume-Uni et les États-Unis
+répondent pour les neuf rôles. Le Japon garde un second bombardier en source, le D3A « Val »,
+absent de son `noms.json` donc ignoré par `optimiser.py` ; le G3M « Nell » est celui branché.
+Le palier 2 du porte-avions n'existe nulle part
 et n'a pas à exister : la fiche de chiffrage ne lui donne aucune force nominale, donc le rôle n'a
 qu'un palier (ADR 0014). `manifest.test.ts` garde la trace des deux constats.
 

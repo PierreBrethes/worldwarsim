@@ -1,0 +1,12 @@
+{
+  "infantry-1-hanyang-88": "infantry-1",
+  "infantry-2-type-24-maxim": "infantry-2",
+  "armor-1-vickers-6-ton": "armor-1",
+  "armor-2-t26": "armor-2",
+  "land-transport-camion": "landTransport",
+  "fighter-i15": "fighter",
+  "bomber-tupolev-sb": "bomber",
+  "air-transport-dc3-cnac": "airTransport",
+  "escort-ning-hai": "escort",
+  "cargo-jonque": "cargo"
+}

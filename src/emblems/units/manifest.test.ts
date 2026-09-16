@@ -63,14 +63,18 @@ describe('unit sprite manifest', () => {
   });
 
   /**
-   * Two plates are drawn but for one role each — the soviet carrier, the german Junkers whose
-   * render came out blurred. The `null` is the manifest's own vocabulary, not an omission:
+   * Five plates are drawn but for one role each — the soviet carrier, the german Junkers whose
+   * render came out blurred, the chinese and italian carriers that never existed, the japanese
+   * air transport the plate did not deliver (16/09). The `null` is the manifest's own vocabulary, not an omission:
    * naming the hole here turns it back into a failure the day the plate is drawn and left
    * unwired, and forbids a second hole from slipping in unannounced.
    */
   it.each([
     ['ussr', 'carrier'],
     ['germany', 'airTransport'],
+    ['china', 'carrier'],
+    ['italy', 'carrier'],
+    ['japan', 'airTransport'],
   ] as const)('draws the whole %s plate but its %s', (nation, undrawn) => {
     const sprites = SPRITES_BY_NATION[nation];
     if (sprites === undefined) throw new Error(`${nation} must be in the manifest`);
@@ -86,7 +90,9 @@ describe('unit sprite manifest', () => {
   /** Two nations must never share a file: one plate imported twice is the failure this
    *  catches, and on screen it reads as a nation that forgot to change uniform. */
   it('gives each drawn nation its own images', () => {
-    const urls = (['france', 'uk', 'usa', 'ussr', 'germany'] as const).flatMap((nation) =>
+    const urls = (
+      ['france', 'uk', 'usa', 'ussr', 'germany', 'china', 'italy', 'japan'] as const
+    ).flatMap((nation) =>
       ROLES.map((role) => spriteUrl(nation, role, 1)).filter((url) => url !== null),
     );
     expect(new Set(urls).size).toBe(urls.length);
@@ -96,7 +102,8 @@ describe('unit sprite manifest', () => {
     expect(spriteUrl('france', 'infantry', 1)).not.toBe(spriteUrl('france', 'infantry', 2));
     expect(spriteUrl('france', 'carrier', 1)).toBe(spriteUrl('france', 'carrier', 2));
     expect(spriteUrl('france', 'cargo', 1)).toBeNull();
-    expect(spriteUrl('japan', 'fighter', 1)).toBeNull();
+    expect(spriteUrl('japan', 'airTransport', 1)).toBeNull();
+    expect(spriteUrl('atlantis', 'fighter', 1)).toBeNull();
     expect(spriteUrl(null, 'fighter', 1)).toBeNull();
   });
 });
@@ -191,7 +198,7 @@ describe('movementSprites', () => {
   });
 
   it('draws no face without a plate for the nation, nor on an empty stack', () => {
-    expect(movementSprites(mine, 'japan')).toEqual({ land: null, sea: null, air: null });
+    expect(movementSprites(mine, 'atlantis')).toEqual({ land: null, sea: null, air: null });
     expect(movementSprites({ ...mine, stack: {} }, 'france')).toEqual({
       land: null,
       sea: null,

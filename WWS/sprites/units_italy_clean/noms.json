@@ -1,0 +1,12 @@
+{
+  "infantry-1-carcano": "infantry-1",
+  "infantry-2-solothurn": "infantry-2",
+  "armor-1-l3-35": "armor-1",
+  "armor-2-m13-40": "armor-2",
+  "land-transport-fiat-626": "landTransport",
+  "fighter-mc200": "fighter",
+  "bomber-sm79": "bomber",
+  "air-transport-sm82": "airTransport",
+  "escort-soldati": "escort",
+  "cargo-marchand": "cargo"
+}

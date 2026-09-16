@@ -54,6 +54,36 @@ import germanyInfantry2 from './germany/infantry-2.webp';
 import germanyCargo from './germany/cargo.webp';
 import germanyCarrier from './germany/carrier.webp';
 import germanyLandTransport from './germany/landTransport.webp';
+import chinaArmor1 from './china/armor-1.webp';
+import chinaArmor2 from './china/armor-2.webp';
+import chinaBomber from './china/bomber.webp';
+import chinaFighter from './china/fighter.webp';
+import chinaEscort from './china/escort.webp';
+import chinaInfantry1 from './china/infantry-1.webp';
+import chinaInfantry2 from './china/infantry-2.webp';
+import chinaCargo from './china/cargo.webp';
+import chinaAirTransport from './china/airTransport.webp';
+import chinaLandTransport from './china/landTransport.webp';
+import italyArmor1 from './italy/armor-1.webp';
+import italyArmor2 from './italy/armor-2.webp';
+import italyBomber from './italy/bomber.webp';
+import italyFighter from './italy/fighter.webp';
+import italyEscort from './italy/escort.webp';
+import italyInfantry1 from './italy/infantry-1.webp';
+import italyInfantry2 from './italy/infantry-2.webp';
+import italyCargo from './italy/cargo.webp';
+import italyAirTransport from './italy/airTransport.webp';
+import italyLandTransport from './italy/landTransport.webp';
+import japanArmor1 from './japan/armor-1.webp';
+import japanArmor2 from './japan/armor-2.webp';
+import japanBomber from './japan/bomber.webp';
+import japanFighter from './japan/fighter.webp';
+import japanEscort from './japan/escort.webp';
+import japanInfantry1 from './japan/infantry-1.webp';
+import japanInfantry2 from './japan/infantry-2.webp';
+import japanCargo from './japan/cargo.webp';
+import japanCarrier from './japan/carrier.webp';
+import japanLandTransport from './japan/landTransport.webp';
 
 /**
  * A tiered role exposes both of its levels, the others structurally only have one. The union
@@ -134,12 +164,57 @@ const GERMANY: NationSprites = {
   carrier: { kind: 'single', url: germanyCarrier },
 };
 
+/** Sans porte-avions ni palier 2 dessinés en plus : la Chine de 1940 n'en avait pas. Dix planches. */
+const CHINA: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [chinaInfantry1, chinaInfantry2] },
+  armor: { kind: 'tiered', tiers: [chinaArmor1, chinaArmor2] },
+  landTransport: { kind: 'single', url: chinaLandTransport },
+  fighter: { kind: 'single', url: chinaFighter },
+  bomber: { kind: 'single', url: chinaBomber },
+  airTransport: { kind: 'single', url: chinaAirTransport },
+  escort: { kind: 'single', url: chinaEscort },
+  cargo: { kind: 'single', url: chinaCargo },
+  carrier: null,
+};
+
+/** L'Aquila n'a jamais pris la mer : pas de porte-avions, et c'est historique, pas un trou. */
+const ITALY: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [italyInfantry1, italyInfantry2] },
+  armor: { kind: 'tiered', tiers: [italyArmor1, italyArmor2] },
+  landTransport: { kind: 'single', url: italyLandTransport },
+  fighter: { kind: 'single', url: italyFighter },
+  bomber: { kind: 'single', url: italyBomber },
+  airTransport: { kind: 'single', url: italyAirTransport },
+  escort: { kind: 'single', url: italyEscort },
+  cargo: { kind: 'single', url: italyCargo },
+  carrier: null,
+};
+
+/**
+ * Le transport aérien manque : la planche a livré deux bombardiers (le G3M « Nell », branché,
+ * et le D3A « Val », gardé en source) et aucun Showa L2D. Le `null` attend le dessin.
+ */
+const JAPAN: NationSprites = {
+  infantry: { kind: 'tiered', tiers: [japanInfantry1, japanInfantry2] },
+  armor: { kind: 'tiered', tiers: [japanArmor1, japanArmor2] },
+  landTransport: { kind: 'single', url: japanLandTransport },
+  fighter: { kind: 'single', url: japanFighter },
+  bomber: { kind: 'single', url: japanBomber },
+  airTransport: null,
+  escort: { kind: 'single', url: japanEscort },
+  cargo: { kind: 'single', url: japanCargo },
+  carrier: { kind: 'single', url: japanCarrier },
+};
+
 export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>> = {
   france: FRANCE,
   uk: UK,
   usa: USA,
   ussr: USSR,
   germany: GERMANY,
+  china: CHINA,
+  italy: ITALY,
+  japan: JAPAN,
 };
 
 /** One face per medium the route may cross — what the pawn wears leg by leg. */
