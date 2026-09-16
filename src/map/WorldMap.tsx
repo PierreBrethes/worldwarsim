@@ -619,7 +619,7 @@ function pointTarget(
  * A marker label designates the entity it carries; any other — construction, movement head —
  * falls back to the land aimed beneath, which is the only target the game can honor today.
  */
-function targetOfLabel(
+export function targetOfLabel(
   label: MapLabel,
   country: string | null,
   region: RegionIdentity | null,
@@ -628,10 +628,16 @@ function targetOfLabel(
   coastAt: (lonLat: LonLat) => boolean,
   landAt: (lonLat: LonLat) => boolean,
 ): CompassTarget | null {
-  if (label.type === 'outpost' && label.hostCountry !== null) {
+  if (label.type === 'outpost' && label.hostCountry !== null && label.station?.kind === 'outpost') {
     return {
       kind: 'outpost',
-      id: label.id,
+      /**
+       * **L'identité Convex du point, jamais la clé du marqueur** : le mât est posé sous
+       * `outpost-<id>` pour ne pas collider avec les autres calques, et la rose comme le serveur
+       * lisent un `Id<'outposts'>` brut — l'un compare à `me.outposts`, l'autre y ouvre un ordre.
+       * Le préfixe rendait « élever » muet et faisait répondre `UNKNOWN_OUTPOST` à la marche.
+       */
+      id: label.station.outpostId,
       hostCountry: label.hostCountry,
       name: lineText(label, 'nature') ?? fr.compass.fallbackOutpost,
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
