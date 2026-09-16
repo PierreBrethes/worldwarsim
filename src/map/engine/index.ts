@@ -945,6 +945,9 @@ export class MapEngine {
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
+    // plutôt que de se poser en point sur le mât qu'il entoure.
+    this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.regions.animate(distance);
     this.borders.material.opacity =

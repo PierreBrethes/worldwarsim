@@ -29,14 +29,21 @@ pas d'agent. **Le leurre a été codé puis retiré le 29/08/2026** — décisio
 documentée en tête de `WWS/docs/design/04-information.md`. Son littéral survit dans
 `convex/validators.ts`, en legacy et jamais réécrit, le temps d'un wipe.
 
-**Le combat existe** : une passe de résolution déterministe, sans aléa, initiative à l'attaquant
-(`src/domain/combat.ts` pour la règle, `convex/combat.ts` pour le branchement, table de dégâts et
-modificateurs dans `convex/constants.ts`). **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
+**Le combat existe, et les deux camps tirent en même temps** (ADR 0014, révision 1b du
+16/09/2026) : une passe de résolution déterministe, sans aléa, **une salve de chaque camp calculée
+sur l'état d'avant la passe**, les pertes appliquées ensemble et la déroute lue une seule fois
+après — donc **un défenseur détruit dans la passe a tiré quand même** (`src/domain/combat.ts` pour
+la règle, `convex/combat.ts` pour le branchement, table de dégâts et modificateurs dans
+`convex/constants.ts`). Il n'y a plus d'initiative ni de phase « riposte » : `Strike.phase` vaut
+toujours `'strike'`, le littéral `'riposte'` survit au seul validateur, legacy comme `decoy`, et
+c'est `bySide` qui dit qui a tiré. `DEFENDER_BONUS` devient le seul avantage de la défense —
+cinquante fantassins contre cinquante en plaine, le défenseur perd 22 et l'attaquant 29 : l'attaque
+ne vaut qu'en supériorité ou en surprise. **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
 une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
 marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —
 de déclencheur il est devenu l'**allonge** d'une attaque (`defenceNear`, lu par `engageAt` et par
-lui seul). Ce qui reste automatique est la **riposte** : attaqué, un camp se bat toujours, et
-l'initiative va à qui a donné l'ordre (ADR 0014). Les neuf
+lui seul). Ce qui reste automatique est la **réponse** : attaqué, un camp se bat toujours, sans
+que personne l'ordonne (ADR 0024 §3). Les neuf
 portées sont des placeholders `@a-mesurer`. Un raid gagné **désactive** l'avant-poste, jamais ne le
 prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira

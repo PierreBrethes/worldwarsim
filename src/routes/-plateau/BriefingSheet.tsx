@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DETECTION_RANGE_KM, outpostReachKm } from '../../../convex/constants';
+import { ARRIVAL_RADIUS_KM, DETECTION_RANGE_KM, outpostReachKm } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -9,7 +9,7 @@ import { fr } from '@/i18n/fr';
  * ferme au premier regard n'a rien perdu — tout ce qu'elle dit se relit depuis les Réglages.
  *
  * Elle ne lit **aucune** donnée de partie. Ce qu'elle décrit est vrai avant le premier clic
- * comme au dernier jour de la saison ; l'y brancher inventerait un état. Les deux rayons sont
+ * comme au dernier jour de la saison ; l'y brancher inventerait un état. Les trois rayons sont
  * l'exception qui confirme la règle : ce sont des **constantes d'équilibrage**, pas l'état d'une
  * partie, et les lire ici est ce qui empêche la notice de mentir le jour où elles bougent.
  */
@@ -51,9 +51,11 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
           <div className="grid grid-cols-1 border-t border-[var(--ink)] sm:grid-cols-3">
             {/* Le rayon d'un point neuf : la feuille se lit avant d'en avoir fondé un, et c'est
                 celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
-            {fr.briefing.columns(DETECTION_RANGE_KM.infantry, outpostReachKm(1)).map((column) => (
-              <Column key={column.title} title={column.title} lines={column.lines} />
-            ))}
+            {fr.briefing
+              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1))
+              .map((column) => (
+                <Column key={column.title} title={column.title} lines={column.lines} />
+              ))}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-[var(--ink)] px-[26px] py-[14px]">

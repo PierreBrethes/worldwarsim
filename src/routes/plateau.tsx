@@ -4,6 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
+  ARRIVAL_RADIUS_KM,
   LISTENING_STATION_RADIUS_KM,
   outpostReachKm,
   detectionRangeOf,
@@ -1085,7 +1086,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
       reach:
         outpost.specialization === 'listening' && outpost.standsAt === null
-          ? { lonLat: outpost.lonLat, km: outpostReachKm(outpost.level) }
+          ? {
+              lonLat: outpost.lonLat,
+              detectionKm: outpostReachKm(outpost.level),
+              /** Un point n'engage rien : il relève, et le cercle de contact est celui d'une
+               *  pile (décisions 4a et 3a du 16/09). */
+              contactKm: null,
+            }
           : null,
       ink: view.me.ink,
     }));
@@ -1225,7 +1232,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         ? null
         : {
             lonLat: posted.station.lonLat,
-            km: detectionRangeOf(posted.troops.map((troop) => troop.role)),
+            detectionKm: detectionRangeOf(posted.troops.map((troop) => troop.role)),
+            /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
+             *  une seule constante, celle que l'arrivée lit pour trouver qui se tient là. */
+            contactKm: ARRIVAL_RADIUS_KM,
           },
     [posted],
   );
@@ -1260,7 +1270,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         },
         progress,
       ),
-      km: detectionRangeOf(roles),
+      detectionKm: detectionRangeOf(roles),
+      contactKm: ARRIVAL_RADIUS_KM,
     };
   }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
   const selectedCampView =
@@ -1939,5 +1950,5 @@ const priceOf = (cost: Cost): string =>
  *  other one covers nothing, and a region the view does not carry has no point to draw around. */
 const reachOfStation = (key: BuildingKey, point: LonLat | undefined): Reach | null =>
   key === 'listening' && point !== undefined
-    ? { lonLat: point, km: LISTENING_STATION_RADIUS_KM }
+    ? { lonLat: point, detectionKm: LISTENING_STATION_RADIUS_KM, contactKm: null }
     : null;

@@ -2,9 +2,14 @@ import type { UnitRole, UnitTier } from './ids';
 import { ROLE_ORDER, TIERS_BY_ROLE } from './troops';
 
 /**
- * **One engagement is one resolution pass** (ADR 0014, design sheet 08). The attacker strikes,
- * the defender ripostes with its survivors, and it is over. Three passes turn fourteen of the
- * seventy-five reachable couples into total annihilations — measured, not supposed.
+ * **One engagement is one resolution pass** (ADR 0014, revised 16/09/2026 — decision 1b). Both
+ * sides fire on the state the pass opened with, the losses land together, and it is over. Three
+ * passes turn fourteen of the seventy-five reachable couples into total annihilations —
+ * measured, not supposed.
+ *
+ * **There is no initiative any more.** Attacking an equal force costs more than holding it: the
+ * defender carries `defenderBonus` and the attacker carries nothing, so an attack is worth
+ * something only in superiority or in surprise.
  *
  * Deterministic, without a die: in an asynchronous game nobody is there to react to a roll.
  *
@@ -76,8 +81,8 @@ export type CombatRules = {
 /**
  * **What one side's pass takes out of the national stock** (question 18, settled 25/08). The
  * bill is read at the *entry* of the pass, from the strength each troop brings into it: a
- * company that is wiped out before it can riposte still drew its rounds, and reading the
- * strengths once is what keeps the amount independent of the strike order.
+ * company that does not outlive its own salvo still drew its rounds, and reading the strengths
+ * once is what keeps the amount independent of the firing order.
  *
  * **Dryness is a property of the side, never of a troop.** The stock is national — there is no
  * order in which to hand rounds to one company before another that would not be a rule
@@ -106,6 +111,12 @@ export type CombatSide = 'attacker' | 'defender';
 export type TroopState = 'standing' | 'routed' | 'destroyed';
 
 export type Strike = {
+  /**
+   * **`'riposte'` is legacy**, like `decoy` in `convex/validators.ts`: the pass has had a single
+   * salvo per side since the revision of 16/09/2026, and every report written from now on says
+   * `'strike'` on both sides. The literal survives in the validator because engagements already
+   * recorded carry it, and no migration rewrites them.
+   */
   readonly phase: 'strike' | 'riposte';
   readonly by: string;
   readonly target: string;
@@ -140,13 +151,15 @@ export const byStrikeOrder = (a: Combatant, b: Combatant): number =>
   a.formedAt - b.formedAt ||
   (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+/**
+ * A troop through the pass: what it fires with never moves — that is `combatant.strength`, the
+ * state the pass opened with — and `remaining` only ever falls, under the other side's salvo.
+ * Two fields rather than one is the whole of the simultaneity.
+ */
 type Fighter = {
   readonly combatant: Combatant;
   readonly side: CombatSide;
-  strength: number;
-  state: TroopState;
-  /** Who hit it last, so the riposte can answer the one that struck it. */
-  struckBy: string | null;
+  remaining: number;
 };
 
 export function resolveEngagement({
@@ -164,9 +177,7 @@ export function resolveEngagement({
   const line = (combatant: Combatant, side: CombatSide): Fighter => ({
     combatant,
     side,
-    strength: combatant.strength,
-    state: 'standing',
-    struckBy: null,
+    remaining: combatant.strength,
   });
 
   const striking = [...attackers].sort(byStrikeOrder).map((one) => line(one, 'attacker'));
@@ -178,36 +189,53 @@ export function resolveEngagement({
   };
   const supply = (side: CombatSide) => (magazine[side].dry ? rules.dryFactor : 1);
 
-  const strikes: Strike[] = [];
+  /**
+   * **One salvo per side, both fired on the state the pass opened with.** The two loops read
+   * and write disjoint things — a side fires with `combatant.strength`, which nothing touches,
+   * and spends only the opposing `remaining` — so running one before the other in the source is
+   * an order of writing, never an order of battle.
+   *
+   * `defenderBonus` lands exactly where it landed under the sequential rule: divided for the
+   * attacker, multiplied for the defender. That is ×1.32 of real spread rather than ×1.15, and
+   * it is knowingly left alone — it is read again when terrain and entrenchment are costed
+   * (`propositions/combat-simultane-terrain-retranchement.md`).
+   */
+  const salvo = (shooters: ReadonlyArray<Fighter>, at: ReadonlyArray<Fighter>, modifier: number) =>
+    shooters.flatMap((shooter) => {
+      const target = pick(shooter, at, rules);
+      return target === null ? [] : [hit(shooter, target, modifier, rules)];
+    });
 
-  for (const shooter of striking) {
-    const target = pick(shooter, holding, rules);
-    if (target === null) continue;
-    strikes.push(hit(shooter, target, 'strike', supply('attacker') / rules.defenderBonus, rules));
-  }
+  const strikes = [
+    ...salvo(striking, holding, supply('attacker') / rules.defenderBonus),
+    ...salvo(holding, striking, supply('defender') * rules.defenderBonus),
+  ];
 
   /**
-   * **The ripostes come after every strike**, never interleaved: a defender that has already
-   * been fired upon answers with what it has left, and one that has not yet been reached
-   * answers at full strength. Alternating would make the strike order decide twice.
+   * **The losses are read once, and only here.** Nothing routs or dies inside a salvo: a
+   * defender taken under the quarter, or to nothing, has already fired — that is what
+   * simultaneous means.
    */
-  for (const holder of holding) {
-    if (holder.state !== 'standing') continue;
-    const target = riposteTarget(holder, striking, rules);
-    if (target === null) continue;
-    strikes.push(hit(holder, target, 'riposte', supply('defender') * rules.defenderBonus, rules));
-  }
-
-  const all = [...striking, ...holding];
-  const outcomes = all.map((fighter) => ({
+  const outcomes = [...striking, ...holding].map((fighter) => ({
     id: fighter.combatant.id,
     side: fighter.side,
     strengthBefore: fighter.combatant.strength,
-    strengthAfter: fighter.strength,
-    state: fighter.state,
+    strengthAfter: fighter.remaining,
+    state: stateOf(fighter, rules),
   }));
 
-  return { strikes, outcomes, winner: winnerOf(striking, holding), magazine };
+  return { strikes, outcomes, winner: winnerOf(outcomes), magazine };
+}
+
+/**
+ * **Routed, not dead** (rule 3 of the project): under a quarter of its nominal a troop breaks
+ * contact and goes home. Only a troop taken to nothing is destroyed.
+ */
+function stateOf(fighter: Fighter, rules: CombatRules): TroopState {
+  if (fighter.remaining <= 0) return 'destroyed';
+  return fighter.remaining < rules.routThreshold * fighter.combatant.nominalStrength
+    ? 'routed'
+    : 'standing';
 }
 
 /**
@@ -228,14 +256,10 @@ function draw(force: ReadonlyArray<Combatant>, stock: number, rules: CombatRules
  * pass both sides usually walk away, and something has to say whether a raid deactivates the
  * outpost it came for — this is the reading that invents no number: clear the ground, or fail.
  */
-function winnerOf(
-  attackers: ReadonlyArray<Fighter>,
-  defenders: ReadonlyArray<Fighter>,
-): CombatSide {
-  return defenders.every((one) => one.state !== 'standing') &&
-    attackers.some((one) => one.state === 'standing')
-    ? 'attacker'
-    : 'defender';
+function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide {
+  const standing = (side: CombatSide) =>
+    outcomes.some((one) => one.side === side && one.state === 'standing');
+  return !standing('defender') && standing('attacker') ? 'attacker' : 'defender';
 }
 
 /**
@@ -259,7 +283,7 @@ function pick(
   let kept: Fighter | null = null;
   let best = 0;
   for (const candidate of targets) {
-    if (candidate.state !== 'standing') continue;
+    if (candidate.remaining <= 0) continue;
     const share = damageOf(rules, shooter.combatant, candidate.combatant);
     if (share === undefined || share <= best) continue;
     kept = candidate;
@@ -268,54 +292,22 @@ function pick(
   return kept;
 }
 
-/** The one that struck it if it can reach it, the best reachable attacker otherwise, or nothing. */
-function riposteTarget(
-  holder: Fighter,
-  attackers: ReadonlyArray<Fighter>,
-  rules: CombatRules,
-): Fighter | null {
-  const aggressor = attackers.find((one) => one.combatant.id === holder.struckBy);
-  if (
-    aggressor !== undefined &&
-    aggressor.state === 'standing' &&
-    damageOf(rules, holder.combatant, aggressor.combatant) !== undefined
-  ) {
-    return aggressor;
-  }
-  return pick(holder, attackers, rules);
-}
-
 /**
  * `share × (strength / nominal) × modifier × nominal(target)`, rounded, and **capped at what the
  * target has left**: the excess is lost rather than spilling onto the next troop. That single
- * rule is what bounds stacking — six columns on one target waste five of them.
+ * rule is what bounds stacking — six columns on one target waste five of them, and it is the one
+ * thing a salvo reads in firing order rather than from the state the pass opened with.
  */
-function hit(
-  shooter: Fighter,
-  target: Fighter,
-  phase: Strike['phase'],
-  modifier: number,
-  rules: CombatRules,
-): Strike {
+function hit(shooter: Fighter, target: Fighter, modifier: number, rules: CombatRules): Strike {
   const share = damageOf(rules, shooter.combatant, target.combatant) ?? 0;
   const raw =
     share *
-    (shooter.strength / shooter.combatant.nominalStrength) *
+    (shooter.combatant.strength / shooter.combatant.nominalStrength) *
     modifier *
     target.combatant.nominalStrength;
-  const losses = Math.min(target.strength, Math.round(raw));
+  const losses = Math.min(target.remaining, Math.round(raw));
 
-  target.strength -= losses;
-  target.struckBy = shooter.combatant.id;
-  /**
-   * **Routed, not dead** (rule 3 of the project): under a quarter of its nominal a troop breaks
-   * contact at once — it stops being a target, it does not riposte, and it goes home. Only a
-   * troop taken to nothing is destroyed.
-   */
-  if (target.strength <= 0) target.state = 'destroyed';
-  else if (target.strength < rules.routThreshold * target.combatant.nominalStrength) {
-    target.state = 'routed';
-  }
+  target.remaining -= losses;
 
-  return { phase, by: shooter.combatant.id, target: target.combatant.id, losses };
+  return { phase: 'strike', by: shooter.combatant.id, target: target.combatant.id, losses };
 }

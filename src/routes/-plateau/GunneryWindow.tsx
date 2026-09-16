@@ -2,6 +2,7 @@ import { useQuery } from 'convex/react';
 import { Fragment, useState, type MouseEvent } from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
+  ARRIVAL_RADIUS_KM,
   DAMAGE_TABLE,
   CARRY_CAPACITY_BY_ROLE,
   DEFENDER_BONUS,
@@ -77,6 +78,11 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
           </p>
           <p className="mt-[3px] max-w-[74ch] text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
             {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}
+          </p>
+          {/* Le contact est le même pour tous : il se dit une fois ici, et jamais sur la fiche
+              d'un rôle, où il passerait pour une de ses qualités. */}
+          <p className="mt-[3px] max-w-[74ch] text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
+            {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
           </p>
         </div>
 

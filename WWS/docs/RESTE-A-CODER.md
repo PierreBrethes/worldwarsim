@@ -199,8 +199,10 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
     Capture de bâtiments et QG restent des chantiers ultérieurs ; récupération du butin
     par l’intercepteur incluse dans S6b.
 11. **objectifs-neutres** lot 1 — *prêt* — après 10 (réutilise `loot` et le retour).
-12. **fin-de-saison-au-seuil-tenu** — *prêt, **prochain chantier de fond** (décision 2a du
-    16/09)* — les deux valeurs restent `@a-mesurer` ; bannière du 16/09 en tête du prompt.
+12. **fin-de-saison-au-seuil-tenu** — *prêt, **remis à plus tard** (Pierre, 16/09 : « quand on
+    aura mieux établi le gameplay »)*. ⚠ Avant de le donner : trancher le **sol national dans
+    la part du théâtre** (`QUESTIONS.md` 🟠) — Royaume-Uni 232 régions contre Allemagne 16, le
+    Britannique tient 93 % à deux dès la première minute. Bannière du 16/09 en tête du prompt.
 13. ~~Titre « mon territoire »~~ — livré dans 6.
 14. ~~Fondateur parti~~ — livré (`surrender` + `fondateur-absent`).
 
@@ -239,6 +241,27 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
     détruire sans pile ; « entrer en garnison » seul avec une pile. Prompt
     `prompts/code/ready/rose-sur-les-avant-postes.md`, **prêt** (1a du 16/09 : les bâtiments
     ancrés au point tombent avec lui).
+
+## Acté le 16/09 — le combat (proposition `combat-simultane-terrain-retranchement.md`)
+
+- **Résolution simultanée** (décision 1b, révise l'ADR 0014) : **livrée le 16/09** — une salve par
+  camp sur l'état d'avant la passe, `riposteTarget` supprimé, `Strike.phase` toujours `'strike'`
+  (le littéral `'riposte'` reste au validateur, legacy). Cas de référence : 22 / 29 en plaine.
+  Prompt `prompts/code/ready/resolution-simultanee.md`.
+- **Deux cercles autour de la pile** (4a, 3a : contact plein, détection tiretée, ambre) : prompt
+  `prompts/code/ready/deux-cercles-autour-de-la-pile.md`, prêt, rendu seul.
+- **Rose des vents sur les avant-postes** (27, 1a) : prompt prêt, voir le Registre.
+
+28. **Artillerie** (16/09, « plus tard ») — dixième rôle : tir sur un relevé dans une portée
+    **minimale et maximale**, sans riposte de la cible, aveugle seule (un observateur la sert),
+    ne riposte jamais au contact, sa salve la relève chez la cible. Pas la salve d'allonge.
+29. **Terrain** (16/09, 1a) — d'abord **cuire un terrain réel** (le type au survol est un hash
+    du nom, `world.ts:130`) : script depuis relief ou couvert végétal → type par cellule ou par
+    région ; puis l'ADR qui autorise une règle à le lire ; puis le modificateur du chiffrage §4
+    (sol seulement). Après le gameplay.
+30. **Retranchement** (16/09, 2a) — bonus de position du défenseur, plafonné à **5-10 % au
+    plus**, affiché sur la fiche de la troupe sélectionnée avec le temps posé ; à chiffrer avec
+    le terrain (plafond cumulé à fixer).
 
 ## Acté le 15/09 — retours Discord
 

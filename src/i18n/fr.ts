@@ -1392,7 +1392,7 @@ export const fr = {
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
     lead: 'Part de l’effectif nominal du défenseur qu’une pièce à plein effectif détruit en une passe de résolution.',
     before: (defenderBonus: number, dryFactor: number) =>
-      `Avant modificateurs : la riposte du défenseur porte ×${tenths(defenderBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
+      `Avant modificateurs : la salve du défenseur porte ×${tenths(defenderBonus)}, un camp à court de munitions tire à ×${tenths(dryFactor)}.`,
     firesOn: 'tire sur',
     piece: 'la pièce',
     /** Les trois transports ne sont pas des trous de la grille : ils sont des cibles, et le
@@ -1439,7 +1439,14 @@ export const fr = {
         note: 'La pile conserve la meilleure portée de ses troupes. Voir une force ne suffit pas à ouvrir le feu.',
       },
     } satisfies Record<'alloy' | 'training' | 'strength' | 'range', { name: string; note: string }>,
-    detectionRange: (km: number) => `${num(km)} km`,
+    /** **La ligne dit son métier** (décisions 4a et 3a du 16/09) : un chiffre nu à côté d'un œil
+     *  se lisait comme une allonge, et c'est justement la confusion que le second cercle de la
+     *  carte lève. */
+    detectionRange: (km: number) => `détection ${num(km)} km`,
+    /** **Une seule fois, en tête, jamais par rôle** : le contact est une constante du jeu et non
+     *  une qualité de la pièce — le mettre sur chaque fiche en ferait une statistique de rôle. */
+    contactRange: (km: number) =>
+      `Portée de contact : ${num(km)} km — ce qu’un ordre trouve debout là où il arrive, quel que soit le rôle.`,
     nominalLootCapacity: (capacity: number) => `capacité nominale de butin : ${num(capacity)}`,
     movementRule: ({ mode, pace, costs }: MovementSheet) => {
       const route = {
@@ -1888,7 +1895,7 @@ export const fr = {
    * n'attend aucune étape : la doctrine « sans tutoriel » tient. Chaque phrase décrit ce que le
    * code fait vraiment — ce qui n'existe pas n'y figure pas.
    *
-   * **Les deux rayons sont des paramètres, jamais des chiffres écrits ici.** Une notice qui
+   * **Les rayons sont des paramètres, jamais des chiffres écrits ici.** Une notice qui
    * recopie 60 et 400 est vraie le jour où on l'écrit et fausse le jour où l'équilibrage bouge —
    * et c'est la seule feuille du jeu qu'un joueur lit en croyant apprendre la règle. Ils sortent
    * de `convex/constants.ts`, comme partout ailleurs dans cette table.
@@ -1897,7 +1904,7 @@ export const fr = {
     kicker: 'entrée en campagne',
     header: 'aide-mémoire du commandement',
     subtitle: 'Notice à l’usage de l’officier nouvellement affecté',
-    columns: (scoutRadiusKm: number, outpostReachKm: number) => [
+    columns: (scoutRadiusKm: number, contactRadiusKm: number, outpostReachKm: number) => [
       {
         title: 'La carte et la souris',
         lines: [
@@ -1914,6 +1921,7 @@ export const fr = {
           'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
           'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
           `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
+          `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
           `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
           'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
           'Clic droit sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.',

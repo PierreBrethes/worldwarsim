@@ -973,18 +973,19 @@ describe('an attack marches at somebody', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    // Fifty soldiers against fifty: he loses 22, I lose 16 (chiffrage §4, plain ground).
+    // Fifty soldiers against fifty, both salvoes fired on the state the pass opened with: he
+    // loses 22, I lose 29 — attaquer à forces égales coûte plus cher (ADR 0014, révision 1b).
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
     expect(await strikesIn(t, account!._id)).toHaveLength(2);
     expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(28);
-    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(34);
+    expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(21);
 
     // And both sides read it, each from its own side of the field.
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.reports[0]!.side).toBe('attacker');
-    expect(mine.reports[0]!.mine.lost).toBe(16);
+    expect(mine.reports[0]!.mine.lost).toBe(29);
     expect(mine.reports[0]!.theirs.lost).toBe(22);
     const theirsView = await t.query(api.view.playerView, guest);
     expect(theirsView.reports[0]!.side).toBe('defender');
@@ -1841,10 +1842,11 @@ describe('a march goes to a point and the column stays there', () => {
 
   /**
    * **L'assaut sur un camp relevé** (ADR 0024 §4) : c'est désormais le seul chemin vers cette
-   * passe-là. L'initiative va à qui a donné l'ordre (ADR 0014), le camp riposte sans que
-   * personne l'ordonne, et le battu reflue par le retour que nul n'a demandé.
+   * passe-là. Les deux camps tirent ensemble (ADR 0014, révision 1b du 16/09) — le camp visé
+   * rend les coups sans que personne l'ordonne — et le battu reflue par le retour que nul n'a
+   * demandé.
    */
-  it('opens the pass on a surveyed camp, initiative to the attacker, riposte from the camp', async () => {
+  it('opens the pass on a surveyed camp, with a salvo from each side', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -1868,11 +1870,12 @@ describe('a march goes to a point and the column stays there', () => {
     expect(account!.attackerId).toBe(await playerOf(t, seat));
     expect(account!.defenderId).toBe(await playerOf(t, guest));
     expect(account!.cause).toBe('arrival');
-    /** Qui a donné l'ordre frappe le premier, et le camp rend les coups sans que personne
-     *  l'ordonne (ADR 0014, ADR 0024 §3). */
+    /** Le camp rend les coups sans que personne l'ordonne (ADR 0024 §3), et il les rend dans la
+     *  même salve — c'est le côté qui les sépare désormais, plus la phase. */
     const strikes = await strikesIn(t, account!._id);
-    expect(strikes[0]!.bySide).toBe('attacker');
-    expect(strikes.some((strike) => strike.phase === 'riposte')).toBe(true);
+    expect(strikes.some((strike) => strike.bySide === 'attacker')).toBe(true);
+    expect(strikes.some((strike) => strike.bySide === 'defender')).toBe(true);
+    expect(strikes.every((strike) => strike.phase === 'strike')).toBe(true);
     expect((await t.run(async (ctx) => ctx.db.get(camped)))!.currentStrength).toBeLessThan(
       nominalStrength('infantry', 1),
     );
@@ -2761,9 +2764,9 @@ describe('a rout refluxes to the nearest anchor', () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
+    /** Deux colonnes sur cinquante hommes : elles ne l'effacent pas, elles le cassent — la salve
+     *  du camp part quand même, et la déroute se lit une fois la passe finie. */
     const camped = await post(t, guest, ARABIA);
-    // Worn down before the pass: it ripostes and still breaks.
-    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
     /** Deux compagnies au pays : la déroute ne doit pas conclure la saison sous lui. */
     await form(t, guest, 'infantry', null);
     await form(t, guest, 'infantry', null);
@@ -2793,7 +2796,6 @@ describe('a rout refluxes to the nearest anchor', () => {
       ctx.db.patch(rally, { disabledUntil: Date.now() + OUTPOST_DISABLED_HOURS * 3_600_000 }),
     );
     const camped = await post(t, guest, ARABIA);
-    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
     /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
      *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
      *  saison que plus personne ne joue (`seasonStillPlays`). */
@@ -2818,14 +2820,14 @@ describe('a rout refluxes to the nearest anchor', () => {
     const { seat, guest } = await launchedSeason(t);
     const camp = eastOf(ARABIA, 600);
     const walker = await post(t, guest, camp);
+    // Worn down before the pass: it fires its salvo and breaks all the same.
     await t.run(async (ctx) => ctx.db.patch(walker, { currentStrength: 30 }));
     // Two companies of the guest's kept at home, well clear of the road: the rout must not put
     // him under the victory bar, or the season concludes and the walk home is rightly refused
     // a season nobody plays any more (`seasonStillPlays`).
     await form(t, guest, 'infantry', null);
     await form(t, guest, 'infantry', null);
-    // Two French columns holding the ground it attacks: it opens the pass and breaks on them.
-    await post(t, seat, ARABIA);
+    // A French column holding the ground it attacks: it opens the pass and breaks on it.
     await post(t, seat, ARABIA);
     const campId = await surveyCamp(t, guest, asPoint(ARABIA));
 
@@ -2863,7 +2865,6 @@ describe('a rout refluxes to the nearest anchor', () => {
     const { seat, guest } = await launchedSeason(t);
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
     const camped = await post(t, guest, ARABIA);
-    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
     /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
      *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
      *  saison que plus personne ne joue (`seasonStillPlays`). */
@@ -2888,7 +2889,6 @@ describe('a rout refluxes to the nearest anchor', () => {
     const { seat, guest } = await launchedSeason(t);
     const rally = await plant(t, guest, eastOf(ARABIA, 300), 'SAU');
     const camped = await post(t, guest, ARABIA);
-    await t.run(async (ctx) => ctx.db.patch(camped, { currentStrength: 30 }));
     /** Deux compagnies au pays, bien à l'écart : la déroute ne doit pas passer le guest sous la
      *  barre de la Domination — la saison se conclurait, et le retour serait refusé à une
      *  saison que plus personne ne joue (`seasonStillPlays`). */

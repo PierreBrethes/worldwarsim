@@ -1,9 +1,13 @@
 # fin-de-saison-au-seuil-tenu — la part de carte tenue conclut la saison (ADR 0020 §2 et §9)
 
-> **Décision 2a du 16/09 : c'est le prochain chantier de fond.** La partie de contrôle a eu lieu
-> (11/09) sans fixer les deux valeurs : garde `DOMINATION_SHARE = 0,5` et
-> `DOMINATION_HELD_HOURS = 12` en `@a-mesurer`, mesure nommée : durée entre la première
-> `dominanceClaimed` et la conclusion, par saison.
+> **Remis à plus tard (Pierre, 16/09)** : « quand on aura mieux établi le gameplay ». Garde
+> `DOMINATION_SHARE = 0,5` et `DOMINATION_HELD_HOURS = 12` en `@a-mesurer`, mesure nommée :
+> durée entre la première `dominanceClaimed` et la conclusion, par saison.
+>
+> ⚠ **Ne pas donner avant d'avoir tranché le sol national dans la part** (`QUESTIONS.md` 🟠) :
+> `heldRegions` compte tout le sol d'origine, et les admin-1 sont inégales — Royaume-Uni 232,
+> Italie 110, France 101, URSS 85, États-Unis 51, Japon 47, Chine 32, Allemagne 16. Tel quel,
+> Royaume-Uni contre Allemagne se conclut à 12 h sans un mouvement.
 >
 > **Depuis la rédaction (06/09), la couleur a gagné des événements** — relis les appelants de
 > `settleBeforeChange` : le lever de fondation (`outposts.standOutpost`, 15/09), l'élévation

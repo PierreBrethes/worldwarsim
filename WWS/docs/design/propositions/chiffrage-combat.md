@@ -1,4 +1,8 @@
-# Proposition — Chiffrage du combat séquentiel
+# Proposition — Chiffrage du combat
+
+> **Révision du 16/09/2026 — résolution simultanée (décision 1b, [ADR 0014](../../adr/0014-troupes-discretes-et-combat-sequentiel.md)).**
+> Les deux camps tirent sur l'état d'avant la passe : le §3 et le §4 ci-dessous portent la
+> révision. **Aucune valeur de la table ne bouge** — seul l'ordre des tirs a changé.
 
 **Statut : proposition chiffrée, non gravée.** Ce document donne les premiers nombres du
 modèle de l'[ADR 0014](../../adr/0014-troupes-discretes-et-combat-sequentiel.md) — effectifs
@@ -6,8 +10,8 @@ nominaux, table de dégâts, modificateurs, soins, munitions. Ils sont *lisibles
 pas *équilibrés* : c'est le simulateur refondu qui tranchera. Session du 14/08/2026.
 
 Tout ce qui suit est vérifié par `src/domain/combat.test.ts`, qui rejoue les 75 couples
-atteignables **contre la résolution réelle** et échoue sur un contre absolu ou une riposte nulle
-non voulue. Le garde-fou tournait auparavant dans `WWS/simulation/verif-chiffrage.mjs`, sur une
+atteignables **contre la résolution réelle** et échoue sur un contre absolu ou un retour de salve
+nul non voulu. Le garde-fou tournait auparavant dans `WWS/simulation/verif-chiffrage.mjs`, sur une
 copie de la table ; la copie a été retirée le jour où les valeurs sont entrées dans
 `convex/constants.ts` — deux tables, c'est une table qui dérive.
 
@@ -85,8 +89,9 @@ La même paire donne un massacre ou une déroute selon qui attaque.
 
 ## 3. Une seule passe
 
-**Un engagement = une passe de résolution.** L'attaquant frappe, le défenseur riposte avec ses
-seuls survivants, et seulement s'il peut atteindre l'attaquant. Fin.
+**Un engagement = une passe de résolution**, et une passe = **une salve de chaque camp, tirée sur
+l'état d'avant la passe** (révision du 16/09/2026). Chacun tire s'il peut atteindre l'autre ; les
+pertes s'appliquent ensemble. Fin.
 
 L'ADR 0014 abandonne explicitement la résolution à plusieurs passes ; on n'en réintroduit pas
 par la bande. À trois passes, ces mêmes chiffres transforment quatorze couples sur soixante-quinze
@@ -95,9 +100,12 @@ en annihilations totales — mesuré, pas supposé.
 ```
 pertes_défenseur = round( D[att][def] × (effectif_att / nominal_att)
                           × (tenaille / (bonus_défenseur × terrain)) × nominal_def )
-riposte          = round( D[def][att] × (effectif_def_restant / nominal_def)
+pertes_attaquant = round( D[def][att] × (effectif_def / nominal_def)
                           × (bonus_défenseur × terrain) × nominal_att )
 ```
+
+Les deux lignes lisent le **même** état : `effectif_def` est celui d'avant la passe, plus celui
+des survivants. C'est tout le changement du 16/09.
 
 **Déroute plutôt que mort.** Une troupe tombée sous **25 %** de son nominal rompt le contact et
 se replie vers son rattachement. Elle est hors de combat, pas détruite — règle n°3 du projet.
@@ -112,21 +120,24 @@ se replie vers son rattachement. Elle est hors de combat, pas détruite — règ
 | Terrain — jungle / montagne | ×1.15 / ×1.20 | défenseur |
 | Tenaille (deux mouvements convergents) | **×1.20** | attaquant |
 | Munitions à sec | ×0.60 | pénalise celui qui n'en a plus |
-| Interception en route | inverse l'initiative | le défenseur devient l'attaquant |
+| ~~Interception en route~~ | ~~inverse l'initiative~~ | **sans objet** (16/09) : il n'y a plus d'initiative, et l'interception en route a disparu avec l'[ADR 0024](../../adr/0024-engagement-intentionnel-et-forces-posees-visibles.md) §3 |
 
-Résultat sur le cas de référence — 50 soldats contre 50 soldats :
+Résultat sur le cas de référence — 50 soldats contre 50 soldats, **résolution simultanée** :
 
 | Situation | Le défenseur perd | L'attaquant perd |
 |---|---|---|
-| en plaine | 22 | 16 |
-| en forêt | 20 | 19 |
-| en montagne | 18 | 22 |
-| en plaine, en tenaille | 26 | 14 |
+| en plaine | 22 | 29 |
 
-**L'avantage d'initiative est volontairement mince** — 1,4 contre 1 en plaine, et il s'inverse
-en montagne. L'ADR 0014 craignait « un festival d'agression » ; la mesure existante dit que la
-Domination gagne 72 % des saisons sans outils de soustraction. Une attaque frontale sans tenaille,
-sans supériorité aérienne et sans avantage de terrain doit être un mauvais calcul. C'est le cas.
+La ligne de plaine est celle que le code joue et que `combat.test.ts` vérifie ; forêt, montagne et
+tenaille restent à chiffrer avec le terrain et le retranchement (Registre 29-30), et les chiffres
+de la version séquentielle ne s'y transposent pas.
+
+**L'attaquant paie, et c'est le but** — 22 contre 29 en plaine, soit ×1,32, parce que
+`DEFENDER_BONUS` s'applique deux fois (divisé chez l'attaquant, multiplié chez le défenseur). Ce
+doublon est connu et volontairement laissé tel quel jusqu'au chiffrage du terrain. L'ADR 0014
+craignait « un festival d'agression » ; la mesure existante dit que la Domination gagne 72 % des
+saisons sans outils de soustraction. Une attaque frontale sans supériorité et sans surprise doit
+être un mauvais calcul. C'est le cas.
 
 ## 5. Munitions, soins, entretien
 

@@ -50,16 +50,22 @@ force permet de se placer sur sa route.
 réévaluée aux événements qui changent le plateau. Les segments et leurs coûts donnent la position
 et le milieu à chaque instant ; les rendez-vous périmés sont annulés et le callback relit l'état.
 
-**Le mouvement engageant prend l'initiative** ; si les deux engagent, la plus grande portée, puis
-le départ et la création les départagent sans aléa.
-
 Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §11.
 
-## 3. La résolution : une passe, initiative à l'attaquant
+## 3. La résolution : une passe, deux salves simultanées
 
-**Un engagement = une passe de résolution.** L'attaquant frappe. Le défenseur riposte avec ses
-seuls survivants, et seulement s'il **peut** atteindre l'attaquant — un canon antichar ne riposte
-pas à un bombardier. Fin.
+> **Révision du 16/09/2026 — résolution simultanée (décision 1b, [ADR 0014](../adr/0014-troupes-discretes-et-combat-sequentiel.md)).**
+> L'initiative à l'attaquant est abandonnée. Le reste du §3 tient tel quel.
+
+**Un engagement = une passe de résolution**, et une passe = **une salve de chaque camp, tirée sur
+l'état d'avant la passe**. Chacun vise la meilleure cible que la table lui donne, et seulement
+s'il **peut** l'atteindre — un canon antichar ne tire pas sur un bombardier. Les pertes
+s'appliquent ensemble : **un défenseur que la salve adverse détruit a tiré quand même**. Personne
+ne frappe le premier. Fin.
+
+**À forces égales, l'attaquant paie.** Le défenseur porte `DEFENDER_BONUS` et l'attaquant ne porte
+rien : cinquante fantassins contre cinquante, en plaine, le défenseur perd 22 et l'attaquant 29.
+L'attaque ne vaut qu'en supériorité ou en surprise.
 
 Une seule passe est un choix fort, et il est mesuré : avec les mêmes valeurs, trois passes
 transforment quatorze couples de rôles sur soixante-quinze en annihilations totales. Si le rejeu
@@ -170,8 +176,8 @@ d'hommes, tout le monde converge vers la même armée optimale et le pierre-feui
 plus à rien.
 
 **Aucune unité ne doit être un contre absolu.** `src/domain/combat.test.ts` rejoue les soixante-quinze
-couples et échoue sur toute destruction quasi totale sans riposte — hors les trois transports, qui
-sont des victimes par design.
+couples et échoue sur toute destruction quasi totale sans retour de salve — hors les trois
+transports, qui sont des victimes par design.
 
 ## 10. Le rejeu
 

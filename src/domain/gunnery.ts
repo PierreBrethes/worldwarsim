@@ -67,7 +67,7 @@ export function movementSheetOf(roles: ReadonlyArray<UnitRole>): MovementSheet {
  * de `STRONG_SHARE` on trouve les contres que le chiffrage a voulus francs (l'antichar de
  * l'infanterie MK2, le chasseur sur le bombardier, le blindé sur le camion) ; en dessous de
  * `WEAK_SHARE` on trouve les frappes de dépit (une infanterie qui tire sur un blindé, un cargo
- * qui riposte). Ils ne changent aucun combat — rien du jeu ne les lit.
+ * qui tire de dépit). Ils ne changent aucun combat — rien du jeu ne les lit.
  */
 export const STRONG_SHARE = 0.55;
 export const WEAK_SHARE = 0.15;

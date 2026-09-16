@@ -621,6 +621,11 @@ export const TROOP_STATE = v.union(
  * One strike of a resolution pass, in men and machines. Shared between the table that holds the
  * detail (`strikes`) and the legacy array still lying in the engagements written before it — one
  * shape, so a row of one is readable as a row of the other for as long as both exist.
+ *
+ * **`'riposte'` est legacy**, comme `decoy` : depuis la résolution simultanée (ADR 0014,
+ * révision 1b du 16/09/2026) une passe est une salve par camp et tout ce qui s'écrit porte
+ * `'strike'`. Le littéral reste parce que des engagements enregistrés le portent et qu'aucune
+ * migration ne les réécrit — le côté du tireur, lui, se lit dans `bySide`.
  */
 export const STRIKE = {
   phase: v.union(v.literal('strike'), v.literal('riposte')),

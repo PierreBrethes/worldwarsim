@@ -37,6 +37,15 @@ non tranchées : port de fortune coûteux et temporaire, embarquement depuis un 
 côtier (c'est l'atout italien *Mare Nostrum* — un atout qui casse cette règle pour une nation
 ne règle pas la soupape des sept autres), ou domaine dégradé plutôt que fermé.
 
+**Le sol national dans la part du théâtre.** `heldRegions` compte tout le sol d'origine, qui ne
+se perd jamais (ADR 0004), et les admin-1 de Natural Earth sont inégales : Royaume-Uni 232,
+Italie 110, France 101, URSS 85, États-Unis 51, Japon 47, Chine 32, Allemagne 16. Le classement
+territoire le montre déjà ; la victoire au seuil tenu (prompt prêt, remis à plus tard) le rendrait
+décisif — à deux, Royaume-Uni contre Allemagne tient 93 % à la première minute. Pistes : la part
+sur les seules régions tenues par avant-poste (le sol garde sa couleur, pas son poids) ; une
+valeur fixe par nation ; garder et relever le seuil. Révise l'ADR 0020 §2 quelle que soit la
+réponse. **À trancher avant de donner `fin-de-saison-au-seuil-tenu`.**
+
 **Élever ou fonder.** Le niveau 2 d'un point coûte 117 alliage et donne un emplacement et
 60 km de rayon ; une fondation coûte 65, donne un emplacement, un cercle neuf et de la couleur.
 À tout prix supérieur à la fondation, élever est dominé par fonder tant qu'il reste de la place.
@@ -77,10 +86,6 @@ déterministe — seule façon connue de rendre de la décision tactique sans ca
 premier skirmish ». Trois parties plus tard, rien n'est codé ; en asynchrone sur sept jours,
 « rien » veut dire que les joueurs oublient le jeu au bout de deux jours.
 
-**La salve d'allonge.** Le brief (au contact, le camp qui porte le plus loin tire une salve
-gratuite avant la passe) a été classé « abandonné » dans `done/` et l'ADR 0021 par la livraison
-du 08/09 — pas par une décision. À confirmer ou à rouvrir ; une ligne suffit.
-
 **« L'Allemagne est injouable ».** Plainte Discord du 15/09 ; le frein a changé de nature
 depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une réponse.
 
@@ -105,3 +110,7 @@ depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une rép
 - La file de recrutement comme entrepôt à l'abri du pillage → D5 acquise le 09/09 : limite
   assumée pour la V1.
 - Les bâtiments d'un point démantelé → 1a du 16/09 : ils tombent avec lui (`buildings.outpostId`).
+- L'initiative au combat → 1b du 16/09 : résolution **simultanée** (révision ADR 0014,
+  prompt `resolution-simultanee`). La salve d'allonge reste abandonnée ; l'artillerie viendra
+  comme un rôle (Registre 28), pas comme une salve.
+- « Peut-on refuser le combat », le rayon d'interception → voir plus haut (ADR 0021, 0024).

@@ -1,3 +1,4 @@
+import { Group } from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -29,8 +30,25 @@ const THICKNESS = 3;
  * the very ground the circle is drawn over. The ring is a measure, not a claim — it takes the
  * same amber the player's own threads do, which is the map's one ink for "this is yours and it
  * is live".
+ *
+ * **Les deux cercles la partagent** (décisions 4a et 3a du 16/09) : ils mesurent la même chose
+ * depuis le même point, et deux encres en feraient deux sujets. Ce qui les sépare est le trait.
  */
 const INK = ARC_COLORS.mine.progress;
+
+/**
+ * **Le tireté se compte, il ne se mesure pas.** Une longueur fixe en unités de plateau ferait du
+ * cercle de contact un trait plein et de celui d'un chasseur quelques traits épars : ce qu'il faut
+ * tenir est le *rythme*, le même à soixante kilomètres qu'à quatre cents.
+ */
+const DASHES = 56;
+
+/**
+ * **Sous ce rayon à l'écran, vingt-cinq kilomètres sont un point** — et un point posé sur le mât
+ * se lirait comme un marqueur de plus, pas comme une portée. Au zoom monde le contact ne se
+ * dessine donc pas ; il revient dès que la carte descend là où il veut dire quelque chose.
+ */
+const MIN_CONTACT_PIXELS = 6;
 
 const KM_PER_DEGREE = 111.32;
 
@@ -48,25 +66,23 @@ const KM_PER_DEGREE = 111.32;
  * space: the projection tightens toward the poles, so a reach that is round in Romania is an
  * ellipse in Norway, and the map has to say the true shape or it promises coverage that the
  * kilometres do not.
+ *
+ * **Une pile en porte deux** (décisions 4a et 3a du 16/09) : le tireté est ce qu'elle voit, le
+ * plein ce qu'elle touche. Les deux questions se posaient sur la même carte et une seule avait
+ * une réponse dessinée — on lisait une portée de détection en croyant lire une allonge.
  */
 export class ReachRing {
-  readonly object: Line2;
-  private readonly geometry = new LineGeometry();
-  private readonly material: LineMaterial;
+  readonly object = new Group();
+  private readonly detection = new Ring(true);
+  private readonly contact = new Ring(false);
   private shown: Reach | null = null;
+  /** Le rayon du contact en unités de plateau : le seuil de lisibilité se juge en pixels, et
+   *  c'est le seul chiffre qui fasse le pont. Zéro quand il n'y a pas de contact à dessiner. */
+  private contactUnits = 0;
 
   constructor(private readonly frame: WorldFrame) {
-    this.material = new LineMaterial({
-      color: INK,
-      linewidth: THICKNESS,
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    });
-    this.object = new Line2(this.geometry, this.material);
-    this.object.renderOrder = 3;
+    this.object.add(this.detection.line, this.contact.line);
     this.object.visible = false;
-    this.object.frustumCulled = false;
   }
 
   show(reach: Reach | null): void {
@@ -79,7 +95,14 @@ export class ReachRing {
   /** A fat line thickens in pixels: without the canvas size it is born at the wrong scale,
    *  exactly as a thread would be (`ArcLayer.resize`). */
   resize(width: number, height: number): void {
-    this.material.resolution.set(width, height);
+    this.detection.resize(width, height);
+    this.contact.resize(width, height);
+  }
+
+  /** Le contact tient vingt-cinq kilomètres : à distance c'est un point, et un point ment. */
+  animate(unitsPerPixel: number): void {
+    this.contact.line.visible =
+      this.contactUnits > 0 && this.contactUnits / unitsPerPixel >= MIN_CONTACT_PIXELS;
   }
 
   /** The curvature moved every vertex of the board under a ring that did not: same reach, new
@@ -90,14 +113,27 @@ export class ReachRing {
 
   dispose(): void {
     this.object.removeFromParent();
-    this.geometry.dispose();
-    this.material.dispose();
+    this.detection.dispose();
+    this.contact.dispose();
   }
 
-  private write({ lonLat, km }: Reach): void {
-    const [lon, lat] = lonLat;
+  private write(reach: Reach): void {
+    this.detection.write(this.circle(reach.lonLat, reach.detectionKm));
+
+    if (reach.contactKm === null) {
+      this.contact.line.visible = false;
+      this.contactUnits = 0;
+      return;
+    }
+    const contact = this.circle(reach.lonLat, reach.contactKm);
+    this.contact.write(contact);
+    this.contactUnits = contact.perimeter / (2 * Math.PI);
+  }
+
+  private circle([lon, lat]: LonLat, km: number): Circle {
     const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
     const positions: number[] = [];
+    let perimeter = 0;
 
     for (let step = 0; step <= SEGMENTS; step += 1) {
       const angle = (step / SEGMENTS) * Math.PI * 2;
@@ -106,12 +142,66 @@ export class ReachRing {
         Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
       ];
       const vertex = this.frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
+      if (step > 0) {
+        perimeter += Math.hypot(
+          vertex.x - positions[positions.length - 3]!,
+          vertex.y - positions[positions.length - 2]!,
+          vertex.z - positions[positions.length - 1]!,
+        );
+      }
       positions.push(vertex.x, vertex.y, vertex.z);
     }
     // The loop is closed by hand: a fat line has no `LineLoop` form, and an open ring shows
     // its gap at the very radius the player is measuring.
     positions.push(positions[0]!, positions[1]!, positions[2]!);
-    this.geometry.setPositions(positions);
+    return { positions, perimeter };
+  }
+}
+
+/** Le tracé projeté d'un cercle, et sa longueur : le rythme du tireté comme le seuil du contact
+ *  se lisent tous deux sur elle, et la mesurer une fois évite de la supposer ronde. */
+type Circle = { readonly positions: ReadonlyArray<number>; readonly perimeter: number };
+
+/** Un anneau et son trait. Deux instances plutôt qu'un matériau qu'on bascule : le tireté et le
+ *  plein sont affichés ensemble, donc ce sont bien deux objets. */
+class Ring {
+  readonly line: Line2;
+  private readonly geometry = new LineGeometry();
+  private readonly material: LineMaterial;
+
+  constructor(private readonly dashed: boolean) {
+    this.material = new LineMaterial({
+      color: INK,
+      linewidth: THICKNESS,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+      dashed,
+    });
+    this.line = new Line2(this.geometry, this.material);
+    this.line.renderOrder = 3;
+    this.line.frustumCulled = false;
+  }
+
+  write({ positions, perimeter }: Circle): void {
+    this.geometry.setPositions([...positions]);
     this.geometry.computeBoundingSphere();
+    if (!this.dashed) return;
+    const stroke = perimeter / (DASHES * 2);
+    this.material.dashSize = stroke;
+    this.material.gapSize = stroke;
+    // Le tireté se compte sur une distance cumulée qui vient des positions : elle est fausse
+    // tant qu'on ne la recalcule pas, et un anneau redessiné garde alors le rythme de l'ancien.
+    this.line.computeLineDistances();
+  }
+
+  resize(width: number, height: number): void {
+    this.material.resolution.set(width, height);
+  }
+
+  dispose(): void {
+    this.line.removeFromParent();
+    this.geometry.dispose();
+    this.material.dispose();
   }
 }

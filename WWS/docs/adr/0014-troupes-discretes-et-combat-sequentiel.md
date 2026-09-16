@@ -1,6 +1,13 @@
-# ADR 0014 — Troupes discrètes et combat séquentiel à l'initiative de l'attaquant
+# ADR 0014 — Troupes discrètes et combat simultané
 
 **Statut :** acceptée — précisée par l'[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md)
+— **révisée le 16/09/2026 : résolution simultanée (décision 1b)**
+
+> **Révision du 16/09/2026 — résolution simultanée (décision 1b).** L'initiative à l'attaquant
+> est abandonnée : les deux camps tirent sur l'état d'avant la passe et les pertes s'appliquent
+> ensemble. Tout le reste de l'ADR tient — troupes discrètes, transports-troupes, une seule
+> passe, table de dégâts par couple, déroute sous le quart, soin et spécialisations. Source :
+> `../design/propositions/combat-simultane-terrain-retranchement.md` §1.
 
 ## Contexte
 
@@ -27,11 +34,14 @@ Ses points de vie sont son **effectif nominal, lisible** : 50 soldats, 10 chars 
 de regroupement. En mer, on voit le navire, pas la cargaison — le leurre y gagne :
 un transport vide est indiscernable d'un plein.
 
-**Résolution séquentielle, initiative à l'attaquant.** L'attaquant frappe d'abord ;
-le défenseur riposte avec ses seuls survivants, et seulement s'il **peut** toucher
-l'attaquant (un canon antichar ne riposte pas à un bombardier). Le
+**Résolution simultanée, en une passe** (révisé le 16/09/2026). Les deux camps tirent
+**sur l'état d'avant la passe** — chacun avec l'effectif qu'il y amène, chacun sur la
+meilleure cible que la table lui donne, et seulement s'il **peut** l'atteindre (un canon
+antichar ne tire pas sur un bombardier). Les pertes s'appliquent ensemble ; la déroute et
+la destruction ne se lisent qu'une fois la passe finie, donc **un défenseur que la salve
+adverse détruit a tiré quand même**. Personne ne frappe le premier. Le
 pierre-feuille-ciseaux demeure : des tables de dégâts par couple de rôles remplacent
-la matrice simultanée. L'issue d'un engagement est **prédictible avant de le lancer** —
+la matrice 9×9. L'issue d'un engagement est **prédictible avant de le lancer** —
 c'est la qualité stratégique recherchée.
 
 **Les blessures se soignent.** Une troupe entamée se reconstitue en consommant des
@@ -44,9 +54,17 @@ Les autres rôles recevront les leurs.
 
 ## Justification
 
-**La lisibilité prédictive.** « 50 soldats contre 50 soldats : j'en perds 7, il en perd
-25 » se comprend sans manuel. Le rejeu de bataille (fiche 4.7) devient une évidence à
-mettre en scène.
+**La lisibilité prédictive.** « 50 soldats contre 50 soldats : il en perd 22, j'en perds
+29 » se comprend sans manuel. Le rejeu de bataille (fiche 4.7) devient une évidence à
+mettre en scène — deux salves, pas une frappe puis une réponse.
+
+**Les défenseurs dépensent moins que les attaquants** (révision du 16/09/2026). À forces
+égales l'attaquant perd davantage : le défenseur porte `DEFENDER_BONUS` et l'attaquant ne
+porte rien. Le cas de référence le chiffre — 50 fantassins MK1 contre 50, en plaine,
+munitions pleines : **le défenseur perd 22, l'attaquant 29** (`src/domain/combat.test.ts`).
+L'attaque ne vaut donc qu'en **supériorité ou en surprise**, et c'est le jeu plus prudent
+qu'on veut. Mesure attendue : rapport pertes attaquant / défenseur par engagement sur une
+saison (`technique/a-mesurer.md`).
 
 **L'interface existait déjà.** Le design rejoint ce que l'UI-sonde avait construit —
 c'est le sens même de la méthode du projet.
@@ -62,14 +80,18 @@ c'est le sens même de la méthode du projet.
 courant, position ou rattachement. La datation paresseuse de la file reste valable.
 
 **L'ADR 0008 est précisée, pas contredite.** Le combat reste automatique, résolu sans
-le joueur, avec interception et rejeu. Seule la formule interne change : séquentielle
-au lieu de simultanée.
+le joueur, et rejouable. Seule la formule interne change : une passe, deux salves, au
+lieu de quatre passes et d'une matrice 9×9.
 
-**L'initiative à l'attaquant renforce l'attaque — trois contre-pouvoirs obligatoires
-dès le premier jet :** l'interception en route (le défenseur peut frapper avant
-l'arrivée), le bonus du défenseur (curseur explicite, 1.15 aujourd'hui), le terrain des
-régions (défendre en montagne doit compter). Sans eux, la première saison sera un
-festival d'agression — l'aversion mesurée du jeu pour l'attaque bon marché l'exige.
+> Le nom de fichier dit encore « combat séquentiel » : il est l'adresse de l'ADR dans une
+> vingtaine de renvois, et le renommer vaudrait moins que le lien qu'il casserait.
+
+**Les trois contre-pouvoirs exigés contre l'initiative n'ont plus d'initiative à
+contrer** (révision du 16/09/2026) : l'interception en route a disparu avec l'ADR 0024 §3,
+le bonus du défenseur reste et devient **le seul avantage de la défense**, le terrain des
+régions attend ses données (Registre 29). Le festival d'agression que cette ADR craignait
+est écarté par la simultanéité elle-même : attaquer à forces égales coûte plus cher que
+tenir.
 
 **Le budget de décisions se densifie, et c'est assumé.** Ordonner 10–30 troupes fait
 monter le rythme mesuré (1,2 décision/heure). Les slots de mouvement (ADR 0006) restent
@@ -83,5 +105,8 @@ chiffrer puis à mesurer.
 
 - L'effectif national sans position (ADR 0011 première forme).
 - Les piles fusionnables et leur composition libre.
-- La résolution simultanée à quatre passes et la matrice 9×9 telle quelle.
+- La résolution à quatre passes et la matrice 9×9 telle quelle — c'est le *nombre* de passes
+  qui était abandonné, et la révision du 16/09 ne le rouvre pas : une passe, deux salves.
+- **L'initiative à l'attaquant** (révision du 16/09/2026) et la phase de riposte qui allait
+  avec ; `Strike.phase` garde `'riposte'` en legacy pour les engagements déjà enregistrés.
 - La question ouverte « pile nationale ou piles localisées » — tranchée de fait.

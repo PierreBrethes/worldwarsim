@@ -7,6 +7,7 @@ import {
   TRANSPORT_PROFILES,
   type Combatant,
   type CombatProfile,
+  type Engagement,
 } from './combat';
 import type { UnitRole, UnitTier } from './ids';
 
@@ -47,6 +48,10 @@ function troop(profile: CombatProfile, strength?: number): Combatant {
   };
 }
 
+/** The salvo of one troop, since a pass no longer has two phases to tell the sides apart. */
+const firedBy = (engagement: Engagement, shooter: Combatant) =>
+  engagement.strikes.filter((strike) => strike.by === shooter.id);
+
 const duel = (attacker: CombatProfile, defender: CombatProfile) => {
   const a = troop(attacker);
   const d = troop(defender);
@@ -59,6 +64,8 @@ const duel = (attacker: CombatProfile, defender: CombatProfile) => {
   const outcome = (id: string) => engagement.outcomes.find((one) => one.id === id)!;
   return {
     engagement,
+    attacker: a,
+    defender: d,
     lostByDefender: d.strength - outcome(d.id).strengthAfter,
     lostByAttacker: a.strength - outcome(a.id).strengthAfter,
     nominalAttacker: a.nominalStrength,
@@ -106,16 +113,21 @@ describe('the damage table holds no absolute counter', () => {
   });
 });
 
+/**
+ * **La révision du 16/09 de l'ADR 0014** : les deux camps tirent sur l'état d'avant la passe. Le
+ * cas de référence en donne les deux chiffres, et ils sont dans l'ADR — c'est le seul endroit où
+ * le joueur peut lire ce que coûte une attaque frontale.
+ */
 describe('the reference case of ADR 0014', () => {
-  it('has fifty soldiers lose twenty-two and cost the attacker sixteen', () => {
+  it('has fifty soldiers lose twenty-two and cost the attacker twenty-nine', () => {
     const fight = duel('infantry1', 'infantry1');
     expect(fight.lostByDefender).toBe(22);
-    expect(fight.lostByAttacker).toBe(16);
+    expect(fight.lostByAttacker).toBe(29);
   });
 
-  it('leaves the initiative worth barely more than the defender bonus', () => {
+  it('makes the attacker of an even fight the one that pays', () => {
     const fight = duel('infantry1', 'infantry1');
-    expect(fight.lostByDefender / fight.lostByAttacker).toBeLessThan(1.5);
+    expect(fight.lostByAttacker).toBeGreaterThan(fight.lostByDefender);
   });
 
   it('gives mark-2 infantry the answer to a heavy tank that mark 1 does not have', () => {
@@ -125,7 +137,7 @@ describe('the reference case of ADR 0014', () => {
   });
 });
 
-describe('one pass, and the excess is lost', () => {
+describe('one pass, two salvoes, and the excess is lost', () => {
   it('wastes the strikes of six columns aimed at a single defender', () => {
     const attackers = Array.from({ length: 6 }, () => troop('armor2'));
     const lone = troop('infantry1');
@@ -137,9 +149,12 @@ describe('one pass, and the excess is lost', () => {
     });
 
     // Six tank columns strike; the first two already take the fifty soldiers to nothing, and the
-    // four behind them hit a target that is no longer standing. Nothing spills over.
-    expect(engagement.strikes.filter((strike) => strike.phase === 'strike')).toHaveLength(2);
-    expect(engagement.strikes.reduce((sum, strike) => sum + strike.losses, 0)).toBe(50);
+    // four behind them find nothing left to aim at. Nothing spills over.
+    const salvo = engagement.strikes.filter((strike) =>
+      attackers.some((one) => one.id === strike.by),
+    );
+    expect(salvo).toHaveLength(2);
+    expect(salvo.reduce((sum, strike) => sum + strike.losses, 0)).toBe(50);
     expect(engagement.outcomes.find((one) => one.id === lone.id)!.state).toBe('destroyed');
     expect(engagement.winner).toBe('attacker');
   });
@@ -156,12 +171,11 @@ describe('one pass, and the excess is lost', () => {
     });
 
     // .70 against the lorries, .15 against the tanks: nobody screens for anybody.
-    const first = engagement.strikes[0]!;
-    expect(first.target).toBe(lorries.id);
+    expect(firedBy(engagement, rifles)[0]!.target).toBe(lorries.id);
     expect(engagement.outcomes.find((one) => one.id === armour.id)!.strengthAfter).toBe(12);
   });
 
-  it('routs a weakened troop out of the engagement instead of killing it', () => {
+  it('lets a defender broken by the salvo fire in the same pass before it routs', () => {
     const lorries = troop('landTransport');
     const worn = troop('infantry1', 16);
     const engagement = resolveEngagement({
@@ -174,12 +188,28 @@ describe('one pass, and the excess is lost', () => {
     const outcome = engagement.outcomes.find((one) => one.id === worn.id)!;
     expect(outcome.state).toBe('routed');
     expect(outcome.strengthAfter).toBeGreaterThan(0);
-    // It broke contact: it never fired back.
-    expect(engagement.strikes.filter((strike) => strike.phase === 'riposte')).toHaveLength(0);
+    // Simultaneous: it broke contact *after* having fired, not instead of firing.
+    expect(firedBy(engagement, worn)).toHaveLength(1);
+    expect(firedBy(engagement, worn)[0]!.target).toBe(lorries.id);
     expect(engagement.winner).toBe('attacker');
   });
 
-  it('answers the one that struck it, or the best it can reach when it cannot', () => {
+  it('lets a defender destroyed by the salvo fire all the same', () => {
+    const tanks = troop('armor2');
+    const rifles = troop('infantry1');
+    const engagement = resolveEngagement({
+      attackers: [tanks, troop('armor2')],
+      defenders: [rifles],
+      ammunition: SUPPLIED,
+      rules: COMBAT_RULES,
+    });
+
+    expect(engagement.outcomes.find((one) => one.id === rifles.id)!.state).toBe('destroyed');
+    expect(firedBy(engagement, rifles)).toHaveLength(1);
+    expect(firedBy(engagement, rifles)[0]!.target).toBe(tanks.id);
+  });
+
+  it('has the defender pick with the table, like anyone else', () => {
     const lorries = troop('landTransport');
     const bombers = troop('bomber');
     const holder = troop('infantry1');
@@ -190,10 +220,30 @@ describe('one pass, and the excess is lost', () => {
       rules: COMBAT_RULES,
     });
 
-    // The bombers strike last, so they are what struck it — and a rifle company does not answer
-    // a bomber. It fires back at the lorries it can reach instead.
-    const riposte = engagement.strikes.find((strike) => strike.phase === 'riposte')!;
-    expect(riposte.target).toBe(lorries.id);
+    // A rifle company cannot reach a bomber at all; it fires at the only thing it reaches, and
+    // no longer at "the one that struck it last".
+    expect(firedBy(engagement, holder)).toHaveLength(1);
+    expect(firedBy(engagement, holder)[0]!.target).toBe(lorries.id);
+  });
+
+  it('fires from neither side when neither reaches the other', () => {
+    const fight = duel('armor2', 'airTransport');
+    expect(fight.engagement.strikes).toHaveLength(0);
+    expect(fight.lostByDefender).toBe(0);
+    expect(fight.lostByAttacker).toBe(0);
+  });
+
+  it('fires from the one side that reaches, and it may be the defender', () => {
+    const fight = duel('armor2', 'bomber');
+    expect(fight.engagement.strikes).toHaveLength(1);
+    expect(fight.engagement.strikes[0]!.by).toBe(fight.defender.id);
+    expect(fight.lostByAttacker).toBeGreaterThan(0);
+    expect(fight.lostByDefender).toBe(0);
+  });
+
+  it('writes one phase and one only, the riposte being legacy', () => {
+    const fight = duel('infantry1', 'infantry1');
+    expect(fight.engagement.strikes.map((strike) => strike.phase)).toEqual(['strike', 'strike']);
   });
 });
 
@@ -215,7 +265,7 @@ describe('the magazine is billed at the pass', () => {
     expect(engagement.magazine.defender).toEqual({ needed: 5, spent: 5, dry: false });
   });
 
-  it('bills a company that never lives to riposte, because it was engaged all the same', () => {
+  it('bills a company that does not outlive its salvo, because it was engaged all the same', () => {
     const engagement = resolveEngagement({
       attackers: [troop('armor2'), troop('armor2')],
       defenders: [troop('infantry1')],
@@ -228,8 +278,9 @@ describe('the magazine is billed at the pass', () => {
   });
 
   it('takes everything that is left and fires at .60 when the stock cannot cover the pass', () => {
+    const attacker = troop('infantry1');
     const dry = resolveEngagement({
-      attackers: [troop('infantry1')],
+      attackers: [attacker],
       defenders: [troop('infantry1')],
       ammunition: { attacker: 4, defender: 10_000 },
       rules: COMBAT_RULES,
@@ -238,15 +289,16 @@ describe('the magazine is billed at the pass', () => {
 
     expect(dry.magazine.attacker).toEqual({ needed: 10, spent: 4, dry: true });
     // Bad, never absent: it still strikes, at .60 of the twenty-two of the reference case.
-    const lost = dry.strikes.find((strike) => strike.phase === 'strike')!.losses;
+    const lost = firedBy(dry, attacker)[0]!.losses;
     expect(lost).toBe(Math.round(supplied.lostByDefender * 0.6));
     expect(lost).toBeGreaterThan(0);
   });
 
   it('leaves the other side alone when only one magazine is empty', () => {
+    const defender = troop('infantry1');
     const engagement = resolveEngagement({
       attackers: [troop('infantry1')],
-      defenders: [troop('infantry1')],
+      defenders: [defender],
       ammunition: { attacker: 0, defender: 10_000 },
       rules: COMBAT_RULES,
     });
@@ -254,10 +306,8 @@ describe('the magazine is billed at the pass', () => {
 
     expect(engagement.magazine.attacker).toEqual({ needed: 10, spent: 0, dry: true });
     expect(engagement.magazine.defender.dry).toBe(false);
-    // The riposte answers a strike weakened by .60, so it has more to answer with.
-    expect(engagement.strikes.find((strike) => strike.phase === 'riposte')!.losses).toBeGreaterThan(
-      supplied.lostByAttacker,
-    );
+    // Simultaneous: the defender's salvo owes nothing to what the attacker managed to fire.
+    expect(firedBy(engagement, defender)[0]!.losses).toBe(supplied.lostByAttacker);
   });
 
   it('asks nothing of a side that brings nothing', () => {

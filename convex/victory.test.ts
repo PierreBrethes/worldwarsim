@@ -143,11 +143,10 @@ async function seasonOf(t: ReturnType<typeof boot>) {
  */
 async function overrun(t: ReturnType<typeof boot>, attacker: Seat, victim: Seat) {
   const barracks = await raise(t, attacker, MARNE);
-  const column = [
-    await form(t, attacker, barracks),
-    await form(t, attacker, barracks),
-    await form(t, attacker, barracks),
-  ];
+  /** Deux colonnes, pas trois : depuis la résolution simultanée la déroute ne se lit qu'une fois
+   *  la passe finie, donc une troisième salve achèverait le défenseur au lieu de le casser — et
+   *  un joueur sans une seule troupe debout ne peut plus rien reconstruire. */
+  const column = [await form(t, attacker, barracks), await form(t, attacker, barracks)];
   const outpost = await plant(t, victim, regionFacts(PRAHOVA)!.point);
   await form(t, victim, outpost);
 

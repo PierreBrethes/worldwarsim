@@ -3,6 +3,7 @@
 **Statut :** acceptée — précise l'[ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md), gravée après coup
 — **§7 renversée le 25/08/2026** (question 18, option a) : les munitions se facturent au tir, plus au recrutement
 — **§3 et §5 révisées le 08/09/2026** par l'[ADR 0021](0021-portee-de-detection-et-postures.md)
+— **§2.5 et §3 révisées le 16/09/2026** par la résolution simultanée ([ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md), décision 1b)
 
 > Cette ADR ne décide rien de nouveau. Elle grave des décisions déjà prises par le code pendant
 > le traitement combat-séquentiel et jamais formalisées — le mécanisme documenté ici tourne en
@@ -67,19 +68,25 @@ cet ordre exact :
    c'est ce qu'une colonne qui a rompu fait mécaniquement. C'est la règle n° 3 du projet — un
    joueur écrasé reste nuisible, jamais éliminé — appliquée à l'échelle de la troupe : déroutée,
    pas détruite.
-5. **Les ripostes viennent après toutes les frappes, jamais entrelacées.** Un défenseur déjà
-   touché riposte avec ce qu'il lui reste ; un défenseur pas encore atteint riposte à pleine
-   force. Entrelacer frappes et ripostes ferait décider deux fois le même ordre de tir — une
-   fois pour qui frappe en premier, une fois pour qui riposte en premier — et rendrait l'issue
-   sensible à un détail d'implémentation plutôt qu'à la composition des forces. Chaque défenseur
-   encore debout riposte sur qui l'a frappé en dernier s'il peut l'atteindre, sinon sur la
-   meilleure cible qu'il peut atteindre, sinon pas du tout (`riposteTarget`).
+5. **Une salve par camp, tirée sur l'état d'avant la passe** (révisé le 16/09/2026,
+   [ADR 0014](0014-troupes-discretes-et-combat-sequentiel.md) décision 1b). Les deux camps
+   visent avec `pick`, chacun avec l'effectif qu'il amène dans la passe ; les pertes
+   s'appliquent ensemble et la déroute comme la destruction ne se lisent **qu'après** les deux
+   salves. Un défenseur détruit dans la passe a donc tiré quand même. Le seul ordre qui subsiste
+   est celui du plafond par cible — deux colonnes sur une même troupe, la seconde gaspille ce
+   qui dépasse (point 3).
+
+   > **Ce que cette révision remplace.** Le texte précédent faisait venir les ripostes après
+   > toutes les frappes, chaque défenseur encore debout répondant à qui l'avait frappé en
+   > dernier (`riposteTarget`, supprimé). Le motif tenait — ne pas faire décider deux fois le
+   > même ordre de tir — et la simultanéité le sert mieux : plus aucun ordre ne décide.
 
 ### 3. Le bonus du défenseur, les types qui combattent, le contact mobile
 
-**`DEFENDER_BONUS` vaut 1,15** — le deuxième des trois contre-pouvoirs exigés par l'ADR 0014
-contre l'initiative de l'attaquant, appliqué à la riposte (le partage de dégâts est divisé par ce
-facteur pour la frappe de l'attaquant, multiplié pour la riposte du défenseur).
+**`DEFENDER_BONUS` vaut 1,15** — depuis le 16/09/2026 il n'y a plus d'initiative à contrer, et
+c'est devenu le **seul** avantage de la défense. Il s'applique où il s'appliquait : le partage de
+dégâts est divisé par ce facteur pour la salve de l'attaquant, multiplié pour celle du défenseur,
+soit ×1,32 d'écart réel. Le doublon est connu et se relit avec le terrain (Registre 29-30).
 
 **Deux types de mouvement déclenchent une passe de résolution : `attack` et `raid`**
 (`convex/movements.ts:245`). Un raid gagné désactive l'avant-poste visé (jamais ne le prend,
