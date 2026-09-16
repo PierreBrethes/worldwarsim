@@ -84,9 +84,10 @@ cet ordre exact :
 ### 3. Le bonus du défenseur, les types qui combattent, le contact mobile
 
 **`DEFENDER_BONUS` vaut 1,15** — depuis le 16/09/2026 il n'y a plus d'initiative à contrer, et
-c'est devenu le **seul** avantage de la défense. Il s'applique où il s'appliquait : le partage de
-dégâts est divisé par ce facteur pour la salve de l'attaquant, multiplié pour celle du défenseur,
-soit ×1,32 d'écart réel. Le doublon est connu et se relit avec le terrain (Registre 29-30).
+c'est devenu le **seul** avantage de la défense. Il s'applique **une seule fois**, sur la salve du
+défenseur : la salve de l'attaquant ne porte plus rien. Le doublon hérité du séquentiel — divisé
+chez l'un, multiplié chez l'autre, ×1,32 d'écart réel là où la constante en annonce 1,15 — a été
+retiré le 16/09. Le terrain et le retranchement se chiffreront sur cet écart-là (Registre 29-30).
 
 **Deux types de mouvement déclenchent une passe de résolution : `attack` et `raid`**
 (`convex/movements.ts:245`). Un raid gagné désactive l'avant-poste visé (jamais ne le prend,

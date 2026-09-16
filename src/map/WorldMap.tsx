@@ -214,6 +214,7 @@ export function WorldMap({
     (target: CompassTarget, clientX: number, clientY: number) => {
       const drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
+      console.log('[banc] openRose', JSON.stringify(target), 'drawn=', JSON.stringify(drawn));
       if (drawn === null || rect === undefined) return;
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       setRose({
@@ -260,6 +261,7 @@ export function WorldMap({
           point !== null && coastAt(point),
           point !== null && landAt(point),
         );
+        console.log('[banc] aiming rc', JSON.stringify(aimed));
         if (aimed === null) {
           setRose(null);
           return;

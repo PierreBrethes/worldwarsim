@@ -145,8 +145,10 @@ async function overrun(t: ReturnType<typeof boot>, attacker: Seat, victim: Seat)
   const barracks = await raise(t, attacker, MARNE);
   /** Deux colonnes, pas trois : depuis la résolution simultanée la déroute ne se lit qu'une fois
    *  la passe finie, donc une troisième salve achèverait le défenseur au lieu de le casser — et
-   *  un joueur sans une seule troupe debout ne peut plus rien reconstruire. */
+   *  un joueur sans une seule troupe debout ne peut plus rien reconstruire. La seconde part
+   *  entamée pour la même raison : à pleine force les deux salves l'effacent tout juste. */
   const column = [await form(t, attacker, barracks), await form(t, attacker, barracks)];
+  await t.run(async (ctx) => ctx.db.patch(column[1]!, { currentStrength: 30 }));
   const outpost = await plant(t, victim, regionFacts(PRAHOVA)!.point);
   await form(t, victim, outpost);
 

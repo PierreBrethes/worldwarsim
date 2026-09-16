@@ -54,14 +54,14 @@ Les autres rôles recevront les leurs.
 
 ## Justification
 
-**La lisibilité prédictive.** « 50 soldats contre 50 soldats : il en perd 22, j'en perds
+**La lisibilité prédictive.** « 50 soldats contre 50 soldats : il en perd 25, j'en perds
 29 » se comprend sans manuel. Le rejeu de bataille (fiche 4.7) devient une évidence à
 mettre en scène — deux salves, pas une frappe puis une réponse.
 
 **Les défenseurs dépensent moins que les attaquants** (révision du 16/09/2026). À forces
 égales l'attaquant perd davantage : le défenseur porte `DEFENDER_BONUS` et l'attaquant ne
 porte rien. Le cas de référence le chiffre — 50 fantassins MK1 contre 50, en plaine,
-munitions pleines : **le défenseur perd 22, l'attaquant 29** (`src/domain/combat.test.ts`).
+munitions pleines : **le défenseur perd 25, l'attaquant 29** (`src/domain/combat.test.ts`).
 L'attaque ne vaut donc qu'en **supériorité ou en surprise**, et c'est le jeu plus prudent
 qu'on veut. Mesure attendue : rapport pertes attaquant / défenseur par engagement sur une
 saison (`technique/a-mesurer.md`).

@@ -119,9 +119,9 @@ describe('the damage table holds no absolute counter', () => {
  * le joueur peut lire ce que coûte une attaque frontale.
  */
 describe('the reference case of ADR 0014', () => {
-  it('has fifty soldiers lose twenty-two and cost the attacker twenty-nine', () => {
+  it('has fifty soldiers lose twenty-five and cost the attacker twenty-nine', () => {
     const fight = duel('infantry1', 'infantry1');
-    expect(fight.lostByDefender).toBe(22);
+    expect(fight.lostByDefender).toBe(25);
     expect(fight.lostByAttacker).toBe(29);
   });
 
@@ -131,9 +131,9 @@ describe('the reference case of ADR 0014', () => {
   });
 
   it('gives mark-2 infantry the answer to a heavy tank that mark 1 does not have', () => {
-    // Six heavy tanks: mark 1 does not scratch one of them, mark 2 takes out two.
+    // Six heavy tanks: mark 1 does not scratch one of them, mark 2 takes out three.
     expect(duel('infantry1', 'armor2').lostByDefender).toBe(0);
-    expect(duel('infantry2', 'armor2').lostByDefender).toBe(2);
+    expect(duel('infantry2', 'armor2').lostByDefender).toBe(3);
   });
 });
 

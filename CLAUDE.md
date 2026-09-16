@@ -37,7 +37,7 @@ la règle, `convex/combat.ts` pour le branchement, table de dégâts et modifica
 `convex/constants.ts`). Il n'y a plus d'initiative ni de phase « riposte » : `Strike.phase` vaut
 toujours `'strike'`, le littéral `'riposte'` survit au seul validateur, legacy comme `decoy`, et
 c'est `bySide` qui dit qui a tiré. `DEFENDER_BONUS` devient le seul avantage de la défense —
-cinquante fantassins contre cinquante en plaine, le défenseur perd 22 et l'attaquant 29 : l'attaque
+cinquante fantassins contre cinquante en plaine, le défenseur perd 25 et l'attaquant 29 : l'attaque
 ne vaut qu'en supériorité ou en surprise. **Rien ne se bat sans ordre** (ADR 0024 §3, 13/09/2026) :
 une passe n'a lieu que si un ordre la vise. La rencontre en route de deux colonnes a disparu, une
 marche s'arrête où elle arrive quoi qu'il y ait à 25 km, et `ARRIVAL_RADIUS_KM` a changé de sens —

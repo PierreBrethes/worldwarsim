@@ -126,15 +126,15 @@ Résultat sur le cas de référence — 50 soldats contre 50 soldats, **résolut
 
 | Situation | Le défenseur perd | L'attaquant perd |
 |---|---|---|
-| en plaine | 22 | 29 |
+| en plaine | 25 | 29 |
 
 La ligne de plaine est celle que le code joue et que `combat.test.ts` vérifie ; forêt, montagne et
 tenaille restent à chiffrer avec le terrain et le retranchement (Registre 29-30), et les chiffres
 de la version séquentielle ne s'y transposent pas.
 
-**L'attaquant paie, et c'est le but** — 22 contre 29 en plaine, soit ×1,32, parce que
-`DEFENDER_BONUS` s'applique deux fois (divisé chez l'attaquant, multiplié chez le défenseur). Ce
-doublon est connu et volontairement laissé tel quel jusqu'au chiffrage du terrain. L'ADR 0014
+**L'attaquant paie, et c'est le but** — 25 contre 29 en plaine, soit ×1,16, parce que
+`DEFENDER_BONUS` s'applique **une seule fois**, sur la salve du défenseur : l'écart joué est celui
+que la constante annonce, et non plus le ×1,32 du doublon corrigé le 16/09. L'ADR 0014
 craignait « un festival d'agression » ; la mesure existante dit que la Domination gagne 72 % des
 saisons sans outils de soustraction. Une attaque frontale sans supériorité et sans surprise doit
 être un mauvais calcul. C'est le cas.

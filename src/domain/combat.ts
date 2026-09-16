@@ -195,10 +195,10 @@ export function resolveEngagement({
    * and spends only the opposing `remaining` — so running one before the other in the source is
    * an order of writing, never an order of battle.
    *
-   * `defenderBonus` lands exactly where it landed under the sequential rule: divided for the
-   * attacker, multiplied for the defender. That is ×1.32 of real spread rather than ×1.15, and
-   * it is knowingly left alone — it is read again when terrain and entrenchment are costed
-   * (`propositions/combat-simultane-terrain-retranchement.md`).
+   * `defenderBonus` is applied **once**, on the defender's salvo, and nowhere else. Dividing the
+   * attacker's as well — what the sequential rule did — stacked the advantage to ×1.32 of real
+   * spread where the constant says ×1.15, so the figure read in `convex/constants.ts` was not the
+   * figure the pass applied.
    */
   const salvo = (shooters: ReadonlyArray<Fighter>, at: ReadonlyArray<Fighter>, modifier: number) =>
     shooters.flatMap((shooter) => {
@@ -207,7 +207,7 @@ export function resolveEngagement({
     });
 
   const strikes = [
-    ...salvo(striking, holding, supply('attacker') / rules.defenderBonus),
+    ...salvo(striking, holding, supply('attacker')),
     ...salvo(holding, striking, supply('defender') * rules.defenderBonus),
   ];
 

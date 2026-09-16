@@ -64,7 +64,7 @@ s'appliquent ensemble : **un défenseur que la salve adverse détruit a tiré qu
 ne frappe le premier. Fin.
 
 **À forces égales, l'attaquant paie.** Le défenseur porte `DEFENDER_BONUS` et l'attaquant ne porte
-rien : cinquante fantassins contre cinquante, en plaine, le défenseur perd 22 et l'attaquant 29.
+rien : cinquante fantassins contre cinquante, en plaine, le défenseur perd 25 et l'attaquant 29.
 L'attaque ne vaut qu'en supériorité ou en surprise.
 
 Une seule passe est un choix fort, et il est mesuré : avec les mêmes valeurs, trois passes

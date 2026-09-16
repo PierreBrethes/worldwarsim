@@ -974,22 +974,22 @@ describe('an attack marches at somebody', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     // Fifty soldiers against fifty, both salvoes fired on the state the pass opened with: he
-    // loses 22, I lose 29 — attaquer à forces égales coûte plus cher (ADR 0014, révision 1b).
+    // loses 25, I lose 29 — attaquer à forces égales coûte plus cher (ADR 0014, révision 1b).
     const [account] = await engagementsIn(t);
     expect(account).toBeDefined();
     expect(account!.cause).toBe('arrival');
     expect(await strikesIn(t, account!._id)).toHaveLength(2);
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(28);
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(25);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBe(21);
 
     // And both sides read it, each from its own side of the field.
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.reports[0]!.side).toBe('attacker');
     expect(mine.reports[0]!.mine.lost).toBe(29);
-    expect(mine.reports[0]!.theirs.lost).toBe(22);
+    expect(mine.reports[0]!.theirs.lost).toBe(25);
     const theirsView = await t.query(api.view.playerView, guest);
     expect(theirsView.reports[0]!.side).toBe('defender');
-    expect(theirsView.reports[0]!.mine.lost).toBe(22);
+    expect(theirsView.reports[0]!.mine.lost).toBe(25);
   });
 
   it('refuses to march on one of my own regions', async () => {
@@ -1057,9 +1057,10 @@ describe('the pass is what ammunition is spent on', () => {
 
     const { troop, defender } = await fight(t, seat, guest);
 
-    // Supplied, the reference case takes 22 off the defender and 16 off the attacker. Dry, the
-    // attack is worth .60 of its strike — and the riposte, answering less damage, bites harder.
-    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 13);
+    // Supplied, the reference case takes 25 off the defender and 29 off the attacker. Dry, the
+    // attacker's salvo is worth .60 of itself — and the defender, answering a lesser blow with a
+    // full magazine, bites harder.
+    expect((await t.run(async (ctx) => ctx.db.get(defender)))!.currentStrength).toBe(50 - 15);
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.currentStrength).toBeLessThan(34);
     // The four rounds it had went into the pass; it did not fight for free.
     expect(await ammunitionOf(t, seat)).toBe(0);
@@ -1324,6 +1325,9 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
+    /** La seconde compagnie part entamée : à pleine force les deux salves effacent exactement
+     *  les cinquante hommes de la garnison, et c'est la déroute qu'on lit ici. */
+    await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
     const held = await garrison(t, guest, outpostId);
 
@@ -1545,6 +1549,9 @@ describe('an arrival on a point finds who stands there', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
+    /** Entamée : à pleine force les deux compagnies effacent la colonne, et il n'y a plus
+     *  d'effectif à relire. */
+    await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const posted = await post(t, guest, eastOf(AIMED, 10));
     expect(distanceKm(AIMED, regionFacts(PRAHOVA)!.point)).toBeGreaterThan(50);
 
@@ -1852,6 +1859,9 @@ describe('a march goes to a point and the column stays there', () => {
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const first = await form(t, seat, 'infantry', barracks);
     const second = await form(t, seat, 'infantry', barracks);
+    /** Entamée : à pleine force les deux compagnies effacent le camp, et il n'y a plus
+     *  d'effectif à relire. */
+    await t.run(async (ctx) => ctx.db.patch(second, { currentStrength: 30 }));
     const camped = await post(t, guest, eastOf(AIMED, 10));
     await post(t, guest, eastOf(AIMED, 10));
     const campId = await surveyCamp(t, seat, asPoint(eastOf(AIMED, 10)));
@@ -2748,6 +2758,9 @@ describe('a rout refluxes to the nearest anchor', () => {
    */
   async function assault(t: ReturnType<typeof boot>, seat: Seat, at: LonLat, onto: LonLat) {
     const troopIds = [await post(t, seat, at), await post(t, seat, at)];
+    /** La seconde colonne part entamée : à pleine force les deux salves effacent exactement les
+     *  cinquante hommes du camp, et il n'y aurait plus de déroute à suivre. */
+    await t.run(async (ctx) => ctx.db.patch(troopIds[1]!, { currentStrength: 30 }));
     const campId = await surveyCamp(t, seat, asPoint(onto));
     const sent = await attacking(t, {
       ...seat,

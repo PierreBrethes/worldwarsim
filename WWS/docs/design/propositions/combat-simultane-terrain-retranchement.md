@@ -63,5 +63,3 @@ elle.
   composition adverse (ADR 0024 §1). Une fourchette sur *ses* pertes, au mieux.
 - Attaquant contre attaquant : impossible aujourd'hui (une attaque vise un camp) ; naît avec
   « intercepter » (vision V1, point 2).
-- `DEFENDER_BONUS` s'applique deux fois dans `resolveEngagement` (÷ chez l'attaquant, × chez le
-  défenseur), soit ×1,32 d'écart réel. À relire quand on chiffre terrain et retranchement.
