@@ -25,6 +25,7 @@ import {
   type HomewardCargo,
 } from '../cargo';
 import { resolveContact } from '../combat';
+import { collapseIfAbandoned } from '../outposts';
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { marchingForce } from './detection';
 import {
@@ -203,6 +204,13 @@ export async function engageAt(
   if (type === 'raid' && outpost !== null && engagement.winner === 'attacker') {
     await deactivate(ctx, outpost, now, engagementId);
   }
+  /**
+   * **Un chantier détruit avec sa garnison disparaît** (révision du 15/09) : tant que le point
+   * n'est pas levé, il n'est que la promesse que cette colonne-là tient. On l'attaque comme une
+   * force posée — pas d'immunité, pas de désactivation à lui faire subir : il n'y a rien à
+   * désactiver. Rien n'est remboursé.
+   */
+  if (defence.outpostId !== null) await collapseIfAbandoned(ctx, defence.outpostId, now);
 
   /** Whoever is still on his feet walks back, routed or not: the column came to fight, not to
    *  stay (ADR 0019 §3 for the other side). */

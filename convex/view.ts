@@ -6,7 +6,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
-import type { OutpostReach } from '../src/domain/outposts';
+import { isStanding, type OutpostReach } from '../src/domain/outposts';
 import {
   canonicalBuildingKey,
   isOutpostWork,
@@ -140,11 +140,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il reste
    * celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
    */
-  const reaches = outposts.map((outpost) => ({
-    point: pointOf(outpost.point),
-    radiusKm: outpostReachKm(outpost.level),
-    regionId: regionOfOutpost(outpost),
-  }));
+  const reaches = outposts
+    /** **Un chantier n'atteint rien** (révision du 15/09) : il n'offre aucun emplacement, donc
+     *  il n'ouvre aucun sol — le serveur refuserait ce que la vue offrirait. */
+    .filter((outpost) => isStanding(outpost, now))
+    .map((outpost) => ({
+      point: pointOf(outpost.point),
+      radiusKm: outpostReachKm(outpost.level),
+      regionId: regionOfOutpost(outpost),
+    }));
   const reached = coveredRegions(allRegions(), reaches);
   for (const facts of allRegions()) if (reached.has(facts.id)) carrying.set(facts.id, facts);
   /**
@@ -578,8 +582,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** The other half of the drain since ADR 0020 §10: the empire, priced by level. It
          *  is served split from the army's because the two are repaired by opposite moves. */
         outposts: economy.upkeep.outposts,
-        outpostFoodPerHour: economy.upkeep.outpostPerHour.food,
-        outpostCoalPerHour: economy.upkeep.outpostPerHour.coal,
       },
       starving: economy.starving,
       /**
@@ -629,6 +631,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         regionId: regionOfOutpost(outpost),
         specialization: outpost.specialization,
         level: outpost.level,
+        /** **L'heure où le chantier devient un point**, `null` pour un point debout (révision
+         *  du 15/09). Une date plutôt qu'un compte à rebours : le cachet du mât et la ligne du
+         *  panneau la lisent tous deux, et un point levé n'en porte plus. */
+        standsAt: isStanding(outpost, now) ? null : (outpost.standsAt ?? null),
         garrison: troops.filter((troop) => troop.stationedAt === outpost._id).length,
         /** Minutes until a raided point comes back, `null` when it is standing. Served as a
          *  countdown rather than an instant, like every other due time on the board. */
@@ -715,6 +721,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * they belong — `convex/constants.ts`, never a second table in the bundle.
      */
     buildCatalog,
+    /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
+     *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
+    outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
     surveyedInstallations,
     lootSightings: lootSightings
       .filter((sighting) => sighting.seasonId === season._id)

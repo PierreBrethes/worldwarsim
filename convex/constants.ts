@@ -161,8 +161,9 @@ export const unlockLevel = (key: BuildingKey): number => UNLOCKED_AT[key];
  * The global ceiling `buildingCap(hqLevel)` it replaces refused for a reason nobody could read:
  * at the launch the national foundation ate the whole of it — zero free placement, and *fewer*
  * the richer the ground, since the debt follows the deposits. That inverted the distribution
- * guard rails of ADR 0015, and it punished the expansion ADR 0020 exists to ask for. The brake
- * on expansion is the upkeep now (`OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL`), not a count.
+ * guard rails of ADR 0015, and it punished the expansion ADR 0020 exists to ask for. Le frein
+ * d'expansion est le **prix**, par niveau — la fondation puis les élévations (`buildCost`,
+ * révision du 15/09) —, jamais un compte et plus un entretien.
  *
  * ADR 0015 still holds: no game quantity is counted in regions. Two per level is a count of
  * *levels*, and the reach of an outpost stays a radius in kilometres.
@@ -277,12 +278,15 @@ export const LEVEL_COST_FACTOR = 1.8;
  * du 15/09 de l'ADR 0020 §10). Le point de comparaison est le port : ce qu'on achète est de la
  * projection — un rayon, un emplacement, une portée de détection —, pas une filière.
  *
- * Ce n'est **pas** le prix de la fondation, qui reste la colonne qui marche (`movements.ts`) :
- * `buildCost('outpost', 1)` existe pour la file de chantier que `fondation-en-chantier` ouvrira,
- * et rien ne le lit aujourd'hui — le classement met d'ailleurs le niveau 1 à zéro alliage pour
- * cette raison (`convex/press.ts`).
+ * **Et c'est aussi le prix de la fondation** (révision du 15/09 de l'ADR 0020 §10) :
+ * `buildCost('outpost', 1)` est ce que `movements.foundOutpostHere` débite, et
+ * `buildMinutes('outpost', 1)` la durée du chantier. Un seul barème pour poser le point et pour
+ * le monter — le frein d'expansion est ce prix par niveau, en place de l'entretien retiré, qui
+ * vidait le stock de vivres sans que le joueur sache pourquoi. Le classement laisse le niveau 1
+ * à zéro alliage malgré ce prix (`convex/press.ts`) : le territoire est une part, pas de
+ * l'alliage.
  *
- * @a-mesurer calé sur le port, jamais mesuré sur une partie
+ * @a-mesurer calé sur le port, jamais mesuré sur une partie ; mesure attendue — avant-postes debout par joueur au jour 7 de la première saison (décision 7a du 15/09)
  */
 export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
   cost: { alloy: 65, coal: 20 },
@@ -739,23 +743,6 @@ export const LOOT_RUMOR_DELAY_MINUTES = 10;
 export const LOOT_RUMOR_RADIUS_KM = 200;
 
 /**
- * **What one outpost costs to hold, per level and per hour** (ADR 0020 §10). It is the brake on
- * expansion, deliberately put here rather than on the founding bill: a rising founding cost
- * punishes once, at the purchase, and is then forgotten; an upkeep weighs for as long as the
- * empire stands. An over-extended player is structurally fragile in war, and one who loses
- * points sees his bill fall — "a crushed player stays a nuisance", applied to the economy.
- *
- * Nothing dies when the reserve runs dry (`consommation-continue.md` D3): the stock dives, and
- * that is all.
- *
- * **Assumed values, never measured** — same standing and same paragraph as
- * `UPKEEP_UNSUPPLIED_MULTIPLIER` above.
- *
- * @a-mesurer assumed; nothing measures what an outpost should cost to hold against a farm's yield
- */
-export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL: Costs = { food: 2, coal: 1 };
-
-/**
  * **Ce qu'un avant-poste ouvre autour de lui, et qui monte avec son niveau** (ADR 0020 §1,
  * révision du 31/08). Un rayon, jamais un compte de régions — c'est la seule forme que la règle
  * peut prendre (ADR 0015).
@@ -765,7 +752,7 @@ export const OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL: Costs = { food: 2, coal: 1 };
  * une conquête. Cent vingt kilomètres est une poignée de départements, et le reste s'achète —
  * *là où je peux bâtir est là où je tiens* ne bouge pas, les deux montent ensemble.
  *
- * @a-mesurer placeholders assumés, du même statut que l'entretien : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée
+ * @a-mesurer placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée
  */
 export const OUTPOST_REACH_KM_BY_LEVEL: Readonly<Record<number, number>> = {
   1: 120,

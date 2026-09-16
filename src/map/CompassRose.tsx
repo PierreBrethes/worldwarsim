@@ -122,7 +122,7 @@ export function CompassRose({
                     est ce qui décide du clic, et le faire attendre le survol ferait ouvrir la
                     rose pour lire un prix. Il est posé hors du médaillon, sur le rayon, pour ne
                     rien prendre au pictogramme. */}
-                {candidate.key === 'upgrade' && (
+                {(candidate.key === 'upgrade' || candidate.key === 'found') && (
                   <div
                     className={`rose-figure${held ? ' rose-figure--held' : ''}`}
                     style={figureAt(angle)}
@@ -183,6 +183,8 @@ export function CompassRose({
                     </>
                   ) : action.key === 'upgrade' ? (
                     <Upgrade action={action} />
+                  ) : action.key === 'found' ? (
+                    <Found action={action} />
                   ) : (
                     <>
                       <div className="rose-bubble-label">{action.label}</div>
@@ -241,6 +243,29 @@ function Upgrade({ action }: { action: Extract<CompassAction, { key: 'upgrade' }
           )}
         </>
       )}
+    </>
+  );
+}
+
+/**
+ * **Le détail d'une fondation** — la facture matière par matière avec le stock en regard, la
+ * durée du chantier, puis ce que ça fait (révision du 15/09 de l'ADR 0020 §10). Fonder est
+ * devenu un achat : les deux chiffres décident du clic, comme pour une élévation.
+ *
+ * Jamais de grisé ici : une matière qui manque **retire** la branche, et la rose s'ouvre sur le
+ * motif du serveur (`foundationHold`, règle générale de l'ADR 0015).
+ */
+function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> }) {
+  return (
+    <>
+      <div className="rose-bubble-label">{action.label}</div>
+      {action.bill.map((line) => (
+        <div key={line.text} className="rose-bubble-cost">
+          {line.text}
+        </div>
+      ))}
+      <div className="rose-bubble-cost rose-bubble-cost--held">{action.duration}</div>
+      <div className="rose-bubble-consequence">{action.consequence}</div>
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
+import { isStanding } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildings';
 import {
   detectionRangeOf,
@@ -287,6 +288,8 @@ async function detectionBoard(
 
   for (const outpost of outposts) {
     if (outpost.specialization !== 'listening') continue;
+    /** Un chantier n'écoute pas : le point n'existe pas encore (révision du 15/09). */
+    if (!isStanding(outpost, now)) continue;
     if (outpost.disabledUntil !== null && outpost.disabledUntil > now) continue;
     watchers.push({
       id: `outpost:${outpost._id}`,

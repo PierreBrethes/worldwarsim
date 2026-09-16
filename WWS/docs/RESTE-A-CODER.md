@@ -258,5 +258,7 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   de son implémentation.
 - Nom 1940 de la frappe terminale (19).
 - Valeurs `@a-mesurer` : portées par rôle, heures de butin, capacité de
-  chargement, présence du pillage, entretien d'avant-poste, barème du classement — à regarder à
-  la main au premier test, aucune ne se simule.
+  chargement, présence du pillage, **prix et durée d'un avant-poste** (`OUTPOST_RAISE_SPEC`, à
+  la fondation comme à l'élévation — l'entretien d'avant-poste est retiré depuis le 15/09),
+  barème du classement — à regarder à la main au premier test, aucune ne se simule. Celle de
+  l'avant-poste a sa mesure nommée : avant-postes debout par joueur au jour 7 (décision 7a).

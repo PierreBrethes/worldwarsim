@@ -990,12 +990,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       station: { kind: 'outpost', outpostId: outpost.id },
       specialization: outpost.specialization,
       level: outpost.level,
+      standsAt: outpost.standsAt,
       garrison: outpost.garrison,
       /** **Ce qu'il écoute est ce qu'il ravitaille** : le même rayon, montré au survol. Le
        *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
        *  change, et la carte n'a pas de trait pour dire une vitesse. */
+      /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
       reach:
-        outpost.specialization === 'listening'
+        outpost.specialization === 'listening' && outpost.standsAt === null
           ? { lonLat: outpost.lonLat, km: outpostReachKm(outpost.level) }
           : null,
       ink: view.me.ink,

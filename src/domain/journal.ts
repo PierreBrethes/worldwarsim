@@ -210,6 +210,30 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    /** Le lever : ce que la fondation avait seulement commandé. Encre normale — c'est une
+     *  nouvelle du joueur, à l'heure exacte où le sol prend sa couleur. */
+    case 'outpostStands':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'outpostStands',
+        text: said.outpostStands(
+          fr.specializations[notice.specialization],
+          countryLabel(notice.hostCountry),
+        ),
+      };
+    /** Encre rouge : un chantier perdu est de l'alliage dépensé qui ne rend rien, et rien
+     *  d'autre sur le plateau ne le dira. */
+    case 'foundationLost':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'foundationLost',
+        text: said.foundationLost(
+          fr.specializations[notice.specialization],
+          countryLabel(notice.hostCountry),
+        ),
+      };
     /** Encre normale : un point qui monte est une nouvelle du joueur, pas un événement qu'il
      *  subit — et personne d'autre ne la lit. */
     case 'outpostRaised':

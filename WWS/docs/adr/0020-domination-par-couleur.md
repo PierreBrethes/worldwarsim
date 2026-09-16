@@ -219,7 +219,8 @@ Le palier de QG ne borne plus le nombre, il débloque les **types**. Le verrou �
 étranglement » tient, autrement : sans monter, un joueur ne peut que dupliquer ce qu'il a déjà,
 jamais faire quelque chose de nouveau.
 
-**Le frein d'expansion est l'entretien, pas un plafond** : chaque avant-poste consomme au fil de
+**Le frein d'expansion est l'entretien, pas un plafond** — ⚠️ **révisé le 15/09, voir plus
+bas** : chaque avant-poste consomme au fil de
 l'heure (nourriture, charbon), croissant avec son niveau — le prolongement direct de l'entretien
 par ancrage des troupes. Un coût de fondation croissant punirait une fois, à l'achat, puis serait
 oublié ; l'entretien pèse tant que l'empire existe : le joueur surétendu est structurellement
@@ -259,6 +260,42 @@ de fondation (une infanterie qui marche, un slot, du temps).
 >   (`OUTPOST_DISABLED`) ; un chantier déjà en file **attend** la fin de la désactivation — il
 >   n'est ni annulé ni remboursé, le point revient et le chantier est payé.
 >
+> **Révision du 15/09/2026 — fonder se paie et prend du temps, tenir ne coûte plus rien.**
+>
+> Pierre retire l'entretien d'avant-poste (`OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL`, placeholder
+> jamais mesuré) après la partie du 15/09. Le paragraphe « le frein d'expansion est l'entretien,
+> pas un plafond » ci-dessus est donc **faux depuis cette date**, et la raison qu'il donnait
+> — « un coût de fondation punirait une fois, à l'achat, puis serait oublié ; l'entretien pèse
+> tant que l'empire existe » — n'a pas résisté à l'épreuve : un frein invisible qui vide le
+> stock de vivres sans que le joueur sache pourquoi n'est pas un frein, c'est une **fuite**. Un
+> prix se lit avant le clic, se refuse avec une phrase et se décide ; un débit continu que rien
+> n'explique à l'écran se lit comme un bug.
+>
+> Le frein devient donc **le prix, par niveau** — `buildCost('outpost', n)`, payé à la fondation
+> puis à chaque élévation — et le trajet de la colonne qui va planter le point. Trois règles :
+>
+> - **Fonder se paie** : `buildCost('outpost', 1)` débité du stock national à l'ordre, refusé
+>   par `INSUFFICIENT_RESOURCE`. La rose lit la même facture que le serveur (`foundationHold`),
+>   donc la branche n'existe pas quand la matière manque ; elle annonce prix et durée quand elle
+>   existe.
+> - **Fonder prend du temps** : l'avant-poste est **en chantier** jusqu'à
+>   `standsAt = ordre + buildMinutes('outpost', 1)`. En chantier il ne tient rien, n'atteint
+>   rien, ne détecte rien, n'offre aucun emplacement et ne relaie pas — une seule fonction pure
+>   le dit à tous ses lecteurs (`isStanding`, `src/domain/outposts.ts`), sans quoi la couleur et
+>   les emplacements auraient divergé au premier chantier. Sa garnison y est stationnée, elle
+>   est relevée comme toute force posée (ADR 0024 §1), et **si elle part entière ou tombe avant
+>   le lever, le chantier meurt sans remboursement**. Ce que cette fenêtre achète est un
+>   contre-coup : la fondation était le seul geste du jeu auquel un voisin ne pouvait pas
+>   répondre.
+> - **Le lever est le cinquième événement de couleur** — régler à l'ancienne, écrire, rapporter,
+>   relever le sol —, à `standsAt` exactement même s'il se réveille en retard, comme la fin d'une
+>   désactivation.
+>
+> **La réserve, et elle est la condition de la décision** : la première saison compte les
+> avant-postes debout par joueur au jour 7 (décision 7a, marqueur `@a-mesurer` sur
+> `OUTPOST_RAISE_SPEC`). Si la mesure montre un joueur qui sème des points sans limite, le frein
+> à remettre est un **prix croissant avec le nombre de points debout** — jamais l'entretien.
+
 > `outpost` est une **clé de coût**, jamais une clé de bâtiment : rien ne se pose sur une région
 > sous ce nom, et la ligne de file le dit par `constructions.outpostId`. L'alliage payé pour une
 > élévation tombe en **industrie** au classement (le territoire est une part, pas de l'alliage) ;
@@ -281,8 +318,8 @@ celles-là qui restent.
 
 ## Questions ouvertes
 
-- Les valeurs d'entretien d'avant-poste : aucune n'est mesurée, même statut que
-  `UPKEEP_UNSUPPLIED_MULTIPLIER`.
+- Le prix d'un avant-poste (`OUTPOST_RAISE_SPEC`, fondation et élévations) : calé sur le port,
+  jamais mesuré. La première saison le mesure en avant-postes debout par joueur au jour 7.
 - **Le rendu de la couleur au loin** : les régions n'apparaissent aujourd'hui qu'au rapproché
   (< 65 unités). Une couleur qui est le score doit se lire à toute distance — à trancher entre
   peindre le pays entier au loin ou rendre les régions tenues visibles quel que soit le zoom.

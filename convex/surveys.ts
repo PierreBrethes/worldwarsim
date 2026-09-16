@@ -16,6 +16,7 @@ import { coveredRegions, surveyStops, type Observer } from '../src/domain/contro
 import type { LonLat } from '../src/domain/geo';
 import type { UnitRole } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
+import { isStanding } from '../src/domain/outposts';
 import { playerBuildings, seasonBuildings } from './buildings';
 import {
   LISTENING_STATION_RADIUS_KM,
@@ -46,7 +47,9 @@ import {
  *   relève **la région où il se tient** avant toute mesure (précision du 04/09) : il tient ce
  *   sol-là, donc il le voit.
  * - **un point désactivé relève quand même** — même lecture que `recognises` : un raid brûle le
- *   dépôt, il n'aveugle pas le relais.
+ *   dépôt, il n'aveugle pas le relais. **Un chantier, non** : il ne tient pas ce sol-là, donc il
+ *   ne le voit pas (révision du 15/09). Sa garnison, elle, relève à sa propre portée, comme
+ *   n'importe quelle pile posée — c'est la troupe qui regarde, pas le point.
  *
  * Une troupe en marche ne relève pas d'ici : elle porte encore son adresse, mais elle n'y est
  * pas. C'est son trajet qui relève, à l'arrivée.
@@ -58,7 +61,9 @@ export async function standingObserversOf(
   const observers: Array<Observer> = [];
 
   const outposts = await outpostsOf(ctx, playerId);
+  const now = Date.now();
   for (const outpost of outposts) {
+    if (!isStanding(outpost, now)) continue;
     observers.push({
       point: pointOf(outpost.point),
       radiusKm: outpostReachKm(outpost.level),

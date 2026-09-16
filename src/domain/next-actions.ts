@@ -166,7 +166,9 @@ function raiseOutpostLines(view: PlayerView): ReadonlyArray<NextAction> {
 
   return view.me.outposts
     .filter((outpost) => {
-      if (!outpost.isMine || outpost.atMaxLevel) return false;
+      /** **Attendre n'est pas un problème** : un chantier n'a rien à élever et rien à décider,
+       *  la carte se tait (révision du 15/09 de l'ADR 0020 §10). */
+      if (!outpost.isMine || outpost.atMaxLevel || outpost.standsAt !== null) return false;
       const budget = slotsOn(view, { outpostId: outpost.id });
       if (budget.taken < budget.total) return false;
       return (

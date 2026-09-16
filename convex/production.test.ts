@@ -10,7 +10,6 @@ import {
   BASE_CAP,
   EXTRACTION_PER_HOUR,
   OUTPOST_DISABLED_HOURS,
-  OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
   PLUNDER_DISABLED_HOURS,
   STORAGE_CAP_PER_LEVEL,
   buildMinutes,
@@ -441,17 +440,28 @@ describe('a building only produces when its region carries its colour', () => {
     expect(unlinkedProducers(await view(t, seat))).toHaveLength(0);
   });
 
-  /** L'entretien de l'avant-poste ne bouge pas : la désactivation prend ce que le point *donne*,
-   *  elle ne fait pas de remise (ADR 0020 §10). */
-  it('keeps billing the outpost while it is out of service', async () => {
+  /**
+   * **Un avant-poste debout ne consomme rien** (révision du 15/09 de l'ADR 0020 §10). L'entretien
+   * par niveau et par heure est retiré : un frein invisible qui vide le stock de vivres sans que
+   * le joueur sache pourquoi n'est pas un frein, c'est une fuite. Ce qui reste du point dans
+   * l'économie est son **compte**, et le prix qu'il a coûté à poser.
+   */
+  it('bills nothing at all for a standing outpost, level 3 or not', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
-    await disable(t, outpostId, MIDDAY);
+    await t.run(async (ctx) => ctx.db.patch(outpostId, { level: 3 }));
+
+    const food = await stockOf(t, seat, 'food');
+    const coal = await stockOf(t, seat, 'coal');
+    vi.advanceTimersByTime(10 * HOUR);
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(food, 5);
+    expect(await stockOf(t, seat, 'coal')).toBeCloseTo(coal, 5);
 
     const player = await seatOf(t, seat);
     const upkeep = await t.run(async (ctx) => (await economyOf(ctx, player._id, MIDDAY)).upkeep);
-    expect(upkeep.outpostPerHour.coal).toBe(OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.coal);
+    expect(upkeep.outposts).toBe(1);
+    expect(Object.keys(upkeep)).not.toContain('outpostPerHour');
   });
 
   /** Rien n'est stocké de la couleur : un règlement de plus ne change pas un chiffre. */
@@ -520,21 +530,19 @@ describe('raising an outpost is a colour event', () => {
     expect(cut?.perHour).toBe(0);
 
     /**
-     * Deux heures où la ferme ne rend rien : le seul mouvement de la nourriture est l'entretien
-     * du point, et c'est ce que la couleur de l'époque doit laisser derrière elle.
+     * Deux heures où la ferme ne rend rien, et où **rien ne bouge** : un avant-poste debout ne
+     * consomme plus (révision du 15/09), donc le stock de vivres est exactement ce que la
+     * couleur de l'époque doit laisser derrière elle.
      */
-    const drain = (level: number, hours: number) =>
-      (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.food ?? 0) * level * hours;
     const opening = await stockOf(t, seat, 'food');
     vi.advanceTimersByTime(2 * HOUR);
-    expect(await stockOf(t, seat, 'food')).toBeCloseTo(opening - drain(1, 2), 5);
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(opening, 5);
 
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
     /** À la minute exacte du chantier, jamais « tous les minuteurs » : ce qui est mesuré est un
      *  stock, et une horloge lâchée le pousserait au plafond. */
     vi.advanceTimersByTime(buildMinutes('outpost', 2) * 60_000);
     await t.finishInProgressScheduledFunctions();
-    const waited = 2 + buildMinutes('outpost', 2) / 60;
 
     /** Le rayon a grandi : la ferme entre dedans, elle est reliée, elle rend. */
     const linked = (await view(t, seat)).me.extraction.find((one) => one.regionId === CALARASI);
@@ -543,16 +551,13 @@ describe('raising an outpost is a colour event', () => {
 
     /**
      * **Et les heures d'avant ne rapportent rien** : le règlement s'est fait à l'ancienne
-     * couleur avant l'écriture du niveau. Le stock ne porte que l'entretien du niveau 1 — pas un
-     * grain de la ferme, qui ne se met à rendre qu'à partir de cet instant.
+     * couleur avant l'écriture du niveau. Le stock n'a pas bougé d'un grain — la ferme ne se met
+     * à rendre qu'à partir de cet instant.
      */
     const settled = await stockOf(t, seat, 'food');
-    expect(settled).toBeCloseTo(opening - drain(1, waited), 3);
+    expect(settled).toBeCloseTo(opening, 3);
     vi.advanceTimersByTime(HOUR);
-    expect(await stockOf(t, seat, 'food')).toBeCloseTo(
-      settled + EXTRACTION_PER_HOUR.food - drain(2, 1),
-      3,
-    );
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(settled + EXTRACTION_PER_HOUR.food, 3);
   });
 
   /** Le sol neuf du cercle entre dans le relevé du propriétaire, par le même déclencheur que la

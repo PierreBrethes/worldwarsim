@@ -129,6 +129,9 @@ async function outpost(
   at: LonLat,
   specialization: Doc<'outposts'>['specialization'],
   disabledUntil: number | null = null,
+  /** **En chantier jusque-là** (révision du 15/09) : un point qui n'est pas levé n'écoute pas.
+   *  Omis, le point est debout — le repli de `isStanding` est `foundedAt`. */
+  standsAt?: number,
 ) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) => {
@@ -141,6 +144,7 @@ async function outpost(
       level: 1,
       specialization,
       foundedAt: Date.now(),
+      ...(standsAt === undefined ? {} : { standsAt }),
       disabledUntil,
       immuneUntil: null,
     });
@@ -264,6 +268,22 @@ describe('what sees a movement go past', () => {
     await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
 
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
+  });
+
+  /** Un chantier n'écoute pas : le point n'existe pas encore (révision du 15/09). */
+  it('files nothing for a listening outpost still under construction', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    await outpost(t, guest, here, 'listening', null, Date.now() + 3_600_000);
+
+    const from = eastOf(northOf(here, 60), -150);
+    const to = eastOf(northOf(here, 60), 150);
+
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
   });
 
   it('files nothing for a listening outpost a raid has put out of service', async () => {
@@ -416,6 +436,30 @@ describe('what sees a camp standing', () => {
     const troopId = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => {
       await ctx.db.patch(troopId, { stationedAt: outpostId });
+      await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
+    });
+
+    expect(await campsOf(t, guest)).toMatchObject([{ detector: 'station' }]);
+  });
+
+  /** **Et un chantier n'y change rien** (ADR 0024 §1, révision du 15/09) : la garnison qui tient
+   *  une fondation est une force posée comme une autre. Aucun cas spécial ne la cache. */
+  it('relève the garrison holding a construction site exactly the same way', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = NEUTRAL();
+    await station(t, guest, PRAHOVA);
+    const siteId = await outpost(
+      t,
+      seat,
+      northOf(here, 100),
+      'relay',
+      null,
+      Date.now() + 3_600_000,
+    );
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(troopId, { stationedAt: siteId });
       await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
     });
 

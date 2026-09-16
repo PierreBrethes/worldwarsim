@@ -24,9 +24,11 @@ import {
   CARRY_CAPACITY_BY_ROLE,
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
-  outpostReachKm,
+  buildCost,
   routeMinutes,
 } from './constants';
+import { foundationMinutes, scheduleStand } from './outposts';
+import { debit } from './resources';
 import { fail } from './errors';
 import {
   attachHome,
@@ -49,9 +51,8 @@ import {
   troopsAmong,
 } from './movement/orders';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
-import { nearestRegion, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
-import { reportChange, settleBeforeChange } from './production';
-import { surveyAlongRoute, surveyFoundation } from './surveys';
+import { nearestRegion, pointOfBuilding, regionFacts } from './regions';
+import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seasons';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
@@ -138,16 +139,26 @@ export const foundOutpostHere = mutation({
         : { point, hostCountry };
 
     /**
-     * **Les stocks se règlent avant que la couleur change** (ADR 0020 §6). Une fondation peut
-     * couper la production d'un voisin — le sien comme celui d'en face — et la règle veut que la
-     * coupure prenne effet **à la date où elle se produit**, jamais rétroactivement sur les
-     * heures déjà écoulées. C'est le même contrat que tout `settle` avant écriture, sur toute la
-     * table plutôt que sur un joueur : la couleur est la seule chose du jeu qu'un geste d'un
-     * joueur change chez un autre.
+     * **Fonder se paie, et le stock répond avant le sol** (révision du 15/09 de l'ADR 0020 §10).
+     * Le prix est celui d'un avant-poste de niveau 1, le même barème que son élévation, et le
+     * refus est celui de `debit` — la rose lit la même facture, donc la branche n'existe pas
+     * quand la matière manque (ADR 0015).
      */
     const founded = Date.now();
-    const before = await settleBeforeChange(ctx, season._id, founded);
+    const cost = buildCost('outpost', 1);
+    await debit(ctx, player._id, cost, founded);
 
+    /**
+     * **Rien ne change de couleur à l'ordre** : ce qui s'insère est un chantier, et un chantier
+     * ne tient rien (`isStanding`). Le règlement des stocks à l'ancienne couleur se fait au
+     * **lever** (`outposts.standOutpost`), qui est l'instant où la couleur bouge pour de bon —
+     * régler ici l'appliquerait des heures trop tôt.
+     *
+     * Ce que cette fenêtre achète : un camp posé et visible (ADR 0024 §1) sur un point qui
+     * n'existe pas encore, donc un voisin qui peut réagir. Sans elle, la fondation était le
+     * seul geste du jeu sans contre-coup possible.
+     */
+    const standsAt = founded + foundationMinutes() * 60_000;
     const outpostId = await ctx.db.insert('outposts', {
       seasonId: season._id,
       playerId: player._id,
@@ -155,6 +166,7 @@ export const foundOutpostHere = mutation({
       level: 1,
       specialization,
       foundedAt: founded,
+      standsAt,
       disabledUntil: null,
       immuneUntil: null,
     });
@@ -172,26 +184,20 @@ export const foundOutpostHere = mutation({
       stationedAt: outpostId,
       loads: cargo,
     });
-    /** **La fondation est un point d'échantillonnage** (ADR 0020 §5) : le sol autour vient de
-     *  changer de main, et le relevé de chacun de ceux qui regardent ce sol-là bouge avec lui. */
-    await surveyFoundation(
-      ctx,
-      season._id,
-      pointOf(point),
-      outpostReachKm(1),
-      regionOfOutpost(ground),
-      Date.now(),
-    );
+    /** **Aucun relevé à l'ordre** : un chantier ne tient pas ce sol, donc il n'a rien à en
+     *  relever — c'est le lever qui est le point d'échantillonnage (ADR 0020 §5). */
     await ctx.db.insert('notices', {
       playerId: player._id,
-      at: Date.now(),
+      at: founded,
       kind: 'outpostFounded',
       hostCountry,
       specialization,
     });
-    await reportChange(ctx, season._id, before, founded);
+    await scheduleStand(ctx, outpostId, standsAt);
+    /** La garnison a changé d'adresse : ce qu'elle voit et ce qu'on voit d'elle bouge, même si
+     *  le point, lui, ne voit encore rien. */
     await reassessDetection(ctx, season._id, founded);
-    return { outpostId };
+    return { outpostId, cost, standsAt };
   },
 });
 

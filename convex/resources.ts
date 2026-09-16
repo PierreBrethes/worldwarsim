@@ -260,10 +260,11 @@ export async function economyOf(
    */
   const upkeep = await upkeepOf(ctx, playerId, now);
   const ratePerHour = extractionRates(activeBuildings, held, playerId);
+  /** **L'armée seule mange** : un avant-poste debout ne consomme plus rien (révision du 15/09
+   *  de l'ADR 0020 §10). Le frein d'expansion est passé de l'entretien au prix — fondation puis
+   *  élévations —, parce qu'un débit continu que rien n'explique à l'écran se lit comme une
+   *  fuite et non comme une règle. */
   ratePerHour.food -= upkeep.foodPerHour;
-  /** The outposts eat beside the army, and in the same term of the rate (ADR 0020 §10): the
-   *  brake on expansion is a continuous cost, so it has to be part of the one arbitration. */
-  for (const key of RESOURCES) ratePerHour[key] -= upkeep.outpostPerHour[key];
   const cap = storageCaps(activeBuildings);
   const orderRows = await ordersOf(ctx, playerId);
   const settled = settleStocks({

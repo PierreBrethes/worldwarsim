@@ -613,6 +613,17 @@ export default defineSchema({
     level: v.number(),
     specialization: SPECIALIZATION,
     foundedAt: v.number(),
+    /**
+     * **L'heure où le chantier devient un point** (révision du 15/09 de l'ADR 0020 §10). Tant
+     * qu'elle est devant, le point ne tient rien, n'atteint rien, ne détecte rien et n'offre
+     * aucun emplacement — c'est la fenêtre qu'achète la fondation, et celle où un voisin peut
+     * réagir. Le lever l'**efface** : un point debout ne porte plus de date, ce qui rend le
+     * rendez-vous idempotent et laisse `isStanding` répondre sur le seul champ.
+     *
+     * `v.optional` parce que les points plantés avant ce champ ne le portent pas, et qu'ils sont
+     * debout : le repli est `foundedAt`, qui est toujours passé.
+     */
+    standsAt: v.optional(v.number()),
     disabledUntil: v.union(v.number(), v.null()),
     immuneUntil: v.union(v.number(), v.null()),
   })

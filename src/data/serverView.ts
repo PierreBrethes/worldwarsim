@@ -128,8 +128,6 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         unsupplied: server.me.upkeep?.unsupplied ?? 0,
         foodPerHour: server.me.upkeep?.foodPerHour ?? 0,
         outposts: server.me.upkeep?.outposts ?? 0,
-        outpostFoodPerHour: server.me.upkeep?.outpostFoodPerHour ?? 0,
-        outpostCoalPerHour: server.me.upkeep?.outpostCoalPerHour ?? 0,
       },
       starving: server.me.starving ?? false,
       // A deployment one version behind knows nothing of a raid, and an outpost without the
@@ -141,9 +139,15 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
         /** Un déploiement d'une version de retard ne place aucun point : la région est alors
          *  inconnue, et rien de ce qui la lit ne s'ouvre — jamais une mauvaise région. */
         regionId: outpost.regionId ?? null,
+        /** Une version de retard ne connaît pas le chantier : un point sans date est debout,
+         *  ce qui est la même lecture que le serveur en fait (`isStanding`). */
+        standsAt: outpost.standsAt ?? null,
       })),
     },
     buildCatalog: server.buildCatalog,
+    /** Un déploiement d'une version de retard ne la sert pas : une facture vide et une durée
+     *  nulle, donc une branche que rien ne retient — c'est le serveur qui refusera. */
+    outpostFoundation: server.outpostFoundation ?? { cost: {}, minutes: 0 },
     surveyedInstallations: server.surveyedInstallations ?? [],
     lootSightings: server.lootSightings ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta

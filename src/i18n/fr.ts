@@ -905,6 +905,8 @@ export const fr = {
       column: 'colonne',
       stalled: 'arrivée retenue',
       outpostFounded: 'avant-poste fondé',
+      outpostStands: 'avant-poste debout',
+      foundationLost: 'fondation perdue',
       outpostRaised: 'avant-poste élevé',
       outpostDisabled: 'avant-poste désactivé',
       sighting: 'relevé',
@@ -927,6 +929,9 @@ export const fr = {
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
     outpostDisabled: 'désactivé',
+    /** Le point n'existe pas encore : il ne tient rien, n'atteint rien, ne détecte rien. Rouge
+     *  parce que c'est la fenêtre où un voisin peut réagir (révision du 15/09). */
+    outpostUnderConstruction: 'en chantier',
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
@@ -1044,7 +1049,13 @@ export const fr = {
       movementStalled: (country: string) =>
         `Une colonne attend à la frontière — ${country} : la plage de repos y interdit toute arrivée.`,
       outpostFounded: (specialization: string, country: string) =>
-        `Un ${specialization} a été fondé — ${country}.`,
+        `Un ${specialization} a été mis en chantier — ${country}.`,
+      outpostStands: (specialization: string, country: string) =>
+        `Notre ${specialization} est debout — ${country} : le sol autour prend nos couleurs.`,
+      /** La phrase dit la cause, parce que c'est la seule chose que le joueur peut corriger la
+       *  prochaine fois : un chantier tient tant que sa garnison tient. */
+      foundationLost: (specialization: string, country: string) =>
+        `Notre ${specialization} en chantier est perdu — ${country} : sa garnison n’y est plus, rien n’est remboursé.`,
       outpostDisabled: (specialization: string, country: string) =>
         `Notre ${specialization} a été désactivé par un raid — ${country}.`,
       /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
@@ -1213,6 +1224,11 @@ export const fr = {
      *  un point d'avant le champ que le repli ne place pas — il reste le niveau. */
     outpostGround: (level: number, region: string | null) =>
       `${region === null ? '' : `${region} · `}niveau ${level}`,
+    /** L'heure du lever, en clair : un chantier se lit sur une échéance, pas sur un décompte
+     *  qu'il faudrait regarder tourner. */
+    standsAt: (time: string) => `debout à ${time}`,
+    foundationHeld:
+      'La garnison tient le chantier. Elle part entière ou elle tombe, il est perdu — rien n’est remboursé.',
     column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
     /**
      * **Les places, dès qu'un transport est coché** (note « le transport terrestre et l'allure »).
@@ -1671,11 +1687,6 @@ export const fr = {
     budgetHome: 'sol national',
     budgetOutpost: (rank: number, level: number) => `avant-poste ${rank} · niveau ${level}`,
     budgetRaiseOutpost: 'améliorez l’avant-poste pour en ouvrir un de plus',
-    /** L'entretien de l'empire, à côté de celui de l'armée : deux lignes, deux remèdes
-     *  opposés — nourrir, ou replier. */
-    upkeepOutposts: (count: number) => `${count} avant-poste${plural(count, '', 's')} tenus`,
-    upkeepOutpostDrain: (food: number, coal: number) =>
-      `− ${tenths(food)} nourriture / h · − ${tenths(coal)} charbon / h`,
     hqCarriesHeader: 'ce qu’il porte',
     hqLevelLine: (level: number, maximum: number) => `niveau ${level} sur ${maximum}`,
     hqMissing: 'Aucun quartier général debout — rien d’autre ne peut se bâtir.',
@@ -1980,8 +1991,10 @@ export const fr = {
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
      *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
     found: 'Fonder un avant-poste',
+    /** Le chantier plutôt que le point : ce que le clic ouvre est une fenêtre où rien ne tient
+     *  encore, et où la garnison est ce qui la tient (révision du 15/09 de l'ADR 0020 §10). */
     foundConsequence:
-      'Plante un avant-poste ici : la colonne y devient garnison, et la spécialisation se règle sur son panneau.',
+      'Ouvre un chantier d’avant-poste ici : la colonne y devient garnison et le tient. Elle part ou elle tombe, le chantier est perdu — rien n’est remboursé.',
     /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
      *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
     garrison: 'entrer en garnison',
@@ -2101,6 +2114,10 @@ export const fr = {
 
   labels: {
     levelAndGarrison: (level: number, garrison: number) => `NIVEAU ${level} · GARNISON ${garrison}`,
+    /** **Un chantier n'a pas de niveau** : il n'en aura un qu'au lever. Ce que le mât doit dire
+     *  est ce qui le tient — la garnison — et dans combien de temps il tiendra debout. */
+    outpostUnderConstruction: 'avant-poste en chantier',
+    outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',

@@ -22,6 +22,7 @@ import {
   type MovementAim,
 } from '../../src/domain/movement-orders';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
+import { isStanding } from '../../src/domain/outposts';
 import { relayedCostUnits } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { buildingLevel } from '../buildings';
@@ -38,6 +39,7 @@ import { regionAtRoutePoint } from '../regionGeometry';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
+import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
@@ -515,6 +517,10 @@ export async function march(
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
   const filed = (await ctx.db.get(movementId))!;
+  /** **Une garnison qui part entière emporte le chantier** (révision du 15/09) : un point en
+   *  cours de fondation n'est qu'une promesse tenue par la colonne qui la garde. Rien n'est
+   *  remboursé, et le point disparaît avant que le brouillard soit réévalué. */
+  if (origin.kind === 'outpost') await collapseIfAbandoned(ctx, origin.outpostId, now);
   await reassessDetection(ctx, filed.seasonId, now);
   /** **Le départ est un point d'échantillonnage** (ADR 0020 §5), et le seul du trajet qui tombe
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
@@ -540,6 +546,8 @@ export async function pacedMinutes(
       .collect()
   )
     .filter((outpost) => outpost.specialization === 'relay')
+    /** Un chantier ne relaie pas : le point n'existe pas encore (révision du 15/09). */
+    .filter((outpost) => isStanding(outpost, at))
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
     .map((outpost) => ({
       point: pointOf(outpost.point),

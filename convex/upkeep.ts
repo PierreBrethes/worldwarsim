@@ -2,11 +2,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import { withinReach, type OutpostReach } from '../src/domain/outposts';
-import { emptyStocks } from '../src/domain/economy';
-import type { ResourceKey } from '../src/domain/ids';
 import {
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
-  OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
   outpostReachKm,
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
@@ -62,15 +59,14 @@ export type Upkeep = {
   readonly foodPerHour: number;
   /** The troops that pay the raised rate, so the screen can mark them where the player looks. */
   readonly unsuppliedTroopIds: ReadonlyArray<Id<'troops'>>;
-  /** How many outposts stand, and the sum of their levels — what the bill below is read off. */
-  readonly outposts: number;
-  readonly outpostLevels: number;
   /**
-   * **What the empire costs an hour**, food and coal together (ADR 0020 §10). It is the brake on
-   * expansion, in place of the global ceiling that punished it: a player who loses points sees
-   * his bill fall, and an over-extended one is fragile in war rather than forbidden.
+   * **Combien de points il tient, et rien d'autre** : un avant-poste debout ne consomme plus
+   * (révision du 15/09 de l'ADR 0020 §10). L'entretien par niveau et par heure a été retiré —
+   * un frein invisible qui vide le stock de vivres sans que le joueur sache pourquoi n'est pas
+   * un frein, c'est une fuite ; le frein est le prix, à la fondation puis à chaque élévation.
+   * Le compte reste servi : le bandeau dit combien de points l'empire tient.
    */
-  readonly outpostPerHour: Readonly<Record<ResourceKey, number>>;
+  readonly outposts: number;
 };
 
 /**
@@ -97,23 +93,13 @@ export async function upkeepOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
 
+  /** **Un chantier nourrit déjà** : ce que le lever ouvre est le sol — la couleur, les
+   *  emplacements, la portée, le relevé —, jamais la marmite. La colonne qui fonde campe sur
+   *  place, et la faire payer le tarif majoré pendant son propre chantier punirait l'ordre
+   *  qu'on vient de lui donner. */
   const supplying = outposts
     .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= now)
     .map(anchorOf);
-
-  /**
-   * **A point out of service still has to be held.** The deactivation takes away what the point
-   * *gives* — its supply above, its colour and, when the production is wired, its output
-   * (ADR 0020 §6, §7); it does not hand its owner a rebate. Every outpost is billed, and the
-   * bill follows the level, so raising a point is a decision that shows up on the strip.
-   */
-  const outpostLevels = outposts.reduce((sum, outpost) => sum + outpost.level, 0);
-  const outpostPerHour = emptyStocks();
-  for (const [key, perLevel] of Object.entries(OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL) as ReadonlyArray<
-    [ResourceKey, number]
-  >) {
-    outpostPerHour[key] = perLevel * outpostLevels;
-  }
 
   const troops = await ctx.db
     .query('troops')
@@ -138,8 +124,6 @@ export async function upkeepOf(
       (plain + unsuppliedTroopIds.length * UPKEEP_UNSUPPLIED_MULTIPLIER),
     unsuppliedTroopIds,
     outposts: outposts.length,
-    outpostLevels,
-    outpostPerHour,
   };
 }
 

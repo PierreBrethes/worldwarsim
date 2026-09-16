@@ -342,6 +342,28 @@ export const NOTICE = v.union(
     regionId: v.union(v.string(), v.null()),
     level: v.number(),
   }),
+  /**
+   * **Le chantier est devenu un point** (révision du 15/09 de l'ADR 0020 §10). Chez le seul
+   * propriétaire : ce qui s'annonce est le sol qui vient de prendre sa couleur, et l'adversaire
+   * le lit sur sa propre carte s'il regardait (ADR 0005).
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostStands'),
+    hostCountry: v.string(),
+    specialization: SPECIALIZATION,
+  }),
+  /**
+   * **Le chantier est mort avec sa garnison** — partie entière ou détruite avant le lever. Rien
+   * n'est remboursé : ce qui est dépensé l'est (cohérence avec la file de chantier), et la
+   * dépêche est ce qui rend la perte lisible plutôt qu'un point qui disparaît sans un mot.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('foundationLost'),
+    hostCountry: v.string(),
+    specialization: SPECIALIZATION,
+  }),
   /** **La saison close à la main par son fondateur** (`seasons.conclude`) — la seule fin qui ne
    *  désigne personne : elle n'a pas de vainqueur, et le journal ne doit pas en inventer un. */
   v.object({

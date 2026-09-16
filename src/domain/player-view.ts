@@ -237,6 +237,13 @@ export type OutpostView = {
   readonly regionId: string | null;
   readonly specialization: Specialization;
   readonly level: number;
+  /**
+   * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09 de
+   * l'ADR 0020 §10). Tant qu'elle est devant, le point ne tient rien, n'atteint rien, ne détecte
+   * rien et n'offre aucun emplacement : c'est la fenêtre qu'achète la fondation, celle où un
+   * voisin peut réagir. Sa garnison y est stationnée, et la perdre tue le chantier.
+   */
+  readonly standsAt: number | null;
   readonly garrison: number;
   /** A raid puts a point out of service for a while; `null` is a point that is standing. It is
    *  **deactivated**, never taken — nothing here says who put it out. */
@@ -332,11 +339,10 @@ export type UpkeepView = {
   /** How many of them stand outside every anchor of their own, at the raised rate. */
   readonly unsupplied: number;
   readonly foodPerHour: number;
-  /** What the empire costs an hour, beside what the army costs (ADR 0020 §10). It is the brake
-   *  on expansion, and the player has to be able to read it as its own line. */
+  /** Combien de points l'empire tient. **Il n'en coûte plus rien** : l'entretien d'avant-poste a
+   *  été retiré le 15/09 (révision de l'ADR 0020 §10), le frein est le prix à la fondation puis
+   *  à chaque élévation. Le compte reste servi parce qu'il se lit, pas parce qu'il se paie. */
   readonly outposts: number;
-  readonly outpostFoodPerHour: number;
-  readonly outpostCoalPerHour: number;
 };
 
 /**
@@ -530,6 +536,10 @@ export type DispatchKind =
   | 'column'
   | 'stalled'
   | 'outpostFounded'
+  /** Le chantier levé, et le chantier perdu : les deux fins que la fondation peut avoir depuis
+   *  qu'elle prend du temps (révision du 15/09 de l'ADR 0020 §10). */
+  | 'outpostStands'
+  | 'foundationLost'
   | 'outpostRaised'
   | 'outpostDisabled'
   | 'sighting'
@@ -609,6 +619,18 @@ export type Notice =
     }
   | {
       readonly kind: 'outpostFounded';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly specialization: Specialization;
+    }
+  | {
+      readonly kind: 'outpostStands';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly specialization: Specialization;
+    }
+  | {
+      readonly kind: 'foundationLost';
       readonly at: number;
       readonly hostCountry: string;
       readonly specialization: Specialization;
@@ -951,6 +973,16 @@ export type PlayerView = {
   };
   /** Level-one price list, served by the server: balance numbers have one home, `constants.ts`. */
   readonly buildCatalog: Readonly<Record<BuildingKey, BuildSpec>>;
+  /**
+   * **Ce que fonder coûte, et combien de temps le chantier tient** (révision du 15/09 de
+   * l'ADR 0020 §10). `outpost` n'est pas une clé de bâtiment — rien ne se pose sous ce nom —,
+   * donc elle ne peut pas voyager dans le catalogue ; elle voyage à côté, servie pour la même
+   * raison que lui : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`.
+   *
+   * C'est ce que la rose annonce avant de confirmer : un prix et une durée, sur la branche
+   * elle-même, parce que c'est ce qui décide du clic.
+   */
+  readonly outpostFoundation: { readonly cost: Cost; readonly minutes: number };
   /** Installation identities frozen in the observer's last regional survey. */
   readonly surveyedInstallations: ReadonlyArray<{
     readonly id: string;

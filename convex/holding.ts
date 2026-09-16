@@ -1,6 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { heldRegions } from '../src/domain/control';
+import { isStanding } from '../src/domain/outposts';
 import { outpostReachKm } from './constants';
 import { pointOf, seasonOutposts } from './movement/forces';
 import { homeCountryOf, regionOfOutpost, type RegionFacts } from './regions';
@@ -39,6 +40,9 @@ export async function heldOver(
  * Un avant-poste tel que la couleur le lit. L'heure n'entre que pour une question — est-il hors
  * service — et c'est l'appelant qui la porte : le domaine ne date rien (§7).
  *
+ * **Un chantier a la même signature qu'un point hors service** (révision du 15/09) : il ne
+ * colore rien tant qu'il n'est pas levé. Sans l'immunité, elle : on attaque un chantier.
+ *
  * **La borne est inclusive**, et c'est la fin de la désactivation qui l'exige. Elle se règle à
  * `disabledUntil` exactement (`convex/production.ts`) : lue de façon stricte, ce règlement-là
  * trouverait le point déjà revenu et créditerait au plein débit toutes les heures où il était
@@ -49,7 +53,8 @@ const reading = (outpost: Doc<'outposts'>, now: number) => ({
   point: pointOf(outpost.point),
   reachKm: outpostReachKm(outpost.level),
   regionId: regionOfOutpost(outpost),
-  disabled: outpost.disabledUntil !== null && outpost.disabledUntil >= now,
+  disabled:
+    !isStanding(outpost, now) || (outpost.disabledUntil !== null && outpost.disabledUntil >= now),
 });
 
 /** Le sol d'origine des sièges de la saison — ce qu'aucun avant-poste ne prend (ADR 0004). */

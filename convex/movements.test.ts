@@ -5,6 +5,8 @@ import type { Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import {
   ARRIVAL_RADIUS_KM,
+  buildCost,
+  buildMinutes,
   DEFAULT_REST_START_MINUTES,
   nominalStrength,
   OUTPOST_DISABLED_HOURS,
@@ -14,6 +16,7 @@ import {
   unlockLevel,
 } from './constants';
 import { ConvexError } from 'convex/values';
+import { internal } from './_generated/api';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import {
   landCostOf,
@@ -214,6 +217,24 @@ async function setAmmunition(t: ReturnType<typeof boot>, seat: Seat, stock: numb
   });
 }
 
+/**
+ * **De quoi payer une fondation**, et rien de plus subtil : fonder se paie depuis la révision
+ * du 15/09, et un scénario qui parle d'autre chose n'a pas à se soucier du stock d'ouverture.
+ */
+async function fundFoundation(t: ReturnType<typeof boot>, seat: Seat) {
+  const playerId = await playerOf(t, seat);
+  const cost = buildCost('outpost', 1);
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()) {
+      const due = cost[row.key] ?? 0;
+      if (due > 0) await ctx.db.patch(row._id, { stock: due * 10, updatedAt: Date.now() });
+    }
+  });
+}
+
 /** An outpost planted without walking to it: what is under test is what happens *at* it. */
 async function plant(
   t: ReturnType<typeof boot>,
@@ -324,6 +345,7 @@ describe('a posted column founds an outpost where it stands', () => {
   it('gives two outposts in two neutral countries two different hosts', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
 
     for (const regionId of [PRAHOVA, RIYADH]) {
       const point = regionFacts(regionId)!.point;
@@ -432,6 +454,241 @@ describe('a posted column founds an outpost where it stands', () => {
 });
 
 /**
+ * **Fonder ouvre un chantier, pas un point** (révision du 15/09 de l'ADR 0020 §10). Le prix et
+ * la durée remplacent l'entretien comme frein d'expansion, et ce qu'ils achètent est une fenêtre
+ * où le camp est posé et visible (ADR 0024 §1) pendant que le point n'existe pas encore : un
+ * voisin peut réagir. Sans elle, la fondation était le seul geste du jeu sans contre-coup.
+ */
+describe('founding opens a construction site, and it has to be held', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+  const MINUTES = buildMinutes('outpost', 1);
+  const COST = buildCost('outpost', 1);
+
+  const found = (t: ReturnType<typeof boot>, seat: Seat, point: LonLat, troopIds: Array<string>) =>
+    t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
+      ...seat,
+      point: asPoint(point),
+      specialization: 'relay',
+      troopIds: troopIds as Array<Id<'troops'>>,
+    });
+
+  const stockOf = async (t: ReturnType<typeof boot>, seat: Seat, key: 'alloy' | 'coal') =>
+    (await t.query(api.view.playerView, seat)).me.resources[key].stock;
+
+  const noticesOfSeat = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    const playerId = await playerOf(t, seat);
+    return t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+  };
+
+  const drain = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()) {
+        await ctx.db.patch(row._id, { stock: 0, updatedAt: Date.now() });
+      }
+    });
+  };
+
+  /** **Rien de grisé, et rien d'inséré** : la rose lit la même facture que `debit`. */
+  it('refuses the order when the bill cannot be paid, and plants nothing', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = regionFacts(PRAHOVA)!.point;
+    const posted = await post(t, seat, point);
+    await drain(t, seat);
+
+    await expect(found(t, seat, point, [posted])).rejects.toThrow('INSUFFICIENT_RESOURCE');
+    expect(await outpostsOf(t, seat)).toHaveLength(0);
+  });
+
+  /**
+   * **Le débit est exact, et le point ne fait rien.** Il ne tient aucune région, ne colore rien,
+   * ne relève rien, n'ouvre aucun emplacement et ne relaie pas : c'est toute la fenêtre.
+   */
+  it('debits the bill and leaves a site that holds, colours and reaches nothing', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const point = regionFacts(PRAHOVA)!.point;
+    const before = { alloy: await stockOf(t, seat, 'alloy'), coal: await stockOf(t, seat, 'coal') };
+
+    await found(t, seat, point, [await post(t, seat, point)]);
+
+    expect(await stockOf(t, seat, 'alloy')).toBeCloseTo(before.alloy - (COST.alloy ?? 0), 5);
+    expect(await stockOf(t, seat, 'coal')).toBeCloseTo(before.coal - (COST.coal ?? 0), 5);
+
+    const [outpost] = await outpostsOf(t, seat);
+    expect(outpost!.standsAt).toBe(MIDDAY.getTime() + MINUTES * 60_000);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.outposts[0]!.standsAt).toBe(outpost!.standsAt);
+
+    /** Aucune couleur : le sol autour reste à personne — seul le sol national est tenu. */
+    const coloured = (await t.query(api.control.held, seat)).flatMap((holder) =>
+      holder.regions.map((region) => region.id),
+    );
+    expect(coloured).not.toContain(PRAHOVA);
+    /** Aucun relevé : le chantier ne tient pas ce sol, donc il ne le voit pas. */
+    const playerId = await playerOf(t, seat);
+    expect(
+      await t.run(async (ctx) =>
+        ctx.db
+          .query('regionSightings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect(),
+      ),
+    ).toHaveLength(0);
+    /** Et aucun emplacement : sa propre région lui est refusée. */
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'oilWell', regionId: PRAHOVA }),
+    ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+  });
+
+  /** **À `standsAt`, le point est un point** : il tient, il colore, il relève, il porte. */
+  it('stands at its hour, and the ground takes its colour then', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const point = regionFacts(PRAHOVA)!.point;
+    await found(t, seat, point, [await post(t, seat, point)]);
+
+    vi.advanceTimersByTime(MINUTES * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [outpost] = await outpostsOf(t, seat);
+    expect(outpost!.standsAt).toBeUndefined();
+    expect((await t.query(api.view.playerView, seat)).me.outposts[0]!.standsAt).toBeNull();
+
+    const held = await t.query(api.control.held, seat);
+    expect(held.flatMap((holder) => holder.regions.map((region) => region.id))).toContain(PRAHOVA);
+    const started = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'oilWell',
+      regionId: PRAHOVA,
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
+  });
+
+  /** **Le lever est idempotent** : un second passage ne redépose rien et ne re-règle rien. */
+  it('stands once, whatever wakes it twice', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const point = regionFacts(PRAHOVA)!.point;
+    await found(t, seat, point, [await post(t, seat, point)]);
+    const [outpost] = await outpostsOf(t, seat);
+
+    vi.advanceTimersByTime(MINUTES * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    await t.mutation(internal.outposts.standOutpost, { outpostId: outpost!._id });
+
+    const stood = (await noticesOfSeat(t, seat)).filter((one) => one.kind === 'outpostStands');
+    expect(stood).toHaveLength(1);
+  });
+
+  /**
+   * **Le chantier meurt avec sa garnison, et rien n'est remboursé.** Une partie de la pile qui
+   * reste le garde vivant : c'est une présence qu'on exige, pas un effectif.
+   */
+  it('dies when the whole garrison marches away, and lives on half of it', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const point = regionFacts(PRAHOVA)!.point;
+    const first = await post(t, seat, point);
+    const second = await post(t, seat, point);
+    await found(t, seat, point, [first, second]);
+    const [outpost] = await outpostsOf(t, seat);
+    const paid = await stockOf(t, seat, 'alloy');
+
+    /** Une moitié part : le chantier tient. */
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'outpost', outpostId: outpost!._id },
+      troopIds: [first],
+      target: { kind: 'region', regionId: RUHR },
+    });
+    expect(await outpostsOf(t, seat)).toHaveLength(1);
+
+    /** La seconde part : il n'y a plus rien pour le tenir. */
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'outpost', outpostId: outpost!._id },
+      troopIds: [second],
+      target: { kind: 'region', regionId: RUHR },
+    });
+    expect(await outpostsOf(t, seat)).toHaveLength(0);
+    expect(await stockOf(t, seat, 'alloy')).toBeCloseTo(paid, 5);
+    expect((await noticesOfSeat(t, seat)).some((one) => one.kind === 'foundationLost')).toBe(true);
+  });
+
+  /**
+   * **Et la passe le tue aussi.** On attaque un chantier comme n'importe quelle force posée —
+   * pas d'immunité, rien à désactiver : il n'y a pas encore de point. La garnison tombe, la
+   * promesse tombe avec elle.
+   */
+  it('dies when the pass destroys the garrison holding it', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await fundFoundation(t, guest);
+    const point = regionFacts(PRAHOVA)!.point;
+    const holding = await post(t, guest, point);
+    await found(t, guest, point, [holding]);
+    /** Une garnison à bout : ce qui est sous test est la disparition du chantier, pas le barème
+     *  de la passe (`src/domain/combat.ts` le tient déjà). */
+    await t.run(async (ctx) => ctx.db.patch(holding, { currentStrength: 1 }));
+
+    /** Le voisin part d'à côté : la fenêtre du chantier dure `buildMinutes('outpost', 1)`, et
+     *  c'est elle qui est sous test — une colonne venue de France arriverait après le lever. */
+    const nearby = eastOf(point, 60);
+    const attacker = await post(t, seat, nearby);
+    const sent = await attacking(t, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(nearby) },
+      troopIds: [attacker],
+      target: { kind: 'point', point: asPoint(point) },
+    });
+    expect(sent.minutes).toBeLessThan(MINUTES);
+    /** On n'avance que jusqu'à l'arrivée : le lever est plus loin, et c'est tout le sujet. */
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    expect(await outpostsOf(t, guest)).toHaveLength(0);
+    expect((await noticesOfSeat(t, guest)).some((one) => one.kind === 'foundationLost')).toBe(true);
+  });
+
+  /** **Un point d'avant le champ est debout** : le repli est `foundedAt`, toujours passé. Il
+   *  porte donc son rayon sans qu'aucun lever ait eu lieu. */
+  it('reads a point planted before the field as standing', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, regionFacts(PRAHOVA)!.point, 'ROU', PRAHOVA);
+
+    expect((await t.query(api.view.playerView, seat)).me.outposts[0]!.standsAt).toBeNull();
+    const started = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'oilWell',
+      regionId: PRAHOVA,
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
+  });
+});
+
+/**
  * Design sheet 07: the window forbids **arrivals** at a player who is resting. A column
  * reaching neutral ground wakes nobody and never waits.
  */
@@ -530,8 +787,11 @@ describe('an outpost opens a radius to build in', () => {
   afterEach(() => vi.useRealTimers());
 
   /** Founded on the spot by the column standing there — the walk is another test's subject. */
+  /** **Fondé puis levé** : le chantier n'ouvre aucun rayon, et ce qu'on mesure ici est le
+   *  rayon. On paie, on ordonne, on attend l'heure du lever (révision du 15/09). */
   async function withOutpostAtPrahova(t: ReturnType<typeof boot>) {
     const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
     const point = regionFacts(PRAHOVA)!.point;
     await t.mutation(api.movements.foundOutpostHere, {
       regionId: null,
@@ -540,6 +800,8 @@ describe('an outpost opens a radius to build in', () => {
       specialization: 'relay',
       troopIds: [await post(t, seat, point)],
     });
+    vi.advanceTimersByTime(buildMinutes('outpost', 1) * 60_000);
+    await t.finishInProgressScheduledFunctions();
     return seat;
   }
 

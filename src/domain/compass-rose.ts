@@ -1,5 +1,11 @@
 import { countryLabel, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
-import { availabilityOf, buildOptionsAt, upgradeHold, type UpgradeHold } from './construction';
+import {
+  availabilityOf,
+  buildOptionsAt,
+  foundationHold,
+  upgradeHold,
+  type UpgradeHold,
+} from './construction';
 import { asDuration } from './duration';
 import { PRODUCER_OF } from './economy';
 import { canonicalBuildingKey, DEPOSITS, RESOURCES } from './ids';
@@ -235,6 +241,14 @@ export type CompassAction =
        *  serveur inscrit sur le point, faute de polygone à lui (précision du 04/09). */
       readonly regionId: string | null;
       readonly troopIds: ReadonlyArray<string>;
+      /**
+       * **Le prix et la durée, sur la plate** (révision du 15/09 de l'ADR 0020 §10). Fonder se
+       * paie et prend du temps ; les deux chiffres décident du clic, et les faire attendre le
+       * survol ferait ouvrir la rose pour lire un tarif. Même forme que la branche « monter ».
+       */
+      readonly figure: string;
+      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly duration: string;
     }
   /**
    * **Monter d'un niveau, depuis la carte** (décision 54a). La seule branche qui porte un chiffre
@@ -765,13 +779,15 @@ function build(target: CompassTarget, view: PlayerView): Fan {
      * the fan says where it is, never what to do with it. The irreversibility is the game's
      * thesis, not an interface limitation (decision 13a).
      */
-    case 'force':
+    case 'force': {
+      const found = foundHere(target, view);
       return {
         kicker: fr.compass.myForce(target.headcount),
         name: target.name,
-        actions: foundHere(target, view),
-        refusal: null,
+        actions: found.action === null ? [] : [found.action],
+        refusal: found.refusal,
       };
+    }
     /**
      * **Au repos, ce qui appartient à l'autre ne se fait rien.** Une installation relevée et une
      * caisse relevée sont des cibles de la visée et d'elle seule : sans colonne armée il n'y a
@@ -880,9 +896,9 @@ const heldAt = (station: Extract<TroopStation, { kind: 'point' }>, view: PlayerV
 function foundHere(
   target: Extract<CompassTarget, { kind: 'force' }>,
   view: PlayerView,
-): ReadonlyArray<CompassAction> {
+): { readonly action: CompassAction | null; readonly refusal: string | null } {
   const station = posted(target);
-  if (station === null) return [];
+  if (station === null) return { action: null, refusal: null };
   const held = heldAt(station, view);
   const onMyGround =
     target.regionId !== null &&
@@ -893,9 +909,29 @@ function foundHere(
       onMyGround,
     ) !== null
   )
-    return [];
-  return [
-    {
+    return { action: null, refusal: null };
+
+  /**
+   * **La matière qui manque retire la branche et dit pourquoi** (ADR 0015, règle générale) : la
+   * facture sort de `foundationHold`, la fonction dont `debit` refuse côté serveur, et la phrase
+   * est celle du serveur plutôt qu'une paraphrase.
+   */
+  const hold = foundationHold(view, view.loadedAt);
+  if (hold !== null) {
+    return {
+      action: null,
+      refusal: fr.errors.INSUFFICIENT_RESOURCE({
+        resource: hold.resource,
+        needed: hold.needed,
+        available: Math.floor(hold.available),
+      }),
+    };
+  }
+
+  const cost = view.outpostFoundation.cost;
+  const due = RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0);
+  return {
+    action: {
       key: 'found',
       pictogram: 'post',
       label: fr.compass.found,
@@ -904,8 +940,19 @@ function foundHere(
       point: station.lonLat,
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
+      figure: due.map((resource) => String(cost[resource])).join(' · '),
+      bill: due.map((resource) => ({
+        text: fr.compass.upgradeBill(
+          fr.resources[resource],
+          cost[resource] ?? 0,
+          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
+        ),
+        lacking: false,
+      })),
+      duration: asDuration(view.outpostFoundation.minutes),
     },
-  ];
+    refusal: null,
+  };
 }
 
 /**

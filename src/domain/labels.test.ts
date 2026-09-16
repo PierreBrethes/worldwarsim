@@ -54,6 +54,7 @@ const OUTPOST: MapMarker = {
   station: { kind: 'outpost', outpostId: 'ap-1' },
   specialization: 'relay',
   level: 2,
+  standsAt: null,
   garrison: 40,
   reach: null,
   ink: '#4a4f7a',

@@ -467,6 +467,28 @@ export function outpostRaiseHold(
   return null;
 }
 
+/**
+ * **Ce qui empêche de fonder**, `null` quand rien ne l'empêche (révision du 15/09 de l'ADR 0020
+ * §10 : fonder se paie). La seule retenue qui vive ici est la facture — la composition de la
+ * colonne et le sol sont l'affaire de `foundingRefusal`, que le serveur refuse avec —, et elle
+ * est lue par les deux bouts : la rose n'offre pas la branche que `debit` refuserait.
+ *
+ * Même forme et même ordre que `outpostRaiseHold` : la première matière qui manque, jamais une
+ * liste, parce qu'une facture se paie entière ou pas du tout.
+ */
+export function foundationHold(
+  view: PlayerView,
+  now: number,
+): Extract<OutpostRaiseHold, { kind: 'materials' }> | null {
+  for (const resource of RESOURCES) {
+    const needed = view.outpostFoundation.cost[resource] ?? 0;
+    if (needed === 0) continue;
+    const available = currentStock(view.me.resources[resource], view.loadedAt, now);
+    if (available < needed) return { kind: 'materials', resource, needed, available };
+  }
+  return null;
+}
+
 /** Les avant-postes qu'une élévation en file vise déjà — la lecture cliente de `queued`. */
 export const pledgedOutposts = (view: PlayerView): ReadonlySet<string> =>
   new Set(pledgedWork(view).flatMap((work) => (work.outpostId === null ? [] : [work.outpostId])));

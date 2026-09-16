@@ -9,7 +9,7 @@ import {
 } from '../../../convex/constants';
 import { fr, noBuilding } from '@/i18n/fr';
 import { PRODUCER_OF } from '@/domain/economy';
-import { asDuration } from '@/domain/duration';
+import { asDuration, asLocalTime } from '@/domain/duration';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import {
   availabilityOf,
@@ -147,6 +147,24 @@ export function GarrisonPanel({
           </div>
         )}
 
+        {/**
+         * **En chantier** (révision du 15/09 de l'ADR 0020 §10) : le point n'existe pas encore —
+         * il ne tient rien, n'atteint rien, ne détecte rien — et ce panneau est le seul cadre qui
+         * porte la garnison qui le tient. Un cachet et l'heure, puis la phrase qui dit ce que
+         * partir coûte : c'est la seule chose que le joueur peut décider ici.
+         */}
+        {outpost !== null && outpost.standsAt !== null && (
+          <div className="mb-[9px] flex shrink-0 flex-col items-center gap-[6px]">
+            <Stamp label={fr.stamps.outpostUnderConstruction} tone="critical" />
+            <span className="text-center text-[10.5px] text-[var(--ink-soft)]">
+              {fr.garrison.standsAt(asLocalTime(outpost.standsAt))}
+            </span>
+            <span className="text-center text-[10.5px] text-[var(--ink-quiet)] italic">
+              {fr.garrison.foundationHeld}
+            </span>
+          </div>
+        )}
+
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">
           <span>{projection ? fr.garrison.projection : (ground ?? '')}</span>
           <span className="ml-auto font-(family-name:--font-mono)">
@@ -173,7 +191,9 @@ export function GarrisonPanel({
           />
         </div>
 
-        {outpost !== null && !view.me.defeated && (
+        {/** **On ne monte pas ce qui n'est pas debout** : un chantier n'a pas de niveau à
+         *  élever, il a une heure à attendre. */}
+        {outpost !== null && outpost.standsAt === null && !view.me.defeated && (
           <OutpostRaise view={view} seat={seat} outpost={outpost} />
         )}
 
@@ -188,7 +208,7 @@ export function GarrisonPanel({
          * panneau rattrape. Scellé, il ne montre pas deux boutons éteints : il dit ce que le
          * point fait, et pourquoi il ne change plus (ADR 0015).
          */}
-        {outpost !== null && (
+        {outpost !== null && outpost.standsAt === null && (
           <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
             <div className="flex items-center gap-2">
               <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">

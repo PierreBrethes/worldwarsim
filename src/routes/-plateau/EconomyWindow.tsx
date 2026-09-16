@@ -1264,25 +1264,15 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
  * it would fight the one countdown that has to win.
  */
 function UpkeepFoot({ view }: { view: PlayerView }) {
-  const { troops, unsupplied, foodPerHour, outposts, outpostFoodPerHour, outpostCoalPerHour } =
-    view.me.upkeep;
-  if (troops === 0 && outposts === 0) return null;
+  const { troops, unsupplied, foodPerHour } = view.me.upkeep;
+  if (troops === 0) return null;
   const balance = view.me.resources.food.ratePerHour;
 
   return (
     <div className="mt-auto flex shrink-0 flex-col gap-[3px] border-t-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)] px-4 py-[9px]">
-      {/* **Deux lignes, deux remèdes opposés** : l'armée se nourrit ou rentre, l'empire se
-          replie. Un seul chiffre ne dirait ni l'un ni l'autre (ADR 0020 §10). */}
-      {outposts > 0 && (
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[12.5px] text-[var(--ink)]">
-            {fr.economy.upkeepOutposts(outposts)}
-          </span>
-          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">
-            {fr.economy.upkeepOutpostDrain(outpostFoodPerHour, outpostCoalPerHour)}
-          </span>
-        </div>
-      )}
+      {/* **Une seule ligne** : l'empire ne mange plus. L'entretien d'avant-poste est retiré
+          depuis le 15/09 (révision de l'ADR 0020 §10) — ce qui reste est ce que l'armée prend,
+          et le remède est de la nourrir ou de la faire rentrer. */}
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12.5px] text-[var(--ink)]">{fr.economy.upkeepTroops(troops)}</span>
         <span className="font-(family-name:--font-mono) text-[12px] text-[var(--critical)]">

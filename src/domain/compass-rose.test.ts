@@ -51,6 +51,7 @@ const view = {
   buildCatalog: Object.fromEntries(
     BUILDINGS.map((key) => [key, { cost: { alloy: 10 }, minutes: 20, unlockedAtHqLevel: 1 }]),
   ) as Record<BuildingKey, BuildSpec>,
+  outpostFoundation: { cost: { alloy: 65, coal: 20 }, minutes: 65 },
   arcs: [],
   camps: [],
   /** Un relevé d'installation en Aragon : c'est lui qui ouvre « attaquer » sur ce sol-là. */

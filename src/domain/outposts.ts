@@ -78,3 +78,22 @@ export function reachingOutpost<T extends OutpostReach>(
 
 export const withinReach = (target: LonLat, outposts: ReadonlyArray<OutpostReach>): boolean =>
   reachingOutpost(target, outposts) !== null;
+
+/**
+ * **Un point en chantier n'est pas encore un point** (révision du 15/09 de l'ADR 0020 §10).
+ * Fonder se paie et prend du temps ; entre l'ordre et `standsAt` il y a une fenêtre où le camp
+ * est posé et visible (ADR 0024 §1) et où le point *n'existe pas* — il ne tient rien, n'atteint
+ * rien, ne détecte rien, n'offre aucun emplacement et ne relaie pas. C'est ce que la fondation
+ * achète : sans elle, elle était le seul geste du jeu sans contre-coup possible.
+ *
+ * Une fonction, lue par **tout** ce qui lit un avant-poste — la couleur, les emplacements, le
+ * relevé du sol, la vue, le relais. Cinq lectures parallèles auraient divergé au premier
+ * chantier, et la divergence aurait été un point qui colore sans tenir.
+ *
+ * Le repli est `foundedAt` : un point d'avant le champ est debout, et un point levé n'en porte
+ * plus (`movements.standOutpost` efface la date).
+ */
+export type OutpostStanding = { readonly foundedAt: number; readonly standsAt?: number };
+
+export const isStanding = (outpost: OutpostStanding, now: number): boolean =>
+  (outpost.standsAt ?? outpost.foundedAt) <= now;

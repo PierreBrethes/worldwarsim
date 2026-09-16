@@ -414,10 +414,24 @@ clé due par la nation, le premier exemplaire posé chez soi ne coûte pas un em
 corrige le lancement à zéro placement libre. Le rattachement est écrit **à la pose**
 (`buildings.outpostId`, `null` = sol national) et jamais recalculé ; les lignes d'avant se
 relisent par la géographie. Un avant-poste détruit laisse ses bâtiments debout et son ancre
-morte — on ne peut plus rien y poser. Le frein d'expansion n'est plus un plafond mais
-l'**entretien** : `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` (nourriture et charbon, placeholder
-assumé) débite le stock national par niveau et par heure, dans le même terme du taux que
-l'entretien des troupes. À sec, rien ne meurt.
+morte — on ne peut plus rien y poser. Le frein d'expansion n'est plus un plafond, et **ce n'est
+plus l'entretien non plus** : c'est le **prix par niveau** (révision du 15/09 de l'ADR 0020 §10,
+ci-dessous). `OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL` a disparu ; un avant-poste debout ne consomme
+rien, et seul l'entretien des **troupes** reste. À sec, rien ne meurt.
+
+**Et fonder ouvre un chantier, pas un point** (révision du 15/09 de l'ADR 0020 §10). Poser un
+avant-poste coûte `buildCost('outpost', 1)` — débité à l'ordre, refusé par
+`INSUFFICIENT_RESOURCE`, annoncé prix et durée sur la branche de la rose, qui lit la même
+facture que le serveur (`foundationHold`) — et il reste **en chantier** jusqu'à
+`outposts.standsAt`. En chantier, il ne tient rien, n'atteint rien, ne détecte rien, n'offre
+aucun emplacement et ne relaie pas : une seule fonction pure le dit à tous ses lecteurs
+(`isStanding`, `src/domain/outposts.ts`), même signature qu'un point désactivé pour la couleur,
+**sans** l'immunité — on l'attaque. Sa garnison y est stationnée et se relève comme toute force
+posée (ADR 0024 §1) ; **elle part entière ou elle tombe, le chantier meurt sans remboursement**
+(`convex/outposts.ts`, dépêche `foundationLost`). Le lever est le **cinquième événement de
+couleur** — régler à l'ancienne, écrire, rapporter, relever le sol, dépêche `outpostStands` — à
+`standsAt` exactement même s'il se réveille en retard. Ce que la fenêtre achète : un voisin peut
+répondre, alors que la fondation était le seul geste du jeu sans contre-coup possible.
 
 **La saison se gagne, par un échafaudage assumé.** Une seule condition, publique et nominative :
 la **Domination simplifiée** (`src/domain/victory.ts` pour la règle, `convex/victory.ts` pour le
@@ -436,7 +450,7 @@ Un joueur dépose les armes : `players.defeated` passe à vrai, irréversible, e
 le lit** — `requirePlayable(player, season)`, par où passait déjà chaque mutation de jeu. Le
 télégraphe, lui, ne l'a jamais demandée : un observateur parle. Ce que la capitulation
 **n'éteint pas** est l'essentiel — ses troupes posées tiennent et ripostent (une garnison n'a pas
-besoin d'ordre, ADR 0019), ses avant-postes paient leur entretien et gardent son encre, son stock
+besoin d'ordre, ADR 0019), ses avant-postes gardent son encre, son stock
 s'épuise, et il reste pillable. **Sa vue reste la sienne** (décision 47a) : `PlayerView` se
 calcule comme avant, portée par ses détecteurs restants et figée à mesure qu'ils tombent — lever
 le brouillard ferait de la reddition un acte de renseignement au profit d'un survivant ami. La

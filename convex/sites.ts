@@ -2,7 +2,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { BuildingKey, DepositKey } from '../src/domain/ids';
 import { depositOfRegion } from '../src/domain/world';
-import { reachingOutpost } from '../src/domain/outposts';
+import { isStanding, reachingOutpost } from '../src/domain/outposts';
 import { homeSlots, outpostReachKm, settlesDebt, type FoundationDebt } from './constants';
 import { levelOf, playerBuildings } from './buildings';
 import { outpostsOf, pointOf } from './movement/forces';
@@ -53,7 +53,9 @@ export const reachOf = (outpost: Doc<'outposts'>) => ({
  * would be allowed to place on a site that does not exist.
  *
  * Deactivated points anchor like any other: a raid freezes production, it does not move a
- * building's placement from one budget to another (ADR 0020 §10, §6).
+ * building's placement from one budget to another (ADR 0020 §10, §6). **Un chantier, lui,
+ * n'ancre rien** : il n'offre aucun emplacement tant qu'il n'est pas levé (révision du 15/09),
+ * et l'appelant le retire de la liste avant d'arriver ici — la géométrie ne date rien.
  *
  * **La région où un point se tient est toujours la sienne** (précision du 04/09) : elle passe
  * donc à `reachingOutpost`, faute de quoi le puits de la région même de l'avant-poste tombait
@@ -82,8 +84,18 @@ export async function anchorAt(
 ): Promise<Site | null> {
   const region = regionFacts(regionId);
   if (region === null) return null;
-  return siteFor(region, homeCountryOf(player.nation), await outpostsOf(ctx, player._id));
+  return siteFor(region, homeCountryOf(player.nation), await standingOutpostsOf(ctx, player._id));
 }
+
+/** **Les points debout de ce joueur**, et c'est ce qu'un emplacement veut dire : un chantier
+ *  n'est pas encore un site (révision du 15/09 de l'ADR 0020 §10). */
+const standingOutpostsOf = async (
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<ReadonlyArray<Doc<'outposts'>>> => {
+  const now = Date.now();
+  return (await outpostsOf(ctx, playerId)).filter((outpost) => isStanding(outpost, now));
+};
 
 /**
  * The anchor as the row carries it. **An anchor that resolves to nothing writes no field at
@@ -122,7 +134,7 @@ export type Sites = {
  */
 export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Sites> {
   const buildings = await playerBuildings(ctx, player._id);
-  const outposts = await outpostsOf(ctx, player._id);
+  const outposts = await standingOutpostsOf(ctx, player._id);
   const homeCountry = homeCountryOf(player.nation);
   const hqLevel = levelOf(buildings, 'hq');
 

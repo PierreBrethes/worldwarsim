@@ -22,7 +22,6 @@ import {
   MAX_HQ_LEVEL,
   STARTING_KIT,
   OUTPOST_MAX_LEVEL,
-  OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL,
   outpostReachKm,
   PLACEMENTS_PER_HQ_LEVEL,
   STORAGE_CAP_PER_LEVEL,
@@ -1924,11 +1923,11 @@ describe('the placements a site carries', () => {
   });
 
   /**
-   * **Le frein de l'expansion est l'entretien, pas un plafond** (ADR 0020 §10) : chaque point
-   * débite au fil de l'heure, à proportion de son niveau, et un joueur qui perd des points voit
-   * sa facture baisser.
+   * **Le frein de l'expansion est le prix, plus l'entretien** (révision du 15/09 de l'ADR 0020
+   * §10). Un avant-poste debout, fût-il de niveau 3, ne touche aucun des huit taux : il est payé
+   * à la fondation puis à chaque élévation, et il ne coûte plus rien à tenir.
    */
-  it('debits the national stock by the level of every outpost held', async () => {
+  it('leaves every rate untouched by an outpost held, whatever its level', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const before = await t.query(api.view.playerView, seat);
@@ -1937,18 +1936,9 @@ describe('the placements a site carries', () => {
     await plantOutpost(t, seat, EL_TARF, 3);
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.upkeep.outposts).toBe(1);
-    expect(after.me.upkeep.outpostFoodPerHour).toBe(
-      3 * (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.food ?? 0),
-    );
-    expect(after.me.upkeep.outpostCoalPerHour).toBe(
-      3 * (OUTPOST_UPKEEP_PER_HOUR_PER_LEVEL.coal ?? 0),
-    );
-
-    // The bill lands in the rate the stocks are settled with, and nowhere else: it is a
-    // negative term of the accrual, exactly like the army's (`economyOf`).
-    expect(after.me.resources.coal.ratePerHour).toBe(
-      before.me.resources.coal.ratePerHour - (after.me.upkeep.outpostCoalPerHour ?? 0),
-    );
+    for (const key of RESOURCES) {
+      expect(after.me.resources[key].ratePerHour).toBe(before.me.resources[key].ratePerHour);
+    }
   });
 });
 

@@ -72,6 +72,13 @@ export type MapMarker =
       readonly station: Extract<TroopStation, { kind: 'outpost' }>;
       readonly specialization: Specialization;
       readonly level: number;
+      /**
+       * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09
+       * de l'ADR 0020 §10). Le mât le dit, parce que c'est la fenêtre où le point n'existe pas
+       * encore : rien ne se bâtit dans son rayon, rien n'y est tenu, et la garnison est ce qui
+       * le tient en vie.
+       */
+      readonly standsAt: number | null;
       readonly garrison: number;
       readonly reach: Reach | null;
       readonly ink: string;
@@ -460,6 +467,8 @@ function markerLabel(marker: MapMarker): MapLabel {
           },
         ],
       };
+    /** **Un chantier ne se lit pas comme un point** : il n'a ni niveau ni métier tant qu'il
+     *  n'est pas levé, et ce qu'il doit dire est l'heure et la garnison qui le tient. */
     case 'outpost':
       return {
         ...common,
@@ -468,10 +477,24 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: 'outpost',
         station: marker.station,
         hostCountry: marker.hostCountry,
-        lines: [
-          { role: 'nature', text: fr.specializations[marker.specialization] },
-          { role: 'figures', text: fr.labels.levelAndGarrison(marker.level, marker.garrison) },
-        ],
+        lines:
+          marker.standsAt === null
+            ? [
+                { role: 'nature', text: fr.specializations[marker.specialization] },
+                {
+                  role: 'figures',
+                  text: fr.labels.levelAndGarrison(marker.level, marker.garrison),
+                },
+              ]
+            : [
+                { role: 'nature', text: fr.labels.outpostUnderConstruction },
+                { role: 'figures', text: fr.labels.outpostGarrison(marker.garrison) },
+                {
+                  role: 'countdown',
+                  dueAt: marker.standsAt,
+                  prefix: fr.labels.constructionPrefix,
+                },
+              ],
       };
     case 'stack':
       return {
