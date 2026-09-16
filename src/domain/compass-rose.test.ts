@@ -12,9 +12,17 @@ const view = {
         id: 'AP-01',
         hostCountry: 'NOR',
         lonLat: [0, 0],
+        regionId: 'NOR-1',
         specialization: 'relay',
+        specializationLocked: false,
+        level: 1,
+        standsAt: null,
         garrison: 4,
+        disabledMinutesLeft: null,
         isMine: true,
+        nextLevelCost: { alloy: 90 },
+        nextLevelMinutes: 90,
+        atMaxLevel: false,
       },
     ],
     hqLevel: 1,
@@ -145,13 +153,108 @@ describe('radial menu', () => {
     expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toBeNull();
   });
 
-  it('stays shut on an outpost that is not being marched at', () => {
+  /** **Un point adverse ne se fait rien au repos** (décision du 31/08, inchangée le 16/09) : il
+   *  n'est pas à nous, et le clic droit y reste inerte comme sur un pays. */
+  it('stays shut on an outpost that is not mine', () => {
     expect(
       compassOf(
-        { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais', coastal: false },
+        { kind: 'outpost', id: 'AP-99', hostCountry: 'NOR', name: 'relais', coastal: false },
         view,
       ),
     ).toBeNull();
+  });
+});
+
+/**
+ * **Un point à soi se commande au clic droit** (décision de Pierre, 16/09, Registre 27). Le
+ * panneau de garnison garde ses portes : la rose en ajoute une, du nord dans le sens des
+ * aiguilles — élever, les deux métiers, démanteler.
+ */
+describe('my own outpost, unarmed', () => {
+  const mine: CompassTarget = {
+    kind: 'outpost',
+    id: 'AP-01',
+    hostCountry: 'NOR',
+    name: 'relais',
+    coastal: false,
+  };
+  const withOutpost = (changes: Record<string, unknown>) =>
+    ({
+      ...view,
+      me: { ...view.me, outposts: [{ ...view.me.outposts[0], ...changes }] },
+    }) as unknown as PlayerView;
+
+  it('carries the raise, both trades and the dismantling, in that order', () => {
+    const compass = compassOf(mine, view);
+    expect(compass?.actions.map((action) => action.key)).toEqual([
+      'raiseOutpost',
+      'specialize',
+      'specialize',
+      'dismantle',
+    ]);
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'monter',
+      'relais logistique',
+      'écoute',
+      'démanteler',
+    ]);
+    expect(compass?.kicker).toBe('mon avant-poste · niveau 1');
+  });
+
+  /** Le métier en cours est **marqué**, jamais retiré ni grisé : c'est l'état du point, et c'est
+   *  ce qui décide du geste suivant. */
+  it('marks the trade the point already works', () => {
+    const trades = (compassOf(mine, view)?.actions ?? []).filter(
+      (action) => action.key === 'specialize',
+    );
+    expect(trades.map((trade) => trade.current)).toEqual([true, false]);
+    expect(trades.map((trade) => trade.specialization)).toEqual(['relay', 'listening']);
+    expect(trades.every((trade) => trade.sealed === null)).toBe(true);
+  });
+
+  /** Scellé, rien ne disparaît et rien ne se grise : la branche porte la phrase du serveur, et
+   *  le joueur lit pourquoi avant de cliquer (ADR 0015). */
+  it('keeps both trades when the point serves a column, and says why it refuses', () => {
+    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
+    const trades = (sealed?.actions ?? []).filter((action) => action.key === 'specialize');
+    expect(trades).toHaveLength(2);
+    expect(trades[1]?.sealed).toBe(
+      'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
+    );
+  });
+
+  /** **Servir une colonne retient aussi le démantèlement** : on ne retire pas la route sous les
+   *  pieds d'une marche dont l'allure est déjà payée. */
+  it('withdraws the dismantling while a column leans on the point', () => {
+    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
+    expect(sealed?.actions.some((action) => action.key === 'dismantle')).toBe(false);
+    expect(sealed?.refusal).toBe(
+      'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',
+    );
+  });
+
+  it('draws no raise at the maximum level, and keeps the rest', () => {
+    const topped = compassOf(mine, withOutpost({ level: 3, atMaxLevel: true }));
+    expect(topped?.actions.map((action) => action.key)).toEqual([
+      'specialize',
+      'specialize',
+      'dismantle',
+    ]);
+    expect(topped?.refusal).toBe('Niveau maximal atteint (3).');
+  });
+
+  /** On ne monte pas un avant-poste sous le feu (3a) : la branche part, la phrase reste. */
+  it('states the motive when the point is out of service', () => {
+    const halted = compassOf(mine, withOutpost({ disabledMinutesLeft: 120 }));
+    expect(halted?.actions.some((action) => action.key === 'raiseOutpost')).toBe(false);
+    expect(halted?.refusal).toBe('Hors service : on ne monte pas un avant-poste sous le feu.');
+  });
+
+  /** **Un chantier n'a ni niveau à monter ni métier à régler** : il a une heure à attendre, et
+   *  le panneau la porte. Il se démantèle pourtant — on retire alors une promesse. */
+  it('offers nothing but the dismantling on a foundation still under construction', () => {
+    const site = compassOf(mine, withOutpost({ standsAt: 5_000 }));
+    expect(site?.actions.map((action) => action.key)).toEqual(['dismantle']);
   });
 });
 
@@ -234,14 +337,36 @@ describe('in aim', () => {
    * Contextual, never greyed out — and never mute either: on my own ground no branch is drawn,
    * and the rose says why instead of not opening (ADR 0019).
    */
-  it('draws no branch on an outpost of mine, and states the motive', () => {
+  /**
+   * **Une pile armée sur un point à soi n'a qu'une branche** (décision du 16/09) : entrer en
+   * garnison. Ni l'attaque ni le raid — `FRIENDLY_TARGET` les refuse déjà — et aucune des
+   * branches du repos : viser veut dire « celle-ci, et comment », rien d'autre.
+   */
+  it('offers the garrison, and it alone, on an outpost of mine', () => {
     const outpost = compassOf(
       { kind: 'outpost', id: 'AP-01', hostCountry: 'NOR', name: 'relais', coastal: false },
       view,
       column,
     );
-    expect(outpost?.actions).toEqual([]);
-    expect(outpost?.refusal).toBe('on ne marche pas sur les siens');
+    expect(outpost?.actions.map((action) => action.key)).toEqual(['aim']);
+    expect(outpost?.actions[0]).toMatchObject({
+      label: 'entrer en garnison',
+      pictogram: 'doorway',
+      type: 'march',
+      aim: { kind: 'outpost', outpostId: 'AP-01' },
+    });
+    expect(outpost?.refusal).toBeNull();
+  });
+
+  /** **Un point adverse ne bouge pas** : la plate de visée d'aujourd'hui, assaut et raid, et pas
+   *  de marche — on ne marche pas *sur* un point qu'on vient combattre. */
+  it('keeps the assault and the raid on an outpost that is not mine', () => {
+    const enemy = compassOf(
+      { kind: 'outpost', id: 'AP-99', hostCountry: 'NOR', name: 'relais', coastal: false },
+      view,
+      column,
+    );
+    expect(enemy?.actions.map((action) => action.label)).toEqual(['attaque', 'raid d’avant-poste']);
   });
 
   /**

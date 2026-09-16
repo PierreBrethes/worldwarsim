@@ -7,7 +7,7 @@ import {
   OUTPOST_MAX_LEVEL,
   RELAY_SPEED_MULTIPLIER,
 } from '../../../convex/constants';
-import { fr, noBuilding } from '@/i18n/fr';
+import { fr, noBuilding, raiseHoldText } from '@/i18n/fr';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
@@ -320,7 +320,7 @@ function OutpostRaise({
     cost,
     OUTPOST_MAX_LEVEL,
   );
-  const held = hold === null ? null : raiseHoldText(hold);
+  const held = hold === null ? null : raiseHeld(hold);
 
   return (
     <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
@@ -379,16 +379,11 @@ function OutpostRaise({
   );
 }
 
-/** Une phrase par empêchement. La facture se dit déjà en chiffres au-dessus, en encre critique :
- *  la répéter en toutes lettres serait la dire deux fois. */
-const raiseHoldText = (hold: OutpostRaiseHold): string | null =>
-  hold.kind === 'maxLevel'
-    ? fr.garrison.raiseAtMaximum(hold.maximum)
-    : hold.kind === 'disabled'
-      ? fr.garrison.raiseDisabled
-      : hold.kind === 'alreadyQueued'
-        ? fr.garrison.raiseQueued
-        : null;
+/** **La facture se dit déjà en chiffres au-dessus, en encre critique** : la répéter en toutes
+ *  lettres serait la dire deux fois. Partout ailleurs la phrase est celle de `raiseHoldText`,
+ *  qu'un seul module écrit — la rose des vents la lit telle quelle (décision du 16/09). */
+const raiseHeld = (hold: OutpostRaiseHold): string | null =>
+  hold.kind === 'materials' ? null : raiseHoldText(hold);
 
 /** **Quand la matière sera là** — la même ligne que l'élévation d'un bâtiment, et la même
  *  raison : un refus qui se date est un plan, un refus qui compte est un mur. */

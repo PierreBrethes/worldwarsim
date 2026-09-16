@@ -521,6 +521,34 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
   !building.mine ? 'NOT_YOURS' : building.key === 'hq' ? 'HQ_NEVER_DEMOLISHED' : null;
 
 /**
+ * **Ce qui empêche de démanteler son propre avant-poste** (décision de Pierre, 16/09), `null`
+ * quand rien ne l'empêche. Deux empêchements, lus par la rose et par la mutation — une seconde
+ * table aurait offert une branche que le serveur refuse (ADR 0015).
+ *
+ * **Un chantier n'en est pas un** : un point qui n'est pas encore debout se démantèle comme les
+ * autres, et ce qui est en file s'annule selon la règle de la file. Ce qu'on retire là est une
+ * promesse, pas une bâtisse.
+ *
+ * **Servir un mouvement retient, en revanche.** Un relais dans la portée duquel une colonne
+ * marche a déjà payé son allure : le retirer sous ses pieds ferait bouger un horaire déjà
+ * annoncé. C'est exactement la lecture qui scelle le métier du point (`specializationsServed`,
+ * servie au client par `specializationLocked`), et il n'y en a pas deux.
+ */
+export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING';
+
+/** L'avant-poste tel que la règle le lit — jamais un document, jamais une vue : les deux bouts
+ *  n'ont pas les mêmes en main, et ils doivent poser la même question. */
+export type OutpostDismantle = {
+  readonly mine: boolean;
+  readonly serving: boolean;
+};
+
+export const outpostDismantleRefusalOf = (
+  outpost: OutpostDismantle,
+): OutpostDismantleRefusal | null =>
+  !outpost.mine ? 'NOT_YOURS' : outpost.serving ? 'OUTPOST_SERVING' : null;
+
+/**
  * **Ce que l'entrepôt rasé fait perdre, matière par matière** (5a : rien n'est rendu, et le
  * stock au-dessus du nouveau plafond est écrêté). Vide pour tout ce qui ne stocke pas — et
  * `depot` historique compte comme un entrepôt, comme partout ailleurs depuis le 09/09.

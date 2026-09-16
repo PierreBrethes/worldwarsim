@@ -11,7 +11,7 @@ import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
 import { tierLabel } from '../domain/troops';
-import type { UpgradeHold } from '../domain/construction';
+import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
@@ -456,6 +456,10 @@ export const fr = {
       )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
+    /** **La même lecture que le métier scellé** : une colonne s'appuie sur ce relais, son allure
+     *  est déjà comptée, et le point ne peut ni changer de métier ni disparaître sous elle. */
+    OUTPOST_SERVING: () =>
+      'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',
     /** **On ne rénove pas sous le feu** (décision 3a du 15/09). Le refus dit l'état, pas une
      *  perte : le point revient, et un chantier déjà en file l'attend sans s'annuler. */
     OUTPOST_DISABLED: () => 'avant-poste hors service — il ne se monte pas tant qu’il l’est',
@@ -912,6 +916,7 @@ export const fr = {
       outpostStands: 'avant-poste debout',
       foundationLost: 'fondation perdue',
       outpostRaised: 'avant-poste élevé',
+      outpostDismantled: 'avant-poste démantelé',
       outpostDisabled: 'avant-poste désactivé',
       sighting: 'relevé',
       campSighted: 'camp relevé',
@@ -1070,6 +1075,17 @@ export const fr = {
        *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
       outpostRaised: (level: number, place: string) =>
         `Notre avant-poste est passé au niveau ${num(level)} — ${place} : un emplacement de plus et ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
+      /**
+       * **Le point qu'on a démonté soi-même** (décision du 16/09) — la seule fin d'un avant-poste
+       * que personne ne subit, donc la seule qui n'ait pas besoin d'encre rouge. La phrase compte
+       * les mâts emportés parce que c'est ce qu'on peut avoir sous-estimé en cliquant.
+       */
+      outpostDismantled: (level: number, country: string, buildings: number) =>
+        `Notre avant-poste de niveau ${num(level)} a été démantelé — ${country}${
+          buildings === 0
+            ? '.'
+            : ` : ${num(buildings)} bâtiment${plural(buildings, '', 's')} tombé${plural(buildings, '', 's')} avec lui.`
+        }`,
       /**
        * **La production reliée, quand elle mord** (ADR 0020 §6). Elle est déposée chez le seul
        * propriétaire : l'adversaire qui vient de couper la frontière le lit sur la carte, et une
@@ -1900,6 +1916,7 @@ export const fr = {
           `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
           `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
           'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
+          'Clic droit sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.',
         ],
       },
       {
@@ -2046,6 +2063,24 @@ export const fr = {
      *  la seule branche de la rose dont rien ne revient. La confirmation dit le détail. */
     demolish: 'raser',
     demolishConsequence: 'Efface ce bâtiment. Rien de l’alliage payé n’est rendu.',
+    /**
+     * **Un point à soi se commande au clic droit** (décision de Pierre, 16/09, Registre 27). La
+     * qualification décisionnelle est son niveau, comme pour un bâtiment : c'est lui qui dit ce
+     * que le point porte — son rayon, ses emplacements — et le pays se lit déjà sous le réticule.
+     */
+    myOutpost: (level: number) => `mon avant-poste · niveau ${level}`,
+    raiseConsequence: (level: number) =>
+      `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon et l’emplacement qui vont avec.`,
+    /** Le métier en cours : la branche est marquée, et cliquer ne change rien — il n'y a rien
+     *  à changer. La phrase le dit plutôt que de laisser croire à un geste sans effet. */
+    specializationHeld: 'Le métier que ce point exerce déjà.',
+    specializeConsequence: (name: string) => `Change le métier de ce point : ${name}.`,
+    /** **Démanteler** (décision du 16/09) : jumelle de « raser », en dernier et en encre rouge.
+     *  Ce qu'elle emporte en plus — la couleur du sol et les bâtiments ancrés — se lit sur la
+     *  confirmation, qui a la place de le dire en chiffres. */
+    dismantle: 'démanteler',
+    dismantleConsequence:
+      'Efface ce point, sa couleur et ce qu’il ancre. Rien de l’alliage payé n’est rendu.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
@@ -2078,6 +2113,35 @@ export const fr = {
     clippingLine: (resource: string, lost: number) => `${resource} −${num(lost)}`,
     submit: 'raser — irréversible',
     cancel: 'annuler',
+  },
+
+  /**
+   * **La confirmation d'un démantèlement** (décision de Pierre, 16/09). Jumelle de la démolition,
+   * et elle a plus à dire : un avant-poste n'est pas une bâtisse mais un **site** — il colore un
+   * sol, il ancre des mâts, il héberge une garnison. Deux de ces trois pertes ne se lisent nulle
+   * part ailleurs sur le plateau, donc elles se lisent ici ou jamais.
+   */
+  dismantle: {
+    kicker: 'démantèlement',
+    heading: (place: string, level: number) => `Avant-poste de ${place} — niveau ${level}`,
+    /** **La couleur, en régions** (ADR 0020 §7 : « détruit, il la décolore définitivement »).
+     *  Zéro est une information à part entière : un point qui ne tient rien de plus que ses
+     *  voisins ne coûte rien à retirer, et c'est la phrase qui le dit. */
+    colour: (regions: number) =>
+      regions === 0
+        ? 'aucune région ne perd nos couleurs — d’autres points les tiennent'
+        : `${regions} région${plural(regions, '', 's')} perd${plural(regions, '', 'ent')} nos couleurs`,
+    /** Les mâts que ce point ancre (décision 1a du 16/09) : ils tombent avec lui, comme s'ils
+     *  étaient rasés un à un — file annulée, garnison au sol, aucun remboursement. */
+    anchored: (count: number) =>
+      `${count} bâtiment${plural(count, '', 's')} ancré${plural(count, '', 's')} tombe${plural(count, '', 'nt')} avec lui`,
+    garrison: (count: number) =>
+      `${count} troupe${plural(count, '', 's')} passe${plural(count, '', 'nt')} au sol, au point`,
+    /** Le cas du chantier : ce qu'on retire alors est une promesse et non une bâtisse, et le
+     *  joueur doit savoir qu'il n'attend plus rien. */
+    underConstruction: 'le chantier de fondation est abandonné',
+    noRefund: 'aucun remboursement — ni la fondation, ni les élévations',
+    submit: 'démanteler — irréversible',
   },
 
   /**
@@ -2244,6 +2308,29 @@ export function upgradeHoldText(hold: UpgradeHold): string {
         resource: hold.resource,
         needed: hold.needed,
         available: hold.available,
+      });
+  }
+}
+
+/**
+ * **Ce qui retient une élévation d'avant-poste**, en une phrase — la même fonction pour le
+ * panneau de garnison et pour la rose des vents, parce que c'est le même empêchement lu par la
+ * même `outpostRaiseHold`. Le panneau tait la facture (il l'affiche déjà en chiffres rouges
+ * au-dessus) ; la rose la dit, faute de place pour deux lectures.
+ */
+export function raiseHoldText(hold: OutpostRaiseHold): string {
+  switch (hold.kind) {
+    case 'maxLevel':
+      return fr.garrison.raiseAtMaximum(hold.maximum);
+    case 'disabled':
+      return fr.garrison.raiseDisabled;
+    case 'alreadyQueued':
+      return fr.garrison.raiseQueued;
+    case 'materials':
+      return fr.errors.INSUFFICIENT_RESOURCE({
+        resource: hold.resource,
+        needed: hold.needed,
+        available: Math.floor(hold.available),
       });
   }
 }

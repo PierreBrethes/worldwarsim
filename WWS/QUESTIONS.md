@@ -1,167 +1,107 @@
 # Questions ouvertes
 
-Ce qui n'est pas tranché. Rien ne se code tant que les questions marquées 🔴 ne sont pas fermées.
+Ce qui n'est pas tranché. Réécrit le 16/09/2026 (décision 3a) : tout ce que les ADR 0013 à 0024
+ont fermé est sorti du corps du texte et tient en une ligne au bas. Une question 🔴 bloque ce
+qu'elle nomme, pas le reste du projet.
 
 ## 🔴 Bloquantes
 
-**L'avantage d'isolement géographique.** Mesuré : les États-Unis gagnent 20,8 % des saisons pour
-12,5 % attendus, uniquement parce que personne ne peut les atteindre. Le curseur de compensation
-aggrave le problème au lieu de le corriger — il récompense l'isolement, qui est déjà un avantage.
-→ [rapport de simulation](docs/technique/rapport-simulation.md)
+**L'avantage d'isolement géographique.** Mesuré en août sur le simulateur v1 : les États-Unis
+gagnaient 20,8 % des saisons pour 12,5 % attendus, parce que personne ne peut les atteindre. Ce
+rapport ([simulation](docs/technique/rapport-simulation.md)) est **périmé** — il précède les
+ADR 0013, 0014, 0015, 0020 — et le simulateur n'a plus d'état de référence (export de la saison
+Japon jamais fait). Le principe dégagé le 15/08 tient : *l'isolement se paie en rareté*, et le
+Japon le démontre. Les États-Unis sont l'inverse exact : inatteignables **et** sans manque, et
+inventer un manque américain serait de la fiction. Trois leviers, aucun mesuré depuis : le
+**coût de la distance** (codé : `routing.ts`, ~14 min / 1 000 km), l'**obligation de ports**
+(codée, ADR 0013), une **condition de victoire** qui exige d'agir loin de chez soi — la
+domination par part du théâtre (`fin-de-saison-au-seuil-tenu`) ne l'exige pas.
 
-*Le principe dégagé le 15/08 : **l'isolement se paie en rareté.*** Richesse et accessibilité
-doivent aller en sens inverse. Le Japon en est la démonstration réussie — à demi coupé du monde,
-sans fer ni pétrole ni riz, il doit sortir ou mourir, et son porte-avions comme ses Rikusentai
-disent déjà cela. La géographie et l'atout racontent la même chose.
-
-*Ce qui reste ouvert, précisément.* Les États-Unis sont l'inverse exact : les plus inatteignables
-**et** les mieux dotés (16 gisements, seule nation sans manque). Les deux avantages vont dans le
-même sens au lieu de s'annuler. La distribution des gisements ([ADR 0015](docs/adr/0015-economie-v2-ressources-localisees.md),
-révision du 15/08) **borne** l'écart à 2× mais ne le supprime pas, et elle ne peut pas : les
-États-Unis de 1940 ne manquaient de rien qui figure dans les cinq ressources du jeu — leurs vraies
-pénuries étaient le caoutchouc, l'étain et le chrome. Inventer un manque américain serait de la
-fiction au service d'un tableau.
-
-Donc le levier n'est pas économique. Restent trois pistes, aucune tranchée : le **coût de la
-distance** (déjà le levier central mesuré, 14 min / 1 000 km), l'**obligation de bâtir et défendre
-des ports** pour exister ailleurs ([ADR 0013](docs/adr/0013-batiments-de-projection-sur-regions.md)),
-et une **condition de victoire** qui exige d'agir loin de chez soi. C'est au simulateur refondu de
-dire laquelle mord — le rapport actuel ne vaut plus une ligne depuis les ADR 0013, 0014 et 0015.
-
-## 🟢 Tranchées par la simulation
-
-**Le temps de trajet : 14 min pour 1 000 km.** La question était mal posée : il n'y a pas de ratio
-trajet ÷ construction. Le temps de construction ne déplace l'équilibre que de quelques points ; le
-temps de trajet, lui, décide tout. En dessous de 10 min/1 000 km, la Domination remporte la moitié
-des saisons.
-
-**Les outils de soustraction sont vitaux.** Sans embargo, exposition et raid, la Domination gagne
-72 % des saisons contre 33 % avec. Aucun des trois n'est retirable.
-
-**Ce n'est pas une salle d'attente.** 1,19 décision par joueur et par heure, et le vainqueur ne
-prend définitivement la tête qu'à 90 % de la saison.
+*Ce que ça bloque :* les **atouts nationaux** (fiche 06, aucun codé) et tout rééquilibrage
+d'une nation. Pas le reste. *L'instrument :* la refonte du simulateur en client Convex
+(Registre 24) — sans lui, toute réponse est une opinion.
 
 ## 🟠 Structurantes
 
-**Que devient un quartier général frappé ?** Depuis la révision du 15/08 de l'[ADR 0015](docs/adr/0015-economie-v2-ressources-localisees.md),
-le QG est posé au lancement sur la région de la capitale — donc son **adresse est publique dès la
-première minute**, pour tout le monde. Or il porte les slots de mouvement *et* la recherche. Un raid
-réussi sur une capitale ne prend pas des ressources, il prend la **capacité d'agir** : c'est
-frontalement la règle n°3 (un joueur écrasé reste nuisible, jamais éliminé). Le plancher d'un slot
-évite la paralysie totale, mais un joueur à un slot ne joue plus.
+**Que devient un quartier général frappé ?** Le QG est la première dette du socle, posé **par
+le joueur** (1b du 13/09) ; il porte les emplacements du sol national (2 × niveau, ADR 0020 §10)
+et la future recherche. La frappe de bâtiment (78a) a tranché pour les autres : intégrité,
+désactivation, jamais de destruction, réparation seule. Pour le QG : *désactivé, jamais détruit,
+son niveau ne redescend jamais* est la piste cohérente — la destruction du QG est une
+recherche de palier 4+ qui réviserait « jamais éliminé » (question 39). À trancher avant
+d'écrire la frappe aérienne, pas après.
 
-*Piste la plus cohérente, non tranchée* : le QG se **désactive** temporairement, il ne se détruit
-pas et son niveau ne redescend jamais — même vocabulaire que les avant-postes, même raison. À
-trancher avant d'écrire le raid, pas après.
+**La soupape anti-élimination des bâtiments de projection.** Sans port, pas de départ
+maritime (ADR 0013). Un joueur qui perd ses ports peut se retrouver enfermé chez lui. Pistes
+non tranchées : port de fortune coûteux et temporaire, embarquement depuis un avant-poste
+côtier (c'est l'atout italien *Mare Nostrum* — un atout qui casse cette règle pour une nation
+ne règle pas la soupape des sept autres), ou domaine dégradé plutôt que fermé.
 
-**La soupape anti-élimination des bâtiments de projection.** L'ADR 0013 fait dépendre chaque
-domaine d'un bâtiment : sans port, pas de départ maritime. Si perdre ses ports ferme un domaine
-entier, un joueur peut se retrouver enfermé chez lui — ce qui heurte la promesse qu'aucun joueur
-n'est éliminé. Pistes non tranchées : port de fortune coûteux et temporaire, embarquement depuis
-un avant-poste allié, ou domaine dégradé (plus lent, plus cher) plutôt que fermé.
+**Élever ou fonder.** Le niveau 2 d'un point coûte 117 alliage et donne un emplacement et
+60 km de rayon ; une fondation coûte 65, donne un emplacement, un cercle neuf et de la couleur.
+À tout prix supérieur à la fondation, élever est dominé par fonder tant qu'il reste de la place.
+Le prix n'est pas le sujet ; ce qu'un niveau achète l'est. Mesure d'abord (7a : avant-postes
+debout par joueur au jour 7, et combien d'élévations), règle ensuite.
 
-**Le sort des cinq bâtiments d'économie.** Grille de lecture proposée : trois familles de rôle —
-**économie** (QG, industrie, conscription : produire), **projection** (port, aérodrome, caserne :
-partir), **renseignement** (écoute : savoir — et maison naturelle de la future identification).
-Le seul qui flotte est le **centre logistique** : « réduit le temps de trajet et fixe les slots »
-chevauche la famille projection. Candidat à la dissolution — ses effets deviendraient les niveaux
-des bâtiments de projection (un port niveau 2 embarque plus vite). À trancher ensemble.
-→ [ADR 0013](docs/adr/0013-batiments-de-projection-sur-regions.md)
+**Le rendez-vous de l'ordre « intercepter ».** L'ADR 0024 a fermé la question « peut-on refuser
+le combat » : rien ne se bat sans ordre d'attaque, une force qui marche n'est jamais chassée
+d'office. Elle en ouvre une autre : « intercepter » (vision V1, point 2) propose un rendez-vous
+atteignable sur un tronçon relevé — mais le relevé ne donne jamais la destination (4a du 13/09).
+Un rendez-vous sur une estimation est-il un ordre, ou une marche ordinaire vers un point ?
 
-**~~Les unités doivent-elles être quelque part ?~~ Tranchée par l'ADR 0014 :** les troupes
-sont discrètes et localisées. Restent à chiffrer les tables de dégâts, les effectifs nominaux,
-la portée des pharmacies et le nombre de troupes par nation.
-→ [ADR 0014](docs/adr/0014-troupes-discretes-et-combat-sequentiel.md)
-
-**Le rayon d'interception.** Fixe, ou fonction de la composition de la force ? S'il est trop grand,
-plus aucun convoi ne passe et la carte se fige. → [08](docs/design/08-combat.md)
-
-**Peut-on refuser le combat ?** Une force rapide devrait pouvoir se dérober au prix d'un détour.
-Sans cette issue, l'interception est une punition sans contre-jeu.
-
-**~~Le secret des doctrines à 2 joueurs.~~ Sans objet depuis l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
-§9 :** il n'y a plus de doctrine à garder secrète, la domination est le mode unique et son score est
-public par décision (§4). Ce qui reste caché, et ce qui s'achète, c'est ce qui bouge.
-
-**~~La clôture d'une saison quand le fondateur est parti.~~ Tranchée le 06/09 (décision 1a),
-codée :** le pouvoir de clôture passe au **doyen des belligérants non défaits** quand le fondateur
-n'a plus été vu depuis `FOUNDER_ABSENCE_HOURS` (48 h) — pas de vote, et **pas de transfert de
-titre** : le fondateur reste fondateur, il perd l'exclusivité et la reprend en revenant. La présence
-s'écrit au montage du plateau, au plus toutes les 30 minutes (`players.touch`), et elle ne sort de
-`playerView` que pour le fondateur, sous forme de durée et près du seuil — une « dernière
-connexion » adverse serait un canal sur les plages de repos ([ADR 0005](docs/adr/0005-plages-de-repos.md)).
-`seasons.destroy` ne s'ouvre pas : on clôt une saison abandonnée, on ne l'efface jamais à la place
-de son fondateur. L'abandon *explicite* était déjà couvert par la capitulation, qui transmet le
-titre (`players.surrender`).
-
-**~~Le plafond de bâtiments.~~ Tranchée par l'[ADR 0020](docs/adr/0020-domination-par-couleur.md)
-§10 (31/08 au soir) :** les emplacements sont portés par **chaque site** — `2 × niveau de QG` sur le
-sol national, son niveau pour un avant-poste — la fondation est hors compte, et le frein
-d'expansion devient l'**entretien** d'avant-poste et non un plafond. Le plafond global
-`buildingCap(hqLevel)` refusait sans raison lisible : au lancement il était entièrement consommé
-par la fondation nationale, et d'autant plus que la nation était riche — l'inverse exact des
-garde-fous de distribution de l'ADR 0015.
-
-**La granularité de l'occupation.**
-Binaire (occupé / libre) ou progressive (pourcentage du territoire) ? La version progressive est plus
-riche mais demande un découpage interne du pays, ce que l'ADR 0004 a justement voulu éviter.
-
-**La régénération des effectifs pendant l'occupation.**
-Si elle continue, l'occupation ne pèse pas assez. Si elle s'arrête, elle devient définitive et
-contredit la promesse anti-élimination. Une piste : elle continue mais les effectifs produits sont
-plafonnés à un usage défensif.
-
-**La file de recrutement contourne le plafond de stockage.** La matière d'un lot en file est
-débitée à la commande et rendue entière à l'annulation : la file est un entrepôt illimité que
-seul le plafond de troupes borne. Sans objet tant que rien ne se pille — l'écrêtage à la perte de
-stockage (ADR 0017) aura le même angle mort si la file n'est pas comptée. À trancher avec le
-pillage. → constat de `consommation-continue.md`, confirmé le 19/08.
-
-**La reprise de la file après une famine est paresseuse.** À sec, la tête n'est plus datée ; elle
-repart au premier événement qui écrit un stock, pas à l'instant analytique où la nourriture
-redevient positive — `driedAfterHours` (le moment exact, calculé par `settleStocks`) existe et
-permettrait de la planifier si l'écart se sent en partie. Approximation assumée le 19/08 ; la
-tenir à la lettre demanderait de dater les lots comme l'industrie.
+**La reprise de la file après une famine est paresseuse.** À sec, la tête n'est plus datée ;
+elle repart au premier événement qui écrit un stock, pas à l'instant analytique où la nourriture
+redevient positive (`driedAfterHours` existe et permettrait de la planifier). Approximation
+assumée le 19/08 ; à tenir à la lettre seulement si l'écart se sent en partie.
 
 ## 🟡 À trancher plus tard
 
-**L'unité spéciale par nation.** Idée retenue mais non tranchée. Elle devrait casser une règle
-plutôt qu'améliorer un rôle existant, sinon c'est un dixième rôle à équilibrer pour rien. 8 nations
-= 8 systèmes de plus : à réserver à 4 ou 5 nations, et après la première saison test.
+**Les atouts nationaux et l'unité spéciale.** La fiche 06 décrit huit atouts qui cassent
+chacun une règle, et huit troupes signature ; **aucun n'est codé** — les nations se distinguent
+par la géographie, les gisements et les sprites. C'est le pitch d'origine (« chaque pays a son
+identité réelle »). Deux contraintes déjà posées : un atout casse une règle, il ne bonifie
+jamais (règle des pourcentages) ; l'unité spéciale passe par la recherche au QG (ADR 0014 :
+médecin OU parachutiste pour l'infanterie mk1) et attend l'ADR recherche (44a). Quatre ou cinq
+nations d'abord, jamais huit d'un coup. Le *nerf du Japon* (doctrine du porte-avions annule
+l'irréversibilité) et le *pouvoir italien jamais simulé* se jugent quand ils existent.
 
-*Piste la plus avancée — les parachutistes français.* Une spécialisation de l'infanterie qui
-se pose **sans rien avoir sur place** : elle casse la règle que l'ADR 0013 vient de poser
-(un domaine s'ouvre par un bâtiment). L'exception porte sur ce qu'il faut à l'arrivée, jamais
-sur le voyage : le largage reste un mouvement, avec son fil aérien visible, parti d'un
-aérodrome — sinon il perce le brouillard et l'interception d'un coup, et toute la couche
-d'information s'effondre. Le réalisme fait l'équilibrage : rayon limité depuis l'aérodrome,
-infanterie légère seule, effectif modeste, aucun retour possible. Un coup de main, pas une
-flotte. Reste à définir la condition de déblocage. Depuis l'ADR 0014, le cadre existe : les
-spécialisations sont exclusives, par la recherche au QG — pour l'infanterie mk1,
-médecin OU parachutiste.
+**Le nombre de nations.** Huit aujourd'hui, huit atouts à équilibrer pour un dev solo ; six
+serait plus sage pour la première saison avec atouts.
 
-**Le pouvoir italien n'a jamais été simulé.** *Reconnaissance aérienne* est arrivé avec la révision
-1940 de la fiche 06, après la campagne de mesure. Il touche au brouillard, que le simulateur ne
-modélise pas — donc il est le moins fiable des huit.
+**L'auto-battler à plans (option B).** Plan de bataille enregistré à l'avance, résolution
+déterministe — seule façon connue de rendre de la décision tactique sans casser l'asynchrone.
+À reconsidérer si le combat automatique paraît trop passif après une saison complète.
 
-**France × Hégémonie est le couple le plus faible du jeu** (1,8 % de victoires pour 4,2 % attendus).
-Le correctif post-audit — coût d'avant-poste croissant avec la distance — a sur-corrigé.
+**Notifications.** Proposition validée sur le principe le 28/08
+([pushes et alarmes](docs/design/propositions/notifications-push-et-alarmes.md)), « après le
+premier skirmish ». Trois parties plus tard, rien n'est codé ; en asynchrone sur sept jours,
+« rien » veut dire que les joueurs oublient le jeu au bout de deux jours.
 
-**Le Royaume-Uni est sous-représenté** (8,1 % pour 12,5 %). Sa modification de colonne est trop
-étroite.
+**La salve d'allonge.** Le brief (au contact, le camp qui porte le plus loin tire une salve
+gratuite avant la passe) a été classé « abandonné » dans `done/` et l'ADR 0021 par la livraison
+du 08/09 — pas par une décision. À confirmer ou à rouvrir ; une ligne suffit.
 
-**34 % des saisons se terminent avant 48 h.** Soit la saison s'arrête quand quelqu'un gagne, soit
-les seuils montent pour tenir la durée annoncée.
+**« L'Allemagne est injouable ».** Plainte Discord du 15/09 ; le frein a changé de nature
+depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une réponse.
 
-**Le nerf du Japon.** *Doctrine du porte-avions* annule le levier de drame n°1 (l'irréversibilité).
-C'est assumé et c'est fun, mais c'est le premier candidat au nerf après la première saison test.
+## Fermées — où la réponse vit
 
-**Le nombre de nations.** Huit aujourd'hui. Huit est déjà beaucoup à équilibrer pour un dev solo ;
-six serait plus sage pour la première saison.
-
-**L'auto-battler à plans (option B).** Gardé en réserve : plan de bataille enregistré à l'avance,
-résolution déterministe. Seule façon connue de rendre de la décision tactique sans casser
-l'asynchrone. À reconsidérer si le combat automatique paraît trop passif après la première saison.
-
-**Notifications.** Push, mail, ou rien ? En asynchrone sur sept jours, « rien » signifie que les
-joueurs oublient le jeu au bout de deux jours. Mais c'est de l'infra, pas du design.
+- Temps de trajet, outils de soustraction, cadence de décision : 🟢 simulateur v1 (14 min /
+  1 000 km ; embargo, exposition et raid vitaux ; 1,19 décision par joueur et par heure).
+  Chiffres d'août, à relire quand le simulateur refondu existe.
+- Les unités quelque part → ADR 0014 ; tables de dégâts et effectifs dans `constants.ts`.
+- Le rayon d'interception → ADR 0021 (portée par rôle, `DETECTION_RANGE_KM` `@a-mesurer`) et
+  ADR 0024 (l'attaque se donne sur un objet relevé).
+- Refuser le combat → sans objet depuis l'ADR 0024 (engagement intentionnel).
+- Le secret des doctrines, Hégémonie, « 34 % des saisons finissent avant 48 h » → sans objet
+  depuis l'ADR 0020 §9 et §11 (mode unique, plus d'horloge).
+- La clôture quand le fondateur est parti → 1a du 06/09, codée (`FOUNDER_ABSENCE_HOURS`).
+- Le plafond de bâtiments → ADR 0020 §10 (emplacements par site) ; le frein d'expansion est
+  le **prix par niveau** depuis le 15/09, l'entretien a disparu.
+- Le centre logistique → dissous : le relais est une spécialisation d'avant-poste
+  (`SPECIALIZATION`, fiche 03), pas un bâtiment.
+- Granularité et régénération de l'occupation → sans objet : il n'y a pas d'occupation, la
+  couleur suit l'avant-poste (ADR 0004, ADR 0020 §1).
+- La file de recrutement comme entrepôt à l'abri du pillage → D5 acquise le 09/09 : limite
+  assumée pour la V1.
+- Les bâtiments d'un point démantelé → 1a du 16/09 : ils tombent avec lui (`buildings.outpostId`).

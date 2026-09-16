@@ -199,8 +199,8 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
     Capture de bâtiments et QG restent des chantiers ultérieurs ; récupération du butin
     par l’intercepteur incluse dans S6b.
 11. **objectifs-neutres** lot 1 — *prêt* — après 10 (réutilise `loot` et le retour).
-12. **fin-de-saison-au-seuil-tenu** — *prêt* — ⚠ 74a le mettait de côté ; à donner en dernier,
-    après la partie de contrôle à deux (elle fixe `DOMINATION_SHARE` et `DOMINATION_HELD_HOURS`).
+12. **fin-de-saison-au-seuil-tenu** — *prêt, **prochain chantier de fond** (décision 2a du
+    16/09)* — les deux valeurs restent `@a-mesurer` ; bannière du 16/09 en tête du prompt.
 13. ~~Titre « mon territoire »~~ — livré dans 6.
 14. ~~Fondateur parti~~ — livré (`surrender` + `fondateur-absent`).
 
@@ -227,6 +227,18 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 25. **Observateur omniscient** pour Pierre (Discord, 15/09) — outil de mesure et de débogage
     en prod ; ne vaut que si 24 existe.
 26. **Niveaux d'IA** (Discord, 15/09) — prématuré tant qu'aucun bot ne tient sept jours.
+27. **Rose des vents sur les avant-postes** (demande de Pierre, 16/09). Constat : le clic droit
+    sur un avant-poste sans pile armée est **inerte** — `compass-rose.ts`, `build()`,
+    `case 'outpost'` rend `actions: []`, donc `compassOf` répond `null`. Seul le mât d'un
+    bâtiment a sa plate (54a, 56a, raser). Sur un point à soi, les branches candidates :
+    « élever » (aujourd'hui seulement par le panneau de garnison, `constructions.raiseOutpost`),
+    « spécialiser » (relais, `movements.ts:226`), « entrer en garnison » (64b, même règle que le
+    mât), et **« abandonner » — non tranché** : la démolition (5a, 6a) ne couvre que les
+    bâtiments, et un point qui tombe emporte sa couleur (ADR 0020 §7). Sur un point adverse : la
+    plate reste celle de la visée (`aim`). **Tranché le 16/09** : élever + relais + écoute +
+    détruire sans pile ; « entrer en garnison » seul avec une pile. Prompt
+    `prompts/code/ready/rose-sur-les-avant-postes.md`, **prêt** (1a du 16/09 : les bâtiments
+    ancrés au point tombent avec lui).
 
 ## Acté le 15/09 — retours Discord
 

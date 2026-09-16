@@ -57,6 +57,52 @@ export const colourReading = (outpost: Doc<'outposts'>, now: number) => ({
     !isStanding(outpost, now) || (outpost.disabledUntil !== null && outpost.disabledUntil >= now),
 });
 
+/**
+ * **Ce qu'un point tient à lui seul** — les régions qui changeraient de main s'il n'était plus
+ * debout. Une soustraction et rien d'autre : la carte que ce point debout donne, moins celle
+ * qu'il donne couché, gardée sur les seules régions qui reviennent à son propriétaire. Aucune
+ * seconde règle n'est écrite ici, donc aucune ne peut diverger de `heldRegions` le jour où la
+ * portée change.
+ *
+ * **Deux lecteurs, deux questions qui n'en font qu'une** (16/09) : la zone hachurée d'un point
+ * hors service (`control.held`, ADR 0020 §7) et la couleur qu'un démantèlement fait perdre
+ * (`outposts.dismantle`). Le premier interroge un point couché, le second un point debout, et la
+ * différence répond aux deux — c'est la même question posée dans les deux sens.
+ *
+ * **Sur les seuls points du joueur.** L'appelant tend ce qu'il a lu de son propre index : la
+ * requête de la carte n'a pas le droit de lire la vérité des autres (`brouillard-et-fanout.md`),
+ * et un avant-poste adverse qui disputerait la région ne change pas ce que **celui-ci** tient —
+ * il change à qui elle revient après, ce qui n'est pas la question posée ici.
+ */
+export function soleHoldOf({
+  regions,
+  outposts,
+  outpost,
+  homeGrounds,
+  now,
+}: {
+  readonly regions: ReadonlyArray<RegionFacts>;
+  readonly outposts: ReadonlyArray<Doc<'outposts'>>;
+  readonly outpost: Doc<'outposts'>;
+  readonly homeGrounds: ReadonlyArray<{ owner: string; country: string }>;
+  readonly now: number;
+}): ReadonlyArray<string> {
+  const readings = outposts.map((candidate) => colourReading(candidate, now));
+  const swap = (disabled: boolean) =>
+    heldRegions({
+      regions,
+      outposts: readings.map((reading, rank) =>
+        outposts[rank]!._id === outpost._id ? { ...reading, disabled } : reading,
+      ),
+      homeGrounds,
+    });
+  const without = swap(true);
+  const owner = outpost.playerId as string;
+  return [...swap(false)].flatMap(([regionId, holder]) =>
+    holder === owner && !without.has(regionId) ? [regionId] : [],
+  );
+}
+
 /** Le sol d'origine des sièges de la saison — ce qu'aucun avant-poste ne prend (ADR 0004). */
 export async function homeGroundsOf(
   ctx: QueryCtx,

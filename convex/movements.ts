@@ -35,6 +35,7 @@ import {
   engageAt,
   forgetMovement,
   garrisonOf,
+  outpostGarrisonOf,
   recallAt,
   standAt,
 } from './movement/arrival';
@@ -288,6 +289,36 @@ export const enterGarrison = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, { kind: 'building', buildingId }),
+    });
+  },
+});
+
+/**
+ * **On entre dans son propre point comme dans un mât** (décision de Pierre, 16/09). Jumelle
+ * d'`enterGarrison` : la même marche, la même règle, une autre sorte d'adresse au bout — et
+ * l'appartenance n'est pas vérifiée ici mais dans `refusalOf`, qui refuse `POINT_TARGET_ONLY`
+ * sur un point qui n'est pas dans `myOutpostIds`. Une seconde vérification serait une seconde
+ * règle (ADR 0015).
+ */
+export const enterOutpost = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    outpostId: v.id('outposts'),
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, outpostId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'march',
+      origin,
+      troopIds,
+      aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
     });
   },
 });
@@ -657,7 +688,11 @@ export const arrive = internalMutation({
       await engageAt(ctx, movement, movement.type, now);
     } else if (movement.type === 'march') {
       const garrison = await garrisonOf(ctx, movement);
-      const entered = await standAt(ctx, movement, garrison?._id ?? movement.to);
+      /** **Une marche sur un point à soi y entre** (décision du 16/09) : la seule marche que
+       *  `refusalOf` laisse viser un avant-poste est celle-là. Démantelé ou perdu entre-temps,
+       *  la colonne se pose au point atteint comme n'importe quelle marche (règle 3). */
+      const post = garrison === null ? await outpostGarrisonOf(ctx, movement) : null;
+      const entered = await standAt(ctx, movement, garrison?._id ?? post?._id ?? movement.to);
       if (garrison !== null && entered > 0) {
         garrisoned = true;
         await ctx.db.insert('notices', {

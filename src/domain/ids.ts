@@ -143,6 +143,10 @@ export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' |
  */
 export type Specialization = 'relay' | 'listening';
 
+/** Les deux métiers dans l'ordre où la plate et le panneau les présentent — une seule liste,
+ *  pour que la rose des vents et la fenêtre ne puissent pas les ranger différemment. */
+export const SPECIALIZATIONS: ReadonlyArray<Specialization> = ['relay', 'listening'];
+
 /**
  * **What caught a movement** (fiche 04), in the order the sheet ranks the four: the ground a
  * player owns, the station he built to hear, the outpost he specialised to listen, and the

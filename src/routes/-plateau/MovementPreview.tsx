@@ -103,6 +103,7 @@ export function MovementPreview({
   const [sending, setSending] = useState(false);
   const marchTo = useMutation(api.movements.marchTo);
   const enterGarrison = useMutation(api.movements.enterGarrison);
+  const enterOutpost = useMutation(api.movements.enterOutpost);
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
   const plunder = useMutation(api.movements.plunder);
@@ -149,19 +150,28 @@ export function MovementPreview({
                   troopIds: ids,
                   buildingId: aim.buildingId as Id<'buildings'>,
                 })
-              : type === 'raid' && aim.kind === 'outpost'
-                ? raid({
+              : /** **Une marche sur un avant-poste ne vise que le sien** (décision du 16/09) :
+                 *  `refusalOf` le garantit, et la colonne y devient garnison à l'arrivée. */
+                type === 'march' && aim.kind === 'outpost'
+                ? enterOutpost({
                     ...seat,
                     origin: from,
                     troopIds: ids,
                     outpostId: aim.outpostId as Id<'outposts'>,
                   })
-                : attack({
-                    ...seat,
-                    origin: from,
-                    troopIds: ids,
-                    target: wireTarget(aim),
-                  });
+                : type === 'raid' && aim.kind === 'outpost'
+                  ? raid({
+                      ...seat,
+                      origin: from,
+                      troopIds: ids,
+                      outpostId: aim.outpostId as Id<'outposts'>,
+                    })
+                  : attack({
+                      ...seat,
+                      origin: from,
+                      troopIds: ids,
+                      target: wireTarget(aim),
+                    });
 
     order.then(onClose, (problem: unknown) => {
       setSending(false);

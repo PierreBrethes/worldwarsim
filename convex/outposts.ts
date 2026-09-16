@@ -1,13 +1,19 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, type MutationCtx } from './_generated/server';
+import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
+import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
-import { buildMinutes, outpostReachKm } from './constants';
+import { playerBuildings, razeBuilding } from './buildings';
+import { buildCost, buildMinutes, outpostReachKm, type Costs } from './constants';
+import { fail } from './errors';
+import { homeGroundsOf, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
-import { movementsOf, pointOf } from './movement/forces';
-import { regionOfOutpost } from './regions';
+import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
+import { allRegions, regionOfOutpost } from './regions';
 import { reportChange, settleBeforeChange } from './production';
+import { credit } from './resources';
+import { playerOf, requirePlayable } from './seasons';
 import { surveyFoundation } from './surveys';
 
 /**
@@ -127,3 +133,167 @@ async function remainingGarrison(
     .collect();
   return stationed.filter((troop) => !marching.has(troop._id));
 }
+
+/**
+ * **Un point à soi se démonte** (décision de Pierre, 16/09, Registre 27). C'était le seul objet
+ * du plateau qu'on posait sans pouvoir le reprendre : une bâtisse se rase depuis le 15/09, un
+ * chantier s'annule, un avant-poste restait pour la saison — et avec lui le sol qu'il colore,
+ * les emplacements qu'il ouvre et la portée qui relève.
+ *
+ * **C'est un événement de couleur**, et c'est l'essentiel de sa mécanique : régler à l'ancienne
+ * couleur, écrire, rapporter — le même contrat que le lever (`standOutpost`) et la fin d'une
+ * désactivation. Sans lui, la coupure de production s'appliquerait rétroactivement aux heures
+ * déjà tenues.
+ *
+ * **Les bâtiments ancrés tombent avec lui** (décision 1a) : l'ancrage est écrit à la pose
+ * (`buildings.outpostId`), donc il n'y a aucune géométrie à relire — sauf pour les mâts d'avant
+ * le champ, que le sol replace, et le repli part au prochain wipe. Chacun tombe **comme une
+ * démolition ordinaire** (`razeBuilding`) : file annulée selon la règle de la file, socle non
+ * rendu, garnison au sol, écrêtage d'entrepôt chiffré.
+ *
+ * **Rien n'est remboursé** (décision 5a) : ni la fondation, ni les élévations. Ce qui revient est
+ * ce que la **file** rembourse, et selon sa règle à elle — une entrée qui n'a pas commencé.
+ */
+export const dismantle = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons'), outpostId: v.id('outposts') },
+  handler: async (ctx, { token, seasonId, outpostId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+
+    const outpost = await ctx.db.get(outpostId);
+    const refusal = outpostDismantleRefusalOf({
+      mine: outpost !== null && outpost.playerId === player._id,
+      serving: outpost !== null && (await specializationServed(ctx, outpost)),
+    });
+    if (refusal !== null || outpost === null) fail(refusal ?? 'NOT_YOURS');
+
+    const now = Date.now();
+    const anchored = await anchoredBuildings(ctx, player._id, outpost, now);
+
+    /** **Régler à l'ancienne couleur avant d'écrire la nouvelle** (ADR 0020 §6) : le point tient
+     *  encore ses régions à la seconde où le règlement se fait, et les mâts qu'il ancre tombent
+     *  dans cette même seconde. */
+    const before = await settleBeforeChange(ctx, season._id, now);
+    for (const building of anchored) await razeBuilding(ctx, player._id, building, now);
+    await groundGarrison(ctx, outpost);
+    const refunded = await cancelRaisesOf(ctx, player._id, outpost, now);
+    await ctx.db.delete(outpost._id);
+    await reportChange(ctx, season._id, before, now);
+
+    await ctx.db.insert('notices', {
+      playerId: player._id,
+      at: now,
+      kind: 'outpostDismantled',
+      hostCountry: outpost.hostCountry,
+      level: outpost.level,
+      buildings: anchored.length,
+    });
+    /** La file repart derrière les entrées disparues, et la détection se réévalue : un point
+     *  retiré est une portée de moins, et une garnison passée au sol un détecteur qui a bougé. */
+    await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: player._id });
+    await reassessDetection(ctx, season._id, now);
+    return { buildings: anchored.length, refunded };
+  },
+});
+
+/**
+ * **Ce que ce point ancre.** L'ancrage est un champ écrit à la pose et jamais recalculé
+ * (ADR 0020 §10) : c'est la seule lecture juste, parce qu'un mât posé sous un point y reste quoi
+ * qu'on fonde plus tard autour de lui.
+ *
+ * Le **repli** ne concerne que les mâts d'avant le champ : faute d'ancre, on leur en donne une
+ * par le sol — leur région est-elle de celles que ce point tient à lui seul (`soleHoldOf`, la
+ * lecture même de la couleur). Le sol national ne répond jamais oui, ce qui est exactement la
+ * bonne réponse : un mât chez soi ne dépend d'aucun avant-poste.
+ */
+async function anchoredBuildings(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  outpost: Doc<'outposts'>,
+  now: number,
+): Promise<ReadonlyArray<Doc<'buildings'>>> {
+  const buildings = await playerBuildings(ctx, playerId);
+  const anchored = buildings.filter((building) => building.outpostId === outpost._id);
+  const orphans = buildings.filter((building) => building.outpostId === undefined);
+  if (orphans.length === 0) return anchored;
+
+  const held = new Set(
+    soleHoldOf({
+      regions: allRegions(),
+      outposts: await outpostsOf(ctx, playerId),
+      outpost,
+      homeGrounds: await homeGroundsOf(ctx, outpost.seasonId),
+      now,
+    }),
+  );
+  return [...anchored, ...orphans.filter((building) => held.has(building.regionId))];
+}
+
+/**
+ * **La garnison passe au sol, elle ne meurt pas** (ADR 0019, règle 3) : elle devient une pile
+ * posée au point de l'avant-poste — là où elle se tenait déjà, et où la carte la dessinait.
+ */
+async function groundGarrison(ctx: MutationCtx, outpost: Doc<'outposts'>): Promise<void> {
+  for (const troop of await ctx.db
+    .query('troops')
+    .withIndex('byStation', (q) => q.eq('stationedAt', outpost._id))
+    .collect()) {
+    await ctx.db.patch(troop._id, { stationedAt: { ...outpost.point } });
+  }
+}
+
+/**
+ * **L'élévation en file part avec le point qu'elle visait** — et selon la règle de la file, pas
+ * selon une règle du démantèlement : ce qui n'a pas commencé revient entier, ce qui court est du
+ * temps déjà consommé. C'est mot pour mot ce que `cancelWorkOn` fait des chantiers d'un bâtiment
+ * rasé ; la file d'un avant-poste se lit sur un autre champ, voilà tout.
+ */
+async function cancelRaisesOf(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  outpost: Doc<'outposts'>,
+  now: number,
+): Promise<Costs> {
+  const refunded: Record<string, number> = {};
+  for (const entry of await ctx.db
+    .query('constructions')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect()) {
+    if (entry.outpostId !== outpost._id) continue;
+    if (entry.finishesAt === null) {
+      for (const [key, amount] of Object.entries(buildCost(entry.building, entry.level))) {
+        refunded[key] = (refunded[key] ?? 0) + amount;
+      }
+    }
+    await ctx.db.delete(entry._id);
+  }
+  const costs = refunded as Costs;
+  await credit(ctx, playerId, costs, now);
+  return costs;
+}
+
+/**
+ * **La couleur qu'un point tient à lui seul**, servie à la carte de confirmation avant le clic.
+ * C'est la **même lecture** que la zone hachurée d'un point hors service (`soleHoldOf`) : le
+ * chiffre annoncé et la règle qui l'applique ne peuvent pas diverger, puisqu'il n'y en a qu'une.
+ *
+ * Ses points et les siens seuls, comme `control.held` : la vérité des autres n'entre pas dans
+ * une requête que le plateau tient ouverte (`brouillard-et-fanout.md`).
+ */
+export const soleHold = query({
+  args: { token: v.string(), seasonId: v.id('seasons'), outpostId: v.id('outposts') },
+  handler: async (ctx, { token, seasonId, outpostId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const outpost = await ctx.db.get(outpostId);
+    if (outpost === null || outpost.playerId !== player._id) return { regions: 0 };
+    return {
+      regions: soleHoldOf({
+        regions: allRegions(),
+        outposts: await outpostsOf(ctx, player._id),
+        outpost,
+        homeGrounds: await homeGroundsOf(ctx, season._id),
+        now: Date.now(),
+      }).length,
+    };
+  },
+});

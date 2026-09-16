@@ -1,15 +1,19 @@
-import { countryLabel, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
+import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
 import {
   availabilityOf,
   buildOptionsAt,
   demolitionRefusalOf,
   foundationHold,
+  outpostDismantleRefusalOf,
+  outpostRaiseHold,
+  pledgedOutposts,
   upgradeHold,
+  type OutpostRaiseHold,
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
 import { PRODUCER_OF } from './economy';
-import { canonicalBuildingKey, DEPOSITS, RESOURCES } from './ids';
+import { canonicalBuildingKey, DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
 import {
   foundingRefusal,
   legalMovementTypes,
@@ -35,8 +39,14 @@ import {
   troopsAt,
 } from './troops';
 import type { LonLat } from './geo';
-import type { BuildingKey, MovementType } from './ids';
-import { currentStock, type Building, type PlayerView, type TroopStation } from './player-view';
+import type { BuildingKey, MovementType, ResourceKey, Specialization } from './ids';
+import {
+  currentStock,
+  type Building,
+  type OutpostView,
+  type PlayerView,
+  type TroopStation,
+} from './player-view';
 
 /**
  * What the right click touched. A discriminated union rather than an object with optional
@@ -197,7 +207,13 @@ export type CompassPictogram =
   | 'sabotage'
   /** « Raser » : le mur qui s'écroule, ses moellons en l'air. Rien de la torche du sabotage —
    *  on n'incendie pas chez soi, on démonte — et rien de la grue, qui bâtit. */
-  | 'rubble';
+  | 'rubble'
+  /** Le métier de relais : le mât et son onde qui part. C'est ce que le point *fait* — il
+   *  relaie — et non ce qu'il est, que la hutte dit déjà. */
+  | 'aerial'
+  /** Le métier d'écoute : le pavillon tendu, l'oreille du point. Même famille que l'antenne,
+   *  et ce qui les sépare est le sens de l'onde : l'une part, l'autre arrive. */
+  | 'ear';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -314,6 +330,68 @@ export type CompassAction =
       readonly buildingId: string;
     }
   /**
+   * **Monter l'avant-poste, depuis la carte** (décision de Pierre, 16/09). Exactement la branche
+   * « améliorer » d'un mât, sur l'autre sorte de site : même arbitre (`outpostRaiseHold`), même
+   * chiffre à plat sur le rayon, même exception de grisé pour la seule matière qui manque. Ce
+   * qu'elle appelle est la mutation du panneau de garnison et pas une autre — la rose ajoute une
+   * porte, elle n'en ouvre pas une seconde.
+   */
+  | {
+      readonly key: 'raiseOutpost';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly figure: string;
+      readonly bill: ReadonlyArray<{ readonly text: string; readonly lacking: boolean }>;
+      readonly duration: string;
+      readonly hold: {
+        readonly reason: string;
+        readonly availability: string | null;
+      } | null;
+    }
+  /**
+   * **Le métier du point, sur la plate** (décision de Pierre, 16/09). Deux branches et pas une
+   * bascule : la rose se lit au pictogramme, et un interrupteur qui change de sens au clic ne se
+   * lit pas. Celle en cours est **marquée** — le même état que l'`aria-pressed` du panneau — et
+   * elle ne se grise pas : le joueur doit voir ce que le point fait avant de voir ce qu'il
+   * pourrait faire.
+   *
+   * **Scellée, la branche reste et dit pourquoi.** Un relais qu'une colonne utilise ne change
+   * plus de métier (`SPECIALIZATION_SEALED`) ; retirer la branche laisserait le joueur chercher
+   * une porte qui existe, et la griser serait une seconde exception à l'ADR 0015.
+   */
+  | {
+      readonly key: 'specialize';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+      readonly specialization: Specialization;
+      /** Le métier que le point exerce déjà : la branche est marquée et le clic ne fait rien —
+       *  il n'y a rien à changer. */
+      readonly current: boolean;
+      /** La phrase du serveur quand le métier est scellé, `null` sinon. Elle remplace la
+       *  conséquence dans la bulle, et le clic reste sans effet. */
+      readonly sealed: string | null;
+    }
+  /**
+   * **Démanteler son propre avant-poste** (décision de Pierre, 16/09). Jumelle de « raser » et
+   * même encre : dernière branche, rouge, confirmation au bout. Elle emporte plus qu'un mât —
+   * la couleur du sol et les bâtiments que ce point ancre — et c'est la carte de confirmation
+   * qui le dit en clair, parce qu'aucune bulle n'en aurait la place.
+   */
+  | {
+      readonly key: 'dismantle';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly outpostId: string;
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -389,7 +467,9 @@ const AIM_PICTOGRAM: Readonly<Record<MovementType, CompassPictogram>> = {
  * says where the column ends, because « marche » on a mast would read as a walk to the doorstep.
  */
 const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassAction => {
-  const garrison = type === 'march' && aim.kind === 'building';
+  /** **Un point à soi s'entre comme un mât** (décision du 16/09) : la marche y finit en
+   *  garnison, et la seule marche légale sur un avant-poste est celle-là (`refusalOf`). */
+  const garrison = type === 'march' && (aim.kind === 'building' || aim.kind === 'outpost');
   const label = garrison ? fr.compass.garrison : fr.movementTypes[type];
   return {
     key: 'aim',
@@ -428,6 +508,100 @@ const demolishOf = (buildingId: string): CompassAction => ({
   consequence: fr.compass.demolishConsequence,
   buildingId,
 });
+
+/**
+ * **La branche qui démantèle.** Comme « raser », elle ne porte ni prix ni facture : rien n'est
+ * rendu, et ce qu'elle emporte — la couleur, les bâtiments ancrés, la garnison qui passe au sol —
+ * ne tient pas dans une bulle. C'est la confirmation qui l'énumère.
+ */
+const dismantleOf = (outpostId: string): CompassAction => ({
+  key: 'dismantle',
+  pictogram: 'rubble',
+  label: fr.compass.dismantle,
+  cost: null,
+  consequence: fr.compass.dismantleConsequence,
+  outpostId,
+});
+
+/**
+ * **Les deux métiers, toujours les deux** (décision du 16/09). Le point en exerce un ; la plate
+ * les montre tous les deux et marque celui-là. Une seule branche « changer de métier » aurait
+ * caché l'état derrière le geste, et c'est l'état qui décide du geste.
+ */
+const specializationBranches = (outpost: OutpostView): ReadonlyArray<CompassAction> =>
+  SPECIALIZATIONS.map((specialization) => ({
+    key: 'specialize' as const,
+    pictogram: specialization === 'relay' ? ('aerial' as const) : ('ear' as const),
+    label: fr.specializations[specialization],
+    cost: null,
+    consequence:
+      outpost.specialization === specialization
+        ? fr.compass.specializationHeld
+        : fr.compass.specializeConsequence(fr.specializations[specialization]),
+    outpostId: outpost.id,
+    specialization,
+    current: outpost.specialization === specialization,
+    sealed: outpost.specializationLocked ? fr.errors.SPECIALIZATION_SEALED() : null,
+  }));
+
+/**
+ * **La branche « élever » d'un point, ou le motif qui la remplace** — mot pour mot le contrat
+ * d'`upgradeBranch` sur un bâtiment, et pour la même raison : `outpostRaiseHold` est l'arbitre
+ * que la mutation relit, jamais une seconde table (ADR 0015).
+ *
+ * Le plafond ne se lit pas dans une constante : la vue sert `atMaxLevel`, donc le maximum passé
+ * à la règle est « ce niveau-ci » quand il n'y a plus de marche et « le suivant » sinon. Un
+ * chiffre d'équilibrage de moins à faire voyager jusqu'au domaine.
+ */
+function outpostRaiseBranch(
+  outpost: OutpostView,
+  view: PlayerView,
+): { readonly action: CompassAction | null; readonly refusal: string | null } {
+  const hold = outpostRaiseHold(
+    {
+      level: outpost.level,
+      disabled: outpost.disabledMinutesLeft !== null,
+      queued: pledgedOutposts(view).has(outpost.id),
+      stocks: Object.fromEntries(
+        RESOURCES.map((resource) => [
+          resource,
+          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
+        ]),
+      ) as Record<ResourceKey, number>,
+    },
+    outpost.nextLevelCost,
+    outpost.atMaxLevel ? outpost.level : outpost.level + 1,
+  );
+  if (hold !== null && hold.kind !== 'materials')
+    return { action: null, refusal: raiseHoldText(hold) };
+
+  const due = RESOURCES.filter((resource) => (outpost.nextLevelCost[resource] ?? 0) > 0);
+  return {
+    action: {
+      key: 'raiseOutpost',
+      pictogram: 'chevron',
+      label: fr.garrison.raiseAction,
+      cost: null,
+      consequence: fr.compass.raiseConsequence(outpost.level + 1),
+      outpostId: outpost.id,
+      figure: due.map((resource) => String(outpost.nextLevelCost[resource])).join(' · '),
+      bill: due.map((resource) => ({
+        text: fr.compass.upgradeBill(
+          fr.resources[resource],
+          outpost.nextLevelCost[resource] ?? 0,
+          currentStock(view.me.resources[resource], view.loadedAt, view.loadedAt),
+        ),
+        lacking: hold?.resource === resource,
+      })),
+      duration: asDuration(outpost.nextLevelMinutes),
+      hold:
+        hold === null
+          ? null
+          : { reason: raiseHoldText(hold), availability: whenAffordable(hold, view) },
+    },
+    refusal: null,
+  };
+}
 
 const buildOn = (regionId: string, regionName: string): CompassAction => ({
   key: 'build',
@@ -767,13 +941,49 @@ function build(target: CompassTarget, view: PlayerView): Fan {
         refusal: null,
       };
     }
-    case 'outpost':
+    /**
+     * **Un point à soi se commande comme un mât** (décision de Pierre, 16/09, Registre 27). Le
+     * clic droit y était inerte : l'élévation et le métier vivaient dans le seul panneau de
+     * garnison, c'est-à-dire derrière un clic gauche que rien n'annonçait. Quatre branches, du
+     * nord dans le sens des aiguilles — élever, les deux métiers, démanteler — et le panneau
+     * garde les siennes : la rose ajoute une porte, elle n'en ferme aucune.
+     *
+     * **Un point adverse ne change pas.** Il n'est pas à nous, il n'y a rien à y faire au repos,
+     * et le clic droit y reste inerte comme sur un pays (décision du 31/08).
+     *
+     * **Un chantier n'a ni niveau à monter ni métier à régler** : il a une heure à attendre, et
+     * le panneau la porte. Il se démantèle pourtant — ce qu'on retire alors est une promesse.
+     */
+    case 'outpost': {
+      const mine = view.me.outposts.find((candidate) => candidate.id === target.id) ?? null;
+      if (mine === null) {
+        return {
+          kicker: fr.compass.outpostAt(countryLabel(target.hostCountry)),
+          name: target.name,
+          actions: [],
+          refusal: null,
+        };
+      }
+      const standing = mine.standsAt === null;
+      const raise = standing ? outpostRaiseBranch(mine, view) : { action: null, refusal: null };
+      const dismantles = outpostDismantleRefusalOf({
+        mine: true,
+        serving: mine.specializationLocked,
+      });
       return {
-        kicker: fr.compass.outpostAt(countryLabel(target.hostCountry)),
+        kicker: fr.compass.myOutpost(mine.level),
         name: target.name,
-        actions: [],
-        refusal: null,
+        actions: [
+          ...(raise.action === null ? [] : [raise.action]),
+          ...(standing ? specializationBranches(mine) : []),
+          ...(dismantles === null ? [dismantleOf(mine.id)] : []),
+        ],
+        /** Le motif de l'élévation d'abord : c'est la seule branche que le joueur cherche et ne
+         *  trouve pas. Le démantèlement retenu se lit sur le point lui-même — une colonne y
+         *  marche — et la branche du métier le dit déjà en toutes lettres. */
+        refusal: raise.refusal ?? (dismantles === null ? null : fr.errors[dismantles]()),
       };
+    }
     /**
      * **Le bâtiment porte l'élévation, et le sol sous lui garde la sienne** (décisions 54a et
      * 56a). Deux branches au plus : monter ce mât-ci, et bâtir dans la région qu'il occupe —
@@ -1053,7 +1263,7 @@ function upgradeBranch(
  * aucun compte à rebours n'est vrai.
  */
 function whenAffordable(
-  hold: Extract<UpgradeHold, { kind: 'materials' }>,
+  hold: Extract<UpgradeHold | OutpostRaiseHold, { kind: 'materials' }>,
   view: PlayerView,
 ): string | null {
   const held = view.me.resources[hold.resource];

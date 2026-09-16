@@ -168,6 +168,16 @@
   cursor: help;
 }
 
+/* **Le métier que le point exerce déjà** (décision du 16/09) : un état, jamais un empêchement.
+   L'encre pleine et non le gris du `--held` — le joueur doit lire « c'est celui-ci » et pas
+   « celui-ci est interdit ». Le survol le mouille comme les autres, il reste cliquable, et le
+   clic ne fait rien parce qu'il n'y a rien à changer. */
+.rose-medallion--marked {
+  background: var(--radial-ink);
+  color: var(--bubble-paper);
+  box-shadow: 0 0 0 2px rgb(34 71 90 / 26%);
+}
+
 .rose-tie {
   position: absolute;
   height: 1px;

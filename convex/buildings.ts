@@ -150,38 +150,8 @@ export const demolish = mutation({
     if (refusal !== null || building === null) fail(refusal ?? 'NOT_YOURS');
 
     const now = Date.now();
-    const refunded = await cancelWorkOn(ctx, player, building, now);
+    const { refunded, clipped } = await razeBuilding(ctx, player._id, building, now);
 
-    /** Ce que ce mât acquittait du socle, retenu avant qu'il quitte le sol : le socle est un don
-     *  de lancement, fait une fois, et il ne se redemande pas (décision 6a). */
-    const standing = await playerBuildings(ctx, player._id);
-    const settled = revivedDebts(
-      player,
-      standing,
-      standing.filter((held) => held._id !== building._id),
-    );
-
-    await settle(ctx, player._id, now);
-    await groundGarrison(ctx, building);
-    await ctx.db.delete(building._id);
-    if (settled.length > 0) {
-      await ctx.db.patch(player._id, {
-        settledFoundation: [...(player.settledFoundation ?? []), ...settled],
-      });
-    }
-    const clipped =
-      canonicalBuildingKey(building.key) === 'warehouse'
-        ? await clipToStorage(ctx, player._id, now)
-        : null;
-
-    await ctx.db.insert('notices', {
-      playerId: player._id,
-      at: now,
-      kind: 'buildingDemolished',
-      building: canonicalBuildingKey(building.key),
-      regionId: building.regionId,
-      level: building.level,
-    });
     /** La file repart derrière l'entrée qui vient de disparaître, et la détection se réévalue
      *  parce qu'une garnison qui passe au sol est un détecteur qui a bougé (ADR 0021). */
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: player._id });
@@ -189,6 +159,63 @@ export const demolish = mutation({
     return { refunded, clipped };
   },
 });
+
+/**
+ * **La chute d'un mât, sans la porte qui l'ordonne.** Extraite de `demolish` le 16/09 parce
+ * qu'un second geste l'emporte désormais : démanteler un avant-poste fait tomber les bâtiments
+ * qu'il ancre (`outposts.dismantle`), et ils doivent tomber **de la même façon** — file annulée
+ * selon la règle de la file, socle non rendu, garnison au sol, écrêtage d'entrepôt, aucun
+ * remboursement. Recopier cette séquence eût été se donner deux démolitions à tenir d'accord.
+ *
+ * Ce qui reste chez l'appelant est ce qui n'appartient pas au mât : le refus, la reprise de la
+ * file et la réévaluation de la détection — une seule par geste, quel que soit le nombre de
+ * bâtiments emportés.
+ */
+export async function razeBuilding(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  building: Doc<'buildings'>,
+  now: number,
+): Promise<{ refunded: Costs; clipped: Costs | null }> {
+  /** **Relu à chaque mât**, et non porté depuis l'appelant : un démantèlement en emporte
+   *  plusieurs d'affilée, et `settledFoundation` grandit entre deux — un document capturé au
+   *  premier ferait acquitter deux fois la même dette de socle. */
+  const player = await ctx.db.get(playerId);
+  if (player === null) return { refunded: {}, clipped: null };
+  const refunded = await cancelWorkOn(ctx, player, building, now);
+
+  /** Ce que ce mât acquittait du socle, retenu avant qu'il quitte le sol : le socle est un don
+   *  de lancement, fait une fois, et il ne se redemande pas (décision 6a). */
+  const standing = await playerBuildings(ctx, player._id);
+  const settled = revivedDebts(
+    player,
+    standing,
+    standing.filter((held) => held._id !== building._id),
+  );
+
+  await settle(ctx, player._id, now);
+  await groundGarrison(ctx, building);
+  await ctx.db.delete(building._id);
+  if (settled.length > 0) {
+    await ctx.db.patch(player._id, {
+      settledFoundation: [...(player.settledFoundation ?? []), ...settled],
+    });
+  }
+  const clipped =
+    canonicalBuildingKey(building.key) === 'warehouse'
+      ? await clipToStorage(ctx, player._id, now)
+      : null;
+
+  await ctx.db.insert('notices', {
+    playerId: player._id,
+    at: now,
+    kind: 'buildingDemolished',
+    building: canonicalBuildingKey(building.key),
+    regionId: building.regionId,
+    level: building.level,
+  });
+  return { refunded, clipped };
+}
 
 /**
  * **Ce que la file avait engagé sur ce bâtiment, repris** : l'élévation en cours ou en attente,

@@ -260,6 +260,15 @@ export function refusalOf(
           ? closedGate(aim, column)
           : 'NOT_A_GARRISON_FOR';
       }
+      /**
+       * **On entre dans son propre point** (décision de Pierre, 16/09), et c'est la même marche
+       * que sur un mât : elle finit en garnison au lieu de finir en campagne devant. Un point
+       * **adverse** reste ce qu'il était — on y va pour se battre, et marcher *sur* lui serait un
+       * assaut sous un autre mot, ce que le raid et l'attaque disent déjà.
+       */
+      if (aim.kind === 'outpost') {
+        return mine(aim, column) ? closedGate(aim, column) : 'POINT_TARGET_ONLY';
+      }
       return aim.kind === 'point' ? closedGate(aim, column) : 'POINT_TARGET_ONLY';
     /**
      * **On n'attaque que ce qu'on a relevé** (ADR 0024 §4). Un camp et un avant-poste *sont* le

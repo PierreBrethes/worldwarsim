@@ -1,8 +1,16 @@
 # fin-de-saison-au-seuil-tenu — la part de carte tenue conclut la saison (ADR 0020 §2 et §9)
 
-> ⚠ La décision 74a du 06/09 mettait la victoire « de côté » ; Pierre a demandé ce prompt le
-> soir même (« go rédiger de 1 à 7 »). Il est prêt ; **à donner en dernier**, après la partie de
-> contrôle à deux si elle n'a pas eu lieu — c'est elle qui fixera les deux valeurs.
+> **Décision 2a du 16/09 : c'est le prochain chantier de fond.** La partie de contrôle a eu lieu
+> (11/09) sans fixer les deux valeurs : garde `DOMINATION_SHARE = 0,5` et
+> `DOMINATION_HELD_HOURS = 12` en `@a-mesurer`, mesure nommée : durée entre la première
+> `dominanceClaimed` et la conclusion, par saison.
+>
+> **Depuis la rédaction (06/09), la couleur a gagné des événements** — relis les appelants de
+> `settleBeforeChange` : le lever de fondation (`outposts.standOutpost`, 15/09), l'élévation
+> (`constructions.ts`, 15/09), la fin de désactivation (`production.ts`), la capitulation, et le
+> démantèlement à venir (`rose-sur-les-avant-postes`). `reassessDominance` s'accroche **une fois**,
+> au voisinage de `settleBeforeChange` / `settle`, pas dans chaque appelant. `heldOf` vit toujours
+> dans `convex/control.ts` ; la lecture unique de la couleur est `heldOver` (`convex/holding.ts`).
 
 Lis `CLAUDE.md`, `CONVENTIONS.md`, `WWS/CONTEXT.md`, l'ADR 0020 §2, §4, §9 et ses conséquences
 (« la victoire par seuil tenu devient obligatoire »), `convex/victory.ts` (**l'échafaudage à

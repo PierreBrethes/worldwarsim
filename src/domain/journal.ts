@@ -259,6 +259,19 @@ function written(notice: Notice): Written {
           notice.regionName ?? countryLabel(notice.hostCountry),
         ),
       };
+    /** **Le seul retrait qu'on s'inflige** : encre ordinaire, comme l'élévation. Rien n'a été
+     *  subi, et un cachet d'alarme sur un geste volontaire se lirait comme une erreur. */
+    case 'outpostDismantled':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'outpostDismantled',
+        text: said.outpostDismantled(
+          notice.level,
+          countryLabel(notice.hostCountry),
+          notice.buildings,
+        ),
+      };
     /** **Désactivé, jamais pris** (ADR 0004) — critical, because it is the one thing on the board
      *  that stops paying without the player having done anything. */
     case 'outpostDisabled':

@@ -61,6 +61,7 @@ import { notify } from '@/shell/notifications';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
+import { DismantleCard } from './-plateau/DismantleCard';
 import {
   MovementPreview,
   wireOrigin,
@@ -83,6 +84,10 @@ type BuildingSite = { regionId: string; x: number; y: number };
  *  de la vue : la vue se réinvalide sous la carte, et une copie prise au clic afficherait un
  *  niveau périmé au moment de confirmer. */
 type Demolition = { buildingId: string; x: number; y: number };
+
+/** **Le point qu'on s'apprête à démonter**, et l'endroit du geste — même contrat que `Demolition`
+ *  et pour la même raison : l'identifiant voyage, la ligne se relit dans la vue. */
+type Dismantling = { outpostId: string; x: number; y: number };
 
 /** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
  *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
@@ -359,6 +364,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
+  const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   /**
    * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
    * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
@@ -664,6 +670,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const foundHere = useMutation(api.movements.foundOutpostHere);
   const startConstruction = useMutation(api.constructions.start);
+  const raiseOutpost = useMutation(api.constructions.raiseOutpost);
+  const respecialize = useMutation(api.movements.respecialize);
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
@@ -695,6 +703,41 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         case 'demolish':
           setOrderError(null);
           setDemolition({ buildingId: action.buildingId, x: at.x, y: at.y });
+          return;
+        /**
+         * **La même mutation que le panneau de garnison** (décision du 16/09) : la rose ajoute
+         * une porte à l'élévation d'un point, elle n'en ouvre pas une seconde. Le refus a déjà
+         * été lu par `outpostRaiseHold` avant l'ouverture ; ce qui reste est la course, et elle
+         * se dit au bandeau.
+         */
+        case 'raiseOutpost':
+          setOrderError(null);
+          raiseOutpost({ ...seat, outpostId: action.outpostId as Id<'outposts'> }).catch(
+            (problem: unknown) => handleError(problem, setOrderError),
+          );
+          return;
+        /**
+         * **Le métier en cours ne se reclique pas** : la branche est marquée, elle dit l'état, et
+         * il n'y a rien à changer. Scellée, elle part au serveur quand même — la bulle a déjà dit
+         * pourquoi il refusera, et rien n'est grisé (ADR 0015).
+         */
+        case 'specialize':
+          if (action.current) return;
+          setOrderError(null);
+          respecialize({
+            ...seat,
+            outpostId: action.outpostId as Id<'outposts'>,
+            specialization: action.specialization,
+          }).catch((problem: unknown) => handleError(problem, setOrderError));
+          return;
+        /**
+         * **Démanteler demande la même confirmation que raser**, et elle en dit davantage : un
+         * point emporte la couleur de son sol et les mâts qu'il ancre, ce qu'aucune bulle
+         * n'aurait la place d'énumérer.
+         */
+        case 'dismantle':
+          setOrderError(null);
+          setDismantling({ outpostId: action.outpostId, x: at.x, y: at.y });
           return;
         case 'aim':
           setOrder({
@@ -767,7 +810,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           );
       }
     },
-    [foundHere, startConstruction, seat],
+    [foundHere, startConstruction, raiseOutpost, respecialize, seat],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -1402,6 +1445,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
+  const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
   const arcs = useMemo<ReadonlyArray<ArcView>>(
     () =>
@@ -1503,6 +1547,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             building={razed}
             at={demolition}
             onClose={() => setDemolition(null)}
+          />
+        )}
+        {dismantling !== null && dismantled !== undefined && (
+          /* Relu dans la vue comme le mât rasé : le point disparaît au moment où le serveur
+             répond, et la carte s'en va avec lui. */
+          <DismantleCard
+            key={dismantled.id}
+            seat={seat}
+            view={view}
+            outpost={dismantled}
+            at={dismantling}
+            onClose={() => setDismantling(null)}
           />
         )}
         {garrison && (

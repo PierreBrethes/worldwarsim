@@ -119,14 +119,20 @@ export function CompassRose({
             /** La seule encre rouge d'un médaillon : ce qui efface se distingue avant le survol,
              *  parce que la rose se lit au pictogramme et que celui-là ne se clique pas par
              *  inadvertance. */
-            const grave = candidate.key === 'demolish';
+            const grave = candidate.key === 'demolish' || candidate.key === 'dismantle';
+            /** **Le métier en cours se marque, il ne se grise pas** (décision du 16/09) : c'est
+             *  l'état du point, pas une branche empêchée — le même signal que l'`aria-pressed`
+             *  du panneau de garnison, qui dit *ceci est vrai* et non *ceci est interdit*. */
+            const marked = candidate.key === 'specialize' && candidate.current;
             return (
               <Fragment key={rank}>
                 {/* **Le seul chiffre à plat de la rose** (décision 54a) : le coût d'une élévation
                     est ce qui décide du clic, et le faire attendre le survol ferait ouvrir la
                     rose pour lire un prix. Il est posé hors du médaillon, sur le rayon, pour ne
                     rien prendre au pictogramme. */}
-                {(candidate.key === 'upgrade' || candidate.key === 'found') && (
+                {(candidate.key === 'upgrade' ||
+                  candidate.key === 'raiseOutpost' ||
+                  candidate.key === 'found') && (
                   <div
                     className={`rose-figure${held ? ' rose-figure--held' : ''}`}
                     style={figureAt(angle)}
@@ -138,7 +144,8 @@ export function CompassRose({
                   type="button"
                   aria-label={candidate.label}
                   aria-disabled={held}
-                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  aria-pressed={candidate.key === 'specialize' ? candidate.current : undefined}
+                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
                   onPointerEnter={() => setHovered(rank)}
                   onPointerLeave={() =>
@@ -185,14 +192,21 @@ export function CompassRose({
                       </div>
                       <div className="rose-bubble-consequence">{refusal}</div>
                     </>
-                  ) : action.key === 'upgrade' ? (
+                  ) : action.key === 'upgrade' || action.key === 'raiseOutpost' ? (
                     <Upgrade action={action} />
+                  ) : action.key === 'specialize' && action.sealed !== null ? (
+                    <>
+                      <div className="rose-bubble-label">{action.label}</div>
+                      <div className="rose-bubble-consequence rose-bubble-consequence--refused">
+                        {action.sealed}
+                      </div>
+                    </>
                   ) : action.key === 'found' ? (
                     <Found action={action} />
                   ) : (
                     <>
                       <div
-                        className={`rose-bubble-label${action.key === 'demolish' ? ' rose-bubble-label--grave' : ''}`}
+                        className={`rose-bubble-label${action.key === 'demolish' || action.key === 'dismantle' ? ' rose-bubble-label--grave' : ''}`}
                       >
                         {action.label}
                       </div>
@@ -221,7 +235,11 @@ export function CompassRose({
  * l'unique grisé du jeu (décision 54a), et un grisé sans sa raison serait exactement ce que
  * l'ADR 0015 interdit.
  */
-function Upgrade({ action }: { action: Extract<CompassAction, { key: 'upgrade' }> }) {
+function Upgrade({
+  action,
+}: {
+  action: Extract<CompassAction, { key: 'upgrade' | 'raiseOutpost' }>;
+}) {
   const held = action.hold;
   return (
     <>
@@ -280,7 +298,8 @@ function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> })
 
 /** La seule branche que le jeu grise, et la règle tient en une ligne pour qu'aucune autre ne
  *  puisse le devenir par distraction (ADR 0015, exception 54a). */
-const isHeld = (action: CompassAction): boolean => action.key === 'upgrade' && action.hold !== null;
+const isHeld = (action: CompassAction): boolean =>
+  (action.key === 'upgrade' || action.key === 'raiseOutpost') && action.hold !== null;
 
 const FRAME = 240;
 const CENTER = 120;
@@ -403,6 +422,44 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
    *  en l'air — lisible à quinze pixels, et sans un trait de la grue ni de la torche. */
   rubble: (
     <path d="M2.8 13.4 H17.2 V15.6 H2.8 Z M2.8 16.8 H17.2 V19 H2.8 Z M3.4 9.2 H8.2 V12.4 H3.4 Z M10.6 6.6 L14.4 4.9 L15.7 7.7 L11.9 9.4 Z M8.6 1.3 H12 V4 H8.6 Z" />
+  ),
+  /** Le métier de relais : le mât sur son socle et l'onde qui part — deux arcs ouverts vers la
+   *  droite. Ce que le point *fait*, jamais ce qu'il est : la hutte dit déjà le point. */
+  aerial: (
+    <>
+      <path d="M4.6 1.4 H6.7 V16.6 H4.6 Z M2.2 17.2 H9.1 V19.2 H2.2 Z" />
+      <path
+        d="M10.6 5.4 A6.2 6.2 0 0 1 10.6 14.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+      />
+      <path
+        d="M13.9 2.6 A9.8 9.8 0 0 1 13.9 17.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+      />
+    </>
+  ),
+  /** Le métier d'écoute : le pavillon tendu — le cornet et l'onde qui arrive. Même famille que
+   *  l'antenne, et ce qui les sépare est le sens de l'onde. */
+  ear: (
+    <>
+      <path d="M2.2 7.4 H6.4 V12.6 H2.2 Z M6.4 4.2 L11.4 1.6 V18.4 L6.4 15.8 Z" />
+      <path
+        d="M14.1 6.2 A5 5 0 0 1 14.1 13.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+      />
+      <path
+        d="M17 3.4 A8.6 8.6 0 0 1 17 16.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+      />
+    </>
   ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */

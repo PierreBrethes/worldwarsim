@@ -71,7 +71,12 @@ armée » — le cartouche porte l'état.
 **« Voir le pays » a été retiré** (décision Pierre, 31/08) : il doublait le clic gauche, qui
 sélectionne déjà ce qu'il touche. La rose ne s'ouvre plus que là où un ordre existe — bâtir,
 fonder, marcher — et **le clic droit reste inerte partout ailleurs**, pays et avant-postes
-compris. Les types proposés par la rose et ceux que le serveur accepte
+**adverses** compris. **Un point à soi, lui, se commande au clic droit depuis le 16/09**
+(décision de Pierre, Registre 27) : sans pile armée la plate porte « élever » — la mutation même
+du panneau de garnison, arbitrée par `outpostRaiseHold` —, les **deux** métiers avec celui en
+cours *marqué* et non grisé, et « démanteler » en dernier, en rouge, avec sa carte de
+confirmation ; avec une pile armée, une seule branche, « entrer en garnison »
+(`movements.enterOutpost`), l'assaut et le raid restant refusés `FRIENDLY_TARGET` sur les siens. Les types proposés par la rose et ceux que le serveur accepte
 sortent de **la même fonction** (`src/domain/movement-orders.ts`) — rien n'est grisé, jamais
 (ADR 0015). L'aperçu ne calcule rien : `movements.preview` sert la route
 réelle et l'heure d'arrivée, seul le serveur date un mouvement.
@@ -368,6 +373,17 @@ tenant et ligne de moins d'une heure, rien n'est réécrit ; le sol de personne 
 fondent aucune ligne. L'ancienneté se voit **en permanence** — un relevé ancien est délavé
 (`surveyWash`, cranté pour que la géométrie fusionnée ne se refonde pas à chaque minute) — et le
 survol donne la date en clair, « relevé du 12 août ».
+
+**Et il se démantèle** (décision du 16/09, `convex/outposts.ts`, `dismantle`) : un refus unique
+(`outpostDismantleRefusalOf`, `NOT_YOURS` et `OUTPOST_SERVING` — on ne retire pas la route sous une
+colonne, la lecture même qui scelle le métier), une popin qui chiffre ce qui part, et **rien n'est
+remboursé** — ni la fondation, ni les élévations ; seule la file rend ce que la file rend. C'est
+un **événement de couleur** de plus, réglé avant d'écrire, et il emporte ce que le point ancre :
+les bâtiments de `buildings.outpostId` tombent chacun par la règle de la démolition
+(`razeBuilding`, extrait de `buildings.demolish` pour n'avoir qu'une chute de mât), la garnison
+passe au sol au point, et la dépêche `outpostDismantled` compte les mâts emportés. La couleur
+perdue s'annonce avant le clic : `outposts.soleHold` lit la **même** différence de deux
+`heldRegions` que la zone hachurée d'un point hors service (`soleHoldOf`, `convex/holding.ts`).
 
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la

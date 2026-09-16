@@ -238,6 +238,22 @@ export async function garrisonOf(
 }
 
 /**
+ * **Le point qu'une marche venait rejoindre**, `null` quand ce n'était pas le sien — ou qu'il
+ * n'est plus là. Jumelle de `garrisonOf` sur l'autre sorte d'adresse (décision du 16/09) : une
+ * colonne qui marche sur son propre avant-poste y devient garnison, exactement comme celle qui
+ * entre dans un mât. Démantelé ou perdu pendant le trajet, elle se pose au point atteint plutôt
+ * que de pendre à rien (règle 3, ADR 0019 §1).
+ */
+export async function outpostGarrisonOf(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+): Promise<Doc<'outposts'> | null> {
+  if (movement.target.kind !== 'outpost') return null;
+  const outpost = await ctx.db.get(movement.target.outpostId);
+  return outpost !== null && outpost.playerId === movement.playerId ? outpost : null;
+}
+
+/**
  * **La colonne s'arrête où elle arrive, et il ne se passe rien** (ADR 0024 §3, révision de l'ADR
  * 0019 §3). Elle ne cherche plus de défense : une marche peut désormais s'arrêter à côté d'un camp
  * adverse, chez lui, dans le rayon de son avant-poste, sur la région de sa mine — tant que

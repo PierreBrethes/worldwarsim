@@ -2,15 +2,9 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import {
-  coveredRegions,
-  heldRegions,
-  knownRegions,
-  seatInk,
-  type KnownRegion,
-} from '../src/domain/control';
+import { coveredRegions, knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
-import { colourReading } from './holding';
+import { soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
 import { playerOf } from './seasons';
@@ -172,20 +166,9 @@ async function suspendedRegionsOf(
   if (halted.length === 0) return new Map();
 
   const regions = allRegions();
-  const readings = outposts.map((outpost) => colourReading(outpost, now));
-  const held = heldRegions({ regions, outposts: readings, homeGrounds });
-
   const suspended = new Map<string, number>();
   for (const outpost of halted) {
-    const standing = heldRegions({
-      regions,
-      outposts: readings.map((reading, rank) =>
-        outposts[rank]!._id === outpost._id ? { ...reading, disabled: false } : reading,
-      ),
-      homeGrounds,
-    });
-    for (const [regionId, owner] of standing) {
-      if (owner !== (playerId as string) || held.has(regionId)) continue;
+    for (const regionId of soleHoldOf({ regions, outposts, outpost, homeGrounds, now })) {
       /** Deux points hors service qui couvrent la même région : la couleur revient au premier
        *  des deux, et c'est la seule date qu'il y ait à promettre. */
       const already = suspended.get(regionId);

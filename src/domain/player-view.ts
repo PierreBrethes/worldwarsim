@@ -541,6 +541,9 @@ export type DispatchKind =
   | 'outpostStands'
   | 'foundationLost'
   | 'outpostRaised'
+  /** Le point que son propriétaire a démantelé (décision du 16/09) — la seule fin d'un
+   *  avant-poste que personne ne subit. */
+  | 'outpostDismantled'
   | 'outpostDisabled'
   | 'sighting'
   /** Un camp relevé : la même encre que le fil relevé, et un mot distinct pour que le tampon de
@@ -661,6 +664,17 @@ export type Notice =
       readonly hostCountry: string;
       readonly regionName: string | null;
       readonly level: number;
+    }
+  /**
+   * **Le point démantelé** (décision du 16/09). Chez lui seul : ce qu'un adversaire en apprend,
+   * il l'apprend de sa carte, qui perd une couleur — et il ne l'apprend qu'en regardant (§5).
+   */
+  | {
+      readonly kind: 'outpostDismantled';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly level: number;
+      readonly buildings: number;
     }
   /**
    * **Ce que la couleur a coupé, et rendu** (ADR 0020 §6). Le compte de sites, jamais leur

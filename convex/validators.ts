@@ -371,6 +371,21 @@ export const NOTICE = v.union(
     level: v.number(),
   }),
   /**
+   * **Le point démantelé par son propriétaire** (décision de Pierre, 16/09). Chez lui seul, comme
+   * tout ce qui touche à ses points : l'adversaire voit la couleur disparaître de sa carte s'il
+   * regardait, et c'est son relevé qui le lui dira (ADR 0020 §5).
+   *
+   * `buildings` est le nombre de mâts que le point ancrait et qui tombent avec lui (décision 1a) —
+   * zéro la plupart du temps, et c'est justement quand il ne l'est pas qu'il faut le lire.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostDismantled'),
+    hostCountry: v.string(),
+    level: v.number(),
+    buildings: v.number(),
+  }),
+  /**
    * **Le chantier est devenu un point** (révision du 15/09 de l'ADR 0020 §10). Chez le seul
    * propriétaire : ce qui s'annonce est le sol qui vient de prendre sa couleur, et l'adversaire
    * le lit sur sa propre carte s'il regardait (ADR 0005).
