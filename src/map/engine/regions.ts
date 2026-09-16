@@ -35,6 +35,10 @@ const STROKE_LIFT = 0.003;
 /** Under everything else the layer draws: possession is the ground the rest is laid on, and a
  *  region that carries a building must still show the denser built ink over its holder's. */
 const HELD_LIFT = 0.0005;
+/** **La hachure passe sous la couleur pleine** (ADR 0020 §7) : une région disputée revenue au
+ *  voisin pendant la désactivation est pleine chez lui et suspendue chez moi, les deux à la fois,
+ *  et c'est la possession réelle qui doit se lire par-dessus le souvenir. */
+const SUSPENDED_LIFT = 0.00025;
 const BUILT_LIFT = 0.001;
 /** Just above the built fill: a designated region is an answer to a gesture, and it has to
  *  read over the ink of what already stands there. */
@@ -73,8 +77,54 @@ const HELD_OPACITY = 0.72;
  */
 export type HeldClaim = {
   readonly ink: string;
-  readonly regions: ReadonlyArray<{ readonly id: string; readonly wash: number }>;
+  readonly regions: ReadonlyArray<{
+    readonly id: string;
+    readonly wash: number;
+    /**
+     * **Le souvenir d'une couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste
+     * hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
+     * disparaissait pourtant de la carte : son propriétaire n'avait plus rien à lire là où il
+     * tenait la veille. Hachurée, elle dit la suspension sans jamais se faire passer pour une
+     * possession, ce qu'un aplat pâle aurait fait.
+     */
+    readonly suspended: boolean;
+  }>;
 };
+
+/**
+ * **La hachure se mesure en pixels d'écran, pas en kilomètres** (ADR 0020 §1 : « une couleur qui
+ * est le score doit se lire à toute distance »). Un motif gravé dans le sol se replie en moiré au
+ * dézoom et la zone y redevient un aplat — c'est-à-dire un mensonge, puisqu'elle aurait alors
+ * l'air tenue. Posée au fragment, la trame garde le même pas du monde entier à la région.
+ *
+ * Une injection dans le matériau du lavis plutôt qu'un `ShaderMaterial` à part : la teinte doit
+ * rester *la même encre sous la même lumière* que les régions tenues, et un matériau jumeau aurait
+ * eu à réapprendre l'éclairage du plateau pour finir par en diverger.
+ */
+const HATCH_PERIOD = 9;
+const HATCH_WIDTH = 3.4;
+const HATCH_EDGE = 0.9;
+
+function hatch(material: MeshStandardMaterial): MeshStandardMaterial {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.hatchScale = { value: window.devicePixelRatio || 1 };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform float hatchScale;\nvoid main() {')
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+        float band = mod((gl_FragCoord.x + gl_FragCoord.y) / hatchScale, ${HATCH_PERIOD.toFixed(1)});
+        float ink = 1.0 - smoothstep(
+          ${(HATCH_WIDTH - HATCH_EDGE).toFixed(2)},
+          ${(HATCH_WIDTH + HATCH_EDGE).toFixed(2)},
+          band
+        );
+        if (ink <= 0.004) discard;
+        gl_FragColor.a *= ink;`,
+      );
+  };
+  return material;
+}
 
 /**
  * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
@@ -297,32 +347,36 @@ export class RegionLayer {
     }
     this.held.clear();
     for (const claim of this.claims) {
-      const byWash = new Map<number, Set<string>>();
+      /** La clef porte la franchise **et** la trame : deux régions de même encre ne partagent un
+       *  maillage que si elles se peignent de la même façon. */
+      const byWash = new Map<string, { wash: number; suspended: boolean; ids: Set<string> }>();
       for (const region of claim.regions) {
-        const kept = byWash.get(region.wash) ?? new Set<string>();
-        kept.add(region.id);
-        byWash.set(region.wash, kept);
+        const key = `${region.wash}/${region.suspended}`;
+        const kept = byWash.get(key) ?? {
+          wash: region.wash,
+          suspended: region.suspended,
+          ids: new Set<string>(),
+        };
+        kept.ids.add(region.id);
+        byWash.set(key, kept);
       }
-      for (const [wash, ids] of byWash) {
+      for (const { wash, suspended, ids } of byWash.values()) {
+        const lift = suspended ? SUSPENDED_LIFT : HELD_LIFT;
         const parts = this.prepared
           .filter(({ region }) => ids.has(region.id))
-          .map(({ region }) => this.fillOf(region, HELD_LIFT));
+          .map(({ region }) => this.fillOf(region, lift));
         if (parts.length === 0) continue;
         const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
         if (parts.length > 1) parts.forEach((part) => part.dispose());
-        this.held.add(
-          new Mesh(
-            geometry,
-            new MeshStandardMaterial({
-              color: claim.ink,
-              roughness: 0.97,
-              metalness: 0,
-              transparent: true,
-              opacity: HELD_OPACITY * wash,
-              depthWrite: false,
-            }),
-          ),
-        );
+        const material = new MeshStandardMaterial({
+          color: claim.ink,
+          roughness: 0.97,
+          metalness: 0,
+          transparent: true,
+          opacity: HELD_OPACITY * wash,
+          depthWrite: false,
+        });
+        this.held.add(new Mesh(geometry, suspended ? hatch(material) : material));
       }
     }
   }

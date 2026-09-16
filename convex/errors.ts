@@ -58,6 +58,9 @@ export type ErrorCode =
   | 'HQ_ALREADY_BUILT'
   | 'HQ_FIRST'
   | 'UNKNOWN_BUILDING'
+  /** Raser (demande du 15/09) : le mât visé n'est pas à soi, ou c'est le quartier général. */
+  | 'NOT_YOURS'
+  | 'HQ_NEVER_DEMOLISHED'
   | 'WRONG_PROJECTION_BUILDING'
   | 'TROOP_CAP_REACHED'
   | 'SINGLE_TIER_ROLE'

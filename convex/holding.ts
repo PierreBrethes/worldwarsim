@@ -31,7 +31,7 @@ export async function heldOver(
   if (regions.length === 0) return new Map();
   return heldRegions({
     regions,
-    outposts: (await seasonOutposts(ctx, seasonId)).map((outpost) => reading(outpost, now)),
+    outposts: (await seasonOutposts(ctx, seasonId)).map((outpost) => colourReading(outpost, now)),
     homeGrounds: await homeGroundsOf(ctx, seasonId),
   });
 }
@@ -48,7 +48,7 @@ export async function heldOver(
  * trouverait le point déjà revenu et créditerait au plein débit toutes les heures où il était
  * hors service. Une milliseconde, qui referme la fenêtre sur elle-même.
  */
-const reading = (outpost: Doc<'outposts'>, now: number) => ({
+export const colourReading = (outpost: Doc<'outposts'>, now: number) => ({
   owner: outpost.playerId as string,
   point: pointOf(outpost.point),
   reachKm: outpostReachKm(outpost.level),

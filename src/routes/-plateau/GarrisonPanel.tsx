@@ -142,8 +142,17 @@ export function GarrisonPanel({
          * allumer serait un état inventé.
          */}
         {outpost !== null && outpost.disabledMinutesLeft !== null && (
-          <div className="mb-[9px] flex shrink-0 justify-center">
+          <div className="mb-[9px] flex shrink-0 flex-col items-center gap-[6px]">
             <Stamp label={fr.stamps.outpostDisabled} tone="critical" />
+            {/** **Le temps restant en clair** (15/09) : le cachet dit l'état, il ne dit pas
+             *  combien de temps encore — et c'est la seule chose que le joueur ait à peser ici,
+             *  sa zone étant hachurée sur la carte pendant tout ce temps (ADR 0020 §7). */}
+            <span className="text-center text-[10.5px] text-[var(--ink-soft)]">
+              {fr.garrison.disabledFor(
+                Math.floor(outpost.disabledMinutesLeft / 60),
+                String(Math.floor(outpost.disabledMinutesLeft % 60)).padStart(2, '0'),
+              )}
+            </span>
           </div>
         )}
 

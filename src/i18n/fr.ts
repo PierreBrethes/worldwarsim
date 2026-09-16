@@ -403,6 +403,10 @@ export const fr = {
      *  pouvait atteindre que par cette pose-là. */
     HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
+    NOT_YOURS: () => 'ce bâtiment n’est pas à vous',
+    /** **Le QG ne se rase pas** (question 39, 15/09) : sa destruction serait une révision de
+     *  « jamais éliminé », et elle n'est pas tranchée. */
+    HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     TROOP_CAP_REACHED: (d) =>
@@ -1026,6 +1030,10 @@ export const fr = {
         level <= 1
           ? `${building} en ${region} entre en service.`
           : `${building} en ${region} passe au niveau ${level}.`,
+      /** Rasé sur ordre : la phrase dit le niveau, parce que c'est ce qui est parti — et rien
+       *  ne revient (décision 5a du 15/09). */
+      buildingDemolished: (building: string, region: string, level: number) =>
+        `${building} en ${region} a été rasé — niveau ${level} perdu, rien n’est rendu.`,
       delivered: (building: string, region: string, role: string) =>
         `${building} en ${region} a livré une compagnie — ${role}.`,
       deliveredHome: (role: string) =>
@@ -1227,6 +1235,9 @@ export const fr = {
     /** L'heure du lever, en clair : un chantier se lit sur une échéance, pas sur un décompte
      *  qu'il faudrait regarder tourner. */
     standsAt: (time: string) => `debout à ${time}`,
+    /** **Le cachet dit l'état, cette ligne dit combien de temps encore.** Un tampon « désactivé »
+     *  seul laissait le joueur sans la seule chose qu'il ait à décider ici : attendre ou non. */
+    disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
     foundationHeld:
       'La garnison tient le chantier. Elle part entière ou elle tombe, il est perdu — rien n’est remboursé.',
     column: (count: number) => `pile : ${count} troupe${plural(count, '', 's')} · 1 slot`,
@@ -1950,6 +1961,14 @@ export const fr = {
      * nom franc est l'annonce.
      */
     heldBySurveyed: (holder: string, date: string) => `${holder} — relevé du ${date}`,
+    /**
+     * **Le souvenir d'une couleur, et l'heure de son retour** (ADR 0020 §7). La région n'est pas
+     * tenue — elle ne compte ni au classement ni à la production — donc la ligne ne dit pas
+     * « tenue par » : elle dit la suspension, et elle ne paraît que chez le propriétaire du point
+     * hors service (ADR 0005).
+     */
+    suspended: 'zone suspendue',
+    suspendedUntil: (time: string) => `suspendue jusqu’à ${time}`,
   },
 
   mapUi: {
@@ -2023,9 +2042,42 @@ export const fr = {
     collect: 'ramasser',
     collectConsequence:
       'Marche vers le dernier relevé de la caisse et ramène ce que la pile peut porter.',
+    /** **Raser** (demande du 15/09) : en dernière position et en encre rouge, parce que c'est
+     *  la seule branche de la rose dont rien ne revient. La confirmation dit le détail. */
+    demolish: 'raser',
+    demolishConsequence: 'Efface ce bâtiment. Rien de l’alliage payé n’est rendu.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
+  },
+
+  /**
+   * **La confirmation d'une démolition** (demande du 15/09). Elle dit ce qui est perdu **en
+   * clair et en chiffres** — le niveau, le chantier repris, la garnison qui passe au sol,
+   * l'écrêtage d'un entrepôt — parce que c'est le seul geste du jeu qui efface sans contrepartie
+   * et sans passe d'armes. Même bouton que la visée : le mot *irréversible* à même l'encre.
+   */
+  demolition: {
+    kicker: 'démolition',
+    heading: (building: string, level: number) => `${building} — niveau ${level}`,
+    /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
+    noRefund: 'aucun remboursement de l’alliage payé',
+    freed: (region: string) => `libère ${region} et son emplacement de site`,
+    /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
+     *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
+    queueCancelled: 'chantier en file annulé',
+    queueRefund: (amounts: string) => `remboursé : ${amounts}`,
+    queueRunning: 'le chantier a commencé — il ne se rembourse pas',
+    /** Une garnison ne meurt pas d'une démolition (ADR 0019) : elle se retrouve dehors. */
+    garrison: (count: number) =>
+      `${count} troupe${plural(count, '', 's')} passe${plural(count, '', 'nt')} au sol de la région`,
+    /** Les lots d'une caserne rasée : la file s'arrête avec le bâtiment qui la portait. */
+    batches: (count: number) =>
+      `${count} lot${plural(count, '', 's')} en formation annulé${plural(count, '', 's')}`,
+    clipping: 'plafonds abaissés — écrêtage au nouveau plafond',
+    clippingLine: (resource: string, lost: number) => `${resource} −${num(lost)}`,
+    submit: 'raser — irréversible',
+    cancel: 'annuler',
   },
 
   /**

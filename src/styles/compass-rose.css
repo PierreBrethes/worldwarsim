@@ -139,6 +139,25 @@
   outline: 2px solid rgb(34 71 90 / 22%);
 }
 
+/* Ce qui efface, en encre d'alerte et avant tout survol : la rose se lit au pictogramme, et
+   celui-là ne doit pas se cliquer par inadvertance. Le survol le mouille comme les autres —
+   c'est une branche, pas une retenue. */
+.rose-medallion--grave {
+  border-color: var(--lacking-ink);
+  color: var(--lacking-ink);
+}
+
+.rose-medallion--grave.rose-medallion--wet,
+.rose-medallion--grave:focus-visible {
+  background: var(--lacking-ink);
+  color: var(--bubble-paper);
+  outline-color: rgb(140 47 22 / 22%);
+}
+
+.rose-bubble-label--grave {
+  color: var(--lacking-ink);
+}
+
 /* La branche retenue faute de matière : présente, lisible, et qui ne part pas au clic. Elle ne
    se mouille pas au survol — ce serait promettre un départ — mais elle garde son curseur de
    lecture, parce que sa raison ne se lit qu'en la survolant. */

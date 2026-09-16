@@ -372,7 +372,15 @@ survol donne la date en clair, « relevé du 12 août ».
 **L'avant-poste se conteste, il ne se prend pas** : un raid gagné le **désactive** pour
 `OUTPOST_DISABLED_HOURS`, avec une fenêtre d'immunité derrière — et depuis le 07/09 la
 désactivation **décolore sa zone** (§7), donc coupe ce qui y produit et rend au voisin les régions
-qu'il disputait ; la **destruction** après
+qu'il disputait. **Elle ne l'efface plus pour autant, depuis le 15/09** : `control.held` sert à son
+seul propriétaire une quatrième forme, `suspended`, calculée par la même `heldRegions` lue deux
+fois — la carte telle qu'elle est, la carte que ce point debout donnerait, et la différence. La
+zone s'y hachure dans l'encre du siège, au plancher du délavage, la trame posée au fragment en
+pixels d'écran pour tenir à toute distance et passant **sous** la couleur pleine du voisin qui a
+repris une région disputée. Ce n'est pas une couleur : ni le classement, ni la production, ni la
+vérité ne la comptent. L'adversaire qui observe la zone la voit décolorée comme avant — l'heure du
+retour lui donnerait la durée d'un raid qu'il n'a pas mené (ADR 0005) ; le mât la dit en clair au
+propriétaire, et le survol de la zone avec elle. La **destruction** après
 plusieurs raids n'existe toujours pas, et rien ne les compte — le pillage est passé sans elle. Il ouvre autour de son point un rayon qui
 **suit son niveau** (`outpostReachKm`, révision du 31/08), où l'on bâtit comme chez soi (le puits
 en Arabie), et

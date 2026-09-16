@@ -589,6 +589,15 @@ export type Notice =
       readonly regionName: string;
       readonly level: number;
     }
+  /** **Un bâtiment rasé par son propriétaire** (demande du 15/09) : chez lui seul, et il l'a
+   *  voulu — c'est une ligne de compte, pas une alarme. */
+  | {
+      readonly kind: 'buildingDemolished';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly level: number;
+    }
   | {
       readonly kind: 'recruitmentDelivered';
       readonly at: number;
@@ -983,6 +992,13 @@ export type PlayerView = {
    * elle-même, parce que c'est ce qui décide du clic.
    */
   readonly outpostFoundation: { readonly cost: Cost; readonly minutes: number };
+  /**
+   * **Ce qu'un niveau d'entrepôt ajoute aux huit plafonds** (stockage unifié, 09/09). Servi
+   * plutôt que recopié pour la raison de `tier2HqLevel` juste au-dessus : la popin qui annonce
+   * l'écrêtage d'un entrepôt rasé et le serveur qui l'applique doivent soustraire le **même**
+   * nombre, et une copie cliente est exactement la façon dont ils cessent d'être un seul.
+   */
+  readonly storageCapPerLevel: number;
   /** Installation identities frozen in the observer's last regional survey. */
   readonly surveyedInstallations: ReadonlyArray<{
     readonly id: string;

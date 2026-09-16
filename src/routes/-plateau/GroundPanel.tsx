@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { countryLabel, fr, nationLabel } from '@/i18n/fr';
-import { asPressDate } from '@/domain/duration';
+import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
 import { depositOfRegion, loadCoastalRegions, type RegionIdentity } from '@/domain/world';
@@ -53,12 +53,20 @@ export function GroundPanel({
   hoveredCountry,
   hoveredRegion,
   holding,
+  suspendedUntil,
   view,
 }: {
   selected: string | null;
   hoveredCountry: string | null;
   hoveredRegion: RegionIdentity | null;
   holding: RegionHolding | null;
+  /**
+   * **L'heure où sa zone hors service redevient la sienne** (ADR 0020 §7), `null` partout
+   * ailleurs. À part de `holding` et jamais fondue dedans : la région n'est *pas* tenue — une
+   * région disputée peut même être au voisin pendant ce temps — et les deux lignes se lisent
+   * ensemble sans qu'aucune ait à mentir. Le serveur ne la sert qu'au propriétaire (ADR 0005).
+   */
+  suspendedUntil: number | null;
   view: PlayerView;
 }) {
   const coastal = useCoastalRegions();
@@ -129,6 +137,12 @@ export function GroundPanel({
           </p>
           {coastal.has(hovered.id) && (
             <p className="text-[11px] text-[var(--ink-quiet)] italic">{fr.board.regionCoastal}</p>
+          )}
+          {suspendedUntil !== null && (
+            <Row
+              label={fr.selectedCountry.suspended}
+              value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
+            />
           )}
           {holding !== null && (
             <Row

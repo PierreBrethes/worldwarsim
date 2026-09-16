@@ -148,6 +148,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     /** Un déploiement d'une version de retard ne la sert pas : une facture vide et une durée
      *  nulle, donc une branche que rien ne retient — c'est le serveur qui refusera. */
     outpostFoundation: server.outpostFoundation ?? { cost: {}, minutes: 0 },
+    storageCapPerLevel: server.storageCapPerLevel ?? 0,
     surveyedInstallations: server.surveyedInstallations ?? [],
     lootSightings: server.lootSightings ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta

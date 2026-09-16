@@ -1,5 +1,6 @@
 import {
   BUILDABLE_BUILDINGS,
+  canonicalBuildingKey,
   RESOURCES,
   type BuildCostKey,
   type BuildingKey,
@@ -492,6 +493,54 @@ export function foundationHold(
 /** Les avant-postes qu'une élévation en file vise déjà — la lecture cliente de `queued`. */
 export const pledgedOutposts = (view: PlayerView): ReadonlySet<string> =>
   new Set(pledgedWork(view).flatMap((work) => (work.outpostId === null ? [] : [work.outpostId])));
+
+/**
+ * **Ce qui empêche de raser**, `null` quand rien ne l'empêche (demande de Pierre, 15/09). Deux
+ * empêchements et pas un de plus, lus par la rose et par la mutation — une seconde table aurait
+ * offert une branche que le serveur refuse (ADR 0015).
+ *
+ * Le quartier général est le seul bâtiment qu'on ne rase pas : sa destruction serait une
+ * révision de « jamais éliminé » (question 39), et elle n'est pas tranchée. Tout le reste part,
+ * debout ou en cours d'élévation.
+ *
+ * **Rien ici ne parle d'une file de démolition** : raser est immédiat — il n'y a pas de chantier
+ * à attendre, donc pas d'état « déjà en cours » à lire. Le jour où la démolition prendrait du
+ * temps, c'est ici que la retenue viendrait.
+ */
+export type DemolitionRefusal = 'NOT_YOURS' | 'HQ_NEVER_DEMOLISHED';
+
+/** Le bâtiment tel que la règle le lit — jamais un document, jamais une vue : les deux bouts
+ *  n'ont pas les mêmes en main, et ils doivent poser la même question. */
+export type Demolition = {
+  readonly key: BuildingKey;
+  /** Trouvé parmi les siens : un mât adverse relevé n'est pas un bâtiment qu'on rase. */
+  readonly mine: boolean;
+};
+
+export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | null =>
+  !building.mine ? 'NOT_YOURS' : building.key === 'hq' ? 'HQ_NEVER_DEMOLISHED' : null;
+
+/**
+ * **Ce que l'entrepôt rasé fait perdre, matière par matière** (5a : rien n'est rendu, et le
+ * stock au-dessus du nouveau plafond est écrêté). Vide pour tout ce qui ne stocke pas — et
+ * `depot` historique compte comme un entrepôt, comme partout ailleurs depuis le 09/09.
+ *
+ * La popin de confirmation le dit en chiffres avant le clic, et le serveur l'applique après
+ * (`clipToStorage`) : c'est la même soustraction, jamais deux.
+ */
+export function demolitionClipping(
+  building: Building,
+  view: PlayerView,
+  now: number,
+): ReadonlyArray<{ readonly resource: ResourceKey; readonly lost: number }> {
+  if (canonicalBuildingKey(building.key) !== 'warehouse') return [];
+  return RESOURCES.flatMap((resource) => {
+    const held = view.me.resources[resource];
+    const stock = currentStock(held, view.loadedAt, now);
+    const lost = stock - (held.cap - view.storageCapPerLevel * building.level);
+    return lost > 0 ? [{ resource, lost }] : [];
+  });
+}
 
 /**
  * Why **no region at all** takes a key — `null` when at least one does. Where `BlockedReason`

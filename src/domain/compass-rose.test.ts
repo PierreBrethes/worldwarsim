@@ -706,7 +706,7 @@ describe('founding from the map', () => {
 describe('raising a level from the map', () => {
   const mine = {
     id: 'B-01',
-    key: 'mine' as const,
+    key: 'mine' as BuildingKey,
     name: 'Mine',
     regionId: 'FRA-9999',
     level: 1,
@@ -733,7 +733,7 @@ describe('raising a level from the map', () => {
     const compass = compassOf(mast, standing({}));
     expect(compass?.kicker).toBe('bâtiment · niveau 1');
     expect(compass?.name).toBe('Mine');
-    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'demolish']);
     expect(compass?.actions[0]).toMatchObject({
       pictogram: 'chevron',
       label: 'améliorer',
@@ -752,7 +752,11 @@ describe('raising a level from the map', () => {
   it('keeps the crane of the region the building stands on', () => {
     const empty = standing({ regionId: 'FRA-5333' });
     const compass = compassOf({ ...mast, regionId: 'FRA-5333' }, empty);
-    expect(compass?.actions.map((action) => action.label)).toEqual(['améliorer', 'Bâtir ici']);
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'améliorer',
+      'Bâtir ici',
+      'raser',
+    ]);
     expect(compass?.actions[1]).toMatchObject({ pictogram: 'crane', regionId: 'FRA-5333' });
   });
 
@@ -768,7 +772,8 @@ describe('raising a level from the map', () => {
         { construction: { regionId: 'FRA-9999', key: 'mine', outpostId: null, minutesLeft: 10 } },
       ),
     );
-    expect(compass?.actions).toEqual([]);
+    /** Raser ne dépend d'aucune file : ce qu'on efface n'attend pas son tour. */
+    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
     expect(compass?.refusal).toBe(
       'un chantier vise déjà cette région — annulez-le ou attendez son tour',
     );
@@ -776,8 +781,21 @@ describe('raising a level from the map', () => {
 
   it('withdraws it under the headquarters ceiling, with the ceiling’s own sentence', () => {
     const compass = compassOf(mast, standing({ cappedByHq: true }));
-    expect(compass?.actions).toEqual([]);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
     expect(compass?.refusal).toBe('plafonné par le QG — montez le quartier général d’abord');
+  });
+
+  /**
+   * **Raser, et le seul mât qui ne le porte pas** (demande du 15/09). La branche vient en
+   * dernier — ce qu'on efface n'est jamais ce qu'on cherche en ouvrant un menu — et le quartier
+   * général n'en a pas : rien de grisé, la rose du QG garde ce qu'elle a.
+   */
+  it('offers « raser » last, and never on the headquarters', () => {
+    const razed = compassOf(mast, standing({}))?.actions.at(-1);
+    expect(razed).toMatchObject({ key: 'demolish', pictogram: 'rubble', buildingId: 'B-01' });
+
+    const hq = compassOf({ ...mast, key: 'hq' }, standing({ key: 'hq', name: 'Quartier général' }));
+    expect(hq?.actions.some((action) => action.key === 'demolish')).toBe(false);
   });
 
   /**

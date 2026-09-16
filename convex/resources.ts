@@ -471,8 +471,8 @@ export async function settle(
  * for the journal entry the pillage will owe him — nothing here writes it, since nothing here
  * knows why the store fell.
  *
- * **No caller today**, deliberately: nothing destroys or lowers a building yet. See the
- * function it leans on, `clipToCapacity`.
+ * **Un seul appelant** (`buildings.demolish`, 15/09) : c'est le seul geste du jeu qui fasse
+ * tomber un plafond. Voir la fonction sur laquelle elle s'appuie, `clipToCapacity`.
  */
 export async function clipToStorage(
   ctx: MutationCtx,

@@ -2,6 +2,7 @@ import { countryLabel, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
 import {
   availabilityOf,
   buildOptionsAt,
+  demolitionRefusalOf,
   foundationHold,
   upgradeHold,
   type UpgradeHold,
@@ -193,7 +194,10 @@ export type CompassPictogram =
   | 'crate'
   /** La prise et le sabotage sous un seul dessin — la pince coupante : c'est le même ordre, seul
    *  le libellé change avec la nature du bâtiment visé. */
-  | 'sabotage';
+  | 'sabotage'
+  /** « Raser » : le mur qui s'écroule, ses moellons en l'air. Rien de la torche du sabotage —
+   *  on n'incendie pas chez soi, on démonte — et rien de la grue, qui bâtit. */
+  | 'rubble';
 
 /**
  * Only actions with a real destination exist — nothing greyed out, ever. The pictogram stays
@@ -297,6 +301,19 @@ export type CompassAction =
       readonly aim: PlunderAim;
     }
   /**
+   * **Raser un bâtiment à soi** (demande du 15/09). Dernière branche de la plate et seule encre
+   * rouge du jeu sur un médaillon : rien de ce qu'elle efface ne revient. Elle ne porte aucun
+   * chiffre — ce qui est perdu se lit sur la confirmation, qui a la place de le dire en clair.
+   */
+  | {
+      readonly key: 'demolish';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly buildingId: string;
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -398,6 +415,20 @@ const march = (type: MovementType, aim: MovementAim, view: PlayerView): CompassA
  * lines and names the remedy. A crane vanishing five minutes after it was there reads as a
  * bug, not as a rule.
  */
+/**
+ * **La branche qui efface.** Elle ne porte ni prix ni facture : il n'y a rien à payer, et ce
+ * qu'elle coûte — le niveau, le chantier, l'écrêtage — ne tient pas dans une bulle. C'est la
+ * confirmation qui le dit, et c'est pour ça qu'il y en a une.
+ */
+const demolishOf = (buildingId: string): CompassAction => ({
+  key: 'demolish',
+  pictogram: 'rubble',
+  label: fr.compass.demolish,
+  cost: null,
+  consequence: fr.compass.demolishConsequence,
+  buildingId,
+});
+
 const buildOn = (regionId: string, regionName: string): CompassAction => ({
   key: 'build',
   pictogram: 'crane',
@@ -758,12 +789,21 @@ function build(target: CompassTarget, view: PlayerView): Fan {
       const region = view.me.regions.find((candidate) => candidate.id === target.regionId) ?? null;
       const buildable =
         region !== null && buildOptionsAt(view, target.regionId, view.loadedAt).length > 0;
+      /**
+       * **Raser vient en dernier** (demande du 15/09) : la plate se lit du nord dans le sens des
+       * aiguilles, et ce qu'on efface n'est jamais ce qu'on cherche en ouvrant un menu. Le
+       * quartier général n'a pas la branche — `demolitionRefusalOf` est la fonction que la
+       * mutation refuse avec, et un mât que la vue ne porte pas n'est pas à nous.
+       */
+      const razes =
+        standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
         actions: [
           ...(raise?.action == null ? [] : [raise.action]),
           ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
+          ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
         ],
         refusal: raise?.refusal ?? null,
       };

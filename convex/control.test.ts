@@ -361,3 +361,114 @@ describe('a survey is a memory, and it goes stale', () => {
     expect(await surveyRows(t, seat)).toHaveLength(0);
   });
 });
+
+/**
+ * **Hors service, la zone se lit encore** (ADR 0020 §7, rendu du 15/09). Le point ne tient rien —
+ * le classement ne le compte pas, ce qu'il couvre ne produit plus, une région disputée revient au
+ * voisin — mais sa zone disparaissait de la carte de son propriétaire, qui n'avait plus rien à
+ * lire là où il tenait la veille. Une quatrième forme, `suspended`, et elle n'est *pas* une
+ * possession : c'est le souvenir d'une couleur et l'heure de son retour.
+ */
+describe('a disabled outpost suspends its zone rather than erasing it', () => {
+  const disable = (t: ReturnType<typeof boot>, outpostId: Id<'outposts'>, hours = 6) =>
+    t.run(async (ctx) => {
+      const until = Date.now() + hours * 3_600_000;
+      await ctx.db.patch(outpostId, { disabledUntil: until });
+      return until;
+    });
+
+  it('serves the zone as suspended, with the hour it comes back', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = await plant(t, seat, regionFacts(PRAHOVA)!.point);
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Pierre', state: 'current' });
+
+    const until = await disable(t, point);
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({
+      holder: 'Pierre',
+      state: 'suspended',
+      until,
+    });
+    /** Le sol national ne se suspend pas : aucun avant-poste ne le tient, donc aucun ne le perd. */
+    expect(await knownOf(t, seat, PARIS)).toMatchObject({ holder: 'Pierre', state: 'current' });
+  });
+
+  /** Le relevé d'hier dit encore que ce sol est à lui : le peindre plein pendant la désactivation
+   *  serait exactement le mensonge que la hachure existe pour éviter. */
+  it('takes the stale survey of its own ground out of the holding', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = await plant(t, seat, regionFacts(PRAHOVA)!.point);
+    await disable(t, point);
+
+    const mine = (await heldBy(t, seat, 'Pierre'))!;
+    const rows = mine.regions.filter((region) => region.id === PRAHOVA);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.state).toBe('suspended');
+  });
+
+  /** **À l'adversaire, rien** (ADR 0005) : lui donner l'heure du retour lui donnerait la durée
+   *  d'un raid qu'il n'a pas forcément mené. Il voit un sol que personne ne tient, décoloré. */
+  it('says nothing of the suspension to whoever observes the zone', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const prahova = regionFacts(PRAHOVA)!.point;
+    const point = await plant(t, seat, prahova);
+    await post(t, guest, prahova);
+    await disable(t, point);
+
+    for (const holder of await t.query(api.control.held, guest)) {
+      for (const region of holder.regions) expect(region.state).not.toBe('suspended');
+    }
+    /** Ce qu'il lit reste son relevé, franc ou daté selon qu'il regarde — et **jamais** une
+     *  suspension : la hachure et son heure n'existent que chez le propriétaire du point. */
+    expect(await knownOf(t, guest, PRAHOVA)).toMatchObject({ holder: 'Pierre' });
+  });
+
+  /** **Les deux à la fois, et sans conflit** : une région disputée revient au voisin pendant la
+   *  désactivation — c'est ce qu'un raid vient chercher — et elle reste suspendue chez moi. Deux
+   *  lignes, deux tenants, et rien à départager au rendu : la hachure passe sous la couleur
+   *  pleine. Que le voisin le *sache* est une autre question, celle de son relevé (§5) : il ne
+   *  l'apprend qu'en y retournant, et son point s'en charge au prochain événement. */
+  it('leaves a disputed region to the neighbour while holding its memory', async () => {
+    const t = boot();
+    const { seat, guest, third } = await launchedSeason(t);
+    const prahova = regionFacts(PRAHOVA)!.point;
+    const mine = await plant(t, seat, eastOf(prahova, REACH_KM / 4));
+    await plant(t, guest, eastOf(prahova, REACH_KM / 2));
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Pierre', state: 'current' });
+
+    await disable(t, mine);
+    const suspended = (await heldBy(t, seat, 'Pierre'))!.regions.find(
+      (region) => region.id === PRAHOVA,
+    );
+    expect(suspended?.state).toBe('suspended');
+    // Un tiers qui vient regarder n'y trouve plus le Français : la région est bien à la Russe.
+    await post(t, third, prahova);
+    expect(await knownOf(t, third, PRAHOVA)).toMatchObject({ holder: 'Léa', state: 'current' });
+  });
+
+  /** La fenêtre se referme sur elle-même : passée l'heure, la couleur revient seule, sans que
+   *  rien ne l'écrive — la vue se réinvalide au règlement de `disabledUntil`. */
+  it('comes back full the moment the window closes', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = await plant(t, seat, regionFacts(PRAHOVA)!.point);
+    await disable(t, point, -1);
+
+    expect(await knownOf(t, seat, PRAHOVA)).toMatchObject({ holder: 'Pierre', state: 'current' });
+  });
+
+  /** **Un chantier n'est pas hors service** (révision du 15/09) : il n'a pas de couleur à se
+   *  rappeler, il a une heure à attendre, et le mât la porte déjà. */
+  it('suspends nothing for a foundation still under construction', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = await plant(t, seat, regionFacts(PRAHOVA)!.point);
+    await t.run(async (ctx) => ctx.db.patch(point, { standsAt: Date.now() + 3_600_000 }));
+
+    for (const holder of await t.query(api.control.held, seat)) {
+      for (const region of holder.regions) expect(region.state).not.toBe('suspended');
+    }
+  });
+});

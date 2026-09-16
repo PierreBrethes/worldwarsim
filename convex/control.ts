@@ -2,7 +2,16 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { coveredRegions, knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
+import {
+  coveredRegions,
+  heldRegions,
+  knownRegions,
+  seatInk,
+  type KnownRegion,
+} from '../src/domain/control';
+import { isStanding } from '../src/domain/outposts';
+import { colourReading } from './holding';
+import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
 import { playerOf } from './seasons';
 import { standingObserversOf } from './surveys';
@@ -26,6 +35,11 @@ import { standingObserversOf } from './surveys';
  *
  * Trois états, et le premier n'est pas une couleur : une région **vierge** n'est pas renvoyée —
  * inconnue, jamais neutre.
+ *
+ * **Et une quatrième forme, servie à son seul propriétaire** : `suspended`, ce qu'un de ses
+ * avant-postes hors service tiendrait s'il était debout (§7). Ce n'est pas une possession — le
+ * classement, la production et la vérité l'ignorent — c'est le souvenir d'une couleur, que la
+ * carte hachure au lieu de l'effacer.
  */
 export const held = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
@@ -50,6 +64,10 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * à tenir d'accord avec la première.
    */
   const ordered = [...seats].sort((left, right) => left._creationTime - right._creationTime);
+  const homeGrounds = seats.flatMap((seat) => {
+    const country = homeCountryOf(seat.nation);
+    return country === null ? [] : [{ owner: seat._id as string, country }];
+  });
   const inkOf = new Map(ordered.map((seat, rank) => [seat._id, seatInk(rank)]));
 
   /** **Son sol, et le sien seul.** Il n'a pas besoin de s'observer lui-même : une nation n'est
@@ -79,10 +97,17 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     })),
   });
 
+  /** **Ce que ses points hors service tiendraient s'ils étaient debout** (§7) — lu avant le
+   *  regroupement, parce qu'il en retire ses propres lignes : un relevé d'hier dit encore que ce
+   *  sol est à lui, et le peindre plein pendant la désactivation serait le mensonge que la
+   *  hachure existe pour éviter. */
+  const suspended = await suspendedRegionsOf(ctx, player._id, homeGrounds);
+
   /** Par tenant, et les mains vides ne voyagent pas : un siège dont ce joueur ne connaît rien
    *  ne tient rien *pour lui*, et une ligne vide serait une couleur de plus dans la légende. */
   const byHolder = new Map<string, Array<KnownRegion>>();
   for (const region of known) {
+    if (region.owner === player._id && suspended.has(region.regionId)) continue;
     const kept = byHolder.get(region.owner) ?? [];
     kept.push(region);
     byHolder.set(region.owner, kept);
@@ -90,19 +115,84 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   return ordered.flatMap((seat) => {
     const regions = byHolder.get(seat._id) ?? [];
-    if (regions.length === 0) return [];
+    /** **La suspension n'est servie qu'à son propriétaire** (ADR 0005) : à l'adversaire qui
+     *  observe la zone, elle se lit décolorée comme n'importe quel sol que personne ne tient —
+     *  lui donner l'heure du retour lui donnerait la durée d'un raid qu'il n'a pas mené. */
+    const mine = seat._id === player._id ? [...suspended] : [];
+    if (regions.length === 0 && mine.length === 0) return [];
     return [
       {
         playerId: seat._id,
         nation: seat.nation,
         nickname: seat.nickname,
         ink: inkOf.get(seat._id)!,
-        regions: regions.map((region) =>
-          region.state === 'current'
-            ? { id: region.regionId, state: 'current' as const }
-            : { id: region.regionId, state: 'surveyed' as const, seenAt: region.seenAt },
-        ),
+        regions: [
+          ...regions.map((region) =>
+            region.state === 'current'
+              ? { id: region.regionId, state: 'current' as const }
+              : { id: region.regionId, state: 'surveyed' as const, seenAt: region.seenAt },
+          ),
+          ...mine.map(([id, until]) => ({ id, state: 'suspended' as const, until })),
+        ],
       },
     ];
   });
+}
+
+/**
+ * **Le souvenir d'une couleur, et la promesse de son retour** (ADR 0020 §7). Un avant-poste hors
+ * service ne tient rien — le classement ne le compte pas, ce qu'il couvre ne produit plus, une
+ * région disputée revient au voisin — mais sa zone disparaissait de la carte, et son propriétaire
+ * n'avait plus rien à lire là où il tenait la veille. Ce n'est pas une couleur de plus : c'est la
+ * même, hachurée, et elle ne doit rien reprendre au classement.
+ *
+ * **La même règle, lue deux fois.** La différence entre la carte telle qu'elle est et la carte
+ * qu'un seul point relevé debout donnerait *est* ce que ce point tiendrait — aucune seconde règle
+ * n'est écrite ici, donc aucune ne peut diverger de `heldRegions` le jour où la portée change.
+ * Une lecture de plus par point hors service, et il n'y en a qu'une poignée.
+ *
+ * **Ses points, et les siens seuls.** La requête reste ce qu'elle doit être : une lecture des
+ * lignes de ce joueur (`brouillard-et-fanout.md`). Les sols d'origine entrent parce qu'ils sont
+ * publics et qu'ils l'emportent sur tout avant-poste (ADR 0004) — sans eux, un point hors service
+ * planté chez un voisin hachurerait un sol qu'il n'a jamais tenu.
+ */
+async function suspendedRegionsOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  homeGrounds: ReadonlyArray<{ owner: string; country: string }>,
+): Promise<ReadonlyMap<string, number>> {
+  const now = Date.now();
+  const outposts = await outpostsOf(ctx, playerId);
+  /** **Un chantier n'est pas hors service** (révision du 15/09) : il n'a pas de couleur à se
+   *  rappeler, il a une heure à attendre — et le mât la porte déjà. */
+  const halted = outposts.filter(
+    (outpost) =>
+      isStanding(outpost, now) && outpost.disabledUntil !== null && outpost.disabledUntil >= now,
+  );
+  if (halted.length === 0) return new Map();
+
+  const regions = allRegions();
+  const readings = outposts.map((outpost) => colourReading(outpost, now));
+  const held = heldRegions({ regions, outposts: readings, homeGrounds });
+
+  const suspended = new Map<string, number>();
+  for (const outpost of halted) {
+    const standing = heldRegions({
+      regions,
+      outposts: readings.map((reading, rank) =>
+        outposts[rank]!._id === outpost._id ? { ...reading, disabled: false } : reading,
+      ),
+      homeGrounds,
+    });
+    for (const [regionId, owner] of standing) {
+      if (owner !== (playerId as string) || held.has(regionId)) continue;
+      /** Deux points hors service qui couvrent la même région : la couleur revient au premier
+       *  des deux, et c'est la seule date qu'il y ait à promettre. */
+      const already = suspended.get(regionId);
+      if (already === undefined || outpost.disabledUntil! < already) {
+        suspended.set(regionId, outpost.disabledUntil!);
+      }
+    }
+  }
+  return suspended;
 }

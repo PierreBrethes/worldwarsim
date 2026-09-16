@@ -68,6 +68,25 @@ export const RESOURCE_KEY = v.union(
   v.literal('bandages'),
 );
 
+/**
+ * **Une dette du socle**, telle qu'un bâtiment l'acquitte : une clé et le gisement sous elle
+ * (`settlesDebt`). Elle ne s'écrit qu'en un endroit — la place d'un joueur, quand une démolition
+ * emporte le bâtiment qui l'avait payée : le socle est un don de lancement, fait une fois, et
+ * une dette relue depuis le sol seul serait redemandée au premier coup de pioche (décision 6a
+ * du 15/09).
+ */
+export const FOUNDATION_DEBT = v.object({
+  key: BUILDING_KEY,
+  deposit: v.union(
+    v.literal('food'),
+    v.literal('textile'),
+    v.literal('coal'),
+    v.literal('oil'),
+    v.literal('ore'),
+    v.null(),
+  ),
+});
+
 export const RESOURCE_AMOUNTS = v.object({
   food: v.number(),
   textile: v.number(),
@@ -203,6 +222,15 @@ export const NOTICE = v.union(
     kind: v.literal('constructionCancelled'),
     building: BUILD_COST_KEY,
     regionId: v.string(),
+  }),
+  /** **Un bâtiment rasé par son propriétaire** (demande du 15/09). Chez lui seul : ce que la
+   *  démolition change chez les autres se relève, il ne s'annonce pas (ADR 0005). */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('buildingDemolished'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    level: v.number(),
   }),
   v.object({
     ...NOTICE_HEAD,

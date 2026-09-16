@@ -5,6 +5,7 @@ import {
   BUILD_COST_KEY,
   COMBAT_SIDE,
   DETECTOR,
+  FOUNDATION_DEBT,
   LON_LAT,
   LOOT_DELIVERY,
   LOOT_COLLECTION_MISSION,
@@ -156,6 +157,17 @@ export default defineSchema({
      * d'ordonner, pas s'évaporer.
      */
     defeated: v.optional(v.boolean()),
+    /**
+     * **Les dettes du socle qu'un bâtiment rasé avait acquittées** (décision 6a du 15/09). Le
+     * socle se lit sur le sol — `foundationOwed` retranche de la liste due ce qui est debout —,
+     * donc sans cette trace une mine de fondation rasée serait redemandée, et le socle
+     * deviendrait un don renouvelable. Absent vaut « rien de rasé », comme tout champ posé après
+     * coup (leçon du 27/08 sur `buildings.seasonId`).
+     *
+     * Ce sont des couples `(clé, gisement)` et pas des clés : la dette de la mine de fer ne
+     * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
+     */
+    settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
     restWindow: REST_WINDOW,
     /**
      * **When this player entered the war** — the hour his kit was handed out, which is the hour

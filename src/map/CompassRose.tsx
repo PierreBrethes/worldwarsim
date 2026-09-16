@@ -116,6 +116,10 @@ export function CompassRose({
             const angle = angleOf(rank, compass.actions.length);
             const [left, top] = point(MEDALLION_RADIUS, angle);
             const held = isHeld(candidate);
+            /** La seule encre rouge d'un médaillon : ce qui efface se distingue avant le survol,
+             *  parce que la rose se lit au pictogramme et que celui-là ne se clique pas par
+             *  inadvertance. */
+            const grave = candidate.key === 'demolish';
             return (
               <Fragment key={rank}>
                 {/* **Le seul chiffre à plat de la rose** (décision 54a) : le coût d'une élévation
@@ -134,7 +138,7 @@ export function CompassRose({
                   type="button"
                   aria-label={candidate.label}
                   aria-disabled={held}
-                  className={`rose-medallion${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
                   onPointerEnter={() => setHovered(rank)}
                   onPointerLeave={() =>
@@ -187,7 +191,11 @@ export function CompassRose({
                     <Found action={action} />
                   ) : (
                     <>
-                      <div className="rose-bubble-label">{action.label}</div>
+                      <div
+                        className={`rose-bubble-label${action.key === 'demolish' ? ' rose-bubble-label--grave' : ''}`}
+                      >
+                        {action.label}
+                      </div>
                       {action.cost !== null && (
                         <div className="rose-bubble-cost">{action.cost}</div>
                       )}
@@ -390,6 +398,11 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
    *  libellé change avec la nature du site. La flamme, le manchon, le manche. */
   sabotage: (
     <path d="M10 0.9 C12.7 3.6 13.7 5.8 13.7 7.7 C13.7 10 11.9 11.6 10 11.6 C8.1 11.6 6.3 10 6.3 7.7 C6.3 5.8 7.3 3.6 10 0.9 Z M7 11.2 H13 V13.2 H7 Z M8.9 13.2 H11.1 V19.1 H8.9 Z" />
+  ),
+  /** « Raser » : le mur qui tombe. Deux assises debout, un pan déjà descellé et deux moellons
+   *  en l'air — lisible à quinze pixels, et sans un trait de la grue ni de la torche. */
+  rubble: (
+    <path d="M2.8 13.4 H17.2 V15.6 H2.8 Z M2.8 16.8 H17.2 V19 H2.8 Z M3.4 9.2 H8.2 V12.4 H3.4 Z M10.6 6.6 L14.4 4.9 L15.7 7.7 L11.9 9.4 Z M8.6 1.3 H12 V4 H8.6 Z" />
   ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */

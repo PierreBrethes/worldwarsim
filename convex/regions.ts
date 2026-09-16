@@ -227,6 +227,32 @@ export function foundationOwed(
 }
 
 /**
+ * **Le socle d'un joueur, ce qu'il a rasé compris** (décision 6a du 15/09) — et c'est la seule
+ * porte : `foundationOwed` lit le sol, or un bâtiment de socle rasé quitte le sol, et sa dette
+ * reviendrait au premier coup de pioche. Le socle est un don de lancement, fait une fois.
+ *
+ * Ce que la place garde est le couple que le bâtiment acquittait, écrit à la démolition et
+ * jamais recalculé (`players.settledFoundation`) : il se relit exactement comme un bâtiment
+ * debout, ce qui est ce que `settlesDebt` attend.
+ */
+export const foundationOwedBy = (
+  player: { readonly nation: string | null; readonly settledFoundation?: ReadonlyArray<Held> },
+  buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }>,
+): ReadonlyArray<FoundationDebt> =>
+  foundationOwed(player.nation, [...heldPairs(buildings), ...(player.settledFoundation ?? [])]);
+
+type Held = { readonly key: BuildingKey; readonly deposit: DepositKey | null };
+
+/** Ce qu'un bâtiment acquitte : sa clé et le gisement sous lui, jamais sa région. */
+export const heldPairs = (
+  buildings: ReadonlyArray<{ readonly key: BuildingKey; readonly regionId: string }>,
+): ReadonlyArray<Held> =>
+  buildings.map((building) => ({
+    key: building.key,
+    deposit: depositOfRegion(building.regionId),
+  }));
+
+/**
  * **`world.json` names a country in English, every rule keys on its `adm0_a3`, and this bridges
  * the two — for the eight playable nations only.** It answers the empty string everywhere else,
  * which is why it must never be asked about a point: a point in Arabia is not a point in no

@@ -23,6 +23,14 @@ export const asLocalTime = (instant: number) =>
   });
 
 /**
+ * **L'heure ronde, sans les secondes** : une échéance qu'on attend sans la regarder tourner — le
+ * retour d'un avant-poste hors service, qui se compte en heures. Les secondes y seraient une
+ * précision que personne n'utilise et une horloge de plus à faire battre.
+ */
+export const asClockTime = (instant: number) =>
+  new Date(instant).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+/**
  * A due time far enough out that the hour alone would be ambiguous — a lot of a thousand
  * munitions runs for a fortnight, and "à 09 h" without a date is a lie by omission.
  */

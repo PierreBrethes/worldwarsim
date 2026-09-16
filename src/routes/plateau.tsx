@@ -20,7 +20,7 @@ import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
-import { surveyWash } from '@/domain/control';
+import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -60,6 +60,7 @@ import { errorCode, handleError } from '@/data/errors';
 import { notify } from '@/shell/notifications';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
+import { DemolitionCard } from './-plateau/DemolitionCard';
 import {
   MovementPreview,
   wireOrigin,
@@ -77,6 +78,11 @@ import { CampBadge } from './-plateau/CampBadge';
 import type { LootRumor } from './-plateau/JournalWindow';
 
 type BuildingSite = { regionId: string; x: number; y: number };
+
+/** **Le mât qu'on s'apprête à raser**, et l'endroit du geste. Un identifiant plutôt que la ligne
+ *  de la vue : la vue se réinvalide sous la carte, et une copie prise au clic afficherait un
+ *  niveau périmé au moment de confirmer. */
+type Demolition = { buildingId: string; x: number; y: number };
 
 /** Ce que la carte dessine, plus la clé que le plateau commande : la carte n'a pas à savoir ce
  *  qu'elle tient — elle sait où ça peut tomber, et rend le point. */
@@ -352,6 +358,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
+  const [demolition, setDemolition] = useState<Demolition | null>(null);
   /**
    * **Un bâtiment tenu en main, en attente du point où il se pose** (ADR 0013, révision du
    * 04/09) : le port et lui seul. C'est le cousin de la visée — même priorité sur les clics,
@@ -680,6 +687,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             regionId: action.regionId,
           }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
+        /**
+         * **Raser demande une confirmation, et rien d'autre ne la demande** (demande du 15/09) :
+         * c'est le seul ordre du jeu qui efface sans passe d'armes et sans contrepartie, donc la
+         * carte au bout du geste énumère ce qui part avant que le mot *irréversible* soit lu.
+         */
+        case 'demolish':
+          setOrderError(null);
+          setDemolition({ buildingId: action.buildingId, x: at.x, y: at.y });
+          return;
         case 'aim':
           setOrder({
             mission: 'march',
@@ -907,10 +923,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         ink,
         regions: regions.map((region) => ({
           id: region.id,
+          /** **Une zone suspendue est au plancher, et elle y reste** (ADR 0020 §7) : elle ne
+           *  vieillit pas — il est chez lui, il sait ce qu'il a perdu et quand il le reprend —
+           *  donc son délavage est une constante et non une horloge. */
           wash:
             region.state === 'current'
               ? 1
-              : surveyWash(surveyClock - region.seenAt, SURVEY_FADED_HOURS * 3_600_000),
+              : region.state === 'suspended'
+                ? FADED_WASH
+                : surveyWash(surveyClock - region.seenAt, SURVEY_FADED_HOURS * 3_600_000),
+          suspended: region.state === 'suspended',
         })),
       })),
     [heldRaw, surveyClock],
@@ -926,7 +948,29 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () =>
       new Map(
         (heldRaw ?? []).flatMap((claim) =>
-          claim.regions.map((region) => [region.id, { ...region, nation: claim.nation }] as const),
+          claim.regions.flatMap((region) =>
+            region.state === 'suspended'
+              ? []
+              : [[region.id, { ...region, nation: claim.nation }] as const],
+          ),
+        ),
+      ),
+    [heldRaw],
+  );
+
+  /**
+   * **L'heure du retour, par région suspendue** (ADR 0020 §7). À part du tenant et jamais fondue
+   * dedans : une région disputée reprise par le voisin pendant la désactivation est *à lui* et
+   * *suspendue chez moi* à la fois, et une seule ligne aurait obligé l'une des deux à mentir.
+   * Le serveur ne la sert qu'au propriétaire (ADR 0005), donc rien ne filtre ici.
+   */
+  const suspendedUntilByRegion = useMemo(
+    () =>
+      new Map(
+        (heldRaw ?? []).flatMap((claim) =>
+          claim.regions.flatMap((region) =>
+            region.state === 'suspended' ? [[region.id, region.until] as const] : [],
+          ),
         ),
       ),
     [heldRaw],
@@ -1355,6 +1399,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * movements in flight in the same list, so it inherits the same stroke, the same pawn, the
    * same everything.
    */
+  /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
+   *  plutôt que d'annoncer un niveau qui n'existe plus. */
+  const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
+
   const arcs = useMemo<ReadonlyArray<ArcView>>(
     () =>
       column === null || order === null || !preview
@@ -1445,6 +1493,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             }
           />
         )}
+        {demolition !== null && razed !== undefined && (
+          /* Relu dans la vue à chaque image plutôt que recopié au clic : le mât disparaît au
+             moment où le serveur répond, et la carte s'en va avec lui. */
+          <DemolitionCard
+            key={razed.id}
+            seat={seat}
+            view={view}
+            building={razed}
+            at={demolition}
+            onClose={() => setDemolition(null)}
+          />
+        )}
         {garrison && (
           <GarrisonPanel
             /* The pre-check is part of the panel's identity, not only its address: a second
@@ -1530,6 +1590,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             hoveredRegion={hoveredRegion}
             holding={
               hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
+            }
+            suspendedUntil={
+              hoveredRegion === null ? null : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
             }
             view={view}
           />

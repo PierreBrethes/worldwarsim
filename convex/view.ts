@@ -18,7 +18,6 @@ import {
 import { carryCapacityOf } from '../src/domain/loot';
 import { coveredRegions } from '../src/domain/control';
 import { isNation, nationInk } from '../src/domain/nations';
-import { depositOfRegion } from '../src/domain/world';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
 import { buildingCostKey, cappedByHq, levelOf, playerBuildings, totalLevelOf } from './buildings';
@@ -26,6 +25,7 @@ import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
   PRESS_EDITION_HOURS,
+  STORAGE_CAP_PER_LEVEL,
   TIER_2_HQ_LEVEL,
   buildCost,
   buildMinutes,
@@ -48,7 +48,7 @@ import { restHold } from './movements';
 import {
   allRegions,
   capitalRegionOf,
-  foundationOwed,
+  foundationOwedBy,
   homeCountryOf,
   regionFacts,
   regionOfOutpost,
@@ -473,13 +473,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * off the ground, and a season whose foundation is not placed is a state the screen has
        * to be able to say out loud.
        */
-      foundation: foundationOwed(
-        player.nation,
-        buildings.map((building) => ({
-          key: building.key,
-          deposit: depositOfRegion(building.regionId),
-        })),
-      ),
+      foundation: foundationOwedBy(player, buildings),
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
@@ -724,6 +718,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** **Le prix et la durée de la fondation**, du même barème que l'élévation au niveau 1 : un
      *  seul tarif pour poser le point et pour le monter (révision du 15/09). */
     outpostFoundation: { cost: buildCost('outpost', 1), minutes: buildMinutes('outpost', 1) },
+    /** Servi comme `tier2HqLevel` : l'écrêtage annoncé avant de raser un entrepôt et celui que
+     *  `clipToStorage` applique après doivent soustraire le même nombre. */
+    storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,
     lootSightings: lootSightings
       .filter((sighting) => sighting.seasonId === season._id)
@@ -1050,6 +1047,7 @@ const notDecoyNotice = <T extends { readonly kind: string }>(
 function named(notice: Doc<'notices'>) {
   const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
   switch (notice.kind) {
+    case 'buildingDemolished':
     case 'constructionCancelled':
     case 'constructionFinished':
     case 'garrisonEntered':

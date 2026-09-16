@@ -152,6 +152,18 @@ rien des deux pays et tout de la façon dont un cartographe a tracé ses lignes.
 > **La règle générale, valable partout : aucune quantité de jeu ne se compte en régions.
 > Le quartier général est l'unique étranglement.** Une région est un lieu, jamais un compteur.
 
+> ⚠️ **Révision (15/09/2026) — un bâtiment se rase.** Sans démolition, « une bâtisse par région »
+> fige une région au premier choix pour toute la saison : une mine posée là où l'on voudrait
+> aujourd'hui une caserne est une erreur sans retour. Le clic droit sur un mât à soi ouvre
+> « raser », une confirmation dit ce qui est perdu, et c'est fait — **sauf le quartier général**,
+> dont la destruction serait une révision de « jamais éliminé » (question 39, non tranchée).
+> **Rien n'est rendu de l'alliage payé** (décision 5a) : ce qui est bâti est dépensé, et un
+> remboursement ferait de la démolition un entrepôt de matière à l'abri du pillage. Une dette du
+> socle acquittée par ce bâtiment **ne revient pas** (décision 6a) — le socle est un don de
+> lancement, fait une fois. Ce qui revient est ce que la **file** rembourse, selon sa règle à
+> elle : ce qui n'a pas commencé, jamais ce qui court. La garnison passe au sol de la région, un
+> entrepôt rasé abaisse les plafonds et le surplus est écrêté.
+
 ### Un seul nombre borne toute la saison
 
 Puisque le QG est l'unique étranglement, **son niveau maximal plafonne tout** : six slots de

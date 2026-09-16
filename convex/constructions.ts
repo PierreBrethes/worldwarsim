@@ -25,7 +25,7 @@ import {
 } from './constants';
 import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
-import { foundationOwed, regionFacts, regionOfOutpost } from './regions';
+import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit, economyOf } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
@@ -51,16 +51,15 @@ type Refusal = { readonly code: ErrorCode; readonly details?: Record<string, unk
  * dette que le sol ne nomme pas (`settlesDebt`) : il s'acquitte où le joueur le pose.
  */
 const owedFreely = (
-  nation: string | null,
+  player: Doc<'players'>,
   buildings: ReadonlyArray<Doc<'buildings'>>,
   building: BuildingKey,
   regionId: string,
 ): boolean =>
   (buildingAt(buildings, building, regionId)?.level ?? 0) === 0 &&
-  foundationOwed(
-    nation,
-    buildings.map((held) => ({ key: held.key, deposit: depositOfRegion(held.regionId) })),
-  ).some((due) => settlesDebt(due, { key: building, deposit: depositOfRegion(regionId) }));
+  foundationOwedBy(player, buildings).some((due) =>
+    settlesDebt(due, { key: building, deposit: depositOfRegion(regionId) }),
+  );
 
 /**
  * **A point belongs to the port, and to its placement, and to nothing else** (ADR 0013,
@@ -142,7 +141,7 @@ export const start = mutation({
      * no rank, no refund and no turn — a playtest lost three free placements behind a paid
      * mill the day it did (19/08).
      */
-    if (owedFreely(player.nation, buildings, building, regionId)) {
+    if (owedFreely(player, buildings, building, regionId)) {
       /** **Le QG se pose au niveau du lancement**, les extracteurs au premier — la seule
        *  différence entre les dettes du socle, et elle vient de l'ADR 0017 §2 : ce que le
        *  quartier général ouvre (les paliers, les emplacements, les slots) n'a jamais été une
@@ -642,7 +641,7 @@ async function refusalFor(
    * covers the moment of the placement itself — the debt outranks a site already full, and what
    * it puts down never fills one.
    */
-  const owed = owedFreely(player.nation, buildings, building, regionId);
+  const owed = owedFreely(player, buildings, building, regionId);
 
   const refusal = placementRefusal(
     building,

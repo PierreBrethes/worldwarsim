@@ -158,6 +158,19 @@ function written(notice: Notice): Written {
           notice.level,
         ),
       };
+    /** **Rasé sur ordre**, jamais subi : encre normale, et la ligne dit le niveau perdu — c'est
+     *  l'alliage que le classement ne comptera plus à la prochaine édition. */
+    case 'buildingDemolished':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'construction',
+        text: said.buildingDemolished(
+          fr.buildings[notice.building],
+          notice.regionName,
+          notice.level,
+        ),
+      };
     case 'recruitmentDelivered':
       return {
         at: notice.at,
