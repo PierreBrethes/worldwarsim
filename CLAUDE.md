@@ -472,6 +472,37 @@ couleur** — régler à l'ancienne, écrire, rapporter, relever le sol, dépêc
 `standsAt` exactement même s'il se réveille en retard. Ce que la fenêtre achète : un voisin peut
 répondre, alors que la fondation était le seul geste du jeu sans contre-coup possible.
 
+**Et le monde pose des réserves que personne ne garde pour soi — 17/09/2026.** Au lancement, un
+travail immédiat (`convex/objectives.place`, planifié par `launch` pour ne pas mettre une seconde
+de Dijkstra sur le geste qui ouvre la partie) pose des **objectifs neutres** sur des régions de
+pays sans siège : **deux par joueur** à moins de `OBJECTIVE_NEAR_KM` (1 500) de route de son QG et
+séparées de `OBJECTIVE_SPREAD_KM`, plus **un dur par paire de voisins** — la région qui minimise
+la plus grande des deux distances de route, à `OBJECTIVE_HARD_MIN_KM` au moins et à trois quarts
+de partage, plafond `OBJECTIVE_HARD_MAX` = 4. Une paire qu'aucune route terrestre ne joint n'en a
+pas, et la dépêche le dit (« aucune réserve signalée entre X et Y »). La règle de répartition est
+**pure** (`src/domain/objective-placement.ts`) : elle dit ce qu'il faut mesurer, le serveur
+mesure (`routeKmFrom`, un champ de distances par QG sur la grille de routage — en **vrais
+kilomètres**, `routeDistanceKmField`, parce qu'une règle qui dit « mille kilomètres » ne peut pas
+compter en unités de grille). Le proche se mesure en **combiné**, l'eau comprise (sans quoi un
+insulaire n'aurait aucune réserve à portée) ; le dur se mesure **à pied**, parce qu'on cherche un
+sol que les deux foulent.
+
+Un objectif est un **archétype** — nom de 1940, palier, garnison, dépôt — tiré d'une palette de
+quatre (`OBJECTIVE_ARCHETYPES`, `convex/constants.ts`). **C'est une table, jamais une branche** :
+une entrée de plus est une ligne, une planche (`src/emblems/objectives/manifest.ts`, `null` tant
+qu'elle manque) et trois phrases (`fr.objectives`). **L'objectif est public, sa garnison ne l'est
+pas** : `playerView.objectives` le sert à tout le monde — lieu, archétype, dépôt restant, état —
+et n'a structurellement aucun champ pour la garnison, qui est une force posée relevée comme les
+autres (ADR 0024 §1). C'est **l'exception nommée de l'ADR 0024 §4** : on l'attaque sans l'avoir
+relevé, parce qu'il n'y a rien à percer. Ce qui le tient appartient à un **siège irrégulier** —
+un `players` marqué `irregular`, sans compte et sans vue, que `seatsOf` écarte en une ligne de
+tout ce qui demande « qui joue ici » (salon, accueil, presse, classement, encre, doyen,
+entretien). Ses troupes sont des `troops` ordinaires : elles défendent, tirent dans la même passe
+simultanée et meurent pareil — **il n'y a pas d'IA**. Le dépôt part à qui **dégage le terrain**
+(ADR 0014 : une passe, rien debout en face), borné par ce que la colonne porte, **le reste reste
+au sol** pour le suivant ; le retour chargé est la mécanique du pillage, sans une ligne de plus.
+Pas de capture au seuil tenu, pas de renfort, pas d'objectif mobile : c'est le lot 2.
+
 **La saison se gagne, par un échafaudage assumé.** Une seule condition, publique et nominative :
 la **Domination simplifiée** (`src/domain/victory.ts` pour la règle, `convex/victory.ts` pour le
 branchement, `REDUCTION_FACTOR` dans `convex/constants.ts`). Un joueur est *réduit* quand sa

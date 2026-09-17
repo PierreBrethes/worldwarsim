@@ -1,6 +1,7 @@
 # ADR 0024 — L'engagement est intentionnel, et une force posée se voit dans la portée
 
-**Statut :** acceptée (13/09/2026) — **révise l'[ADR 0008](0008-combat-par-interception.md)**
+**Statut :** acceptée (13/09/2026), **§4 précisé le 17/09/2026** (l'objectif neutre, public par
+nature, est l'exception nommée du relevé préalable) — **révise l'[ADR 0008](0008-combat-par-interception.md)**
 (le contact automatique), **l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md) §3 et §6**
 (la riposte au rayon d'arrivée, l'invisibilité des forces posées), **l'[ADR 0021](0021-portee-de-detection-et-postures.md) §2 et §3**
 (la rencontre en route, la table des comportements), et la fiche 04 § « Les forces posées ne se
@@ -62,6 +63,17 @@ retient toujours toute arrivée sur le sol national (fiche 07), et un camp attaq
 de son maître pour rendre les coups.
 
 ### 4. Une attaque vise ce qu'on a relevé
+
+> **Exception nommée, 17/09/2026 — l'objectif neutre.** Un objectif neutre
+> (`propositions/objectifs-neutres.md`) est **public par nature** : il est annoncé à tous au
+> lancement par une dépêche, il est dessiné sur la carte de tous, et le dépôt qu'il lui reste se
+> lit. Il n'y a donc **aucun relevé à exiger** pour le viser, et c'est la seule cible du jeu dans
+> ce cas. La règle ne perd rien de ce qu'elle protège : ce que le brouillard garde est **la
+> garnison locale qui le tient**, une force posée comme une autre, qui ne se relève qu'en portée
+> (§1). *On sait où aller, pas ce qu'on y trouvera.* Le code le dit d'un mot —
+> `nothingToAttack` rend `null` sur `kind: 'objective'`, comme sur un camp et un avant-poste, qui
+> *sont* le relevé — et l'ordre garde ses autres conditions : une colonne qui compte de
+> l'infanterie, parce qu'une réserve se porte.
 
 L'ordre « attaquer » (et « raider », « piller », « saboter », qui en sont des formes) **ne se
 donne que sur un objet relevé** : une pile posée adverse (§1), une installation relevée (S8), un

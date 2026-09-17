@@ -60,6 +60,7 @@ export function MapLabels({
   onOpenStack,
   onOpenLoot,
   onOpenCamp,
+  onOpenObjective,
   onContextMenu,
   muted,
 }: {
@@ -90,6 +91,9 @@ export function MapLabels({
   /** **Le cartouche d'un camp relevé** (ADR 0024 §1) : il lit, il ne commande rien — les ordres
    *  se prennent au clic droit, comme partout ailleurs sur la carte. */
   onOpenCamp: (campId: string, clientX: number, clientY: number) => void;
+  /** **Le cartouche d'un objectif neutre** : il lit ce qui est public — nom, palier, dépôt
+   *  restant — et jamais ce qui le tient. Comme le camp, il ne commande rien. */
+  onOpenObjective: (objectiveId: string, clientX: number, clientY: number) => void;
   onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
@@ -293,6 +297,8 @@ export function MapLabels({
                 onOpenStack(label, event.clientX, event.clientY);
               } else if (label.camp !== null) {
                 onOpenCamp(label.camp.id, event.clientX, event.clientY);
+              } else if (label.objective !== null) {
+                onOpenObjective(label.objective.id, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
             }}
             onKeyDown={(event) => {
@@ -386,6 +392,9 @@ const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   outpost: 'outpost',
   stack: 'forces',
   construction: 'construction',
+  /** Le tas de caisses : un objectif neutre *est* une réserve, et c'est ce que le mât dit tant
+   *  que la planche de son archétype n'est pas dessinée. */
+  objective: 'supply',
 };
 
 type RenderState = {

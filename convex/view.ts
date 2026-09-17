@@ -64,8 +64,10 @@ import {
   lastSeenOf,
   playerOf,
   requireStarted,
+  seatsOf,
   warEntryOf,
 } from './seasons';
+import { seasonObjectives } from './objectives';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
@@ -266,10 +268,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     ]),
   ) as Record<BuildingKey, { cost: Costs; minutes: number; unlockedAtHqLevel: number }>;
 
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-    .collect();
+  const seats = await seatsOf(ctx, season._id);
   /** The belligerents, never the seats: somebody who joined a running season and is still
    *  choosing his flag is nobody's opponent yet, and would show up as a nation-less one. */
   const others = seats.filter((entry) => entry._id !== player._id && isAtWar(entry, season));
@@ -875,6 +874,24 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           ],
     ),
     /**
+     * **Les objectifs neutres, servis à tout le monde et entiers** (objectifs neutres,
+     * 17/09/2026). C'est la seule chose de cette réponse qui soit publique par décision plutôt
+     * que par relevé, et le brouillard n'y perd rien : ce qu'elle porte est un lieu, un archétype
+     * et ce qu'il reste à prendre — **jamais la garnison**, qui est une force posée et ne se lit
+     * qu'en portée, comme toutes les autres (ADR 0024 §1).
+     *
+     * Public est ce qui fait converger : une réserve que chacun découvrirait dans son coin ferait
+     * farmer côte à côte, et le PVE ne fabriquerait aucun PVP (proposition du 29/08).
+     */
+    objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
+      id: objective._id,
+      key: objective.key,
+      regionId: objective.regionId,
+      point: [objective.point.lon, objective.point.lat] as LonLat,
+      status: objective.status,
+      depot: objective.depot,
+    })),
+    /**
      * **Who came in after the launch, and when.** Everybody reads the same list: a new
      * belligerent is not a secret — his flag is on the map from his first hour, and the
      * journal is the only channel that says a nation has entered the war (nothing else on the
@@ -957,10 +974,7 @@ async function lastEdition(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: Id<
    *  inventée, et la fenêtre Nation n'imprime alors aucun signe. */
   const before = own[1] ?? null;
 
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await seatsOf(ctx, seasonId);
   const seatOf = new Map(seats.map((seat) => [seat._id as string, seat]));
 
   /** Le rang se lit sur le territoire, le premier en haut (79a) — calculé sur l'édition et non

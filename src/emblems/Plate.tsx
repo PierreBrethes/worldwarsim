@@ -1,6 +1,7 @@
 import { fr } from '@/i18n/fr';
 import type { BuildingKey, ResourceKey } from '@/domain/ids';
 import { buildingSprite } from './buildings/manifest';
+import { objectiveSprite } from './objectives/manifest';
 import { resourcePlate } from './resources/manifest';
 
 /**
@@ -49,6 +50,23 @@ function Plate({
  */
 export function BuildingPlate({ building, height }: { building: BuildingKey; height: number }) {
   return <Plate url={buildingSprite(building)} label={fr.buildings[building]} height={height} />;
+}
+
+/**
+ * **La planche d'un objectif neutre** — même traitement qu'un bâtiment : aucune passe d'encre,
+ * parce qu'un objectif n'appartient à personne et qu'il n'y a donc aucune couleur à lui donner.
+ * `null` tombe sur le cadre pointillé, qui dit le trou sans casser l'image.
+ */
+export function ObjectivePlate({
+  objective,
+  label,
+  height,
+}: {
+  objective: string;
+  label: string;
+  height: number;
+}) {
+  return <Plate url={objectiveSprite(objective)} label={label} height={height} />;
 }
 
 /**

@@ -237,11 +237,7 @@ async function countSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<voi
   const season = await ctx.db.get(seasonId);
   if (!season) return;
   if (season.playerCount === undefined) {
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect();
-    await ctx.db.patch(seasonId, { playerCount: present.length });
+    await ctx.db.patch(seasonId, { playerCount: (await seatsOf(ctx, seasonId)).length });
     return;
   }
   await ctx.db.patch(seasonId, { playerCount: season.playerCount + 1 });
@@ -280,10 +276,7 @@ export const join = mutation({
     if (!canJoinRegistration(season.status, season.launchedAt, Date.now())) {
       fail('REGISTRATION_CLOSED');
     }
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     /**
      * A running season hands out no seat it cannot arm: every belligerent already holds a
      * nation, so a board with none left would open a lobby whose only screen is a wall of taken
@@ -317,7 +310,7 @@ export const join = mutation({
 export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
   const season = await ctx.db.get(player.seasonId);
   if (!season) return null;
-  const players = season.playerCount ?? (await seatsIn(ctx, season._id)).length;
+  const players = season.playerCount ?? (await seatsOf(ctx, season._id)).length;
   const winnerNation = await winnerNationOf(ctx, season);
   return {
     /** La saison que la ligne ouvre : c'est elle que le client retient comme place active, et
@@ -345,9 +338,26 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
   };
 }
 
-/** Les places d'une saison, à l'index. La seule lecture qui les compte encore, et elle ne sert
- *  plus que les saisons d'avant `playerCount`. */
-const seatsIn = (ctx: QueryCtx, seasonId: Id<'seasons'>): Promise<Doc<'players'>[]> =>
+/**
+ * **Les joueurs d'une saison** — et le siège irrégulier n'en est pas un (objectifs neutres,
+ * 17/09/2026). C'est **la** porte de « qui joue ici » : le salon, le lancement, l'entrée en
+ * guerre, l'encre, la presse, le classement, la dominance, le doyen et le relevé la lisent tous,
+ * pour que l'exclusion soit une ligne et non douze filtres qu'un treizième lecteur oublierait.
+ *
+ * Ce qu'elle ne sert pas : `destroy`, qui efface **tout** ce qui pend à la saison, garnisons
+ * locales comprises — sans quoi le siège irrégulier survivrait à la partie qui l'a créé.
+ */
+export const seatsOf = async (
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'players'>>> =>
+  (await everySeatOf(ctx, seasonId)).filter((seat) => seat.irregular !== true);
+
+/** Toutes les places, le siège irrégulier compris — la lecture d'un balayage, jamais d'une règle. */
+export const everySeatOf = (
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'players'>>> =>
   ctx.db
     .query('players')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
@@ -367,10 +377,7 @@ export const lobby = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     return {
       code: season.code,
       status: season.status,
@@ -414,10 +421,7 @@ export const launch = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     if (present.length < MIN_PLAYERS_TO_LAUNCH) {
       fail('NOT_ENOUGH_PLAYERS', { minimum: MIN_PLAYERS_TO_LAUNCH });
     }
@@ -442,6 +446,16 @@ export const launch = mutation({
     await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
       playerId: present[0]!._id,
     });
+
+    /**
+     * **Les objectifs neutres se posent dans leur propre travail** (objectifs neutres,
+     * 17/09/2026). Le lancement porte déjà la dotation de chacun ; y ajouter un champ de
+     * distances par quartier général et une route par paire de voisins, c'est mettre la seconde
+     * d'une mutation sur le geste qui ouvre la partie. Ce que la séparation achète est une saison
+     * **jouable avant que les dépêches tombent** : le plateau s'ouvre, les réserves paraissent
+     * une seconde plus tard.
+     */
+    await ctx.scheduler.runAfter(0, internal.objectives.place, { seasonId: season._id });
   },
 });
 
@@ -465,10 +479,7 @@ export const enterWar = mutation({
     if (isAtWar(player, season)) return;
     if (player.nation === null) fail('NATION_REQUIRED');
 
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     const holder = present.find(
       (entry) => entry.nation === player.nation && entry._id !== player._id,
     );
@@ -587,10 +598,7 @@ export const conclude = mutation({
     if (season.status !== 'launched') fail('SEASON_NOT_LAUNCHED');
 
     const now = Date.now();
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     const refusal = concludeRefusal(player, present, season, now);
     if (refusal !== null) fail(refusal);
 
@@ -616,13 +624,18 @@ export const destroy = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
 
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await everySeatOf(ctx, season._id);
     for (const entry of present) {
       await erasePlayer(ctx, entry._id);
       await ctx.db.delete(entry._id);
+    }
+    /** **Un objectif n'appartient à personne** — il pend à la saison et à rien d'autre, donc
+     *  `erasePlayer` ne peut pas l'emporter : c'est ici qu'il tombe, ou nulle part. */
+    for (const objective of await ctx.db
+      .query('objectives')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect()) {
+      await ctx.db.delete(objective._id);
     }
     await ctx.db.delete(season._id);
   },

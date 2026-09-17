@@ -120,11 +120,27 @@ export default defineSchema({
   players: defineTable({
     seasonId: v.id('seasons'),
     /**
-     * **Le compte qui tient cette place** (ADR 0022). Obligatoire, sans repli et sans
-     * migration : le jeton de partie est mort avec le wipe qui a posé ce champ (décision 85a),
-     * et un `v.optional` aurait laissé vivre des places que plus aucune porte ne sait ouvrir.
+     * **Le compte qui tient cette place** (ADR 0022). Aucun repli et aucune migration : le jeton
+     * de partie est mort avec le wipe qui a posé ce champ (décision 85a).
+     *
+     * **Absent est le siège irrégulier, et lui seul** (objectifs neutres, 17/09/2026) : la
+     * garnison locale d'un objectif est une force posée comme une autre, donc elle appartient à
+     * un `players` — mais il n'y a derrière lui aucun compte, aucune session, aucune porte.
+     * Copier celui du fondateur aurait donné deux places au même compte dans la même saison, et
+     * `seatOf` lit ce couple en `.unique()` : la partie entière serait tombée à la connexion.
      */
-    accountId: v.id('accounts'),
+    accountId: v.optional(v.id('accounts')),
+    /**
+     * **Ce siège n'est pas un joueur** (objectifs neutres, 17/09/2026) : il ne tient que les
+     * garnisons locales des objectifs neutres. Absent vaut « un vrai joueur », comme tout champ
+     * posé après coup (leçon du 27/08 sur `buildings.seasonId`).
+     *
+     * C'est le drapeau que tout comptage de joueurs relit — le salon, l'accueil, la presse, le
+     * classement, la dominance, le doyen, l'entretien — parce que le brouillard, le combat et la
+     * carte, eux, n'ont **rien** à en savoir : une troupe irrégulière se relève, se bat et meurt
+     * exactement comme une autre, et c'est tout l'intérêt (ADR 0019 §3).
+     */
+    irregular: v.optional(v.boolean()),
     /**
      * **Le pseudo du compte, copié à l'entrée et figé pour la saison.** Ce n'est pas une
      * dénormalisation par confort : une saison se relit après coup, et un compte renommé
@@ -461,6 +477,14 @@ export default defineSchema({
     /** Internal collection mission. Optional keeps every movement already stored readable. */
     lootCollection: v.optional(LOOT_COLLECTION_MISSION),
     plunderReportId: v.optional(v.id('plunderReports')),
+    /**
+     * **L'objectif neutre que cette colonne est venue réduire** (objectifs neutres, 17/09/2026).
+     * La cible **stockée** reste un point — c'est le point que la colonne marche, et l'arrivée
+     * engage ce qui s'y tient (ADR 0024 §4) —, mais le dépôt ne se prend que si l'ordre le
+     * nommait : sans ce champ, une attaque qui passe par là emporterait un butin que personne
+     * n'est venu chercher.
+     */
+    objectiveId: v.optional(v.id('objectives')),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -641,6 +665,34 @@ export default defineSchema({
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
+
+  /**
+   * **Les objectifs neutres de la saison** (`propositions/objectifs-neutres.md`, réécrit le
+   * 17/09/2026) : une région de pays sans siège, un archétype, et le dépôt qu'il reste à prendre.
+   *
+   * **La garnison n'est pas ici**, et c'est la règle du brouillard mise dans la forme : l'objectif
+   * est public — dépêche à tous, marqueur pour tous, dépôt restant lisible —, ce qui le tient ne
+   * l'est pas. Ce sont des `troops` ordinaires du siège irrégulier, relevées comme n'importe
+   * quelle force posée (ADR 0024 §1) et pas autrement. Une garnison portée par cette ligne aurait
+   * été servie avec elle à tout le monde.
+   *
+   * `key` est une chaîne et non une union : l'archétype est une donnée (`OBJECTIVE_ARCHETYPES`),
+   * et ajouter une entrée à la palette ne doit toucher ni le schéma ni une branche.
+   *
+   * Aucun index par joueur : un objectif n'appartient à personne. La saison le balaye whole, et
+   * `destroy` l'emporte par le même index.
+   */
+  objectives: defineTable({
+    seasonId: v.id('seasons'),
+    key: v.string(),
+    regionId: v.string(),
+    /** Le pôle de la région (`regionFacts`), comme tout ce qui se pose sur une région. */
+    point: LON_LAT,
+    /** Ce qu'il **reste** à prendre : chaque prise le décrémente, et le reste attend le suivant. */
+    depot: RESOURCE_AMOUNTS,
+    status: v.union(v.literal('standing'), v.literal('taken')),
+    takenAt: v.union(v.number(), v.null()),
+  }).index('bySeason', ['seasonId']),
 
   /**
    * **The account of one engagement, written once and never resolved again.** It is what the

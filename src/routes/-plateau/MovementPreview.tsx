@@ -46,7 +46,12 @@ export const wireTarget = (aim: MovementAim) =>
            *  serveur qui le résout en position, sur la ligne que ce joueur-là possède. */
           aim.kind === 'camp'
           ? ({ kind: 'camp', campId: aim.campId as Id<'campSightings'> } as const)
-          : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
+          : /** **L'objectif voyage par son identité** : il est public, donc le serveur le lit dans
+             *  la vérité du plateau — et c'est ce qui grave `movements.objectiveId`, sans quoi la
+             *  colonne arriverait sans que rien dise ce qu'elle est venue prendre. */
+            aim.kind === 'objective'
+            ? ({ kind: 'objective', objectiveId: aim.objectiveId as Id<'objectives'> } as const)
+            : ({ kind: 'point', point: { lon: aim.lon, lat: aim.lat } } as const);
 
 /**
  * Where a column stands, in the shape the mutations take — the branded ids go back on at the one

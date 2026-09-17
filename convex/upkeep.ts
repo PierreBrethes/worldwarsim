@@ -86,6 +86,15 @@ export async function upkeepOf(
   now: number,
 ): Promise<Upkeep> {
   const player = await ctx.db.get(playerId);
+  /**
+   * **Le siège irrégulier ne mange pas** (objectifs neutres, 17/09/2026). Une garnison locale est
+   * posée pour la saison, elle ne se renforce jamais et ne se ravitaille pas : lui compter un
+   * entretien ferait de son stock de vivres — qui n'existe pas — une famine permanente, et le
+   * `starving` d'un joueur que personne ne joue n'a rien à arbitrer.
+   */
+  if (player?.irregular === true) {
+    return { troops: 0, unsupplied: 0, foodPerHour: 0, unsuppliedTroopIds: [], outposts: 0 };
+  }
   const home = homeCountryOf(player?.nation ?? null);
 
   const outposts = await ctx.db

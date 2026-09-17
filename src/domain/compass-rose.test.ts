@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compassOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView } from './player-view';
+import { fr } from '../i18n/fr';
 
 const view = {
   me: {
@@ -310,6 +311,50 @@ describe('in aim', () => {
       type: 'attack',
       aim: { kind: 'camp', campId: 'camp-1' },
     });
+  });
+
+  /**
+   * **Un objectif neutre est une cible sans relevé** — c'est l'exception nommée de l'ADR 0024 §4,
+   * et elle tient parce qu'il est public par nature. Une seule branche y mène.
+   */
+  it('offers the assault on a neutral objective, with no survey to show for it', () => {
+    const compass = compassOf(
+      {
+        kind: 'objective',
+        id: 'obj-1',
+        point: [-0.9, 41.6],
+        country: 'ESP',
+        name: 'réserves abandonnées',
+        tier: 'forces irrégulières légères',
+      },
+      view,
+      column,
+    );
+    expect(compass?.actions.map((action) => action.label)).toEqual(['attaque']);
+    expect(compass?.actions[0]).toMatchObject({
+      type: 'attack',
+      aim: { kind: 'objective', objectiveId: 'obj-1' },
+    });
+  });
+
+  /** **Sans colonne armée, le motif tient la place de la branche** : ce qui manque est une
+   *  colonne, pas un droit — et c'est la seule cible adverse qui parle au repos, parce qu'elle
+   *  n'a rien à cacher. */
+  it('says what is missing on an objective nobody is aiming at', () => {
+    const compass = compassOf(
+      {
+        kind: 'objective',
+        id: 'obj-1',
+        point: [-0.9, 41.6],
+        country: 'ESP',
+        name: 'réserves abandonnées',
+        tier: 'forces irrégulières légères',
+      },
+      view,
+      null,
+    );
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe(fr.objectives.needsAColumn);
   });
 
   it('carries the aim and the type on the action, priced in slots', () => {

@@ -25,6 +25,9 @@ import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import { buildingSprite } from '@/emblems/buildings/manifest';
+import { objectiveSprite } from '@/emblems/objectives/manifest';
+import { lootWords } from '@/domain/journal';
+import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
@@ -77,6 +80,7 @@ import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
+import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
 import type { LootRumor } from './-plateau/JournalWindow';
 
 type BuildingSite = { regionId: string; x: number; y: number };
@@ -106,6 +110,7 @@ type OpenLoot = { readonly id: string; readonly x: number; readonly y: number };
 
 /** Le camp relevé dont le cartouche est ouvert, et le point où il se pose. */
 type OpenCamp = { readonly id: string; readonly x: number; readonly y: number };
+type OpenObjective = { readonly id: string; readonly x: number; readonly y: number };
 
 /**
  * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
@@ -405,6 +410,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
+  const [selectedObjective, setSelectedObjective] = useState<OpenObjective | null>(null);
   /**
    * **The mobilisation order, armed.** The season still owes free placements, the player has
    * clicked one of its keys, and the board is waiting for the ground. It lives here beside the
@@ -462,6 +468,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const openCamp = useCallback(
     (campId: string, clientX: number, clientY: number) =>
       setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) }),
+    [boardPoint],
+  );
+
+  const openObjective = useCallback(
+    (objectiveId: string, clientX: number, clientY: number) =>
+      setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) }),
     [boardPoint],
   );
 
@@ -1129,6 +1141,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       seenMinutesAgo: camp.seenMinutesAgo,
     }));
 
+    /**
+     * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
+     * le seul marqueur public par décision : sans lui, une réserve annoncée par dépêche serait
+     * une adresse que rien à l'écran ne sait montrer, et le PVE ne ferait converger personne.
+     * Il ne porte ni encre ni garnison — un objectif n'appartient à personne, et ce qui le tient
+     * se relève comme toute force posée.
+     */
+    const objectives: ReadonlyArray<MapMarker> = view.objectives.map((objective) => ({
+      kind: 'objective' as const,
+      id: `objective-${objective.id}`,
+      objectiveId: objective.id,
+      lonLat: objective.point,
+      name: fr.objectives.names[objective.key] ?? objective.key,
+      tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
+      plate: objectiveSprite(objective.key),
+      depot: lootWords(objective.depot),
+      emptied: objective.status === 'taken',
+    }));
+
     const surveyed: ReadonlyArray<MapMarker> = view.surveyedInstallations.map((installation) => ({
       kind: 'installation' as const,
       id: `installation-${installation.id}`,
@@ -1140,7 +1171,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       washed: knownRegionById.get(installation.regionId)?.state !== 'current',
     }));
 
-    if (!toggles.buildings) return [...deposits, ...loot, ...camps, ...outposts, ...stacks];
+    if (!toggles.buildings)
+      return [...deposits, ...loot, ...camps, ...objectives, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
@@ -1201,6 +1233,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ...deposits,
       ...loot,
       ...camps,
+      ...objectives,
       ...surveyed,
       ...outposts,
       ...stacks,
@@ -1213,6 +1246,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     view.loadedAt,
     view.lootSightings,
     view.camps,
+    view.objectives,
     view.surveyedInstallations,
     knownRegionById,
     toggles.buildings,
@@ -1276,6 +1310,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   }, [hoveredMovement, surveyClock, view.arcs, view.loadedAt]);
   const selectedCampView =
     selectedCamp === null ? null : (view.camps.find((camp) => camp.id === selectedCamp.id) ?? null);
+  const selectedObjectiveView =
+    selectedObjective === null
+      ? null
+      : (view.objectives.find((objective) => objective.id === selectedObjective.id) ?? null);
   const selectedLootSighting =
     selectedLoot === null
       ? null
@@ -1485,6 +1523,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           onOpenStack={openStack}
           onOpenLoot={openLoot}
           onOpenCamp={openCamp}
+          onOpenObjective={openObjective}
           selectedLabel={posted?.labelId ?? null}
           selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
           reach={postedReach ?? movementReach}
@@ -1517,6 +1556,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             camp={selectedCampView}
             at={selectedCamp}
             onClose={() => setSelectedCamp(null)}
+          />
+        )}
+        {selectedObjective !== null && selectedObjectiveView !== null && (
+          <ObjectiveBadge
+            key={selectedObjective.id}
+            objective={selectedObjectiveView}
+            at={selectedObjective}
+            onClose={() => setSelectedObjective(null)}
           />
         )}
         {buildingSite && (

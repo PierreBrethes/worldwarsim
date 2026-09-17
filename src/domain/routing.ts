@@ -1,4 +1,4 @@
-import type { LonLat } from './geo';
+import { distanceKm, type LonLat } from './geo';
 import type { Medium } from './ids';
 import type { ProjectedCountry, World } from './world';
 
@@ -421,6 +421,141 @@ export function computeRoute(
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
   if (path === null) return null;
   return routeSearchOf(grid, path, mode, landCost).route;
+}
+
+/**
+ * **Combien de kilomètres de route séparent un point de chaque cellule du monde**, en une seule
+ * passe — un champ de distances, là où `computeRoute` rend un chemin. C'est ce que la pose des
+ * objectifs neutres demande : elle mesure un millier de régions candidates depuis un quartier
+ * général, et un Dijkstra par région serait mille Dijkstra pour une seule question.
+ *
+ * **Des kilomètres, jamais des unités de coût** : la règle de placement parle en distance de
+ * route (« à moins de mille kilomètres de son QG »), pas en prix de trajet — le pas d'une colonne
+ * motorisée ne rapproche pas une réserve abandonnée. Les arêtes sont pesées par leur seule
+ * longueur, et le champ ne dépend ni de l'allure ni de la composition.
+ *
+ * **Le mode dit ce que le monde relie**, et les deux réponses sont deux questions différentes :
+ * `'land'` mesure un chemin qu'on marche, `'combined'` mesure un chemin qu'on *fait* — l'eau
+ * comprise, parce qu'une colonne la traverse à bord d'une coque (ADR 0013). Rien ici n'impose les
+ * règles d'un vrai trajet — un quai au départ, une plage à l'arrivée, des places à bord : ce
+ * n'est pas une route, c'est une distance, et les refuser ici rendrait toute île infiniment
+ * lointaine d'elle-même.
+ *
+ * `maxKm` borne la fouille : au-delà, la cellule n'est pas visitée et reste à l'infini. C'est ce
+ * qui tient la passe dans le budget d'une mutation quand la question a un horizon.
+ */
+export function routeDistanceKmField(
+  grid: RouteGrid,
+  from: LonLat,
+  mode: 'land' | 'combined',
+  maxKm = Number.POSITIVE_INFINITY,
+): Float64Array {
+  const allowed = ALLOWED_BY_MODE[mode];
+  const kilometres = new Float64Array(grid.cells.length).fill(Number.POSITIVE_INFINITY);
+  const start = nearestCell(grid, projectOnGrid(grid, from), allowed);
+  if (start === null) return kilometres;
+
+  const heap = new BinaryHeap();
+  kilometres[start] = 0;
+  heap.insert(start, 0);
+  const buffer = new Array<number>(9);
+  const steps = cellStepsKm(grid);
+  while (heap.size > 0) {
+    const { cell, cost } = heap.extractMin();
+    if (cost > kilometres[cell]!) continue;
+    const count = neighbors(grid, cell, buffer);
+    for (let i = 0; i < count; i++) {
+      const neighbor = buffer[i]!;
+      if (!allowed.includes(grid.cells[neighbor]!)) continue;
+      const candidate = cost + steps(cell, neighbor);
+      if (candidate > maxKm || candidate >= kilometres[neighbor]!) continue;
+      kilometres[neighbor] = candidate;
+      heap.insert(neighbor, candidate);
+    }
+  }
+  return kilometres;
+}
+
+/**
+ * **Un pas de grille, en vrais kilomètres** — et c'est la seule mesure de ce fichier qui le soit.
+ * Les trajets du jeu se pèsent en *unités de grille* (`distanceBetweenCells`), une abstraction qui
+ * traite un degré de longitude comme un degré de latitude : le prix d'une route y est cohérent
+ * d'un bout à l'autre du monde, ce qui suffit à une durée. Une **règle de placement**, elle, dit
+ * « à moins de mille kilomètres », et le joueur lit ces kilomètres sur un atlas — à la latitude de
+ * Moscou, l'unité de grille en vaut à peine plus de la moitié.
+ *
+ * La table est bâtie **par rangée**, parce que c'est tout ce dont la géométrie dépend : la
+ * projection donne une latitude par rangée et un pas de longitude constant par colonne, donc les
+ * six pas possibles d'une cellule ne varient qu'avec sa rangée. Six valeurs par rangée au lieu
+ * d'une haversine par arête : un champ mondial en compte plus d'un million.
+ *
+ * L'enroulement est-ouest — la première et la dernière cellule d'une rangée sont voisines — se
+ * lit comme un pas de colonne, ce qu'il est : le méridien de changement de date n'est pas large.
+ */
+const STEPS_KM = new WeakMap<RouteGrid, (from: number, to: number) => number>();
+
+function cellStepsKm(grid: RouteGrid): (from: number, to: number) => number {
+  const known = STEPS_KM.get(grid);
+  if (known !== undefined) return known;
+
+  const latOf = new Float64Array(grid.height);
+  /** **Le pas de longitude se lit rangée par rangée** : la projection resserre les colonnes vers
+   *  les pôles — c'est un globe et non un quadrillage — donc une colonne vaut trois cent
+   *  soixante degrés divisés par la largeur du monde *à cette latitude-là*. Le lire une fois pour
+   *  toutes à la rangée zéro rendait zéro : au pôle, le monde n'a pas de largeur. */
+  const lonStepOf = new Float64Array(grid.height);
+  /** Échantillonné au **milieu** de la rangée, et jamais à son bord : le monde est un globe
+   *  inscrit dans le rectangle de la grille, donc les premières colonnes d'une rangée tombent
+   *  hors de lui et leur longitude se rabat sur -180 — deux colonnes voisines y rendaient le même
+   *  degré, et le pas de côté valait zéro kilomètre sur presque toute la carte. */
+  const middle = Math.floor(grid.width / 2);
+  for (let row = 0; row < grid.height; row += 1) {
+    const first = unprojectCell(grid, row * grid.width + middle);
+    const second = unprojectCell(grid, row * grid.width + middle + 1);
+    latOf[row] = first[1];
+    lonStepOf[row] = Math.abs(second[0] - first[0]);
+  }
+  /** Trois pas par rangée — de côté, droit devant, en diagonale — pour `dr` valant 0 ou 1 ; le
+   *  pas vers le nord d'une rangée est le pas vers le sud de la suivante. */
+  const table = new Float64Array(grid.height * 4);
+  for (let row = 0; row < grid.height; row += 1) {
+    const here: LonLat = [0, latOf[row]!];
+    const next = row + 1 < grid.height ? latOf[row + 1]! : latOf[row]!;
+    const sideways = lonStepOf[row]!;
+    table[row * 4] = distanceKm(here, [sideways, latOf[row]!]);
+    table[row * 4 + 1] = distanceKm(here, [0, next]);
+    table[row * 4 + 2] = distanceKm(here, [sideways, next]);
+  }
+
+  const measure = (from: number, to: number): number => {
+    const row = Math.floor(from / grid.width);
+    const otherRow = Math.floor(to / grid.width);
+    const columnGap = Math.abs((from % grid.width) - (to % grid.width));
+    const sideways = columnGap > 0 ? 1 : 0;
+    if (row === otherRow) return table[row * 4]!;
+    const northward = Math.min(row, otherRow);
+    return sideways === 0 ? table[northward * 4 + 1]! : table[northward * 4 + 2]!;
+  };
+  STEPS_KM.set(grid, measure);
+  return measure;
+}
+
+/**
+ * **Ce que le champ répond sous un point.** La cellule exacte, ou la plus proche que le mode
+ * laisse fouler — un pôle d'inaccessibilité tombe parfois sur de l'eau à la maille de cette
+ * grille, et rendre l'infini là serait écarter une région qu'une colonne atteint très bien.
+ * `null` quand rien n'est accessible : pas de route, et la règle place ailleurs.
+ */
+export function routeDistanceKmAt(
+  grid: RouteGrid,
+  field: Float64Array,
+  point: LonLat,
+  mode: 'land' | 'combined',
+): number | null {
+  const cell = nearestCell(grid, projectOnGrid(grid, point), ALLOWED_BY_MODE[mode]);
+  if (cell === null) return null;
+  const kilometres = field[cell]!;
+  return Number.isFinite(kilometres) ? kilometres : null;
 }
 
 /** One weighted search toward every admissible cell; the first extracted goal is the cheapest. */

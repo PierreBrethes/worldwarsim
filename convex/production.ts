@@ -5,7 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { regionFacts } from './regions';
 import { settle } from './resources';
-import { isAtWar } from './seasons';
+import { isAtWar, seatsOf } from './seasons';
 import { reassessDetection } from './movement/detection';
 
 /**
@@ -143,10 +143,7 @@ async function belligerents(
 ): Promise<ReadonlyArray<Doc<'players'>>> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return [];
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await seatsOf(ctx, seasonId);
   return seats.filter((seat) => isAtWar(seat, season));
 }
 

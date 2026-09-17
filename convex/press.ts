@@ -36,7 +36,7 @@ import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './c
 import { heldOver } from './holding';
 import { seasonOutposts } from './movement/forces';
 import { allRegions } from './regions';
-import { isAtWar, playingSeason } from './seasons';
+import { isAtWar, playingSeason, seatsOf } from './seasons';
 import { seasonTroops } from './troops';
 
 /**
@@ -139,10 +139,7 @@ async function writeEdition(
 ): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return;
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await seatsOf(ctx, seasonId);
   /** Les belligérants, jamais les sièges : quelqu'un qui n'a pas encore choisi son drapeau ne
    *  tient rien, ne bâtit rien, et sa ligne à zéro serait une nation de plus au classement. */
   const players = seats.filter((seat) => isAtWar(seat, season));

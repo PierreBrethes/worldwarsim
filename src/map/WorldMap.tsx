@@ -55,6 +55,7 @@ type Props = {
   onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
   onOpenCamp?: (campId: string, clientX: number, clientY: number) => void;
+  onOpenObjective?: (objectiveId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
   selectedLootLabel?: string | null;
@@ -137,6 +138,7 @@ export function WorldMap({
   onOpenStack,
   onOpenLoot,
   onOpenCamp,
+  onOpenObjective,
   selectedLabel = null,
   selectedLootLabel = null,
   reach = null,
@@ -481,6 +483,7 @@ export function WorldMap({
         onOpenStack={onLabelOpen}
         onOpenLoot={onOpenLoot ?? (() => {})}
         onOpenCamp={onOpenCamp ?? (() => {})}
+        onOpenObjective={onOpenObjective ?? (() => {})}
         onContextMenu={onLabelMenu}
         muted={placing !== null}
       />
@@ -674,6 +677,21 @@ export function targetOfLabel(
       onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
       name: lineText(label, 'nature') ?? fr.loot.cardKicker,
+    };
+  }
+  /**
+   * **Un objectif neutre est une cible**, et la seule qu'on vise sans l'avoir relevée : il est
+   * public par nature. La poignée est le mât lui-même — identité, nom, palier — et jamais le sol
+   * sous le curseur, qu'un mât plein cadre déborde.
+   */
+  if (label.objective !== null) {
+    return {
+      kind: 'objective',
+      id: label.objective.id,
+      point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
+      country,
+      name: label.objective.name,
+      tier: label.objective.tier,
     };
   }
   /**

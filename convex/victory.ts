@@ -2,7 +2,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
-import { concludeSeason, isAtWar } from './seasons';
+import { concludeSeason, isAtWar, seatsOf } from './seasons';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and
@@ -79,10 +79,7 @@ export async function standingsOf(
   seasonId: Id<'seasons'>,
 ): Promise<ReadonlyArray<Standing>> {
   const season = await ctx.db.get(seasonId);
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await seatsOf(ctx, seasonId);
   /**
    * **The belligerents, and `n` is their number** — counted at the instant, like everything else
    * here. A seat taken on a running season by somebody still choosing his flag is not a nation

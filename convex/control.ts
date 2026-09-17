@@ -7,7 +7,7 @@ import { isStanding } from '../src/domain/outposts';
 import { soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
-import { playerOf } from './seasons';
+import { playerOf, seatsOf } from './seasons';
 import { regionsCoveredBy } from './regionGeometry';
 import { standingObserversOf } from './surveys';
 
@@ -47,10 +47,7 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   // La session authentifie et la place cloisonne : c'est la saison du joueur qu'on lit, jamais
   // la table.
   const { player, season } = await playerOf(ctx, token, seasonId);
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-    .collect();
+  const seats = await seatsOf(ctx, season._id);
 
   /**
    * **L'encre suit le siège, dans l'ordre des entrées.** Rien n'est stocké là non plus : un

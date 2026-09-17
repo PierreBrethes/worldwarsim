@@ -309,7 +309,9 @@ describe('la couleur et le sol à bâtir ne peuvent pas diverger', () => {
     for (const regionId of byTheDisc) {
       expect(served.get(regionId)?.site).toEqual({ outpostId: expect.any(String) });
     }
-  });
+    /** Il dépouille les 4 589 régions deux fois — la couleur, puis la vue. Trois secondes seul,
+     *  davantage quand la suite tourne à côté : le budget par défaut n'a jamais eu de marge. */
+  }, 30_000);
 });
 
 describe('a survey is a memory, and it goes stale', () => {

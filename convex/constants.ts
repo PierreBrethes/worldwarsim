@@ -911,3 +911,128 @@ export const FOUNDER_ABSENCE_NOTICE_HOURS = 24;
  * au lancement : au lancement il n'y a rien à dire.
  */
 export const PRESS_EDITION_HOURS = 3;
+
+/**
+ * **Un archétype d'objectif neutre** : une garnison locale, un dépôt, un palier. Le palier est le
+ * mot que le joueur lit — « forces irrégulières légères, organisées, retranchées » — et ce que la
+ * répartition tire : les deux objectifs proches d'un siège sortent des faciles et des moyens, le
+ * dur ne sort que des durs.
+ */
+export type ObjectiveTier = 'easy' | 'medium' | 'hard';
+
+export type ObjectiveArchetype = {
+  readonly key: string;
+  readonly tier: ObjectiveTier;
+  readonly garrison: ReadonlyArray<{ readonly role: UnitRole; readonly tier: UnitTier }>;
+  readonly depot: Costs;
+};
+
+/**
+ * **La palette des objectifs neutres** (`propositions/objectifs-neutres.md`, réécrit le
+ * 17/09/2026). La saison en tire une partie — deux archétypes *faciles ou moyens* près de chaque
+ * siège, un *dur* entre deux voisins — et c'est tout ce que le code sait d'eux.
+ *
+ * **C'est une table, jamais une branche.** Ajouter un archétype est une ligne ici, une planche
+ * dans `src/emblems/objectives/manifest.ts` et trois phrases dans `fr.objectives` ; rien dans la
+ * règle de pose, rien dans le combat, rien dans la vue. Le jour où un `switch` sur une clé
+ * apparaît, la table a cessé d'être une table.
+ *
+ * @a-mesurer toute la table : par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h
+ */
+export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
+  {
+    key: 'abandonedStores',
+    tier: 'easy',
+    garrison: [
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+    ],
+    depot: { alloy: 60 },
+  },
+  {
+    key: 'stalledConvoy',
+    tier: 'medium',
+    garrison: [
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+    ],
+    depot: { alloy: 150, ammunition: 40 },
+  },
+  {
+    key: 'fuelDump',
+    tier: 'medium',
+    garrison: [
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+    ],
+    depot: { alloy: 150, oil: 60 },
+  },
+  {
+    key: 'irregularArsenal',
+    tier: 'hard',
+    garrison: [
+      { role: 'infantry', tier: 1 },
+      { role: 'infantry', tier: 1 },
+      { role: 'armor', tier: 1 },
+    ],
+    depot: { alloy: 300, ammunition: 80 },
+  },
+];
+
+/**
+ * **L'archétype derrière une clé**, `null` pour une clé qu'aucune ligne ne décrit — un document
+ * écrit avant qu'on retire une entrée de la palette. La carte et le serveur y lisent le palier et
+ * le nom depuis **la même** table : un second tableau des paliers côté client aurait dit
+ * « légères » d'une garnison que le serveur pose avec un blindé.
+ */
+export const objectiveArchetype = (key: string): ObjectiveArchetype | null =>
+  OBJECTIVE_ARCHETYPES.find((archetype) => archetype.key === key) ?? null;
+
+/**
+ * **Peu, et disputés** — la seule chose que la proposition du 29/08 demandait, et la règle du
+ * 06/09 (« 2 à 3 par saison, à moins de 1 500 km de deux QG ») ne la tenait pas : simulée sur les
+ * 4 589 régions elle ne plaçait rien hors d'Europe. Ce qui la remplace répartit **par joueur** —
+ * deux prises à sa portée, pour que le détour existe partout — et garde la dispute là où elle se
+ * joue : un objectif **dur** par paire de voisins, au milieu de la route qui les sépare.
+ *
+ * Les quatre nombres se lisent ensemble : quinze cents kilomètres est une expédition d'une saison
+ * de 48 h, trois cents sépare assez les deux prises d'un même joueur pour qu'il choisisse, huit
+ * cents fait du dur un détour et non un sprint, et trois quarts dit qu'une paire dont l'un est
+ * deux fois plus près que l'autre n'a pas d'objectif commun — elle en aurait un qui n'appartient
+ * qu'au plus proche.
+ *
+ * **Quinze cents et non mille, et c'est la carte qui l'a dit** (mesure du 17/09, sur les huit
+ * capitales de 1940 et les 4 589 régions) : à mille kilomètres de route, **Washington n'atteint
+ * aucun sol sans siège et Tokyo n'en atteint qu'un** — les provinces canadiennes portent leur pôle
+ * loin au nord et Cuba est à dix-huit cents. Deux nations sur huit n'auraient eu ni l'une ni
+ * l'autre de leurs prises, c'est-à-dire aucun détour à faire, ce que ce lot existe précisément
+ * pour créer. À quinze cents, les huit ont leurs deux. C'est la même mesure qui avait fait
+ * abandonner la règle du 06/09 — et la même distance.
+ *
+ * @a-mesurer les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h
+ */
+export const OBJECTIVE_NEAR_KM = 1_500;
+export const OBJECTIVE_SPREAD_KM = 300;
+export const OBJECTIVE_HARD_MIN_KM = 800;
+export const OBJECTIVE_HARD_FAIRNESS = 0.75;
+
+/**
+ * **Combien de paires de voisins portent un objectif dur.** Chaque siège entre dans deux paires
+ * au plus, donc à quatre joueurs il y en a quatre : c'est le plafond, pas une cible — un théâtre
+ * où deux QG sont séparés par un océan en compte moins, et la dépêche de lancement le dit.
+ */
+export const OBJECTIVE_HARD_MAX = 4;
+
+/**
+ * **Ce que la garnison locale a dans ses caissons, par troupe.** Le magasin est lu par camp avant
+ * chaque passe (`convex/combat.ts`) et payé après : sans dotation, la garnison tirerait à sec dès
+ * la première salve, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
+ *
+ * Elle ne se réapprovisionne jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange
+ * pas* —, donc le chiffre est une réserve pour la saison et non un débit par heure.
+ *
+ * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
+ */
+export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;

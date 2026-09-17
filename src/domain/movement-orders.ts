@@ -39,6 +39,22 @@ export type MovementAim =
       readonly lat: number;
       readonly hostCountry: string;
     }
+  /**
+   * **Un objectif neutre**, et la seule cible du jeu qu'on attaque **sans l'avoir relevée** — c'est
+   * l'exception nommée de l'ADR 0024 §4, et elle tient parce que l'objectif est *public par
+   * nature* : il est annoncé à tous au lancement, il est sur la carte de tous, et son dépôt
+   * restant se lit. Il n'y a rien à percer.
+   *
+   * Ce que le brouillard garde est ce qui le tient : la garnison locale est une force posée comme
+   * une autre, et elle ne se relève qu'en portée. On sait où aller, pas ce qu'on y trouvera.
+   */
+  | {
+      readonly kind: 'objective';
+      readonly objectiveId: string;
+      readonly lon: number;
+      readonly lat: number;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'outpost';
       readonly outpostId: string;
@@ -63,8 +79,9 @@ export type MovementAim =
       readonly onLand: boolean;
       /**
        * **Le sol porte-t-il quelque chose que j'ai relevé ?** (ADR 0024 §4) — une installation
-       * relevée aujourd'hui, un objectif neutre le jour où ils existeront. C'est ce qui ouvre
-       * « attaquer », et rien d'autre : on n'attaque pas du vide.
+       * adverse relevée. C'est ce qui ouvre « attaquer » sur du sol, et rien d'autre : on
+       * n'attaque pas du vide. Un objectif neutre ne passe pas par ici — il est public, donc il
+       * est une visée à lui seul (`kind: 'objective'`).
        *
        * Il voyage avec la visée plutôt que d'être relu ici, pour la raison qui fait voyager
        * `coastal` : la règle doit répondre **sans base et sans carte** (ADR 0015), et le domaine
@@ -140,6 +157,10 @@ export type OrderRefusal =
   | 'POINT_TARGET_ONLY'
   | 'NOTHING_TO_ATTACK'
   | 'NOT_A_GARRISON_FOR'
+  /** **Une réserve se porte**, et seule l'infanterie porte : un raid de blindés sur un objectif
+   *  neutre en réduirait la garnison sans rien pouvoir rapporter. C'est le même mot que
+   *  l'expédition de pillage refuse (`PlunderRefusal`), parce que c'est la même raison. */
+  | 'INFANTRY_REQUIRED'
   | 'NOT_ORDERABLE';
 
 export type PlunderAim = {
@@ -277,6 +298,8 @@ export function refusalOf(
      */
     case 'attack':
       if (mine(aim, column)) return 'FRIENDLY_TARGET';
+      if (aim.kind === 'objective' && !column.roles.includes('infantry'))
+        return 'INFANTRY_REQUIRED';
       return nothingToAttack(aim) ?? closedGate(aim, column);
     /** A raid marches at an outpost and at nothing else: it comes to put a point out of
      *  service, and a region has no point to disable. */
@@ -350,8 +373,11 @@ export function refusalDetails(aim: MovementAim, column: Column): Record<string,
 /** Ce qu'un assaut trouverait, tel que le relevé du joueur le donne — jamais l'état du plateau. */
 const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
   switch (aim.kind) {
+    /** `objective` est **l'exception nommée** de l'ADR 0024 §4 : un objectif est public par
+     *  nature, donc il n'y a pas de relevé à exiger. Voir la note de `MovementAim`. */
     case 'camp':
     case 'outpost':
+    case 'objective':
       return null;
     case 'point':
     case 'region':

@@ -469,10 +469,49 @@ function written(notice: Notice): Written {
           lootWords(notice.lost),
         ),
       };
+    /**
+     * **Les trois dépêches publiques du jeu, et les seules** : tout le monde les reçoit à la même
+     * heure. La réserve signalée est *notable* — c'est une décision à prendre, pas une alarme —,
+     * la paire sans réserve et la réserve vidée sont des nouvelles qu'on lit à son heure.
+     *
+     * **Aucune ne nomme personne** : ni la garnison qui tient l'objectif, ni la main qui l'a vidé.
+     * La première est du brouillard, la seconde serait de l'information de position (ADR 0005).
+     */
+    case 'objectiveRevealed':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'objectiveRevealed',
+        text: said.objectiveRevealed(
+          fr.objectives.names[notice.objective] ?? notice.objective,
+          notice.regionName,
+          countryLabel(notice.hostCountry),
+        ),
+      };
+    case 'objectiveTaken':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'objectiveTaken',
+        text: said.objectiveTaken(
+          fr.objectives.names[notice.objective] ?? notice.objective,
+          countryLabel(notice.hostCountry),
+        ),
+      };
+    case 'objectiveGap':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'objectiveGap',
+        text: said.objectiveGap(notice.nations.map(nationName)),
+      };
   }
 }
 
-const lootWords = (loot: ResourceAmounts): string => {
+/** **Ce qu'une charge dit d'elle-même**, en toutes lettres. Exportée parce que le mât d'un
+ *  objectif neutre écrit son dépôt restant de la même façon : deux formats pour la même chose
+ *  se seraient désaccordés au premier arrondi. */
+export const lootWords = (loot: ResourceAmounts): string => {
   const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
   const entries = RESOURCES.filter((resource) => loot[resource] > 0).map(
     (resource) => `${number.format(loot[resource])} ${fr.resources[resource]}`,

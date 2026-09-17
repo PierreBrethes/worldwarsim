@@ -20,6 +20,8 @@ export type PictogramName =
   | 'replay'
   | 'doctrine'
   | 'intel'
+  /** Le tas de caisses des objectifs neutres : une réserve, jamais une possession. */
+  | 'supply'
   | 'journal';
 
 /** Two weights per pictogram: stripped for 20 px, detailed for 40 px. */

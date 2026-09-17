@@ -32,6 +32,7 @@ export const GAME_TABLES = [
   'stationedLoot',
   'movements',
   'outposts',
+  'objectives',
   'troops',
   'buildings',
   'resources',

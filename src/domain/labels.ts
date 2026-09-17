@@ -59,6 +59,25 @@ export type MapMarker =
       readonly seenMinutesAgo: number | null;
     }
   | {
+      /**
+       * **Un objectif neutre** (17/09/2026) — le seul marqueur du jeu qui n'appartienne à
+       * personne et que **tout le monde** voie : il est public par décision, pas par relevé.
+       * Aucune encre, aucune garnison, aucun effectif : ce qu'il porte est un nom de 1940, un
+       * palier, et ce qu'il reste au dépôt.
+       */
+      readonly kind: 'objective';
+      readonly id: string;
+      readonly objectiveId: string;
+      readonly lonLat: LonLat;
+      readonly name: string;
+      readonly tier: string;
+      /** La planche de l'archétype, `null` tant qu'elle manque — le cadre pointillé et son nom
+       *  prennent alors sa place, jamais une image cassée. */
+      readonly plate: string | null;
+      readonly depot: string;
+      readonly emptied: boolean;
+    }
+  | {
       readonly kind: 'outpost';
       readonly id: string;
       readonly lonLat: LonLat;
@@ -176,7 +195,7 @@ export type MapMarker =
  * One outpost pictogram whatever the specialization: three drawings for a distinction the
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
-export type LabelPictogram = 'outpost' | 'stack' | 'construction';
+export type LabelPictogram = 'outpost' | 'stack' | 'construction' | 'objective';
 
 /**
  * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
@@ -201,6 +220,7 @@ export type LabelType =
   | 'loot'
   | 'installation'
   | 'camp'
+  | 'objective'
   | 'outpost'
   | 'stack'
   | 'construction'
@@ -311,6 +331,17 @@ export type MapLabel = {
    */
   readonly camp: { readonly id: string; readonly medium: 'land' | 'sea' | 'air' } | null;
   /**
+   * **L'objectif neutre que ce mât porte** : ce qu'un clic gauche ouvre en cartouche et ce qu'un
+   * clic droit vise. Il n'a ni niveau ni garnison — la forme est ce qui tient la règle.
+   */
+  readonly objective: {
+    readonly id: string;
+    readonly name: string;
+    readonly tier: string;
+    readonly depot: string;
+    readonly emptied: boolean;
+  } | null;
+  /**
    * The garrison a click opens, for the one label that *is* troops: a pile posted on the map.
    * Same door as the widget's *stationnaire* card — one panel, one selection state, never a
    * second read-only sheet for the same pile.
@@ -339,6 +370,9 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   outpost: 3,
   /** Un camp relevé se lit avant un mât : c'est une force, et elle peut partir. */
   camp: 3,
+  /** **Un objectif se lit avant tout ce qui ne bouge pas** : c'est le seul endroit de la carte
+   *  où le jeu envoie tout le monde, et le manquer sous un mât serait manquer la partie. */
+  objective: 4,
   stack: 2,
   building: 1,
   /** Le mât d'un autre ne prend jamais la place du sien : à encombrement égal, c'est le joueur
@@ -395,7 +429,10 @@ function markerLabel(marker: MapMarker): MapLabel {
       marker.kind === 'deposit' ||
       marker.kind === 'loot' ||
       marker.kind === 'installation' ||
-      marker.kind === 'camp'
+      marker.kind === 'camp' ||
+      /** **Un objectif n'appartient à personne** : il n'a donc pas d'encre à porter, et c'est la
+       *  forme qui le dit — la couleur est un attribut de possession. */
+      marker.kind === 'objective'
         ? null
         : marker.ink,
     plate: null,
@@ -411,6 +448,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     building: null,
     installation: null,
     camp: null,
+    objective: null,
     station: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
@@ -472,6 +510,33 @@ function markerLabel(marker: MapMarker): MapLabel {
                 ? fr.camps.seenAt(asLocalTime(marker.since))
                 : fr.camps.lastKnown(asDuration(marker.seenMinutesAgo)),
           },
+        ],
+      };
+    /**
+     * **Un objectif neutre, tel qu'il est annoncé à tous** : son nom de 1940, le palier en toutes
+     * lettres, et ce qu'il reste au dépôt. **Le palier, jamais la composition** — le mot dit le
+     * risque, et ce qui tient l'objectif ne se sait qu'en s'en approchant.
+     */
+    case 'objective':
+      return {
+        ...common,
+        type: 'objective',
+        priority: PRIORITY.objective,
+        /** La planche gagne sur le signe, comme sur un mât de bâtiment ; le pictogramme prend sa
+         *  place tant qu'aucune planche n'est dessinée. */
+        pictogram: marker.plate === null ? 'objective' : null,
+        plate: marker.plate,
+        objective: {
+          id: marker.objectiveId,
+          name: marker.name,
+          tier: marker.tier,
+          depot: marker.depot,
+          emptied: marker.emptied,
+        },
+        hostCountry: null,
+        lines: [
+          { role: 'nature', text: marker.name },
+          { role: 'figures', text: marker.emptied ? fr.objectives.emptied : marker.depot },
         ],
       };
     /** **Un chantier ne se lit pas comme un point** : il n'a ni niveau ni métier tant qu'il
@@ -598,6 +663,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       id: arc.id,
       type: 'my-movement',
       priority: PRIORITY['my-movement'],
+      objective: null,
       washed: false,
       installation: null,
       camp: null,
@@ -645,6 +711,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       washed: true,
       installation: null,
       camp: null,
+      objective: null,
       anchor: { kind: 'movementHead', arc: arc.id },
       reach: null,
       ink: null,
@@ -689,6 +756,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     washed: false,
     installation: null,
     camp: null,
+    objective: null,
     anchor: { kind: 'movementHead', arc: arc.id },
     reach: null,
     ink: null,

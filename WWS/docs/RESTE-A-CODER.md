@@ -198,7 +198,20 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 10. **pillage-et-butin**, premier périmètre — *S4-S9 définis, arbitrages requis* — après 6, 7, 9.
     Capture de bâtiments et QG restent des chantiers ultérieurs ; récupération du butin
     par l’intercepteur incluse dans S6b.
-11. **objectifs-neutres** lot 1 — *prêt* — après 10 (réutilise `loot` et le retour).
+11. ~~objectifs-neutres~~ **lot 1 — livré le 17/09** : palette d'archétypes
+    (`OBJECTIVE_ARCHETYPES`), répartition par joueur (deux prises proches, un dur par paire de
+    voisins), siège **irrégulier** qui tient les garnisons locales, table `objectives`, prise au
+    combat et retour chargé par la mécanique du pillage, marqueur public et cartouche, rose
+    « attaquer » sans relevé (exception nommée en tête de l'ADR 0024 §4). ⚠ Trois points à
+    regarder au premier skirmish : **`OBJECTIVE_NEAR_KM` est passé de 1 000 à 1 500** — mesuré le
+    17/09 sur les huit capitales, à mille kilomètres de route Washington n'atteint aucun sol sans
+    siège et Tokyo n'en atteint qu'un ; **le dépôt ne part qu'en dégageant le terrain** (ADR 0014,
+    `winnerOf` : une passe, et rien debout en face), donc trois compagnies contre deux ne
+    suffisent pas, il faut une supériorité ; et la **munition de la garnison**
+    (`OBJECTIVE_AMMUNITION_PER_TROOP`) est une réserve de saison posée au doigt. Lot 2 — la
+    capture au seuil tenu — non fait, comme prévu.
+11bis. **objectifs-neutres lot 2** (capture au seuil tenu) — *à rédiger* — après 11 et la
+    décision sur le seuil tenu (12).
 12. **fin-de-saison-au-seuil-tenu** — *prêt, **remis à plus tard** (Pierre, 16/09 : « quand on
     aura mieux établi le gameplay »)*. ⚠ Avant de le donner : trancher le **sol national dans
     la part du théâtre** (`QUESTIONS.md` 🟠) — Royaume-Uni 232 régions contre Allemagne 16, le

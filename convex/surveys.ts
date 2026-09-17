@@ -28,6 +28,7 @@ import {
 import { heldOver } from './holding';
 import { regionsCoveredBy, regionsWithinReach } from './regionGeometry';
 import { movementsOf, outpostsOf, pointOf } from './movement/forces';
+import { seatsOf } from './seasons';
 import {
   allRegions,
   capitalRegionOf,
@@ -271,10 +272,7 @@ export async function surveyFoundation(
   );
   if (touched.length === 0) return 0;
 
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await seatsOf(ctx, seasonId);
 
   let written = 0;
   for (const seat of seats) {

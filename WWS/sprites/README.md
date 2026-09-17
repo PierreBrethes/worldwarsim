@@ -1,8 +1,9 @@
 # Sprites — pipeline
 
-Deux jeux d'assets passent par cette chaîne : les **unités**, une planche par nation, et les
-**bâtiments**, une planche unique de quinze visuels neutres. Les sections 1 à 6 décrivent les
-unités ; la section 7 dit ce que les bâtiments font différemment, et pourquoi.
+Plusieurs jeux d'assets passent par cette chaîne : les **unités**, une planche par nation, et
+trois planches uniques de visuels neutres — les **bâtiments**, les **ressources**, les
+**objectifs**. Les sections 1 à 6 décrivent les unités ; les sections 7, 8 et 9 disent ce que
+chacune des trois autres fait différemment, et pourquoi.
 
 ## Unités
 
@@ -452,3 +453,69 @@ sur `--desk` (`#0f0a04`), sous le plancher de 3:1 admis pour un pictogramme, ave
 quasi noirs. Sur fond de papier, aucun problème — c'est le fond de nuit qui l'avale. Le bandeau,
 qui est le seul fond sombre, applique `.resource-reserve` (`drop-shadow(0 0 1px var(--paper))`)
 aux **huit** icônes vectorielles : une exception par ressource serait une exception à maintenir.
+
+---
+
+## 9. Objectifs
+
+**Quatre planches, une par archétype d'`OBJECTIVE_ARCHETYPES` (`convex/constants.ts`)** — une
+réserve abandonnée, un convoi en panne, un dépôt de carburant, un arsenal irrégulier. Mêmes
+raisons que les bâtiments : un objectif pend au bout d'un mât, le portrait dit ce qu'on trouvera
+sur place, et il est **neutre** — il n'appartient à personne, donc il n'y a aucune encre
+nationale à poser dessus.
+
+```
+abandonedStores  stalledConvoy  fuelDump  irregularArsenal
+```
+
+```
+WWS/sprites/objectifs_clean/       les sources — PNG détourés par remove.bg, pleine résolution
+src/emblems/objectives/            l'optimisé — WebP recadrés et normalisés par la hauteur
+src/emblems/objectives/manifest.ts la table, une entrée par clé d'archétype
+```
+
+Les prompts de génération sont dans
+[`docs/prompts/images/objectifs.md`](../docs/prompts/images/objectifs.md), au gabarit des
+bâtiments : trois-quarts à ~60°, lumière haut-gauche, sujet entier et **base visible** — un sujet
+coupé en bas se lit comme une erreur au bout d'un mât.
+
+### La source vient de remove.bg, et `nettoyer-ombres.py` ne la touche pas
+
+Les quatre planches sont sorties de **remove.bg** : fond retiré, **aucune ombre**, ni diffuse ni
+opaque — contrôle fait sur fond clair. Elles vont **telles quelles** dans `objectifs_clean/`.
+
+C'est la règle déjà écrite au §2 pour les planches chinoise, italienne et japonaise, et le convoi
+en panne en est l'illustration : le critère diffus du script prend le **gréement** — bâches
+tendues, filins, haubans, tout ce qui est semi-transparent, sombre et loin de la masse — pour une
+ombre portée, et le retire. `nettoyer-ombres.py` reste réservé aux planches rendues sur fond vert
+ou sur plan de sol.
+
+### Optimisation : le régime des bâtiments
+
+```bash
+python WWS/sprites/optimiser.py --source WWS/sprites/objectifs_clean \
+                                --destination src/emblems/objectives --recadrer
+```
+
+`--recadrer` recadre sur la boîte englobante alpha puis normalise par la **hauteur** à
+`HAUTEUR_REFERENCE` = **160 px**, exactement comme les bâtiments (§7) — et pour la même raison :
+les deux se mêlent sur la même carte, au bout du même mât, à la même hauteur CSS. Une seconde
+référence donnerait aux objectifs un flou ou une netteté que leurs voisins n'ont pas.
+
+Le `noms.json` posé à côté des sources est dans la forme **clé → fichier** des ressources, et non
+dans celle des unités : les quatre sources portent déjà leur clé, la table ne fait que le dire
+explicitement et rendre le dossier auto-suffisant.
+
+Mesuré : 1,8 Mo de PNG → **54 Ko** de WebP, 11 à 17 Ko par objectif.
+
+### Le manifeste
+
+`OBJECTIVE_SPRITES` (`src/emblems/objectives/manifest.ts`) est indexé par **clé d'archétype**, et
+`objectives.test.ts` exige l'égalité exacte des deux jeux de clés : un archétype ajouté à la
+palette sans ligne ici est une erreur au chargement du test, pas un trou sur la carte. Une planche
+manquante s'écrit `null` — explicitement, jamais par omission — et `Plate.tsx` rend alors le cadre
+pointillé au nom de 1940. Les quatre sont dessinées depuis le 17/09 ; c'est une entrée de plus,
+une planche et trois phrases dans `fr.objectives` qui coûtent un archétype supplémentaire.
+
+Aucune teinte, comme les bâtiments (§7) — et ici la raison est plus forte encore : l'objectif est
+**public**, servi à tout le monde par `playerView.objectives`. Il n'y a personne à qui l'attribuer.

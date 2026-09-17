@@ -160,6 +160,9 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
     /** Un déploiement d'une version de retard n'en sert aucun : la carte ne pose alors aucun
      *  camp, ce qui est l'état d'avant l'ADR 0024 et jamais un camp inventé ici. */
     camps: server.camps ?? [],
+    /** Un déploiement d'une version en retard n'en pose aucun : la carte n'a pas de marqueur à
+     *  dessiner, et rien d'autre ne les lit. */
+    objectives: server.objectives ?? [],
     journal: journalDispatches(
       server.reports ?? [],
       server.season.reduction ?? null,

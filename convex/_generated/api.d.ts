@@ -32,6 +32,7 @@ import type * as movement_forces from "../movement/forces.js";
 import type * as movement_orders from "../movement/orders.js";
 import type * as movement_rest from "../movement/rest.js";
 import type * as movements from "../movements.js";
+import type * as objectives from "../objectives.js";
 import type * as outposts from "../outposts.js";
 import type * as passwords from "../passwords.js";
 import type * as players from "../players.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   "movement/orders": typeof movement_orders;
   "movement/rest": typeof movement_rest;
   movements: typeof movements;
+  objectives: typeof objectives;
   outposts: typeof outposts;
   passwords: typeof passwords;
   players: typeof players;

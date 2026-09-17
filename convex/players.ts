@@ -3,7 +3,7 @@ import { mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
-import { concludeSeason, isAtWar, playerOf, requirePlayable } from './seasons';
+import { concludeSeason, isAtWar, playerOf, requirePlayable, seatsOf } from './seasons';
 
 /**
  * **Il est là.** La seule écriture de présence du jeu, et elle n'a qu'un lecteur : le fondateur
@@ -57,10 +57,7 @@ export const reserveNation = mutation({
       return;
     }
     if (!NATIONS.includes(nation as (typeof NATIONS)[number])) fail('UNKNOWN_NATION');
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     const holder = present.find((entry) => entry.nation === nation);
     if (holder && holder._id !== player._id) {
       fail('NATION_TAKEN', { nation, nickname: holder.nickname });
@@ -133,10 +130,7 @@ export const surrender = mutation({
     const now = Date.now();
     await ctx.db.patch(player._id, { defeated: true });
 
-    const present = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const present = await seatsOf(ctx, season._id);
     const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);
 
     /**

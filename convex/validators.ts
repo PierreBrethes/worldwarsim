@@ -466,6 +466,42 @@ export const NOTICE = v.union(
     building: BUILDING_KEY,
     regionId: v.string(),
   }),
+  /**
+   * **Un objectif neutre, annoncé à tout le monde au lancement** (objectifs neutres, 17/09/2026).
+   * C'est le garde-fou de la proposition du 29/08 : un PVE que chacun découvre dans son coin fait
+   * farmer côte à côte, un PVE public fait converger. Ce qu'elle nomme est le lieu et l'archétype,
+   * jamais la garnison — on sait où aller, pas ce qu'on y trouvera.
+   *
+   * `objective` est la clé d'archétype, chaîne pour la raison que le schéma donne : la palette est
+   * une donnée.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('objectiveRevealed'),
+    objective: v.string(),
+    hostCountry: v.string(),
+    regionId: v.string(),
+  }),
+  /** **Le dépôt est vide**, et personne n'est nommé : qui l'a emporté est de l'information de
+   *  position, et le brouillard la garde (ADR 0005). Le preneur, lui, lit ses dépêches de butin. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('objectiveTaken'),
+    objective: v.string(),
+    hostCountry: v.string(),
+    regionId: v.string(),
+  }),
+  /**
+   * **Aucune réserve entre ces deux-là.** Une paire de voisins que la carte sépare — un océan, ou
+   * simplement aucune région qui soit un détour pour les deux — n'a pas d'objectif dur, et le
+   * silence se lirait comme un oubli. Les deux noms sont ceux des nations, publics comme le reste
+   * de la pose.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('objectiveGap'),
+    nations: v.array(v.string()),
+  }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('lootLost'),
@@ -582,6 +618,11 @@ const STORED_TARGET = v.union(
 export const ATTACK_TARGET = v.union(
   STORED_TARGET,
   v.object({ kind: v.literal('camp'), campId: v.id('campSightings') }),
+  /** **Un objectif neutre** se nomme de la même façon et pour la raison inverse : il n'est pas
+   *  stocké comme cible parce qu'il *est* un point — celui de sa région —, et c'est ce point que
+   *  la colonne marche. Ce qui reste sur le document est `movements.objectiveId`, qui dit
+   *  pourquoi elle y va. */
+  v.object({ kind: v.literal('objective'), objectiveId: v.id('objectives') }),
 );
 
 /**

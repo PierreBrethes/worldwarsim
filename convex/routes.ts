@@ -7,6 +7,8 @@ import {
   isCoastCell,
   isLandCell,
   extendRouteSearch,
+  routeDistanceKmAt,
+  routeDistanceKmField,
   truncateRouteSearch,
   KM_PER_UNIT,
 } from '../src/domain/routing';
@@ -169,4 +171,35 @@ export function hostAtPoint(point: LonLat): string {
  */
 export function hostAmongCountries(point: LonLat, adm0s: ReadonlySet<string>): string {
   return hostAmongAtRoutePoint(point, adm0s) ?? '';
+}
+
+/**
+ * **Combien de kilomètres de route séparent un point de chacune d'une liste de places**, en une
+ * seule fouille. C'est ce que la pose des objectifs neutres demande de chaque quartier général :
+ * un millier de régions candidates, et un Dijkstra par région serait mille Dijkstra.
+ *
+ * **Des kilomètres de route, jamais un vol d'oiseau** : ce que la règle borne est le trajet qu'une
+ * colonne fera, et la grille est le seul endroit qui le sache.
+ *
+ * Le mode dit ce que le monde relie : `'land'` un chemin qu'on marche, `'combined'` un chemin
+ * qu'on fait, l'eau comprise. Une place que le mode ne relie pas n'apparaît pas dans la réponse :
+ * l'absence dit « aucune route », et la règle place ailleurs (`planObjectives`).
+ */
+export function routeKmFrom(
+  from: LonLat,
+  places: ReadonlyArray<{ readonly id: string; readonly point: LonLat }>,
+  mode: 'land' | 'combined',
+  /** L'horizon de la fouille. Il n'est pas une commodité : borné à mille kilomètres le champ
+   *  coûte vingt millisecondes, sans borne cent vingt, et la pose entière tient dans la seconde
+   *  d'une mutation parce que son appelant sait toujours jusqu'où il a besoin de voir. */
+  maxKm?: number,
+): ReadonlyMap<string, number> {
+  grid ??= decodeGrid(gridAsset, world);
+  const field = routeDistanceKmField(grid, from, mode, maxKm);
+  const measured = new Map<string, number>();
+  for (const place of places) {
+    const kilometres = routeDistanceKmAt(grid, field, place.point, mode);
+    if (kilometres !== null) measured.set(place.id, kilometres);
+  }
+  return measured;
 }

@@ -153,6 +153,21 @@ export type ArcView =
  * `lastKnown` est le camp perdu de vue : `seenMinutesAgo` le date alors, et il vaut `null` tant
  * qu'une portée le couvre.
  */
+/**
+ * Un objectif neutre tel que **tout le monde** le lit. Le palier ne voyage pas en clair : il se
+ * relit de l'archétype (`OBJECTIVE_ARCHETYPES`), qui est la seule table du jeu à le porter — et
+ * la composition de la garnison, qu'elle porte aussi, ne sort jamais du serveur.
+ */
+export type ObjectiveView = {
+  readonly id: string;
+  readonly key: string;
+  readonly regionId: string;
+  readonly point: LonLat;
+  readonly status: 'standing' | 'taken';
+  /** Ce qu'il **reste** à prendre — public, comme l'objectif : c'est ce qui décide du détour. */
+  readonly depot: ResourceAmounts;
+};
+
 export type CampView = {
   readonly id: string;
   readonly point: LonLat;
@@ -565,7 +580,13 @@ export type DispatchKind =
   | 'lootLost'
   | 'lootRecovered'
   | 'lootCollected'
-  | 'lootDelivered';
+  | 'lootDelivered'
+  /** **Les objectifs neutres** (17/09/2026) : l'annonce au lancement, la paire que la carte
+   *  sépare, et le dépôt vidé. Les trois sont **publiques** — tout le monde les lit à la même
+   *  heure, et c'est ce qui les fait converger plutôt que farmer. */
+  | 'objectiveRevealed'
+  | 'objectiveGap'
+  | 'objectiveTaken';
 
 /**
  * **A line the journal owes the player and no engagement accounts for.** Each kind is written by
@@ -783,7 +804,22 @@ export type Notice =
       readonly regionName: string;
       readonly delivered: ResourceAmounts;
       readonly lost: ResourceAmounts;
-    };
+    }
+  | {
+      readonly kind: 'objectiveRevealed';
+      readonly at: number;
+      readonly objective: string;
+      readonly hostCountry: string;
+      readonly regionName: string;
+    }
+  | {
+      readonly kind: 'objectiveTaken';
+      readonly at: number;
+      readonly objective: string;
+      readonly hostCountry: string;
+      readonly regionName: string;
+    }
+  | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> };
 
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
@@ -1030,6 +1066,14 @@ export type PlayerView = {
   }>;
   readonly arcs: ReadonlyArray<ArcView>;
   readonly camps: ReadonlyArray<CampView>;
+  /**
+   * **Les objectifs neutres, entiers et pour tout le monde** (objectifs neutres, 17/09/2026) —
+   * la seule part de cette vue qui soit publique par décision plutôt que par relevé. Elle porte
+   * un lieu, un archétype et ce qu'il reste au dépôt ; **il n'y a pas de champ pour la garnison**,
+   * et c'est la forme qui tient la règle : on sait où aller, pas ce qu'on y trouvera. Ce qui la
+   * tient se relève comme toute force posée (ADR 0024 §1), dans `camps`.
+   */
+  readonly objectives: ReadonlyArray<ObjectiveView>;
   /** **La dernière édition parue, `null` avant la première.** Servie, jamais recalculée : c'est
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;

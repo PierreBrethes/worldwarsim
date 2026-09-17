@@ -1175,7 +1175,9 @@ describe('the foundation the season owes', () => {
       const view = await t.query(api.view.playerView, seat);
       expect(view.me.foundation).toEqual([]);
     }
-  });
+    /** Quatorze saisons lancées bout à bout, et chacune pose désormais ses objectifs
+     *  neutres (17/09) : le budget par défaut est celui d'un cas, pas d'une quinzaine. */
+  }, 60_000);
 
   /**
    * **What the season offers is not paid for in freedom** (ADR 0020 §10). The old global

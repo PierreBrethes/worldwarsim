@@ -252,7 +252,8 @@ async function surveyedIn(
  *  en sa position, et c'est cette position que le document garde (ADR 0024 §4). */
 export type AimTarget =
   | (Doc<'movements'>['target'] & { kind: 'region' | 'outpost' | 'point' | 'building' })
-  | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> };
+  | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
+  | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> };
 
 export async function aimOf(
   ctx: QueryCtx,
@@ -300,6 +301,34 @@ export async function aimOf(
         hostCountry: country,
       },
       target: { kind: 'point', point: camp.point },
+      point,
+      name: country,
+      host: country,
+    };
+  }
+  /**
+   * **Un objectif neutre se résout en sa position, et il n'y a rien à relever** (exception de
+   * l'ADR 0024 §4). C'est la vérité du plateau qui répond ici, et c'est légitime : l'objectif est
+   * public — annoncé à tous au lancement, servi à tous par `playerView.objectives` — donc le lire
+   * ne perce aucun brouillard. Ce que le brouillard garde est la garnison, et elle n'est pas ici.
+   *
+   * Un objectif déjà vidé reste une cible : sa garnison peut tenir encore, et rien n'oblige une
+   * colonne à venir pour le dépôt.
+   */
+  if (target.kind === 'objective') {
+    const objective = await ctx.db.get(target.objectiveId);
+    if (objective === null) fail('UNKNOWN_OBJECTIVE');
+    const point = pointOf(objective.point);
+    const country = hostAtPoint(point);
+    return {
+      aim: {
+        kind: 'objective',
+        objectiveId: objective._id,
+        lon: point[0],
+        lat: point[1],
+        hostCountry: country,
+      },
+      target: { kind: 'point', point: objective.point },
       point,
       name: country,
       host: country,
@@ -511,6 +540,11 @@ export async function march(
     ...(plunder === undefined
       ? {}
       : { plunder: { phase: 'outbound' as const, buildingId: plunder.buildingId } }),
+    /** **Pourquoi elle y va**, puisque la cible stockée n'est qu'un point : sans cette marque,
+     *  une attaque qui passe par là emporterait un dépôt que personne n'est venu chercher. */
+    ...(aim.aim.kind === 'objective'
+      ? { objectiveId: aim.aim.objectiveId as Id<'objectives'> }
+      : {}),
     ...movementCargoFields(cargo),
   });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

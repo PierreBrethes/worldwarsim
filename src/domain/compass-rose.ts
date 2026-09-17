@@ -119,6 +119,21 @@ export type CompassTarget =
     }
   | {
       /**
+       * **Un objectif neutre** (17/09/2026) : la seule cible du jeu qu'on vise **sans l'avoir
+       * relevée**, parce qu'elle est publique par nature — annoncée à tous, dessinée chez tous,
+       * son dépôt restant lisible. Une seule branche y mène, « attaquer », et le motif tient la
+       * place quand aucune colonne n'est armée : ce qui manque est une colonne, pas un droit.
+       */
+      readonly kind: 'objective';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly country: string | null;
+      readonly name: string;
+      /** Le palier en toutes lettres, pour le motif — jamais la composition de la garnison. */
+      readonly tier: string;
+    }
+  | {
+      /**
        * The exact private crate sighting selected under the pointer. **Son âge n'est pas ici** :
        * la rose ne marche pas vers une caisse, elle marche vers un relevé — la date se lit sur
        * le marqueur et sur son cartouche, et aucune branche n'en dépend.
@@ -788,6 +803,22 @@ function aim(
     ]);
   }
   /**
+   * **Un objectif neutre est une cible, et une seule branche y mène** : « attaquer ». Le refus
+   * vient de `refusalOf`, la fonction que la mutation relit — une colonne sans infanterie s'y
+   * voit dire pourquoi, jamais une branche grisée (ADR 0015).
+   */
+  if (target.kind === 'objective') {
+    return fanOf(target.name, view, column, [
+      {
+        kind: 'objective',
+        objectiveId: target.id,
+        lon: target.point[0],
+        lat: target.point[1],
+        hostCountry: target.country ?? '',
+      },
+    ]);
+  }
+  /**
    * **A mast of one's own is a destination in aim** (decision 64b): the column comes to enter
    * the building, and the fan holds « entrer en garnison » or the motive that keeps it out —
    * « un blindé n'entre pas dans une mine » — never a grey branch. Only the player's buildings
@@ -880,6 +911,9 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',
+  /** Ce que la carte ne dit pas : une réserve se **porte**, et un mât de blindés n'a rien pour
+   *  la rapporter. Le motif vient avant le sol vide, qui se lit, lui. */
+  'INFANTRY_REQUIRED',
   /** En dernier : la carte montre un sol vide, et c'est précisément ce que le joueur y lit. */
   'NOTHING_TO_ATTACK',
   'NOT_ORDERABLE',
@@ -1049,6 +1083,19 @@ function build(target: CompassTarget, view: PlayerView): Fan {
     case 'loot':
     case 'camp':
       return { kicker: '', name: '', actions: [], refusal: null };
+    /**
+     * **L'objectif est la seule cible qui parle au repos**, et c'est la conséquence de sa
+     * publicité : il n'y a rien à cacher, donc le silence ne protégerait rien — il laisserait
+     * seulement le joueur devant une réserve annoncée sans rien qui dise comment on la prend.
+     * Pas de branche pour autant : ce qui manque est une colonne, et le motif le dit.
+     */
+    case 'objective':
+      return {
+        kicker: `${fr.objectives.markerKicker} · ${target.tier}`,
+        name: target.name,
+        actions: [],
+        refusal: fr.objectives.needsAColumn,
+      };
     /**
      * Unarmed, a point is just the land under it: one builds on a region and looks at a country,
      * and a coordinate is neither. Over water there is nothing to offer and the fan stays shut,

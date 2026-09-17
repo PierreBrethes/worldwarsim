@@ -9,9 +9,10 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
-import { carryCapacityOf } from '../../src/domain/loot';
+import { carryCapacityOf, trimLootToCapacity } from '../../src/domain/loot';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { isNation } from '../../src/domain/nations';
+import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { buildingAt, playerBuildings } from '../buildings';
 import {
@@ -47,6 +48,7 @@ import {
   type TroopAddress,
 } from './forces';
 import { surveyFromPoint } from '../surveys';
+import { seatsOf } from '../seasons';
 import { pacedMinutes } from './orders';
 import { creditToStorage } from '../resources';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
@@ -166,25 +168,31 @@ export async function engageAt(
     /** **An outpost nobody garrisons falls to whoever walks up to it.** No engagement to file,
      *  but the point still goes out of service — the only thing the raid came for. */
     if (type === 'raid' && outpost !== null) await deactivate(ctx, outpost, now, null);
+    /** **Une réserve que plus personne ne garde revient à qui s'y présente** — comme un
+     *  avant-poste sans garnison tombe sur celui qui marche jusqu'à lui. Le premier l'a réduite,
+     *  le suivant emporte ce qu'elle n'a pas pu porter : c'est la règle du reste laissé au sol. */
+    const carried = await homewardCargoOf(ctx, movement);
+    const spoils = await emptyObjective(ctx, movement, marching, carried, now);
     /** No pass, therefore no account, therefore nothing in the journal — a player came back to
-     *  "rien à signaler" after the longest march of his season. */
+     *  "rien à signaler" after the longest march of his season. **Sauf s'il ramène quelque
+     *  chose** : les dépêches du butin racontent alors le voyage, et « n'a trouvé personne »
+     *  les contredirait. */
     const installation = await surveyedInstallationAt(ctx, movement);
-    await ctx.db.insert('notices', {
-      playerId: movement.playerId,
-      at: now,
-      kind: 'columnFoundNothing',
-      movementType: type,
-      hostCountry: movement.hostCountry,
-      troops: marching.length,
-      ...(installation === undefined ? {} : { installation }),
-    });
-    await walkHome(
-      ctx,
-      { winners: marching, beaten: [] },
-      pointOf(movement.to),
-      now,
-      await homewardCargoOf(ctx, movement),
-    );
+    if (spoils.length === 0) {
+      await ctx.db.insert('notices', {
+        playerId: movement.playerId,
+        at: now,
+        kind: 'columnFoundNothing',
+        movementType: type,
+        hostCountry: movement.hostCountry,
+        troops: marching.length,
+        ...(installation === undefined ? {} : { installation }),
+      });
+    }
+    await walkHome(ctx, { winners: marching, beaten: [] }, pointOf(movement.to), now, [
+      ...carried,
+      ...spoils,
+    ]);
     return;
   }
 
@@ -219,8 +227,86 @@ export async function engageAt(
       (outcome) => outcome.id === troop._id && outcome.state !== 'destroyed',
     ),
   );
-  const cargo = [...(await homewardCargoOf(ctx, movement)), ...routedCargo];
+  const carried = await homewardCargoOf(ctx, movement);
+  const spoils =
+    engagement.winner === 'attacker'
+      ? await emptyObjective(ctx, movement, survivors, carried, now)
+      : [];
+  const cargo = [...carried, ...spoils, ...routedCargo];
   await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now, cargo);
+}
+
+/**
+ * **Le dépôt de l'objectif, pris par qui vient de réduire sa garnison** — borné par ce que la
+ * colonne peut porter, et **le reste reste au sol** : c'est la phrase de la règle, et c'est ce
+ * qui fait qu'une réserve trop grosse pour un seul attire le suivant plutôt que de le priver.
+ *
+ * Ce qui part de là est une charge ordinaire : le retour chargé, sa livraison à la frontière et
+ * ses dépêches sont la mécanique du pillage (`convex/cargo.ts`), sans une ligne de plus.
+ *
+ * `objectiveId` sur le mouvement est ce qui ouvre la porte, et pas la position : une attaque qui
+ * passe au même endroit n'emporte pas un dépôt que personne n'est venu chercher.
+ */
+async function emptyObjective(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  survivors: ReadonlyArray<Doc<'troops'>>,
+  carried: ReadonlyArray<HomewardCargo>,
+  now: number,
+): Promise<ReadonlyArray<HomewardCargo>> {
+  const objectiveId = movement.objectiveId;
+  if (objectiveId === undefined || survivors.length === 0) return [];
+  const objective = await ctx.db.get(objectiveId);
+  if (objective === null || objective.seasonId !== movement.seasonId) return [];
+
+  const held = cargoTotal(carried.flatMap((load) => load.loads));
+  const free =
+    carryCapacityOf(
+      survivors.map((troop) => ({
+        role: troop.role,
+        strength: troop.currentStrength,
+        nominalStrength: troop.nominalStrength,
+      })),
+      CARRY_CAPACITY_BY_ROLE,
+    ) - RESOURCES.reduce((sum, key) => sum + held[key], 0);
+  const taken = trimLootToCapacity(objective.depot, free);
+  if (!RESOURCES.some((key) => taken[key] > 0)) return [];
+
+  const left = { ...objective.depot };
+  for (const key of RESOURCES) left[key] = Math.max(0, left[key] - taken[key]);
+  const emptied = !RESOURCES.some((key) => left[key] > 0);
+  await ctx.db.patch(objectiveId, {
+    depot: left,
+    ...(emptied ? { status: 'taken' as const, takenAt: now } : {}),
+  });
+  /** **Le dépôt est vide, et personne n'est nommé** : qui l'a emporté est une information de
+   *  position, que le brouillard garde (ADR 0005). Le preneur, lui, lit ses dépêches de butin. */
+  if (emptied) await announceTaken(ctx, objective, now);
+
+  return [
+    {
+      playerId: movement.playerId,
+      troopIds: survivors.map((troop) => troop._id),
+      loads: [{ loot: taken }],
+    },
+  ];
+}
+
+async function announceTaken(
+  ctx: MutationCtx,
+  objective: Doc<'objectives'>,
+  now: number,
+): Promise<void> {
+  for (const seat of await seatsOf(ctx, objective.seasonId)) {
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'objectiveTaken',
+      objective: objective.key,
+      hostCountry: regionFacts(objective.regionId)?.country ?? '',
+      regionId: objective.regionId,
+    });
+  }
 }
 
 /**

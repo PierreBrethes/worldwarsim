@@ -284,6 +284,36 @@ export const fr = {
   },
 
   /**
+   * **Les objectifs neutres** (objectifs neutres, 17/09/2026). Habillage 1940, et le vocabulaire
+   * est imposé : *garnison locale*, *dépôt*, *forces irrégulières* — jamais « barbares », jamais
+   * « camp de barbares » (contraintes de corpus de la proposition du 29/08).
+   *
+   * Les noms sont indexés par clé d'archétype parce que la palette est une **donnée** : ajouter
+   * une entrée à `OBJECTIVE_ARCHETYPES` est une ligne ici, jamais une branche.
+   */
+  objectives: {
+    names: {
+      abandonedStores: 'réserves abandonnées',
+      stalledConvoy: 'convoi immobilisé',
+      fuelDump: 'dépôt de carburant',
+      irregularArsenal: 'arsenal irrégulier',
+    } as Readonly<Record<string, string | undefined>>,
+    /** **Le palier se dit, la composition jamais** : c'est tout ce que le brouillard accorde. */
+    tiers: {
+      easy: 'forces irrégulières légères',
+      medium: 'forces irrégulières organisées',
+      hard: 'forces irrégulières retranchées',
+    } as Readonly<Record<string, string | undefined>>,
+    markerKicker: 'objectif',
+    badgeKicker: 'objectif neutre',
+    depot: 'dépôt restant',
+    emptied: 'dépôt épuisé',
+    /** Ce que la popin ne dira pas, dit une fois — jumeau de la phrase du camp. */
+    unknownGarrison: 'Ce qui la tient ne se sait qu’en s’en approchant.',
+    needsAColumn: 'une colonne doit y marcher',
+  },
+
+  /**
    * **Ce que fait une spécialisation, en une phrase et avec son rayon.** L'invité choisissait à
    * l'aveugle : deux mots sur une carte, aucun chiffre, aucun effet. Le rayon est écrit ici
    * plutôt que deviné parce que c'est le seul chiffre qui décide où l'on plante l'avant-poste.
@@ -446,7 +476,7 @@ export const fr = {
       d.role === undefined
         ? 'seule l’infanterie fonde un avant-poste'
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
-    INFANTRY_REQUIRED: () => 'le pillage exige au moins une troupe d’infanterie',
+    INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
     NO_AIRFIELD_AT_DEPARTURE: () =>
@@ -465,6 +495,7 @@ export const fr = {
       )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
+    UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
     /** **La même lecture que le métier scellé** : une colonne s'appuie sur ce relais, son allure
      *  est déjà comptée, et le point ne peut ni changer de métier ni disparaître sous elle. */
     OUTPOST_SERVING: () =>
@@ -949,6 +980,9 @@ export const fr = {
       lootRecovered: 'charge reprise',
       lootCollected: 'caisse ramassée',
       lootDelivered: 'butin livré',
+      objectiveRevealed: 'réserve signalée',
+      objectiveGap: 'aucune réserve',
+      objectiveTaken: 'réserve épuisée',
     } satisfies Record<DispatchKind, string>,
     /** Un avant-poste mis hors service par un raid. **Désactivé, jamais pris** (ADR 0004) — et
      *  pas de tampon « détruit » tant que rien sur le plateau ne compte les raids vers elle. */
@@ -1046,6 +1080,14 @@ export const fr = {
           : lost === 'rien'
             ? `Charge livrée en ${region} : ${delivered}.`
             : `Charge livrée en ${region} : ${delivered} ; ${lost} perdu faute de place.`,
+      /** **Le lieu et le nom, jamais la garnison** : on sait où aller, pas ce qu'on y trouvera. */
+      objectiveRevealed: (objective: string, region: string, country: string) =>
+        `${objective} — ${region}, ${country}.`,
+      /** Personne n'est nommé : qui l'a vidée est de l'information de position (ADR 0005). */
+      objectiveTaken: (objective: string, country: string) =>
+        `${objective} — ${country} : le dépôt est épuisé.`,
+      objectiveGap: (nations: ReadonlyArray<string>) =>
+        `Aucune réserve signalée entre ${nations[0] ?? '—'} et ${nations[1] ?? '—'}.`,
       constructionFinished: (building: string, region: string, level: number) =>
         level <= 1
           ? `${building} en ${region} entre en service.`
