@@ -473,8 +473,13 @@ couleur** — régler à l'ancienne, écrire, rapporter, relever le sol, dépêc
 répondre, alors que la fondation était le seul geste du jeu sans contre-coup possible.
 
 **Et le monde pose des réserves que personne ne garde pour soi — 17/09/2026.** Au lancement, un
-travail immédiat (`convex/objectives.place`, planifié par `launch` pour ne pas mettre une seconde
-de Dijkstra sur le geste qui ouvre la partie) pose des **objectifs neutres** sur des régions de
+travail immédiat pose des **objectifs neutres** — et ce travail est une **action** en trois temps
+(`convex/objectives.ts`), parce que le Dijkstra multi-cibles par QG ne tient pas dans le plafond
+d'une seconde d'une mutation sur le VPS : `placementInput` lit les sièges et leurs QG,
+`place` mesure et décide hors transaction (690 à 710 ms à chaud sur huit sièges), `commit` écrit
+le siège irrégulier, les objectifs, les garnisons et les dépêches en une transaction — et refuse
+de rien poser si la saison porte déjà un objectif, ce qui rend deux exécutions inoffensives. Ils
+tombent sur des régions de
 pays sans siège : **deux par joueur** à moins de `OBJECTIVE_NEAR_KM` (1 500) de route de son QG et
 séparées de `OBJECTIVE_SPREAD_KM`, plus **un dur par paire de voisins** — la région qui minimise
 la plus grande des deux distances de route, à `OBJECTIVE_HARD_MIN_KM` au moins et à trois quarts

@@ -448,12 +448,14 @@ export const launch = mutation({
     });
 
     /**
-     * **Les objectifs neutres se posent dans leur propre travail** (objectifs neutres,
-     * 17/09/2026). Le lancement porte déjà la dotation de chacun ; y ajouter un champ de
-     * distances par quartier général et une route par paire de voisins, c'est mettre la seconde
-     * d'une mutation sur le geste qui ouvre la partie. Ce que la séparation achète est une saison
-     * **jouable avant que les dépêches tombent** : le plateau s'ouvre, les réserves paraissent
-     * une seconde plus tard.
+     * **Les objectifs neutres se posent dans leur propre travail, et ce travail est une action**
+     * (objectifs neutres, 17/09/2026). Le lancement porte déjà la dotation de chacun ; y ajouter
+     * un champ de distances par quartier général et une route par paire de voisins, c'est mettre
+     * **plus** que la seconde d'une mutation sur le geste qui ouvre la partie — mesuré à 700 ms à
+     * chaud sur huit sièges, donc largement au-delà à froid sur le VPS. Une action n'a pas ce
+     * plafond ; elle n'a pas de transaction non plus, d'où `objectives.commit` derrière elle. Ce
+     * que la séparation achète est une saison **jouable avant que les dépêches tombent** : le
+     * plateau s'ouvre, les réserves paraissent une seconde plus tard.
      */
     await ctx.scheduler.runAfter(0, internal.objectives.place, { seasonId: season._id });
   },

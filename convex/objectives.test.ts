@@ -72,9 +72,10 @@ async function launchedSeason(
 }
 
 /** La pose, appelée à la main : le lancement la planifie, et un test n'a pas à courir après un
- *  travail pour lire ce qu'il a écrit. C'est la même mutation dans les deux cas. */
+ *  travail pour lire ce qu'il a écrit. C'est la même action dans les deux cas — elle lit, elle
+ *  mesure, puis elle appelle `commit`, et c'est la chaîne entière que ces cas exercent. */
 async function place(t: ReturnType<typeof boot>, seat: Seat): Promise<void> {
-  await t.mutation(internal.objectives.place, { seasonId: seat.seasonId });
+  await t.action(internal.objectives.place, { seasonId: seat.seasonId });
 }
 
 const objectivesIn = (t: ReturnType<typeof boot>): Promise<Array<Doc<'objectives'>>> =>
@@ -346,6 +347,40 @@ describe('the neutral objectives', () => {
       const first = (await objectivesIn(t)).length;
       await place(t, seats[0]!);
       expect((await objectivesIn(t)).length).toBe(first);
+    }, 60_000);
+
+    /**
+     * **C'est la base qui arbitre la seconde pose, pas l'appelant.** L'action lit avant de
+     * mesurer et s'arrête là si la saison est servie ; mais deux actions parties ensemble ont
+     * toutes deux lu une saison vide, et seule la transaction de `commit` les départage. Un test
+     * qui ne passerait que par l'action ne prouverait donc pas l'idempotence.
+     */
+    it('writes nothing on a second commit, whatever the first one wrote', async () => {
+      const t = boot();
+      const seats = await launchedSeason(t, ['france', 'ussr']);
+      const seasonId = seats[0]!.seasonId;
+      const placements = [{ key: 'abandonedStores', regionId: HAINAUT }];
+      await t.mutation(internal.objectives.commit, { seasonId, placements, gaps: [] });
+      const after = await objectivesIn(t);
+      expect(after).toHaveLength(1);
+
+      await t.mutation(internal.objectives.commit, {
+        seasonId,
+        placements: [{ key: 'fuelDump', regionId: 'BEL-3476' }],
+        gaps: [{ left: 'x', right: 'y' }],
+      });
+      expect(await objectivesIn(t)).toHaveLength(1);
+      expect((await objectivesIn(t))[0]!._id).toBe(after[0]!._id);
+      /** Ni garnison de plus, ni siège irrégulier de plus, ni dépêche de plus. */
+      const seatsHeld = await t.run(async (ctx) =>
+        ctx.db
+          .query('players')
+          .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+          .collect(),
+      );
+      expect(seatsHeld.filter((held) => held.irregular === true)).toHaveLength(1);
+      expect(await noticesOf(t, seats[0]!, 'objectiveRevealed')).toHaveLength(1);
+      expect(await noticesOf(t, seats[0]!, 'objectiveGap')).toHaveLength(0);
     }, 60_000);
 
     it('purges them with the season it belongs to', async () => {

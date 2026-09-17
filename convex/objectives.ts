@@ -15,7 +15,8 @@
  */
 
 import { v } from 'convex/values';
-import { internalMutation } from './_generated/server';
+import { internal } from './_generated/api';
+import { internalAction, internalMutation, internalQuery } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
@@ -52,40 +53,71 @@ export const seasonObjectives = (
     .collect();
 
 /**
- * **La pose, dans son propre travail** (le prompt l'autorisait, la mesure l'a confirmé) : quatre
- * champs de distance bornés et quelques routes coûtent quelques centaines de millisecondes, et
- * le lancement n'a pas à les porter. Ce que ça achète est une saison **jouable avant que les
- * dépêches tombent** — le plateau s'ouvre, les objectifs paraissent une seconde plus tard.
+ * **Ce que la pose a besoin de lire dans la base**, et rien de plus : les sièges, leur point de
+ * départ, et le germe de la saison. C'est une query parce que c'est une lecture — et parce que
+ * l'action qui suit n'a pas de base sous la main, seulement le droit d'en appeler une.
  *
- * **Idempotente** : une saison qui porte déjà un objectif ne se repose pas. Un travail repris —
- * ou une seconde planification — ne doublerait donc ni les dépôts ni les garnisons.
+ * `null` dit « il n'y a rien à poser », et il le dit pour les trois raisons qui se confondraient
+ * dans une liste vide : la saison n'est pas lancée, elle porte déjà ses objectifs, ou personne
+ * n'y est assis.
  */
-export const place = internalMutation({
+export const placementInput = internalQuery({
   args: { seasonId: v.id('seasons') },
   handler: async (ctx, { seasonId }) => {
     const season = await ctx.db.get(seasonId);
-    if (season === null || season.status !== 'launched') return;
-    if ((await seasonObjectives(ctx, seasonId)).length > 0) return;
+    if (season === null || season.status !== 'launched') return null;
+    if ((await seasonObjectives(ctx, seasonId)).length > 0) return null;
 
     const seats = (await seatsOf(ctx, seasonId)).filter((seat) => isNation(seat.nation));
-    if (seats.length === 0) return;
+    if (seats.length === 0) return null;
 
-    const anchors = new Map<string, LonLat>();
+    const placing: Array<{ id: string; hq: LonLat }> = [];
     for (const seat of seats) {
       const point = await headquartersOf(ctx, seat);
-      if (point !== null) anchors.set(seat._id, point);
+      if (point !== null) placing.push({ id: seat._id as string, hq: point });
     }
-    const placing = seats
-      .filter((seat) => anchors.has(seat._id))
-      .map((seat) => ({ id: seat._id as string, hq: anchors.get(seat._id)! }));
+    return {
+      seed: season.seed,
+      seats: placing,
+      /** Les nations des sièges **tous** — la dépêche d'une paire sans réserve nomme deux
+       *  joueurs, y compris celui dont le quartier général n'a pas été trouvé. */
+      homes: seats.flatMap((seat) => (isNation(seat.nation) ? [ADM0_BY_NATION[seat.nation]] : [])),
+    };
+  },
+});
+
+/**
+ * **La pose est une action, et c'est une contrainte de production, pas un goût** : un champ de
+ * distances de route par quartier général et une route par paire de voisins ne tiennent pas dans
+ * la seconde d'une mutation sur le VPS. Une action n'a pas de plafond d'une seconde — elle n'a
+ * pas de transaction non plus, d'où le découpage : **lire** (`placementInput`), **calculer** ici,
+ * **écrire** en une transaction (`commit`).
+ *
+ * Ce que le découpage ne change pas : le calcul reste **reproductible**. Le tirage sort du germe
+ * de la saison et non de `Math.random`, donc deux exécutions de l'action sur la même saison
+ * proposent la même carte — et `commit` refuse la seconde de toute façon.
+ *
+ * **Mesuré : 690 à 710 ms sur huit sièges** (18 objectifs posés — 8 champs combinés bornés à
+ * `OBJECTIVE_NEAR_KM`, 28 paires pesées à vol d'oiseau, 4 retenues et leurs 8 champs terrestres
+ * bornés à la route entre les deux quartiers généraux). C'est **chaud, sur une machine de
+ * développement** : c'est 70 % du plafond d'une mutation avant même que le VPS et un isolat sans
+ * JIT s'en mêlent — la même erreur d'échelle que les « 31 ms » de `buildGrid` (`convex/routes.ts`),
+ * qui valaient des secondes à froid. Une mutation n'était pas serrée, elle était déjà perdue.
+ */
+export const place = internalAction({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }): Promise<void> => {
+    const input = await ctx.runQuery(internal.objectives.placementInput, { seasonId });
+    if (input === null) return;
 
     /** Le sol candidat est lu **une fois** : les 4 589 régions se filtrent en une passe, et la
      *  mesure le relit à chaque siège et à chaque paire. */
-    const candidates = neutralGround(seats);
+    const candidates = neutralGround(new Set(input.homes));
     const places = placesOf(candidates);
+    const seats = input.seats.map((seat) => ({ id: seat.id, hq: seat.hq as LonLat }));
 
     const plan = planObjectives({
-      seats: placing,
+      seats,
       candidates,
       archetypes: OBJECTIVE_ARCHETYPES,
       rules: {
@@ -95,7 +127,7 @@ export const place = internalMutation({
         hardFairness: OBJECTIVE_HARD_FAIRNESS,
         hardMax: OBJECTIVE_HARD_MAX,
       },
-      seed: season.seed,
+      seed: input.seed,
       measure: {
         /**
          * **Ce qu'un siège peut aller chercher**, et il peut embarquer : la mesure est
@@ -128,15 +160,45 @@ export const place = internalMutation({
     });
 
     if (plan.placed.length === 0 && plan.pairsWithoutObjective.length === 0) return;
+    await ctx.runMutation(internal.objectives.commit, {
+      seasonId,
+      placements: plan.placed.map((entry) => ({ key: entry.key, regionId: entry.regionId })),
+      gaps: plan.pairsWithoutObjective.map(([left, right]) => ({ left, right })),
+    });
+  },
+});
+
+/**
+ * **L'écriture, en une transaction** : le siège irrégulier, les objectifs, leurs garnisons et les
+ * dépêches. Ce qu'elle ne fait pas est aussi important — elle ne mesure rien, donc elle tient
+ * dans le budget d'une mutation quel que soit le nombre de sièges.
+ *
+ * **Idempotente** : une saison qui porte déjà un objectif ne se repose pas. Deux actions
+ * planifiées, un travail repris, un appel à la main — aucun ne double un dépôt ni une garnison,
+ * et c'est la base qui l'arbitre, jamais l'appelant.
+ */
+export const commit = internalMutation({
+  args: {
+    seasonId: v.id('seasons'),
+    placements: v.array(v.object({ key: v.string(), regionId: v.string() })),
+    gaps: v.array(v.object({ left: v.string(), right: v.string() })),
+  },
+  handler: async (ctx, { seasonId, placements, gaps }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season === null || season.status !== 'launched') return;
+    if ((await seasonObjectives(ctx, seasonId)).length > 0) return;
+
+    const seats = (await seatsOf(ctx, seasonId)).filter((seat) => isNation(seat.nation));
+    if (seats.length === 0) return;
 
     const now = Date.now();
     const written: Array<Doc<'objectives'>> = [];
-    if (plan.placed.length > 0) {
+    if (placements.length > 0) {
       /** **Le siège irrégulier naît avec la première garnison**, jamais avant : un théâtre où la
        *  carte n'a rien placé n'a personne à faire tenir, et une place vide de plus serait une
        *  ligne que tout comptage devrait apprendre à ignorer pour rien. */
       const irregularId = await irregularSeat(ctx, seasonId);
-      for (const entry of plan.placed) {
+      for (const entry of placements) {
         const archetype = objectiveArchetype(entry.key);
         const region = regionFacts(entry.regionId);
         if (archetype === null || region === null) continue;
@@ -162,7 +224,7 @@ export const place = internalMutation({
           regionId: objective.regionId,
         });
       }
-      for (const [left, right] of plan.pairsWithoutObjective) {
+      for (const { left, right } of gaps) {
         await ctx.db.insert('notices', {
           playerId: seat._id,
           at: now,
@@ -185,10 +247,7 @@ const placesOf = (
  * seul point qu'on connaisse d'une nation avant qu'elle ait rien bâti (`CAPITAL_REGION`), et une
  * garnison neutre dessus rendrait injouable une entrée en guerre tardive.
  */
-function neutralGround(seats: ReadonlyArray<Doc<'players'>>): ReadonlyArray<ObjectiveCandidate> {
-  const homes = new Set(
-    seats.flatMap((seat) => (isNation(seat.nation) ? [ADM0_BY_NATION[seat.nation]] : [])),
-  );
+function neutralGround(homes: ReadonlySet<string>): ReadonlyArray<ObjectiveCandidate> {
   const capitals = new Set(NATIONS.map((nation) => capitalRegionOf(nation)));
   return allRegions().flatMap((region) =>
     homes.has(region.country) || capitals.has(region.id)
