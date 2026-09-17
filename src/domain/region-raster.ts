@@ -1,7 +1,7 @@
 import type { LonLat } from './geo';
-import { crossesAntimeridian, shortestLongitudeGap } from './geo';
+import { crossesAntimeridian, distanceKm, shortestLongitudeGap } from './geo';
 import type { PlanePoint } from './region-crossing';
-import { projectLonLat } from './routing';
+import { lonLatAtProjected, projectLonLat } from './routing';
 import type { World } from './world';
 
 /**
@@ -396,4 +396,138 @@ export function goalCellsOfRegions(
     else at.push({ regionId: region.id, point: region.point });
   }
   return goals;
+}
+
+/**
+ * **Ce qu'un disque touche, région par région** (révision du 17/09/2026 de l'ADR 0020 §1). La
+ * règle du pôle tenait une région quand *son point* — son pôle d'inaccessibilité — tombait dans
+ * le rayon, et hors d'Europe ce point est loin : mesuré avant la décision, 969 régions sur 4 589
+ * ont le pôle de leur voisine à plus de 120 km (Brésil 25/27, États-Unis 43/51, Canada 13/13). Le
+ * cercle ne tenait rien au-delà de la région du point, quel que soit le niveau.
+ *
+ * Ici une région est touchée dès qu'**une de ses cellules** est dans le rayon, et la valeur est la
+ * distance à la **plus proche** de ses cellules : c'est elle que le litige compare, là où il
+ * comparait une distance au pôle. La cellule du point est à distance nulle, ce qui **absorbe la
+ * précision du 04/09** — un avant-poste tient toujours la région où il se tient — sans seconde
+ * branche et sans seconde constante.
+ *
+ * Le parcours est celui de la **boîte englobante** du disque et jamais des 1,33 M de cellules :
+ * quelques milliers au plus à 240 km. La latitude est constante par ligne — une seule bissection
+ * de projection par ligne, la longitude d'une cellule se lit ensuite en proportion.
+ *
+ * **Une région plus petite qu'une cellule** n'est pas dans le canal : elle est touchée quand sa
+ * cellule d'ancrage l'est, à la distance de cette cellule. C'est la même bascule que
+ * `cellsOfRegion`, et pour la même raison — l'ancrage dit *par où l'on entre*, pas *ce qui est là*.
+ */
+export function coveredByDisc(
+  raster: RegionRaster,
+  centre: LonLat,
+  reachKm: number,
+): ReadonlyMap<string, number> {
+  const covered = new Map<string, number>();
+  const touch = (regionId: string | null, km: number) => {
+    if (regionId === null) return;
+    const known = covered.get(regionId);
+    if (known === undefined || km < known) covered.set(regionId, km);
+  };
+  /** Le sol sous ses pieds, avant toute mesure : la cellule du point est à distance nulle. */
+  touch(regionAtCell(raster, cellAt(raster, centre)), 0);
+  if (reachKm <= 0) return covered;
+
+  const centerX = (raster.sphere.minX + raster.sphere.maxX) / 2;
+  const kmOfCell = new Map<number, number>();
+  for (const row of rowsWithin(raster, centre[1], reachKm)) {
+    const y = raster.sphere.minY + (row + 0.5) * raster.step;
+    const latitude = lonLatAtProjected(raster.outline, raster.sphere, [centerX, y])[1];
+    const halfWidth = projectLonLat(raster.outline, raster.sphere, [180, latitude])[0] - centerX;
+    if (halfWidth <= 0) continue;
+    const span = longitudeSpan(latitude, reachKm);
+    for (const column of columnsWithin(raster, halfWidth, centre[0], span)) {
+      const longitude = Math.max(
+        -180,
+        Math.min(
+          180,
+          ((raster.sphere.minX + (column + 0.5) * raster.step - centerX) / halfWidth) * 180,
+        ),
+      );
+      const km = distanceKm(centre, [longitude, latitude]);
+      if (km > reachKm) continue;
+      const cell = row * raster.width + column;
+      kmOfCell.set(cell, km);
+      touch(regionAtCell(raster, cell), km);
+    }
+  }
+
+  for (const [regionId, cell] of raster.anchorOfRegion) {
+    const km = kmOfCell.get(cell);
+    if (km !== undefined) touch(regionId, km);
+  }
+  return covered;
+}
+
+/** Le degré de longitude rétrécit avec la latitude : sous les pôles le disque fait le tour, et
+ *  la ligne entière est dans la boîte plutôt qu'un arc mal enroulé. */
+function longitudeSpan(latitude: number, reachKm: number): number {
+  const shrink = Math.cos((latitude * Math.PI) / 180);
+  if (shrink <= 0) return 180;
+  return Math.min(180, reachKm / (111.32 * shrink));
+}
+
+function rowsWithin(
+  raster: RegionRaster,
+  latitude: number,
+  reachKm: number,
+): ReadonlyArray<number> {
+  const degrees = reachKm / 111.32;
+  const edges = [Math.max(-90, latitude - degrees), Math.min(90, latitude + degrees)].map(
+    (edge) => projectLonLat(raster.outline, raster.sphere, [0, edge])[1],
+  );
+  /** La projection descend quand la latitude monte : les deux bornes se rangent, elles ne se
+   *  supposent pas. */
+  const rowOf = (y: number) => (y - raster.sphere.minY) / raster.step - 0.5;
+  const first = Math.max(0, Math.floor(rowOf(Math.min(...edges))));
+  const last = Math.min(raster.height - 1, Math.ceil(rowOf(Math.max(...edges))));
+  const rows: number[] = [];
+  for (let row = first; row <= last; row += 1) rows.push(row);
+  return rows;
+}
+
+/**
+ * Les colonnes d'une ligne, **enroulées d'est en ouest par le bord du cadre et non par le
+ * tampon** : la projection rétrécit avec la latitude, de sorte que le méridien 180 n'est pas la
+ * dernière colonne de la ligne mais le bord du globe dessiné. Enrouler modulo la largeur ferait
+ * sortir un disque posé sur l'antiméridien par les coins vides du cadre — il perdrait la moitié
+ * de ce qu'il touche, ce qui est exactement ce qu'on vient de corriger ailleurs.
+ */
+function columnsWithin(
+  raster: RegionRaster,
+  halfWidth: number,
+  longitude: number,
+  span: number,
+): ReadonlyArray<number> {
+  const centerX = (raster.sphere.minX + raster.sphere.maxX) / 2;
+  const xOf = (lon: number) => centerX + (lon / 180) * halfWidth;
+  const arcs: Array<readonly [number, number]> =
+    span >= 180
+      ? [[-180, 180]]
+      : longitude - span < -180
+        ? [
+            [-180, longitude + span],
+            [longitude - span + 360, 180],
+          ]
+        : longitude + span > 180
+          ? [
+              [longitude - span, 180],
+              [-180, longitude + span - 360],
+            ]
+          : [[longitude - span, longitude + span]];
+
+  const columnOf = (at: number) => (at - raster.sphere.minX) / raster.step - 0.5;
+  const columns: number[] = [];
+  for (const [west, east] of arcs) {
+    const first = Math.max(0, Math.floor(columnOf(xOf(west))));
+    const last = Math.min(raster.width - 1, Math.ceil(columnOf(xOf(east))));
+    for (let column = first; column <= last; column += 1) columns.push(column);
+  }
+  return columns;
 }

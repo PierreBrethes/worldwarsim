@@ -5,16 +5,18 @@ import { distanceKm, type LonLat } from './geo';
  * (ADR 0004) — par le joueur dont un avant-poste vivant la couvre, ou par la nation dont elle
  * est le sol d'origine.
  *
- * **Un avant-poste tient d'abord la région où il se tient**, quelle que soit sa taille
- * (précision du 04/09), puis celles dont le point tombe dans son rayon. Le rayon reste métrique
- * — on ajoute l'évidence qu'il oubliait : une région se mesure à son pôle d'inaccessibilité, et
- * celui d'une région sibérienne est à trois cents kilomètres de la côte où l'on plante.
+ * **Tenu par le disque, plus par le pôle** (révision du 17/09/2026) : une région est couverte dès
+ * qu'une de ses **cellules** est dans le rayon (`coveredByDisc`, ADR 0023), et non quand son pôle
+ * d'inaccessibilité y tombe. Le pôle d'une région géante est à des centaines de kilomètres de sa
+ * frontière — 969 régions sur 4 589 avaient celui de leur voisine à plus de 120 km — de sorte que
+ * le cercle ne tenait rien au-delà de la région du point, quel que soit le niveau. La précision du
+ * 04/09 (« un point tient d'abord la région où il se tient ») est **absorbée** : sa cellule est à
+ * distance nulle, donc la règle la donne sans branche à part.
  *
- * **Le rayon de contrôle est le rayon de construction** (`outpostReachKm`), et il arrive porté
- * par chaque point : *là où je peux bâtir est là où je tiens*. Une seconde constante serait une
- * deuxième règle à apprendre pour le même geste, et l'ADR l'interdit nommément. Il suit le
- * niveau depuis le 31/08, donc il ne peut plus être un paramètre unique : deux points de niveaux
- * différents ne couvrent pas le même cercle.
+ * **Le rayon de contrôle est le rayon de construction** (`outpostReachKm`), et il n'entre plus
+ * ici : l'appelant le mesure une fois par point et tend la couverture. *Là où je peux bâtir est
+ * là où je tiens* — la vue lit la **même** fonction pour offrir le sol (`convex/view.ts`), sans
+ * quoi le serveur accepterait ce que l'écran refuserait.
  *
  * Rien n'est stocké de tout cela, jamais : la couleur se recalcule depuis les avant-postes
  * debout à l'instant où on la demande — même contrat que la capacité militaire
@@ -32,16 +34,13 @@ export type ControlledRegion = {
 export type ControlOutpost = {
   /** L'identité du propriétaire, telle que l'appelant la nomme — le domaine n'en sait rien. */
   readonly owner: string;
-  readonly point: LonLat;
-  /** Ce que ce point-là porte, lu sur son niveau par l'appelant (`outpostReachKm`). */
-  readonly reachKm: number;
   /**
-   * **La région où il se tient** — `null` quand l'appelant ne la connaît pas. Elle est tenue
-   * quelle que soit sa taille (précision de l'ADR 0020 du 04/09) : le rayon reste métrique, on
-   * ajoute l'évidence qu'il oubliait. Une région sibérienne a son point à trois cents kilomètres
-   * de sa côte, et un avant-poste planté dedans ne tenait pas même le sol sous ses pieds.
+   * **Ce que son disque touche**, et la distance à la cellule la plus proche de chaque région
+   * (`coveredByDisc`). Le rayon et le point sont déjà dedans : les mesurer une seconde fois ici
+   * ferait de la portée une règle à deux endroits, et c'est exactement ce que la révision du
+   * 17/09 a retiré.
    */
-  readonly regionId: string | null;
+  readonly covers: ReadonlyMap<string, number>;
   /**
    * **Hors service, il ne tient plus rien** (ADR 0020 §7). Un avant-poste désactivé par un raid
    * décolore sa zone pendant toute la désactivation — c'est le premier retour visuel d'un
@@ -92,35 +91,32 @@ export function heldRegions({
       held.set(region.id, home);
       continue;
     }
-    const holder = nearestHolder(region, outposts);
+    const holder = nearestHolder(region.id, outposts);
     if (holder !== null) held.set(region.id, holder);
   }
   return held;
 }
 
 /**
- * Le plus proche propriétaire à portée, `null` s'il n'y en a aucun **ou** si deux se disputent
- * la région à la même distance au kilomètre près.
+ * Le plus proche propriétaire, `null` s'il n'y en a aucun **ou** si deux se disputent la région à
+ * la même distance au kilomètre près.
  *
- * **Un point posé dans la région est à distance nulle d'elle**, quoi que dise son pôle
- * d'inaccessibilité : c'est ainsi que la précision du 04/09 entre dans la règle, sans seconde
- * branche et sans seconde constante. Le départage suit — deux points adverses plantés dans la
- * même région sont à égalité exacte, donc personne ne la tient, ce que la règle dit déjà.
+ * La distance comparée est celle de la **cellule la plus proche** de la région (`coveredByDisc`),
+ * là où elle était celle du pôle : deux points adverses plantés dans la même région sont tous
+ * deux à zéro, donc à égalité exacte, donc personne ne la tient — ce que la règle du litige dit
+ * déjà, sans exception ajoutée.
  *
  * **Un point hors service ne concourt pas** (§7), et il ne dispute donc rien non plus : la
  * région qu'il tenait revient au voisin qui la couvre, adverse compris. C'est exactement ce
  * qu'un raid vient chercher.
  */
-function nearestHolder(
-  region: ControlledRegion,
-  outposts: ReadonlyArray<ControlOutpost>,
-): string | null {
+function nearestHolder(regionId: string, outposts: ReadonlyArray<ControlOutpost>): string | null {
   let best: { owner: string; km: number } | null = null;
   let disputed = false;
   for (const outpost of outposts) {
     if (outpost.disabled) continue;
-    const km = outpost.regionId === region.id ? 0 : distanceKm(outpost.point, region.point);
-    if (km > outpost.reachKm) continue;
+    const km = outpost.covers.get(regionId);
+    if (km === undefined) continue;
     if (best === null || km < best.km) {
       best = { owner: outpost.owner, km };
       disputed = false;
@@ -171,61 +167,12 @@ export const seatInk = (rank: number): string => SEAT_INKS[rank % SEAT_INKS.leng
  * Trois états d'une région, et le premier n'est pas une couleur : **vierge** (jamais observée,
  * absente de la réponse), **relevée** (observée à une date, possiblement fausse depuis),
  * **à jour** (couverte à l'instant par une portée du joueur, ou son propre sol).
- */
-
-/** Un détecteur posé, tel que le relevé le lit : un point et une portée, jamais ce qu'il est.
- *  Une troupe, une station, un avant-poste ne se distinguent en rien ici — ils regardent. */
-export type Observer = {
-  readonly point: LonLat;
-  readonly radiusKm: number;
-  /** **La région où il se tient**, couverte quelle que soit sa taille — `null` pour tout
-   *  détecteur dont l'appelant ne sait pas le sol, ce qu'une troupe posée et une halte de trajet
-   *  sont : le serveur ne tient aucun polygone, seul un avant-poste nomme sa région. */
-  readonly regionId: string | null;
-};
-
-/**
- * **Ce qu'un jeu de portées couvre**, et rien de ce qui s'y trouve : la couverture dit où l'on
- * voit, jamais ce qu'on y voit. Les deux se croisent chez l'appelant, qui est le seul à avoir le
- * droit de tenir la vérité en main.
  *
- * Le tri par latitude n'est pas une optimisation gratuite : un relevé de trajet porte plusieurs
- * dizaines de portées contre les 4 589 régions cuites, et une bande de latitude retire d'un coup
- * ce qu'aucun rayon terrestre ne peut atteindre. Elle est seule à filtrer — un encadrement en
- * longitude devrait franchir l'antiméridien, et un mauvais enroulement se lirait comme un trou
- * dans la carte plutôt que comme un bug.
+ * **Ce qu'une portée couvre ne se mesure plus ici** (révision du 17/09) : c'est la même question
+ * de sol que la couleur, donc la même fonction — le disque sur le raster (`coveredByDisc`, lu par
+ * `regionsCoveredBy`). Deux géométries pour le même sol feraient qu'un joueur tiendrait l'Ontario
+ * sans jamais en recevoir la ligne de relevé qui le lui montre.
  */
-export function coveredRegions(
-  regions: ReadonlyArray<ControlledRegion>,
-  observers: ReadonlyArray<Observer>,
-): ReadonlySet<string> {
-  const covered = new Set<string>();
-  if (observers.length === 0) return covered;
-
-  /** Le sol qu'un détecteur occupe, avant toute mesure : la bande de latitude ci-dessous
-   *  retirerait la région même d'un point dont le pôle est loin au nord. */
-  const standing = new Set<string>();
-  for (const { regionId } of observers) if (regionId !== null) standing.add(regionId);
-
-  const degrees = (km: number) => km / 111.32;
-  const south = Math.min(...observers.map(({ point, radiusKm }) => point[1] - degrees(radiusKm)));
-  const north = Math.max(...observers.map(({ point, radiusKm }) => point[1] + degrees(radiusKm)));
-
-  for (const region of regions) {
-    if (standing.has(region.id)) {
-      covered.add(region.id);
-      continue;
-    }
-    const latitude = region.point[1];
-    if (latitude < south || latitude > north) continue;
-    for (const observer of observers) {
-      if (distanceKm(observer.point, region.point) > observer.radiusKm) continue;
-      covered.add(region.id);
-      break;
-    }
-  }
-  return covered;
-}
 
 /**
  * **Les points où un trajet relève.** Une colonne voit le couloir qu'elle a marché, pas les

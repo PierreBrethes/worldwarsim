@@ -12,7 +12,7 @@
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { coveredRegions, surveyStops, type Observer } from '../src/domain/control';
+import { surveyStops } from '../src/domain/control';
 import type { LonLat } from '../src/domain/geo';
 import type { UnitRole } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
@@ -26,6 +26,7 @@ import {
   outpostReachKm,
 } from './constants';
 import { heldOver } from './holding';
+import { regionsCoveredBy, regionsWithinReach } from './regionGeometry';
 import { movementsOf, outpostsOf, pointOf } from './movement/forces';
 import {
   allRegions,
@@ -33,7 +34,6 @@ import {
   homeCountryOf,
   pointOfBuilding,
   regionFacts,
-  regionOfOutpost,
   type RegionFacts,
 } from './regions';
 
@@ -54,6 +54,13 @@ import {
  * Une troupe en marche ne relève pas d'ici : elle porte encore son adresse, mais elle n'y est
  * pas. C'est son trajet qui relève, à l'arrivée.
  */
+/**
+ * **Un détecteur posé, tel que le relevé du sol le lit** : un point et une portée, jamais ce
+ * qu'il est. Une troupe, une station, un avant-poste ne se distinguent en rien ici — ils
+ * regardent, et c'est leur disque qui dit le sol qu'ils relèvent (`regionsCoveredBy`).
+ */
+export type Observer = { readonly point: LonLat; readonly radiusKm: number };
+
 export async function standingObserversOf(
   ctx: QueryCtx,
   playerId: Id<'players'>,
@@ -67,7 +74,6 @@ export async function standingObserversOf(
     observers.push({
       point: pointOf(outpost.point),
       radiusKm: outpostReachKm(outpost.level),
-      regionId: regionOfOutpost(outpost),
     });
   }
 
@@ -76,7 +82,7 @@ export async function standingObserversOf(
     if (building.key !== 'listening') continue;
     const stand = pointOfBuilding(building);
     if (stand !== null) {
-      observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM, regionId: null });
+      observers.push({ point: stand, radiusKm: LISTENING_STATION_RADIUS_KM });
     }
   }
 
@@ -109,11 +115,7 @@ export async function standingObserversOf(
       }
     }
     if (point !== null) {
-      observers.push({
-        point,
-        radiusKm: detectionRangeOf([troop.role]),
-        regionId: null,
-      });
+      observers.push({ point, radiusKm: detectionRangeOf([troop.role]) });
     }
   }
 
@@ -147,7 +149,7 @@ export async function fileSurvey(
   over: ReadonlyArray<RegionFacts> = allRegions(),
 ): Promise<number> {
   if (observers.length === 0) return 0;
-  const covered = coveredRegions(over, observers);
+  const covered = regionsCoveredBy(observers);
   if (covered.size === 0) return 0;
 
   const player = await ctx.db.get(playerId);
@@ -218,7 +220,7 @@ export const surveyFromPoint = (
   point: LonLat,
   at: number,
   radiusKm = DETECTION_RANGE_KM.infantry,
-): Promise<number> => fileSurvey(ctx, playerId, [{ point, radiusKm, regionId: null }], at);
+): Promise<number> => fileSurvey(ctx, playerId, [{ point, radiusKm }], at);
 
 /**
  * **Ce qu'une colonne a vu du couloir qu'elle vient de marcher**, relevé à l'arrivée et pas au
@@ -240,11 +242,7 @@ export const surveyAlongRoute = async (
   return fileSurvey(
     ctx,
     movement.playerId,
-    surveyStops(movement.points.map(pointOf), radiusKm).map((point) => ({
-      point,
-      radiusKm,
-      regionId: null,
-    })),
+    surveyStops(movement.points.map(pointOf), radiusKm).map((point) => ({ point, radiusKm })),
     at,
   );
 };
@@ -256,21 +254,21 @@ export const surveyAlongRoute = async (
  * il verrait le drapeau se planter.
  *
  * Le balayage est borné des deux côtés : huit sièges au plus, et les seules régions que le
- * nouveau point peut avoir touchées — `reachKm` est le rayon **de ce point-là**, lu sur son
- * niveau par l'appelant qui vient de le planter, et `regionId` la région où il se plante, qui
- * change de main quelle que soit sa taille (précision du 04/09). Sans elle, un point sibérien
- * ne faisait bouger le relevé de personne, pas même celui de son fondateur.
+ * nouveau point peut avoir touchées — **son disque**, la même mesure que la couleur
+ * (`regionsWithinReach`, révision du 17/09 de l'ADR 0020 §1). La région où il se plante y est à
+ * distance nulle : elle n'a plus à être passée à part, ce qu'un point sibérien exigeait tant que
+ * la règle se mesurait au pôle.
  */
 export async function surveyFoundation(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   point: LonLat,
   reachKm: number,
-  regionId: string | null,
   at: number,
 ): Promise<number> {
-  const reached = coveredRegions(allRegions(), [{ point, radiusKm: reachKm, regionId }]);
-  const touched = allRegions().filter((region) => reached.has(region.id));
+  const touched = [...regionsWithinReach(point, reachKm).keys()].flatMap(
+    (regionId) => regionFacts(regionId) ?? [],
+  );
   if (touched.length === 0) return 0;
 
   const seats = await ctx.db

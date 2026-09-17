@@ -27,6 +27,37 @@ suppose une cible qui vaille le trajet, le troisième arrive après que la parti
 
 ### 1. La couleur suit l'avant-poste, elle ne prend pas la région
 
+> **Révision du 17/09/2026 — tenu par le disque, plus par le pôle.** Une région est tenue dès
+> qu'**une de ses cellules** (le raster de l'[ADR 0023](0023-geographie-serveur-raster.md)) tombe
+> dans le rayon du point, et non plus quand son *pôle d'inaccessibilité* y tombe. La précision du
+> 04/09 ci-dessous est **absorbée** : la cellule du point est à distance nulle, donc un avant-poste
+> tient la région où il se tient sans que la règle ait une seconde branche.
+>
+> Ce qui l'a fait réviser : mesuré avant la décision, **969 régions sur 4 589** ont le pôle de leur
+> voisine à plus de 120 km — le Brésil 25 sur 27, les États-Unis 43 sur 51, le Canada 13 sur 13.
+> Hors d'Europe, le rayon ne tenait donc rien au-delà de la région du point, quel que soit le
+> niveau : le cercle était dessiné sur la carte et ne servait à rien. Constat de Pierre, un
+> avant-poste posé côté Québec dont le disque mordait largement sur l'Ontario sans rien y tenir.
+>
+> **Le cas est accepté, et il est la décision** : un point posé en lisière tient les géantes qu'il
+> touche — Ontario *et* Québec depuis Gatineau, l'Alberta *et* la Saskatchewan depuis Fort
+> McMurray, dont la frontière court à 84 km quand son pôle est à 659. Là où les régions sont
+> petites, la règle ne change presque rien : mesuré depuis Paris, 19 régions au disque contre 13
+> au pôle au niveau 1, 40 contre 35 au niveau 3. Le §3 tient tel quel — on compte toujours des
+> régions — et le découpage des géantes à la cuisson reste au Registre 31, pour le prochain wipe.
+>
+> Le litige change d'objet sans changer de règle : entre deux points adverses, la région revient à
+> celui dont le point est **le plus proche de la cellule la plus proche** de cette région ; à
+> égalité au kilomètre, personne. Deux points plantés dans la même région y sont tous deux à zéro,
+> donc à égalité, donc personne — ce que la règle disait déjà.
+>
+> Une seule fonction mesure (`coveredByDisc`, `src/domain/region-raster.ts`), une seule porte la
+> sert côté serveur (`regionsWithinReach`, mémoïsée par point et par rayon), et **trois lecteurs**
+> la lisent : la couleur (`convex/holding.ts`), le sol qu'on peut bâtir (`convex/view.ts`) et le
+> relevé du sol (`convex/surveys.ts`, §5). Sans quoi un joueur tiendrait l'Ontario sans jamais
+> recevoir la ligne de relevé qui le lui montre, ou le verrait tenu sans pouvoir y bâtir — *là où
+> je tiens est là où je peux bâtir* n'est une phrase vraie que si c'est la même mesure.
+
 Un avant-poste colore les régions dont le point tombe dans **son rayon** (`outpostReachKm`)
 autour du sien — le rayon où il donne déjà le droit de bâtir (ADR 0015).
 
@@ -67,7 +98,8 @@ risque, sans munitions — et le problème de départ n'est pas résolu.
 
 L'unité de score est **la région**, jamais le kilomètre carré, et le rayon de contrôle est
 **métrique**. Les régions admin-1 du monde réel ont des tailles très inégales : le même avant-poste
-colore huit régions au Benelux et une en Sibérie.
+colore huit régions au Benelux et deux ou trois en Sibérie — et c'est toujours moins qu'au Benelux
+(chiffre revu le 17/09 : au pôle, il n'en colorait qu'une, celle où il se tenait).
 
 C'est voulu. La densité administrative réelle fabrique les points chauds sans qu'on ait à dessiner
 un théâtre artificiel : l'Europe de l'Ouest vaut cher, les grands vides ne rapportent rien, donc

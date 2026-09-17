@@ -10,7 +10,7 @@ import { fail } from './errors';
 import { homeGroundsOf, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
 import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
-import { allRegions, regionOfOutpost } from './regions';
+import { allRegions } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { credit } from './resources';
 import { playerOf, requirePlayable } from './seasons';
@@ -62,7 +62,6 @@ export const standOutpost = internalMutation({
       outpost.seasonId,
       pointOf(outpost.point),
       outpostReachKm(outpost.level),
-      regionOfOutpost(outpost),
       at,
     );
     await ctx.db.insert('notices', {

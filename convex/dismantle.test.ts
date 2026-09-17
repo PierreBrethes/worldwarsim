@@ -4,7 +4,7 @@ import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { buildCost, outpostReachKm } from './constants';
-import { regionFacts, regionOfOutpost } from './regions';
+import { regionFacts } from './regions';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -59,14 +59,7 @@ async function plant(
     });
     /** Le sol neuf entre dans les relevés comme la fondation l'écrit : sans lui, la carte du
      *  joueur ignore une couleur que la vérité lui donne (ADR 0020 §5). */
-    await surveyFoundation(
-      ctx,
-      player.seasonId,
-      region.point,
-      outpostReachKm(level),
-      regionOfOutpost(ground),
-      Date.now(),
-    );
+    await surveyFoundation(ctx, player.seasonId, region.point, outpostReachKm(level), Date.now());
     return outpostId;
   });
 }

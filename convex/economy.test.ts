@@ -1793,8 +1793,10 @@ describe('the placements a site carries', () => {
   const ALSO_NEAR = 'DZA-2163'; // Annaba, 57 km away
   const SOUK_AHRAS = 'DZA-2222'; // 66 km away
   const GUELMA = 'DZA-2218'; // 76 km away
-  /** Skikda, 133 km : la première voisine que les 120 km d'un point neuf n'atteignent pas. */
-  const OUT_OF_REACH = 'DZA-2166';
+  /** Jijel, 158 km de la première de ses cellules : la voisine que le disque d'un point neuf
+   *  n'atteint pas (révision du 17/09 — Skikda, son ancienne doublure, est à 72 km du point et
+   *  n'était hors d'atteinte que par son pôle). */
+  const OUT_OF_REACH = 'DZA-2165';
 
   const budgetOf = (
     view: {

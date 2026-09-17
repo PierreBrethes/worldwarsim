@@ -5,7 +5,7 @@ import type { Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { SEAT_INKS } from '../src/domain/control';
 import { outpostReachKm } from './constants';
-import { regionFacts, regionOfOutpost } from './regions';
+import { regionFacts } from './regions';
 import schema from './schema';
 import { surveyFoundation, surveyFromPoint } from './surveys';
 import { modules } from './test.setup';
@@ -22,12 +22,18 @@ const PARIS = 'FRA-5333';
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310'; // Romanian oil, nobody's home country
 const RUHR = 'DEU-1572'; // German ground, far out of any Romanian reach
-/** **Une région immense, et un point dedans loin de son pôle d'inaccessibilité** : Fort McMurray
- *  se tient à 378 km du point que `region-index.json` donne à l'Alberta, trois fois la portée
- *  d'un avant-poste neuf. Sa voisine la Saskatchewan a le sien à 659 km. */
+/**
+ * **Une région immense, et un point dedans loin de son pôle d'inaccessibilité** : Fort McMurray
+ * se tient à 378 km du point que `region-index.json` donne à l'Alberta, trois fois la portée d'un
+ * avant-poste neuf. La frontière de la Saskatchewan, elle, est à 84 km — le 110e méridien — alors
+ * que son pôle est à 659 km. Les deux mesures se contredisent sur ce point-là, et c'est ce qui a
+ * fait réviser la règle le 17/09 : le disque tient la voisine, le pôle ne tenait rien.
+ */
 const ALBERTA = 'CAN-632';
 const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
 const SASKATCHEWAN = 'CAN-631';
+/** La Colombie-Britannique commence à plus de 600 km à l'ouest : aucune cellule dans le rayon. */
+const BRITISH_COLUMBIA = 'CAN-633';
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
@@ -82,14 +88,7 @@ async function plant(
       disabledUntil: null,
       immuneUntil: null,
     });
-    await surveyFoundation(
-      ctx,
-      player.seasonId,
-      point,
-      outpostReachKm(1),
-      regionOfOutpost(ground),
-      Date.now(),
-    );
+    await surveyFoundation(ctx, player.seasonId, point, outpostReachKm(1), Date.now());
     return outpostId;
   });
 }
@@ -229,10 +228,11 @@ describe('an outpost colours what it reaches', () => {
 });
 
 /**
- * **La précision du 04/09** : une région se mesure à son pôle d'inaccessibilité, et celui d'une
- * région grande comme l'Alberta est à 378 km de l'endroit où l'on plante. Un avant-poste ne
- * tenait donc même pas le sol sous ses pieds — le constat de la partie du 04/09, en Extrême-Orient
- * soviétique.
+ * **Le disque, et non le pôle** (révision du 17/09 de l'ADR 0020 §1). Une région se mesurait à son
+ * pôle d'inaccessibilité, et celui d'une région grande comme l'Alberta est à 378 km de l'endroit
+ * où l'on plante : la précision du 04/09 lui avait donné le sol sous ses pieds, sans rien pouvoir
+ * pour la voisine dont la frontière court à 84 km. Elle est absorbée ici — la cellule du point est
+ * à distance nulle, donc la même règle rend les deux.
  */
 describe('an outpost holds the region it stands in', () => {
   it('colours it from the foundation, whatever the distance to its point', async () => {
@@ -257,14 +257,50 @@ describe('an outpost holds the region it stands in', () => {
     expect(await regionIdsOf(t, seat, 'Pierre')).toContain(ALBERTA);
   });
 
-  /** La règle métrique ne bouge pas : on ajoute l'évidence qu'elle oubliait, et rien d'autre. */
-  it('leaves the neighbouring region, whose point is out of the radius, to nobody', async () => {
+  /**
+   * **La voisine qu'on touche est tenue, celle qu'on ne touche pas ne l'est pas** : la Saskatchewan
+   * commence à 84 km du point et son pôle est à 659 — sous l'ancienne règle elle n'était à
+   * personne, et le rayon ne servait à rien hors d'Europe. La Colombie-Britannique, à plus de
+   * 600 km, reste hors de tout.
+   */
+  it('holds the neighbour the disc touches, and nothing past it', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, ALBERTA, 'CAN');
 
-    expect(await regionIdsOf(t, seat, 'Pierre')).not.toContain(SASKATCHEWAN);
-    expect(await knownOf(t, seat, SASKATCHEWAN)).toBeNull();
+    expect(await regionIdsOf(t, seat, 'Pierre')).toContain(SASKATCHEWAN);
+    expect(await knownOf(t, seat, SASKATCHEWAN)).toMatchObject({
+      holder: 'Pierre',
+      state: 'current',
+    });
+    expect(await regionIdsOf(t, seat, 'Pierre')).not.toContain(BRITISH_COLUMBIA);
+    expect(await knownOf(t, seat, BRITISH_COLUMBIA)).toBeNull();
+  });
+});
+
+/**
+ * **Une mesure, deux lecteurs** (révision du 17/09 de l'ADR 0020 §1). « Là où je tiens est là où
+ * je peux bâtir » n'est une phrase vraie que si la couleur et le sol offert sortent de la même
+ * fonction : `heldOver` et la vue lisent tous deux `regionsWithinReach`. Deux géométries — le
+ * disque d'un côté, le pôle de l'autre — laisseraient le joueur voir une région à sa couleur sans
+ * y trouver la moindre icône de construction, ce qui est exactement ce qui se passait avant.
+ */
+describe('la couleur et le sol à bâtir ne peuvent pas diverger', () => {
+  it('sert à bâtir chaque région que la carte lui donne', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await plant(t, seat, FORT_MCMURRAY, ALBERTA, 'CAN');
+
+    const held = await regionIdsOf(t, seat, 'Pierre');
+    const view = await t.query(api.view.playerView, seat);
+    const buildable = new Set(view.me.regions.map((region) => region.id));
+
+    /** Le sol canadien du point : ni sa nation, ni celle de personne — tout ce qu'il y tient, il
+     *  le tient par le disque, et c'est tout ce que ce cas compare. */
+    const byTheDisc = held.filter((regionId) => regionId.startsWith('CAN-'));
+    expect(byTheDisc).toContain(ALBERTA);
+    expect(byTheDisc).toContain(SASKATCHEWAN);
+    for (const regionId of byTheDisc) expect(buildable.has(regionId)).toBe(true);
   });
 });
 

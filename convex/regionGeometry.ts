@@ -1,6 +1,7 @@
 import type { LonLat } from '../src/domain/geo';
 import {
   cellsOfRegion,
+  coveredByDisc,
   decodeRegionRaster,
   firstRegionEntry,
   goalCellsOfRegions,
@@ -76,3 +77,59 @@ export const routeCellsOfRegion = (regionId: string): ReadonlyArray<number> =>
  */
 export const isRouteEntryPoint = (point: LonLat, regionId: string): boolean =>
   isRegionBorderCell(rasterOf(), point, regionId);
+
+/**
+ * **Ce qu'un disque d'avant-poste touche** (révision du 17/09/2026 de l'ADR 0020 §1) : les régions
+ * dont une cellule tombe dans le rayon, et la distance à la plus proche. C'est la **seule** porte
+ * de cette mesure côté serveur — la couleur (`holding.ts`), le sol qu'on peut bâtir (`view.ts`) et
+ * le relevé d'une fondation (`surveys.ts`) la lisent tous les trois, parce que « là où je tiens est
+ * là où je peux bâtir » est une phrase et non trois fonctions.
+ *
+ * **Mémo par point et par rayon**, au niveau du module : la couverture d'un avant-poste ne change
+ * qu'à son élévation, et une saison en compte quelques dizaines. `heldOver` est appelée plusieurs
+ * fois par requête — la vue, le classement, la production, le relevé — et repayer le parcours à
+ * chacune ferait payer à une query ce qu'un isolat peut retenir. La clé est le point exact et le
+ * rayon : deux points voisins sont deux entrées, et un point élevé en est une troisième.
+ */
+const coverage = new Map<string, ReadonlyMap<string, number>>();
+
+/**
+ * **Le mémo est borné, et c'est le relevé qui l'exige** : une saison compte quelques dizaines
+ * d'avant-postes, mais le relevé du sol interroge aussi les haltes d'un trajet — des points neufs
+ * à chaque marche. Sans borne, l'isolat retiendrait une carte par halte, c'est-à-dire exactement
+ * ce que l'ADR 0023 a sorti de la mémoire. On vide plutôt qu'on n'évince : reconstruire un disque
+ * coûte moins d'une milliseconde, tenir un ordre d'ancienneté coûterait du code.
+ */
+const REMEMBERED_DISCS = 2048;
+
+export function regionsWithinReach(point: LonLat, reachKm: number): ReadonlyMap<string, number> {
+  const key = `${point[0]}|${point[1]}|${reachKm}`;
+  const known = coverage.get(key);
+  if (known !== undefined) return known;
+  const covered = coveredByDisc(rasterOf(), point, reachKm);
+  if (coverage.size >= REMEMBERED_DISCS) coverage.clear();
+  coverage.set(key, covered);
+  return covered;
+}
+
+/**
+ * **Le sol qu'un jeu de portées couvre** (ADR 0020 §5), et rien de ce qui s'y trouve : la
+ * couverture dit *où* l'on voit, jamais *ce qu'on y voit*. Les deux se croisent chez l'appelant,
+ * seul en droit de tenir la vérité en main.
+ *
+ * C'est le **même disque** que la couleur (révision du 17/09) : une région qu'une portée touche
+ * est relevée, comme elle serait tenue. Mesurer le relevé au pôle quand la couleur se mesure au
+ * disque laisserait un joueur tenir l'Ontario sans jamais recevoir la ligne qui le lui montre —
+ * une couleur invisible à celui qui la porte.
+ */
+export function regionsCoveredBy(
+  observers: ReadonlyArray<{ readonly point: LonLat; readonly radiusKm: number }>,
+): ReadonlySet<string> {
+  const covered = new Set<string>();
+  for (const observer of observers) {
+    for (const regionId of regionsWithinReach(observer.point, observer.radiusKm).keys()) {
+      covered.add(regionId);
+    }
+  }
+  return covered;
+}

@@ -2,12 +2,13 @@ import { v } from 'convex/values';
 import { query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { coveredRegions, knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
+import { knownRegions, seatInk, type KnownRegion } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
 import { soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
 import { playerOf } from './seasons';
+import { regionsCoveredBy } from './regionGeometry';
 import { standingObserversOf } from './surveys';
 
 /**
@@ -71,7 +72,7 @@ export async function heldOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   /** **Ce qu'une de ses portées couvre à l'instant**, lu sur ses propres index et rien d'autre :
    *  il est sur place, donc la date n'y apprendrait rien et la couleur y reste franche. */
-  const covered = coveredRegions(allRegions(), await standingObserversOf(ctx, player._id));
+  const covered = regionsCoveredBy(await standingObserversOf(ctx, player._id));
 
   const surveys = await ctx.db
     .query('regionSightings')

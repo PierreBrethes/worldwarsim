@@ -16,7 +16,7 @@ import {
   outpostReachKm,
 } from './constants';
 import { heldOver } from './holding';
-import { regionFacts, regionOfOutpost } from './regions';
+import { regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf, settle } from './resources';
 import schema from './schema';
@@ -44,9 +44,18 @@ const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
 /** Une région roumaine voisine, dans la portée d'un point de Prahova. */
 const BUZAU = 'ROU-314';
 
-/** À 129 km du point de Prahova : **hors** du rayon d'un avant-poste de niveau 1 (120 km),
- *  **dans** celui d'un niveau 2 (180 km). C'est toute la mesure du quatrième événement. */
+/**
+ * **Le couple qui mesure le quatrième événement de couleur** : un point planté dans le Brasov, et
+ * la première cellule du Calarasi à 157 km de là — **hors** du disque d'un avant-poste de niveau 1
+ * (120 km), **dans** celui d'un niveau 2 (180 km).
+ *
+ * Le point était celui de la Prahova jusqu'à la révision du 17/09 : depuis que la couleur se
+ * mesure au disque et non au pôle, le Calarasi y est à 76 km — dedans dès le niveau 1, donc plus
+ * rien à mesurer. La Prahova n'a aucune cellule d'où le Calarasi soit hors de portée.
+ */
 const CALARASI = 'ROU-129'; // nourriture, roumain
+const BRASOV = 'ROU-305';
+const BRASOV_POINT: LonLat = [25.446, 45.705];
 
 const MIDDAY = Date.UTC(2026, 8, 7, 12);
 const HOUR = 3_600_000;
@@ -118,14 +127,7 @@ async function plant(
       disabledUntil: null,
       immuneUntil: null,
     });
-    await surveyFoundation(
-      ctx,
-      player.seasonId,
-      point,
-      outpostReachKm(level),
-      regionOfOutpost(ground),
-      Date.now(),
-    );
+    await surveyFoundation(ctx, player.seasonId, point, outpostReachKm(level), Date.now());
     return outpostId;
   });
 }
@@ -519,12 +521,13 @@ describe('raising an outpost is a colour event', () => {
   it('links what the new radius covers, and settles the hours before at the old colour', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    const outpostId = await plant(t, seat, BRASOV_POINT, BRASOV);
     await raise(t, seat, 'farm', CALARASI);
     await fill(t, seat, 'alloy', 1000);
     await fill(t, seat, 'coal', 1000);
 
-    /** Premier temps : à 129 km, la ferme est hors du rayon de 120 km — donc hors réseau. */
+    /** Premier temps : à 157 km de la première cellule du Calarasi, la ferme est hors du rayon de
+     *  120 km — donc hors réseau. */
     const cut = (await view(t, seat)).me.extraction.find((one) => one.regionId === CALARASI);
     expect(cut?.linked).toBe(false);
     expect(cut?.perHour).toBe(0);
@@ -565,7 +568,7 @@ describe('raising an outpost is a colour event', () => {
   it('files the new ground of the circle in the owner’s survey', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
+    const outpostId = await plant(t, seat, BRASOV_POINT, BRASOV);
     const player = await seatOf(t, seat);
     const surveyed = async () =>
       t.run(async (ctx) =>

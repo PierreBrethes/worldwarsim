@@ -110,6 +110,9 @@ depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une rép
 - La file de recrutement comme entrepôt à l'abri du pillage → D5 acquise le 09/09 : limite
   assumée pour la V1.
 - Les bâtiments d'un point démantelé → 1a du 16/09 : ils tombent avec lui (`buildings.outpostId`).
+- Le pôle ou le disque pour tenir une région → 17/09 : **le disque** (toute région qu'une cellule
+  du rayon touche), révision ADR 0020 §1 ; prompt `tenir-ce-que-le-cercle-touche`. Les géantes se
+  découpent au wipe (Registre 31).
 - L'initiative au combat → 1b du 16/09 : résolution **simultanée** (révision ADR 0014,
   prompt `resolution-simultanee`). La salve d'allonge reste abandonnée ; l'artillerie viendra
   comme un rôle (Registre 28), pas comme une salve.

@@ -16,7 +16,6 @@ import {
   type BuildingKey,
 } from '../src/domain/ids';
 import { carryCapacityOf } from '../src/domain/loot';
-import { coveredRegions } from '../src/domain/control';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
@@ -44,9 +43,9 @@ import { sitesOf, type Site } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { heldOver } from './holding';
+import { regionsWithinReach } from './regionGeometry';
 import { restHold } from './movements';
 import {
-  allRegions,
   capitalRegionOf,
   foundationOwedBy,
   homeCountryOf,
@@ -134,23 +133,28 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    * `siteOf` répond `null` pour une région absente d'ici, et le panneau le lit comme « rien ne
    * se bâtit là ».
    *
-   * Les mêmes détecteurs que le relevé du sol (`standingObserversOf`), aux mêmes conditions :
-   * la région du point est couverte quelle que soit sa taille (précision du 04/09), et **un
-   * point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait ce
-   * que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il reste
-   * celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
+   * **Le disque, exactement celui de la couleur** (révision du 17/09 de l'ADR 0020 §1) : une
+   * région dont une cellule tombe dans le rayon est tenue, donc elle se bâtit — `heldOver` et la
+   * vue lisent `regionsWithinReach`, la même fonction, et « là où je tiens est là où je peux
+   * bâtir » cesse d'être une phrase que deux mesures auraient pu démentir. La région du point y
+   * est toujours, à distance nulle, ce qui absorbe la précision du 04/09.
+   *
+   * **Un point hors service couvre encore** — il ancre toujours (§10), et le serveur accepterait
+   * ce que la vue refuserait d'offrir. Le budget d'emplacements ne bouge pas pour autant : il
+   * reste celui du point (`convex/sites.ts`), partagé entre toutes ses régions.
    */
-  const reaches = outposts
+  for (const outpost of outposts) {
     /** **Un chantier n'atteint rien** (révision du 15/09) : il n'offre aucun emplacement, donc
      *  il n'ouvre aucun sol — le serveur refuserait ce que la vue offrirait. */
-    .filter((outpost) => isStanding(outpost, now))
-    .map((outpost) => ({
-      point: pointOf(outpost.point),
-      radiusKm: outpostReachKm(outpost.level),
-      regionId: regionOfOutpost(outpost),
-    }));
-  const reached = coveredRegions(allRegions(), reaches);
-  for (const facts of allRegions()) if (reached.has(facts.id)) carrying.set(facts.id, facts);
+    if (!isStanding(outpost, now)) continue;
+    for (const regionId of regionsWithinReach(
+      pointOf(outpost.point),
+      outpostReachKm(outpost.level),
+    ).keys()) {
+      const facts = regionFacts(regionId);
+      if (facts) carrying.set(facts.id, facts);
+    }
+  }
   /**
    * **La couleur du sol qu'il peut bâtir**, lue par la fonction unique (`convex/holding.ts`) que
    * la carte, le classement et le relevé lisent aussi. Elle est servie par région parce que

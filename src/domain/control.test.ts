@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  coveredRegions,
   FADED_WASH,
   heldRegions,
   knownRegions,
@@ -13,11 +12,6 @@ import {
 } from './control';
 import type { LonLat } from './geo';
 
-/** **Le rayon du fixture, pas celui du jeu** : la portée suit le niveau du point depuis le
- *  31/08 (`outpostReachKm`), et ces cas se lisent en degrés d'équateur — les figer ici garde le
- *  test sur la règle plutôt que sur la valeur d'équilibrage du jour. */
-const REACH_KM = 400;
-
 /** Sur l'équateur, un degré de longitude vaut ~111 km : les distances de ces cas se lisent. */
 const at = (lon: number): LonLat => [lon, 0];
 
@@ -27,37 +21,39 @@ const region = (id: string, lon: number, country = 'ROU'): ControlledRegion => (
   point: at(lon),
 });
 
+/**
+ * **Ce qu'un disque touche, tendu à la main** (révision du 17/09) : `heldRegions` ne mesure plus
+ * rien — elle reçoit par point la carte `région → distance à sa cellule la plus proche` que
+ * `coveredByDisc` produit, et arbitre. Les cas de la mesure elle-même sont sur le raster réel
+ * (`region-raster.test.ts`) ; ceux-ci sont ceux de l'arbitrage.
+ */
 const held = (
   regions: ReadonlyArray<ControlledRegion>,
   outposts: ReadonlyArray<{
     owner: string;
-    point: LonLat;
-    reachKm?: number;
-    regionId?: string;
+    covers: Record<string, number>;
     disabled?: boolean;
   }>,
   homeGrounds: ReadonlyArray<{ owner: string; country: string }> = [],
 ) =>
   heldRegions({
     regions,
-    outposts: outposts.map((outpost) => ({
-      reachKm: REACH_KM,
-      regionId: null,
-      disabled: false,
-      ...outpost,
+    outposts: outposts.map(({ owner, covers, disabled }) => ({
+      owner,
+      covers: new Map(Object.entries(covers)),
+      disabled: disabled ?? false,
     })),
     homeGrounds,
   });
 
 describe('the colour follows the outpost', () => {
-  it('holds a region whose point falls inside the reach', () => {
-    const map = held([region('near', 1)], [{ owner: 'pierre', point: at(0) }]);
+  it('holds a region the disc touches', () => {
+    const map = held([region('near', 1)], [{ owner: 'pierre', covers: { near: 40 } }]);
     expect(map.get('near')).toBe('pierre');
   });
 
-  it('leaves a region beyond the reach to nobody', () => {
-    // Ten degrees out on the equator: well past the four hundred kilometres.
-    const map = held([region('far', 10)], [{ owner: 'pierre', point: at(0) }]);
+  it('leaves a region no disc touches to nobody', () => {
+    const map = held([region('far', 10)], [{ owner: 'pierre', covers: { near: 40 } }]);
     expect(map.has('far')).toBe(false);
     expect(map.size).toBe(0);
   });
@@ -66,7 +62,7 @@ describe('the colour follows the outpost', () => {
   it('holds nothing while the outpost is out of service', () => {
     const map = held(
       [region('near', 1)],
-      [{ owner: 'pierre', point: at(0), disabled: true, regionId: 'near' }],
+      [{ owner: 'pierre', covers: { near: 0 }, disabled: true }],
     );
     expect(map.size).toBe(0);
   });
@@ -75,8 +71,8 @@ describe('the colour follows the outpost', () => {
     const map = held(
       [region('between', 1)],
       [
-        { owner: 'pierre', point: at(0.5), disabled: true },
-        { owner: 'anna', point: at(3) },
+        { owner: 'pierre', covers: { between: 30 }, disabled: true },
+        { owner: 'anna', covers: { between: 90 } },
       ],
     );
     expect(map.get('between')).toBe('anna');
@@ -85,59 +81,33 @@ describe('the colour follows the outpost', () => {
   it('holds nothing at all without an outpost', () => {
     expect(held([region('anywhere', 0)], []).size).toBe(0);
   });
-});
 
-/**
- * **Chaque point porte son rayon** (révision du 31/08) : il suit le niveau, donc deux avant-postes
- * de la même saison ne couvrent pas le même cercle, et « le plus proche » ne veut plus dire « le
- * plus proche tout court ».
- */
-describe('the reach travels with the point', () => {
-  it('holds nothing from a point whose own reach falls short', () => {
-    const map = held([region('near', 1)], [{ owner: 'pierre', point: at(0), reachKm: 60 }]);
-    expect(map.size).toBe(0);
-  });
-
-  it('gives the region to the point that reaches, never to a nearer one that does not', () => {
-    const map = held(
-      [region('between', 1)],
-      [
-        { owner: 'pierre', point: at(0.5), reachKm: 30 },
-        { owner: 'lea', point: at(2), reachKm: 240 },
-      ],
-    );
-    expect(map.get('between')).toBe('lea');
+  /** La réponse ne porte que sur les régions demandées : le classement en dépouille 4 589, la
+   *  production une poignée, et un disque qui en touche d'autres n'en ajoute aucune. */
+  it('answers on the regions asked for and on no others', () => {
+    const map = held([region('asked', 0)], [{ owner: 'pierre', covers: { asked: 0, other: 0 } }]);
+    expect([...map.keys()]).toEqual(['asked']);
   });
 });
 
 /**
- * **La précision du 04/09** : une région se mesure à son pôle d'inaccessibilité, et celui d'une
- * grande région est à des centaines de kilomètres de la côte où l'on plante. Un avant-poste ne
- * tenait donc même pas le sol sous ses pieds.
+ * **La précision du 04/09 est absorbée** (révision du 17/09) : la cellule du point est dans son
+ * disque à distance nulle, donc un avant-poste tient la région où il se tient sans que la règle
+ * ait une seconde branche — et deux rivaux plantés dans la même région y sont tous deux à zéro,
+ * donc à égalité, donc personne, ce que le litige disait déjà.
  */
 describe('a point holds the region it stands in', () => {
-  it('holds it however far the region’s own point is', () => {
-    // Dix degrés d'équateur : bien au-delà des quatre cents kilomètres de portée.
-    const map = held([region('vast', 10)], [{ owner: 'pierre', point: at(0), regionId: 'vast' }]);
+  it('holds it however vast the region is', () => {
+    const map = held([region('vast', 10)], [{ owner: 'pierre', covers: { vast: 0 } }]);
     expect(map.get('vast')).toBe('pierre');
   });
 
-  it('does not widen the radius for anything else', () => {
-    const map = held(
-      [region('vast', 10), region('next', 11)],
-      [{ owner: 'pierre', point: at(0), regionId: 'vast' }],
-    );
-    expect(map.has('next')).toBe(false);
-  });
-
-  /** Deux points adverses plantés dans la même région sont à égalité exacte : personne ne la
-   *  tient, ce que la règle du litige dit déjà — la précision ne lui ajoute pas d'exception. */
   it('leaves a region two rivals stand in to nobody', () => {
     const map = held(
       [region('vast', 10)],
       [
-        { owner: 'pierre', point: at(0), regionId: 'vast' },
-        { owner: 'lea', point: at(20), regionId: 'vast' },
+        { owner: 'pierre', covers: { vast: 0 } },
+        { owner: 'lea', covers: { vast: 0 } },
       ],
     );
     expect(map.has('vast')).toBe(false);
@@ -147,11 +117,10 @@ describe('a point holds the region it stands in', () => {
 describe('a disputed region goes to the nearest', () => {
   it('gives it to the closer outpost, whatever the order they arrive in', () => {
     const outposts = [
-      { owner: 'lea', point: at(2) },
-      { owner: 'pierre', point: at(0) },
+      { owner: 'lea', covers: { between: 160 } },
+      { owner: 'pierre', covers: { between: 55 } },
     ];
     expect(held([region('between', 0.5)], outposts).get('between')).toBe('pierre');
-    expect(held([region('between', 1.5)], outposts).get('between')).toBe('lea');
     // The same list read backwards answers the same: the rule is the distance, not the order.
     expect(held([region('between', 0.5)], [...outposts].reverse()).get('between')).toBe('pierre');
   });
@@ -162,8 +131,8 @@ describe('a disputed region goes to the nearest', () => {
     const map = held(
       [region('middle', 1)],
       [
-        { owner: 'pierre', point: at(0) },
-        { owner: 'lea', point: at(2) },
+        { owner: 'pierre', covers: { middle: 111 } },
+        { owner: 'lea', covers: { middle: 111 } },
       ],
     );
     expect(map.has('middle')).toBe(false);
@@ -173,8 +142,8 @@ describe('a disputed region goes to the nearest', () => {
     const map = held(
       [region('middle', 1)],
       [
-        { owner: 'pierre', point: at(0) },
-        { owner: 'pierre', point: at(2) },
+        { owner: 'pierre', covers: { middle: 111 } },
+        { owner: 'pierre', covers: { middle: 111 } },
       ],
     );
     expect(map.get('middle')).toBe('pierre');
@@ -187,7 +156,7 @@ describe('the home ground outranks any outpost', () => {
   it('keeps a national region to its nation under an enemy outpost', () => {
     const map = held(
       [region('paris', 0, 'FRA')],
-      [{ owner: 'lea', point: at(0) }],
+      [{ owner: 'lea', covers: { paris: 0 } }],
       [{ owner: 'pierre', country: 'FRA' }],
     );
     expect(map.get('paris')).toBe('pierre');
@@ -203,7 +172,11 @@ describe('the home ground outranks any outpost', () => {
   });
 
   it('leaves a nation nobody plays to the outposts', () => {
-    const map = held([region('bucarest', 0, 'ROU')], [{ owner: 'lea', point: at(0) }], []);
+    const map = held(
+      [region('bucarest', 0, 'ROU')],
+      [{ owner: 'lea', covers: { bucarest: 0 } }],
+      [],
+    );
     expect(map.get('bucarest')).toBe('lea');
   });
 });
@@ -218,44 +191,6 @@ describe('the seat inks', () => {
     expect(seatInk(0)).toBe(SEAT_INKS[0]);
     expect(seatInk(7)).toBe(SEAT_INKS[7]);
     expect(seatInk(8)).toBe(SEAT_INKS[0]);
-  });
-});
-
-describe('what a set of ranges covers', () => {
-  const world = [region('here', 0), region('near', 1), region('far', 10)];
-
-  it('takes the regions inside a range and none beyond it', () => {
-    const covered = coveredRegions(world, [{ point: at(0), radiusKm: 200, regionId: null }]);
-    expect([...covered]).toEqual(['here', 'near']);
-  });
-
-  /** Ce qu'un point tient, il le voit : la région où il se tient est couverte avant toute
-   *  mesure, sinon la bande de latitude la retirerait la première. */
-  it('covers the region a range stands in, whatever the distance to its point', () => {
-    const covered = coveredRegions(world, [{ point: at(0), radiusKm: 50, regionId: 'far' }]);
-    expect([...covered].sort()).toEqual(['far', 'here']);
-  });
-
-  it('covers nothing at all without a single range', () => {
-    expect(coveredRegions(world, []).size).toBe(0);
-  });
-
-  it('unions the ranges rather than intersecting them', () => {
-    const covered = coveredRegions(world, [
-      { point: at(0), radiusKm: 50, regionId: null },
-      { point: at(10), radiusKm: 50, regionId: null },
-    ]);
-    expect([...covered].sort()).toEqual(['far', 'here']);
-  });
-
-  /** La bande de latitude est un filtre, jamais une règle : une région à la bonne latitude et à
-   *  l'autre bout du monde doit rester dehors. */
-  it('keeps the latitude band from letting a far meridian through', () => {
-    const covered = coveredRegions(
-      [{ id: 'antipode', country: 'ROU', point: [179, 0] }],
-      [{ point: at(0), radiusKm: 400, regionId: null }],
-    );
-    expect(covered.size).toBe(0);
   });
 });
 

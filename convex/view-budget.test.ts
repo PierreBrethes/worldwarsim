@@ -6,7 +6,11 @@ import { NOTICES_SERVED, REPORTS_SERVED } from '../src/domain/player-view';
 import { buildGrid } from '../src/domain/routing';
 import { nominalStrength } from './constants';
 import { specializationServed, specializationsServed } from './movement/forces';
-import { regionFacts } from './regions';
+import type { LonLat } from '../src/domain/geo';
+import { outpostReachKm } from './constants';
+import { heldOver } from './holding';
+import { regionsWithinReach } from './regionGeometry';
+import { allRegions, regionFacts } from './regions';
 import schema from './schema';
 import { modules } from './test.setup';
 import { surveyRegion, foundSeat, joinSeat, seatIn } from './seats.fixture';
@@ -377,5 +381,79 @@ describe('aucune query ne rasterise le monde', () => {
       vi.mocked(buildGrid),
       `buildGrid est appelée dans une query : la grille doit venir de public/grid.json, décodée par convex/routes.ts.`,
     ).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **La couleur se mesure par point, pas par région** (révision du 17/09/2026 de l'ADR 0020 §1).
+ * Le pôle était une distance par région : 4 589 comparaisons, et c'est tout. Le disque parcourt
+ * des cellules, et s'il était payé par région le classement dépouillerait le monde une fois par
+ * ligne. Il est payé par **point** — la boîte englobante d'un rayon, quelques milliers de cellules
+ * — et **mémoïsé** par l'isolat : la couverture d'un avant-poste ne change qu'à son élévation, et
+ * `heldOver` est appelée plusieurs fois dans une même requête (la vue, la production, le relevé).
+ *
+ * Le seuil est large et ne mesure rien du jeu : une query n'a qu'une seconde, et ce qui est
+ * vérifié ici est un ordre de grandeur — huit points de niveau 3 sur les 4 589 régions cuites.
+ */
+describe('la couleur se mesure par point et se retient', () => {
+  const FAR_APART: ReadonlyArray<LonLat> = [
+    [-111.38, 56.73],
+    [-75.7, 45.5],
+    [-51.5, -26.6],
+    [8.15, 36.72],
+    [25.45, 45.7],
+    [100, 65],
+    [135, -25],
+    [14.45, 35.9],
+  ];
+
+  it('rend la même couverture sans la recalculer, et tient le budget d’une query', () => {
+    const level3 = outpostReachKm(3);
+
+    const first = performance.now();
+    const covers = FAR_APART.map((point) => regionsWithinReach(point, level3));
+    const measured = performance.now() - first;
+
+    const second = performance.now();
+    const again = FAR_APART.map((point) => regionsWithinReach(point, level3));
+    const remembered = performance.now() - second;
+
+    /** Le mémo rend **l'objet même**, ce qu'aucun chronomètre n'a besoin d'arbitrer : recalculer
+     *  donnerait une seconde carte, égale et distincte. */
+    expect(again.every((map, rank) => map === covers[rank])).toBe(true);
+    expect(covers.every((map) => map.size > 0)).toBe(true);
+    expect(measured).toBeLessThan(500);
+    expect(remembered).toBeLessThan(measured + 1);
+  });
+
+  it('colore les 4 589 régions cuites depuis huit points en une passe', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      const me = await seatIn(ctx, seat);
+      for (const [lon, lat] of FAR_APART) {
+        await ctx.db.insert('outposts', {
+          seasonId: me.seasonId,
+          playerId: me._id,
+          point: { lon, lat },
+          hostCountry: 'XXX',
+          level: 3,
+          specialization: 'relay' as const,
+          foundedAt: MIDDAY.getTime(),
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+      }
+    });
+
+    const started = performance.now();
+    /** La carte elle-même ne traverse pas la frontière d'une mutation — son compte suffit, et
+     *  c'est le temps qui est sous test. */
+    const coloured = await t.run(async (ctx) => {
+      const me = await seatIn(ctx, seat);
+      return (await heldOver(ctx, me.seasonId, allRegions(), Date.now())).size;
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(coloured).toBeGreaterThan(0);
   });
 });

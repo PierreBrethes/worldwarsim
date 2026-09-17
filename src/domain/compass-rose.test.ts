@@ -685,12 +685,17 @@ describe('joining a transport from the map', () => {
     ).toEqual([]);
   });
 
+  /** La pile qu'on tient garde son éventail ordinaire : viser la sienne n'est pas un embarquement,
+   *  et ce qu'elle rend est ce qu'un clic droit au repos rendrait — ici le motif de la fondation,
+   *  puisqu'un cargo ne plante rien. */
   it('offers no transport action on an escort, an unknown stack, or the origin itself', () => {
     expect(compassOf(target, withTransport('escort'), column, origin)).toBeNull();
     expect(
       compassOf(target, { ...view, me: { ...view.me, troops: [] } }, column, origin),
     ).toBeNull();
-    expect(compassOf(target, withTransport(), column, beach)).toBeNull();
+    const itself = compassOf(target, withTransport(), column, beach);
+    expect(itself?.actions).toEqual([]);
+    expect(itself?.refusal).toBe('un cargo ne fonde pas — seule l’infanterie plante un point');
   });
 
   it('can rejoin a nearby transport without treating it as the origin', () => {
@@ -750,23 +755,26 @@ describe('founding from the map', () => {
 
   /**
    * La même fonction que le serveur refuse avec (`foundingRefusal`) : un char ne plante rien.
-   * **Et la rose ne s'ouvre plus du tout** (décision Pierre, 31/08) : cette pile n'a rien à faire
-   * sur place, donc le clic gauche n'ouvre que le cartouche et le clic droit reste inerte — la
-   * destination, elle, se nomme ailleurs.
+   * **Et le refus se lit** : la branche part, la rose reste, et le motif nomme le rôle fautif —
+   * un menu qui se ferait muet laisserait le joueur chercher ce qu'il a manqué (ADR 0015).
    */
-  it('withdraws it from a column no infantry stands in, and the fan closes with it', () => {
-    expect(compassOf(camp, posted(['armor']))).toBeNull();
+  it('withdraws it from a column no infantry stands in, and names the offending role', () => {
+    const compass = compassOf(camp, posted(['armor']));
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe('un blindé ne fonde pas — seule l’infanterie plante un point');
   });
 
   /** Un avant-poste porte un chantier hors de chez soi (ADR 0004) : sur son propre sol, il
-   *  n'apporte rien, et le serveur répond `FRIENDLY_TARGET`. */
-  it('withdraws it on ground already carrying one of my buildings', () => {
+   *  n'apporte rien, et le serveur répond `FRIENDLY_TARGET`. Le motif nomme la région, parce que
+   *  « on ne marche pas sur les siens » répondrait à côté d'un geste qui n'est pas une marche. */
+  it('withdraws it on ground already carrying one of my buildings, and names the region', () => {
     const home = posted(['infantry']);
     const compass = compassOf({ ...camp, regionId: 'FRA-9999' }, {
       ...home,
       me: { ...home.me, buildings: [{ regionId: 'FRA-9999' }] },
     } as unknown as PlayerView);
-    expect(compass).toBeNull();
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe('Nord porte déjà un de vos bâtiments');
   });
 
   /**
@@ -812,14 +820,16 @@ describe('founding from the map', () => {
     ).toBeNull();
   });
 
-  /** Une pile en route n'est plus posée : son manifeste est vide, il n'y a rien à planter. */
-  it('withdraws it while the column is walking', () => {
+  /** Une pile en route n'est plus posée : son manifeste est vide, il n'y a rien à planter — et
+   *  c'est ce que le motif dit, plutôt que de refermer la rose sur un silence. */
+  it('withdraws it while the column is walking, and says the address is empty', () => {
     const walking = posted(['infantry']);
     const compass = compassOf(camp, {
       ...walking,
       arcs: [{ state: 'mine', troopIds: ['T-0'] }],
     } as unknown as PlayerView);
-    expect(compass).toBeNull();
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toBe('un mouvement part avec au moins une troupe');
   });
 });
 

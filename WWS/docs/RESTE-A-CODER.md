@@ -250,7 +250,10 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   Prompt `prompts/code/ready/resolution-simultanee.md`.
 - **Deux cercles autour de la pile** (4a, 3a : contact plein, détection tiretée, ambre) : prompt
   `prompts/code/ready/deux-cercles-autour-de-la-pile.md`, prêt, rendu seul.
-- **Rose des vents sur les avant-postes** (27, 1a) : prompt prêt, voir le Registre.
+- **Rose des vents sur les avant-postes** (27, 1a) : livré (`2e2da13`), poignée corrigée le 16/09.
+- **Tenir ce que le cercle touche** (17/09, révision ADR 0020 §1) : prompt
+  `prompts/code/ready/tenir-ce-que-le-cercle-touche.md`, prêt. Mesure : régions tenues par joueur et
+  par continent avant/après.
 
 28. **Artillerie** (16/09, « plus tard ») — dixième rôle : tir sur un relevé dans une portée
     **minimale et maximale**, sans riposte de la cible, aveugle seule (un observateur la sert),
@@ -259,6 +262,11 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
     du nom, `world.ts:130`) : script depuis relief ou couvert végétal → type par cellule ou par
     région ; puis l'ADR qui autorise une règle à le lire ; puis le modificateur du chiffrage §4
     (sol seulement). Après le gameplay.
+31. **Découper les régions géantes à la cuisson** (17/09, 2a) — Ontario, Québec, les oblasts
+    sibériens, les États américains, Amazonas : espacement de pôles cible ~80 km, pièces en
+    « secteurs » droits sur la carte, id d'origine gardé par la pièce qui porte le gisement.
+    Chaîne complète à recuire (`generate-regions` → `region-index` → `world` → `region-grid` →
+    `deposits`). **Au prochain wipe** : des ids stockés changent.
 30. **Retranchement** (16/09, 2a) — bonus de position du défenseur, plafonné à **5-10 % au
     plus**, affiché sur la fiche de la troupe sélectionnée avec le temps posé ; à chiffrer avec
     le terrain (plafond cumulé à fixer).

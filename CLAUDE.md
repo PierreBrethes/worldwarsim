@@ -359,8 +359,16 @@ elle ne produit pas.
 **La carte se colore** (ADR 0020 §1) : une région est *tenue* par le joueur dont un avant-poste
 la couvre dans **son** rayon (`outpostReachKm` — 120 / 180 / 240 km aux niveaux 1 / 2 / 3, le
 rayon de construction et jamais une seconde constante) ou par la nation dont elle est le sol
-d'origine, que rien ne lui prend. La règle est pure
-(`src/domain/control.ts`, litige au plus proche, égalité exacte à personne), servie par une
+d'origine, que rien ne lui prend. **Ce que le rayon touche, et non ce qu'il centre** (révision du
+17/09) : une région est tenue dès qu'**une de ses cellules** du raster (ADR 0023) entre dans le
+disque — `coveredByDisc` mesure, `regionsWithinReach` la sert mémoïsée par point, et la couleur, le
+sol qu'on peut bâtir (`view.ts`) comme le relevé du sol (`surveys.ts`) la lisent tous les trois. La
+règle du pôle d'inaccessibilité ne tenait rien hors d'Europe — 969 régions sur 4 589 ont celui de
+leur voisine à plus de 120 km — et la précision du 04/09 (« un point tient la région où il se
+tient ») y est absorbée : sa cellule est à distance nulle. Un point en lisière tient donc les
+géantes qu'il touche, Ontario et Québec depuis Gatineau. La règle est pure
+(`src/domain/control.ts`, litige au plus proche **de la cellule la plus proche**, égalité exacte à
+personne), servie par une
 **query à part** (`convex/control.ts`, `control.held`) et jamais par `PlayerView` : la couleur ne
 bouge qu'à la fondation ou à la perte d'un avant-poste, quand la vue se réinvalide au moindre pas
 d'une colonne. La teinte est **celle du siège**, pas de la nation, et elle reste au loin quand les

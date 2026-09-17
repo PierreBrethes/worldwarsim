@@ -361,7 +361,7 @@ export const finish = internalMutation({
         await fileSurvey(
           ctx,
           construction.playerId,
-          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM, regionId: null }],
+          [{ point: facts.point, radiusKm: LISTENING_STATION_RADIUS_KM }],
           Date.now(),
         );
       }
@@ -413,7 +413,6 @@ async function finishRaise(
     seasonId,
     pointOf(outpost.point),
     outpostReachKm(construction.level),
-    ground,
     at,
   );
   /** Chez le seul propriétaire : un point qui grandit se **relève** — la portée élargie entre

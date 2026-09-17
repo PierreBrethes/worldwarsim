@@ -92,6 +92,14 @@ Earth découpe le Royaume-Uni en 232 districts et l'Allemagne en 16 Länder, un 
 régions ferait de la cartographie l'équilibreur du jeu. L'effet reste « quelques régions autour » ;
 leur nombre varie selon le pays, et c'est la géographie qui parle.
 
+> **Révision du 17/09/2026 (ADR 0020 §1).** Ce que le rayon touche, et non ce qu'il centre : une
+> région est tenue dès qu'**un bout d'elle** entre dans le disque, quand la règle demandait
+> jusqu'ici que son *centre* y tombe. Le centre d'une région géante est à des centaines de
+> kilomètres de sa frontière — 969 régions sur 4 589 ont celui de leur voisine à plus de 120 km —
+> de sorte que hors d'Europe le cercle était dessiné sans rien tenir. Un point en lisière tient
+> désormais les géantes qu'il touche (Ontario et Québec depuis Gatineau) ; là où les régions sont
+> petites, l'écart se referme — 19 régions contre 13 depuis Paris au niveau 1.
+
 ### Règles
 
 - **On peut stationner des troupes sur n'importe quelle spécialisation.** Réserver la garnison aux

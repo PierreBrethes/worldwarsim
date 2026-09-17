@@ -436,7 +436,12 @@ export const fr = {
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     UNKNOWN_TROOP: () => 'troupe inconnue',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
-    INFANTRY_ONLY: () => 'seule l’infanterie fonde un avant-poste',
+    /** **Le rôle fautif est nommé quand l'appelant le connaît** : la rose lit la colonne sous ses
+     *  yeux et peut dire *quoi* bloque, le serveur refuse une charge utile qui ne le porte pas. */
+    INFANTRY_ONLY: (d) =>
+      d.role === undefined
+        ? 'seule l’infanterie fonde un avant-poste'
+        : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'le pillage exige au moins une troupe d’infanterie',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     NO_PORT_AT_DEPARTURE: () => 'aucun port là d’où part la colonne — on n’embarque pas sans quai',
@@ -464,7 +469,13 @@ export const fr = {
      *  perte : le point revient, et un chantier déjà en file l'attend sans s'annuler. */
     OUTPOST_DISABLED: () => 'avant-poste hors service — il ne se monte pas tant qu’il l’est',
     OUTPOST_RAISE_QUEUED: () => 'une élévation de cet avant-poste est déjà en file',
-    FRIENDLY_TARGET: () => 'on ne marche pas sur les siens',
+    /** **Deux refus sous un même code** : marcher sur les siens, et fonder là où l'on bâtit déjà.
+     *  La région nommée est ce qui sépare les deux — sans elle, « on ne marche pas sur les siens »
+     *  répondrait à côté d'un geste qui n'est pas une marche. */
+    FRIENDLY_TARGET: (d) =>
+      d.region === undefined
+        ? 'on ne marche pas sur les siens'
+        : `${str(d.region)} porte déjà un de vos bâtiments`,
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',

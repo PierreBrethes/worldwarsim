@@ -4,7 +4,8 @@ import { heldRegions } from '../src/domain/control';
 import { isStanding } from '../src/domain/outposts';
 import { outpostReachKm } from './constants';
 import { pointOf, seasonOutposts } from './movement/forces';
-import { homeCountryOf, regionOfOutpost, type RegionFacts } from './regions';
+import { regionsWithinReach } from './regionGeometry';
+import { homeCountryOf, type RegionFacts } from './regions';
 
 /**
  * **La vérité de la couleur, en un seul endroit.** Qui tient quoi se calcule depuis les
@@ -40,6 +41,9 @@ export async function heldOver(
  * Un avant-poste tel que la couleur le lit. L'heure n'entre que pour une question — est-il hors
  * service — et c'est l'appelant qui la porte : le domaine ne date rien (§7).
  *
+ * **La région où il se tient n'est plus une ligne à part** : sa cellule est dans son disque, à
+ * distance nulle, donc la précision du 04/09 sort d'ici sans rien perdre (révision du 17/09).
+ *
  * **Un chantier a la même signature qu'un point hors service** (révision du 15/09) : il ne
  * colore rien tant qu'il n'est pas levé. Sans l'immunité, elle : on attaque un chantier.
  *
@@ -50,9 +54,9 @@ export async function heldOver(
  */
 export const colourReading = (outpost: Doc<'outposts'>, now: number) => ({
   owner: outpost.playerId as string,
-  point: pointOf(outpost.point),
-  reachKm: outpostReachKm(outpost.level),
-  regionId: regionOfOutpost(outpost),
+  /** **Le disque, et non le pôle** (révision du 17/09) : la mesure est faite une fois par point,
+   *  mémoïsée par l'isolat, et c'est la même que la vue lit pour offrir le sol à bâtir. */
+  covers: regionsWithinReach(pointOf(outpost.point), outpostReachKm(outpost.level)),
   disabled:
     !isStanding(outpost, now) || (outpost.disabledUntil !== null && outpost.disabledUntil >= now),
 });

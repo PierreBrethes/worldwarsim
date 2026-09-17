@@ -46,6 +46,7 @@ import {
   type OutpostView,
   type PlayerView,
   type TroopStation,
+  type TroopView,
 } from './player-view';
 
 /**
@@ -1134,6 +1135,28 @@ const heldAt = (station: Extract<TroopStation, { kind: 'point' }>, view: PlayerV
   troopsAt(view.me, stationKeyOf(station), marchingTroopIds(view.arcs));
 
 /**
+ * La phrase d'un refus de fondation, nourrie de ce que la rose a sous les yeux : le premier rôle
+ * qui n'est pas de l'infanterie, et le nom de la région déjà bâtie. `fr.errors` reste la seule
+ * table de phrases — il n'y a pas de seconde formulation ici, seulement des détails en plus.
+ */
+function foundingMotive(
+  refusal: OrderRefusal,
+  held: ReadonlyArray<TroopView>,
+  target: Extract<CompassTarget, { kind: 'force' }>,
+  view: PlayerView,
+): string {
+  if (refusal === 'INFANTRY_ONLY') {
+    const role = held.find((troop) => troop.role !== 'infantry')?.role;
+    return fr.errors.INFANTRY_ONLY(role === undefined ? {} : { role });
+  }
+  if (refusal === 'FRIENDLY_TARGET') {
+    const region = view.me.regions.find((candidate) => candidate.id === target.regionId) ?? null;
+    return fr.errors.FRIENDLY_TARGET(region === null ? {} : { region: region.name });
+  }
+  return fr.errors[refusal]({});
+}
+
+/**
  * **On fonde où l'on se tient** (ADR 0019 §1), donc la branche vit sur la pile elle-même et sur
  * rien d'autre : c'est son adresse qui devient le point, et sa composition entière qui décide.
  * `foundingRefusal` est la fonction dont le serveur refuse (`foundOutpostHere`) — la rose ne tient
@@ -1153,13 +1176,22 @@ function foundHere(
   const onMyGround =
     target.regionId !== null &&
     view.me.buildings.some((building) => building.regionId === target.regionId);
-  if (
-    foundingRefusal(
-      held.map((troop) => troop.role),
-      onMyGround,
-    ) !== null
-  )
-    return { action: null, refusal: null };
+  /**
+   * **Un refus se lit, il ne se tait pas** (ADR 0015) : la rose retire la branche *et* dit
+   * pourquoi, comme pour la matière qui manque juste en dessous. Le silence laissait le joueur
+   * devant une pile posée sans « fonder » et sans rien à lire — le seul cas du jeu où un ordre
+   * manquait sans motif.
+   *
+   * Les détails sont ce que la rose sait et que le serveur ne met pas dans sa charge utile : le
+   * rôle qui bloque, et la région déjà bâtie. Sans eux la phrase reste celle du serveur.
+   */
+  const refusal = foundingRefusal(
+    held.map((troop) => troop.role),
+    onMyGround,
+  );
+  if (refusal !== null) {
+    return { action: null, refusal: foundingMotive(refusal, held, target, view) };
+  }
 
   /**
    * **La matière qui manque retire la branche et dit pourquoi** (ADR 0015, règle générale) : la
