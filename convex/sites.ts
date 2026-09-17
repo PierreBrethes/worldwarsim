@@ -2,17 +2,12 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import type { BuildingKey, DepositKey } from '../src/domain/ids';
 import { depositOfRegion } from '../src/domain/world';
-import { isStanding, reachingOutpost } from '../src/domain/outposts';
+import { isStanding } from '../src/domain/outposts';
 import { homeSlots, outpostReachKm, settlesDebt, type FoundationDebt } from './constants';
 import { levelOf, playerBuildings } from './buildings';
 import { outpostsOf, pointOf } from './movement/forces';
-import {
-  foundationOf,
-  homeCountryOf,
-  regionFacts,
-  regionOfOutpost,
-  type RegionFacts,
-} from './regions';
+import { regionsWithinReach } from './regionGeometry';
+import { foundationOf, homeCountryOf, regionFacts, type RegionFacts } from './regions';
 
 /**
  * **A site is what carries placements** (ADR 0020 §10): the national soil a player was born on,
@@ -34,32 +29,40 @@ export const sameSite = (one: Site, other: Site): boolean =>
     : other.kind === 'outpost' && other.outpostId === one.outpostId;
 
 /** Un point tel qu'une portée le lit : son emplacement, son rayon — qui suit son niveau depuis le
- *  31/08 —, la région où il se tient et son identité, pour que l'ancrage sache de quel budget il
- *  parle. */
+ *  31/08 —, **ce que son disque touche** (révision du 17/09) et son identité, pour que l'ancrage
+ *  sache de quel budget il parle. La couverture est celle que la couleur lit, mémoïsée par point
+ *  et par rayon : deux mesures du même cercle finiraient par se contredire. */
 export const reachOf = (outpost: Doc<'outposts'>) => ({
   point: pointOf(outpost.point),
   reachKm: outpostReachKm(outpost.level),
-  regionId: regionOfOutpost(outpost),
+  covers: regionsWithinReach(pointOf(outpost.point), outpostReachKm(outpost.level)),
   id: outpost._id,
 });
 
 /**
- * **Where a placement on this region anchors** — national soil at home, otherwise the nearest
- * outpost whose reach covers it, and `null` when none does. **Le plus proche qui porte jusque-là,
- * jamais le plus proche tout court** : deux points de niveaux différents ne couvrent pas le même
- * cercle depuis que la portée suit le niveau (31/08). It is the very reach the placement
- * rule already refuses with (`OUT_OF_OUTPOST_REACH`), read a second time for a second question:
- * *may I build here* and *whose budget does it eat* have to answer off one radius, or a player
- * would be allowed to place on a site that does not exist.
+ * **Where a placement on this region anchors** — national soil at home, otherwise the outpost
+ * whose disc touches it from closest, and `null` when none does.
+ *
+ * **Le disque, exactement celui de la couleur** (révision du 17/09/2026 de l'ADR 0020 §1) : une
+ * région est atteinte dès qu'une de ses cellules entre dans le rayon, et le départage est la
+ * distance à cette cellule-là. Mesurer ici au pôle d'inaccessibilité quand la couleur se mesure au
+ * disque brisait la phrase que l'ADR appuie — *là où je tiens est là où je peux bâtir* : le joueur
+ * voyait trois régions à sa couleur et n'en trouvait qu'une où poser quoi que ce soit, celle où le
+ * mât se tient. Constat de Pierre, 17/09, un point au triple point São Paulo / Minas Gerais / Rio.
+ *
+ * C'est la même lecture que le serveur refuse avec (`OUT_OF_OUTPOST_REACH`), lue une seconde fois
+ * pour une seconde question : *puis-je bâtir ici* et *quel budget cela mange* doivent sortir d'une
+ * seule géométrie, sans quoi un joueur poserait sur un site qui n'existe pas.
+ *
+ * La région où un point se tient y est à distance nulle, ce qui **absorbe la précision du 04/09** :
+ * elle n'a plus à être passée à part. Deux points à égalité — les siens, tous les deux plantés
+ * dans la région — vont au premier fondé : ce n'est pas un litige, c'est le même joueur, et il
+ * n'y a que le budget d'emplacements qui change de colonne.
  *
  * Deactivated points anchor like any other: a raid freezes production, it does not move a
  * building's placement from one budget to another (ADR 0020 §10, §6). **Un chantier, lui,
  * n'ancre rien** : il n'offre aucun emplacement tant qu'il n'est pas levé (révision du 15/09),
  * et l'appelant le retire de la liste avant d'arriver ici — la géométrie ne date rien.
- *
- * **La région où un point se tient est toujours la sienne** (précision du 04/09) : elle passe
- * donc à `reachingOutpost`, faute de quoi le puits de la région même de l'avant-poste tombait
- * hors du rayon dès que le pôle d'inaccessibilité était loin de la côte.
  */
 export function siteFor(
   region: RegionFacts,
@@ -67,9 +70,13 @@ export function siteFor(
   outposts: ReadonlyArray<Doc<'outposts'>>,
 ): Site | null {
   if (homeCountry !== null && region.country === homeCountry) return HOME;
-  const nearest = reachingOutpost(region.point, outposts.map(reachOf), region.id);
-  if (nearest === null) return null;
-  return { kind: 'outpost', outpostId: nearest.nearest.id };
+  let nearest: { readonly outpostId: Id<'outposts'>; readonly km: number } | null = null;
+  for (const outpost of outposts) {
+    const km = reachOf(outpost).covers.get(region.id);
+    if (km === undefined) continue;
+    if (nearest === null || km < nearest.km) nearest = { outpostId: outpost._id, km };
+  }
+  return nearest === null ? null : { kind: 'outpost', outpostId: nearest.outpostId };
 }
 
 /**

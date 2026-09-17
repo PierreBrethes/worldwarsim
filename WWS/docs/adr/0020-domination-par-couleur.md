@@ -52,11 +52,17 @@ suppose une cible qui vaille le trajet, le troisième arrive après que la parti
 > donc à égalité, donc personne — ce que la règle disait déjà.
 >
 > Une seule fonction mesure (`coveredByDisc`, `src/domain/region-raster.ts`), une seule porte la
-> sert côté serveur (`regionsWithinReach`, mémoïsée par point et par rayon), et **trois lecteurs**
-> la lisent : la couleur (`convex/holding.ts`), le sol qu'on peut bâtir (`convex/view.ts`) et le
-> relevé du sol (`convex/surveys.ts`, §5). Sans quoi un joueur tiendrait l'Ontario sans jamais
+> sert côté serveur (`regionsWithinReach`, mémoïsée par point et par rayon), et **quatre lecteurs**
+> la lisent : la couleur (`convex/holding.ts`), les régions que la vue offre (`convex/view.ts`), le
+> **site** auquel une pose s'ancre (`convex/sites.ts`, §10 — c'est lui qui ouvre le clic droit et
+> que `OUT_OF_OUTPOST_REACH` refuse) et le relevé du sol (`convex/surveys.ts`, §5). Sans quoi un joueur tiendrait l'Ontario sans jamais
 > recevoir la ligne de relevé qui le lui montre, ou le verrait tenu sans pouvoir y bâtir — *là où
-> je tiens est là où je peux bâtir* n'est une phrase vraie que si c'est la même mesure.
+> je tiens est là où je peux bâtir* n'est une phrase vraie que si c'est la même mesure. Le site a
+> été oublié à la première passe et corrigé le 17/09 même : la vue offrait les trois régions du
+> triple point São Paulo / Minas Gerais / Rio, `siteFor` les mesurait encore au pôle et n'en
+> rattachait qu'une — le joueur voyait sa couleur sur trois régions et ne pouvait bâtir que sur
+> celle où le mât se tient. Le refus, lui, ne chiffre plus de distance : au disque, « le plus
+> proche est à 512 km » désignerait le centre d'une région dont la frontière court à soixante.
 
 Un avant-poste colore les régions dont le point tombe dans **son rayon** (`outpostReachKm`)
 autour du sien — le rayon où il donne déjà le droit de bâtir (ADR 0015).

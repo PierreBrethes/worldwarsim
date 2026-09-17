@@ -359,10 +359,14 @@ export const fr = {
     UNKNOWN_REGION: () => 'région inconnue',
     UNKNOWN_CAPITAL_REGION: (d) =>
       `capitale introuvable pour ${nationName(d.nation)} — la partie ne peut pas se lancer`,
+    /** **Le rayon touche une région, il ne la centre pas** (révision du 17/09 de l'ADR 0020 §1) :
+     *  la phrase dit ce qu'il faut amener — un cercle jusqu'ici — et non une distance, qui se
+     *  mesurerait au centre de la région et annoncerait des centaines de kilomètres là où la
+     *  frontière court à soixante. */
     OUT_OF_OUTPOST_REACH: (d) =>
-      d.nearestKm === null
-        ? `hors de chez soi, il faut un avant-poste à moins de ${num(d.reachKm)} km — vous n’en avez aucun`
-        : `aucun avant-poste à moins de ${num(d.reachKm)} km — le plus proche est à ${num(d.nearestKm)} km`,
+      d.hasOutposts === true
+        ? `aucun de vos avant-postes n’atteint cette région — le plus large porte à ${num(d.reachKm)} km`
+        : `hors de chez soi, il faut un avant-poste dont le rayon (${num(d.reachKm)} km) touche cette région — vous n’en avez aucun`,
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} exige un gisement de ${depositNames(d.expected)} dans la région`,
     NOT_COASTAL: () => 'un port se pose sur une région côtière',

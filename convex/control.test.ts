@@ -293,14 +293,22 @@ describe('la couleur et le sol à bâtir ne peuvent pas diverger', () => {
 
     const held = await regionIdsOf(t, seat, 'Pierre');
     const view = await t.query(api.view.playerView, seat);
-    const buildable = new Set(view.me.regions.map((region) => region.id));
+    const served = new Map(view.me.regions.map((region) => [region.id, region]));
 
     /** Le sol canadien du point : ni sa nation, ni celle de personne — tout ce qu'il y tient, il
      *  le tient par le disque, et c'est tout ce que ce cas compare. */
     const byTheDisc = held.filter((regionId) => regionId.startsWith('CAN-'));
     expect(byTheDisc).toContain(ALBERTA);
     expect(byTheDisc).toContain(SASKATCHEWAN);
-    for (const regionId of byTheDisc) expect(buildable.has(regionId)).toBe(true);
+    /**
+     * **Servie *et* rattachée à un site.** La première version de ce cas ne vérifiait que la
+     * présence dans `me.regions`, et c'est ce qui a laissé passer le trou du 17/09 : la vue
+     * offrait la région, `siteFor` la mesurait encore au pôle et rendait `null`, donc le clic
+     * droit n'y ouvrait rien et le serveur l'aurait refusée. Le site est ce qui fait la phrase.
+     */
+    for (const regionId of byTheDisc) {
+      expect(served.get(regionId)?.site).toEqual({ outpostId: expect.any(String) });
+    }
   });
 });
 

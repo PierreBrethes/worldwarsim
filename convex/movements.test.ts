@@ -59,7 +59,9 @@ const PSKOV = 'RUS-2335'; // Soviet, so somebody sleeps there
  *  du 04/09 — et l'Alberta porte du pétrole, comme la Sibérie de la partie de test. */
 const ALBERTA = 'CAN-632';
 const FORT_MCMURRAY: LonLat = [-111.38, 56.73];
-const SASKATCHEWAN = 'CAN-631'; // voisine, son point à 659 km : hors de portée et elle le reste
+const SASKATCHEWAN = 'CAN-631';
+/** À plus de 600 km à l'ouest : aucune cellule dans le rayon d'un point neuf. */
+const BRITISH_COLUMBIA = 'CAN-633'; // voisine, son point à 659 km : hors de portée et elle le reste
 
 async function launchedSeason(t: ReturnType<typeof boot>) {
   const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
@@ -824,18 +826,29 @@ describe('an outpost opens a radius to build in', () => {
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
-  /** **La règle métrique ne bouge pas** : on ajoute l'évidence qu'elle oubliait, on ne l'élargit
-   *  pas. La voisine reste à 659 km du point, donc dehors. */
-  it('leaves the neighbouring region out, its point being out of the radius', async () => {
+  /**
+   * **Là où je tiens est là où je peux bâtir** (révision du 17/09 de l'ADR 0020 §1) : le sol se
+   * mesure au disque, donc la voisine dont la frontière court à 84 km s'ouvre — son pôle à 659 km
+   * la fermait, et le joueur voyait à sa couleur une région où rien ne se posait. Ce qu'aucune
+   * cellule n'approche, lui, reste dehors.
+   */
+  it('opens the neighbouring region the disc touches, and nothing past it', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     await plant(t, seat, FORT_MCMURRAY, 'CAN', ALBERTA);
 
+    const started = await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: SASKATCHEWAN,
+    });
+    expect(started.finishesAt).toBeGreaterThan(Date.now());
+
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
-        building: 'billets',
-        regionId: SASKATCHEWAN,
+        building: 'warehouse',
+        regionId: BRITISH_COLUMBIA,
       }),
     ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
   });
@@ -868,7 +881,10 @@ describe('an outpost opens a radius to build in', () => {
     expect(started.finishesAt).toBeGreaterThan(Date.now());
   });
 
-  it('refuses one outside it, and says how far the nearest outpost is', async () => {
+  /** Le refus ne chiffre plus une distance (révision du 17/09) : ce qui décide est *le cercle
+   *  touche-t-il cette région*, et une distance au pôle annoncerait des centaines de kilomètres
+   *  d'une frontière toute proche. Il nomme le rayon qu'il faudrait amener. */
+  it('refuses one outside it, and names the widest reach he has', async () => {
     const t = boot();
     const seat = await withOutpostAtPrahova(t);
     const refused: Record<string, unknown> = await t
@@ -876,8 +892,12 @@ describe('an outpost opens a radius to build in', () => {
       .then(() => ({}))
       .catch((error: { data: Record<string, unknown> }) => error.data);
 
-    expect(refused).toMatchObject({ code: 'OUT_OF_OUTPOST_REACH', reachKm: REACH_KM });
-    expect(refused.nearestKm).toBeGreaterThan(REACH_KM);
+    expect(refused).toMatchObject({
+      code: 'OUT_OF_OUTPOST_REACH',
+      reachKm: REACH_KM,
+      hasOutposts: true,
+    });
+    expect(refused.nearestKm).toBeUndefined();
   });
 
   /**

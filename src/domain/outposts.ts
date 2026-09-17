@@ -19,13 +19,7 @@ export type OutpostPoint = { readonly point: LonLat };
  * (`outpostReachKm`, révision du 31/08) : une portée unique en paramètre dirait que tous les
  * points couvrent la même chose, ce qui n'est plus vrai depuis qu'on l'achète.
  */
-export type OutpostReach = OutpostPoint & {
-  readonly reachKm: number;
-  /** **La région où il se tient** — toujours atteinte, quelle que soit sa taille (précision de
-   *  l'ADR 0020 du 04/09). Absente pour un appelant qui ne mesure que des distances : le
-   *  ravitaillement lit des points, pas du sol. */
-  readonly regionId?: string | null;
-};
+export type OutpostReach = OutpostPoint & { readonly reachKm: number };
 
 /**
  * The nearest outpost and how far it is — `null` when the list is empty. It is generic over what
@@ -55,24 +49,18 @@ export function nearestOutpostKm(
  * avant-postes de niveaux différents ne couvrent pas le même cercle, et le plus près peut très
  * bien ne pas atteindre ce que le suivant atteint.
  *
- * **Un point porte toujours jusqu'à la région où il se tient**, `targetRegionId` la nommant :
- * le pôle d'inaccessibilité d'une grande région est loin de sa côte, et sans cette ligne le
- * puits de pétrole de la région même de l'avant-poste se faisait refuser
- * (`OUT_OF_OUTPOST_REACH`, précision de l'ADR 0020 du 04/09). Le départage reste la distance,
- * qui ne ment pas sur qui est le plus près.
+ * **Il mesure un point, jamais une région** (révision du 17/09 de l'ADR 0020 §1) : le sol se lit
+ * au disque, sur les cellules du raster (`coveredByDisc`), et c'est `convex/sites.ts` qui le lit.
+ * Ce qui reste ici est ce qu'un ravitaillement demande — *cette coordonnée est-elle dans une de
+ * mes portées* — où il n'y a pas de région à toucher et où la distance suffit.
  */
 export function reachingOutpost<T extends OutpostReach>(
   target: LonLat,
   outposts: ReadonlyArray<T>,
-  targetRegionId: string | null = null,
 ): { readonly nearest: T; readonly km: number } | null {
   return nearestOutpost(
     target,
-    outposts.filter(
-      (outpost) =>
-        (targetRegionId !== null && outpost.regionId === targetRegionId) ||
-        distanceKm(outpost.point, target) <= outpost.reachKm,
-    ),
+    outposts.filter((outpost) => distanceKm(outpost.point, target) <= outpost.reachKm),
   );
 }
 

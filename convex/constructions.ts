@@ -8,7 +8,6 @@ import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
 import { depositOfRegion } from '../src/domain/world';
-import { nearestOutpost } from '../src/domain/outposts';
 import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
 import {
   HQ_LEVEL_AT_LAUNCH,
@@ -26,7 +25,7 @@ import {
 import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
-import { anchorAt, anchored, reachOf, sameSite, sitesOf, type Site, type Sites } from './sites';
+import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit, economyOf } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seasons';
@@ -568,16 +567,20 @@ async function refusalFor(
    */
   const site = sites.siteAt(regionId);
   if (site === null) {
-    /** **Le rayon nommé est celui du point le plus proche**, puisque c'est lui qui vient de ne pas
-     *  y arriver : un chiffre commun n'existe plus depuis que la portée suit le niveau. Sans aucun
-     *  point, c'est ce qu'ouvrirait le premier — la phrase dit alors ce qu'il faudrait. */
-    const nearest = nearestOutpost(region.point, sites.outposts.map(reachOf));
+    /**
+     * **Le refus ne chiffre plus une distance**, depuis que la règle est le disque (révision du
+     * 17/09 de l'ADR 0020 §1) : ce qui décide est *le cercle touche-t-il cette région*, et sortir
+     * ici la distance au pôle d'inaccessibilité annoncerait « 512 km » d'une frontière qui court à
+     * soixante. Le rayon nommé est le plus large des siens — c'est celui qu'il faudrait amener —
+     * ou celui d'un premier point quand il n'en a aucun.
+     */
+    const widest = sites.outposts.map((outpost) => outpostReachKm(outpost.level));
     return {
       code: 'OUT_OF_OUTPOST_REACH',
       details: {
         regionId,
-        reachKm: nearest === null ? outpostReachKm(1) : nearest.nearest.reachKm,
-        nearestKm: nearest === null ? null : Math.round(nearest.km),
+        reachKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
+        hasOutposts: widest.length > 0,
       },
     };
   }
