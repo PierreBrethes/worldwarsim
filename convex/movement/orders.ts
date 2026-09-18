@@ -299,6 +299,11 @@ export async function aimOf(
         lon: point[0],
         lat: point[1],
         hostCountry: country,
+        /** La même grille que la visée a lue, et la même que le départ lira : un camp mouillé
+         *  en mer se vise par la mer (18/09). Le `medium` de la ligne dit déjà le premier, il
+         *  ne dit pas la côte — une seule géométrie répond aux deux. */
+        onLand: landAtPoint(point),
+        coastal: coastAtPoint(point),
       },
       target: { kind: 'point', point: camp.point },
       point,

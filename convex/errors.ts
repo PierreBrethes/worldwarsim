@@ -88,6 +88,9 @@ export type ErrorCode =
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
   | 'SEA_TARGET_REQUIRED'
+  /** Rester en mer (18/09) : la pile en mer part par sa coque, et on ne fonde pas au large. */
+  | 'NO_HULL_AT_SEA'
+  | 'NO_FOUNDING_AT_SEA'
   | 'NOT_ENOUGH_LIFT'
   | 'NO_CARGO_CAPACITY'
   | 'UNKNOWN_OUTPOST'

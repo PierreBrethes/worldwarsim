@@ -33,7 +33,8 @@ dire.
 **Les transports sont des troupes.** Un transport a une capacité d'emport typée — un porte-avions
 emporte tant d'infanteries, tant de véhicules, tant d'avions. C'est la seule forme de regroupement
 qui subsiste. En mer on voit le navire, pas la cargaison : un transport vide est indiscernable d'un
-plein, et le leurre y gagne.
+plein, et le leurre y gagne — **réel depuis le 18/09**, où un transport a enfin une raison de
+mouiller quelque part, et où ce qu'il porte coule avec lui (§11).
 
 ## 2. Le déclenchement : le contact mobile
 
@@ -50,7 +51,7 @@ force permet de se placer sur sa route.
 réévaluée aux événements qui changent le plateau. Les segments et leurs coûts donnent la position
 et le milieu à chaque instant ; les rendez-vous périmés sont annulés et le callback relit l'état.
 
-Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §11.
+Les portées sont chiffrées comme placeholders `@a-mesurer`. Voir §12.
 
 ## 3. La résolution : une passe, deux salves simultanées
 
@@ -188,7 +189,27 @@ C'est un **rejeu**, pas une partie. On obtient le spectacle et la lisibilité d'
 tactique sans aucun problème de synchronicité. Le joueur absent au moment du combat le regarde en
 se reconnectant, exactement dans le même état que celui qui était en ligne.
 
-## 11. Ce qui reste ouvert
+## 11. Une passe en mer noie ce qu'aucune coque ne porte plus
+
+**Codé le 18/09/2026** (règle 4 de « rester en mer », [ADR 0019](../adr/0019-mouvement-libre-et-troupes-posees.md)
+§2). C'était la question ouverte que le §1 posait depuis l'ADR 0014 — *un convoi accroché en mer
+est une coque avec une cargaison d'infanterie ; les passagers coulent-ils, débarquent-ils entamés,
+n'entrent-ils jamais en portée ?* La réponse est **ils coulent**, et elle ne touche pas la passe :
+
+- Le tir ne connaît toujours pas la cargaison. La coque n'est pas un bouclier (§9), les passagers
+  ne sont pas des cibles, et rien de ceci ne change une salve.
+- La noyade se lit **après** la passe, sur l'état d'après : une troupe terrestre que la capacité
+  d'emport des coques **debout** ne couvre plus est détruite — pas déroutée, il n'y a rien où se
+  replier. Une coque déroutée emporte ses passagers dans son repli, à sa capacité ; l'excédent
+  coule.
+- Le compte de la passe le dit tel quel : le noyé y est `destroyed`, parce qu'il l'est. Une
+  dépêche `drownedAtSea` en donne la cause chez son seul propriétaire, en hommes et en machines —
+  c'est la seule perte du jeu qu'aucun tir n'explique.
+
+Le siège est celui du panneau de garnison et non une seconde arithmétique de places : **la place
+qu'on voit au départ est la place qui sauve à l'arrivée**.
+
+## 12. Ce qui reste ouvert
 
 - **Les neuf portées de détection.** Elles existent par rôle et le simulateur ne les modélise pas :
   il faudra les calibrer à la main en première saison.

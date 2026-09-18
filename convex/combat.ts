@@ -1,6 +1,13 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { resolveEngagement, type Combatant, type Engagement } from '../src/domain/combat';
+import {
+  drownedOf,
+  resolveEngagement,
+  type Combatant,
+  type CombatantOutcome,
+  type Engagement,
+} from '../src/domain/combat';
+import { landAtPoint } from './routes';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { debit, economyOf } from './resources';
@@ -117,18 +124,37 @@ export async function resolveContact(
   const byId = new Map<string, Doc<'troops'>>(
     [...attacker.troops, ...defender.troops].map((troop) => [troop._id, troop]),
   );
-  const routed: Array<Doc<'troops'>> = [];
   const cargoBefore = await combatCargoSnapshot(ctx, seasonId, new Set(byId.keys()));
 
   for (const outcome of engagement.outcomes) {
     const troop = byId.get(outcome.id);
     if (!troop) continue;
     if (outcome.state === 'destroyed') await ctx.db.delete(troop._id);
-    else {
-      await ctx.db.patch(troop._id, { currentStrength: outcome.strengthAfter });
-      if (outcome.state === 'routed') routed.push(troop);
-    }
+    else await ctx.db.patch(troop._id, { currentStrength: outcome.strengthAfter });
   }
+
+  /**
+   * **Le large prend ce que plus aucune coque ne porte** (règle 4 du 18/09), et il le prend
+   * **après** la passe : le tir n'a rien appris de la cargaison, c'est l'état d'après qui
+   * répond. Les issues sont amendées ici et une seule fois — noyé devient `destroyed`, emporté
+   * par un replié devient `routed` — et **c'est la liste amendée qui descend partout** : le
+   * compte de l'engagement, le règlement des charges, la réduction, la liste des repliés. Une
+   * seconde vérité à côté des issues aurait fait marcher un noyé jusqu'à son ancrage.
+   *
+   * Placé avant `reducedDefender` de propos délibéré : couler un transport chargé *est* une
+   * réduction, et la domination doit la compter dans la passe qui l'a franchie.
+   */
+  const sunk = await drownAtSea(ctx, { point, outcomes: engagement.outcomes, byId, at });
+  const outcomes: ReadonlyArray<CombatantOutcome> = engagement.outcomes.map((outcome) =>
+    sunk.drowned.has(outcome.id)
+      ? { ...outcome, state: 'destroyed' as const }
+      : sunk.withdrawn.has(outcome.id)
+        ? { ...outcome, state: 'routed' as const }
+        : outcome,
+  );
+  const routed = outcomes.flatMap((outcome) =>
+    outcome.state === 'routed' ? [byId.get(outcome.id)!] : [],
+  );
 
   const reducedDefender = !wasReduced && (await isPlayerReduced(ctx, defender.playerId));
 
@@ -144,7 +170,7 @@ export async function resolveContact(
     outpostId,
     disabledUntil,
     reducedDefender,
-    troops: engagement.outcomes.map((outcome) => {
+    troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {
         troopId: troop._id,
@@ -165,7 +191,7 @@ export async function resolveContact(
   const cargoSettlement = await settleCombatCargo(
     ctx,
     cargoBefore,
-    engagement.outcomes,
+    outcomes,
     dispossessedPlayerId,
     at,
   );
@@ -174,7 +200,7 @@ export async function resolveContact(
     engagementId,
     destroyed: cargoSettlement.destroyed,
     recoveringPlayerId,
-    standingTroopIds: engagement.outcomes
+    standingTroopIds: outcomes
       .filter((outcome) => outcome.side === engagement.winner && outcome.state === 'standing')
       .map((outcome) => outcome.id),
     point,
@@ -225,7 +251,81 @@ export async function resolveContact(
   const season = await ctx.db.get(seasonId);
   if (season) await claimVictory(ctx, season, attacker.playerId, at);
 
-  return { engagementId, engagement, routed, routedCargo };
+  /** **Une seule liste d'issues sort d'ici** : l'appelant lit les survivants dessus pour les
+   *  renvoyer chez eux (`engageAt`), et un noyé qui y serait encore `standing` marcherait. */
+  return { engagementId, engagement: { ...engagement, outcomes }, routed, routedCargo };
+}
+
+/**
+ * **Ce que le large prend quand la coque tombe** (règle 4 du 18/09, révision de l'ADR 0019 §2).
+ * La règle est pure et testée seule (`drownedOf`, `src/domain/combat.ts`) ; ceci est le câblage :
+ * quel côté, quels survivants, et la dépêche.
+ *
+ * **Les deux côtés**, et ce n'est pas une symétrie de confort : l'assaillant est au même point
+ * que sa cible une fois arrivé, donc son propre convoi coule si son escorte n'a pas tenu.
+ *
+ * Rien ne se noie à terre, et la lecture est celle de la grille de routage — la même cellule que
+ * la visée et le départ (ADR 0023) : une passe sur une plage est une passe à terre.
+ */
+async function drownAtSea(
+  ctx: MutationCtx,
+  {
+    point,
+    outcomes,
+    byId,
+    at,
+  }: {
+    point: { lon: number; lat: number };
+    outcomes: ReadonlyArray<CombatantOutcome>;
+    byId: Map<string, Doc<'troops'>>;
+    at: number;
+  },
+): Promise<{ readonly drowned: ReadonlySet<string>; readonly withdrawn: ReadonlySet<string> }> {
+  const drowned = new Set<string>();
+  const withdrawn = new Set<string>();
+  if (landAtPoint([point.lon, point.lat])) return { drowned, withdrawn };
+
+  for (const side of ['attacker', 'defender'] as const) {
+    const survivors = outcomes.filter(
+      (outcome) => outcome.side === side && outcome.state !== 'destroyed',
+    );
+    const unit = (outcome: CombatantOutcome) => ({
+      id: outcome.id,
+      role: byId.get(outcome.id)!.role,
+    });
+    const fate = drownedOf(
+      survivors.filter((outcome) => outcome.state === 'standing').map(unit),
+      survivors.filter((outcome) => outcome.state === 'routed').map(unit),
+    );
+    for (const id of fate.withdrawn) withdrawn.add(id);
+    if (fate.drowned.length === 0) continue;
+
+    /**
+     * **Des hommes et des machines, jamais un nombre de troupes** (ADR 0014) : la perte se lit
+     * dans l'unité où la passe se raconte, et l'effectif compté est celui d'**après** la passe —
+     * ce qui a coulé est ce qui restait debout.
+     */
+    const lost = fate.drowned.map((id) => ({
+      role: byId.get(id)!.role,
+      strength: outcomes.find((outcome) => outcome.id === id)!.strengthAfter,
+    }));
+    const of = (role: 'infantry' | 'other') =>
+      lost
+        .filter((one) => (role === 'infantry' ? one.role === 'infantry' : one.role !== 'infantry'))
+        .reduce((sum, one) => sum + one.strength, 0);
+    for (const id of fate.drowned) drowned.add(id);
+    await ctx.db.insert('notices', {
+      playerId: byId.get(fate.drowned[0]!)!.playerId,
+      at,
+      kind: 'drownedAtSea',
+      point,
+      men: of('infantry'),
+      machines: of('other'),
+    });
+  }
+
+  for (const id of drowned) await ctx.db.delete(byId.get(id)!._id);
+  return { drowned, withdrawn };
 }
 
 /**

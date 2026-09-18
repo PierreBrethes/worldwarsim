@@ -216,7 +216,6 @@ export function WorldMap({
     (target: CompassTarget, clientX: number, clientY: number) => {
       const drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
-      console.log('[banc] openRose', JSON.stringify(target), 'drawn=', JSON.stringify(drawn));
       if (drawn === null || rect === undefined) return;
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       setRose({
@@ -263,7 +262,6 @@ export function WorldMap({
           point !== null && coastAt(point),
           point !== null && landAt(point),
         );
-        console.log('[banc] aiming rc', JSON.stringify(aimed));
         if (aimed === null) {
           setRose(null);
           return;
@@ -705,6 +703,10 @@ export function targetOfLabel(
       id: label.camp.id,
       point: label.anchor.kind === 'ground' ? label.anchor.lonLat : [0, 0],
       country,
+      /** Sur le point du mât, jamais sous le curseur : un mât plein cadre déborde sa cellule, et
+       *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
+      onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
+      coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
       name: fr.camps.marker,
     };
   }

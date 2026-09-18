@@ -1,5 +1,5 @@
 import type { UnitRole, UnitTier } from './ids';
-import { ROLE_ORDER, TIERS_BY_ROLE } from './troops';
+import { LIFT_CAPACITY, LIFT_COST, ROLE_ORDER, stackRows, TIERS_BY_ROLE } from './troops';
 
 /**
  * **One engagement is one resolution pass** (ADR 0014, revised 16/09/2026 — decision 1b). Both
@@ -268,12 +268,12 @@ function winnerOf(outcomes: ReadonlyArray<CombatantOutcome>): CombatSide {
  * is a choice: fodder is an economy of the swarm, and the troop ceiling exists to refuse the
  * swarm. Letting a body block a strike would hand the ceiling straight back.
  *
- * **Open question, and it belongs here rather than in the order.** Since a land troop only
- * crosses aboard a transport (`LIFT_CAPACITY`, design sheet 09), a convoy intercepted at sea is
- * a hull *with a cargo of infantry*. This pass knows the hull is no shield; it knows nothing of
- * what it carries. Do the passengers drown with it, come ashore entamés, or never come into
- * range at all? Nothing here answers, and nothing here should — it is a rule of the resolution
- * pass, to be decided on its own and written down before it is coded.
+ * **Ce que la passe fait des passagers est répondu à côté** (règle 4 du 18/09), et pas ici.
+ * Une troupe terrestre ne traverse qu'à bord (`LIFT_CAPACITY`, fiche 09), donc un convoi accroché
+ * en mer est une coque *avec une cargaison d'infanterie* : la passe sait que la coque n'est pas
+ * un bouclier, elle ne sait rien de ce qu'elle porte — et elle n'a pas à le savoir. Ce qui reste
+ * sans banc une fois les pertes appliquées est **noyé**, et c'est `drownedOf` qui le dit, sur
+ * l'état d'après la passe. La question ouverte de la 0014 est close ; le tir ne l'a pas apprise.
  */
 function pick(
   shooter: Fighter,
@@ -310,4 +310,62 @@ function hit(shooter: Fighter, target: Fighter, modifier: number, rules: CombatR
   target.remaining -= losses;
 
   return { phase: 'strike', by: shooter.combatant.id, target: target.combatant.id, losses };
+}
+
+/**
+ * **Ce que le large prend quand la coque tombe** (règle 4 du 18/09, révision de l'ADR 0019 §2).
+ * Depuis qu'une colonne embarquée peut *rester* en mer, une passe de résolution y a une
+ * conséquence que la terre n'a pas : une troupe terrestre qu'aucune coque ne porte plus est
+ * **détruite**, et non pas déroutée — il n'y a rien où se replier, et une déroute vers un
+ * ancrage serait une nage de mille kilomètres. C'est le prix de rester au large, et la raison
+ * d'une escorte.
+ *
+ * **Le siège est celui du panneau de garnison**, `stackRows` et pas une seconde arithmétique de
+ * places : la place que le joueur a vue au départ est la place qui sauve à l'arrivée, et deux
+ * lectures de `LIFT_CAPACITY` auraient fini par diverger sur exactement la règle que personne ne
+ * relit. Les coques **debout** sont servies d'abord — un passager sauvé sur place ne part pas
+ * avec un replié — puis les coques déroutées, qui emportent les leurs dans leur repli.
+ *
+ * Pure et sans base : elle reçoit les **survivants** de la passe, jamais le plateau. Une coque
+ * coulée n'est donc pas dans ses listes, et c'est ce qui rend ses bancs absents plutôt que nuls.
+ */
+export type SeaUnit = { readonly id: string; readonly role: UnitRole };
+
+export type SeaFate = {
+  /** Les passagers que plus aucun banc ne porte : détruits, et jamais déroutés. */
+  readonly drowned: ReadonlyArray<string>;
+  /** Les passagers qu'une coque en repli emporte : ils quittent le point avec elle. */
+  readonly withdrawn: ReadonlyArray<string>;
+};
+
+export function drownedOf(
+  standing: ReadonlyArray<SeaUnit>,
+  routed: ReadonlyArray<SeaUnit>,
+): SeaFate {
+  const hulls = (units: ReadonlyArray<SeaUnit>) =>
+    units.filter((unit) => (LIFT_CAPACITY[unit.role] ?? 0) > 0);
+  const afloat = hulls(standing);
+  const leaving = hulls(routed);
+  /** L'ordre canonique des rôles, puis l'identifiant : deux lectures de la même passe doivent
+   *  noyer les deux mêmes hommes, et rien d'autre ici ne tranche entre deux fantassins. */
+  const riders = [...standing, ...routed]
+    .filter((unit) => (LIFT_COST[unit.role] ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+
+  const pile = [...afloat, ...leaving, ...riders];
+  const seated = stackRows(pile, new Set(pile.map((unit) => unit.id)));
+  const withdrawing = new Set(leaving.map((hull) => hull.id));
+
+  const drowned: Array<string> = [];
+  const withdrawn: Array<string> = [];
+  for (const rider of riders) {
+    const berth = seated.find((row) => row.troop.id === rider.id)?.carrier ?? null;
+    if (berth === null) drowned.push(rider.id);
+    else if (withdrawing.has(berth.id)) withdrawn.push(rider.id);
+  }
+  return { drowned, withdrawn };
 }

@@ -164,6 +164,26 @@ async function form(
   });
 }
 
+/** **Une troupe posée à une adresse**, et à la force qu'on veut : `form` ne sait pendre qu'à un
+ *  mât, et les cas du large ont besoin d'une pile mouillée avant qu'un ordre existe. */
+async function postAt(
+  t: ReturnType<typeof boot>,
+  seat: Seat,
+  role: UnitRole,
+  at: { lon: number; lat: number },
+  strengthFactor = 1,
+): Promise<Id<'troops'>> {
+  const troopId = await form(t, seat, role, null);
+  await t.run(async (ctx) => {
+    const troop = (await ctx.db.get(troopId))!;
+    await ctx.db.patch(troopId, {
+      stationedAt: at,
+      currentStrength: Math.round(troop.nominalStrength * strengthFactor),
+    });
+  });
+  return troopId;
+}
+
 async function outpostsOf(t: ReturnType<typeof boot>, seat: Seat) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
@@ -2851,7 +2871,10 @@ describe('a rout refluxes to the nearest anchor', () => {
   it('walks the column that left a camp, and never teleports it to where it started', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const camp = eastOf(ARABIA, 600);
+    /** **450 km et pas 600** : la grille tient le Golfe pour de l'eau à 500, et depuis le 18/09
+     *  une pile terrestre mouillée ne part plus du tout (`NO_HULL_AT_SEA`) — le camp que ce cas
+     *  veut est un camp, pas un mouillage. */
+    const camp = eastOf(ARABIA, 450);
     const walker = await post(t, guest, camp);
     // Worn down before the pass: it fires its salvo and breaks all the same.
     await t.run(async (ctx) => ctx.db.patch(walker, { currentStrength: 30 }));
@@ -3483,5 +3506,225 @@ describe('a column enters a garrison of its own', () => {
     expect(preview).not.toBeNull();
     expect(preview!.destinationName).toBe(regionFacts(NORD)!.name);
     expect(preview!.route.mode).toBe('land');
+  });
+});
+
+/**
+ * **« Un cargo peut rester en mer avec des unités dedans »** (décision de Pierre, 18/09/2026, qui
+ * révise la 72a du 04/09). Le large devient une destination, donc une adresse, donc un endroit où
+ * l'on vit — et une passe de résolution y a une conséquence que la terre n'a pas : ce qu'aucune
+ * coque ne porte plus coule.
+ */
+describe('rester en mer', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const NORD = 'FRA-5330';
+  const DOGGER: LonLat = [2.5, 54.5]; // plein mer, hôte de personne
+  const HELIGOLAND: LonLat = [6.5, 54.6]; // un autre morceau de la même eau
+  const KENT: LonLat = [0.73, 51.21]; // une plage, en face
+  const MIDLANDS: LonLat = [-1.5, 52.4]; // anglais, et pas une cellule d'eau à un pas
+
+  /** Une pile embarquée mouillée au large : l'état que ce lot rend possible, et le point de
+   *  départ de tous les cas d'après. */
+  const anchorOffshore = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    await raise(t, seat, 'barracks', NORD);
+    const quay = await raise(t, seat, 'port', NORD);
+    const infantry = await form(t, seat, 'infantry', quay);
+    const cargo = await form(t, seat, 'cargo', quay);
+    const water = { lon: DOGGER[0], lat: DOGGER[1] };
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [infantry, cargo],
+      point: water,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    return { infantry, cargo, water };
+  };
+
+  /** Règle 2 : une seule adresse, sur l'eau, et la pile s'y lit comme à terre. */
+  it('puts hulls and passengers at one address on the open sea', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { infantry, cargo, water } = await anchorOffshore(t, seat);
+
+    expect(landAtPoint(DOGGER)).toBe(false);
+    const moored = await t.run(async (ctx) => [
+      (await ctx.db.get(infantry))!.stationedAt,
+      (await ctx.db.get(cargo))!.stationedAt,
+    ]);
+    expect(moored).toEqual([water, water]);
+
+    const view = await t.query(api.view.playerView, seat);
+    const stations = view.me.troops
+      .filter((troop) => [infantry, cargo].includes(troop.id as Id<'troops'>))
+      .map((troop) => troop.stationedAt);
+    expect(stations).toHaveLength(2);
+    for (const station of stations) {
+      expect(station).toMatchObject({ kind: 'point', afloat: true, coastal: false });
+    }
+  });
+
+  /** Règle 3 : elle repart par sa coque — vers une autre eau, ou vers une plage. L'intérieur
+   *  des terres reste refusé : la jambe terrestre après la mer n'existe toujours pas. */
+  it('sails on from the water it sits in, to another sea point or to a beach', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { infantry, cargo, water } = await anchorOffshore(t, seat);
+    const origin = { kind: 'point' as const, point: water };
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin,
+        troopIds: [infantry, cargo],
+        point: { lon: HELIGOLAND[0], lat: HELIGOLAND[1] },
+      }),
+    ).resolves.toBeDefined();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const second = { kind: 'point' as const, point: { lon: HELIGOLAND[0], lat: HELIGOLAND[1] } };
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: second,
+        troopIds: [infantry, cargo],
+        point: { lon: MIDLANDS[0], lat: MIDLANDS[1] },
+      }),
+    ).rejects.toThrow('LANDING_NEEDS_A_COAST');
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: second,
+        troopIds: [infantry, cargo],
+        point: { lon: KENT[0], lat: KENT[1] },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  /** Règle 3, l'autre moitié : sans coque, la pile ne part pas — et elle le lit. */
+  it('refuses the passengers an order once nothing floats under them', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { infantry, cargo, water } = await anchorOffshore(t, seat);
+    await t.run(async (ctx) => ctx.db.delete(cargo));
+
+    for (const point of [
+      { lon: KENT[0], lat: KENT[1] },
+      { lon: HELIGOLAND[0], lat: HELIGOLAND[1] },
+    ]) {
+      await expect(
+        t.mutation(api.movements.marchTo, {
+          ...seat,
+          origin: { kind: 'point', point: water },
+          troopIds: [infantry],
+          point,
+        }),
+      ).rejects.toThrow('NO_HULL_AT_SEA');
+    }
+  });
+
+  /** Règle 5 : on ne fonde pas en mer. Le trou s'est ouvert avec le large — le sol de personne
+   *  satisfaisait la seule condition que la fondation posait. */
+  it('plants no point on the water, and says why', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { infantry, cargo, water } = await anchorOffshore(t, seat);
+    await t.run(async (ctx) => ctx.db.delete(cargo));
+
+    await expect(
+      t.mutation(api.movements.foundOutpostHere, {
+        ...seat,
+        point: water,
+        regionId: null,
+        specialization: 'relay',
+        troopIds: [infantry],
+      }),
+    ).rejects.toThrow('NO_FOUNDING_AT_SEA');
+  });
+
+  /**
+   * Règle 4 : la coque coule, ses passagers avec elle. **Détruits, jamais déroutés** — il n'y a
+   * rien où se replier, et c'est ce qui fait le prix du large et l'intérêt d'une escorte.
+   */
+  it('drowns the passengers of a hull sent to the bottom, and files the dispatch', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const water = { lon: DOGGER[0], lat: DOGGER[1] };
+    const cargo = await postAt(t, guest, 'cargo', water);
+    const aboard = await postAt(t, guest, 'infantry', water);
+
+    const quay = await raise(t, seat, 'port', NORD);
+    const hunters = [await form(t, seat, 'escort', quay), await form(t, seat, 'escort', quay)];
+    const campId = await surveyCamp(t, seat, water);
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: hunters,
+      target: { kind: 'camp', campId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const left = await t.run(async (ctx) => [await ctx.db.get(cargo), await ctx.db.get(aboard)]);
+    expect(left).toEqual([null, null]);
+
+    const drowned = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+        .collect(),
+    );
+    expect(drowned).toHaveLength(1);
+    expect(drowned[0]).toMatchObject({ men: nominalStrength('infantry', 1), machines: 0 });
+
+    /** **Le compte de la passe dit la vérité** : le fantassin y est détruit, parce qu'il l'est. */
+    const [account] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(account!.troops.find((one) => one.troopId === aboard)!.state).toBe('destroyed');
+  });
+
+  /**
+   * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli, à sa
+   * capacité**, et l'excédent coule. Six bancs pour sept fantassins : un reste à l'eau.
+   */
+  it('takes six aboard the routed hull and drowns the seventh', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const water = { lon: DOGGER[0], lat: DOGGER[1] };
+    /** À 7 sur 8, une seule salve d'escorte la met sous le quart : elle rompt le contact. */
+    const cargo = await postAt(t, guest, 'cargo', water, 7 / 8);
+    const riders: Array<Id<'troops'>> = [];
+    for (let rank = 0; rank < 7; rank += 1) riders.push(await postAt(t, guest, 'infantry', water));
+
+    const quay = await raise(t, seat, 'port', NORD);
+    const campId = await surveyCamp(t, seat, water);
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [await form(t, seat, 'escort', quay)],
+      target: { kind: 'camp', campId },
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [account] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    expect(account!.troops.find((one) => one.troopId === cargo)!.state).toBe('routed');
+    const left = await t.run(async (ctx) =>
+      (await Promise.all(riders.map((id) => ctx.db.get(id)))).filter((troop) => troop !== null),
+    );
+    expect(left).toHaveLength(6);
+    /** **Les six suivent la coque**, et pas un pas de plus : ils sont sur son repli, à la même
+     *  adresse qu'elle — c'est la déroute ordinaire de l'ADR 0019 §3, sans une ligne de plus. */
+    const withTheHull = await t.run(async (ctx) => (await ctx.db.get(cargo))!.stationedAt);
+    for (const rider of left) expect(rider!.stationedAt).toEqual(withTheHull);
+    const drowned = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+        .collect(),
+    );
+    expect(drowned[0]).toMatchObject({ men: nominalStrength('infantry', 1), machines: 0 });
   });
 });

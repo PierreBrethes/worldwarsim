@@ -85,3 +85,21 @@ Convex l'importe tel quel.
 >
 > Ce que cela ferme : un point intérieur n'est plus routable en mode combiné — la visée le
 > refusait déjà (`LANDING_NEEDS_A_COAST`), la grille ne fait que refuser de la contourner.
+
+## Révision du 18/09 — une route combinée peut finir en mer
+
+> ⚠️ **Révision (18/09/2026, décision de Pierre, ADR 0019 §2).** « Un cargo peut rester en mer
+> avec des unités dedans. » Une route combinée peut donc **finir sur une cellule d'eau**, et pas
+> seulement à la côte : le mode combiné foule déjà terre, mer et canal, et l'eau était refusée par
+> la seule visée, jamais par la recherche.
+>
+> **Rien ne change dans `computeRoute`**, et c'est le point : les deux lectures du 04/09 tiennent
+> telles quelles et suffisent. Un pas qui touche la mer est fait en bateau, donc une route
+> combinée ne porte toujours **aucune jambe de terre après une jambe de mer** — ce qui interdit
+> mécaniquement à une colonne embarquée de finir à l'intérieur des terres, et ce qui laisse le
+> départ **depuis** une cellule d'eau se porter à la mer dès son premier pas (`carriedInto`
+> répond `'sea'` sur une cellule de mer). Les deux transferts de +8 restent payés là où la ligne
+> d'eau se franchit : un mouillage au large en coûte un, son débarquement l'autre.
+>
+> Ce que cela ouvre en revanche, et qui n'était pas routable avant le 18/09 : **mer → mer** en
+> mode combiné, une route de pure jambe de mer pour une pile qui porte des bottes.

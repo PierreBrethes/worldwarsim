@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { COMBAT_RULES, DAMAGE_TABLE, nominalStrength } from '../../convex/constants';
 import {
   COMBAT_PROFILES,
+  drownedOf,
   profileOf,
   resolveEngagement,
   TRANSPORT_PROFILES,
@@ -327,5 +328,79 @@ describe('the profile of a troop', () => {
     expect(profileOf('infantry', 2)).toBe('infantry2');
     expect(profileOf('armor', 1)).toBe('armor1');
     expect(profileOf('carrier', 1)).toBe('carrier');
+  });
+});
+
+/**
+ * **Ce que le large prend quand la coque tombe** (règle 4 du 18/09). Une pile embarquée peut
+ * rester en mer, donc la passe de résolution y a désormais une conséquence que la terre n'a
+ * pas : une troupe terrestre qu'aucune coque ne porte plus est **détruite**, jamais déroutée —
+ * il n'y a rien où se replier. C'est le prix de rester au large, et la raison d'une escorte.
+ *
+ * Le siège est celui de `stackRows`, la fonction même que le panneau de garnison dessine : la
+ * place qu'on voit au départ est la place qui sauve à l'arrivée.
+ */
+describe('les passagers d’une coque coulée', () => {
+  const unit = (id: string, role: UnitRole) => ({ id, role });
+
+  it('drowns the infantry whose only hull went down', () => {
+    const fate = drownedOf([unit('i1', 'infantry')], []);
+    expect(fate.drowned).toEqual(['i1']);
+    expect(fate.withdrawn).toEqual([]);
+  });
+
+  it('keeps aboard what a standing hull still carries', () => {
+    const fate = drownedOf(
+      [unit('c1', 'cargo'), unit('i1', 'infantry'), unit('i2', 'infantry')],
+      [],
+    );
+    expect(fate.drowned).toEqual([]);
+    expect(fate.withdrawn).toEqual([]);
+  });
+
+  /** Six places pour une seule coque : le septième passager n'a plus de banc. */
+  it('drowns only what the remaining berths cannot hold', () => {
+    const riders = Array.from({ length: 7 }, (_, index) => unit(`i${index}`, 'infantry'));
+    const fate = drownedOf([unit('c1', 'cargo'), ...riders], []);
+    expect(fate.drowned).toEqual(['i6']);
+  });
+
+  /** Deux coques, une coulée : la passe n'en laisse qu'une, et elle ne porte que six. */
+  it('counts the berths of the hulls still afloat, never of those that sank', () => {
+    const riders = Array.from({ length: 8 }, (_, index) => unit(`i${index}`, 'infantry'));
+    const fate = drownedOf([unit('c1', 'cargo'), ...riders], []);
+    expect(fate.drowned).toEqual(['i6', 'i7']);
+  });
+
+  /** Une coque déroutée emporte ses passagers dans son repli, à sa capacité ; l'excédent coule. */
+  it('takes with a routed hull what it can carry, and drowns the rest', () => {
+    const riders = Array.from({ length: 8 }, (_, index) => unit(`i${index}`, 'infantry'));
+    const fate = drownedOf(riders, [unit('c1', 'cargo')]);
+    expect(fate.withdrawn).toEqual(['i0', 'i1', 'i2', 'i3', 'i4', 'i5']);
+    expect(fate.drowned).toEqual(['i6', 'i7']);
+  });
+
+  /** Les bancs debout d'abord : un passager sauvé sur place ne part pas avec le replié. */
+  it('fills the standing hull before the routed one', () => {
+    const riders = Array.from({ length: 7 }, (_, index) => unit(`i${index}`, 'infantry'));
+    const fate = drownedOf([unit('c1', 'cargo'), ...riders], [unit('c2', 'cargo')]);
+    expect(fate.withdrawn).toEqual(['i6']);
+    expect(fate.drowned).toEqual([]);
+  });
+
+  /** Un char coûte deux places : la capacité se compte en places, jamais en têtes — six bancs
+   *  portent trois chars, et le quatrième coule. */
+  it('bills a tank for two berths, as every crossing does', () => {
+    const tanks = Array.from({ length: 4 }, (_, index) => unit(`a${index}`, 'armor'));
+    const fate = drownedOf([unit('c1', 'cargo'), ...tanks], []);
+    expect(fate.drowned).toEqual(['a3']);
+  });
+
+  /** Rien de terrestre, rien à noyer : une flotte pure repart comme elle est venue. */
+  it('leaves a pure fleet alone', () => {
+    expect(drownedOf([unit('e1', 'escort'), unit('c1', 'cargo')], [])).toEqual({
+      drowned: [],
+      withdrawn: [],
+    });
   });
 });

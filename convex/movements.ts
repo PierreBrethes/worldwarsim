@@ -54,7 +54,7 @@ import {
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, pointOfBuilding, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
-import { hostAtPoint, routeBetween } from './routes';
+import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seasons';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
@@ -120,9 +120,13 @@ export const foundOutpostHere = mutation({
      *  containment it has. A region already carrying a building of mine is `FRIENDLY_TARGET`. */
     const here = nearestRegion(pointOf(point));
     const buildings = await playerBuildings(ctx, player._id);
+    /** **Le sol se lit sur la grille de routage** (règle 5 du 18/09), la même cellule que la
+     *  visée a lue : le large n'ouvre aucun terrain, et il passait jusque-là *parce que* le sol
+     *  de personne satisfaisait la seule condition que la fondation posait. */
     const refusal = foundingRefusal(
       troops.map((troop) => troop.role),
       here !== null && buildings.some((building) => building.regionId === here.id),
+      landAtPoint(pointOf(point)),
     );
     if (refusal !== null) fail(refusal, {});
 

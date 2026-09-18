@@ -115,6 +115,15 @@ export type CompassTarget =
       readonly point: LonLat;
       /** Le pays sous le relevé, lu au picking — le serveur le relit de son côté. */
       readonly country: string | null;
+      /**
+       * Le sol et la côte sous le relevé, lus sur la grille de routage au moment du clic — comme
+       * pour une caisse, et pour la même raison : le relevé n'en porte rien. Absents, le camp est
+       * jugé à terre ferme — c'est le cas du dézoom, où la carte n'a pas de cellule à
+       * interroger. Ils sont arrivés avec le large (18/09) : un camp mouillé en mer n'était
+       * visable par aucune flotte.
+       */
+      readonly onLand?: boolean;
+      readonly coastal?: boolean;
       readonly name: string;
     }
   | {
@@ -799,6 +808,8 @@ function aim(
         lon: target.point[0],
         lat: target.point[1],
         hostCountry: target.country ?? '',
+        onLand: target.onLand ?? true,
+        coastal: target.coastal ?? false,
       },
     ]);
   }
@@ -898,6 +909,9 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   'EMPTY_MOVEMENT',
   'NO_AIRFIELD_AT_DEPARTURE',
   'NO_PORT_AT_DEPARTURE',
+  /** Juste après les portes de départ, parce que c'en est une : la carte montre une pile sur
+   *  l'eau, elle ne montre pas qu'il ne reste rien dessous qui flotte (règle 3 du 18/09). */
+  'NO_HULL_AT_SEA',
   'NOT_ENOUGH_LIFT',
   /** Après les portes de départ et avant l'allégeance : la carte montre bien une côte, mais pas
    *  la cellule que la grille de routage tient pour telle — le joueur ne peut pas la lire. */
@@ -1232,9 +1246,12 @@ function foundHere(
    * Les détails sont ce que la rose sait et que le serveur ne met pas dans sa charge utile : le
    * rôle qui bloque, et la région déjà bâtie. Sans eux la phrase reste celle du serveur.
    */
+  /** **Le sol sous la pile, tel que la carte l'a lu** (règle 5 du 18/09) : c'est la cellule de
+   *  la grille de routage, la même que la visée, et le serveur relit la sienne du même mot. */
   const refusal = foundingRefusal(
     held.map((troop) => troop.role),
     onMyGround,
+    target.onLand,
   );
   if (refusal !== null) {
     return { action: null, refusal: foundingMotive(refusal, held, target, view) };

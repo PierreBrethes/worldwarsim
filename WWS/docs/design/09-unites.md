@@ -66,6 +66,28 @@ Le régulateur central n'est pas perdu pour autant : « un mouvement = un slot �
 ([ADR 0006](../adr/0006-slots-de-mouvement.md)) tient toujours, il porte simplement sur le
 mouvement et non plus sur une pile.
 
+### Une pile en mer vit sur sa coque
+
+**Codé le 18/09/2026** (décision de Pierre, [ADR 0019](../adr/0019-mouvement-libre-et-troupes-posees.md)
+§2, révision « rester en mer »). Une colonne embarquée peut **mouiller au large** et y demeurer,
+passagers à bord. Trois conséquences, et elles tiennent toutes à la même phrase — *une cargaison
+n'a pas de sol sous elle* :
+
+- **Elle ne repart que par sa coque.** Plus rien qui flotte, plus d'ordre : `NO_HULL_AT_SEA`.
+- **Coque coulée, passagers coulés.** Après une passe de résolution en mer, la troupe terrestre
+  que la capacité d'emport des coques **debout** ne couvre plus est **détruite**, jamais déroutée.
+  Une coque déroutée emporte les siens à sa capacité ; l'excédent coule. C'est la première raison
+  mécanique de payer une escorte, et elle ne vient pas d'un chiffre : `LIFT_CAPACITY` ne dit plus
+  seulement qui traverse, il dit qui survit.
+- **On n'y vit pas à crédit.** Aucun ravitaillement en mer : le tarif majoré s'applique, même
+  mouillé dans le rayon d'un de ses propres points. Le ravitaillement par un port ami à portée est
+  une question ouverte (`QUESTIONS.md` 🟡), pas un oubli.
+
+Ce que cela achète au design : un transport chargé cesse d'être un taxi entre deux quais. Il
+devient une **position** — menaçante parce qu'elle ne dit pas sur quelle rive elle débarquera,
+coûteuse parce qu'elle mange au tarif du bout du monde, et fragile parce qu'une seule passe perdue
+noie l'armée qu'elle porte.
+
 ## Le porte-avions n'est pas une unité de combat
 
 C'est de **l'infrastructure mobile** : un avant-poste qui bouge. Il déplace l'endroit depuis lequel

@@ -89,6 +89,16 @@ premier skirmish ». Trois parties plus tard, rien n'est codé ; en asynchrone s
 **« L'Allemagne est injouable ».** Plainte Discord du 15/09 ; le frein a changé de nature
 depuis (plus d'entretien, un prix par niveau). Attend la mesure 7a, pas une réponse.
 
+**Le ravitaillement en mer par un port ami à portée.** Ouverte le 18/09 avec « rester en mer »
+(ADR 0019 §2, révision) : une pile mouillée au large paie le tarif non ravitaillé, sans exception.
+Ce n'est pas une omission — c'est le refus d'un ravitaillement **déduit d'une géométrie** : un
+rayon d'avant-poste est un disque, donc un point côtier couvrait déjà l'eau devant lui et une
+flotte ancrée là mangeait au tarif domestique sans qu'aucune règle l'ait dit. Si la mesure montre
+qu'une flotte d'attente est trop chère à tenir, la réponse est un **rayon de port**, nommé et
+choisi, pas le débordement d'un rayon terrestre. Ce qu'il faudrait trancher avec : si le
+ravitaillement en mer existe, une escadre de blocus devient tenable indéfiniment devant un port
+ami — et c'est précisément ce que le tarif majoré empêche aujourd'hui.
+
 ## Fermées — où la réponse vit
 
 - Temps de trajet, outils de soustraction, cadence de décision : 🟢 simulateur v1 (14 min /

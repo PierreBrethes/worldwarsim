@@ -560,6 +560,9 @@ export type DispatchKind =
    *  avant-poste que personne ne subit. */
   | 'outpostDismantled'
   | 'outpostDisabled'
+  /** **Les passagers d'une coque coulée** (règle 4 du 18/09) : la seule perte du jeu qu'aucun
+   *  tir n'explique, donc la seule qui ait besoin d'être dite. */
+  | 'drownedAtSea'
   | 'sighting'
   /** Un camp relevé : la même encre que le fil relevé, et un mot distinct pour que le tampon de
    *  la marge dise lequel des deux on lit. */
@@ -673,6 +676,17 @@ export type Notice =
       readonly at: number;
       readonly hostCountry: string;
       readonly specialization: Specialization;
+    }
+  /**
+   * **Ce que le large a pris** (règle 4 du 18/09). Le lieu est un point : au large il n'y a pas
+   * de pays à nommer, et les degrés sont le nom d'une place qui n'en a pas.
+   */
+  | {
+      readonly kind: 'drownedAtSea';
+      readonly at: number;
+      readonly point: { readonly lon: number; readonly lat: number };
+      readonly men: number;
+      readonly machines: number;
     }
   /**
    * **Un avant-poste qui a grandi** (précision du 15/09). Chez le seul propriétaire : ce qu'un

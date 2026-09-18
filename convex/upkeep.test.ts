@@ -14,6 +14,7 @@ import {
   nominalStrength,
 } from './constants';
 import { regionFacts } from './regions';
+import { landAtPoint } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, seatIn } from './seats.fixture';
@@ -230,6 +231,28 @@ describe('where a troop stands decides what it eats', () => {
     const upkeep = await upkeepOf(t, seat);
     expect(upkeep.unsupplied).toBe(0);
     expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR);
+  });
+
+  /**
+   * **Aucun quai ne nourrit le large** (règle 5 du 18/09). Une pile qui *reste* en mer est un
+   * ordre depuis cette date, donc la question s'est posée : mouillée dans le rayon d'un de ses
+   * propres points, elle était nourrie au tarif du pays — la géométrie répondait oui à une
+   * question que personne n'avait posée. Le ravitaillement en mer par un port ami à portée reste
+   * ouvert (`QUESTIONS.md` 🟡) ; il ne sera pas un effet de bord d'un rayon terrestre.
+   */
+  it('feeds nobody at sea, even moored inside the reach of one of its own points', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    /** Le point est sur la côte saoudienne : son rayon couvre le large juste à côté. */
+    const shore: LonLat = [49.9, 27.0];
+    await plant(t, seat, shore);
+    const offshore = eastOf(shore, REACH_KM / 3);
+    expect(landAtPoint(offshore)).toBe(false);
+    await form(t, seat, 'cargo', asPoint(offshore));
+
+    const upkeep = await upkeepOf(t, seat);
+    expect(upkeep.unsupplied).toBe(1);
+    expect(upkeep.foodPerHour).toBe(FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER);
   });
 
   it('charges the raised rate a step beyond that reach', async () => {

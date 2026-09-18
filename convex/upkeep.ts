@@ -8,7 +8,7 @@ import {
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from './constants';
 import { homeCountryOf, pointOfBuilding } from './regions';
-import { hostAtPoint } from './routes';
+import { hostAtPoint, landAtPoint } from './routes';
 
 /**
  * **What an army costs to hold, and why it costs more far from home** (ADR 0019 §4).
@@ -42,6 +42,26 @@ export function isAnchored(
   if (homeCountry !== null && hostAtPoint(point) === homeCountry) return true;
   return withinReach(point, anchors);
 }
+
+/**
+ * **Aucun quai ne nourrit le large** (règle 5 du 18/09, révision de l'ADR 0019 §2). Rester en mer
+ * est devenu un ordre, et la question s'est posée avec lui : un rayon d'avant-poste est un disque,
+ * donc un point côtier couvrait déjà l'eau à côté de lui et une flotte mouillée là mangeait au
+ * tarif du pays. C'était la géométrie qui répondait, pas la règle.
+ *
+ * Le refus est **ici et pas dans `isAnchored`** : la même lecture sert le *sol reconnu* de la
+ * visée et le « cap sur moi » du relevé (`view.ts`), et un avant-poste côtier voit bel et bien
+ * la mer devant lui — nourrir et reconnaître sont deux questions, et c'est la couture que
+ * `isAnchored` porte déjà en recevant ses ancres en paramètre.
+ *
+ * Le ravitaillement en mer par un port ami à portée reste ouvert (`QUESTIONS.md` 🟡) : il se
+ * décidera, il ne se déduira pas d'un disque terrestre.
+ */
+const isFed = (
+  point: LonLat,
+  homeCountry: string | null,
+  anchors: ReadonlyArray<OutpostReach>,
+): boolean => landAtPoint(point) && isAnchored(point, homeCountry, anchors);
 
 /** L'ancre telle que la portée la lit : chaque point porte son rayon, qui suit son niveau
  *  (`outpostReachKm`, 31/08) — un rayon commun dirait que tous couvrent la même chose. */
@@ -121,7 +141,7 @@ export async function upkeepOf(
     /** A troop the game cannot place is at home: `null` is national soil hanging from nothing
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
     if (point === null) continue;
-    if (!isAnchored(point, home, supplying)) unsuppliedTroopIds.push(troop._id);
+    if (!isFed(point, home, supplying)) unsuppliedTroopIds.push(troop._id);
   }
 
   const plain = troops.length - unsuppliedTroopIds.length;

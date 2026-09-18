@@ -482,8 +482,16 @@ export const fr = {
     NO_AIRFIELD_AT_DEPARTURE: () =>
       'aucun aérodrome là d’où part la colonne — on ne décolle pas d’un champ',
     /** Le débarquement en deux temps (72a) : la phrase dit la plage, pas la règle — marcher vers
-     *  l'intérieur est l'ordre d'après, et le joueur le donnera lui-même. */
+     *  l'intérieur est l'ordre d'après, et le joueur le donnera lui-même. **Depuis le 18/09 le
+     *  large est permis** (règle 1) : la phrase ne sort donc plus que sur l'intérieur des terres,
+     *  et c'est exactement ce qu'elle nomme. */
     LANDING_NEEDS_A_COAST: () => 'une colonne embarquée ne débarque que sur une côte',
+    /** **Le large ne se quitte qu'à bord** (règle 3 du 18/09). La phrase dit ce qu'il faudrait —
+     *  une coque — parce que c'est la seule chose que le joueur peut encore faire venir. */
+    NO_HULL_AT_SEA: () => 'plus rien ne flotte sous cette pile — une coque, ou elle reste au large',
+    /** **On ne fonde pas en mer** (règle 5 du 18/09) : un avant-poste ouvre du terrain, et le
+     *  large n'en est pas. */
+    NO_FOUNDING_AT_SEA: () => 'on ne fonde pas en mer — il n’y a pas de sol à ouvrir',
     LAND_TARGET_REQUIRED: () =>
       'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
     SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
@@ -964,6 +972,7 @@ export const fr = {
       outpostRaised: 'avant-poste élevé',
       outpostDismantled: 'avant-poste démantelé',
       outpostDisabled: 'avant-poste désactivé',
+      drownedAtSea: 'coulés en mer',
       sighting: 'relevé',
       campSighted: 'camp relevé',
       firedDry: 'tir à sec',
@@ -1128,6 +1137,19 @@ export const fr = {
         `Notre ${specialization} en chantier est perdu — ${country} : sa garnison n’y est plus, rien n’est remboursé.`,
       outpostDisabled: (specialization: string, country: string) =>
         `Notre ${specialization} a été désactivé par un raid — ${country}.`,
+      /**
+       * **Le prix de rester en mer** (règle 4 du 18/09). La phrase dit la cause parce que c'est
+       * la seule perte du jeu qu'aucun tir n'explique : on ne lit nulle part ailleurs qu'une
+       * cargaison n'a pas de place où se replier. Les hommes et les machines se comptent à part
+       * (ADR 0014) et la place se nomme en degrés — au large, il n'y a pas de pays.
+       */
+      drownedAtSea: (men: number, machines: number, place: string) => {
+        const lost = [
+          men === 0 ? null : `${num(men)} homme${plural(men, '', 's')}`,
+          machines === 0 ? null : `${num(machines)} machine${plural(machines, '', 's')}`,
+        ].filter((part): part is string => part !== null);
+        return `${lost.join(' et ')} ont coulé avec leur transport — ${place} : une cargaison n’a pas d’où se replier.`;
+      },
       /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
        *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
       outpostRaised: (level: number, place: string) =>

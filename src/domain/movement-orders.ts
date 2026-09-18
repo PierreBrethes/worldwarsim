@@ -38,6 +38,15 @@ export type MovementAim =
       readonly lon: number;
       readonly lat: number;
       readonly hostCountry: string;
+      /**
+       * **Le milieu du relevé, lu sur la grille de routage** — les deux mêmes lectures qu'un
+       * point, et pour la raison qui les y a mises : la règle doit répondre sans route et sans
+       * carte (ADR 0015). Elles sont arrivées avec le large (18/09) : un camp mouillé en mer
+       * était une cible qu'aucune flotte ne pouvait viser — `SEA_TARGET_REQUIRED` sur une
+       * position qui *est* de la mer — donc la règle 4 n'avait aucune passe où s'appliquer.
+       */
+      readonly onLand: boolean;
+      readonly coastal: boolean;
     }
   /**
    * **Un objectif neutre**, et la seule cible du jeu qu'on attaque **sans l'avoir relevée** — c'est
@@ -152,6 +161,16 @@ export type OrderRefusal =
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
   | 'SEA_TARGET_REQUIRED'
+  /**
+   * **Une pile en mer part par sa coque, ou elle ne part pas** (règle 3 du 18/09). Depuis que
+   * rester en mer est un ordre, une troupe terrestre peut avoir une adresse sur l'eau et plus
+   * rien pour la porter — le *mouvement fantôme* une quatrième fois. Le mot est à elle plutôt
+   * qu'un `NO_LAND_ROUTE` qui parlerait d'une route que personne ne cherchait.
+   */
+  | 'NO_HULL_AT_SEA'
+  /** **On ne fonde pas en mer** (règle 5 du 18/09) : le large est un sol que personne ne
+   *  possède, donc il passait la seule condition que la fondation posait. */
+  | 'NO_FOUNDING_AT_SEA'
   | 'NOT_ENOUGH_LIFT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
@@ -329,9 +348,18 @@ export function refusalOf(
 export function foundingRefusal(
   roles: ReadonlyArray<UnitRole>,
   onMyGround: boolean,
+  /**
+   * **Le sol sous la pile, lu sur la grille de routage** — et il est arrivé avec le large
+   * (règle 5 du 18/09). Tant qu'une colonne embarquée finissait sa route à la côte, « où l'on se
+   * tient » était de la terre par construction ; une pile qui reste en mer plantait un point sur
+   * l'eau, et elle y passait *parce que* le large n'est le sol de personne. Paramètre obligatoire
+   * et sans défaut : un appelant qui l'oublie doit ne pas compiler, pas fonder au large.
+   */
+  onLand: boolean,
 ): OrderRefusal | null {
   if (roles.length === 0) return 'EMPTY_MOVEMENT';
   if (roles.some((role) => role !== 'infantry')) return 'INFANTRY_ONLY';
+  if (!onLand) return 'NO_FOUNDING_AT_SEA';
   return onMyGround ? 'FRIENDLY_TARGET' : null;
 }
 
@@ -419,6 +447,13 @@ const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   if (domains.has('sea') && embarking(column, domains)) {
     if (!column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) return 'NO_PORT_AT_DEPARTURE';
   }
+  /**
+   * **Le large ne se quitte qu'à bord** (règle 3 du 18/09). Il se lit **après** l'aérodrome,
+   * parce qu'une aile à flot est une aile à une station et que son champ est ce qui lui manque ;
+   * et avant tout le reste, parce que c'est la seule chose qu'aucune carte ne montre — le joueur
+   * voit sa pile sur l'eau, il ne voit pas qu'elle n'a plus rien qui flotte.
+   */
+  if (column.afloat && !domains.has('sea')) return 'NO_HULL_AT_SEA';
   return overloaded(column) ?? destinationRefusal(aim, column);
 };
 
@@ -457,19 +492,38 @@ const embarking = (column: Column, domains: ReadonlySet<UnitDomain>): boolean =>
  * Un port ami passe parce qu'il *est* la côte ; un point et un avant-poste passent là où la
  * grille de routage trouve de l'eau à côté. Une région ne passe jamais : c'est un centroïde, et
  * un centroïde n'est le bord de rien.
+ *
+ * > **Révision du 18/09 — « un cargo peut rester en mer avec des unités dedans »** (décision de
+ * > Pierre, ADR 0019 §2). Le **large** rejoint la côte parmi les destinations d'une colonne
+ * > embarquée : elle y arrive, elle y reste, passagers à bord. Ce qui reste refusé est
+ * > l'intérieur des terres, et pour la raison d'origine — la jambe terrestre après la mer
+ * > n'existe toujours pas (ADR 0012, même révision). Le débarquement, lui, ne bouge pas d'un
+ * > mot : il se vise, depuis la mer comme depuis la terre.
+ * >
+ * > La règle des deux modes de mer devient donc la même à la phrase près, et c'est voulu : un
+ * > navire qui vise l'intérieur lit « un navire doit viser la mer, une côte ou un port », une
+ * > colonne embarquée lit sa plage. Le sol refusé est le même, ce qu'on y attendait ne l'est pas.
  */
 const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | null => {
   const mode = routeModeOf(column.roles);
-  if (mode === 'land' && aim.kind === 'point' && !aim.onLand) return 'LAND_TARGET_REQUIRED';
-  if (mode === 'naval' && !(aim.kind === 'point' && !aim.onLand) && !shore(aim)) {
-    return 'SEA_TARGET_REQUIRED';
-  }
-  return mode === 'combined' && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
+  if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
+  if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
+  return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
 };
+
+/**
+ * **Le large, et rien qui s'en approche** : une visée que la grille de routage tient pour de
+ * l'eau. Un point et un **camp relevé** peuvent l'être — une région est un centroïde, un
+ * avant-poste et un mât sont sur la terre par construction — et c'est ce qui laisse les deux
+ * modes de mer le lire du même mot.
+ */
+const atSea = (aim: MovementAim): boolean =>
+  (aim.kind === 'point' || aim.kind === 'camp') && !aim.onLand;
 
 const shore = (aim: MovementAim): boolean => {
   switch (aim.kind) {
     case 'point':
+    case 'camp':
     case 'outpost':
       return aim.coastal;
     case 'building':

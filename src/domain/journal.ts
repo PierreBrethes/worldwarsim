@@ -249,6 +249,19 @@ function written(notice: Notice): Written {
       };
     /** Encre normale : un point qui monte est une nouvelle du joueur, pas un événement qu'il
      *  subit — et personne d'autre ne la lit. */
+    /** Encre critique : une cargaison perdue ne se répare pas, et rien d'autre dans le journal
+     *  ne dit pourquoi ces compagnies ont disparu sans une passe qui les nomme. */
+    case 'drownedAtSea':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'drownedAtSea',
+        text: said.drownedAtSea(
+          notice.men,
+          notice.machines,
+          fr.aim.pointAt(notice.point.lon, notice.point.lat),
+        ),
+      };
     case 'outpostRaised':
       return {
         at: notice.at,
@@ -563,6 +576,8 @@ const ALARMS: ReadonlyArray<DispatchKind> = [
   'productionCut',
   'sitePlundered',
   'lootLost',
+  /** Une cargaison coulée est une perte sèche, et la seule que la passe ne raconte pas. */
+  'drownedAtSea',
 ];
 
 export const isAlarm = (kind: DispatchKind): boolean => ALARMS.includes(kind);

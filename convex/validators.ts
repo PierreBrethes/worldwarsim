@@ -407,6 +407,20 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     specialization: SPECIALIZATION,
   }),
+  /**
+   * **Ce que le large a pris** (règle 4 du 18/09). Chez le seul propriétaire : ce qu'un
+   * adversaire en apprend, il l'a vu couler. Le lieu est un **point** et pas un pays — au large
+   * il n'y en a aucun, et les degrés sont le seul nom qu'une place sans nom possède
+   * (`fr.aim.pointAt`). Les hommes et les machines sont comptés séparément parce qu'une passe se
+   * raconte dans ces deux unités et jamais en nombre de troupes (ADR 0014).
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('drownedAtSea'),
+    point: LON_LAT,
+    men: v.number(),
+    machines: v.number(),
+  }),
   /** **La saison close à la main par son fondateur** (`seasons.conclude`) — la seule fin qui ne
    *  désigne personne : elle n'a pas de vainqueur, et le journal ne doit pas en inventer un. */
   v.object({

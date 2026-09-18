@@ -17,7 +17,7 @@ import {
   routeMinutes,
 } from './constants';
 import { regionFacts } from './regions';
-import { hostAtPoint, routeBetween } from './routes';
+import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import { forgetMovement } from './movement/arrival';
 import schema from './schema';
@@ -311,7 +311,10 @@ describe('what sees a movement go past', () => {
     const { seat, guest } = await launchedSeason(t);
     const soviet = pointOf('RUS-2335');
 
-    const { troopIds, origin } = await column(t, seat, eastOf(soviet, -300));
+    /** **250 km et pas 300** : la grille tient le lac Peïpous pour de l'eau à 300, et depuis le
+     *  18/09 une colonne terrestre mouillée ne part plus (`NO_HULL_AT_SEA`). Ce que le cas mesure
+     *  est la route, pas le rivage. */
+    const { troopIds, origin } = await column(t, seat, eastOf(soviet, -250));
     await t.mutation(api.movements.marchTo, {
       ...seat,
       origin,
@@ -371,8 +374,13 @@ describe('what sees a camp standing', () => {
     );
   }
 
-  async function post(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
-    const troopId = await form(t, seat, 'infantry', null);
+  async function post(
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    at: LonLat,
+    role: UnitRole = 'infantry',
+  ) {
+    const troopId = await form(t, seat, role, null);
     await t.run(async (ctx) => {
       await ctx.db.patch(troopId, { stationedAt: asPoint(at) });
       await reassessDetection(ctx, (await ctx.db.get(troopId))!.seasonId);
@@ -391,6 +399,30 @@ describe('what sees a camp standing', () => {
     expect(await campsOf(t, guest)).toMatchObject([{ until: null, medium: 'land' }]);
     expect(await sightingsOf(t, seat)).toEqual([]);
     expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+
+  /**
+   * **En mer, on voit le navire, pas la cargaison** (ADR 0014, règle 6 du 18/09). Le milieu se lit
+   * sur le point et jamais sur la pile : un cargo vide et un cargo chargé de fantassins laissent
+   * la même ligne — une position, une silhouette de coque, une date. C'est le gain de leurre que
+   * l'ADR 0014 annonçait, et rester en mer est ce qui le rend réel.
+   */
+  it('shows a camp moored at sea as a hull, and says nothing of what it carries', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    /** Plein mer au large de la Roumanie : la mer Noire, hôte de personne. */
+    const water: LonLat = [31.5, 44.2];
+    expect(landAtPoint(water)).toBe(false);
+    await post(t, seat, water, 'cargo');
+    await post(t, seat, water, 'infantry');
+    await post(t, guest, eastOf(water, 30), 'escort');
+
+    const seen = await campsOf(t, guest);
+    expect(seen).toMatchObject([{ until: null, medium: 'sea' }]);
+    /** Une ligne ne porte structurellement ni rôle ni effectif : il n'y a rien à cacher. */
+    expect(Object.keys(seen[0]!)).not.toContain('roles');
+    /** Et le chargement ne change pas la ligne : c'est une station, pas un manifeste. */
+    expect(seen).toHaveLength(1);
   });
 
   it('gives neither anything at seventy, past the infantry range', async () => {

@@ -3,7 +3,7 @@
 **Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
 le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
 objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par
-l'[ADR 0021](0021-portee-de-detection-et-postures.md). §3 et §6 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md).**
+l'[ADR 0021](0021-portee-de-detection-et-postures.md). §3 et §6 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md). §2 révisé le 04/09/2026 puis le 18/09/2026 — voir les deux bannières en fin de fiche.**
 
 > **Révision S5b (09/09/2026).** Une expédition de pillage arrivée et victorieuse devient une
 > présence durable de 2 h au point du site. Elle reste un mouvement : ses troupes et son slot
@@ -254,11 +254,78 @@ moment-là.
 
 ## Révision du 04/09 — les navires ne roulent pas
 
-> ⚠️ **Révision (04/09/2026, décision 72a).** Une colonne embarquée (terre + mer) **ne vise
-> qu'un point de côte, un avant-poste côtier ou un port ami** : sa route finit à la côte, et
-> à l'arrivée coques et passagers sont posés au même point (§1 inchangé — une seule adresse,
-> sinon rien ne se recompose). Le débarquement est une opération : choisir la plage, puis
-> marcher. **§2, la porte de départ, s'assouplit d'un cas** : une coque part d'un port, d'un
-> point en mer, ou d'un point de côte où elle se tient — elle y est arrivée par la mer. Un
-> port ne se fabrique pas ailleurs : une coque posée à l'intérieur des terres reste sans
-> départ. Même jour, 64b codée : entrer en garnison est une marche visant un bâtiment à soi.
+> ⚠️ **Révision (04/09/2026, décision 72a), elle-même révisée le 18/09 (ci-dessous).** Une
+> colonne embarquée (terre + mer) **ne vise qu'un point de côte, un avant-poste côtier ou un port
+> ami** : sa route finit à la côte, et à l'arrivée coques et passagers sont posés au même point
+> (§1 inchangé — une seule adresse, sinon rien ne se recompose). Le débarquement est une
+> opération : choisir la plage, puis marcher. **§2, la porte de départ, s'assouplit d'un cas** :
+> une coque part d'un port, d'un point en mer, ou d'un point de côte où elle se tient — elle y
+> est arrivée par la mer. Un port ne se fabrique pas ailleurs : une coque posée à l'intérieur des
+> terres reste sans départ. Même jour, 64b codée : entrer en garnison est une marche visant un
+> bâtiment à soi.
+>
+> **Ce que le 18/09 en retire** : la première phrase. Le large rejoint les destinations d'une
+> colonne embarquée. Le reste tient mot pour mot — l'adresse unique à l'arrivée, le débarquement
+> qui se vise, la porte de départ et ses trois cas.
+
+## Révision du 18/09 — rester en mer
+
+> ⚠️ **Révision (18/09/2026, décision de Pierre).** « Un cargo peut rester en mer avec des unités
+> dedans. » Une colonne embarquée (terre + mer) peut **viser un point de mer** ; elle y arrive,
+> elle y reste, passagers à bord. Le débarquement demeure une opération à part — viser une côte,
+> depuis la mer comme depuis la terre — et **l'intérieur des terres reste refusé** à une colonne
+> embarquée, pour la raison d'origine : la jambe terrestre après la mer n'existe toujours pas
+> (ADR 0012, même bannière).
+
+Ce que le 04/09 avait fermé sans le dire : une flotte pouvait mouiller au large, une colonne
+embarquée non. La mer était un couloir pour les troupes et un domicile pour les coques seules, et
+la différence ne tenait à rien d'autre qu'au refus `LANDING_NEEDS_A_COAST` lu sur une cible d'eau.
+Or rester au large est une **position**, au sens du §1 : entre deux rives, à cheval sur deux
+débarquements possibles, hors de tout ravitaillement. C'est le seul endroit du jeu où une force
+est à la fois menaçante et sans ancrage.
+
+Six conséquences, et une seule est nouvelle comme règle :
+
+1. **Viser la mer.** Pour une colonne embarquée, un point d'eau est légal ; une côte l'est
+   (inchangé) ; tout le reste refuse `LANDING_NEEDS_A_COAST` (inchangé). Les deux modes de mer —
+   naval et combiné — lisent désormais le même sol, à la phrase de refus près.
+   **Un camp relevé porte son milieu** avec lui depuis ce lot (`onLand`, `coastal`) : une pile
+   mouillée en mer était une cible qu'aucune flotte ne pouvait viser, donc le §4 de l'ADR 0024
+   n'avait aucune passe où s'appliquer au large.
+2. **Arriver en mer.** Coques et passagers au même point (§1, une seule adresse) ; être à bord
+   reste un état **calculé** (`StackRow.carrier`) — aucun champ nouveau, aucune migration. `afloat`
+   vaut vrai pour la pile, et sa garnison se lit au panneau comme à terre.
+3. **Repartir de la mer.** Par sa coque (§2 : une coque part d'un point en mer), vers une côte ou
+   vers une autre eau. Une pile en mer **sans coque** ne part pas : `NO_HULL_AT_SEA`, un refus
+   nommé plutôt qu'un `NO_LAND_ROUTE` qui parlerait d'une route que personne ne cherchait. C'est
+   le *mouvement fantôme* pris de front une quatrième fois — mais **dit**, cette fois, faute de
+   pouvoir être empêché : un joueur qui fait partir sa coque seule laisse ses passagers à l'eau,
+   et il le lit.
+4. **Coulés avec la coque** *(la règle neuve)*. Après toute passe de résolution à un point de mer,
+   les troupes terrestres que la capacité d'emport des coques **debout** ne couvre plus sont
+   **détruites** — pas déroutées : il n'y a rien où se replier. Une coque **déroutée** emporte ses
+   passagers dans son repli, à sa capacité ; l'excédent coule. Le siège est celui du panneau de
+   garnison (`stackRows`), pas une seconde arithmétique de places : la place qu'on voit au départ
+   est la place qui sauve à l'arrivée. Dépêche `drownedAtSea` chez le seul propriétaire, en hommes
+   et en machines, la place nommée en degrés. C'est le prix de rester au large, et la première
+   raison mécanique de construire une escorte.
+5. **Vivre en mer.** Aucun ravitaillement : l'entretien joue à `UPKEEP_UNSUPPLIED_MULTIPLIER`, et
+   ce n'était **pas** déjà le cas — un rayon d'avant-poste est un disque, donc un point côtier
+   couvrait l'eau devant lui et une flotte mouillée là mangeait au tarif domestique. La géométrie
+   répondait à une question que personne n'avait posée. Le ravitaillement en mer par un port ami
+   à portée reste ouvert (`QUESTIONS.md` 🟡). Fonder est refusé (`NO_FOUNDING_AT_SEA`) : le large
+   passait *parce que* le sol de personne satisfaisait la seule condition que la fondation posait.
+6. **Ce qu'on voit.** Un camp en mer se relève par son milieu (ADR 0024 §1) : silhouette de coque,
+   et rien de la cargaison. **Un cargo vide et un cargo plein sont indiscernables du dehors** —
+   c'est le gain de leurre que l'ADR 0014 annonçait (« en mer, on voit le navire, pas la
+   cargaison »), et il devient réel avec ce lot, parce qu'il y a enfin une raison de laisser un
+   transport mouillé quelque part.
+
+**Ce que la décision achète**, et ce n'est pas une commodité : une menace sans adresse. Une flotte
+chargée au large ne dit pas sur quelle rive elle débarquera, elle coûte le tarif majoré tant
+qu'elle attend, et elle coule entière si personne ne l'escorte. Le débarquement cesse d'être un
+aller simple calculé d'un quai à une plage pour devenir une opération en deux temps dont le
+second se décide en mer.
+
+**Hors périmètre, et nommé pour ne pas dériver** : le combat air–mer, l'abordage, le sauvetage des
+naufragés.

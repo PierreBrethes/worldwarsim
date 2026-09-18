@@ -49,6 +49,32 @@ prend. Chaque engagement laisse un **compte
 rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
 sur ce compte rendu, sans re-résoudre.
 
+**Et un cargo peut rester en mer avec des unités dedans** (décision de Pierre, 18/09/2026, qui
+révise la 72a du 04/09 — bannières dans les ADR 0019 §2 et 0012). Une colonne embarquée
+(terre + mer) vise **un point de mer** comme elle vise une plage : elle y arrive, coques et
+passagers à la même adresse, et elle y reste — être à bord demeure un état calculé
+(`StackRow.carrier`), aucun champ de plus. L'intérieur des terres reste refusé
+(`LANDING_NEEDS_A_COAST`) parce que la jambe terrestre après la mer n'existe toujours pas, et le
+débarquement reste une opération qu'on vise. **Elle repart par sa coque, ou elle ne repart pas** :
+sans rien qui flotte sous elle, `NO_HULL_AT_SEA` — le *mouvement fantôme* dit à voix haute faute
+de pouvoir être empêché, puisque c'est le joueur qui fait partir son transport seul. **Le large
+prend ce qu'il n'y a plus de banc pour porter** : après toute passe à un point de mer, une troupe
+terrestre que la capacité des coques **debout** ne couvre plus est **détruite** — pas déroutée, il
+n'y a rien où se replier ; une coque déroutée emporte ses passagers à sa capacité et l'excédent
+coule (`drownedOf`, `src/domain/combat.ts`, pure et testée seule ; le siège est celui de
+`stackRows`, pas une seconde arithmétique de places). Les issues de la passe sont **amendées une
+fois** dans `convex/combat.ts` et c'est la liste amendée qui descend partout — compte de
+l'engagement, charges, réduction, repliés —, sans quoi un noyé marcherait jusqu'à son ancrage.
+Dépêche `drownedAtSea` chez le seul propriétaire, en hommes et en machines, la place nommée en
+degrés. **On ne vit pas en mer** : aucun ravitaillement (`UPKEEP_UNSUPPLIED_MULTIPLIER`, et ce
+n'était pas déjà le cas — un rayon de point côtier couvrait l'eau devant lui), et on n'y fonde pas
+(`NO_FOUNDING_AT_SEA`, le large passait *parce que* le sol de personne satisfait la seule condition
+de la fondation). Un **camp relevé porte son milieu** depuis ce lot (`onLand`, `coastal` sur la
+visée) : sans cela une pile mouillée était une cible qu'aucune flotte ne pouvait viser, et la règle
+du noyé n'avait aucune passe où s'appliquer. Ce que la carte en dit est une silhouette de coque et
+rien de la cargaison (ADR 0024 §1) — **un cargo vide et un cargo plein sont indiscernables du
+dehors**, le gain de leurre que l'ADR 0014 annonçait et que ce lot rend réel.
+
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
 dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — soixante-quinze
 couples, une ligne par profil, l'encre dit la bande avant que le chiffre soit lu, le survol donne la
@@ -214,7 +240,8 @@ la naval le transite — gravés en mer, Panama coupait les deux Amériques et S
 l'Afrique de l'Asie. Le milieu d'un pas suit dès lors **ce que la recherche a autorisé** et non
 la seule couleur des cellules ; une berge de canal est une côte (Colón, Port-Saïd sont des
 ports) ; la 72a tient telle quelle — on débarque d'une cellule de mer, un canal n'est pas une
-plage. **Et aucune porte ne découpe une poche de terre** (15/09) : un détroit verse de l'eau là
+plage, et la révision du 18/09 ne la touche pas non plus : rester en mer ajoute une destination,
+pas un pas mer → terre. **Et aucune porte ne découpe une poche de terre** (15/09) : un détroit verse de l'eau là
 où il y en a, donc il ne peut pas séparer deux terres qui se touchaient — `landComponentCount`
 compte les morceaux de terre avant et après chaque gravure, et le test l'exige égal. Il a fait
 sortir deux portes : **Malacca**, tracée dans le Perak et le Pahang, détachait Kuala Lumpur de

@@ -57,6 +57,8 @@ const camp: MovementAim = {
   lon: 11.2,
   lat: 36.4,
   hostCountry: 'Tunisia',
+  onLand: true,
+  coastal: false,
 };
 /** La plage : la seule cible qu'une colonne embarquée accepte depuis la décision 72a. */
 const shore: MovementAim = {
@@ -319,6 +321,40 @@ describe('the doors of the domains', () => {
 });
 
 /**
+ * **Une pile en mer part par sa coque, ou elle ne part pas** (regle 3 du 18/09). Rester en mer
+ * est devenu un ordre, donc l'infanterie dont le transport a coule a une adresse sur l'eau et
+ * aucun moyen d'en bouger : c'est le *mouvement fantome* une quatrieme fois, et il se refuse par
+ * un mot plutot que par un `NO_LAND_ROUTE` qui parlerait d'une route qu'on ne cherchait pas.
+ */
+describe('la coque, seule porte du large', () => {
+  it('refuses a land pile stranded on the water, whatever it aims at', () => {
+    const adrift = column(['infantry'], { afloat: true });
+    expect(refusalOf('march', shore, adrift)).toBe('NO_HULL_AT_SEA');
+    expect(refusalOf('march', sea, adrift)).toBe('NO_HULL_AT_SEA');
+    expect(legalMovementTypes(shore, adrift)).toEqual([]);
+  });
+
+  it('lets the same pile go the moment a hull stands in it', () => {
+    const aboard = column(['infantry', 'cargo'], { afloat: true });
+    expect(refusalOf('march', sea, aboard)).toBeNull();
+    expect(refusalOf('march', shore, aboard)).toBeNull();
+  });
+
+  /** L'aerodrome passe avant : rien n'est jamais poste dans le ciel, donc une aile a flot est
+   *  une aile a une station, et c'est son champ qui lui manque. */
+  it('names the missing aerodrome before the missing hull', () => {
+    expect(refusalOf('march', shore, column(['bomber'], { afloat: true }))).toBe(
+      'NO_AIRFIELD_AT_DEPARTURE',
+    );
+  });
+
+  /** A terre, rien ne change : la phrase est pour l'eau et pour elle seule. */
+  it('says nothing of the kind to a column on dry ground', () => {
+    expect(refusalOf('march', point, column(['infantry']))).toBeNull();
+  });
+});
+
+/**
  * **Un débarquement se vise, il ne se traverse pas** (décision 72a, 04/09). Une colonne embarquée
  * ne nomme qu'un bord d'eau ; ce qu'elle fera de l'intérieur des terres est l'ordre d'après, donné
  * par le joueur depuis la plage. Le refus se lit sur la seule cible, sans route et sans grille —
@@ -346,7 +382,7 @@ describe('where a landing column may put its boots down', () => {
     expect(refusalOf('march', point, landing())).toBe('LANDING_NEEDS_A_COAST');
   });
 
-  it('answers the same on the four targets, and closes the fan on three of them', () => {
+  it('answers the same on the five targets, and closes the fan on three of them', () => {
     const inlandPost: MovementAim = {
       kind: 'outpost',
       outpostId: 'AP-02',
@@ -354,11 +390,35 @@ describe('where a landing column may put its boots down', () => {
       coastal: false,
     };
     const shorePost: MovementAim = { ...inlandPost, coastal: true };
+    expect(legalMovementTypes(sea, landing())).toEqual(['march', 'attack']);
     expect(legalMovementTypes(shore, landing())).toEqual(['march', 'attack']);
     expect(legalMovementTypes(shorePost, landing())).toEqual(['attack', 'raid']);
     expect(legalMovementTypes(point, landing())).toEqual([]);
     expect(legalMovementTypes(inlandPost, landing())).toEqual([]);
     expect(legalMovementTypes(region, landing())).toEqual([]);
+  });
+
+  /**
+   * **Un cargo peut rester en mer avec des unites dedans** (decision de Pierre, 18/09, qui revise
+   * la 72a). Le large est une destination comme une autre pour une colonne embarquee ; ce qui
+   * reste refuse est l'interieur des terres, parce que la jambe terrestre apres la mer n'existe
+   * toujours pas. Le debarquement, lui, n'a pas bouge : il se vise.
+   */
+  it('takes the open sea and stays there, passengers aboard', () => {
+    expect(refusalOf('march', sea, landing())).toBeNull();
+    expect(refusalOf('march', shore, landing())).toBeNull();
+    expect(refusalOf('march', point, landing())).toBe('LANDING_NEEDS_A_COAST');
+  });
+
+  /** La coque seule et la botte seule ne changent pas d'un mot : la revision ne touche que la
+   *  colonne embarquee, qui est la seule a avoir eu deux milieux a concilier. */
+  it('leaves the hull alone and the boots alone exactly where they were', () => {
+    const cargo = column(['cargo'], { departureBuildings: new Set<BuildingKey>(['port']) });
+    expect(legalMovementTypes(sea, cargo)).toEqual(['march', 'attack']);
+    expect(refusalOf('march', point, cargo)).toBe('SEA_TARGET_REQUIRED');
+    const boots = column(['infantry']);
+    expect(refusalOf('march', sea, boots)).toBe('LAND_TARGET_REQUIRED');
+    expect(refusalOf('march', point, boots)).toBeNull();
   });
 
   /** Un port ami *est* la côte : la colonne y entre en garnison, coques et passagers ensemble. */
@@ -431,17 +491,33 @@ describe('the places aboard', () => {
  */
 describe('planting a point', () => {
   it('takes a pile of nothing but infantry', () => {
-    expect(foundingRefusal(['infantry', 'infantry'], false)).toBeNull();
-    expect(foundingRefusal(['infantry', 'armor'], false)).toBe('INFANTRY_ONLY');
-    expect(foundingRefusal(['cargo'], false)).toBe('INFANTRY_ONLY');
+    expect(foundingRefusal(['infantry', 'infantry'], false, true)).toBeNull();
+    expect(foundingRefusal(['infantry', 'armor'], false, true)).toBe('INFANTRY_ONLY');
+    expect(foundingRefusal(['cargo'], false, true)).toBe('INFANTRY_ONLY');
   });
 
   it('refuses ground that already carries a building of mine', () => {
-    expect(foundingRefusal(['infantry'], true)).toBe('FRIENDLY_TARGET');
+    expect(foundingRefusal(['infantry'], true, true)).toBe('FRIENDLY_TARGET');
   });
 
   it('refuses a column with nothing in it', () => {
-    expect(foundingRefusal([], false)).toBe('EMPTY_MOVEMENT');
+    expect(foundingRefusal([], false, true)).toBe('EMPTY_MOVEMENT');
+  });
+
+  /**
+   * **On ne fonde pas en mer** (regle 5 du 18/09). Le trou s'est ouvert avec le large comme
+   * destination : une infanterie mouillee au large est une colonne posee sur un sol que personne
+   * ne possede, donc « hors de chez moi » — la seule condition que la regle posait.
+   */
+  it('refuses the open sea, which no hull makes buildable', () => {
+    expect(foundingRefusal(['infantry'], false, false)).toBe('NO_FOUNDING_AT_SEA');
+    expect(foundingRefusal(['infantry'], false, true)).toBeNull();
+  });
+
+  /** L'ordre des mots : ce que la colonne porte se lit avant le sol sous elle, parce que c'est
+   *  ce que le joueur peut changer sans bouger. */
+  it('names the armour before the water', () => {
+    expect(foundingRefusal(['infantry', 'armor'], false, false)).toBe('INFANTRY_ONLY');
   });
 });
 
