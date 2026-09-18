@@ -1,4 +1,5 @@
 import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
+import { DEFAULT_MOUSE_MAPPING, isMouseMapping, type MouseMapping } from '@/domain/mouse-mapping';
 
 const HUD_SCALE_KEY = 'wws-hud-scale';
 // Must agree with `--hud-scale` in `tokens.css`: the token is the first paint's scale, this
@@ -71,6 +72,23 @@ export const telegraphSoundOn = (): boolean =>
 export const keepTelegraphSound = (on: boolean): void => {
   localStorage.setItem(TELEGRAPH_SOUND_KEY, on ? 'audible' : 'muted');
 };
+
+const MOUSE_MAPPING_KEY = 'wws-mouse-mapping';
+
+/**
+ * **Quel bouton fait quoi est une préférence, et elle appartient au navigateur du joueur** — pas
+ * à la partie, pas au serveur : c'est sa main et sa souris, et il en change d'un appareil à
+ * l'autre. Une valeur qui n'est pas une permutation ne se rattrape pas, elle retombe sur le
+ * défaut : un mappage à moitié valide serait un plateau sur lequel un rôle manque.
+ */
+export function readMouseMapping(): MouseMapping {
+  const kept = readObject(MOUSE_MAPPING_KEY);
+  return isMouseMapping(kept) ? kept : DEFAULT_MOUSE_MAPPING;
+}
+
+export function keepMouseMapping(mapping: MouseMapping): void {
+  localStorage.setItem(MOUSE_MAPPING_KEY, JSON.stringify(mapping));
+}
 
 const INDICATORS_KEY = 'wws-edge-indicators';
 

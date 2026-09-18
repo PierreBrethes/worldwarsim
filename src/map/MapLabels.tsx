@@ -13,6 +13,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
+import { buttonAt, type MouseMapping } from '@/domain/mouse-mapping';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
@@ -61,7 +62,8 @@ export function MapLabels({
   onOpenLoot,
   onOpenCamp,
   onOpenObjective,
-  onContextMenu,
+  onAct,
+  mapping,
   muted,
 }: {
   labels: ReadonlyArray<MapLabel>;
@@ -94,7 +96,10 @@ export function MapLabels({
   /** **Le cartouche d'un objectif neutre** : il lit ce qui est public — nom, palier, dépôt
    *  restant — et jamais ce qui le tient. Comme le camp, il ne commande rien. */
   onOpenObjective: (objectiveId: string, clientX: number, clientY: number) => void;
-  onContextMenu: (label: MapLabel, clientX: number, clientY: number) => void;
+  /** **Le geste qui agit, quel que soit le bouton qui le porte** (`mouseMapping`) : la rose
+   *  s'ouvre sur l'étiquette comme elle s'ouvre sur le sol. */
+  onAct: (label: MapLabel, clientX: number, clientY: number) => void;
+  mapping: MouseMapping;
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
   muted: boolean;
@@ -300,6 +305,9 @@ export function MapLabels({
               } else if (label.objective !== null) {
                 onOpenObjective(label.objective.id, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
+              // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
+              // `agir` — un seul geste, les deux réponses, comme sur le sprite d'une troupe.
+              if (mapping.left === 'act') onAct(label, event.clientX, event.clientY);
             }}
             onKeyDown={(event) => {
               if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
@@ -312,9 +320,19 @@ export function MapLabels({
                 );
               }
             }}
+            onPointerDown={(event) => {
+              // L'autoscroll du navigateur s'arme au bouton du milieu et se plante sur la carte.
+              if (buttonAt(event.button) === 'middle') event.preventDefault();
+            }}
+            onAuxClick={(event) => {
+              if (buttonAt(event.button) !== 'middle' || mapping.middle !== 'act') return;
+              onAct(label, event.clientX, event.clientY);
+            }}
             onContextMenu={(event) => {
+              // Le menu du navigateur est coupé quel que soit le rôle du bouton droit.
               event.preventDefault();
-              onContextMenu(label, event.clientX, event.clientY);
+              if (mapping.right !== 'act') return;
+              onAct(label, event.clientX, event.clientY);
             }}
           >
             <div

@@ -12,6 +12,8 @@ import type { IndicatorToggles } from '@/domain/indicators';
 import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
 import type { ArcView, TroopStation } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useMouseMapping } from '@/data/mouseMapping';
+import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
@@ -162,6 +164,7 @@ export function WorldMap({
   const [rose, setRose] = useState<OpenRose | null>(null);
   const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
+  const mapping = useMouseMapping();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -241,7 +244,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onRightClick = ({ country, region, point, clientX, clientY }) => {
+    readyEngine.onAct = ({ country, region, point, clientX, clientY }) => {
       /** **Rien ne s'ouvre pendant qu'on tient un bâtiment** : le mode de pose attend un point,
        *  et une rose posée par-dessus offrirait un second geste au même clic. */
       if (placing !== null) {
@@ -282,7 +285,7 @@ export function WorldMap({
       openRose(target, clientX, clientY);
     };
     return () => {
-      readyEngine.onRightClick = () => {};
+      readyEngine.onAct = () => {};
     };
   }, [readyEngine, openRose, aiming, placing, coastAt, landAt]);
 
@@ -330,7 +333,7 @@ export function WorldMap({
     [onOpenStack, openRose, coastAt, landAt],
   );
 
-  const onLabelMenu = useCallback(
+  const onLabelAct = useCallback(
     (label: MapLabel, clientX: number, clientY: number) => {
       const map = engine.current;
       const country = map?.countryAtPoint(clientX, clientY) ?? null;
@@ -374,6 +377,12 @@ export function WorldMap({
     },
     [openRose, aiming, coastAt, landAt],
   );
+
+  // **Effet immédiat, sans rechargement** : le moteur reçoit le mappage comme il reçoit une
+  // bascule, et un glisser en cours garde le sien jusqu'au relâchement.
+  useEffect(() => {
+    readyEngine?.setMouseMapping(mapping);
+  }, [readyEngine, mapping]);
 
   useEffect(() => {
     readyEngine?.freezeOrbit(rose !== null);
@@ -482,7 +491,8 @@ export function WorldMap({
         onOpenLoot={onOpenLoot ?? (() => {})}
         onOpenCamp={onOpenCamp ?? (() => {})}
         onOpenObjective={onOpenObjective ?? (() => {})}
-        onContextMenu={onLabelMenu}
+        onAct={onLabelAct}
+        mapping={mapping}
         muted={placing !== null}
       />
       <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />
@@ -491,7 +501,7 @@ export function WorldMap({
           <RouteScale arc={designatedArc} />
         </div>
       )}
-      {gestureHint && <GestureHint />}
+      {gestureHint && <GestureHint mapping={mapping} />}
       {placing && <PlacingCard placing={placing} container={container} />}
       {rose && (
         <CompassRose
@@ -578,12 +588,13 @@ const PLACING_CARD_GAP = 22;
  * The first-time hint. It asks nothing and does not close by hand: its work was done the
  * moment it was read, and the controls card takes over afterwards.
  */
-function GestureHint() {
+function GestureHint({ mapping }: { mapping: MouseMapping }) {
+  const hint = fr.mapUi.gestureHint(mapping);
   return (
     <div className="hud pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 border border-[var(--ink-quiet)] bg-[var(--desk)] px-[14px] py-[7px] font-(family-name:--font-body) text-[12px] whitespace-nowrap text-[var(--paper)]">
-      {fr.mapUi.gestureHint.leftClick}
-      <span className="text-[var(--paper-dim)]">{fr.mapUi.gestureHint.separator}</span>
-      {fr.mapUi.gestureHint.pan}
+      {hint.orient}
+      <span className="text-[var(--paper-dim)]">{hint.separator}</span>
+      {hint.pan}
     </div>
   );
 }

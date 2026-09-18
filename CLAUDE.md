@@ -101,6 +101,19 @@ aujourd'hui : un bateau désigné n'ouvre donc aucun menu. Deux cibles, jamais u
 sprite rend la rose de la troupe, la région celle du bâti. Il n'y a plus de fenêtre « visée
 armée » — le cartouche porte l'état.
 
+**Et quel bouton agit est une préférence, pas une règle** (retour de la partie du 11/09,
+`src/domain/mouse-mapping.ts`). La grammaire ne bouge pas — un bouton oriente, un bouton déplace,
+un bouton agit — mais les trois métiers se permutent sur les trois boutons dans les Réglages : le
+défaut reste la décision du 30/08, et le preset « molette agit » met la rose au clic molette et la
+carte au clic droit. **Un seul endroit traduit un bouton en rôle** (`roleOf`, un test l'exige par
+grep sur `src/map`), sans quoi permuter deux boutons n'en déplacerait qu'un. Quatre invariants ne
+se règlent pas : le clic net gauche sélectionne et lit, `espace + glisser gauche` déplace, `agir`
+est un clic net quand les deux autres sont des glissers, et le menu du navigateur est coupé quel
+que soit le bouton. Le réglage vit dans `localStorage` — c'est la main du joueur, pas la partie —
+et s'applique sans rechargement ; un glisser en cours garde son rôle jusqu'au relâchement. La
+fiche `?`, le bandeau de première fois et l'aide-mémoire nomment le bouton courant
+(`fr.mapUi.gestures` est une fonction du mappage) : aucune phrase du jeu n'écrit « clic droit ».
+
 **« Voir le pays » a été retiré** (décision Pierre, 31/08) : il doublait le clic gauche, qui
 sélectionne déjà ce qu'il touche. La rose ne s'ouvre plus que là où un ordre existe — bâtir,
 fonder, marcher — et **le clic droit reste inerte partout ailleurs**, pays et avant-postes

@@ -16,6 +16,7 @@ import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { CombatProfile } from '../domain/combat';
 import { PROFILE_UNITS } from '../domain/gunnery';
 import type { MovementSheet } from '../domain/gunnery';
+import { buttonOfRole, type MouseMapping } from '../domain/mouse-mapping';
 import type { LandPace, RouteMedium } from '../domain/routing';
 import type { ChainState } from '../domain/economy';
 import type {
@@ -1939,6 +1940,16 @@ export const fr = {
     briefingLabel: 'Aide-mémoire du commandement',
     briefingNote: 'La feuille d’entrée en campagne — les commandes, le terrain, vos bureaux.',
     briefingReopen: 'relire',
+    /**
+     * **Quel bouton fait quoi est une préférence de joueur**, pas une règle du jeu (retour de la
+     * partie du 11/09). La grammaire, elle, ne se règle pas : un bouton oriente, un bouton
+     * déplace, un bouton agit — et la note le dit, sinon le bloc se lirait comme une permission
+     * d'en désarmer un.
+     */
+    mouseLabel: 'La souris',
+    mouseNote:
+      'Trois métiers, trois boutons. Choisir un métier l’échange avec le bouton qui l’avait ; le clic gauche net sélectionne toujours, et espace + clic gauche déplace toujours.',
+    mousePreset: { classic: 'classique', wheelActs: 'molette agit' },
     soundLabel: 'Son du télégraphe',
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
@@ -1983,13 +1994,19 @@ export const fr = {
     kicker: 'entrée en campagne',
     header: 'aide-mémoire du commandement',
     subtitle: 'Notice à l’usage de l’officier nouvellement affecté',
-    columns: (scoutRadiusKm: number, contactRadiusKm: number, outpostReachKm: number) => [
+    columns: (
+      scoutRadiusKm: number,
+      contactRadiusKm: number,
+      outpostReachKm: number,
+      mapping: MouseMapping,
+    ) => [
       {
         title: 'La carte et la souris',
         lines: [
-          'Clic gauche glissé : orienter et incliner la vue. Clic gauche net : sélectionner le pays visé.',
-          'Molette : zoomer. Molette enfoncée — ou espace maintenu avec le clic gauche : déplacer la carte.',
-          'Clic droit sur un point : la rose des vents. Elle propose ce que ce point accepte, et rien d’autre.',
+          `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
+          `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
+          `La rose des vents : ${fr.mapUi.mouse.click[buttonOfRole(mapping, 'act')]} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
+          'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
           'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
           'Le « ? » en bas à droite rouvre les commandes à tout moment.',
         ],
@@ -2076,20 +2093,44 @@ export const fr = {
   },
 
   mapUi: {
-    gestureHint: {
-      leftClick: 'clic gauche : orienter ',
-      separator: '·',
-      pan: ' molette ou espace : déplacer',
+    /**
+     * **Aucune phrase de la carte ne nomme un bouton en dur** : quel bouton oriente, déplace ou
+     * agit est une préférence (`mouseMapping`), et une notice qui répondrait « clic droit » à un
+     * joueur qui a mis la rose sur la molette mentirait dès son premier regard.
+     */
+    mouse: {
+      drag: {
+        left: 'clic gauche glissé',
+        middle: 'molette enfoncée',
+        right: 'clic droit glissé',
+      },
+      click: { left: 'clic gauche net', middle: 'clic molette net', right: 'clic droit net' },
+      button: { left: 'bouton gauche', middle: 'bouton du milieu', right: 'bouton droit' },
+      role: { orient: 'orienter', pan: 'déplacer', act: 'agir (la rose)' },
     },
+    gestureHint: (mapping: MouseMapping) => ({
+      orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
+      separator: '·',
+      pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
+    }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
     controlsClose: 'fermer',
-    gestures: [
-      { gesture: 'clic gauche glisser', effect: 'orienter et incliner la caméra' },
+    gestures: (mapping: MouseMapping) => [
+      {
+        gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')],
+        effect: 'orienter et incliner la caméra',
+      },
       { gesture: 'clic gauche net', effect: 'sélectionner l’entité visée' },
-      { gesture: 'molette enfoncée', effect: 'déplacer la carte' },
+      {
+        gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')],
+        effect: 'déplacer la carte',
+      },
       { gesture: 'espace + clic gauche', effect: 'déplacer la carte' },
-      { gesture: 'clic droit', effect: 'ouvrir la rose des vents' },
+      {
+        gesture: fr.mapUi.mouse.click[buttonOfRole(mapping, 'act')],
+        effect: 'ouvrir la rose des vents',
+      },
       { gesture: 'molette', effect: 'zoomer' },
     ],
     routeScale: 'échelle du trajet',

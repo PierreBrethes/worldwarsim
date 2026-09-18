@@ -13,6 +13,15 @@ import {
   readHudScale,
   telegraphSoundOn,
 } from '@/data/settings';
+import { setMouseMapping, useMouseMapping } from '@/data/mouseMapping';
+import {
+  MOUSE_BUTTONS,
+  MOUSE_PRESETS,
+  MOUSE_ROLES,
+  withRole,
+  type MouseButton,
+  type MouseMapping,
+} from '@/domain/mouse-mapping';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import { forgetSession, type Seat } from '@/data/session';
@@ -32,6 +41,7 @@ export function SettingsWindow({
 }) {
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
+  const mapping = useMouseMapping();
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
   const logout = useMutation(api.accounts.logout);
@@ -87,6 +97,49 @@ export function SettingsWindow({
             >
               {fr.settingsWindow.reset}
             </button>
+          </div>
+
+          {/* **La grammaire de la carte ne change pas, quel bouton la porte est au joueur**
+              (retour de la partie du 11/09). Deux presets nommés en tête pour qui veut choisir
+              sans réfléchir, trois sélecteurs en dessous pour qui veut sa propre main. */}
+          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.mouseLabel}
+              </span>
+              <div className="flex gap-[6px]">
+                {MOUSE_PRESETS.map((preset) => (
+                  <Chip
+                    key={preset.key}
+                    label={fr.settingsWindow.mousePreset[preset.key]}
+                    marked={sameMapping(mapping, preset.mapping)}
+                    onClick={() => setMouseMapping(preset.mapping)}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.settingsWindow.mouseNote}
+            </p>
+            <div className="mt-[10px] flex flex-col gap-[7px]">
+              {MOUSE_BUTTONS.map((button) => (
+                <div key={button} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-[var(--ink)]">
+                    {fr.mapUi.mouse.button[button]}
+                  </span>
+                  <div className="flex gap-[6px]">
+                    {MOUSE_ROLES.map((role) => (
+                      <Chip
+                        key={role}
+                        label={fr.mapUi.mouse.role[role]}
+                        marked={mapping[button] === role}
+                        onClick={() => setMouseMapping(withRole(mapping, button, role))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* **Le son est un réglage à part.** `prefers-reduced-motion` parle d'animation, pas
@@ -208,6 +261,31 @@ export function SettingsWindow({
     </FloatingWindow>
   );
 }
+
+/**
+ * Un métier sur un bouton, ou un preset. **Rien n'est jamais grisé** : choisir un métier
+ * l'échange avec le bouton qui l'avait, donc aucun de ces neuf clics n'est refusé et les trois
+ * lignes montrent toujours une permutation (ADR 0015).
+ */
+function Chip({ label, marked, onClick }: { label: string; marked: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={marked}
+      onClick={onClick}
+      className={
+        marked
+          ? 'cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--paper)] uppercase'
+          : 'cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]'
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+const sameMapping = (mapping: MouseMapping, other: MouseMapping): boolean =>
+  MOUSE_BUTTONS.every((button: MouseButton) => mapping[button] === other[button]);
 
 function Step({
   sign,

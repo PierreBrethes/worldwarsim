@@ -20,6 +20,13 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { isTyping } from '@/map/typing';
+import {
+  DEFAULT_MOUSE_MAPPING,
+  buttonAt,
+  type MouseButton,
+  type MouseMapping,
+  type MouseRole,
+} from '@/domain/mouse-mapping';
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
@@ -53,11 +60,12 @@ export type BuiltRegions = {
 };
 
 /**
- * What picking reports from a right click. `country` is null on the open sea; `region` is null
- * there too, and everywhere the region layer has faded out — far from the ground, the game
- * aims at a country, up close at a region.
+ * What picking reports from the acting click — whichever button the player put `act` on
+ * (`MouseMapping`). `country` is null on the open sea; `region` is null there too, and
+ * everywhere the region layer has faded out — far from the ground, the game aims at a country,
+ * up close at a region.
  */
-export type MapRightClick = {
+export type MapActClick = {
   country: string | null;
   region: RegionIdentity | null;
   /** The place itself, land or water — `null` only when the ray leaves the board entirely. */
@@ -105,12 +113,22 @@ const DEFAULT_MAX_DISTANCE = 300;
  */
 const CLEAN_CLICK_PX = 6;
 
+/** `act` is a clean click, so the orbital controls are told to leave that button alone. */
+const CONTROL_BY_ROLE: Readonly<Record<MouseRole, MOUSE | null>> = {
+  orient: MOUSE.ROTATE,
+  pan: MOUSE.PAN,
+  act: null,
+};
+
+/** `null` for the side buttons, which the browser keeps for back and forward. */
+type MouseButtonOrNull = ReturnType<typeof buttonAt>;
+
 /**
  * What we keep of a press until its release. `panning` is frozen at press time: the mapping
  * never flips mid-drag, otherwise the gesture changes nature under the player's fingers.
  */
 type Gesture = {
-  readonly button: number;
+  readonly button: MouseButtonOrNull;
   readonly panning: boolean;
   traveledPx: number;
   x: number;
@@ -150,6 +168,7 @@ export class MapEngine {
   private selection: string | null = null;
   private animation = 0;
   private gesture: Gesture | null = null;
+  private mapping: MouseMapping = DEFAULT_MOUSE_MAPPING;
   private spaceHeld = false;
   private building = false;
   private aiming = false;
@@ -198,7 +217,7 @@ export class MapEngine {
    * `onRegionClick`, it replaces the selection rather than doubling it — one click, one answer.
    */
   onPlacePoint: (point: LonLat) => void = () => {};
-  onRightClick: (click: MapRightClick) => void = () => {};
+  onAct: (click: MapActClick) => void = () => {};
   /**
    * The first orientation drag. It is the instant the player discovers that dragging the
    * mouse does not pan the map: it is there, and nowhere else, that we can tell them.
@@ -250,10 +269,10 @@ export class MapEngine {
     this.controls.minDistance = 4;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
-    // The right button belongs to the compass rose, it drives nothing here anymore. Panning
-    // goes through the pressed wheel, doubled by the space alias: many trackpads have no
-    // third button, and that path must stay open.
-    this.controls.mouseButtons = { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.PAN, RIGHT: null };
+    // The button that acts belongs to the compass rose and drives nothing here. Which one it
+    // is is the player's setting; the space alias doubles the pan whatever the mapping, since
+    // many trackpads have no third button and that path must stay open.
+    this.applyMapping();
 
     this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));
     const sun = new DirectionalLight('#fffaf0', 0.5);
@@ -605,9 +624,10 @@ export class MapEngine {
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
+      const button = buttonAt(event.button);
       this.gesture = {
-        button: event.button,
-        panning: event.button === 1 || this.spaceHeld,
+        button,
+        panning: this.roleOf(button) === 'pan' || (button === 'left' && this.spaceHeld),
         traveledPx: 0,
         x: event.clientX,
         y: event.clientY,
@@ -621,18 +641,13 @@ export class MapEngine {
     // The browser's autoscroll arms on the middle button and plants itself over the map.
     // It is only cut here: pointer events give no purchase on it.
     canvas.addEventListener('mousedown', (event) => {
-      if (event.button === 1) event.preventDefault();
+      if (buttonAt(event.button) === 'middle') event.preventDefault();
     });
 
+    // Cut whatever the right button carries: it may orient, pan or act, and none of the three
+    // wants the browser's menu planted over the board.
     canvas.addEventListener('contextmenu', (event) => {
       event.preventDefault();
-      this.onRightClick({
-        country: this.countryAtPoint(event.clientX, event.clientY),
-        region: this.regionAtPoint(event.clientX, event.clientY),
-        point: this.pointAt(event.clientX, event.clientY),
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
     });
 
     // The gesture is tracked on the window, not the canvas: a drag released over a card is
@@ -654,13 +669,15 @@ export class MapEngine {
     gesture.y = event.clientY;
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;
     gesture.pastThreshold = true;
-    if (gesture.button === 0 && !gesture.panning) this.onOrientationStarted();
+    if (this.roleOf(gesture.button) === 'orient' && !gesture.panning) this.onOrientationStarted();
   };
 
   /**
-   * Only a clean left-button click selects. A drag was an orientation, the right button
-   * belongs to the rose — without this guard, every rose would land on a selection nobody
-   * asked for — and held space makes the left button a pan, not a designation.
+   * Two clean clicks, never a drag: **the left one reads whatever role its drag carries** — that
+   * invariant is what keeps the board selectable under any mapping — and the one that acts opens
+   * the rose. A drag was an orientation or a pan; held space makes the left button a pan, not a
+   * designation. Both fire when the player put `act` on the left button, and in that order: the
+   * rose answers about what the click has just designated.
    */
   private endGesture = (event: PointerEvent): void => {
     const gesture = this.gesture;
@@ -668,7 +685,20 @@ export class MapEngine {
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
-    if (gesture.button !== 0 || gesture.panning || gesture.pastThreshold) return;
+    if (gesture.panning || gesture.pastThreshold) return;
+    if (gesture.button === 'left') this.readAt(event);
+    if (this.roleOf(gesture.button) === 'act') {
+      this.onAct({
+        country: this.countryAtPoint(event.clientX, event.clientY),
+        region: this.regionAtPoint(event.clientX, event.clientY),
+        point: this.pointAt(event.clientX, event.clientY),
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    }
+  };
+
+  private readAt(event: PointerEvent): void {
     if (this.placing !== null) {
       const spot = this.ghost.spot;
       if (spot !== null) this.onPlacePoint(spot.lonLat);
@@ -679,7 +709,7 @@ export class MapEngine {
       return;
     }
     this.onSelect(this.hovered?.userData.adm0 ?? null);
-  };
+  }
 
   private onKeyDown = (event: KeyboardEvent): void => {
     if (event.code !== 'Space' || isTyping()) return;
@@ -705,10 +735,35 @@ export class MapEngine {
     this.refreshCursor();
   };
 
+  /**
+   * **The one place a button becomes a role.** Nothing else in the engine reads a button
+   * number: a second reading would be a second mapping, and the day the player swaps two
+   * buttons only one of them would have moved.
+   */
+  private roleOf(button: MouseButtonOrNull): MouseRole | null {
+    return button === null ? null : this.mapping[button];
+  }
+
+  /**
+   * Le mappage s'applique aussitôt, sans rechargement. Un glisser en cours garde le sien
+   * jusqu'au relâchement (règle de controles-camera) : changer de rôle sous les doigts du
+   * joueur ferait d'un geste commencé un autre geste.
+   */
+  setMouseMapping(mapping: MouseMapping): void {
+    this.mapping = mapping;
+    this.applyMapping();
+    this.refreshCursor();
+  }
+
   /** A running drag keeps the mapping it had at press; it resumes on release. */
   private applyMapping(): void {
     if (this.gesture !== null) return;
-    this.controls.mouseButtons.LEFT = this.spaceHeld ? MOUSE.PAN : MOUSE.ROTATE;
+    const control = (button: MouseButton) => CONTROL_BY_ROLE[this.mapping[button]];
+    this.controls.mouseButtons = {
+      LEFT: this.spaceHeld ? MOUSE.PAN : control('left'),
+      MIDDLE: control('middle'),
+      RIGHT: control('right'),
+    };
   }
 
   /**

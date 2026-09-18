@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { ARRIVAL_RADIUS_KM, DETECTION_RANGE_KM, outpostReachKm } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
+import { useMouseMapping } from '@/data/mouseMapping';
 
 /**
  * **Un mode d'emploi, pas un tutoriel.** Une feuille posée sur le plateau à la première entrée
@@ -14,6 +15,10 @@ import { fr } from '@/i18n/fr';
  * partie, et les lire ici est ce qui empêche la notice de mentir le jour où elles bougent.
  */
 export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
+  // Le mappage de la souris est la seconde exception, et de la même famille que les rayons :
+  // un réglage du joueur, pas l'état d'une partie — et la notice mentirait sans le lire.
+  const mapping = useMouseMapping();
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -52,7 +57,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
             {/* Le rayon d'un point neuf : la feuille se lit avant d'en avoir fondé un, et c'est
                 celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
             {fr.briefing
-              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1))
+              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1), mapping)
               .map((column) => (
                 <Column key={column.title} title={column.title} lines={column.lines} />
               ))}

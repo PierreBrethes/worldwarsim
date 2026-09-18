@@ -1,0 +1,113 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { fr } from '@/i18n/fr';
+import {
+  CLASSIC_MAPPING,
+  DEFAULT_MOUSE_MAPPING,
+  MOUSE_BUTTONS,
+  WHEEL_ACTS_MAPPING,
+  buttonAt,
+  buttonOfRole,
+  isMouseMapping,
+  roleAt,
+  withRole,
+  type MouseMapping,
+} from './mouse-mapping';
+
+describe('le mappage de la souris', () => {
+  it('est une permutation, et refuse tout ce qui n’en est pas une', () => {
+    expect(isMouseMapping(CLASSIC_MAPPING)).toBe(true);
+    expect(isMouseMapping(WHEEL_ACTS_MAPPING)).toBe(true);
+    expect(isMouseMapping({ left: 'orient', middle: 'orient', right: 'act' })).toBe(false);
+    expect(isMouseMapping({ left: 'orient', middle: 'pan' })).toBe(false);
+    expect(isMouseMapping({ left: 'orient', middle: 'pan', right: 'zoom' })).toBe(false);
+    expect(isMouseMapping(null)).toBe(false);
+    expect(isMouseMapping('classique')).toBe(false);
+  });
+
+  it('échange les rôles plutôt que d’en refuser un', () => {
+    const swapped = withRole(CLASSIC_MAPPING, 'left', 'act');
+    expect(swapped).toEqual({ left: 'act', middle: 'pan', right: 'orient' });
+    expect(isMouseMapping(swapped)).toBe(true);
+  });
+
+  it('rend le même mappage quand le bouton porte déjà le rôle', () => {
+    expect(withRole(CLASSIC_MAPPING, 'right', 'act')).toBe(CLASSIC_MAPPING);
+  });
+
+  /** Neuf choix, neuf permutations : aucun clic des Réglages ne peut ouvrir un état invalide. */
+  it('reste une permutation quel que soit le choix', () => {
+    for (const button of MOUSE_BUTTONS) {
+      for (const role of ['orient', 'pan', 'act'] as const) {
+        expect(isMouseMapping(withRole(WHEEL_ACTS_MAPPING, button, role))).toBe(true);
+      }
+    }
+  });
+
+  it('lit le numéro de bouton du navigateur, et laisse les boutons latéraux muets', () => {
+    expect(buttonAt(0)).toBe('left');
+    expect(buttonAt(1)).toBe('middle');
+    expect(buttonAt(2)).toBe('right');
+    expect(buttonAt(3)).toBeNull();
+    expect(roleAt(DEFAULT_MOUSE_MAPPING, 2)).toBe('act');
+    expect(roleAt(WHEEL_ACTS_MAPPING, 1)).toBe('act');
+    expect(roleAt(WHEEL_ACTS_MAPPING, 4)).toBeNull();
+  });
+
+  it('nomme le bouton d’un rôle', () => {
+    expect(buttonOfRole(CLASSIC_MAPPING, 'act')).toBe('right');
+    expect(buttonOfRole(WHEEL_ACTS_MAPPING, 'pan')).toBe('right');
+  });
+});
+
+/**
+ * **Un seul endroit traduit un bouton en rôle.** Un numéro écrit en dur ailleurs serait un
+ * second mappage : le jour où le joueur permute deux boutons, un seul des deux aurait bougé.
+ */
+describe('la carte ne lit aucun numéro de bouton', () => {
+  const root = join(import.meta.dirname, '..');
+
+  const sources = (directory: string): ReadonlyArray<string> =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      return entry.isFile() && /\.tsx?$/.test(entry.name) ? [path] : [];
+    });
+
+  it('n’écrit `button ===` nulle part dans `src/map`', () => {
+    const guilty = sources(join(root, 'map')).filter((path) =>
+      /\bbutton\s*===\s*\d/.test(readFileSync(path, 'utf8')),
+    );
+    expect(guilty).toEqual([]);
+  });
+});
+
+/**
+ * La fiche `?` et l'aide-mémoire décrivent le mappage courant : deux mappages, deux textes.
+ * Une phrase écrite en dur mentirait au premier joueur qui permute deux boutons.
+ */
+describe('les notices lisent le mappage', () => {
+  const sentence = (mapping: MouseMapping): string =>
+    fr.mapUi
+      .gestures(mapping)
+      .map(({ gesture, effect }) => `${gesture} — ${effect}`)
+      .join(' · ');
+
+  it('nomme le bouton qui agit dans la fiche des commandes', () => {
+    expect(sentence(CLASSIC_MAPPING)).toContain('clic droit net — ouvrir la rose des vents');
+    expect(sentence(WHEEL_ACTS_MAPPING)).toContain('clic molette net — ouvrir la rose des vents');
+    expect(sentence(WHEEL_ACTS_MAPPING)).toContain('clic droit glissé — déplacer la carte');
+  });
+
+  it('nomme le même bouton dans l’aide-mémoire et dans le bandeau', () => {
+    const column = (mapping: MouseMapping) =>
+      fr.briefing.columns(60, 25, 120, mapping)[0]!.lines.join(' ');
+    expect(column(CLASSIC_MAPPING)).toContain('La rose des vents : clic droit net');
+    expect(column(WHEEL_ACTS_MAPPING)).toContain('La rose des vents : clic molette net');
+    expect(column(WHEEL_ACTS_MAPPING)).toContain('Déplacer la carte : clic droit glissé');
+
+    expect(fr.mapUi.gestureHint(CLASSIC_MAPPING).pan).toContain('molette enfoncée');
+    expect(fr.mapUi.gestureHint(WHEEL_ACTS_MAPPING).pan).toContain('clic droit glissé');
+  });
+});
