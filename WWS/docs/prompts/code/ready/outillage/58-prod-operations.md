@@ -26,9 +26,9 @@ déploiement clé en préfixe (~175-179) ; l'export d'état contre « le déploi
 ## Ce qui change
 
 1. `backup` : `export --path <chemin>`. `backupPath({ home, now, sha })`, pure →
-   `<home>/wws-sauvegardes/wws-<AAAA-MM-JJTHHMMZ>-<sha>.zip` en UTC ; `sha` =
-   `git rev-parse --short=12 origin/main` (la dernière vue du poste ; 64 donnera le SHA servi).
-   Dossier en `0700`, zip en `0600` : l'export porte les empreintes de mots de passe (`accounts`).
+   `<home>/wws-sauvegardes/wws-<AAAA-MM-JJTHHMMZ>-<sha>.zip`, par `toISOString()` (UTC) ; `sha` = `git
+   rev-parse --short=12 origin/main` (la dernière vue du poste, `sans-sha` à défaut ; 64 donnera le SHA
+   servi). Dossier en `0700`, zip en `0600` : l'export porte les empreintes de mots de passe (`accounts`).
    Imprime chemin et taille ; zip absent ou vide → sortie 1. `backup(prod)` exportée, rend le chemin (59).
 2. `relaunch-press` : `run dev:relaunchPress` ; `relancées : <codes>` ou `aucune chaîne à relancer`.
 3. `reset-password <pseudo>` : refus sans TTY (`process.stdin.isTTY`), **avant** de lire `prod.env` —
@@ -58,28 +58,28 @@ session d'`export-etat` reste en argv, comme aujourd'hui. Aucune règle de plus 
 
 Dans `scripts/prod.test.mjs`, rouges puis verts :
 
-1. `backupPath` : forme exacte ; 23 h 30 UTC garde son jour quand Paris a changé de date ; `sha` tel quel.
-2. `applyKey` : caractères, retour arrière sur tampon vide et plein, `\r` et `\n` terminent, `\u0003`
-   interrompt.
+1. `backupPath` : forme exacte ; `sha` tel quel ; 23 h 30 UTC garde son jour, vérifié dans un enfant
+   `process.execPath` sous `TZ=Europe/Paris` (vitest tourne en UTC depuis 05 : local et UTC s'y confondent).
+2. `applyKey` : caractères, retour arrière sur tampon vide et plein, `\r` et `\n` terminent, `\u0003` interrompt.
 3. `exportArgs` : `--token=` puis `--saison=` ; l'un sans l'autre → refus.
-4. Enfant par `process.execPath`, `HOME` temporaire sans `prod.env`, stdin en tube :
-   `reset-password Pierre` sort 2 sur le TTY, pas sur le fichier ; sans pseudo, et `export-etat
-   --token=x`, sortie 2.
+4. Enfant par `process.execPath`, `HOME` temporaire sans `prod.env`, stdin en tube : `reset-password
+   Pierre` sort 2 sur le TTY, pas sur le fichier ; sans pseudo, et `export-etat --token=x`, sortie 2.
 
 ## Vérifications
 
 - `npx vitest run scripts/prod.test.mjs` : vert, nombre de cas donné.
-- Backend local seulement, `HOME` temporaire de 57 (`prod.env` tiré de `.env.local`, jamais imprimé) :
+- Backend local seulement, un `HOME` temporaire monté comme en 57 (`prod.env` tiré de `.env.local`,
+  jamais imprimé, réécrit par `grep`) :
   - `backup` : le zip sous `$T/wws-sauvegardes`, modes `0700` et `0600`, taille, durée, `unzip -l` ;
-  - `relaunch-press` deux fois : la liste (quelles saisons locales, pourquoi), puis vide ;
+  - `relaunch-press` deux fois : la liste (quelles saisons locales, pourquoi), puis vide — sauf une
+    saison au bout de son horloge, que `publish` (press.ts ~88-94) ne replanifie pas : elle revient ;
   - `reset-password`, chemin réseau, sans TTY : un script du scratchpad importe `readProdEnv`,
     `prodEnvPath` et `callFunction`, change le mot de passe d'un compte `essai58` créé par
     `npx convex run auth:register` ; `auth:login` refuse ensuite l'ancien, accepte le nouveau ;
-  - `export-etat` avec l'URL `http://127.0.0.1:9` dans le `prod.env` temporaire : l'échec de
-    connexion prouve que l'environnement atteint le `npx convex run` de l'exporter ;
-    `git status --short WWS/simulation` inchangé.
-- Outil Grep sur `deploiement/README.md`, motif `ADMIN_KEY=<` : seul le `.env.local` du dev.
-- `npm run verifier` : vert.
+  - `export-etat` avec l'URL `http://127.0.0.1:9` dans le `prod.env` temporaire : l'échec de connexion
+    prouve que l'environnement atteint le `npx convex run` de l'exporter ; `git status --short WWS/simulation` inchangé.
+- `grep -n 'ADMIN_KEY=<' deploiement/README.md` (motif partiel : 57 refuse le nom entier en Bash) : seul
+  le `.env.local` du dev. `npm run verifier` : vert.
 
 ## Rapport attendu
 

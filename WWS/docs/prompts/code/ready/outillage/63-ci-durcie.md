@@ -1,4 +1,4 @@
-# 63-ci-durcie — la CI déploie par le ssh du runner vers une clé qui ne lance que `deployer.sh`, actions épinglées, droits en lecture, délais bornés
+# 63-ci-durcie — la CI déploie par le ssh du runner, hôte vérifié, actions épinglées, droits en lecture, délais bornés, et le README donne la ligne qui restreint sa clé à `deployer.sh`
 
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 62, poussé et déployé (`deploiement/deployer.sh` est sur le VPS).
@@ -24,7 +24,8 @@ depuis toute branche. 09, 33 et 61 renvoient ici l'épinglage de leurs actions.
 
 1. **Pas SSH** de `deployer` : l'action et l'amorçage de 62 disparaissent. Un pas `run:`, secrets passés
    par `env:` et jamais interpolés dans le script, sans `set -x` : clé écrite sous `umask 077` dans
-   `$RUNNER_TEMP` (600), `known_hosts` depuis `VPS_HOTE_CLE` à côté ; puis `ssh -i <clé> -o
+   `$RUNNER_TEMP` (600) par `printf '%s\n'` (OpenSSH refuse une clé sans saut de ligne final, qu'un secret
+   collé perd souvent), `known_hosts` depuis `VPS_HOTE_CLE` à côté ; puis `ssh -i <clé> -o
    IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=<fichier> -o BatchMode=yes -o
    ConnectTimeout=20 "$UTILISATEUR@$HOTE" "sh $CHEMIN/deploiement/deployer.sh $SHA"`, `SHA` = `github.sha`.
    Avant la restriction elle s'exécute telle quelle ; après, `deployer.sh` n'en lit que le dernier mot (62)
@@ -35,8 +36,8 @@ depuis toute branche. 09, 33 et 61 renvoient ici l'épinglage de leurs actions.
 3. `deployer` : la garde de 44 gagne la branche, `if: github.ref == 'refs/heads/main' &&
    (github.event_name == 'workflow_dispatch' || vars.DEPLOIEMENT_AUTO != '0')` (44 absent : la première
    clause seule ; 65 l'élargira) ; commentaire ~32-33 à l'avenant.
-4. Chaque `uses:` vers un dépôt tiers, dans **tous** les fichiers de `.github/workflows/`, par SHA de
-   commit et version en commentaire : `actions/checkout@<40 hex> # v7.0.1`. SHA lu par `git ls-remote
+4. Chaque `uses:` qui n'est pas local (`actions/*` compris), dans **tous** les fichiers de `.github/workflows/`,
+   par SHA de commit et version en commentaire : `actions/checkout@<40 hex> # v7.0.1`. SHA lu par `git ls-remote
    --tags https://github.com/<propriétaire>/<action> 'refs/tags/v*'`, celui de la version exacte que la
    majeure désigne aujourd'hui (ligne `^{}` si le tag est annoté). Les `uses: ./…` ne bougent pas.
 5. `deploiement/README.md`, § CI/CD : `VPS_HOTE_CLE` au tableau des secrets, et une sous-section « Clé
@@ -69,7 +70,8 @@ Dependabot (« À trancher »). Aucune connexion au VPS, aucune modification de 
 2. Le bloc `run:` du pas SSH joué par `bash`, un `ssh` doublure devant le `PATH` (il imprime ses arguments
    et le mode du fichier `-i`), `RUNNER_TEMP` temporaire, secrets factices : `IdentitiesOnly`,
    `StrictHostKeyChecking=yes`, `UserKnownHostsFile`, `BatchMode` présents, commande distante finie par le
-   SHA, mode 600, le contenu de la clé factice nulle part dans la sortie.
+   SHA, mode 600, fichier fini par un saut de ligne même quand le secret factice n'en a pas, le contenu
+   de la clé factice nulle part dans la sortie.
 3. `git grep -nE 'uses:[[:space:]]+[^.[:space:]]' -- .github/workflows | grep -vE '@[0-9a-f]{40} # v[0-9]'`
    ne rend rien ; `git grep -n appleboy` non plus.
 4. Lecture YAML (paquet `yaml` de `node_modules`, comme au cas 4 de 33) : `permissions` vaut

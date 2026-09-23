@@ -49,6 +49,8 @@ le 15/08 (f6e10fc) ; done/emplacements-par-site.md place QUESTIONS.md sous WWS/d
    - existe à HEAD (`git ls-tree -r --name-only HEAD`) comme fichier, comme dossier (préfixe) ou,
      sans extension, comme import (`convex/constants` → `.ts`, `.tsx`, `.mjs`, `.js`) → rien ;
    - existe seulement sur le disque (`.claude/settings.local.json`) → **hors HEAD**, information ;
+   - `deploiement/WIPE-REQUIS` (fichier sans extension, présent seulement quand un wipe est annoncé,
+     43-44) → exception nommée dans le lint, jamais un chemin mort ;
    - suivi de « (à créer) », ou précédé sur sa ligne de « crée », « créer », « nouveau »,
      « nouvelle » → exempté ; déclaré « (à créer) », lui ou un fichier sous lui, ailleurs dans le même
      dossier, ce prompt compris → exempté, « créé par NN » ; par un numéro plus grand → **avertissement** ;

@@ -25,32 +25,33 @@ manque la commande qui l'enchaîne, et une garde qui refuse de l'enchaîner aill
 2. **La garde, avant tout appel réseau.** Chaque variable du fichier d'env dont le nom contient
    `CONVEX` et finit par `_URL` (aujourd'hui trois) se parse par `new URL`, en `http:`, d'hôte
    exactement `127.0.0.1` ou `localhost` ; sinon sortie 2, la variable nommée. Toutes : le
-   navigateur lit `VITE_CONVEX_URL`, `npx convex` lit `CONVEX_SELF_HOSTED_URL`. La clé d'admin n'est
-   ni lue ni imprimée (tout ce qu'on appelle est public). Puis `GET <VITE_CONVEX_URL>/version` :
+   navigateur lit `VITE_CONVEX_URL`, `npx convex` lit `CONVEX_SELF_HOSTED_URL` — et `process.env`
+   l'emporte sur le fichier : ces noms, s'ils y sont, passent la même garde. La clé d'admin n'est
+   ni utilisée ni imprimée (tout ce qu'on appelle est public). Puis `GET <VITE_CONVEX_URL>/version` :
    200 attendu, le corps (`unknown`) ignoré ; sinon sortie 2 et « docker compose up -d backend ».
-3. **Deux comptes**, `locale-a` et `locale-b`, mot de passe constant du script : le jeton de
+3. **Deux comptes**, `locale-a` et `locale-b`, mot de passe constant (8 octets au moins) : le jeton de
    `.partie-locale.json` si `accounts.me` le reconnaît, sinon `auth.login`, et sur `BAD_CREDENTIALS`
    `auth.register`. Un refus se lit sur `error.data.code` ; tout autre : sortie 1, le code nommé.
 4. **Une saison lancée.** Reprise : dans `accounts.seats` de A, la dernière saison non `concluded`
    fondée par A où B a une place (`--neuve` passe outre). Sinon `seasons.create`
    `{ durationHours: null, compensation: 0.5 }` (comme l'accueil), `seasons.join` de B par le code.
    Au salon : `reserveNation` (`france,germany` par défaut : deux voisins du théâtre Europe),
-   `declareReady`, `seasons.launch` par A. Une saison lancée n'est pas touchée.
+   `declareReady` (`ready: true`), `seasons.launch` par A. Une saison lancée n'est pas touchée.
 5. **`--qg`**, pour chaque siège dont `playerView.me.hqLevel` vaut 0 : la région de
    `public/region-index.json` dont `point` égale `me.capitalPoint`, puis `constructions.start`
    `{ building: 'hq', regionId }`, et le QG amène sa compagnie d'infanterie en garnison.
-   **Décision : aucune table des capitales dans le script**, le serveur sert le point. Il n'est pas toujours unique (`GBR-2080` Westminster le partage avec
-   `GBR-2072`) : le premier id trié, dit en sortie ; tout le sol national reçoit un QG.
+   **Décision : aucune table des capitales dans le script**, le serveur sert le point. Il n'est pas
+   toujours unique (`GBR-2080` le partage avec `GBR-2072`) : le premier id trié, dit en sortie.
 6. **Sorties.** `.partie-locale.json` (à créer), ajouté à `.gitignore` avec son pourquoi (`*.local`
    ne le couvre pas) : `{ url, code, seasonId, seats: [{ nickname, nation, token, seasonId }] }`.
    **Le code contredit le cahier** : `exporter-etat-reference.mjs` ne lit aucun fichier, il prend
    `--token=` et `--saison=` ; ces deux valeurs sont celles-ci, et il ne change pas. Par siège :
-   pseudo, nation, QG posé ou dû ; `localStorage.setItem('wws-session', …);
-   localStorage.setItem('wws-season', …); location.assign('/plateau');` (`JSON.stringify`) ;
-   `npx convex run dev:snapshot '{…}'`. Et une phrase : deux onglets d'une origine partagent ce
-   stockage (`onStorage` fait basculer l'autre) — on change de siège, on n'en ouvre pas deux.
+   pseudo, nation, QG posé ou dû ; `localStorage.setItem('wws-session', …);`, de même `'wws-season'`,
+   puis `location.assign('/plateau');` (valeurs brutes comme `keepSession`/`keepSeat`, littéraux par
+   `JSON.stringify`) ; `npx convex run dev:snapshot '{…}'`. Et une phrase : deux onglets d'une origine
+   partagent ce stockage (`onStorage` fait basculer l'autre) — un second siège veut une autre origine.
 7. Une ligne `npm run partie:locale   # saison à deux, backend local` au bloc de commandes de
-   `CLAUDE.md` (`wc -m` ≤ 8 000) et à la section du dev local de `deploiement/README.md`.
+   `CLAUDE.md` (`wc -m` ≤ 8 000) et dans `deploiement/README.md`, là où il cite `npm run dev:complet`.
 
 ## Ce que ce prompt ne fait pas
 Ni avant-poste, ni troupe hors garnison, ni mouvement mis en scène. Ni `window.wws`, ni
@@ -60,12 +61,13 @@ Ni avant-poste, ni troupe hors garnison, ni mouvement mis en scène. Ni `window.
 `scripts/partie-locale.test.mjs` (à créer), écrit d'abord, sans réseau :
 1. Garde : `http://127.0.0.1:3210` et `http://localhost:3210/` passent ; refusés, variable nommée :
    `https://convex.example.com`, `http://127.0.0.1.nip.io:3210`, `http://localhost.example.com`,
-   `http://evil.com#127.0.0.1`, `http://0.0.0.0:3210`, `http://[::1]:3210`, une valeur vide, et
-   `VITE_CONVEX_URL` local avec `CONVEX_SELF_HOSTED_URL` distant. Lecture : commentaires, guillemets.
-2. Reprise : la dernière saison fondée par A où B siège ; écartées une `concluded`, une sans B, une
-   fondée par B.
+   `http://evil.com#127.0.0.1`, `http://0.0.0.0:3210`, `http://[::1]:3210`, une valeur vide,
+   `VITE_CONVEX_URL` local avec `CONVEX_SELF_HOSTED_URL` distant, fichier local avec
+   `CONVEX_SELF_HOSTED_URL` distant dans l'environnement. Lecture : commentaires, guillemets.
+2. Reprise : la dernière saison fondée par A où B siège ; écartées une `concluded`, une sans B, une de B.
 3. Sur le vrai `region-index.json` : le point de `FRA-5333` rend `FRA-5333`, celui de `GBR-2080`
-   rend `GBR-2072`, un point absent une erreur. Chaque ligne imprimée passe `new Function(ligne)`.
+   rend `GBR-2072`, un point absent une erreur. Chaque ligne `localStorage` rendue passe
+   `new Function(ligne)` (la ligne `npx convex run` est du shell, pas du JS).
 Essai réel, local seulement : `curl -s -o /dev/null -w '%{http_code}' -m 2
 http://127.0.0.1:3210/version` rend 200, sinon `docker compose up -d backend`. Sur « Could not find
 public function » : relire `grep -E '^(CONVEX_SELF_HOSTED_URL|VITE_CONVEX_URL)=' .env.local`, puis
@@ -75,7 +77,8 @@ public function » : relire `grep -E '^(CONVEX_SELF_HOSTED_URL|VITE_CONVEX_URL)=
    `npx convex data seasons --limit 500 | wc -l` inchangé.
 6. `--qg` : `npx convex run dev:snapshot` rend, pour chaque siège, `playerView.me.hqLevel` ≥ 1 et un
    `hq` dans `me.buildings` ; relancé avec `--qg`, sortie 0 sans pose de plus.
-7. `--env=$T/.env`, `CONVEX_SELF_HOSTED_URL=https://convex.example.com` : sortie 2 immédiate.
+7. `T=$(mktemp -d)`, `--env=$T/.env` avec `CONVEX_SELF_HOSTED_URL=https://convex.example.com` :
+   sortie 2 immédiate, aucune requête.
 
 ## Vérifications
 `npx vitest run scripts/partie-locale.test.mjs` ; cas 4 à 7 sous `/usr/bin/time -p` ;

@@ -49,7 +49,7 @@ le cahier** : `heldRegions` vit dans `src/domain/control.ts`, `convex/holding.ts
 | Événement de couleur, relié | `settleBeforeChange` puis `reportChange` (`convex/production.ts`) ; `isLinked` (`src/domain/economy.ts`) | 0020 §6-7 |
 | Porte | `playerOf`, `requirePlayable`, `seatsOf` (`convex/seasons.ts`) | 0022 |
 | Brouillard | `sightings`, `campSightings`, `regionSightings` ; `seenSegment` (`src/domain/sighting-segment.ts`) | 0021, 0024 §1-2, 0020 §5 |
-| Rose = serveur | `src/domain/movement-orders.ts` ; `outpostRaiseHold`, `foundationHold` (`src/domain/construction.ts`) | 0015 (24/08) |
+| Rose = serveur | `src/domain/movement-orders.ts` ; `outpostRaiseHold` (`src/domain/construction.ts`) — `foundationHold` et `upgradeHold` sont propres au client (39) | 0015 (24/08) |
 | Combat | `resolveEngagement`, `drownedOf` (`src/domain/combat.ts`) ; `DAMAGE_TABLE` (`convex/constants.ts`) ; `engageAt` (`convex/movement/arrival.ts`) | 0014, 0024 §3 |
 | Avant-poste | `isStanding` (`src/domain/outposts.ts`) ; désactivé, jamais pris | 0020 §10, 0004 |
 | Bouton → rôle | `roleOf` (`src/map/engine/index.ts`) ; `src/domain/mouse-mapping.ts` | — |

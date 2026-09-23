@@ -48,11 +48,9 @@ planter sur une dépêche inconnue, pas d'afficher les règles d'avant (`PlayerV
 7. `ci.yml`, job `deployer`, après le pas ssh : « Contrôler la version servie », six essais espacés de
    10 s de `curl -fsS https://wws.pierrebrethes.cloud/version.json | grep -q "$SHA"` ; au bout,
    `::error::` avec ce qui est servi, sortie 1. `SHA` est celui que le pas ssh envoie à deployer.sh
-   (63) : s'il est posé au niveau du pas, le remonter en `env:` du job, lu par les deux pas, pour que 65
-   n'ait qu'un endroit à changer. L'URL s'écrit à l'Edit, aucune commande ne la contient (hook de 16 :
-   chercher `pierrebrethes` sans le domaine).
-8. `deploiement/README.md` § 6 · Contrôle : une puce, `version.json` rend le commit déployé et la CI le
-   vérifie après chaque déploiement.
+   (63) : posé au niveau du pas, il remonte en `env:` du job, lu par les deux pas (65 n'aura qu'un
+   endroit à changer). L'URL s'écrit par Edit : le hook de 16 refuse toute commande Bash qui la porte.
+8. `deploiement/README.md` § 6 · Contrôle : une puce, `version.json` rend le commit déployé, la CI le vérifie.
 
 ## Ce que ce prompt ne fait pas
 
@@ -67,7 +65,8 @@ Ni version dans Réglages, ni retour arrière (65), ni `.dockerignore` (66), ni 
 2. `src/shell/NewVersionBanner.test.tsx` (à créer, jsdom), `fetch` doublé par `vi.stubGlobal` : servi
    `bbb`, `bundled="aaa"`, un `focus` sur `window` → le bouton `fr.newVersion.reload` paraît ; servi
    `aaa` → rien ; `fetch` rejeté → rien, sans erreur ; `bundled="dev"` → `fetch` jamais appelé.
-   L'import ne lève pas : que vitest applique `define` se constate, ne se suppose pas.
+   L'import ne lève pas, ni celui de `src/routes/__root.test.tsx` (il importe `__root`) : que vitest
+   applique `define` se constate (sinon `typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : DEV_BUILD`).
 3. `BUILD_SHA=essai64 npx vite build` : `dist/version.json` porte `"sha":"essai64"` et `builtAt`,
    `grep -rl essai64 dist/assets` trouve le bundle ; sans la variable, `"sha":"dev"`.
 4. Si `docker info` répond : `nginx -t` dans `nginx:alpine`, conf montée ; `dist` servi sur
@@ -86,5 +85,6 @@ Les deux tests par `npx vitest run`, puis `npm run verifier` : verts ; les cas 3
 
 Format commun (README de la série), plus : le constat de `define` sous vitest ; où le bandeau se voit
 (plateau face à « à faire maintenant », salon, `BoardError` ; pas l'`errorComponent` de la racine, qui
-remplace `Root`) ; pour Pierre au premier déploiement, le pas « Contrôler la version servie » vert, et
+remplace `Root`) ; qu'un retour (65) vers un commit antérieur (62, 63…), sans `version.json`, rendra ce
+contrôle rouge (404) ; pour Pierre au premier déploiement, le pas « Contrôler la version servie » vert, et
 un onglet ouvert avant la poussée qui montre le bandeau au retour du focus puis recharge au clic.

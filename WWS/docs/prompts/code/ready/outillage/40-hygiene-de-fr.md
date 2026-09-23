@@ -11,7 +11,7 @@ libellé. (2) Les désignations de `src/emblems/units/equipment.ts` : **fichier 
 gras dans la parenthèse de « convoi » ; la ligne Avant-poste ~18), `src/i18n/fr-hygiene.test.ts`
 (le lecteur de littéraux posé par 03), `src/i18n/fr.ts` (~298 et les clés du point 3),
 `src/emblems/units/equipment.ts` (en-tête ~5-10), `src/map/engine/regions.ts` (~575),
-`CONVENTIONS.md` (§5 ~97-101), `WWS/CLAUDE.md` (`## Conventions`, ~121-123).
+`CONVENTIONS.md` (§5 ~97-101), `WWS/CLAUDE.md` (section `## Conventions` ; le prompt 22 a déplacé ses lignes).
 
 ## Pourquoi
 

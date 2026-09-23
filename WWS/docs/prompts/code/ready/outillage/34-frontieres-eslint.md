@@ -4,8 +4,8 @@ Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`
 **Suppose :** 13.
 
 **À lire :** `eslint.config.js` (entier), `package.json` (`lint` ~12, tel que 13 l'a laissé),
-`CONVENTIONS.md` §6 (~103), §7 (~112), §10 (~144), §11 (~153), `src/domain/world.ts` (chargeurs
-~76, ~94, ~160 ; `regionType` ~130), `src/domain/ids.ts` ~4, `src/domain/nations.ts` ~1-4,
+`CONVENTIONS.md` §6 (~103), §7 (~112), §10 (~144), §11 (~153), `src/domain/world.ts` (`fetch`
+~77, ~95, ~161 ; `regionType` ~130), `src/domain/ids.ts` ~4, `src/domain/nations.ts` ~1-4,
 `convex/constants.ts` (~27, ~250-254, ~360), `convex/movements.ts` ~63.
 
 ## Pourquoi
@@ -56,9 +56,8 @@ et ~254, `movements.ts` ~63) ; un `throw new Error` (`constants.ts` ~362).
 5. `package.json`, `lint` : `--max-warnings 0` à la fin, drapeaux de 13 intacts.
 
 ## Ce que ce prompt ne fait pas
-- Le test de `roleOf` (35), les règles du React Compiler (36), knip (37), les cycles (38). Aucun
-  lint typé : le cache de 13 (`--cache-strategy content`) suppose qu'aucune règle ne l'est. Les
-  chargeurs de `world.ts` restent au domaine. `CONVENTIONS.md` et `CLAUDE.md` ne bougent pas : leurs garde-fous, c'est 68.
+- Le test de `roleOf` (35), React Compiler (36), knip (37), cycles (38). Aucun lint typé (le cache
+  de 13 le suppose). `world.ts` garde ses chargeurs. `CONVENTIONS.md` et `CLAUDE.md` : c'est 68.
 
 ## Cas d'acceptation (tests d'abord)
 Sondes sans fichier : `printf '%s\n' '<ligne>' | npx eslint --stdin --stdin-filename <chemin>`.
@@ -66,8 +65,9 @@ Le chemin, même inexistant, choisit les blocs : rien à créer, rien à annuler
 1. Avant tout changement : `npm run lint` vert, 0 avertissement ; noter la durée.
 2. Règles posées, rangement non fait : `npm run lint` rouge, exactement les 12 violations. Ni
    `world.ts` (`fetch`) ni le `window` local d'`interception.ts` ~307 ou `rest-window.ts` ~3.
-3. Une sonde par règle, dont l'erreur cite le message attendu : `src/domain/zz.ts` avec `react`
-   (§7), `@/i18n/fr`, `import { regionType } from './world'`, `localStorage.clear()` ;
+3. Une sonde par règle, dont l'erreur cite le message attendu (son §, sauf `regionType` et le
+   serveur → client : CONVENTIONS n'en a pas) : `src/domain/zz.ts` avec `react` (§7), `@/i18n/fr`,
+   `import { regionType } from './world'`, `localStorage.clear()` ;
    `src/domain/world.ts` avec `fetch('x'); export const t = document.title;` (seul `document`) ;
    `src/map/engine/zz.ts` avec `react` ; `src/routes/zz.tsx` avec `three`, puis
    `export * from './x'` ; `convex/zz.ts` avec `../src/emblems/Flag`, `export { a } from './b'`,

@@ -38,17 +38,19 @@ l'annulation à l'historique et attend un commit pour chaque aller-retour.
    `contre` = le SHA servi. La garde qui ne dépend de rien reste `convex deploy`, qui refuse un schéma que les
    données en place ne valident plus (commentaire ci.yml ~37-39).
 6. `deploiement/README.md`, section « Retour arrière » (à créer) après § CI/CD, cinq points d'une
-   ou deux lignes, et le § CI/CD y renvoie :
+   à trois lignes, et le § CI/CD y renvoie :
    1. Actions → CI → Run workflow depuis `main`, `ref` = le SHA complet à remettre (avant-dernier run
       vert, ou `git log --oneline origin/main`), `contre` = le SHA servi (`version.json`, 64) ; ou
       `gh workflow run ci.yml -f ref=<sha> -f contre=<sha servi>`.
    2. Les vérifications tournent sur ce SHA, puis ses fonctions et son front partent ensemble ; un SHA
-      antérieur au déploiement par SHA (62) est refusé.
+      antérieur au déploiement par SHA (62) est refusé ; un SHA antérieur à 64 se déploie, mais le
+      contrôle de la version servie échoue (son build n'écrit pas `version.json`).
    3. Un retour à travers un changement de schéma incompatible échoue par construction : l'étape de
       compatibilité (44) l'arrête avant `convex deploy`, qui le refuserait de toute façon. C'est voulu :
-      on corrige en avant, ou on wipe. Même arrêt si le retour retire la cible d'un travail planifié.
+      on corrige en avant, ou on wipe. Un retour qui retire la cible d'un travail planifié, `convex deploy`
+      le laisse passer : seule l'étape de compatibilité l'arrête, et seulement si `contre` est le SHA servi.
    4. Même règle pour le digest du backend (15) : reculer au-delà d'une montée de version redescendrait
-      le backend sur des données plus récentes. `git diff <sha> origin/main -- docker-compose.yml` ne
+      le backend sur des données plus récentes. `git diff <sha> <sha servi> -- docker-compose.yml` ne
       touche aucune ligne `image:`, sinon on ne recule pas.
    5. Toute poussée sur main redéploie la pointe : le retour tient jusqu'au correctif, ou tant que
       `DEPLOIEMENT_AUTO` vaut `0` (44).
@@ -67,7 +69,7 @@ Aucun code applicatif n'est touché ; les cas se jouent une fois, hors du dépô
    `fetch-depth: 0` sur le checkout de `deployer` ; `jobs.deployer.if` ; `needs` inchangés.
 2. Le bloc `run:` du pas `version` joué par `bash` dans le dépôt, `GITHUB_OUTPUT` et `GITHUB_STEP_SUMMARY`
    sur des fichiers temporaires : `sha=` suivi de `git rev-parse HEAD` ; avec le `ref` d'`env:` valant
-   `$(touch pris)`, le résumé porte ce texte tel quel et aucun fichier `pris` n'apparaît.
+   `$(touch <dossier temporaire>/pris)`, le résumé porte ce texte tel quel et aucun `pris` n'apparaît.
 3. Le pas de refus joué dans un dossier temporaire sans `deploiement/deployer.sh` : code non nul et
    message ; avec le fichier : 0.
 4. Même lecture : `JSON.stringify(jobs.deployer)` ne contient plus `github.sha` (tout vient de

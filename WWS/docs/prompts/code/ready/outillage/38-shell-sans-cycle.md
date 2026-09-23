@@ -44,8 +44,9 @@ Rangement pur, aucun changement de comportement.
 6. `src/import-cycles.test.ts` (à créer, une quarantaine de lignes, projet vitest `front`) :
    - le graphe lit `src/**/*.{ts,tsx}` et `convex/**/*.ts`, sans les `*.test.*`,
      `convex/_generated/` ni `src/routeTree.gen.ts` ;
-   - ses arêtes sont les `import … from` et `export … from`. `@/` se résout vers `src/`, le relatif
-     vers `.ts`, `.tsx` ou `index.ts`, et les paquets sont ignorés ;
+   - ses arêtes sont les `import … from` et `export … from`, y compris écrits sur plusieurs lignes
+     (`convex/` en est plein). `@/` se résout vers `src/`, le relatif vers `.ts`, `.tsx` ou
+     `index.ts`, et les paquets sont ignorés ;
    - `import type` et `export type … from` ne comptent pas : ils sont effacés. `import { type X }`
      compte : sous `verbatimModuleSyntax`, il reste un import à l'exécution. Les `import()`
      dynamiques (les fenêtres `lazy` du plateau) ne comptent pas non plus ;
@@ -57,8 +58,8 @@ Rangement pur, aucun changement de comportement.
 
 ## Ce que ce prompt ne fait pas
 - Les vingt modules de `convex/` restent en une composante : pas de découpage.
-- Pas de règle eslint « le shell n'importe pas les routes » (un `import type` y passerait encore) :
-  « À trancher ». Pas de `cycles` dans la configuration de knip (37).
+- Pas de règle eslint « le shell n'importe pas les routes », bien que le test laisse passer un
+  `import type` du shell vers une route : « À trancher ». Pas de `cycles` dans la configuration de knip (37).
 
 ## Cas d'acceptation (tests d'abord)
 1. Écrit avant le déplacement, `import-cycles.test.ts` est rouge, nomme les cinq fichiers et rien
@@ -66,7 +67,7 @@ Rangement pur, aucun changement de comportement.
 2. Après : vert. `git grep --untracked -n "@/routes" -- src/shell` et
    `git grep --untracked -n "'\.\./plateau'" -- src` ne rendent rien.
 3. Mutation : `import { Route } from '@/routes/plateau';` et `void Route;` dans `SurfaceRail.tsx`
-   refont tomber le test. Écrit `import type { Route }`, il reste vert. Retirer la mutation.
+   refont tomber le test. `import type { Route }` seul (sans le `void`), il reste vert. Retirer.
 4. Si `knip.jsonc` existe (37), `npx knip --include cycles` ne liste plus que des chemins de
    `convex/`.
 
