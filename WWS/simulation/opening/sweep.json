@@ -7,7 +7,7 @@
   "sessions": [
    {
     "minute": 420,
-    "actions": 10,
+    "actions": 9,
     "queueDepth": 0
    },
    {
@@ -66,39 +66,72 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 10,
+  "totalActions": 9,
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
   "maxQueue": 3,
   "deadSessions": 11,
   "deadPct": 91.66666666666666,
-  "busyPct": 7.395833333333333,
-  "longestGap": 2247,
+  "busyPct": 6.701388888888888,
+  "longestGap": 2267,
   "hqTimes": {
    "2": 420
   },
   "finalHq": 2,
   "troops": 1,
   "lost": 0,
-  "troopCap": 12,
+  "troopCap": 10,
   "sites": 8,
+  "totalLevels": 10,
+  "averageLevel": 1.25,
+  "firstCargoAt": null,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": null
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 350,
+    "textile": 327.9999999999895,
+    "coal": 400,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 141.9999999999776,
+    "textile": 0,
+    "coal": 91.99999999998062,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 400,
    "textile": 368,
    "coal": 400,
    "oil": 60,
    "ore": 400,
-   "alloy": 2,
+   "alloy": 16,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 102,
+   "food": 142,
    "textile": 0,
-   "coal": 568,
+   "coal": 92,
    "oil": 0,
-   "ore": 917,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -118,7 +151,7 @@
    {
     "minute": 540,
     "actions": 0,
-    "queueDepth": 5
+    "queueDepth": 6
    },
    {
     "minute": 720,
@@ -175,11 +208,11 @@
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 5,
+  "maxQueue": 6,
   "deadSessions": 11,
   "deadPct": 91.66666666666666,
-  "busyPct": 10.625,
-  "longestGap": 2154,
+  "busyPct": 10.972222222222221,
+  "longestGap": 2144,
   "hqTimes": {
    "2": 420
   },
@@ -188,22 +221,55 @@
   "lost": 0,
   "troopCap": 12,
   "sites": 9,
+  "totalLevels": 13,
+  "averageLevel": 1.4444444444444444,
+  "firstCargoAt": null,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": null
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 390,
+    "textile": 327.9999999999895,
+    "coal": 400,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 536.9999999999643,
+    "textile": 0,
+    "coal": 534.3999999999643,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 400,
    "textile": 368,
    "coal": 400,
    "oil": 60,
    "ore": 400,
-   "alloy": 6,
+   "alloy": 1,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 539,
+   "food": 537,
    "textile": 0,
-   "coal": 548,
+   "coal": 534,
    "oil": 0,
-   "ore": 917,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -223,7 +289,7 @@
    {
     "minute": 540,
     "actions": 1,
-    "queueDepth": 6
+    "queueDepth": 7
    },
    {
     "minute": 720,
@@ -280,11 +346,11 @@
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 6,
+  "maxQueue": 7,
   "deadSessions": 10,
   "deadPct": 83.33333333333334,
-  "busyPct": 13.993055555555555,
-  "longestGap": 2057,
+  "busyPct": 14.340277777777777,
+  "longestGap": 2047,
   "hqTimes": {
    "2": 420
   },
@@ -293,13 +359,46 @@
   "lost": 0,
   "troopCap": 12,
   "sites": 11,
+  "totalLevels": 15,
+  "averageLevel": 1.3636363636363635,
+  "firstCargoAt": null,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": null
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 926.9999999999644,
+    "textile": 327.9999999999895,
+    "coal": 934.3999999999643,
+    "oil": 0,
+    "ore": 980,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 0,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 299.7333333333004,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 939,
+   "food": 937,
    "textile": 368,
-   "coal": 938,
+   "coal": 924,
    "oil": 40,
    "ore": 1000,
-   "alloy": 26,
+   "alloy": 21,
    "ammunition": 140,
    "bandages": 0
   },
@@ -308,7 +407,7 @@
    "textile": 0,
    "coal": 0,
    "oil": 0,
-   "ore": 317,
+   "ore": 300,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -327,8 +426,8 @@
    },
    {
     "minute": 540,
-    "actions": 7,
-    "queueDepth": 6
+    "actions": 2,
+    "queueDepth": 7
    },
    {
     "minute": 720,
@@ -338,7 +437,7 @@
    {
     "minute": 900,
     "actions": 0,
-    "queueDepth": 0
+    "queueDepth": 1
    },
    {
     "minute": 1080,
@@ -381,39 +480,72 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 21,
+  "totalActions": 16,
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 6,
+  "maxQueue": 7,
   "deadSessions": 9,
   "deadPct": 75,
-  "busyPct": 16.52777777777778,
-  "longestGap": 1984,
+  "busyPct": 17.291666666666668,
+  "longestGap": 1962,
   "hqTimes": {
    "2": 420
   },
   "finalHq": 2,
-  "troops": 7,
+  "troops": 2,
   "lost": 0,
-  "troopCap": 12,
+  "troopCap": 14,
   "sites": 11,
+  "totalLevels": 16,
+  "averageLevel": 1.4545454545454546,
+  "firstCargoAt": 623,
+  "troopsAt": {
+   "24": 2,
+   "48": 2,
+   "96": null
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 461.99999999999665,
+    "textile": 327.9999999999895,
+    "coal": 419.99999999999926,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 464.99999999996845,
+    "textile": 0,
+    "coal": 514.399999999965,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 885,
+   "food": 400,
    "textile": 368,
-   "coal": 938,
+   "coal": 400,
    "oil": 40,
-   "ore": 1000,
-   "alloy": 26,
+   "ore": 400,
+   "alloy": 6,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 0,
+   "food": 465,
    "textile": 0,
-   "coal": 0,
+   "coal": 514,
    "oil": 0,
-   "ore": 317,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -432,8 +564,8 @@
    },
    {
     "minute": 540,
-    "actions": 8,
-    "queueDepth": 6
+    "actions": 2,
+    "queueDepth": 7
    },
    {
     "minute": 720,
@@ -442,8 +574,8 @@
    },
    {
     "minute": 900,
-    "actions": 2,
-    "queueDepth": 1
+    "actions": 1,
+    "queueDepth": 2
    },
    {
     "minute": 1080,
@@ -486,39 +618,72 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 25,
+  "totalActions": 18,
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 6,
+  "maxQueue": 7,
   "deadSessions": 8,
   "deadPct": 66.66666666666666,
-  "busyPct": 23.506944444444443,
-  "longestGap": 1783,
+  "busyPct": 23.92361111111111,
+  "longestGap": 1771,
   "hqTimes": {
    "2": 420
   },
   "finalHq": 2,
-  "troops": 8,
+  "troops": 2,
   "lost": 0,
   "troopCap": 14,
   "sites": 11,
+  "totalLevels": 18,
+  "averageLevel": 1.6363636363636365,
+  "firstCargoAt": 623,
+  "troopsAt": {
+   "24": 2,
+   "48": 2,
+   "96": null
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 515.9999999999934,
+    "textile": 327.9999999999895,
+    "coal": 455.9999999999973,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 410.99999999997175,
+    "textile": 0,
+    "coal": 478.39999999996695,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 813,
+   "food": 400,
    "textile": 368,
-   "coal": 884,
+   "coal": 400,
    "oil": 40,
-   "ore": 1317,
-   "alloy": 1,
+   "ore": 400,
+   "alloy": 17,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 0,
+   "food": 411,
    "textile": 0,
-   "coal": 0,
+   "coal": 478,
    "oil": 0,
-   "ore": 0,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -537,23 +702,23 @@
    },
    {
     "minute": 540,
-    "actions": 8,
-    "queueDepth": 6
+    "actions": 2,
+    "queueDepth": 7
    },
    {
     "minute": 720,
-    "actions": 4,
+    "actions": 10,
     "queueDepth": 3
    },
    {
     "minute": 900,
-    "actions": 3,
-    "queueDepth": 1
+    "actions": 1,
+    "queueDepth": 2
    },
    {
     "minute": 1080,
-    "actions": 0,
-    "queueDepth": 2
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 1260,
@@ -591,39 +756,72 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 28,
+  "totalActions": 27,
   "foundationPlacements": 5,
   "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 6,
-  "deadSessions": 8,
-  "deadPct": 66.66666666666666,
-  "busyPct": 27.916666666666668,
-  "longestGap": 1656,
+  "maxQueue": 7,
+  "deadSessions": 7,
+  "deadPct": 58.333333333333336,
+  "busyPct": 25.833333333333336,
+  "longestGap": 1716,
   "hqTimes": {
    "2": 420
   },
   "finalHq": 2,
   "troops": 10,
   "lost": 0,
-  "troopCap": 14,
+  "troopCap": 16,
   "sites": 11,
+  "totalLevels": 19,
+  "averageLevel": 1.7272727272727273,
+  "firstCargoAt": 623,
+  "troopsAt": {
+   "24": 10,
+   "48": 10,
+   "96": null
+  },
+  "troopCapFirstAt": 720,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 587.9999999999891,
+    "textile": 327.9999999999895,
+    "coal": 455.9999999999973,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 338.99999999997607,
+    "textile": 0,
+    "coal": 478.39999999996695,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 813,
+   "food": 400,
    "textile": 368,
-   "coal": 884,
-   "oil": 4,
-   "ore": 1317,
-   "alloy": 39,
+   "coal": 400,
+   "oil": 40,
+   "ore": 400,
+   "alloy": 28,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 0,
+   "food": 339,
    "textile": 0,
-   "coal": 0,
+   "coal": 478,
    "oil": 0,
-   "ore": 0,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -642,23 +840,23 @@
    },
    {
     "minute": 540,
-    "actions": 8,
-    "queueDepth": 6
+    "actions": 2,
+    "queueDepth": 7
    },
    {
     "minute": 720,
-    "actions": 4,
+    "actions": 10,
     "queueDepth": 3
    },
    {
     "minute": 900,
     "actions": 5,
-    "queueDepth": 1
+    "queueDepth": 2
    },
    {
     "minute": 1080,
-    "actions": 2,
-    "queueDepth": 2
+    "actions": 1,
+    "queueDepth": 3
    },
    {
     "minute": 1260,
@@ -667,69 +865,101 @@
    },
    {
     "minute": 1860,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 2700,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    }
   ],
-  "totalActions": 38,
+  "totalActions": 31,
   "foundationPlacements": 5,
-  "medianActions": 1,
+  "medianActions": 0,
   "medianQueue": 0,
-  "maxQueue": 6,
-  "deadSessions": 1,
-  "deadPct": 8.333333333333332,
-  "busyPct": 40.208333333333336,
-  "longestGap": 434,
+  "maxQueue": 7,
+  "deadSessions": 7,
+  "deadPct": 58.333333333333336,
+  "busyPct": 33.71527777777778,
+  "longestGap": 1489,
   "hqTimes": {
-   "2": 420,
-   "3": 1371
+   "2": 420
   },
-  "finalHq": 3,
-  "troops": 16,
+  "finalHq": 2,
+  "troops": 12,
   "lost": 0,
   "troopCap": 16,
-  "sites": 13,
+  "sites": 11,
+  "totalLevels": 21,
+  "averageLevel": 1.9090909090909092,
+  "firstCargoAt": 623,
+  "troopsAt": {
+   "24": 12,
+   "48": 12,
+   "96": null
+  },
+  "troopCapFirstAt": 720,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 587.9999999999891,
+    "textile": 327.9999999999895,
+    "coal": 491.999999999995,
+    "oil": 0,
+    "ore": 380,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 338.99999999997607,
+    "textile": 0,
+    "coal": 442.3999999999693,
+    "oil": 0,
+    "ore": 899.7333333333431,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 741,
+   "food": 400,
    "textile": 368,
-   "coal": 579,
+   "coal": 400,
    "oil": 4,
-   "ore": 1059,
-   "alloy": 36,
+   "ore": 400,
+   "alloy": 58,
    "ammunition": 140,
    "bandages": 0
   },
   "capped": {
-   "food": 0,
+   "food": 339,
    "textile": 0,
-   "coal": 0,
+   "coal": 442,
    "oil": 0,
-   "ore": 0,
+   "ore": 900,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -748,52 +978,52 @@
    },
    {
     "minute": 540,
-    "actions": 8,
-    "queueDepth": 6
+    "actions": 2,
+    "queueDepth": 7
    },
    {
     "minute": 720,
-    "actions": 4,
+    "actions": 10,
     "queueDepth": 3
    },
    {
     "minute": 900,
     "actions": 5,
-    "queueDepth": 1
-   },
-   {
-    "minute": 1080,
-    "actions": 4,
     "queueDepth": 2
    },
    {
+    "minute": 1080,
+    "actions": 1,
+    "queueDepth": 3
+   },
+   {
     "minute": 1260,
-    "actions": 0,
+    "actions": 3,
     "queueDepth": 2
    },
    {
     "minute": 1860,
-    "actions": 6,
+    "actions": 5,
     "queueDepth": 0
    },
    {
     "minute": 1980,
     "actions": 0,
-    "queueDepth": 5
+    "queueDepth": 3
    },
    {
     "minute": 2160,
     "actions": 1,
-    "queueDepth": 3
+    "queueDepth": 1
    },
    {
     "minute": 2340,
     "actions": 1,
-    "queueDepth": 2
+    "queueDepth": 0
    },
    {
     "minute": 2520,
-    "actions": 2,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -802,31 +1032,64 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 45,
+  "totalActions": 42,
   "foundationPlacements": 5,
-  "medianActions": 4,
+  "medianActions": 2,
   "medianQueue": 2,
-  "maxQueue": 6,
+  "maxQueue": 7,
   "deadSessions": 2,
   "deadPct": 16.666666666666664,
-  "busyPct": 56.73611111111111,
-  "longestGap": 434,
+  "busyPct": 52.986111111111114,
+  "longestGap": 420,
   "hqTimes": {
    "2": 420,
-   "3": 1371
+   "3": 1538
   },
   "finalHq": 3,
-  "troops": 18,
+  "troops": 16,
   "lost": 0,
-  "troopCap": 18,
-  "sites": 13,
+  "troopCap": 16,
+  "sites": 14,
+  "totalLevels": 28,
+  "averageLevel": 2,
+  "firstCargoAt": 623,
+  "troopsAt": {
+   "24": 14,
+   "48": 16,
+   "96": null
+  },
+  "troopCapFirstAt": 720,
+  "troopCapSaturatedFrom": 2340,
+  "daySeven": {
+   "minute": 2880,
+   "produced": {
+    "food": 926.9999999999652,
+    "textile": 327.9999999999895,
+    "coal": 934.3999999999643,
+    "oil": 0,
+    "ore": 1018.9333333333016,
+    "alloy": 129.20000000000292,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 0,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 493.06666666670026,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 610,
+   "food": 642,
    "textile": 368,
-   "coal": 688,
+   "coal": 510,
    "oil": 4,
-   "ore": 1291,
-   "alloy": 30,
+   "ore": 781,
+   "alloy": 25,
    "ammunition": 140,
    "bandages": 0
   },
@@ -835,7 +1098,7 @@
    "textile": 0,
    "coal": 0,
    "oil": 0,
-   "ore": 0,
+   "ore": 493,
    "alloy": 0,
    "ammunition": 0,
    "bandages": 0
@@ -889,7 +1152,7 @@
    },
    {
     "minute": 2160,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 1
    },
    {
@@ -945,16 +1208,16 @@
    {
     "minute": 4860,
     "actions": 0,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 5040,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1,
+    "actions": 3,
     "queueDepth": 0
    },
    {
@@ -979,17 +1242,17 @@
    },
    {
     "minute": 6480,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 6660,
     "actions": 1,
-    "queueDepth": 0
+    "queueDepth": 1
    },
    {
     "minute": 6840,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -1014,17 +1277,17 @@
    },
    {
     "minute": 8100,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1034,61 +1297,94 @@
    },
    {
     "minute": 9180,
-    "actions": 3,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 9360,
-    "actions": 4,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 4,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 4,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 1,
-    "queueDepth": 0
+    "actions": 0,
+    "queueDepth": 1
    }
   ],
-  "totalActions": 51,
+  "totalActions": 40,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
   "maxQueue": 2,
-  "deadSessions": 14,
-  "deadPct": 33.33333333333333,
-  "busyPct": 23.47222222222222,
+  "deadSessions": 17,
+  "deadPct": 40.476190476190474,
+  "busyPct": 24.226190476190474,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
    "2": 1942,
-   "3": 4887
+   "3": 6327
   },
   "finalHq": 3,
-  "troops": 20,
+  "troops": 9,
   "lost": 0,
-  "troopCap": 20,
+  "troopCap": 14,
   "sites": 11,
+  "totalLevels": 31,
+  "averageLevel": 2.8181818181818183,
+  "firstCargoAt": 4823,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": 8
+  },
+  "troopCapFirstAt": 5400,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 2503,
+    "textile": 1288.0000000001942,
+    "coal": 3629.400000000112,
+    "oil": 0,
+    "ore": 5493.600000000368,
+    "alloy": 2615.333333333586,
+    "ammunition": 40,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1392.000000000157,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 2200,
    "textile": 1328,
-   "coal": 981,
+   "coal": 349,
    "oil": 40,
-   "ore": 749,
-   "alloy": 302,
+   "ore": 283,
+   "alloy": 193,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 1326,
+   "food": 1392,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -1141,13 +1437,13 @@
    },
    {
     "minute": 1980,
-    "actions": 6,
+    "actions": 5,
     "queueDepth": 0
    },
    {
     "minute": 2160,
     "actions": 1,
-    "queueDepth": 3
+    "queueDepth": 2
    },
    {
     "minute": 2340,
@@ -1186,12 +1482,12 @@
    },
    {
     "minute": 3960,
-    "actions": 2,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 3,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1206,7 +1502,7 @@
    },
    {
     "minute": 5040,
-    "actions": 2,
+    "actions": 3,
     "queueDepth": 0
    },
    {
@@ -1216,7 +1512,7 @@
    },
    {
     "minute": 5400,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1231,7 +1527,7 @@
    },
    {
     "minute": 6300,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 1
    },
    {
@@ -1241,7 +1537,7 @@
    },
    {
     "minute": 6660,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1262,7 +1558,7 @@
    {
     "minute": 7740,
     "actions": 0,
-    "queueDepth": 2
+    "queueDepth": 1
    },
    {
     "minute": 7920,
@@ -1276,7 +1572,7 @@
    },
    {
     "minute": 8280,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1286,12 +1582,12 @@
    },
    {
     "minute": 9060,
-    "actions": 2,
+    "actions": 6,
     "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 3,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -1306,7 +1602,7 @@
    },
    {
     "minute": 9720,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1315,14 +1611,14 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 51,
+  "totalActions": 50,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
-  "maxQueue": 3,
+  "maxQueue": 2,
   "deadSessions": 16,
   "deadPct": 38.095238095238095,
-  "busyPct": 23.57142857142857,
+  "busyPct": 24.265873015873016,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
@@ -1334,18 +1630,51 @@
   "lost": 0,
   "troopCap": 20,
   "sites": 11,
+  "totalLevels": 31,
+  "averageLevel": 2.8181818181818183,
+  "firstCargoAt": 7990,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": 1
+  },
+  "troopCapFirstAt": 9720,
+  "troopCapSaturatedFrom": 9720,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 2745,
+    "textile": 1288.0000000001942,
+    "coal": 3981.0000000000855,
+    "oil": 0,
+    "ore": 6021.600000000788,
+    "alloy": 2655.3333333336177,
+    "ammunition": 0,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1462.999999999873,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 2200,
    "textile": 1328,
-   "coal": 981,
+   "coal": 782,
    "oil": 40,
-   "ore": 749,
-   "alloy": 402,
-   "ammunition": 120,
+   "ore": 731,
+   "alloy": 386,
+   "ammunition": 80,
    "bandages": 0
   },
   "capped": {
-   "food": 1686,
+   "food": 1463,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -1398,13 +1727,13 @@
    },
    {
     "minute": 1980,
-    "actions": 6,
+    "actions": 5,
     "queueDepth": 0
    },
    {
     "minute": 2160,
     "actions": 2,
-    "queueDepth": 3
+    "queueDepth": 2
    },
    {
     "minute": 2340,
@@ -1438,7 +1767,7 @@
    },
    {
     "minute": 3780,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -1448,7 +1777,7 @@
    },
    {
     "minute": 4140,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1468,7 +1797,7 @@
    },
    {
     "minute": 5220,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1478,18 +1807,18 @@
    },
    {
     "minute": 5580,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 6300,
-    "actions": 1,
-    "queueDepth": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 6480,
@@ -1508,7 +1837,7 @@
    },
    {
     "minute": 7020,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1523,22 +1852,22 @@
    },
    {
     "minute": 7920,
-    "actions": 0,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 4,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 4,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 4,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1548,12 +1877,12 @@
    },
    {
     "minute": 9180,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 1
    },
    {
     "minute": 9360,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1563,7 +1892,7 @@
    },
    {
     "minute": 9720,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1572,38 +1901,71 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 49,
+  "totalActions": 41,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
-  "maxQueue": 3,
-  "deadSessions": 14,
-  "deadPct": 33.33333333333333,
-  "busyPct": 28.730158730158728,
+  "maxQueue": 2,
+  "deadSessions": 15,
+  "deadPct": 35.714285714285715,
+  "busyPct": 31.180555555555557,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
    "2": 1942,
    "3": 3447,
-   "4": 9323
+   "4": 7883
   },
   "finalHq": 4,
-  "troops": 13,
+  "troops": 2,
   "lost": 0,
-  "troopCap": 20,
-  "sites": 12,
+  "troopCap": 24,
+  "sites": 13,
+  "totalLevels": 39,
+  "averageLevel": 3,
+  "firstCargoAt": 6910,
+  "troopsAt": {
+   "24": 1,
+   "48": 1,
+   "96": 1
+  },
+  "troopCapFirstAt": null,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 3122.0000000000864,
+    "textile": 1288.0000000001942,
+    "coal": 4460.999999999926,
+    "oil": 0,
+    "ore": 6630.666666667343,
+    "alloy": 2951.3333333337237,
+    "ammunition": 40,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1386.3999999996952,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 2200,
+   "food": 2111,
    "textile": 1328,
-   "coal": 854,
+   "coal": 700,
    "oil": 40,
-   "ore": 1070,
-   "alloy": 89,
+   "ore": 748,
+   "alloy": 97,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 1546,
+   "food": 1386,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -1656,13 +2018,13 @@
    },
    {
     "minute": 1980,
-    "actions": 6,
+    "actions": 5,
     "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 5,
-    "queueDepth": 3
+    "actions": 4,
+    "queueDepth": 2
    },
    {
     "minute": 2340,
@@ -1676,7 +2038,7 @@
    },
    {
     "minute": 2700,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1687,21 +2049,21 @@
    {
     "minute": 3420,
     "actions": 0,
-    "queueDepth": 1
-   },
-   {
-    "minute": 3600,
-    "actions": 2,
     "queueDepth": 0
    },
    {
-    "minute": 3780,
+    "minute": 3600,
     "actions": 1,
     "queueDepth": 0
    },
    {
+    "minute": 3780,
+    "actions": 3,
+    "queueDepth": 0
+   },
+   {
     "minute": 3960,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1721,13 +2083,13 @@
    },
    {
     "minute": 5040,
-    "actions": 1,
+    "actions": 3,
     "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1,
-    "queueDepth": 0
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 5400,
@@ -1736,7 +2098,7 @@
    },
    {
     "minute": 5580,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -1746,7 +2108,7 @@
    },
    {
     "minute": 6300,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 2
    },
    {
@@ -1761,7 +2123,7 @@
    },
    {
     "minute": 6840,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -1771,17 +2133,17 @@
    },
    {
     "minute": 7620,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 3,
-    "queueDepth": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 4,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -1791,12 +2153,12 @@
    },
    {
     "minute": 8280,
-    "actions": 2,
+    "actions": 4,
     "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 0,
+    "actions": 4,
     "queueDepth": 0
    },
    {
@@ -1816,17 +2178,17 @@
    },
    {
     "minute": 9540,
-    "actions": 1,
-    "queueDepth": 1
+    "actions": 2,
+    "queueDepth": 0
    },
    {
     "minute": 9720,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    }
   ],
@@ -1834,34 +2196,67 @@
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
-  "maxQueue": 3,
-  "deadSessions": 13,
-  "deadPct": 30.952380952380953,
-  "busyPct": 30.84325396825397,
+  "maxQueue": 2,
+  "deadSessions": 15,
+  "deadPct": 35.714285714285715,
+  "busyPct": 29.563492063492063,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
    "2": 1942,
-   "3": 3447,
+   "3": 4887,
    "4": 9323
   },
   "finalHq": 4,
   "troops": 20,
   "lost": 0,
   "troopCap": 20,
-  "sites": 12,
+  "sites": 13,
+  "totalLevels": 36,
+  "averageLevel": 2.769230769230769,
+  "firstCargoAt": 2243,
+  "troopsAt": {
+   "24": 1,
+   "48": 3,
+   "96": 8
+  },
+  "troopCapFirstAt": 3960,
+  "troopCapSaturatedFrom": 8460,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 2745,
+    "textile": 1288.0000000001942,
+    "coal": 4208.999999999964,
+    "oil": 0,
+    "ore": 6070.666666667246,
+    "alloy": 2807.333333333691,
+    "ammunition": 18.00000000000012,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1477.19999999986,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 2200,
    "textile": 1328,
-   "coal": 410,
+   "coal": 563,
    "oil": 40,
-   "ore": 387,
-   "alloy": 141,
-   "ammunition": 120,
+   "ore": 476,
+   "alloy": 137,
+   "ammunition": 98,
    "bandages": 0
   },
   "capped": {
-   "food": 2022,
+   "food": 1477,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -1914,13 +2309,13 @@
    },
    {
     "minute": 1980,
-    "actions": 6,
+    "actions": 5,
     "queueDepth": 0
    },
    {
     "minute": 2160,
-    "actions": 11,
-    "queueDepth": 3
+    "actions": 9,
+    "queueDepth": 2
    },
    {
     "minute": 2340,
@@ -1934,27 +2329,27 @@
    },
    {
     "minute": 2700,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 3300,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 3420,
     "actions": 0,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 3600,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 3780,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -1994,7 +2389,7 @@
    },
    {
     "minute": 5580,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -2004,13 +2399,13 @@
    },
    {
     "minute": 6300,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 2
    },
    {
     "minute": 6480,
     "actions": 1,
-    "queueDepth": 0
+    "queueDepth": 1
    },
    {
     "minute": 6660,
@@ -2029,32 +2424,32 @@
    },
    {
     "minute": 7620,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 3,
-    "queueDepth": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 3,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 8100,
-    "actions": 0,
+    "actions": 4,
     "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -2064,23 +2459,23 @@
    },
    {
     "minute": 9180,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 1
    },
    {
     "minute": 9360,
     "actions": 1,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 9540,
-    "actions": 1,
-    "queueDepth": 0
+    "actions": 2,
+    "queueDepth": 1
    },
    {
     "minute": 9720,
     "actions": 1,
-    "queueDepth": 0
+    "queueDepth": 1
    },
    {
     "minute": 9900,
@@ -2088,38 +2483,71 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 58,
+  "totalActions": 51,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
-  "maxQueue": 3,
-  "deadSessions": 13,
-  "deadPct": 30.952380952380953,
-  "busyPct": 31.92460317460317,
+  "maxQueue": 2,
+  "deadSessions": 16,
+  "deadPct": 38.095238095238095,
+  "busyPct": 31.805555555555554,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
    "2": 1942,
-   "3": 3447,
-   "4": 8723
+   "3": 3747,
+   "4": 9323
   },
   "finalHq": 4,
-  "troops": 20,
+  "troops": 14,
   "lost": 0,
   "troopCap": 20,
   "sites": 13,
+  "totalLevels": 37,
+  "averageLevel": 2.8461538461538463,
+  "firstCargoAt": 2243,
+  "troopsAt": {
+   "24": 1,
+   "48": 8,
+   "96": 8
+  },
+  "troopCapFirstAt": 2160,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 2722.999999999998,
+    "textile": 1288.0000000001942,
+    "coal": 4242.799999999959,
+    "oil": 0,
+    "ore": 6021.600000000788,
+    "alloy": 2984.2666666669998,
+    "ammunition": 40,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1700.999999999668,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 0,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 2200,
+   "food": 2075,
    "textile": 1328,
-   "coal": 337,
+   "coal": 171,
    "oil": 40,
-   "ore": 307,
-   "alloy": 126,
+   "ore": 73,
+   "alloy": 102,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 1770,
+   "food": 1701,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -2177,18 +2605,18 @@
    },
    {
     "minute": 2160,
-    "actions": 0,
+    "actions": 2,
     "queueDepth": 5
    },
    {
     "minute": 2340,
-    "actions": 11,
-    "queueDepth": 0
+    "actions": 6,
+    "queueDepth": 2
    },
    {
     "minute": 2520,
-    "actions": 2,
-    "queueDepth": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2700,
@@ -2212,7 +2640,7 @@
    },
    {
     "minute": 3780,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 1
    },
    {
@@ -2222,12 +2650,12 @@
    },
    {
     "minute": 4140,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -2237,7 +2665,7 @@
    },
    {
     "minute": 5040,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
@@ -2247,17 +2675,17 @@
    },
    {
     "minute": 5400,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 5580,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 6180,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2272,17 +2700,17 @@
    },
    {
     "minute": 6660,
+    "actions": 0,
+    "queueDepth": 1
+   },
+   {
+    "minute": 6840,
     "actions": 1,
     "queueDepth": 0
    },
    {
-    "minute": 6840,
-    "actions": 0,
-    "queueDepth": 0
-   },
-   {
     "minute": 7020,
-    "actions": 0,
+    "actions": 4,
     "queueDepth": 0
    },
    {
@@ -2307,7 +2735,7 @@
    },
    {
     "minute": 8280,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2346,14 +2774,14 @@
     "queueDepth": 0
    }
   ],
-  "totalActions": 51,
+  "totalActions": 53,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
   "maxQueue": 5,
-  "deadSessions": 17,
-  "deadPct": 40.476190476190474,
-  "busyPct": 32.420634920634924,
+  "deadSessions": 14,
+  "deadPct": 33.33333333333333,
+  "busyPct": 33.33333333333333,
   "longestGap": 1269,
   "hqTimes": {
    "1": 420,
@@ -2362,22 +2790,55 @@
    "4": 7883
   },
   "finalHq": 4,
-  "troops": 12,
+  "troops": 13,
   "lost": 0,
   "troopCap": 24,
   "sites": 13,
+  "totalLevels": 40,
+  "averageLevel": 3.076923076923077,
+  "firstCargoAt": 2243,
+  "troopsAt": {
+   "24": 1,
+   "48": 8,
+   "96": 8
+  },
+  "troopCapFirstAt": 2520,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 3211.000000000104,
+    "textile": 1288.0000000001942,
+    "coal": 4442.799999999907,
+    "oil": 0,
+    "ore": 6910.400000000394,
+    "alloy": 2921.7333333337274,
+    "ammunition": 40.00000000000067,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 1315.1999999997222,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 89.19999999999652,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 2200,
    "textile": 1328,
-   "coal": 885,
+   "coal": 646,
    "oil": 40,
-   "ore": 1160,
-   "alloy": 163,
+   "ore": 1087,
+   "alloy": 162,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 1790,
+   "food": 1315,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -2420,12 +2881,12 @@
    },
    {
     "minute": 1260,
-    "actions": 11,
+    "actions": 8,
     "queueDepth": 3
    },
    {
     "minute": 1860,
-    "actions": 4,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2440,8 +2901,8 @@
    },
    {
     "minute": 2340,
-    "actions": 2,
-    "queueDepth": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2520,
@@ -2455,7 +2916,7 @@
    },
    {
     "minute": 3300,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2470,37 +2931,37 @@
    },
    {
     "minute": 3780,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 3960,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 4140,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 4740,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 4860,
-    "actions": 1,
-    "queueDepth": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 5040,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -2525,7 +2986,7 @@
    },
    {
     "minute": 6480,
-    "actions": 4,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2571,7 +3032,7 @@
    {
     "minute": 8460,
     "actions": 1,
-    "queueDepth": 0
+    "queueDepth": 1
    },
    {
     "minute": 9060,
@@ -2580,13 +3041,13 @@
    },
    {
     "minute": 9180,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 2
    },
    {
     "minute": 9360,
     "actions": 1,
-    "queueDepth": 1
+    "queueDepth": 2
    },
    {
     "minute": 9540,
@@ -2595,23 +3056,23 @@
    },
    {
     "minute": 9720,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 9900,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    }
   ],
-  "totalActions": 62,
+  "totalActions": 57,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
   "maxQueue": 3,
-  "deadSessions": 13,
-  "deadPct": 30.952380952380953,
-  "busyPct": 38.85912698412699,
+  "deadSessions": 12,
+  "deadPct": 28.57142857142857,
+  "busyPct": 39.464285714285715,
   "longestGap": 900,
   "hqTimes": {
    "1": 420,
@@ -2620,22 +3081,55 @@
    "4": 7883
   },
   "finalHq": 4,
-  "troops": 20,
+  "troops": 14,
   "lost": 0,
-  "troopCap": 24,
+  "troopCap": 22,
   "sites": 13,
+  "totalLevels": 43,
+  "averageLevel": 3.3076923076923075,
+  "firstCargoAt": 1343,
+  "troopsAt": {
+   "24": 7,
+   "48": 8,
+   "96": 8
+  },
+  "troopCapFirstAt": 1260,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 2978.000000000038,
+    "textile": 1288.0000000001942,
+    "coal": 4990.599999999955,
+    "oil": 0,
+    "ore": 7230.400000000845,
+    "alloy": 3375.066666666881,
+    "ammunition": 40,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 2025.7999999994802,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 65.19999999999987,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
    "food": 2200,
    "textile": 1328,
-   "coal": 634,
+   "coal": 452,
    "oil": 40,
-   "ore": 885,
-   "alloy": 119,
+   "ore": 500,
+   "alloy": 192,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 2276,
+   "food": 2026,
    "textile": 0,
    "coal": 0,
    "oil": 0,
@@ -2678,53 +3172,53 @@
    },
    {
     "minute": 1260,
-    "actions": 12,
+    "actions": 9,
     "queueDepth": 3
    },
    {
     "minute": 1860,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 1980,
-    "actions": 0,
-    "queueDepth": 0
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 2160,
-    "actions": 1,
+    "actions": 6,
     "queueDepth": 0
    },
    {
     "minute": 2340,
-    "actions": 7,
-    "queueDepth": 0
+    "actions": 1,
+    "queueDepth": 5
    },
    {
     "minute": 2520,
     "actions": 1,
-    "queueDepth": 6
+    "queueDepth": 3
    },
    {
     "minute": 2700,
     "actions": 2,
-    "queueDepth": 5
+    "queueDepth": 2
    },
    {
     "minute": 3300,
-    "actions": 4,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 3420,
     "actions": 0,
-    "queueDepth": 3
+    "queueDepth": 0
    },
    {
     "minute": 3600,
     "actions": 0,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 3780,
@@ -2738,7 +3232,7 @@
    },
    {
     "minute": 4140,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -2748,17 +3242,17 @@
    },
    {
     "minute": 4860,
-    "actions": 2,
-    "queueDepth": 0
+    "actions": 0,
+    "queueDepth": 1
    },
    {
     "minute": 5040,
-    "actions": 3,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 5220,
-    "actions": 0,
+    "actions": 2,
     "queueDepth": 0
    },
    {
@@ -2768,8 +3262,8 @@
    },
    {
     "minute": 5580,
-    "actions": 0,
-    "queueDepth": 1
+    "actions": 1,
+    "queueDepth": 0
    },
    {
     "minute": 6180,
@@ -2778,13 +3272,13 @@
    },
    {
     "minute": 6300,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 1
    },
    {
     "minute": 6480,
     "actions": 1,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 6660,
@@ -2793,7 +3287,7 @@
    },
    {
     "minute": 6840,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
@@ -2803,97 +3297,130 @@
    },
    {
     "minute": 7620,
-    "actions": 2,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 7740,
-    "actions": 0,
-    "queueDepth": 2
+    "actions": 1,
+    "queueDepth": 1
    },
    {
     "minute": 7920,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 1
    },
    {
     "minute": 8100,
     "actions": 1,
-    "queueDepth": 1
+    "queueDepth": 0
    },
    {
     "minute": 8280,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 0
    },
    {
     "minute": 8460,
-    "actions": 1,
+    "actions": 0,
     "queueDepth": 0
    },
    {
     "minute": 9060,
-    "actions": 1,
+    "actions": 2,
     "queueDepth": 0
    },
    {
     "minute": 9180,
-    "actions": 1,
-    "queueDepth": 1
+    "actions": 0,
+    "queueDepth": 2
    },
    {
     "minute": 9360,
-    "actions": 0,
+    "actions": 1,
     "queueDepth": 1
    },
    {
     "minute": 9540,
-    "actions": 1,
-    "queueDepth": 0
-   },
-   {
-    "minute": 9720,
     "actions": 0,
     "queueDepth": 1
    },
    {
+    "minute": 9720,
+    "actions": 1,
+    "queueDepth": 0
+   },
+   {
     "minute": 9900,
     "actions": 0,
-    "queueDepth": 0
+    "queueDepth": 1
    }
   ],
-  "totalActions": 66,
+  "totalActions": 55,
   "foundationPlacements": 5,
   "medianActions": 1,
   "medianQueue": 0,
-  "maxQueue": 6,
-  "deadSessions": 12,
-  "deadPct": 28.57142857142857,
-  "busyPct": 45.882936507936506,
-  "longestGap": 517,
+  "maxQueue": 5,
+  "deadSessions": 13,
+  "deadPct": 30.952380952380953,
+  "busyPct": 46.4186507936508,
+  "longestGap": 797,
   "hqTimes": {
    "1": 420,
    "2": 982,
-   "3": 2307,
-   "4": 5663
+   "3": 2007,
+   "4": 5003
   },
   "finalHq": 4,
-  "troops": 20,
+  "troops": 8,
   "lost": 0,
   "troopCap": 24,
   "sites": 13,
+  "totalLevels": 47,
+  "averageLevel": 3.6153846153846154,
+  "firstCargoAt": 1343,
+  "troopsAt": {
+   "24": 7,
+   "48": 8,
+   "96": 8
+  },
+  "troopCapFirstAt": 1260,
+  "troopCapSaturatedFrom": null,
+  "daySeven": {
+   "minute": 10080,
+   "produced": {
+    "food": 3941.2000000001967,
+    "textile": 1288.0000000001942,
+    "coal": 5610.999999999916,
+    "oil": 0,
+    "ore": 7798.666666667031,
+    "alloy": 3539.4666666666567,
+    "ammunition": 40.00000000000057,
+    "bandages": 0
+   },
+   "capped": {
+    "food": 2212.400000000492,
+    "textile": 0,
+    "coal": 0,
+    "oil": 0,
+    "ore": 0,
+    "alloy": 89.20000000000107,
+    "ammunition": 0,
+    "bandages": 0
+   }
+  },
   "stocks": {
-   "food": 2711,
+   "food": 2755,
    "textile": 1328,
-   "coal": 512,
+   "coal": 763,
    "oil": 40,
-   "ore": 245,
-   "alloy": 302,
+   "ore": 740,
+   "alloy": 206,
    "ammunition": 120,
    "bandages": 0
   },
   "capped": {
-   "food": 1890,
+   "food": 2212,
    "textile": 0,
    "coal": 0,
    "oil": 0,
