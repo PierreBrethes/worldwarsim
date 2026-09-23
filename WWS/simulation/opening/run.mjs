@@ -1,7 +1,8 @@
 /**
  * `node run.mjs`          — the opening of both formats, one line per connection.
  * `node run.mjs --sweep`  — the starting alloy, format by format: what the kit is worth.
- * `node run.mjs --grille` — the campaign, swept on the foundry, the extraction and the kit.
+ * `node run.mjs --grille` — the campaign, swept on the level curve, the kit, the drill and the
+ *   troop ceiling.
  * `node run.mjs --rapport` — `rapport.html` beside this file, readable in a browser.
  * `node run.mjs --json <file>` — machine-readable, for the charts.
  *
@@ -9,12 +10,13 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { run, hqLevel, troopCapOf } from './engine.mjs';
+import { run, hqLevel, troopCapOf, DAY_SEVEN_MINUTE } from './engine.mjs';
 import { makePolicy } from './policy.mjs';
 import {
   seasonOf, PROFILES, PLANS, PROFILE_DEFAULT, REFERENCE_GROUND, REFERENCE_GROUND_OIL,
 } from './scenarios.mjs';
-import { SEASON_FORMATS, foundationFor, EXTRACTION_PER_HOUR } from './constants.mjs';
+import { SEASON_FORMATS, foundationFor } from './constants.mjs';
+import { PRODUCTION_CURVES } from './curves.mjs';
 import { writeReport } from './report.mjs';
 
 const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}h${String(Math.round(m % 60)).padStart(2, '0')}`;
@@ -22,6 +24,16 @@ const pct = (v) => `${v.toFixed(1)} %`;
 const median = (xs) => {
   const sorted = [...xs].sort((a, b) => a - b);
   return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+};
+
+/** Les trois relevés d'armée que la grille compare. Une saison plus courte rend `null` sur les
+ *  bornes qu'elle n'atteint pas, jamais son dernier chiffre : un plateau et une absence se
+ *  liraient alors pareil. */
+export const TROOP_CHECKPOINTS_H = [24, 48, 96];
+
+const troopsAtHour = (state, hours) => {
+  const sample = [...state.series].reverse().find((point) => point.h <= hours);
+  return sample && hours * 60 <= state.scenario.seasonHours * 60 ? sample.troops : null;
 };
 
 export function measure(scenario, profile = PROFILE_DEFAULT) {
@@ -63,6 +75,20 @@ export function measure(scenario, profile = PROFILE_DEFAULT) {
     lost: state.lostTroops,
     troopCap: troopCapOf(state),
     sites: state.sites.length,
+    /** **Monter ou s'étaler**, en deux nombres qui ne se lisent pas l'un sans l'autre : douze
+     *  bâtiments de niveau 1 et quatre de niveau 3 tiennent la même place dans un total. */
+    totalLevels: state.sites.reduce((n, x) => n + x.level, 0),
+    averageLevel: state.sites.length
+      ? state.sites.reduce((n, x) => n + x.level, 0) / state.sites.length
+      : 0,
+    /** L'instant où la saison s'ouvre sur l'eau. `null` = jamais, et c'est une mesure. */
+    firstCargoAt: state.firstTroopAt.cargo ?? null,
+    troopsAt: Object.fromEntries(
+      TROOP_CHECKPOINTS_H.map((hours) => [hours, troopsAtHour(state, hours)]),
+    ),
+    troopCapFirstAt: state.troopCapFirstAt,
+    troopCapSaturatedFrom: state.troopCapSaturatedFrom,
+    daySeven: state.daySeven,
     stocks: Object.fromEntries(Object.entries(state.stocks).map(([k, v]) => [k, Math.round(v)])),
     /** Ce que le plafond a refusé, par ressource. Un stock au plafond n'est pas un reste, c'est
      *  une perte — et les deux se lisent pareil dans un stock final si on ne compte pas l'une. */
@@ -93,46 +119,66 @@ function printReport(r) {
 /* ── the grid ───────────────────────────────────────────────────────────── */
 
 /**
- * **Trois leviers à la fois, sur la seule saison que le jeu ait** (`campaign`, ADR 0020 §11). Le
- * balayage à un axe disait « le pack ne suffit pas » sans dire de quoi ; croiser la fonderie,
- * l'extraction et le pack est ce qui permet de voir lequel des trois est le goulot, et à partir
- * d'où les deux autres cessent de compter. L'escarmouche reste hors périmètre : c'est un
- * scénario de l'instrument, pas une ligne de départ du jeu.
+ * **Quatre leviers à la fois, sur la seule saison que le jeu ait** (`campaign`, ADR 0020 §11).
+ * Le balayage précédent — fonderie × extraction × pack — disait ce qu'un débit déplace ; il ne
+ * pouvait pas poser la question qui reste ouverte, *monter ou s'étaler*, parce qu'un débit
+ * linéaire rend les deux équivalents par construction. La courbe de rendement est donc le
+ * premier axe, et les trois autres sont ce qui décide si une courbe est jouable : ce qu'on
+ * donne au départ, ce que coûte le temps d'instruire une troupe, et où s'arrête l'armée.
+ *
+ * **Aucune constante de `convex/constants.ts` ne bouge ici.** Une case de grille est une
+ * question, pas une décision : elle vit dans `tuning`, que le moteur lit et que le jeu ignore.
  */
-const GRID_FOUNDRY = [4, 6, 8];
-const GRID_EXTRACTION = [1, 1.5, 2];
-const GRID_PACK = [250, 300, 400, 500];
+const GRID_CURVES = ['linear', 'compounded'];
+const GRID_ENDOWMENTS = [400, 800, 1200];
+const GRID_DRILL = [1, 0.5];
+const GRID_TROOP_CAP = [24, 48];
 const GRID_PROFILES = ['assiduous', 'occasional', 'absent'];
+
+/** Ce que le jeu appelle « plafonné » pour la lecture qui suit : le plafond mord et ne lâche
+ *  plus jusqu'au bout de la saison. Toucher n'est pas être borné. */
+const SATURATION_FREE_UNTIL_MINUTE = 6 * 24 * 60;
+
+const combinationKey = (row) => `${row.curve}|${row.endowment}|${row.drill}|${row.troopCapTarget}`;
 
 function grid() {
   const rows = [];
-  for (const foundry of GRID_FOUNDRY) {
-    for (const extraction of GRID_EXTRACTION) {
-      for (const pack of GRID_PACK) {
-        for (const key of GRID_PROFILES) {
-          const r = measure(seasonOf('campaign', {
-            profile: PROFILES[key],
-            startingStock: { alloy: pack },
-            tuning: {
-              foundryPerHour: foundry,
-              orePerHour: EXTRACTION_PER_HOUR.ore * extraction,
-              coalPerHour: EXTRACTION_PER_HOUR.coal * extraction,
-            },
-          }));
-          rows.push({
-            foundry, extraction, pack, profile: PROFILES[key].name,
-            actions: r.totalActions,
-            sessions: r.sessions.length,
-            dead: r.deadSessions,
-            hq: r.finalHq,
-            troops: r.troops,
-            troopCap: r.troopCap,
-            sites: r.sites,
-            medianQueue: r.medianQueue,
-            maxQueue: r.maxQueue,
-            stocks: r.stocks,
-            capped: r.capped,
-          });
+  for (const curve of GRID_CURVES) {
+    for (const endowment of GRID_ENDOWMENTS) {
+      for (const drill of GRID_DRILL) {
+        for (const troopCapTarget of GRID_TROOP_CAP) {
+          for (const key of GRID_PROFILES) {
+            const r = measure(seasonOf('campaign', {
+              profile: PROFILES[key],
+              startingStock: { alloy: endowment },
+              tuning: {
+                levelCurve: curve,
+                recruitMinutesFactor: drill,
+                troopCapTarget,
+              },
+            }));
+            rows.push({
+              curve, endowment, drill, troopCapTarget, profile: PROFILES[key].name,
+              actions: r.totalActions,
+              sessions: r.sessions.length,
+              dead: r.deadSessions,
+              hq: r.finalHq,
+              troops: r.troops,
+              troopCap: r.troopCap,
+              sites: r.sites,
+              averageLevel: Number(r.averageLevel.toFixed(2)),
+              firstCargoAt: r.firstCargoAt,
+              troopsAt: r.troopsAt,
+              troopCapFirstAt: r.troopCapFirstAt,
+              troopCapSaturatedFrom: r.troopCapSaturatedFrom,
+              alloyMade: Math.round(r.daySeven.produced.alloy),
+              alloyCapped: Math.round(r.daySeven.capped.alloy),
+              medianQueue: r.medianQueue,
+              maxQueue: r.maxQueue,
+              stocks: r.stocks,
+              capped: r.capped,
+            });
+          }
         }
       }
     }
@@ -140,34 +186,96 @@ function grid() {
   return rows;
 }
 
-const restOf = (row, key) => `${row.stocks[key]}${row.capped[key] > 0 ? '!' : ''}`;
+/**
+ * **Les cinq combinaisons demandées**, et la question qu'elles répondent tient en deux clauses
+ * qui tirent en sens inverse : le moins de connexions vides possible pour l'occasionnel — donc
+ * de la matière à dépenser à chaque visite — *sans* que l'assidu bute sur son plafond de
+ * troupes avant le sixième jour, ce qui condamne les cases qui donnent trop, trop tôt.
+ *
+ * Le filtre lit `troopCapSaturatedFrom` et non la première touche : un assidu qui sature une
+ * heure puis pose un cantonnement n'a pas été plafonné, il a été prévenu, et compter sa peur
+ * comme une borne éliminerait les cases qui tiennent précisément parce qu'il réagit.
+ */
+function bestCombinations(rows, howMany = 5) {
+  const byKey = new Map();
+  for (const row of rows) {
+    const key = combinationKey(row);
+    if (!byKey.has(key)) byKey.set(key, {});
+    byKey.get(key)[row.profile] = row;
+  }
+  const eligible = [];
+  for (const [key, byProfile] of byKey) {
+    const assiduous = byProfile.assidu;
+    const occasional = byProfile.occasionnel;
+    if (!assiduous || !occasional) continue;
+    const saturated = assiduous.troopCapSaturatedFrom;
+    const capped = saturated !== null && saturated < SATURATION_FREE_UNTIL_MINUTE;
+    eligible.push({ key, assiduous, occasional, absent: byProfile.absent, capped, saturated });
+  }
+  return eligible
+    .filter((entry) => !entry.capped)
+    .sort((a, b) => a.occasional.dead - b.occasional.dead
+      || b.occasional.actions - a.occasional.actions
+      || b.assiduous.troops - a.assiduous.troops)
+    .slice(0, howMany);
+}
+
+/** Une heure, ou le tiret qui dit que ça n'est jamais arrivé — jamais un zéro, qui se lirait
+ *  « à la minute zéro ». */
+const when = (minute) => (minute === null || minute === undefined ? '—' : hm(minute));
+
+/** Les trois relevés d'armée côte à côte. Une borne hors de la saison rend `—`, pas le dernier
+ *  chiffre connu : un plateau et une absence se liraient alors pareil. */
+const checkpoints = (row) =>
+  TROOP_CHECKPOINTS_H.map((hours) => row.troopsAt[hours] ?? '—').join('/');
 
 /* ── entry ──────────────────────────────────────────────────────────────── */
 
 const args = process.argv.slice(2);
 
 if (args.includes('--grille')) {
-  console.log('\n════════ GRILLE — campagne (168 h), fonderie × extraction × pack ════════');
-  console.log('fonderie  extr.  pack  profil       │ actions  vides   QG  troupes  bâtim.  file méd./max'
-    + '   alliage  charbon  minerai');
   const rows = grid();
+
+  console.log('\n════════ GRILLE — campagne (168 h), courbe × dotation × instruction × plafond ════════');
+  console.log('courbe      dotat.  instr.  plaf.  profil       │ actions  vides   QG   troupes'
+    + '  bâtim./niv.   cargo   24h/48h/96h   alliage j7 (écrêté)  plafonné dès');
   let previous = null;
   for (const row of rows) {
-    if (previous && (previous.foundry !== row.foundry || previous.extraction !== row.extraction)) {
-      console.log('');
-    }
+    if (previous && combinationKey(previous) !== combinationKey(row)) console.log('');
     previous = row;
     console.log(
-      `   ${String(row.foundry).padStart(2)}/h  ×${row.extraction.toFixed(1)}  ${String(row.pack).padStart(4)}`
-      + `  ${row.profile.padEnd(12)} │    ${String(row.actions).padStart(3)}   ${String(row.dead).padStart(2)}/${String(row.sessions).padStart(2)}`
+      `${row.curve.padEnd(11)}  ${String(row.endowment).padStart(4)}    ×${row.drill.toFixed(1)}`
+      + `    ${String(row.troopCapTarget).padStart(2)}   ${row.profile.padEnd(12)} │`
+      + `    ${String(row.actions).padStart(3)}   ${String(row.dead).padStart(2)}/${String(row.sessions).padStart(2)}`
       + `   n.${row.hq}    ${String(row.troops).padStart(2)}/${String(row.troopCap).padStart(2)}`
-      + `      ${String(row.sites).padStart(2)}`
-      + `      ${String(row.medianQueue).padStart(2)}/${String(row.maxQueue).padEnd(2)}`
-      + `    ${restOf(row, 'alloy').padStart(6)}   ${restOf(row, 'coal').padStart(6)}`
-      + `   ${restOf(row, 'ore').padStart(6)}`,
+      + `    ${String(row.sites).padStart(2)} / ${row.averageLevel.toFixed(2)}`
+      + `   ${when(row.firstCargoAt).padStart(6)}`
+      + `   ${checkpoints(row).padStart(11)}`
+      + `      ${String(row.alloyMade).padStart(5)} (${String(row.alloyCapped).padStart(5)})`
+      + `      ${when(row.troopCapSaturatedFrom).padStart(6)}`,
     );
   }
-  console.log('\n! = le plafond de stock a refusé de la matière : ce n’est plus un reste, c’est une perte.');
+
+  console.log('\n« cargo » = sortie de la première coque, « — » quand la saison n\'en voit aucune.');
+  console.log('« plafonné dès » = l\'heure à partir de laquelle le plafond de troupes mord sans plus');
+  console.log('lâcher jusqu\'au bout ; « — » quand l\'armée n\'a jamais été bornée en fin de saison.');
+  console.log('L\'alliage du jour 7 est ce qui est **entré** dans le monde, et entre parenthèses ce que');
+  console.log('le plafond de stock a refusé : un reste final ne distingue pas les deux.');
+
+  console.log('\n════════ LES CINQ COMBINAISONS ════════');
+  console.log('Le moins de connexions vides pour l\'occasionnel, sans plafonner l\'assidu avant le jour 6.');
+  console.log('\n  rang  courbe       dotat.  instr.  plaf. │ occasionnel        │ assidu');
+  console.log('                                            │ vides   actions    │ troupes  plafonné dès  bât./niv.');
+  bestCombinations(rows).forEach((entry, rank) => {
+    const { assiduous: a, occasional: o } = entry;
+    console.log(
+      `   ${rank + 1}.   ${o.curve.padEnd(11)}  ${String(o.endowment).padStart(4)}    ×${o.drill.toFixed(1)}`
+      + `    ${String(o.troopCapTarget).padStart(2)}  │  ${String(o.dead).padStart(2)}/${o.sessions}`
+      + `      ${String(o.actions).padStart(3)}       │   ${String(a.troops).padStart(2)}/${String(a.troopCap).padStart(2)}`
+      + `      ${when(a.troopCapSaturatedFrom).padStart(6)}      ${String(a.sites).padStart(2)} / ${a.averageLevel.toFixed(2)}`,
+    );
+  });
+
   writeFileSync(new URL('./grille.json', import.meta.url), JSON.stringify(rows, null, 1));
   console.log('\n→ grille.json');
 } else if (args.includes('--rapport')) {

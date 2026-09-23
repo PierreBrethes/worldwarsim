@@ -18,6 +18,7 @@ import {
   buildCost, buildMinutes, buildingCap, troopCap, recruitmentCost, roleHqLevel,
   extractionPerHour, chainInputs, chainPerHourPerLevel, foundationOwed,
 } from './constants.mjs';
+import { productionCurve, curvedLevel } from './curves.mjs';
 
 /* ── seeded generator ───────────────────────────────────────────────────── */
 
@@ -64,6 +65,22 @@ export function createState(scenario) {
     capped: Object.fromEntries(RESOURCES.map((r) => [r, 0])),
     /** Outstanding arsenal lot, in units of ammunition still owed. */
     arsenalOrder: 0,
+    /** Ce qui est réellement entré dans le monde, par ressource — l'autre moitié de `capped` :
+     *  un stock final ne dit ni ce qui a été produit ni ce qui a été refusé, il dit ce qui
+     *  reste, et les trois répondent à des questions différentes. */
+    produced: Object.fromEntries(RESOURCES.map((r) => [r, 0])),
+    /** La minute où chaque rôle est sorti de file pour la première fois. La coque en est la
+     *  seule lue aujourd'hui : elle date l'instant où la saison s'ouvre sur l'eau. */
+    firstTroopAt: {},
+    /** La première minute où le plafond de troupes a mordu, et celle depuis laquelle il mord
+     *  sans discontinuer jusqu'à la fin. La première dit qu'il existe, la seconde qu'il borne
+     *  l'armée — un joueur qui touche le plafond à la huitième heure et bâtit un cantonnement
+     *  n'a pas été plafonné, il a été prévenu. */
+    troopCapFirstAt: null,
+    troopCapSaturatedFrom: null,
+    /** L'état au jour 7, relevé pendant la course : la saison s'y arrête aujourd'hui, mais une
+     *  saison plus longue ne doit pas déplacer en silence ce que la grille appelle « jour 7 ». */
+    daySeven: null,
     random: makeRandom(scenario.seed ?? 1),
     log: [],
     sessions: [],
@@ -71,6 +88,8 @@ export function createState(scenario) {
     lostTroops: 0,
   };
 }
+
+export const DAY_SEVEN_MINUTE = 7 * 24 * 60;
 
 export const hqLevel = (s) => s.sites.find((x) => x.key === 'hq')?.level ?? 0;
 export const siteById = (s, id) => s.sites.find((x) => x.id === id);
@@ -102,19 +121,27 @@ const owesFirstPlacement = (s, order) =>
     (due) => due.key === order.key && due.deposit === (order.deposit ?? null),
   );
 
+/**
+ * **Le plafond suit la même courbe que la production** : sur la courbe composée un entrepôt de
+ * niveau 2 tient plus que deux entrepôts de niveau 1, sinon la montée nourrirait un stock que
+ * seul l'étalement peut garder — et l'écrêtage dirait « monter ne sert à rien » en mesurant la
+ * contradiction plutôt que la règle. Sur la courbe linéaire c'est le jeu, à l'octet près.
+ */
 export function caps(s) {
   const c = Object.fromEntries(RESOURCES.map((r) => [r, BASE_CAP]));
-  const storageLevel = totalLevelOf(s, 'warehouse') + totalLevelOf(s, 'depot');
-  const raised = STORAGE_CAP_PER_LEVEL * storageLevel;
+  const raised = Math.round(
+    STORAGE_CAP_PER_LEVEL * curvedLevel(s.sites, ['warehouse', 'depot'], s.tuning),
+  );
   for (const resource of RESOURCES) c[resource] += raised;
   return c;
 }
 
 export function extractionRates(s) {
+  const curve = productionCurve(s.tuning);
   const rates = Object.fromEntries(RESOURCES.map((r) => [r, 0]));
   for (const site of s.sites) {
     if (site.deposit && EXPLOITED_DEPOSITS[site.key]?.includes(site.deposit)) {
-      rates[site.deposit] += extractionPerHour(site.deposit, s.tuning) * site.level;
+      rates[site.deposit] += extractionPerHour(site.deposit, s.tuning) * curve(site.level);
     }
   }
   return rates;
@@ -131,13 +158,17 @@ function advanceEconomy(s, minutes) {
   // clipping it would confiscate the difference without a word.
   const held = (r) => Math.max(cap[r], s.stocks[r]);
   for (const r of RESOURCES) {
+    const before = s.stocks[r];
     const wanted = s.stocks[r] + rates[r] * h;
     s.stocks[r] = Math.min(held(r), wanted);
+    s.produced[r] += s.stocks[r] - before;
     s.capped[r] += wanted - s.stocks[r];
   }
 
   for (const key of Object.keys(CHAINS)) {
-    const level = totalLevelOf(s, key);
+    // Site par site, jamais sur un total de niveaux : additionner d'abord rendrait deux
+    // fonderies de niveau 1 égales à une de niveau 2, et c'est la question qu'on mesure.
+    const level = curvedLevel(s.sites, [key], s.tuning);
     if (level === 0) continue;
     const output = CHAINS[key].output;
     const inputs = chainInputs(key, s.tuning);
@@ -151,6 +182,7 @@ function advanceEconomy(s, minutes) {
     if (made === 0) continue;
     for (const [r, q] of inputs) s.stocks[r] -= made * q;
     s.stocks[output] = Math.min(cap[output], s.stocks[output] + made);
+    s.produced[output] += made;
     if (COMMANDED_CHAINS.has(key)) s.arsenalOrder = Math.max(0, s.arsenalOrder - made);
   }
 }
@@ -185,6 +217,7 @@ function advanceQueues(s) {
     if (s.minute >= head.finishesAt) {
       queue.shift();
       s.troops.push({ role: head.role, tier: head.tier, from: siteId });
+      s.firstTroopAt[head.role] ??= s.minute;
       s.log.push({ minute: s.minute, kind: 'troop', role: head.role, tier: head.tier });
     }
   }
@@ -255,6 +288,7 @@ export function startBuild(s, order) {
     s.log.push({ minute: s.minute, kind: 'built', key: order.key, level });
     if (order.key === 'hq') {
       s.troops.push({ role: 'infantry', tier: 1, from: order.site });
+      s.firstTroopAt.infantry ??= s.minute;
       s.log.push({ minute: s.minute, kind: 'troop', role: 'infantry', tier: 1 });
     }
     return true;
@@ -279,14 +313,14 @@ export function recruitRefusal(s, role, tier, siteId) {
   // Standing and queued share one ceiling: the queue is not a way around it.
   if (s.troops.length + queuedCount(s) >= troopCapOf(s)) return 'TROOP_CAP_REACHED';
   if (queueOf(s, siteId).length >= MAX_QUEUED_BATCHES) return 'QUEUE_FULL';
-  const cost = recruitmentCost(role, tier, hqLevel(s));
+  const cost = recruitmentCost(role, tier, hqLevel(s), s.tuning.recruitMinutesFactor);
   if (s.stocks.alloy < cost.alloy - 1e-9) return 'INSUFFICIENT_alloy';
   return null;
 }
 
 export function recruit(s, role, tier, siteId) {
   if (recruitRefusal(s, role, tier, siteId) !== null) return false;
-  const cost = recruitmentCost(role, tier, hqLevel(s));
+  const cost = recruitmentCost(role, tier, hqLevel(s), s.tuning.recruitMinutesFactor);
   s.stocks.alloy -= cost.alloy;
   if (!s.queues.has(siteId)) s.queues.set(siteId, []);
   s.queues.get(siteId).push({ role, tier, minutes: cost.minutes, finishesAt: null });
@@ -323,6 +357,14 @@ export function sessionMinutes(scenario) {
   return out.sort((a, b) => a - b);
 }
 
+/** Produit et écrêté, pas le stock : un stock final ne distingue pas une saison qui n'a rien
+ *  fabriqué d'une saison qui a tout dépensé. */
+const daySevenSnapshot = (s) => ({
+  minute: s.minute,
+  produced: { ...s.produced },
+  capped: { ...s.capped },
+});
+
 export function run(scenario, policy) {
   const s = createState(scenario);
   const total = scenario.seasonHours * 60;
@@ -348,6 +390,21 @@ export function run(scenario, policy) {
       s.sessions.push({ minute: s.minute, actions, queueDepth });
     }
 
+    /**
+     * **Toucher le plafond et être plafonné ne sont pas la même mesure.** La première minute dit
+     * qu'il existe ; celle d'où il mord sans plus se relâcher dit qu'il borne l'armée. Un joueur
+     * qui sature une heure puis pose un cantonnement a été prévenu, pas arrêté.
+     */
+    const saturated = s.troops.length + queuedCount(s) >= troopCapOf(s);
+    if (saturated) {
+      s.troopCapFirstAt ??= s.minute;
+      s.troopCapSaturatedFrom ??= s.minute;
+    } else {
+      s.troopCapSaturatedFrom = null;
+    }
+
+    if (s.minute === DAY_SEVEN_MINUTE) s.daySeven = daySevenSnapshot(s);
+
     const active = s.constructions.length > 0 || queuedCount(s) > 0;
     if (active) { busyMinutes += 1; gap = 0; } else { gap += 1; longestGap = Math.max(longestGap, gap); }
 
@@ -367,5 +424,6 @@ export function run(scenario, policy) {
     s.minute += 1;
   }
 
+  s.daySeven ??= daySevenSnapshot(s);
   return { state: s, busyPct: (busyMinutes / total) * 100, longestGap };
 }

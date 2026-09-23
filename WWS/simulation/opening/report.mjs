@@ -16,7 +16,7 @@ import { RESOURCES } from './constants.mjs';
 const PAPER = '#f2ece0';
 const INK = '#23201b';
 const FAINT = '#b9ae98';
-const SERIES = ['#8c3b2e', '#3a5a72', '#6a6b3c'];
+const SERIES = ['#8c3b2e', '#3a5a72', '#6a6b3c', '#7a4a6b'];
 
 const escape = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}h${String(Math.round(m % 60)).padStart(2, '0')}`;
@@ -47,60 +47,151 @@ function frieze(runs) {
   return `<svg viewBox="0 0 ${width} ${Object.keys(runs).length * rowHeight + 8}" width="100%">${rows}</svg>`;
 }
 
-/* ── 2. the grid, one curve per foundry ─────────────────────────────────── */
+/* ── 2. the grid: four levers, and the one question they were cut for ───── */
 
-function panel(rows, metric, extraction, profile, foundries, packs, ceiling) {
-  const w = 210;
-  const h = 140;
-  const left = 30;
+/**
+ * **Une seule abscisse, la dotation** ; les quatre séries croisent l'instruction et le plafond,
+ * et les panneaux séparent le profil de la courbe. Mettre la courbe en série l'aurait noyée
+ * dans trois autres traits : c'est l'axe qu'on interroge, il a droit à son propre panneau.
+ */
+const LEVER_SERIES = [
+  { drill: 1, troopCapTarget: 24 },
+  { drill: 1, troopCapTarget: 48 },
+  { drill: 0.5, troopCapTarget: 24 },
+  { drill: 0.5, troopCapTarget: 48 },
+];
+
+const leverLabel = (lever) => `instr. ×${lever.drill} · plafond ${lever.troopCapTarget}`;
+
+function panel(rows, metric, curve, profile, endowments, ceiling) {
+  const w = 220;
+  const h = 142;
+  const left = 32;
   const bottom = 24;
-  const x = (pack) => left + ((pack - packs[0]) / (packs[packs.length - 1] - packs[0])) * (w - left - 10);
-  const y = (value) => h - bottom - (value / ceiling) * (h - bottom - 12);
+  const span = endowments[endowments.length - 1] - endowments[0] || 1;
+  const x = (endowment) => left + ((endowment - endowments[0]) / span) * (w - left - 10);
+  const y = (value) => h - bottom - (value / (ceiling || 1)) * (h - bottom - 12);
 
   const axes = `<line x1="${left}" y1="${h - bottom}" x2="${w - 6}" y2="${h - bottom}" stroke="${FAINT}"/>`
     + `<line x1="${left}" y1="10" x2="${left}" y2="${h - bottom}" stroke="${FAINT}"/>`
     + `<text x="${left - 4}" y="${h - bottom + 3}" font-size="9" text-anchor="end" fill="${FAINT}">0</text>`
     + `<text x="${left - 4}" y="16" font-size="9" text-anchor="end" fill="${FAINT}">${ceiling}</text>`
-    + packs.map((pack) => `<text x="${x(pack)}" y="${h - 8}" font-size="9" text-anchor="middle" fill="${FAINT}">${pack}</text>`).join('');
+    + endowments.map((endowment) => `<text x="${x(endowment)}" y="${h - 8}" font-size="9"`
+      + ` text-anchor="middle" fill="${FAINT}">${endowment}</text>`).join('');
 
-  const curves = foundries.map((foundry, index) => {
-    const points = packs.map((pack) => {
-      const row = rows.find((candidate) => candidate.foundry === foundry
-        && candidate.extraction === extraction && candidate.pack === pack
-        && candidate.profile === profile);
-      return row ? `${x(pack)},${y(metric(row))}` : null;
+  const curves = LEVER_SERIES.map((lever, index) => {
+    const points = endowments.map((endowment) => {
+      const row = rows.find((candidate) => candidate.curve === curve
+        && candidate.profile === profile && candidate.endowment === endowment
+        && candidate.drill === lever.drill && candidate.troopCapTarget === lever.troopCapTarget);
+      return row ? [x(endowment), y(metric(row))] : null;
     }).filter(Boolean);
     if (points.length === 0) return '';
-    const dots = points.map((p) => `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="2.5" fill="${SERIES[index]}"/>`).join('');
-    return `<polyline points="${points.join(' ')}" fill="none" stroke="${SERIES[index]}" stroke-width="1.6"/>${dots}`;
+    // Deux séries qui se superposent exactement — et l'instruction en produit — masqueraient
+    // l'une des deux : un léger décalage dit « elles sont deux » sans mentir sur la valeur.
+    const nudge = index * 0.9;
+    const dots = points.map(([px, py]) =>
+      `<circle cx="${px}" cy="${py + nudge}" r="2.4" fill="${SERIES[index]}"/>`).join('');
+    return `<polyline points="${points.map(([px, py]) => `${px},${py + nudge}`).join(' ')}"`
+      + ` fill="none" stroke="${SERIES[index]}" stroke-width="1.5"/>${dots}`;
   }).join('');
 
   return `<figure><svg viewBox="0 0 ${w} ${h}" width="${w}">${axes}${curves}</svg>`
-    + `<figcaption>extraction ×${extraction.toFixed(1)} · ${escape(profile)}</figcaption></figure>`;
+    + `<figcaption>${escape(curve)} · ${escape(profile)}</figcaption></figure>`;
+}
+
+/**
+ * **Monter ou s'étaler**, en un nuage : un bâtiment de plus vers la droite, un niveau de plus
+ * vers le haut. Deux nombres que personne ne lit l'un sans l'autre — douze bâtiments de niveau 1
+ * et quatre de niveau 3 tiennent la même place dans un total de niveaux.
+ */
+function spreadOrHeight(rows) {
+  const w = 460;
+  const h = 210;
+  const left = 38;
+  const bottom = 28;
+  const sitesMax = Math.max(...rows.map((r) => r.sites));
+  const levelMax = Math.max(...rows.map((r) => r.averageLevel));
+  const x = (sites) => left + (sites / sitesMax) * (w - left - 12);
+  const y = (level) => h - bottom - (level / levelMax) * (h - bottom - 14);
+  const curves = [...new Set(rows.map((r) => r.curve))];
+  const dots = rows.map((row) => {
+    const index = curves.indexOf(row.curve);
+    return `<circle cx="${x(row.sites).toFixed(1)}" cy="${y(row.averageLevel).toFixed(1)}" r="3.4"`
+      + ` fill="${SERIES[index]}" fill-opacity="0.5" stroke="${SERIES[index]}" stroke-width=".7">`
+      + `<title>${escape(row.curve)} · dotation ${row.endowment} · instr. ×${row.drill}`
+      + ` · plafond ${row.troopCapTarget} · ${escape(row.profile)}\n`
+      + `${row.sites} bâtiments, niveau moyen ${row.averageLevel}</title></circle>`;
+  }).join('');
+  const legend = curves.map((curve, index) =>
+    `<span class="key"><i style="background:${SERIES[index]}"></i>${escape(curve)}</span>`).join('');
+  return `<p class="legend">${legend} — abscisse : nombre de bâtiments · ordonnée : niveau moyen.</p>`
+    + `<svg viewBox="0 0 ${w} ${h}" width="100%">`
+    + `<line x1="${left}" y1="${h - bottom}" x2="${w - 6}" y2="${h - bottom}" stroke="${FAINT}"/>`
+    + `<line x1="${left}" y1="12" x2="${left}" y2="${h - bottom}" stroke="${FAINT}"/>`
+    + `<text x="${left - 4}" y="16" font-size="9" text-anchor="end" fill="${FAINT}">${levelMax.toFixed(1)}</text>`
+    + `<text x="${w - 6}" y="${h - 10}" font-size="9" text-anchor="end" fill="${FAINT}">${sitesMax} bâtiments</text>`
+    + `${dots}</svg>`;
+}
+
+function bestTable(rows) {
+  const byKey = new Map();
+  for (const row of rows) {
+    const key = `${row.curve}|${row.endowment}|${row.drill}|${row.troopCapTarget}`;
+    if (!byKey.has(key)) byKey.set(key, {});
+    byKey.get(key)[row.profile] = row;
+  }
+  const best = [...byKey.values()]
+    .filter((byProfile) => byProfile.assidu && byProfile.occasionnel)
+    .filter((byProfile) => byProfile.assidu.troopCapSaturatedFrom === null
+      || byProfile.assidu.troopCapSaturatedFrom >= 6 * 24 * 60)
+    .sort((a, b) => a.occasionnel.dead - b.occasionnel.dead
+      || b.occasionnel.actions - a.occasionnel.actions)
+    .slice(0, 5);
+  if (best.length === 0) return '<p class="absent">Aucune combinaison ne tient les deux clauses.</p>';
+  const head = ['rang', 'courbe', 'dotation', 'instruction', 'plafond', 'vides (occ.)',
+    'actions (occ.)', 'troupes (ass.)', 'plafonné dès', 'bâtiments / niveau']
+    .map((label) => `<th>${label}</th>`).join('');
+  const body = best.map((byProfile, rank) => {
+    const o = byProfile.occasionnel;
+    const a = byProfile.assidu;
+    return `<tr><td>${rank + 1}</td><td>${escape(o.curve)}</td><td>${o.endowment}</td>`
+      + `<td>×${o.drill}</td><td>${o.troopCapTarget}</td>`
+      + `<td>${o.dead}/${o.sessions}</td><td>${o.actions}</td>`
+      + `<td>${a.troops}/${a.troopCap}</td>`
+      + `<td>${a.troopCapSaturatedFrom === null ? '—' : hm(a.troopCapSaturatedFrom)}</td>`
+      + `<td>${a.sites} / ${a.averageLevel}</td></tr>`;
+  }).join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function gridCharts(rows) {
   if (rows.length === 0) {
     return '<p class="absent">Aucune grille sur le disque. <code>node run.mjs --grille</code> en écrit une.</p>';
   }
-  const foundries = [...new Set(rows.map((r) => r.foundry))].sort((a, b) => a - b);
-  const extractions = [...new Set(rows.map((r) => r.extraction))].sort((a, b) => a - b);
-  const packs = [...new Set(rows.map((r) => r.pack))].sort((a, b) => a - b);
+  const curves = [...new Set(rows.map((r) => r.curve))];
+  const endowments = [...new Set(rows.map((r) => r.endowment))].sort((a, b) => a - b);
   const profiles = [...new Set(rows.map((r) => r.profile))];
 
-  const legend = foundries.map((foundry, index) =>
-    `<span class="key"><i style="background:${SERIES[index]}"></i>fonderie ${foundry}/h</span>`).join('');
+  const legend = LEVER_SERIES.map((lever, index) =>
+    `<span class="key"><i style="background:${SERIES[index]}"></i>${leverLabel(lever)}</span>`).join('');
 
   const block = (title, metric, ceiling) => `<h3>${title}</h3><div class="panels">`
-    + profiles.flatMap((profile) => extractions.map((extraction) =>
-      panel(rows, metric, extraction, profile, foundries, packs, ceiling))).join('')
+    + profiles.flatMap((profile) => curves.map((curve) =>
+      panel(rows, metric, curve, profile, endowments, ceiling))).join('')
     + '</div>';
 
-  const maxActions = Math.ceil(Math.max(...rows.map((r) => r.actions)) / 10) * 10;
-  const maxDead = Math.max(...rows.map((r) => r.dead));
-  return `<p class="legend">${legend} — pack de départ en abscisse.</p>`
+  const roundUp = (value, step) => Math.ceil(value / step) * step;
+  const maxActions = roundUp(Math.max(...rows.map((r) => r.actions)), 10);
+  const maxDead = Math.max(1, ...rows.map((r) => r.dead));
+  const maxTroops = roundUp(Math.max(...rows.map((r) => r.troopsAt[96] ?? 0)), 10);
+  const maxAlloy = roundUp(Math.max(...rows.map((r) => r.alloyMade)), 1000);
+
+  return `<p class="legend">${legend} — dotation de départ en abscisse.</p>`
     + block('Actions sur la saison', (r) => r.actions, maxActions)
-    + block('Connexions vides', (r) => r.dead, maxDead || 1);
+    + block('Connexions vides', (r) => r.dead, maxDead)
+    + block('Troupes à 96 h', (r) => r.troopsAt[96] ?? 0, maxTroops)
+    + block('Alliage entré dans le monde au jour 7', (r) => r.alloyMade, maxAlloy);
 }
 
 /* ── 3. what is left at the end, and what the ceiling threw away ────────── */
@@ -189,8 +280,26 @@ connexion vide — le joueur est venu et il n'y avait rien à faire.</p>
 ${frieze(runs)}
 ${summaryTable(runs)}
 
-<h2>Ce que déplacent la fonderie, l'extraction et le pack</h2>
+<h2>Ce que déplacent la courbe, la dotation, l'instruction et le plafond</h2>
+<p class="sub">Quatre leviers croisés sur la campagne. La <em>courbe</em> est celle du rendement
+par niveau : <code>linear</code> est le jeu d'aujourd'hui — deux bâtiments de niveau 1 valent
+exactement un de niveau 2 — et <code>compounded</code> la proposition
+<code>2·base·(1 + Σ 1,3ᵏ)</code>, appliquée aux chaînes, à l'extraction et aux plafonds de stock.
+Aucune constante de <code>convex/constants.ts</code> ne bouge : une case de grille est une
+question posée au jeu, pas une décision prise sur lui.</p>
 ${gridCharts(rows)}
+
+<h2>Monter ou s'étaler</h2>
+<p class="sub">Un point par case de grille. La courbe composée est la seule chose qui rende la
+question réelle : sur la linéaire, monter et s'étaler produisent le même monde.</p>
+${rows.length > 0 ? spreadOrHeight(rows) : ''}
+
+<h2>Les cinq combinaisons</h2>
+<p class="sub">Le moins de connexions vides pour l'occasionnel, sans que l'assidu bute sur son
+plafond de troupes avant le jour 6. « Plafonné dès » lit la saturation qui ne lâche plus
+jusqu'au bout, jamais la première touche : saturer une heure puis poser un cantonnement, c'est
+être prévenu, pas être borné.</p>
+${rows.length > 0 ? bestTable(rows) : ''}
 
 <h2>Ce qui dort en fin de saison</h2>
 <p class="sub">Un stock que le plafond a refusé n'est pas un reste, c'est une perte : les barres

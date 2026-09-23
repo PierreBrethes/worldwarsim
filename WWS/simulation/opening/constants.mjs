@@ -274,6 +274,14 @@ export const DEFAULT_TUNING = {
   /** Same: the format's own threshold overrides it (`tier2HqLevel`). */
   tier2HqLevel: 2,
   troopCapTarget: TROOP_CAP_TARGET,
+  /**
+   * **La courbe de rendement par niveau**, nommée ici et définie dans `curves.mjs` : le jeu est
+   * linéaire, et `'linear'` est donc le seul réglage qui décrive le jeu d'aujourd'hui. Toute
+   * autre valeur est une question posée, pas un miroir.
+   */
+  levelCurve: 'linear',
+  /** Multiplicateur sur la durée d'instruction d'une troupe. 1 est le jeu. */
+  recruitMinutesFactor: 1,
 };
 
 export const nominalStrength = (role, tier) => {
@@ -286,10 +294,22 @@ export const nominalStrength = (role, tier) => {
  *  building's level alone, whatever the headquarters. Kept faithful on purpose. */
 export const chainSpeed = (hqLevel) => 1 + Math.max(0, hqLevel - 1) * 0.225;
 
-/** Alloy and time, and nothing else: the rounds are billed at the pass now (question 18). */
-export const recruitmentCost = (role, tier, hqLevel) => ({
+/**
+ * Alloy and time, and nothing else: the rounds are billed at the pass now (question 18).
+ *
+ * `minutesFactor` est un **levier de balayage**, jamais une règle du jeu : il demande ce que
+ * change une instruction deux fois plus courte sans toucher au prix, parce que le temps et
+ * l'alliage ne bornent pas l'armée au même moment de la saison.
+ */
+export const recruitmentCost = (role, tier, hqLevel, minutesFactor = 1) => ({
   alloy: Math.round(COST_BY_ROLE[role].alloy * (tier === 2 ? TIER_2_FACTOR : 1)),
-  minutes: Math.round((COST_BY_ROLE[role].minutes * (tier === 2 ? TIER_2_FACTOR : 1)) / chainSpeed(hqLevel)),
+  minutes: Math.max(
+    1,
+    Math.round(
+      (COST_BY_ROLE[role].minutes * (tier === 2 ? TIER_2_FACTOR : 1) * minutesFactor) /
+        chainSpeed(hqLevel),
+    ),
+  ),
 });
 
 /** `target` is tunable so the sweep can ask what a 48-hour season can actually field.

@@ -136,4 +136,11 @@ export const PROFILE_DEFAULT = {
   alloyReserve: 0.5,
   mix: ['infantry', 'infantry', 'armor'],
   ammoTarget: 120,
+  /**
+   * **La première coque, une fois, dès qu'un port existe.** C'est ce qui date l'instant où la
+   * saison s'ouvre sur l'eau — la seule question navale qu'une mesure d'ouverture puisse poser
+   * sans modéliser un trajet. Elle vit dans le profil et non dans le mélange : une coque dans le
+   * cycle déplacerait ce que le mélange mesure.
+   */
+  firstCargo: true,
 };

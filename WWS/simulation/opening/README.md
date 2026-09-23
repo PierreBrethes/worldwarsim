@@ -7,18 +7,60 @@ formats de `SEASON_FORMATS` sont couverts : `skirmish` (48 h) et `campaign` (7 j
 ```
 node run.mjs             # les deux formats, trois profils de connexion, le journal des connexions
 node run.mjs --sweep     # balayage de l'alliage de départ, format par format
-node run.mjs --grille    # campagne : fonderie × extraction × pack, trois profils → grille.json
+node run.mjs --grille    # campagne : courbe × dotation × instruction × plafond, trois profils → grille.json
 node run.mjs --rapport   # rapport.html à côté — frises, courbes, restes ; s'ouvre en file://
 node run.mjs --json o.json
 node army.mjs            # le prix réel d'une troupe, et ce qui borne l'armée d'une saison
 node verify.mjs          # le miroir dit-il encore ce que dit le jeu ?
 ```
 
-`--grille` croise les trois leviers sur la seule saison que le jeu ait (`campaign`, ADR 0020
-§11) : le balayage à un axe disait « le pack ne suffit pas » sans dire de quoi. Sa sortie est
-suivie (`grille.json`), comme `sweep.json`. `rapport.html` ne l'est pas : c'est une **vue** de la
-dernière exécution et de la dernière grille, un seul fichier sans dépendance ni requête, et une
-vue n'a pas à dériver de ce qu'elle montre.
+`--grille` croise quatre leviers sur la seule saison que le jeu ait (`campaign`, ADR 0020 §11).
+Sa sortie est suivie (`grille.json`), comme `sweep.json`. `rapport.html` ne l'est pas : c'est une
+**vue** de la dernière exécution et de la dernière grille, un seul fichier sans dépendance ni
+requête, et une vue n'a pas à dériver de ce qu'elle montre.
+
+**Les quatre axes, et pourquoi ceux-là.**
+
+| axe | valeurs | la question |
+|---|---|---|
+| courbe de rendement par niveau | `linear`, `compounded` | monter ou s'étaler |
+| dotation de départ | 400, 800, 1200 d'alliage | ce que le joueur tient en s'asseyant |
+| durée d'instruction | ×1, ×0,5 | le temps borne-t-il l'armée, ou l'alliage |
+| `TROOP_CAP_TARGET` | 24, 48 | où s'arrête l'armée d'une saison |
+
+L'ancien balayage — fonderie × extraction × pack — mesurait des **débits**. Il ne pouvait pas
+poser « monter ou s'étaler », parce qu'un débit linéaire rend les deux équivalents *par
+construction* : deux fonderies de niveau 1 valent exactement une de niveau 2. La courbe
+`compounded` est la proposition inverse, `production(n) = 2·base·(1 + Σ 1,3ᵏ, k=1..n−1)`,
+appliquée aux chaînes, à l'extraction et aux plafonds de stock — et elle se lit **site par site**,
+jamais sur un total de niveaux, sinon la question s'annule avant d'être posée.
+
+**Rien de tout cela n'est une constante du jeu.** Les courbes vivent dans `curves.mjs`, qui n'est
+pas un miroir et le dit ; les trois autres axes sont des `tuning`, que le moteur lit et que
+`convex/constants.ts` ignore. `verify.mjs` n'a donc jamais à décider si une dérive est un bug ou
+une proposition.
+
+**Les sorties de la grille**, par ligne : heure du premier cargo, troupes à 24 h / 48 h / 96 h,
+connexions vides, alliage **entré dans le monde** et **écrêté** au jour 7, et le couple
+bâtiments / niveau moyen qui porte « monter ou s'étaler ». Puis les **cinq combinaisons** qui
+minimisent les connexions vides de l'occasionnel sans plafonner l'assidu avant le jour 6.
+
+Trois précautions de lecture, chacune payée par une mesure fausse évitée :
+
+- **L'alliage produit n'est pas l'alliage restant.** Un stock final ne distingue pas une saison
+  qui n'a rien fabriqué d'une saison qui a tout dépensé ; `produced` et `capped` le font.
+- **Toucher le plafond de troupes n'est pas être plafonné.** Un joueur qui sature une heure puis
+  pose un cantonnement a été prévenu, pas arrêté : la grille lit la saturation qui ne lâche plus
+  jusqu'au bout (`troopCapSaturatedFrom`), et la première touche vit à côté sans commander rien.
+- **Une borne hors de la saison rend `—`, jamais le dernier chiffre connu** : sur 48 h, un plateau
+  et une absence se liraient sinon pareil à 96 h.
+
+**La mer est un objectif du profil, pas une case du mélange** (`firstCargo`). Sans elle, aucune
+saison mesurée ne voyait d'eau : le port est en queue des deux listes d'envies et la règle prend
+la *première* entrée légale et payable — une élévation de fonderie gagne toujours. L'heure du
+premier cargo aurait alors daté l'ordre de la liste. Le profil bâtit donc le port dès qu'il est
+légal, puis commande **une** coque ; ensuite la liste reprend la main, et le mélange n'est pas
+touché.
 
 `verify.mjs` lit `convex/constants.ts` **comme du texte** et compare valeur par valeur. Il
 n'évalue pas de TypeScript et ne le fera pas — il partagerait alors les bugs qu'il doit
@@ -120,6 +162,10 @@ découpée dans les heures de connexion, jamais simulée comme un état.
 | **paliers de QG** | quand le catalogue s'ouvre |
 | **troupes / plafond** | si l'armée bute sur `troopCap` ou sur l'alliage |
 | **restes** | ce qui dort en fin de saison : nomme la ressource qui n'était pas le goulot |
+| **premier cargo** | quand la saison s'ouvre sur l'eau, ou `—` si elle ne s'y ouvre pas |
+| **troupes à 24 / 48 / 96 h** | la forme de la montée en puissance, pas son total |
+| **alliage produit / écrêté** | ce qui est entré dans le monde, et ce que le plafond a refusé |
+| **bâtiments / niveau moyen** | monter ou s'étaler, en deux nombres qu'on ne lit pas séparément |
 
 ## Limites assumées
 

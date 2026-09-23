@@ -40,8 +40,8 @@ export function makePolicy(profile) {
   };
 
   function step(s) {
-    return placeFoundation(s) || raiseHeadquarters(s) || buildFromPlan(s)
-      || orderAmmunition(s) || recruitOne(s);
+    return placeFoundation(s) || raiseHeadquarters(s) || buildFirstPort(s) || buildFromPlan(s)
+      || orderAmmunition(s) || recruitFirstHull(s) || recruitOne(s);
   }
 
   /**
@@ -100,6 +100,42 @@ export function makePolicy(profile) {
     const room = caps(s).ammunition - s.stocks.ammunition;
     const wanted = Math.min(room, target - s.stocks.ammunition - s.arsenalOrder);
     return orderArsenalLot(s, Math.floor(wanted));
+  }
+
+  /**
+   * **Vouloir la mer, c'est bâtir le port avant d'attendre la coque.** Le port est en queue des
+   * deux listes d'envies, et la règle de la liste prend la *première* entrée légale et payable :
+   * une élévation de fonderie gagne toujours, si bien qu'aucune saison mesurée n'avait jamais vu
+   * d'eau. L'heure du premier cargo aurait alors mesuré l'ordre de la liste, pas la date à
+   * laquelle la saison s'ouvre sur l'eau. Une fois le port debout ou en file, cette règle ne dit
+   * plus rien et la liste reprend la main.
+   */
+  function buildFirstPort(s) {
+    if (!profile.firstCargo) return false;
+    const key = PROJECTION_BY_DOMAIN.sea;
+    if (s.sites.some((x) => x.key === key)) return false;
+    if (s.constructions.some((entry) => entry.key === key)) return false;
+    const order = profile.plan.find((entry) => entry.key === key);
+    if (!order || buildRefusal(s, order) !== null) return false;
+    return startBuild(s, order);
+  }
+
+  /**
+   * **La première coque est un objectif, pas une case du cycle.** Le mélange recrute de
+   * l'infanterie et des chars ; une coque n'y entrerait qu'en déplaçant ce que le mélange
+   * mesure, et l'heure du premier cargo serait alors le tour de rôle plutôt que la date où la
+   * saison s'ouvre sur l'eau. Elle ignore la réserve d'alliage : un joueur qui veut la mer la
+   * paie, il n'attend pas d'avoir de quoi monter son quartier général en plus.
+   */
+  function recruitFirstHull(s) {
+    if (!profile.firstCargo) return false;
+    if (s.troops.some((troop) => troop.role === 'cargo')) return false;
+    if ([...s.queues.values()].some((queue) => queue.some((x) => x.role === 'cargo'))) return false;
+    const port = s.sites.find((x) => x.key === PROJECTION_BY_DOMAIN.sea);
+    if (!port) return false;
+    const refusal = recruitRefusal(s, 'cargo', 1, port.id);
+    if (refusal !== null) { note(s, refusal); return false; }
+    return recruit(s, 'cargo', 1, port.id);
   }
 
   function recruitOne(s) {
