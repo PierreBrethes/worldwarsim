@@ -2,6 +2,9 @@
   "name": "worldwarsim",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite",
     "build": "npm run types && vite build",

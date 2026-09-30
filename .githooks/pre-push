@@ -21,5 +21,14 @@ case "$(uname -s)" in
     ;;
 esac
 
+# Un `node` trop ancien — l'installeur .pkg de 2022 traîne souvent en tête du PATH d'un hook —
+# fait planter vite et vitest sans dire pourquoi. On le dit ici, une fois, avant de rien lancer.
+wanted="$(sed 's/^v//' .nvmrc | cut -d. -f1)"
+found="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo aucun)"
+if [ "$found" != "$wanted" ]; then
+  echo "pre-push : Node $wanted attendu (.nvmrc), trouvé : $found — nvm use, ou git push --no-verify." >&2
+  exit 1
+fi
+
 echo "pre-push : vérifications (npm run verifier)"
 npm run verifier
