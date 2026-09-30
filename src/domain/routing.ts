@@ -1,4 +1,4 @@
-import { distanceKm, type LonLat } from './geo';
+import { distanceKm, type LonLat } from './geo.ts';
 import type { Medium } from './ids';
 import type { ProjectedCountry, World } from './world';
 
