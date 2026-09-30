@@ -419,7 +419,13 @@ async function writeStocks(
   now: number,
 ): Promise<void> {
   for (const row of economy.rows) {
-    await ctx.db.patch(row._id, { stock: stocks[row.key], updatedAt: now });
+    // Never backwards: a job dated in the past that wakes late settles nothing (`economyOf`
+    // integrates zero hours for it), and rewinding `updatedAt` would make the next settlement
+    // pay again the hours a later one already paid.
+    await ctx.db.patch(row._id, {
+      stock: stocks[row.key],
+      updatedAt: Math.max(now, row.updatedAt),
+    });
   }
   for (const order of economy.orders) {
     if (order.produced !== order.row.produced) {

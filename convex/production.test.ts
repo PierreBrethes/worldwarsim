@@ -300,6 +300,32 @@ describe('a building only produces when its region carries its colour', () => {
   });
 
   /**
+   * **Un règlement daté du passé ne fait pas reculer l'horloge des stocks.** Le travail de couleur
+   * dû à T0 se réveille après qu'une mutation du joueur a déjà réglé à T0 + 2 h : il ne peut rien
+   * créditer de plus, et surtout pas réécrire `updatedAt` à T0 — le règlement suivant recompterait
+   * alors, au plein débit, deux heures déjà payées.
+   */
+  it('never settles backwards when a colour job wakes after a later settlement', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await raise(t, seat, 'farm', MARNE);
+    await fill(t, seat, 'food', 0);
+    const player = await seatOf(t, seat);
+
+    vi.setSystemTime(MIDDAY + 2 * HOUR);
+    await t.run(async (ctx) => settle(ctx, player._id, Date.now()));
+
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: player.seasonId,
+      at: MIDDAY,
+    });
+
+    vi.setSystemTime(MIDDAY + 3 * HOUR);
+    // Trois heures de ferme depuis le dernier plein de la réserve, pas cinq.
+    expect(await stockOf(t, seat, 'food')).toBeCloseTo(3 * EXTRACTION_PER_HOUR.food, 2);
+  });
+
+  /**
    * Cas 3 : deux points se disputent la région, le plus proche l'emporte. L'adversaire se plante
    * plus près, mon extracteur passe hors réseau — et la dépêche est chez moi, chez moi seul.
    */
