@@ -2061,6 +2061,47 @@ describe('the arsenal is commanded', () => {
       t.mutation(api.industry.order, { ...seat, chain: 'foundry', quantity: 10 }),
     ).rejects.toThrow(/CHAIN_NOT_COMMANDED/);
   });
+
+  /**
+   * `v.number()` admits NaN, and NaN is false against every comparison: `wanted <= 0` and
+   * `wanted > maximum` both let it through, the lot was filed, and every stock became NaN — after
+   * which no price could ever be refused again.
+   */
+  it('refuses a lot that is not a number, and leaves every stock as it was', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await raise(t, seat, 'arsenal', MOSELLE);
+
+    await expect(
+      t.mutation(api.industry.order, { ...seat, chain: 'arsenal', quantity: Number.NaN }),
+    ).rejects.toThrow(/EMPTY_ORDER/);
+
+    vi.advanceTimersByTime(5 * 3_600_000);
+    const view = await t.query(api.view.playerView, seat);
+    expect(chainOf(view, 'arsenal')).toMatchObject({ order: null });
+    expect(view.me.resources.alloy.stock).toBe(KIT.alloy);
+    expect(view.me.resources.ammunition.stock).toBe(KIT.ammunition);
+  });
+});
+
+/**
+ * The one door every price goes through fails closed: a stock that is not a number is not a
+ * stock that covers a cost. Whatever way it got there, it must never buy.
+ */
+describe('a stock that is not a number buys nothing', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('refuses a construction that a NaN alloy stock would have let through', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, unlockLevel('billets'));
+    await fill(t, seat, 'alloy', Number.NaN);
+
+    await expect(
+      t.mutation(api.constructions.start, { ...seat, building: 'billets', regionId: MARNE }),
+    ).rejects.toThrow(/INSUFFICIENT_RESOURCE/);
+  });
 });
 
 /**

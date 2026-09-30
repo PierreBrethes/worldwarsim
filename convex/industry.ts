@@ -26,7 +26,9 @@ export const order = mutation({
     if (totalLevelOf(buildings, chain) === 0) fail('CHAIN_NOT_STANDING', { building: chain });
 
     const wanted = Math.floor(quantity);
-    if (wanted <= 0) fail('EMPTY_ORDER');
+    // Written as a negation on purpose: NaN is false against every comparison, `wanted <= 0`
+    // would let it through.
+    if (!(wanted > 0)) fail('EMPTY_ORDER');
 
     const now = Date.now();
     // Settled and written *before* the row moves: the hours already elapsed belong to the lot

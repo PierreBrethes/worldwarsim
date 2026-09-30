@@ -500,7 +500,8 @@ export async function debit(
   const remaining = { ...economy.stocks };
 
   for (const [key, cost] of Object.entries(costs) as ReadonlyArray<[ResourceKey, number]>) {
-    if (economy.stocks[key] < cost) {
+    // A negation, so that a stock which is not a number covers nothing instead of everything.
+    if (!(economy.stocks[key] >= cost)) {
       fail('INSUFFICIENT_RESOURCE', {
         resource: key,
         needed: cost,
