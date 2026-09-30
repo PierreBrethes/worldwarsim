@@ -3170,6 +3170,106 @@ describe('an empty manifest buys nothing', () => {
 });
 
 /**
+ * **Un manifeste nomme chaque troupe une fois.** Le client n'en écrit jamais deux fois la même,
+ * mais rien ne l'y obligeait côté serveur : trois fois l'id d'un fantassin donnait trois lignes
+ * d'attaquant de pleine force dans la passe, et une attaque perdue à un contre un se gagnait.
+ */
+describe('a manifest names each troop once', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+  it('refuses an attack naming the same troop twice, and spends no slot doing it', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+
+    await expect(
+      attacking(t, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop, troop],
+        target: { kind: 'point', point: asPoint(regionFacts(PRAHOVA)!.point) },
+      }),
+    ).rejects.toThrow('DUPLICATE_TROOP');
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+  });
+
+  it('refuses a march, even when the repeated troop is not the first one named', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [first, second, first],
+        point: asPoint(regionFacts(PRAHOVA)!.point),
+      }),
+    ).rejects.toThrow('DUPLICATE_TROOP');
+  });
+
+  it('refuses a founding column naming the same troop twice', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = regionFacts(PRAHOVA)!.point;
+    const posted = await post(t, seat, point);
+
+    await expect(
+      t.mutation(api.movements.foundOutpostHere, {
+        regionId: null,
+        ...seat,
+        point: asPoint(point),
+        specialization: 'relay',
+        troopIds: [posted, posted],
+      }),
+    ).rejects.toThrow('DUPLICATE_TROOP');
+    expect(await outpostsOf(t, seat)).toHaveLength(0);
+  });
+
+  it('answers a preview of a repeated manifest with nothing, as it does for any refusal', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    await surveyRegion(t, seat, PRAHOVA);
+
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop, troop],
+      target: { kind: 'region', regionId: PRAHOVA },
+      type: 'attack',
+    });
+    expect(preview).toBeNull();
+  });
+
+  it('still lets a distinct manifest through', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [first, second],
+      target: { kind: 'point', point: asPoint(regionFacts(PRAHOVA)!.point) },
+    });
+    expect((await movementsOf(t, seat))[0]!.troopIds).toEqual([first, second]);
+  });
+});
+
+/**
  * **Le métier d'un point se règle sur le point** (décision Pierre, 29/08). Le serveur exige une
  * spécialisation à la fondation et le clic droit n'en demande aucune : il pose « relais », et le
  * panneau de l'avant-poste rattrape — tant qu'aucune passe ne s'en est servie.

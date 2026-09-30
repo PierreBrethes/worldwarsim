@@ -470,6 +470,7 @@ export const fr = {
       `slots de mouvement tous engagés (${num(d.maximum)})${slotRelief(d.nextHqLevel, d.nextSlots)}`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     UNKNOWN_TROOP: () => 'troupe inconnue',
+    DUPLICATE_TROOP: () => 'une troupe ne se nomme qu’une fois dans un mouvement',
     TROOP_NOT_AT_ORIGIN: () => 'la troupe ne stationne pas à cette adresse',
     /** **Le rôle fautif est nommé quand l'appelant le connaît** : la rose lit la colonne sous ses
      *  yeux et peut dire *quoi* bloque, le serveur refuse une charge utile qui ne le porte pas. */

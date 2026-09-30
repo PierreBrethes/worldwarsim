@@ -392,6 +392,12 @@ export async function aimOf(
   };
 }
 
+/** A manifest names each troop once. The client never repeats one, but a repeat would put the
+ *  same troop in the pass as many times, each a full-strength combatant, and multiply what the
+ *  column carries away. */
+export const namesATroopTwice = (troopIds: ReadonlyArray<Id<'troops'>>): boolean =>
+  new Set(troopIds).size !== troopIds.length;
+
 /** The troops of an order, silently skipping what does not answer — a preview reads them to know
  *  which medium to draw in, and a hover is not the place to raise an error. */
 export async function troopsAmong(
@@ -476,6 +482,7 @@ export async function march(
     plunder?: { readonly buildingId: Id<'buildings'> };
   },
 ) {
+  if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
   await claimSlot(ctx, playerId);
 
   /** **Where the column stands, and nothing more** (ADR 0019 §1): the origin only has to be the

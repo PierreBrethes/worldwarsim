@@ -45,6 +45,7 @@ import {
   columnOf,
   departureOf,
   march,
+  namesATroopTwice,
   pacedMinutes,
   sameStation,
   surveyedPlunderTarget,
@@ -99,6 +100,7 @@ export const foundOutpostHere = mutation({
   handler: async (ctx, { token, seasonId, point, regionId, specialization, troopIds }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
 
     /** `troopIds` is a manifest, not a second attachment, so standing at the point is not
      *  enough: a column that left it is on the road. */
@@ -436,7 +438,7 @@ export const preview = query({
   },
   handler: async (ctx, { token, seasonId, origin, troopIds, target, type }) => {
     const { player } = await playerOf(ctx, token, seasonId);
-    if (type === 'decoy') return null;
+    if (type === 'decoy' || namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
 
@@ -500,6 +502,7 @@ const previewTroopsAt = async (
   troopIds: ReadonlyArray<Id<'troops'>>,
   departure: NonNullable<Awaited<ReturnType<typeof departureOf>>>,
 ) => {
+  if (namesATroopTwice(troopIds)) return null;
   const troops = await troopsAmong(ctx, playerId, troopIds);
   const marching = new Set(
     (await movementsOf(ctx, playerId)).flatMap((movement) => movement.troopIds),
