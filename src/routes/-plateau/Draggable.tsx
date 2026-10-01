@@ -5,7 +5,7 @@ import {
   useMemo,
   useRef,
   type CSSProperties,
-  type MutableRefObject,
+  type RefObject,
   type ReactNode,
 } from 'react';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
@@ -63,7 +63,7 @@ export function Draggable({
   style?: CSSProperties;
   /** For a caller that measures the surface itself — the construction panel resizes by a
    *  corner and needs the box the drag already holds, rather than a second one around it. */
-  innerRef?: MutableRefObject<HTMLDivElement | null>;
+  innerRef?: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement | null>(null);

@@ -23,9 +23,8 @@
     "@tanstack/react-router": "^1.170.41",
     "convex": "^1.46.0",
     "country-flag-icons": "^1.6.20",
-    "react": "^18.3.1",
-    "react-compiler-runtime": "1.0.0",
-    "react-dom": "^18.3.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "three": "^0.169.0"
   },
   "devDependencies": {
@@ -39,8 +38,8 @@
     "@testing-library/react": "^16.3.3",
     "@types/babel__core": "7.20.5",
     "@types/node": "^24.19.0",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "6.1.1",
     "babel-plugin-react-compiler": "1.0.0",

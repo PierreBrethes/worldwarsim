@@ -12,7 +12,7 @@ export default defineConfig({
     // exécution, et le préfixer d'un tiret mettrait le test loin du fichier qu'il teste.
     TanStackRouterVite({ routeFileIgnorePattern: '\\.test\\.tsx?$' }),
     react(),
-    babel({ presets: [reactCompilerPreset({ target: '18' })] }),
+    babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwind(),
   ],
   resolve: {
