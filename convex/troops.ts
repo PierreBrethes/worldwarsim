@@ -20,7 +20,7 @@ import {
 } from './constants';
 import { fail } from './errors';
 import { regionFacts } from './regions';
-import { credit, debit, economyOf, snapshotOf } from './resources';
+import { credit, debit, economyOf, snapshotOf, settle } from './resources';
 import {
   playerOf,
   playingSeason,
@@ -217,6 +217,9 @@ export const deliver = internalMutation({
     const season = await playingSeason(ctx, batch.playerId);
     if (season === null) return;
 
+    /** The hours of the queue were eaten by the army as it stood: settle them before the new
+     *  mouth is counted, or its upkeep is charged backwards over the whole formation. */
+    await settle(ctx, batch.playerId, Date.now());
     const strength = nominalStrength(batch.role, batch.tier);
     const station = await ctx.db.get(batch.buildingId);
     await ctx.db.insert('troops', {

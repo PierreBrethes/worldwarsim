@@ -389,3 +389,48 @@ describe('a dry reserve stops the queue and kills nothing', () => {
     expect((await t.run(async (ctx) => ctx.db.get(recruitmentId)))!.finishesAt).not.toBeNull();
   });
 });
+
+/**
+ * **A delivered troop starts eating when it arrives, not when the nation was last read.**
+ * `deliver` inserted the troop without settling first, so the next reading charged its upkeep
+ * backwards over the whole time it spent in the barracks queue.
+ */
+describe('a delivered troop', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('eats from the moment it arrives, not from the last settlement', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await disbandTheGift(t, seat);
+    const barracks = await raise(t, seat, 'barracks');
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((candidate) => candidate.key === 'food')!;
+      await ctx.db.patch(row._id, { stock: 1_000, updatedAt: Date.now() });
+    });
+
+    const { recruitmentId } = await t.mutation(api.troops.recruit, {
+      ...seat,
+      buildingId: barracks,
+      role: 'infantry',
+      tier: 1,
+    });
+    const finishesAt = (await t.run(async (ctx) => ctx.db.get(recruitmentId)))!.finishesAt!;
+    vi.advanceTimersByTime(finishesAt - Date.now() + 1);
+    await t.finishInProgressScheduledFunctions();
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.troops).toHaveLength(1);
+    // Nobody ate during the hours of the queue: the reserve is the one the order left.
+    expect(view.me.resources.food.stock).toBeCloseTo(1_000, 0);
+  });
+});
