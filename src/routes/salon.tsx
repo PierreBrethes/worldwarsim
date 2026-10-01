@@ -10,6 +10,7 @@ import type { PlayableRegion } from '@/domain/ids';
 import { FlagBanner, Flag } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { errorCode, handleError } from '@/data/errors';
+import { useSingleFlight } from '@/data/useSingleFlight';
 import { forgetSeat, useSeat, type Seat } from '@/data/session';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -52,6 +53,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
   const destroy = useMutation(api.seasons.destroy);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { run: runOnce } = useSingleFlight();
 
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
 
@@ -63,9 +65,13 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
     );
   }
 
+  /** A press whose answer has not come back is dropped: the second `launch` of a double click
+   *  came back refused and showed an error over a launch that had worked. */
   const act = (action: () => Promise<unknown>) => {
-    setError(null);
-    action().catch((problem: unknown) => handleError(problem, setError));
+    runOnce(async () => {
+      setError(null);
+      await action();
+    }).catch((problem: unknown) => handleError(problem, setError));
   };
   const holderOf = (nation: string) => lobby.players.find((player) => player.nation === nation);
   const allReady = lobby.players.length >= 2 && lobby.players.every((player) => player.ready);

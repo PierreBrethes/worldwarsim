@@ -13,6 +13,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
+import { useSingleFlight } from '@/data/useSingleFlight';
 import { forgetSession, keepSeat, useSession } from '@/data/session';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
@@ -128,30 +129,38 @@ function ConnectedHome() {
     else setResuming(seat);
   };
 
+  /** One answer awaited at a time: `seasons.create` refuses nothing, so a double press on
+   *  "fonder" would found two seasons. */
+  const { run: runOnce, pending } = useSingleFlight();
+
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
-    try {
-      const { seasonId } = await create({
-        token,
-        durationHours: FOUNDED_CLOCK,
-        compensation: 0.5,
-      });
-      keepSeat(seasonId);
-      toLobby();
-    } catch (problem) {
-      handleError(problem, setError);
-    }
+    await runOnce(async () => {
+      try {
+        const { seasonId } = await create({
+          token,
+          durationHours: FOUNDED_CLOCK,
+          compensation: 0.5,
+        });
+        keepSeat(seasonId);
+        toLobby();
+      } catch (problem) {
+        handleError(problem, setError);
+      }
+    });
   };
 
   const submitJoin = async (event: FormEvent) => {
     event.preventDefault();
-    try {
-      const { seasonId } = await join({ token, code });
-      keepSeat(seasonId);
-      toLobby();
-    } catch (problem) {
-      handleError(problem, setError);
-    }
+    await runOnce(async () => {
+      try {
+        const { seasonId } = await join({ token, code });
+        keepSeat(seasonId);
+        toLobby();
+      } catch (problem) {
+        handleError(problem, setError);
+      }
+    });
   };
 
   return (
@@ -190,7 +199,7 @@ function ConnectedHome() {
               {fr.home.foundNote(regionNameOf(FOUNDED_REGION))}
             </p>
 
-            <Commit active type="submit">
+            <Commit active={!pending} type="submit">
               {fr.home.foundSubmit}
             </Commit>
           </form>
@@ -222,7 +231,7 @@ function ConnectedHome() {
             <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
               {fr.home.joinHint(REGISTRATION_WINDOW_HOURS)}
             </p>
-            <Commit active={code.length === 6} type="submit">
+            <Commit active={code.length === 6 && !pending} type="submit">
               {fr.home.joinSubmit}
             </Commit>
           </form>
