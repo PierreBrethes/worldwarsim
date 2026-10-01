@@ -26,7 +26,7 @@ import { coastAtPoint, hostAtPoint } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
-import { credit, debit, economyOf } from './resources';
+import { credit, debit, economyOf, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seasons';
 import { BUILDING_KEY, LON_LAT } from './validators';
@@ -324,6 +324,10 @@ export const finish = internalMutation({
       return;
     }
 
+    /** The hours up to now were worked by the buildings as they stood: settle them before the
+     *  level or the building below changes the rates, or the new shape is paid backwards over
+     *  the whole build time. */
+    await settle(ctx, construction.playerId, Date.now());
     const buildings = await playerBuildings(ctx, construction.playerId);
     const standing = buildingAt(
       buildings,

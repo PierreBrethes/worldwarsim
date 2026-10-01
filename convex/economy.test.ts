@@ -1362,6 +1362,30 @@ describe('the construction queue', () => {
   const alloyOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
     (await t.query(api.view.playerView, seat)).me.resources.alloy.stock;
 
+  /**
+   * **A finished building changes the rates, and the hours before it were not worked at them.**
+   * `finish` wrote the new level without settling first, so the next reading integrated the
+   * *new* rate from the last settlement — the whole build time paid at the level it was still
+   * short of.
+   */
+  it('settles the stocks before a finished level changes the rate', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await promoteHq(t, seat, 3);
+    await raise(t, seat, 'farm', MARNE);
+    await fill(t, seat, 'food', 0);
+
+    await t.mutation(api.constructions.start, { ...seat, building: 'farm', regionId: MARNE });
+    const minutes = buildMinutes('farm', 2);
+    vi.advanceTimersByTime(minutes * 60_000 + 1);
+    await t.finishInProgressScheduledFunctions();
+
+    const view = await t.query(api.view.playerView, seat);
+    const hours = (minutes * 60_000 + 1) / 3_600_000;
+    // The hours were worked by a level-1 farm; the level 2 only earns from here on.
+    expect(view.me.resources.food.stock).toBeCloseTo(hours * EXTRACTION_PER_HOUR.food, 0);
+  });
+
   it('bills every entry at the enqueue and runs them one at a time, in order', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
