@@ -18,7 +18,11 @@ export async function loadGame(): Promise<GameEntry> {
   if (!seat || !convexClient) return { state: 'none' };
 
   // The world is a static asset, identical for every season: fetched once for the lifetime
-  // of the tab, and shared by every visit to the board.
-  worldInFlight ??= loadWorld();
+  // of the tab, and shared by every visit to the board. A failure is forgotten, or the error
+  // screen's retry would only ever replay it.
+  worldInFlight ??= loadWorld().catch((error: unknown) => {
+    worldInFlight = null;
+    throw error;
+  });
   return { state: 'active', world: await worldInFlight, seat };
 }
