@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "allowImportingTsExtensions": true,
+    "types": ["node"],
 
     /* These compiler options are required by Convex */
     "target": "ESNext",
