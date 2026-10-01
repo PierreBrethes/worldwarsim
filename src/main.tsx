@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { ConvexProvider } from 'convex/react';
 import { convexClient } from './data/convexClient';
+import { NotFoundScreen } from './shell/ErrorScreen';
 import { applyHudScale, readHudScale } from './data/settings';
 import { routeTree } from './routeTree.gen';
 import './styles/index.css';
@@ -30,7 +31,7 @@ window.addEventListener('vite:preloadError', () => {
   window.location.reload();
 });
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, defaultNotFoundComponent: NotFoundScreen });
 
 declare module '@tanstack/react-router' {
   interface Register {

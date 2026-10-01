@@ -554,6 +554,12 @@ export const fr = {
     backHome: 'retour à l’accueil',
   },
 
+  notFoundScreen: {
+    kicker: 'adresse inconnue',
+    title: 'page introuvable',
+    message: 'cette adresse ne mène à aucune page du journal.',
+  },
+
   common: {
     close: 'fermer',
     noNation: 'sans nation',
