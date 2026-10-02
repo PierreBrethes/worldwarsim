@@ -22,7 +22,7 @@ import { modules } from './test.setup';
 import { attacking, foundSeat, joinSeat, placeHq, seatIn, seatsOf } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const KIT = STARTING_KIT;
 

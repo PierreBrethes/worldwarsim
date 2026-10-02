@@ -17,7 +17,7 @@ import { foundSeat, joinSeat, seatDoc } from './seats.fixture';
  * saisons se tiennent en base en même temps, et un fil qui traverserait servirait les vannes
  * d'une partie aux joueurs d'une autre.
  */
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 

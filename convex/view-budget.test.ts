@@ -33,7 +33,7 @@ import type { Seat } from './seats.fixture';
  * la garantie : la vue ne grandit plus avec l'âge de la saison.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310'; // le sol de personne, 1 800 km à l'est

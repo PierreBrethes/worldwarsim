@@ -16,7 +16,7 @@ import type { Seat } from './seats.fixture';
  * reads but no longer plays.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // where the French barracks stands
 const PRAHOVA = 'ROU-310'; // Romanian, nobody's home country — where the point is planted

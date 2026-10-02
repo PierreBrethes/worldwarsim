@@ -6,7 +6,7 @@ import schema from './schema';
 import { foundSeat, joinSeat, seatIn, seatsOf, signIn } from './seats.fixture';
 import { modules } from './test.setup';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
 
 const seasonDoc = (t: Bench, seasonId: Id<'seasons'>) => t.run((ctx) => ctx.db.get(seasonId));

@@ -13,7 +13,7 @@ import { modules } from './test.setup';
  */
 describe('dev.snapshot', () => {
   it('refuse une session inconnue plutôt que de servir une vue vide', async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest({ schema, modules, transactionLimits: true });
     const { seat } = await foundSeat(t);
     await expect(t.query(internal.dev.snapshot, { ...seat, token: 'inconnu' })).rejects.toThrow(
       'UNKNOWN_SESSION',

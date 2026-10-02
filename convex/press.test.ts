@@ -15,7 +15,7 @@ import { foundSeat, joinSeat, seatIn } from './seats.fixture';
  * Le barème lui-même est testé sans base (`src/domain/standings.test.ts`) : ici on ne mesure que
  * le branchement, la cadence et le cloisonnement.
  */
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 const HOUR = 3_600_000;

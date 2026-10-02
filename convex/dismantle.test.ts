@@ -11,7 +11,7 @@ import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 /** Le pétrole roumain : le sol de personne, loin de toute capitale — ce qu'un avant-poste est
  *  fait pour tenir, et ce que le démantèlement fait perdre. */

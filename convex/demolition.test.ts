@@ -17,7 +17,7 @@ import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // food
 const MOSELLE = 'FRA-5328'; // coal, inland

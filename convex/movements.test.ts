@@ -46,7 +46,7 @@ import type { Seat } from './seats.fixture';
  *  tous un avant-poste de niveau 1. */
 const REACH_KM = outpostReachKm(1);
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // where the barracks stands
 const PRAHOVA = 'ROU-310'; // Romanian oil, 1 800 km east — nobody's home country

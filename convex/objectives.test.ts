@@ -36,7 +36,7 @@ import type { Seat } from './seats.fixture';
  * nourrit de vraies distances et que le plateau en fait de vrais objets.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
 /** Un sol sans siège, à portée de marche d'une caserne marnaise : c'est là que les cas posent

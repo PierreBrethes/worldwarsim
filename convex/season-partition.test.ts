@@ -27,7 +27,7 @@ import type { Seat } from './seats.fixture';
  * The two guards below are the same rule read twice — once on the board, once on the source.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // where the column leaves from
 const PRAHOVA = 'ROU-310'; // Romanian oil, 1 800 km east — nobody's home country
@@ -241,14 +241,20 @@ describe('no table is swept whole', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const WHITELIST: ReadonlySet<string> = new Set(['dev.ts']);
 
-  const sources = readdirSync(here)
+  /** Recursive: `movement/` holds the heaviest sweeps of a season, and a flat listing never
+   *  saw it. `_generated` is Convex's, not ours. */
+  const sources = readdirSync(here, { recursive: true, encoding: 'utf-8' })
+    .map((name) => name.replaceAll('\\', '/'))
     .filter((name) => name.endsWith('.ts') && !name.includes('.test.') && !name.endsWith('.d.ts'))
+    .filter((name) => !name.startsWith('_generated/'))
     .filter((name) => !WHITELIST.has(name));
 
-  /** A `.query('table')` and the `.collect()` that closes it, with everything chained between
-   *  them — stopped at the next `.query(` so two readings in one expression cannot lend each
-   *  other an index. */
-  const READING = /\.query\(\s*'(\w+)'\s*\)((?:(?!\.query\()[\s\S])*?)\.collect\(\)/g;
+  /** A `.query('table')` and the call that closes it — `collect`, but also `take`, `first`,
+   *  `unique` and `paginate`, which read a table just as whole when nothing narrows them — with
+   *  everything chained between them, stopped at the next `.query(` so two readings in one
+   *  expression cannot lend each other an index. */
+  const READING =
+    /\.query\(\s*'(\w+)'\s*\)((?:(?!\.query\()[\s\S])*?)\.(?:collect|take|first|unique|paginate)\(/g;
 
   it.each(sources)('%s reads every table through an index', (name) => {
     const source = readFileSync(join(here, name), 'utf-8');

@@ -458,3 +458,15 @@ describe('la grille de routage cuite', () => {
     ).toBeLessThan(50);
   });
 });
+
+/**
+ * **Les tests tournent à l'heure du serveur, qui est UTC.** Seize fichiers bâtissent leurs dates
+ * avec `new Date(a, m, j, h)`, c'est-à-dire à l'heure locale du poste : vert à Paris et sur la
+ * CI, rouge sous un autre fuseau (`plunder.test.ts` échouait deux fois à Tokyo). `vite.config.ts`
+ * fixe donc `TZ` ; ce garde dit pourquoi si quelqu'un l'enlève.
+ */
+describe('le fuseau des tests', () => {
+  it('est UTC, quel que soit celui du poste', () => {
+    expect(new Date(2026, 7, 17, 12).getTimezoneOffset()).toBe(0);
+  });
+});

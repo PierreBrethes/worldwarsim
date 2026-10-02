@@ -16,7 +16,7 @@ import type { Seat } from './seats.fixture';
  * faite de tout ce qu'on n'a **pas** écrit.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310'; // Roumain, le pays de personne — où les colonnes se rencontrent

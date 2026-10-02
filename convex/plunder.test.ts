@@ -18,7 +18,7 @@ import { modules } from './test.setup';
 import { attacking, foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 const HOUR = 3_600_000;
 const MIDDAY = new Date(2026, 8, 9, 12, 0, 0).getTime();
 const MARNE = 'FRA-5323';

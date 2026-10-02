@@ -31,7 +31,7 @@ import type { Seat } from './seats.fixture';
  * fil, un cap, une fenêtre — et jamais le type ni la nation. Le relais logistique, lui, accélère
  * la route de son propriétaire.
  */
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310';

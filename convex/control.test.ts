@@ -16,7 +16,7 @@ import type { Seat } from './seats.fixture';
  *  tous un avant-poste de niveau 1. */
 const REACH_KM = outpostReachKm(1);
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const PARIS = 'FRA-5333';
 const MARNE = 'FRA-5323';

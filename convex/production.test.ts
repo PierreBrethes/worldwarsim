@@ -34,7 +34,7 @@ import type { Seat } from './seats.fixture';
  * exactement ce qu'un test de stock à deux dates mesure.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // nourriture, sol français
 const MEURTHE = 'FRA-5325'; // minerai, sol français

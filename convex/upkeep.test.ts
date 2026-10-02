@@ -30,7 +30,7 @@ const REACH_KM = outpostReachKm(1);
  * troop whatever the role, and that it is multiplied by where the troop stands.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323'; // French, food deposit
 const RIYADH: LonLat = [46.72, 24.63]; // Saudi — nobody's home country and nobody's outpost

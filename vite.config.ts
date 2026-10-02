@@ -6,6 +6,10 @@ import tailwind from '@tailwindcss/vite';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import { fileURLToPath, URL } from 'node:url';
 
+// Les tests datent leurs scénarios à l'heure locale du poste, le serveur compte en UTC : on
+// fixe le fuseau avant que les workers de vitest ne naissent (voir `convex/invariants.test.ts`).
+process.env.TZ = 'UTC';
+
 export default defineConfig({
   plugins: [
     // Un `*.test.tsx` sous src/routes/ n'est pas une route : le plugin le signale à chaque

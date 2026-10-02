@@ -21,7 +21,7 @@ import type { Seat } from './seats.fixture';
  * Un test par sorte, et pour le relevé un test de plus : **il n'existe que chez l'observateur**.
  * C'est la seule sorte dont la fuite serait un défaut de brouillard et pas un défaut d'écran.
  */
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
 const PRAHOVA = 'ROU-310';

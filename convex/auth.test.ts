@@ -7,7 +7,7 @@ import { hashPassword } from './passwords';
 import schema from './schema';
 import { modules } from './test.setup';
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 describe('account registration', () => {

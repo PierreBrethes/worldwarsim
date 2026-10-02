@@ -16,7 +16,7 @@ import type { Seat } from './seats.fixture';
  * fondateur, `destroy` reste à lui seul, et la présence des autres joueurs ne sort jamais.
  */
 
-const boot = () => convexTest(schema, modules);
+const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MIDDAY = new Date(2026, 8, 6, 12, 0, 0);
 const HOUR = 3_600_000;
