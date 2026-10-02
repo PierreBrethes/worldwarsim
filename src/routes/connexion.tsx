@@ -13,6 +13,8 @@ import { nicknameRefusal, passwordRefusal } from '@/domain/account';
 export const Route = createFileRoute('/connexion')({ component: SignIn });
 
 const WIDTH = 520;
+const ERROR_ID = 'auth-error';
+const NOTE_ID = 'auth-password-note';
 
 function SignIn() {
   return convexClient ? <ConnectedSignIn /> : <NoBackend />;
@@ -65,7 +67,7 @@ function Sheet({
  * même chose, et deux pages auraient fait choisir avant de savoir. Le refus se lit sous le
  * formulaire et jamais en notification — c'est là que la main est.
  */
-function ConnectedSignIn() {
+export function ConnectedSignIn() {
   const navigate = useNavigate();
   const { turning, turn } = usePageTurn();
   const register = useAction(api.auth.register);
@@ -101,28 +103,46 @@ function ConnectedSignIn() {
   return (
     <Sheet turning={turning} tagline={registering ? fr.auth.registerTagline : fr.auth.loginTagline}>
       <form onSubmit={submit} className="mx-[30px] mt-[22px]">
-        <div className="eyebrow">{fr.auth.nicknameLabel}</div>
+        <label htmlFor="auth-nickname" className="eyebrow block">
+          {fr.auth.nicknameLabel}
+        </label>
         <input
+          id="auth-nickname"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? ERROR_ID : undefined}
           value={nickname}
           onChange={(event) => setNickname(event.target.value)}
           autoComplete="username"
-          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none"
+          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)]"
           placeholder={fr.auth.nicknamePlaceholder}
         />
 
-        <div className="eyebrow mt-[16px]">{fr.auth.passwordLabel}</div>
+        <label htmlFor="auth-password" className="eyebrow mt-[16px] block">
+          {fr.auth.passwordLabel}
+        </label>
         <input
+          id="auth-password"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${ERROR_ID} ${NOTE_ID}` : NOTE_ID}
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete={registering ? 'new-password' : 'current-password'}
-          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none"
+          className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)]"
           placeholder={fr.auth.passwordPlaceholder}
         />
-        <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">{fr.auth.passwordNote}</p>
+        <p id={NOTE_ID} className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
+          {fr.auth.passwordNote}
+        </p>
 
         {error && (
-          <p className="mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">{error}</p>
+          <p
+            id={ERROR_ID}
+            role="alert"
+            className="mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]"
+          >
+            {error}
+          </p>
         )}
 
         <button
