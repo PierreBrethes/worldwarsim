@@ -1,4 +1,17 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/routes/-plateau/FoundationRows.tsx, src/routes/-plateau/NextActions.tsx]
+decisions: [ADR 0015]
+voir: [../../design/propositions/ordre-de-mobilisation-et-fenetre-economie.md]
+---
 # Prompt Claude design — l'ordre de mobilisation et la fenêtre Économie
+
+**En bref.** Prompt Claude design (proposition du 19/08) : carte « ordre de mobilisation », fenêtre Économie (chantier en tête, filière dessinée) et fiche Nation allégée. Maquettes faites et surfaces implémentées.
+
+**En retard** (vérifié le 02/10/2026) :
+- L.43 « doctrine choisie » dans la fiche Nation — vrai : la doctrine n'existe plus (ADR 0020 §9), le champ ne survit qu'en legacy, jamais écrit ni lu.
 
 Source : [ordre-de-mobilisation-et-fenetre-economie.md](../../design/propositions/ordre-de-mobilisation-et-fenetre-economie.md)
 (proposition du 19/08). À coller dans Claude design, idéalement en rouvrant le canvas

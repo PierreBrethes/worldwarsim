@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [convex/movement/cargoReturn.ts, convex/invariants.test.ts]
+decisions: []
+voir: [contours-de-region-paresseux.md, ../../../../../CONVENTIONS.md]
+---
 # noms-de-modules-convex — un tiret dans `convex/` casse le déploiement, pas les tests
+
+**En bref.** Renommer `convex/movement/cargo-return.ts` (le runtime Convex refuse les tirets) et poser un test d'invariant sur les noms de modules. Exécuté (46d2320, e959a08), en attente de l'acceptation du rapport pour passer en done/.
 
 Lis `CLAUDE.md`, `CONVENTIONS.md`, `convex/invariants.test.ts`. Ne commit pas, ne push pas.
 Tidy : aucun comportement ne change.

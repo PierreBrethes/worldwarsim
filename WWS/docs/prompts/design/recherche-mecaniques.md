@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: []
+decisions: []
+voir: [../../design/recherches/mecaniques-2026-08-29-tri.md]
+---
 # Prompt de recherche — mécaniques du spectre RTS → OGame/Risk (29/08/2026)
+
+**En bref.** Prompt de recherche web sur les mécaniques du spectre RTS à OGame/Risk (familles, verdicts de compatibilité, mélanges candidats), daté du 29/08/2026. Exécuté, rapport revenu à Cowork pour tri.
 
 À coller dans une conversation de recherche (avec accès web). Autonome : tout le contexte
 nécessaire est dedans. Le rapport revient ensuite à Cowork pour tri contre le corpus.

@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/emblems/objectives/manifest.ts, WWS/sprites/README.md, WWS/sprites/optimiser.py]
+decisions: []
+voir: [batiments.md, ../code/done/objectifs-neutres.md]
+---
 # Prompts d'image — les objectifs neutres (quatre planches, V1)
+
+**En bref.** Prompts d'image des quatre planches d'objectifs neutres et chaîne vers `src/emblems/objectives/`. Les quatre planches sont dessinées depuis le 17/09 et le manifeste n'a plus de `null`.
 
 Même gabarit que les bâtiments (`batiments.md`) : sujets **neutres**, une planche pour toutes
 les nations, aucune teinte nationale, fond vert `#4a7060`, 1024², sujet entier et fermé en bas.

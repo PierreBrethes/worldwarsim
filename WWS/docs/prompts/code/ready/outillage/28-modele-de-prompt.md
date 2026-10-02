@@ -1,5 +1,7 @@
 # 28-modele-de-prompt — un prompt se rédige depuis `_modele.md`, et `npm run prompts -- lint` refuse un chemin mort avant qu'il entre dans ready/
 
+> ⚠️ **À reprendre avant de le donner (02/10/2026).** Le chantier [organiser-le-coffre](../../../coffre/organiser-le-coffre.md) a posé un en-tête YAML (`type`, `statut`, `maj`…) sur les notes de `WWS/` et ouvert [INDEX.md](../../../../../INDEX.md) et [decisions.md](../../../../decisions.md). Le titre `# slug — …` n'est donc plus en ligne 1 d'un prompt : `_modele.md` et `prompts lint` doivent sauter le bloc YAML.
+
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 27.
 

@@ -11,7 +11,7 @@
 > (`PRESS_EDITION_HOURS = 3`) ; l'heure du relevé s'imprime en manchette. Industrie et militaire
 > restent **privés** (servis pour soi seulement) : le général se lit, il ne se décompose pas.
 
-Précise [[page-de-presse-et-scores]] (29/08, ajustée le 31/08 — décision 43 : édition toutes
+Précise [page-de-presse-et-scores](page-de-presse-et-scores.md) (29/08, ajustée le 31/08 — décision 43 : édition toutes
 les 2 h, territoire public et exact, industrie et militaire en tranches pour les autres, faits
 d'armes publics et exacts). Ne relitige rien : la victoire reste territoriale (ADR 0020 §9), le
 classement raconte. Ce document fixe **ce qui se compte, avec quels poids, quand, et ce que
@@ -105,5 +105,5 @@ premier du général — les deux peuvent différer, et c'est une histoire à ra
 ## Garde-fous repris
 
 - Le score général des autres ne se décompose jamais.
-- Le classement montre l'adversité, il ne la crée pas ([[objectifs-neutres]], pillage).
+- Le classement montre l'adversité, il ne la crée pas ([objectifs-neutres](objectifs-neutres.md), pillage).
 - Aucune constante nouvelle hors `PRESS_EDITION_HOURS`.

@@ -1,4 +1,27 @@
+---
+type: index
+statut: périmé
+maj: 2026-10-02
+code: []
+decisions: [ADR 0001, ADR 0011, ADR 0020]
+voir: [INDEX.md, README.md, CONTEXT.md, QUESTIONS.md]
+---
+
 # WorldWarSim — contexte global
+
+**En bref.** Les trois règles qui gouvernent tout, les pièges connus et les conventions de la doc
+— ces trois sections font autorité. L'état du code vit dans le `CLAUDE.md` à la racine du dépôt,
+celui de la doc dans [INDEX.md](INDEX.md) ; le reste de cette note date de la mi-septembre.
+
+**En retard** (vérifié le 02/10/2026) :
+- « Le projet » : « Saison de 48 h à 7 jours », « backend Convex visé » — vrai : le format de
+  saison a disparu (ADR 0020 §11), et Convex tourne en production sur le VPS.
+- « Où en est le projet » : « le schéma de jeu ne s'écrit qu'après la correction du dernier 🔴 »,
+  et « Prochaine étape » : « Ensuite seulement : le schéma de données, puis le code » — vrai : le
+  schéma de jeu et le code sont écrits depuis août.
+- « Décisions verrouillées » s'arrête à l'ADR 0011, et « Ce que la simulation a prouvé » repose sur
+  un simulateur mort (embargo, exposition) — vrai : 24 ADR, [index](docs/adr/README.md) ; doctrines
+  abandonnées (ADR 0020 §9).
 
 À lire en premier, par un humain qui reprend le projet comme par un assistant qui y intervient.
 Il donne l'état, ce qui est verrouillé, et où trouver le reste.
@@ -21,20 +44,9 @@ personnel.
 
 ## Où en est le projet
 
-| | État |
-|---|---|
-| Design | **complet et audité**, 11 fiches |
-| Carte 3D | **prototype fonctionnel**, vérifié automatiquement |
-| Équilibrage | **mesuré** sur 2 000 saisons simulées |
-| Direction artistique | **validée en prototype**, typographie à faire |
-| Brief UI | **prêt à transmettre** |
-| Surfaces 4.1 à 4.4 | **implémentées sur Convex**, `src/` à la racine du dépôt ; le fixture de démonstration a été retiré |
-| Flux de mouvement en carte | **implémenté** (décisions 12a et 13a) : widget de troupes, panneau de garnison, visée, rose de mouvement, aperçu d'arc, envoi. La fenêtre Troupes, la modale d'envoi et le widget des trajets sont supprimés. Bloc « Renseignement » non implémenté — question 14 encore ouverte |
-| Surface 4.6 — Production | **implémentée sur Convex** : file de recrutement, annulation remboursée, paliers MK1/MK2 |
-| Sprites d'unités | **France** (10 WebP, 240 Ko) et **États-Unis** (11 WebP, 224 Ko, planche complète) branchés ; Royaume-Uni détouré mais pas branché ; cinq nations à générer — pipeline dans `sprites/README.md` |
-| Schéma de données | hors-saison et état de nation (ADR 0010) ; schéma de jeu écrit jusqu'au combat (`troops`, `recruitments`, `movements`, `outposts`, `engagements`) |
-| Code de jeu serveur | accueil/salon/lancement, ressources, production, **mouvements terrestres et passe de combat** servis par Convex ; naval, aérien, agent, pillage : rien. **Le leurre a été codé puis retiré le 29/08/2026** — révision documentée en tête de la fiche 04 |
-| Condition de victoire | **échafaudage de test** : Domination simplifiée, publique et nominative (`src/domain/victory.ts`, `convex/victory.ts`, étape 5 du plan de progression). La domination est le **mode unique** depuis le 31/08 (ADR 0020 §9) — la fiche 05 est abandonnée, et c'est la **part de carte** qui remplacera ce module ; il ne s'amende pas |
+L'état ne se tient plus ici, il se périmait à chaque session : celui du **code** est dans le
+`CLAUDE.md` à la racine du dépôt, celui de la **doc** dans [INDEX.md](INDEX.md), une ligne et un
+statut par note.
 
 **Le schéma s'écrit par tranches, dans l'ordre où le design se fige.** Le hors-saison et l'état de
 nation sont gravés (fiche 12, ADR 0009-0010) : leur schéma existe. Le schéma de **jeu** — mouvements,
@@ -101,18 +113,7 @@ Détail : [rapport de simulation](docs/technique/rapport-simulation.md).
 
 ## Carte des fichiers
 
-```
-CLAUDE.md          ce fichier — l'état et les verrous
-CONTEXT.md         le glossaire du domaine, et les termes bannis
-QUESTIONS.md       ce qui n'est pas tranché, priorisé 🔴🟠🟡
-README.md          point d'entrée orienté navigation
-
-docs/design/       11 fiches, une par système ; 11 est le brief UI
-docs/adr/          8 décisions structurantes et leur justification
-docs/technique/    architecture, fan-out du brouillard, risques, rapport de simulation
-prototypes/        carte-3d.html — autonome, s'ouvre dans un navigateur
-simulation/        instrument de mesure, `node run.mjs`, sans dépendance
-```
+Elle est dans [INDEX.md](INDEX.md) : une section par domaine, une ligne par note.
 
 ---
 

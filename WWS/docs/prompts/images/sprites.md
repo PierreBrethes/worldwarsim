@@ -1,3 +1,13 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/emblems/units/manifest.ts]
+decisions: []
+voir: [batiments.md]
+---
+**En bref.** Gabarit de prompt d'image des sprites d'unités (3/4, fond #4a7060, 512x512), exemple : soldat français antichar. Planches d'unités faites pour huit nations. Copie qui fait autorité (la copie à la racine de prompts/ part en _to_delete).
+
 Sprite de jeu de stratégie, vue de dessus 3/4 (angle ~60°), orienté vers sud-ouest.
 Sujet : [Voir liste à la fin du prompt] — fidèle à l'image
 Style : sprite prérendu type RTS fin des années 90 (Sudden Strike, Blitzkrieg),

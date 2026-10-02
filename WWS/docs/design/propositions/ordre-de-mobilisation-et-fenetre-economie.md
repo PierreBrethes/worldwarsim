@@ -4,7 +4,7 @@
 (France / USA). Elle prolonge le [dégraissage des surfaces](brief-degraissage-surfaces.md) et
 s'attaque à ce que le dégraissage ne couvrait pas : **l'ouverture**. Les deux trous de code
 qu'elle constate partent dans un prompt à part
-([fondation-hors-chantier.md](../../prompts/code/ready/fondation-hors-chantier.md)) — ils se
+([fondation-hors-chantier.md](../../prompts/code/done/fondation-hors-chantier.md)) — ils se
 corrigent avant de maquetter quoi que ce soit, parce qu'on ne juge pas un feeling par-dessus
 un bug.
 
@@ -143,7 +143,7 @@ déplace que des surfaces.
 
 ## L'ordre
 
-1. **[fondation-hors-chantier.md](../../prompts/code/ready/fondation-hors-chantier.md)** — les
+1. **[fondation-hors-chantier.md](../../prompts/code/done/fondation-hors-chantier.md)** — les
    deux trous (le verrou sur les poses offertes, la fausse alarme de saturation) et la phrase
    de chantier répétée. Puis **rejouer l'ouverture** : c'est le feeling corrigé qu'on juge.
 2. **L'ordre de mobilisation** — maquette, puis code.

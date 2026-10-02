@@ -1,5 +1,7 @@
 # 29-archives — `_to_delete/` et « Claude outputs/ » ont quitté le dépôt, leurs points encore ouverts vivent dans RESTE ou QUESTIONS, un seul HANDOFF.md les remplace, et le format de réponse de Cowork est versé au dépôt
 
+> ⚠️ **À reprendre avant de le donner (02/10/2026).** Le chantier [organiser-le-coffre](../../../coffre/organiser-le-coffre.md) a posé un en-tête YAML (`type`, `statut`, `maj`…) sur les notes de `WWS/` et ouvert [INDEX.md](../../../../../INDEX.md) et [decisions.md](../../../../decisions.md). Le film d'annonce vit dans `Claude outputs/teaser/`, suivi par git, et [actifs.md](../../../../marque/actifs.md) le référence ; la décision plan-4b-2026-10-02 le veut sur le VPS : le déplacer **avant** de supprimer `Claude outputs/`. `_to_delete/` a aussi reçu le 02/10 deux prompts en doublon.
+
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 27.
 **Pierre d'abord :** P4 — coller dans la conversation le `FORMAT-REPONSE.md` du Project Cowork. À

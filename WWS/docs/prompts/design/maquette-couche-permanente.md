@@ -1,4 +1,19 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/routes/-plateau/NextActions.tsx, src/shell/ResourceBand.tsx]
+decisions: []
+voir: [maquette-couche-permanente-2.md]
+---
 # Prompt Claude design — la couche permanente du plateau
+
+**En bref.** Prompt Claude design de la couche permanente du plateau (décision de Pierre, 30/08) : carte « à faire maintenant », bandeau des ressources, plateau en visée. Seule la planche 1 (à faire maintenant) fait encore autorité ; les planches 2 et 3 sont remplacées par la -2.
+
+**En retard** (vérifié le 02/10/2026) :
+- L.31 « entrepôt (les six premières) et dépôt (pétrole, munitions) » — vrai : le stockage est unifié en entrepôt depuis le 09/09, il n'y a plus de famille dépôt.
+- L.54 « deux boutons-tampons « ENVOYER » et « FONDER UN AVANT-POSTE » » dans la popin — vrai : la popin Troupe ne porte aucune action (la carte agit au clic droit), amendement de la -2.
+- L.26 « huit valeurs … stock / plafond » — vrai : le bandeau est à icônes seules, sans plafond (planche 2a de la -2).
 
 Décision de Pierre (30/08) : **une information, une fois, au bon endroit.** Trois couches :
 (1) *toujours visible* = ce qui est rare et borne l'action — ressources, slots, non-lu, horloge ;

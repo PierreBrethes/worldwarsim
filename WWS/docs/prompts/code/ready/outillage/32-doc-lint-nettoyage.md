@@ -1,5 +1,7 @@
 # 32-doc-lint-nettoyage — la doc vivante n'a plus une référence morte, et chaque proposition dit son statut
 
+> ⚠️ **À reprendre avant de le donner (02/10/2026).** Le chantier [organiser-le-coffre](../../../coffre/organiser-le-coffre.md) a posé un en-tête YAML (`type`, `statut`, `maj`…) sur les notes de `WWS/` et ouvert [INDEX.md](../../../../../INDEX.md) et [decisions.md](../../../../decisions.md). Ne pas ajouter de ligne `**Statut :**` sous le H1 des propositions : leur statut est dans l'en-tête (`statut:`), et leur « **En retard** » nomme déjà les passages faux.
+
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 31.
 

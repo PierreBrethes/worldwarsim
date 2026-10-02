@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: validé
+maj: 2026-10-02
+code: [src/emblems/buildings/manifest.ts, WWS/sprites/README.md]
+decisions: [12a-2026-08-18]
+voir: [batiments.md]
+---
 # Prompt d'image — la planche de l'avant-poste
+
+**En bref.** Prompt d'image de la planche unique et neutre de l'avant-poste (tour d'observation, mât nu) et note d'affichage. Prêt à donner : aucune planche produite à ce jour ; variantes de spécialisation volontairement reportées.
 
 À ranger avec `batiments.md` — même gabarit, mêmes règles (fond #4a7060 détouré, base entière
 et fermée, `nettoyer-ombres.py`, contrôle sur fond clair). Une seule planche neutre : comme les

@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: en cours
+maj: 2026-10-02
+code: []
+decisions: []
+voir: [../../marque/marque-et-site.md, ../code/README.md]
+---
 # organiser-le-coffre — WWS devient un coffre Obsidian qu'on lit en un saut
+
+**En bref.** Demande de Pierre (02/10/2026) : faire de `WWS/` un coffre Obsidian lisible en un saut (INDEX, en-têtes, registre des décisions, registre des actifs). Deux temps : inventaire sans écriture, puis application du plan accepté. C'est le chantier en cours.
 
 > **Demande de Pierre (02/10/2026).** `WWS/` est désormais un coffre Obsidian, versionné dans le
 > dépôt (`WWS/.obsidian/` est ignoré par git, c'est voulu). Il doit dire **où trouver tout** :

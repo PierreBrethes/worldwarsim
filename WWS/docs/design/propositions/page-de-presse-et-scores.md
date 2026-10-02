@@ -41,5 +41,5 @@ pied, pondérées par rôle), *faits d'armes* (engagements livrés, compteur cum
 - Le score général des autres ne se décompose jamais, même par recoupement d'écran.
 - Un joueur *réduit* (victoire) l'est déjà publiquement — le classement n'ajoute rien là.
 - Le classement **montre** l'adversité, il ne la crée pas : le moteur est ailleurs
-  ([[objectifs-neutres]], puis pillage/QG 4). Ne pas livrer la vitrine seule en croyant
+  ([objectifs-neutres](objectifs-neutres.md), puis pillage/QG 4). Ne pas livrer la vitrine seule en croyant
   résoudre le manque d'adversité.

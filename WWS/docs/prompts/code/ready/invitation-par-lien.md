@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: validé
+maj: 2026-10-02
+code: [convex/seasons.ts, src/routes/connexion.tsx, src/routes/salon.tsx, src/routes/accueil.tsx]
+decisions: [ADR 0022, ADR 0015, ADR 0016, plan-1b-2026-10-02]
+voir: [../../../marque/marque-et-site.md]
+---
 # invitation-par-lien — un lien, un compte, le salon
+
+**En bref.** Lot A du plan marque et site : lien `/rejoindre/CODE` public, query `seasons.invitation` sans session, `joinRefusalOf` partagé, formulaire de connexion extrait, enchaînement inscription, join, salon. Prêt à donner ; rien n'en est codé.
 
 > **Lot A du plan « marque et site » (Pierre, 02/10/2026)** — voir `WWS/docs/marque/marque-et-site.md`.
 > Il ne dépend pas du nom du jeu, qui est en cours de recherche : rien ici n'écrit le nom ailleurs

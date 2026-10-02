@@ -1,4 +1,18 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/emblems/buildings/manifest.ts, WWS/sprites/README.md, WWS/sprites/optimiser.py]
+decisions: []
+voir: [avant-poste.md, sprites.md, ../code/done/batiments-sur-la-carte.md]
+---
 # Prompts d'image — les quinze bâtiments
+
+**En bref.** Gabarit et sujets des bâtiments neutres, leçons de génération (ombres, texte, cadrage) et chaîne de détourage jusqu'au manifeste. Planches en place. Fait autorité pour le gabarit d'image des bâtiments.
+
+**En retard** (vérifié le 02/10/2026) :
+- L.1, L.8, L.30 « les quinze bâtiments » — vrai : `src/emblems/buildings/` compte 14 planches ; `depot` est un alias de `warehouse` (manifest.ts).
+- L.96 « `WWS/docs/prompts/code/batiments-sur-la-carte.md` » — vrai : le fichier est dans `WWS/docs/prompts/code/done/batiments-sur-la-carte.md`.
 
 Même gabarit que les unités (`sprites.md`), une seule planche pour les huit nations : les
 bâtiments sont **neutres**, et le restent à l'affichage — contrairement aux unités, **aucune

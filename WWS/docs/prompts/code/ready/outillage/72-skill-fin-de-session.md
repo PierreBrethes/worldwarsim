@@ -1,5 +1,7 @@
 # 72-skill-fin-de-session — le rituel de fin de session est chargé dans ce dépôt, ne répond qu'ici, et ses passes mécaniques sont des commandes
 
+> ⚠️ **À reprendre avant de le donner (02/10/2026).** Le chantier [organiser-le-coffre](../../../coffre/organiser-le-coffre.md) a posé un en-tête YAML (`type`, `statut`, `maj`…) sur les notes de `WWS/` et ouvert [INDEX.md](../../../../../INDEX.md) et [decisions.md](../../../../decisions.md). Le SKILL a gagné ce jour-là une passe « Le coffre suit » (en-tête et `maj`, INDEX.md, decisions.md) : la réécriture la garde, et ne réécrit pas le front-matter du SKILL sans ses clés `type`, `statut`, `maj`.
+
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 27, 29, 30, 31 à 33 ; et 24, 25, 71, dont le skill tient ou nomme les fichiers.
 **Pierre d'abord :** rien avant. Après l'acceptation, P9 : publier le skill sur claude.ai pour Cowork, et conditionner

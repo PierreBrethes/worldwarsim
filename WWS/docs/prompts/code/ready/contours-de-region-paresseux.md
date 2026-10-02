@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [convex/regionGeometry.ts, convex/invariants.test.ts, convex/routes.ts, scripts/generate-regions.mjs]
+decisions: []
+voir: [noms-de-modules-convex.md, ../../../../../CONVENTIONS.md]
+---
 # contours-de-region-paresseux — un module Convex ne travaille pas à l'import
+
+**En bref.** Rendre paresseuse la préparation des contours de `regionGeometry.ts` et poser un test d'import par module de `convex/` (le déploiement Convex a 4 s pour tout charger). Exécuté (54678c5), en attente de l'acceptation du rapport pour passer en done/.
 
 Lis `CLAUDE.md`, `CONVENTIONS.md`, `convex/regionGeometry.ts`, `convex/routes.ts` (le modèle :
 `let grid = null` puis `grid ??= buildGrid(world)` — la grille de 1,33 M de cellules ne se

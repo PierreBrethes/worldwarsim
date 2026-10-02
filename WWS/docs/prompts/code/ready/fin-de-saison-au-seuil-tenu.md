@@ -1,4 +1,14 @@
+---
+type: prompt
+statut: proposé
+maj: 2026-10-02
+code: [convex/victory.ts, src/domain/victory.ts, convex/holding.ts, convex/press.ts]
+decisions: [ADR 0020]
+voir: [../../../design/propositions/vision-v1-expeditions.md, ../../../../QUESTIONS.md, ../../../RESTE-A-CODER.md]
+---
 # fin-de-saison-au-seuil-tenu — la part de carte tenue conclut la saison (ADR 0020 §2 et §9)
+
+**En bref.** Domination par part du théâtre tenue 12 h, qui remplacerait l'échafaudage `REDUCTION_FACTOR`. Remis à plus tard (Pierre, 16/09) et à ne pas donner avant d'avoir tranché le sol national dans la part (QUESTIONS.md) ; rien n'en est codé.
 
 > **Remis à plus tard (Pierre, 16/09)** : « quand on aura mieux établi le gameplay ». Garde
 > `DOMINATION_SHARE = 0,5` et `DOMINATION_HELD_HOURS = 12` en `@a-mesurer`, mesure nommée :

@@ -1,9 +1,29 @@
+---
+type: index
+statut: périmé
+maj: 2026-10-02
+code: []
+decisions: [ADR 0001, ADR 0020]
+voir: [INDEX.md, CLAUDE.md, QUESTIONS.md, docs/design/01-vision-et-format.md]
+---
+
 # WorldWarSim
+
+**En bref.** Le pitch du jeu et ce qu'il n'est pas — ces deux sections font autorité. Pour
+trouver une note, [INDEX.md](INDEX.md) ; pour l'état du code, le `CLAUDE.md` à la racine du dépôt.
+Le tableau « Par où commencer » reste un raccourci.
+
+**En retard** (vérifié le 02/10/2026) :
+- « Saison de 48 h à 7 jours » — vrai : le format de saison a disparu (ADR 0020 §11).
+- « Par où commencer » renvoie au [rapport de simulation](docs/technique/rapport-simulation.md)
+  comme mesure vivante — vrai : il décrit le simulateur v1, mort le 06/09.
+- « Stack visée » : « Rien n'est engagé côté backend tant que la simulation n'a pas tourné » —
+  vrai : Convex tourne en production sur le VPS, et le jeu se joue.
 
 Jeu de stratégie web asynchrone sur une carte du monde réel. Saison de 48 h à 7 jours, wipe complet
 à la fin, 2 à 8 joueurs. Chaque joueur prend une nation avec un pouvoir qui casse une règle du jeu.
 
-**État actuel : design complet ; les surfaces 4.1 à 4.4 sont implémentées dans `src/`, et le backend Convex couvre le hors-saison (accueil, salon, lancement) et l'état de nation. Le schéma de jeu (mouvements, combat) n'est pas écrit, délibérément.**
+**État actuel** : celui du code est dans le `CLAUDE.md` à la racine du dépôt, celui de la doc dans [INDEX.md](INDEX.md).
 
 ## Par où commencer
 
@@ -39,15 +59,7 @@ Assumer cette phrase permet de couper 80 % du travail sans rien perdre du plaisi
 
 ## Arborescence
 
-```
-docs/design/      les systèmes de jeu, une fiche par système
-docs/adr/         les décisions structurantes et leur justification
-docs/technique/   architecture, points chauds, registre de risques
-prototypes/       ce qui tourne déjà
-simulation/       le simulateur de saison et ses résultats
-QUESTIONS.md      ce qui n'est pas tranché
-CONTEXT.md        le vocabulaire du domaine
-```
+Elle est dans [INDEX.md](INDEX.md), une section par domaine et une ligne par note.
 
 ## Stack visée
 

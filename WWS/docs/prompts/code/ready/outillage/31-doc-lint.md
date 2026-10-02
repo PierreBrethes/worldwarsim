@@ -1,5 +1,7 @@
 # 31-doc-lint — `npm run doc-lint` rapporte les références mortes de la doc vivante, sans échouer
 
+> ⚠️ **À reprendre avant de le donner (02/10/2026).** Le chantier [organiser-le-coffre](../../../coffre/organiser-le-coffre.md) a posé un en-tête YAML (`type`, `statut`, `maj`…) sur les notes de `WWS/` et ouvert [INDEX.md](../../../../../INDEX.md) et [decisions.md](../../../../decisions.md). Le statut d'une note vit dans son en-tête (`statut:`), pas en ligne 3 sous le H1 : le contrôle lit le YAML, et cherche le H1 après le bloc.
+
 Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`.
 **Suppose :** 22 à 30.
 

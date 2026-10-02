@@ -1,4 +1,18 @@
+---
+type: prompt
+statut: livré
+maj: 2026-10-02
+code: [src/routes/-plateau/TroopBadge.tsx, src/routes/-plateau/NextActions.tsx, src/shell/ResourceBand.tsx]
+decisions: [pierre-2026-08-30-clic-droit-agit]
+voir: [maquette-couche-permanente.md, ../code/done/popin-lit-carte-agit.md, ../code/done/bandeau-des-ressources.md]
+---
 # Prompt Claude design — couche permanente, deuxième passe
+
+**En bref.** Deuxième passe de la couche permanente : bandeau à icônes seules et repliable, popin Troupe sans action, rose des vents sur la troupe. Fait autorité sur la première maquette pour le bandeau et la popin.
+
+**En retard** (vérifié le 02/10/2026) :
+- L.39 « « Voir le pays » » parmi les branches de la rose — vrai : cette branche est retirée depuis le 31/08 ; la rose de la troupe ne propose que fonder et marcher.
+- L.21 « entrepôt (six) et dépôt (deux) » — vrai : le stockage est unifié en entrepôt depuis le 09/09.
 
 Suite de `maquette-couche-permanente.md` (planches 1a-1c validées le 30/08, avec trois
 amendements de Pierre) : le bandeau des ressources passe à **icône seule + stock, sans
