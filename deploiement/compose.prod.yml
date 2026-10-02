@@ -3,8 +3,8 @@
 #   docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d
 #
 # Principe : en prod, AUCUN service ne publie de port sur l'hôte (Docker contourne ufw — un
-# port publié est un port mondial). La seule exception est le dashboard, lié à 127.0.0.1 et
-# joignable uniquement en tunnel SSH.
+# port publié est un port mondial). Le dashboard, lui, passe par Traefik sur son propre
+# sous-domaine, derrière un BasicAuth (voir plus bas).
 #
 # Le Traefik du VPS (relevé le 23/08) tourne en `network_mode: host` : il n'appartient à
 # aucun réseau Docker, il n'y a donc PAS de réseau partagé à déclarer. Depuis l'hôte, il
