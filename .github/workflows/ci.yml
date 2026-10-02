@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Le jeton du workflow ne lit que le dépôt : rien ici n'a besoin d'écrire dessus, et une action
+# tierce compromise ne doit pas pouvoir le faire. Les actions sont épinglées par SHA (le tag
+# peut être déplacé), le commentaire dit la version lue.
+permissions:
+  contents: read
+
 # Un déploiement à la fois, jamais annulé en vol : un convex deploy interrompu à moitié
 # vaudrait pire qu'un déploiement en retard.
 concurrency:
@@ -14,15 +20,21 @@ concurrency:
 jobs:
   verifications:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
 
       - run: npm ci
+
+      # Ce qui part en production, et rien d'autre : l'outillage de développement a ses propres
+      # avis, qui ne doivent pas bloquer un déploiement.
+      - name: Audit des dépendances de production
+        run: npm audit --omit=dev --audit-level=high
 
       # Une seule liste de vérifications, partagée avec le hook pre-push (.githooks/pre-push) :
       # types, lint, format, tests, build, miroir de simulation. Elles ne peuvent pas diverger.
@@ -40,10 +52,11 @@ jobs:
   deployer:
     needs: verifications
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -57,7 +70,7 @@ jobs:
           CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
 
       - name: Reconstruire le front sur le VPS
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.VPS_HOTE }}
           username: ${{ secrets.VPS_UTILISATEUR }}
@@ -65,5 +78,11 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.VPS_CHEMIN }}
-            git pull --ff-only
+            # Le commit qui a passé les vérifications, pas ce que `main` est devenu depuis : un
+            # push plus récent aura son propre déploiement.
+            git fetch origin main
+            git merge --ff-only ${{ github.sha }}
             docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d --build front
+
+      - name: Vérifier que le front répond
+        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null https://wws.pierrebrethes.cloud/
