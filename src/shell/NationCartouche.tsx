@@ -1,7 +1,7 @@
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { FlagWatermark } from '@/emblems/Flag';
-import { withWindow, type BoardSearch } from '@/routes/plateau';
+import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 
 /**
  * The flag touches the surface's edge and the text starts where the watermark dies out.

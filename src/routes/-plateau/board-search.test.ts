@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withWindow, withoutWindow, toggleWindow, windowOpen } from '../plateau';
+import { withWindow, withoutWindow, toggleWindow, windowOpen } from './board-search';
 
 /**
  * The URL is the board's whole state, so it is where the guarantees live: a shared link

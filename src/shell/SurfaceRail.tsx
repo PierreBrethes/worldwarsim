@@ -4,8 +4,12 @@ import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
 import { CATEGORIES, type IndicatorCategory } from '@/domain/indicators';
 import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
-import type { BoardWindow, BoardSearch } from '@/routes/plateau';
-import { toggleWindow, windowOpen } from '@/routes/plateau';
+import {
+  toggleWindow,
+  windowOpen,
+  type BoardSearch,
+  type BoardWindow,
+} from '@/routes/-plateau/board-search';
 import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { Glyph } from './Glyph';
 import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';

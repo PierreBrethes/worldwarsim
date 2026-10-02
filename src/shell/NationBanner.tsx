@@ -6,7 +6,7 @@ import { currentMinutes } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
 import { isOutpostWork } from '@/domain/ids';
 import { BuildingPlate } from '@/emblems/Plate';
-import { withWindow, type BoardSearch } from '@/routes/plateau';
+import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Wordmark } from './Masthead';
 import { NationCartouche } from './NationCartouche';
 import { Stamp } from './Stamp';
