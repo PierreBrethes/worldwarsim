@@ -50,7 +50,7 @@ import {
 import { surveyFromPoint } from '../surveys';
 import { seatsOf } from '../seasons';
 import { pacedMinutes } from './orders';
-import { creditToStorage } from '../resources';
+import { creditToStorage, settle } from '../resources';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
 /**
@@ -362,6 +362,9 @@ export async function standAt(
   const marching = await troopsCarriedBy(ctx, movement);
   if (!owner || marching.length === 0) return 0;
 
+  /** What the troops ate until now, they ate where they stood: settle before the address
+   *  changes the upkeep, or the new rate is charged backwards over the whole march. */
+  await settle(ctx, movement.playerId, Date.now());
   for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
   await stationMovementLoot(ctx, movement, address);
   return marching.length;
@@ -429,6 +432,9 @@ async function deactivate(
  *  (question 21, 18/08) — so the barracks is looked up fresh. Razed since, the troops still come
  *  home rather than die for it (rule 3). */
 export async function recallAt(ctx: MutationCtx, movement: Doc<'movements'>): Promise<void> {
+  /** What the troops ate until now, they ate where they stood: settle before the address
+   *  changes the upkeep, or the new rate is charged backwards over the whole march. */
+  await settle(ctx, movement.playerId, Date.now());
   const buildings =
     movement.target.kind === 'region' ? await playerBuildings(ctx, movement.playerId) : [];
   const barracks =
@@ -449,6 +455,9 @@ export async function attachHome(
   movement: Doc<'movements'>,
 ): Promise<TroopAddress> {
   const home = await homeOf(ctx, movement);
+  /** What the troops ate until now, they ate where they stood: settle before the address
+   *  changes the upkeep, or the new rate is charged backwards over the whole march. */
+  await settle(ctx, movement.playerId, Date.now());
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
     if (troop) await ctx.db.patch(troopId, { stationedAt: home });

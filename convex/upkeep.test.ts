@@ -221,6 +221,44 @@ describe('where a troop stands decides what it eats', () => {
     expect(abroad.foodPerHour / home.foodPerHour).toBe(UPKEEP_UNSUPPLIED_MULTIPLIER);
   });
 
+  /**
+   * **A column eats the home rate on the road, and the far rate only from its arrival.**
+   * `standAt` moved the troops to their new address without settling first, so the next reading
+   * charged the whole march at the raised rate of the place they had only just reached.
+   */
+  it('charges the raised rate from the arrival, not over the whole march', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await disbandTheGift(t, seat);
+    const troop = await form(t, seat, 'infantry', asPoint(homePoint()));
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const row = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect()
+      ).find((candidate) => candidate.key === 'food')!;
+      await ctx.db.patch(row._id, { stock: 1_000, updatedAt: Date.now() });
+    });
+
+    const sent = await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(homePoint()) },
+      troopIds: [troop],
+      point: asPoint(RIYADH),
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000 + 1);
+    await t.finishInProgressScheduledFunctions();
+
+    const hours = (sent.minutes * 60_000 + 1) / 3_600_000;
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.resources.food.stock).toBeCloseTo(
+      1_000 - hours * FOOD_UPKEEP_PER_TROOP_PER_HOUR,
+      0,
+    );
+  });
+
   /** **The outpost feeds** (ADR 0019 §4): it does not project force, it supplies it. */
   it('feeds a column standing inside the reach of one of its own points', async () => {
     const t = boot();
