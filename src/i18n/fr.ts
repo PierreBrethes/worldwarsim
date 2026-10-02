@@ -574,10 +574,10 @@ export const fr = {
    * à toutes les tailles et prendre l'encre du support sans qu'on repasse par un fichier.
    */
   masthead: {
-    block: 'WW',
-    tail: 'SIM',
+    article: 'la',
+    word: 'Manchette',
     dateline: 'le monde en jeu — édition de guerre',
-    title: 'WorldWarSim',
+    title: 'La Manchette',
   },
 
   auth: {
@@ -603,6 +603,13 @@ export const fr = {
       'la place reste au compte — on ferme un appareil, on ne rend pas son siège. Reconnectez-vous et la partie est là.',
     noBackend:
       'Aucun backend configuré (VITE_CONVEX_URL absent). Lancez la pile locale avec docker compose up — voir deploiement/README.md.',
+  },
+
+  /** Le film de 30 s, à la demande : un lien discret sur les deux pages d'entrée. */
+  film: {
+    open: 'voir le film d’annonce — 30 s',
+    title: 'le film d’annonce',
+    unavailable: 'Le film n’est pas disponible pour l’instant.',
   },
 
   /** **La feuille qu'ouvre un lien d'invitation** (`/rejoindre/CODE`). Les refus sont ceux du

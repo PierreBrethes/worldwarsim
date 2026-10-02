@@ -20,6 +20,9 @@ import { InvitationPage } from './rejoindre.$code';
 beforeEach(() => forgetSession());
 afterEach(cleanup);
 
+/** jsdom n'évalue aucune requête média : la feuille d'entrée en lit une pour choisir son fond. */
+vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+
 const OPEN = {
   refusal: null,
   founder: 'Pierre',

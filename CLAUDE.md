@@ -1,8 +1,9 @@
-# WorldWarSim — codebase
+# La Manchette — codebase (nom de code worldwarsim)
 
 Jeu de stratégie web asynchrone, carte du monde réel, esthétique presse illustrée 1940.
 **La documentation, les décisions et le simulateur vivent dans `WWS/`** — ce dépôt ne
-contient que le code.
+contient que le code. **Le nom affiché du jeu vit dans `fr.masthead` et nulle part ailleurs** ;
+`worldwarsim` reste le nom de code (dépôt, paquet, Convex, domaine, clés de stockage).
 
 ```bash
 npm install

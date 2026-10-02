@@ -196,6 +196,27 @@ wws-compose --profile prod up -d --build front
   **401** sans identifiants et **200** avec — un 200 tout court voudrait dire que le middleware
   BasicAuth n'est pas attaché au routeur.
 
+## Médias
+
+Les films ne sont pas dans le dépôt (plan-4b-2026-10-02) : le conteneur `front` monte
+`/opt/worldwarsim-media` (ou `WWS_MEDIA_DIR` dans `.env`) en lecture seule sur `/media/`. Le
+dossier se crée à la main **avant** le premier `up` — sinon Docker le crée vide, au nom de root.
+Trois fichiers, que `/connexion` et `/rejoindre/CODE` chargent (`src/shell/media.ts`) :
+
+- `la-manchette-boucle-8s.mp4` et `la-manchette-boucle-poster.jpg` — le fond des pages d'entrée ;
+- `la-manchette-film-30s-leger.mp4` — le film qu'ouvre le lien « voir le film d'annonce ».
+
+```bash
+scp "Claude outputs/film/la-manchette-boucle-8s.mp4" \
+    "Claude outputs/film/la-manchette-boucle-poster.jpg" \
+    "Claude outputs/film/la-manchette-film-30s-leger.mp4" \
+    <vps>:/opt/worldwarsim-media/
+```
+
+Absents, rien ne casse : le fond retombe sur la table de carte et la fenêtre du film dit qu'il
+n'est pas disponible. En local, les déposer dans `public/media/` (ignoré par git). La création du
+dossier sur le VPS : [`WWS/docs/prompts/vps/dossier-media.md`](../WWS/docs/prompts/vps/dossier-media.md).
+
 ## CI/CD (GitHub Actions)
 
 Un seul workflow, `.github/workflows/ci.yml` : le job `verifications` (la même liste

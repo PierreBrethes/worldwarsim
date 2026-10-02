@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import boardBackdrop from './board-backdrop.jpg';
+import { LOOP_POSTER_URL, LOOP_URL, filmBackdrop, type FilmBackdrop } from './media';
 
 /**
  * The off-season is a newspaper laid on the map table: home and lobby are two pages of the
@@ -45,15 +46,18 @@ const ANIMATION: Readonly<Record<'exit' | 'entry', string>> = {
 export function Newspaper({
   width,
   turning = null,
+  backdrop = 'map',
   children,
 }: {
   width: number;
   turning?: Turning;
+  /** `'film'` : les deux pages qu'un invité voit en arrivant, la connexion et l'invitation. */
+  backdrop?: 'map' | 'film';
   children: ReactNode;
 }) {
   return (
     <div className="relative h-full overflow-hidden bg-[var(--desk)]">
-      <MapTable />
+      {backdrop === 'film' ? <FilmTable /> : <MapTable />}
       {/* `m-auto` on the sheet rather than `items-center` on the scroller: auto margins centre
           what fits and give up the moment it does not, where centred alignment would keep
           eating the top of a page taller than the window and put it out of reach. */}
@@ -100,17 +104,89 @@ export function Newspaper({
 function MapTable() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        className="absolute -inset-[2%]"
-        style={{
-          backgroundImage: `url(${boardBackdrop})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '190%',
-          backgroundPosition: '46% 62%',
-          filter: 'grayscale(.35) sepia(.3) blur(4px) brightness(.72) contrast(1.06)',
-          opacity: 0.72,
-        }}
-      />
+      <MapImage />
+      <TableShade />
+    </div>
+  );
+}
+
+/**
+ * **La table de carte reste dessous, et c'est le repli** : le film se pose par-dessus en fondu
+ * quand il joue vraiment, et reste invisible s'il échoue — sans médias, la page est la table de
+ * toujours. Les ombres de la table passent sur le film, mais il n'est que peu flouté : il doit
+ * se reconnaître dans les bandes latérales, la feuille rester lisible.
+ */
+function FilmTable() {
+  const [mode] = useState<FilmBackdrop>(() =>
+    filmBackdrop({
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      // Absent sur Safari et Firefox : absent vaut « pas d'économie demandée ».
+      saveData:
+        (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData ===
+        true,
+      width: window.innerWidth,
+    }),
+  );
+  const [shown, setShown] = useState(false);
+
+  const layer = 'absolute inset-0 h-full w-full object-cover transition-opacity duration-[1200ms]';
+  const style = { opacity: shown ? 1 : 0, filter: FILM_FILTER };
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <MapImage />
+      {mode === 'video' && (
+        <video
+          className={layer}
+          style={style}
+          src={LOOP_URL}
+          poster={LOOP_POSTER_URL}
+          muted
+          loop
+          playsInline
+          autoPlay
+          disablePictureInPicture
+          aria-hidden
+          tabIndex={-1}
+          onPlaying={() => setShown(true)}
+          onError={() => setShown(false)}
+        />
+      )}
+      {mode === 'poster' && (
+        <img
+          className={layer}
+          style={style}
+          src={LOOP_POSTER_URL}
+          alt=""
+          onLoad={() => setShown(true)}
+          onError={() => setShown(false)}
+        />
+      )}
+      <TableShade />
+    </div>
+  );
+}
+
+const FILM_FILTER = 'grayscale(.2) sepia(.2) blur(1.5px) brightness(.65) contrast(1.04)';
+
+function MapImage() {
+  return (
+    <div
+      className="absolute -inset-[2%]"
+      style={{
+        backgroundImage: `url(${boardBackdrop})`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '190%',
+        backgroundPosition: '46% 62%',
+        filter: 'grayscale(.35) sepia(.3) blur(4px) brightness(.72) contrast(1.06)',
+        opacity: 0.72,
+      }}
+    />
+  );
+}
+
+function TableShade() {
+  return (
+    <>
       <div
         className="absolute inset-0"
         style={{
@@ -135,7 +211,7 @@ function MapTable() {
       {/* the vignette bites into the side bands, the only ones where the map shows:
           beyond ~130px of reach it extinguishes them entirely */}
       <div className="absolute inset-0 shadow-[inset_0_0_110px_rgba(8,6,3,.72)]" />
-    </div>
+    </>
   );
 }
 

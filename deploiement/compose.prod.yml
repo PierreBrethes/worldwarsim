@@ -61,6 +61,10 @@ services:
 
   front:
     ports: !reset []
+    # Les films vivent hors du dépôt (plan-4b-2026-10-02), dans un dossier créé à la main sur le
+    # VPS. Il doit exister avant le premier `up` : sinon Docker le crée vide, au nom de root.
+    volumes:
+      - ${WWS_MEDIA_DIR:-/opt/worldwarsim-media}:/usr/share/nginx/html/media:ro
     labels:
       - traefik.enable=true
       - traefik.docker.network=worldwarsim_default

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, clockLabel } from '@/i18n/fr';
 import { AccountForm } from '@/shell/AccountForm';
+import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Wordmark } from '@/shell/Masthead';
 import {
   Newspaper,
@@ -42,7 +43,7 @@ function NoBackend() {
 /** Une feuille réduite, comme le salon : la manchette en une ligne, puis ce que la page a à dire. */
 function Sheet({ turning, children }: { turning: Turning; children: ReactNode }) {
   return (
-    <Newspaper width={WIDTH} turning={turning}>
+    <Newspaper width={WIDTH} turning={turning} backdrop="film">
       <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
         <div className="flex items-center gap-x-[14px] px-[30px] pt-3 pb-[10px]">
           <Wordmark size={17} />
@@ -148,6 +149,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
         {' — '}
         {fr.invitation.placesLeft(Math.max(0, invitation.maximum - invitation.players))}
       </p>
+      <FilmTrailer className="mt-2 mb-[14px]" />
     </div>
   );
 

@@ -17,3 +17,9 @@ WWS/simulation/opening/rapport.html
 
 # Le coffre Obsidian de ce poste : réglages et état d'écran, pas de la documentation.
 WWS/.obsidian/
+
+# Les films vivent sur le VPS (plan-4b-2026-10-02), pas dans git.
+Claude outputs/film/
+
+# Les films déposés pour tester en local : ils vivent sur le VPS, jamais dans git.
+public/media/

@@ -5,6 +5,7 @@ import { Masthead } from '@/shell/Masthead';
 import { Newspaper, ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
+import { FilmTrailer } from '@/shell/FilmTrailer';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
 
@@ -35,7 +36,7 @@ function Sheet({
   children: ReactNode;
 }) {
   return (
-    <Newspaper width={WIDTH} turning={turning}>
+    <Newspaper width={WIDTH} turning={turning} backdrop="film">
       <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
         <div className="px-[30px] pt-[18px] pb-[16px] text-center">
           <Masthead date={fr.auth.dateline} />
@@ -64,6 +65,9 @@ export function ConnectedSignIn() {
         onModeChange={setRegistering}
         onSignedIn={() => turn(() => void navigate({ to: '/accueil' }))}
       />
+      <div className="mx-[30px] pb-5 text-center">
+        <FilmTrailer />
+      </div>
     </Sheet>
   );
 }

@@ -1,56 +1,56 @@
 import { fr } from '@/i18n/fr';
 
 /**
- * **La manchette du site, en CSS et jamais en image.** Un logo au trait vit à toutes les tailles,
- * prend l'encre de son support et se corrige en une ligne ; un PNG se re-exporte, se floute au
- * zoom et arrive après le reste de la page. Le pavé rouge et l'inclinaison sont **le geste du
- * tampon** (`shell/Stamp.tsx`) : le titre du journal est lui aussi une chose qu'on a pressée sur
- * du papier, et les deux doivent se reconnaître.
+ * **Un titre de quotidien, en CSS et jamais en image.** Le jeu s'appelle La Manchette, et une
+ * manchette est le titre d'un journal avec sa bande : l'article en italique, le nom en didone,
+ * un filet rouge dessous. Un logo au trait vit à toutes les tailles, prend l'encre de son
+ * support et se corrige en une ligne ; un PNG se re-exporte, se floute au zoom et arrive après
+ * le reste de la page.
  *
- * **Aucune fonte ajoutée** : « WW » prend la condensée déjà chargée (Archivo Narrow, celle du
- * corps de texte), « SIM » la didone du display (Bodoni Moda). Charger un Oswald pour deux
- * lettres coûterait une requête bloquante à l'ouverture, pour une graisse que la condensée du
- * projet donne déjà.
+ * **Le filet est le seul aplat rouge de la charte**, et il garde `--critical` sur le papier
+ * comme sur le bureau sombre ; tout le reste prend `currentColor`. Sous 9 px l'article devient
+ * illisible : le plancher compte plus que la proportion à petite taille. **Aucune fonte
+ * ajoutée** : Bodoni Moda est déjà celle du display.
  */
 export function Wordmark({ size = 34 }: { size?: number }) {
   return (
     <span
-      className="inline-flex items-center whitespace-nowrap"
-      style={{ gap: Math.round(size * 0.16) }}
+      className="inline-flex flex-col items-stretch whitespace-nowrap"
       aria-label={fr.masthead.title}
       role="img"
     >
       <span
         aria-hidden
+        className="inline-flex items-baseline"
         style={{
-          /** Le pavé rouge : les lettres sont en papier **sur** l'encre critique, jamais l'inverse
-           *  — c'est le seul aplat de la charte, et il doit tenir sur le papier comme sur le
-           *  bureau sombre. Coins droits, comme un bloc de plomb. */
-          background: 'var(--critical)',
-          color: 'var(--paper)',
-          fontFamily: 'var(--font-body)',
-          fontWeight: 700,
-          fontSize: size,
+          gap: size * 0.12,
+          fontFamily: 'var(--font-display)',
           lineHeight: 0.98,
-          letterSpacing: '-.01em',
-          padding: `${Math.round(size * 0.14)}px ${Math.round(size * 0.16)}px ${Math.round(size * 0.1)}px`,
-          transform: 'rotate(-2deg)',
         }}
       >
-        {fr.masthead.block}
+        <span style={{ fontStyle: 'italic', fontWeight: 500, fontSize: Math.max(9, size * 0.5) }}>
+          {fr.masthead.article}
+        </span>
+        <span
+          style={{
+            fontWeight: 800,
+            fontSize: size,
+            letterSpacing: '.01em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {fr.masthead.word}
+        </span>
       </span>
       <span
         aria-hidden
         style={{
-          fontFamily: 'var(--font-display)',
-          fontWeight: 800,
-          fontSize: size,
-          lineHeight: 0.98,
-          letterSpacing: '.01em',
+          marginTop: size * 0.06,
+          height: Math.max(2, size * 0.09),
+          background: 'var(--critical)',
+          transform: 'rotate(-0.6deg)',
         }}
-      >
-        {fr.masthead.tail}
-      </span>
+      />
     </span>
   );
 }
@@ -58,7 +58,7 @@ export function Wordmark({ size = 34 }: { size?: number }) {
 /**
  * La manchette complète, telle qu'un quotidien la porte : filet double au-dessus, le titre, filet
  * simple, puis la ligne de date. Elle prend l'encre du support — sur le papier de l'accueil, le
- * pavé rouge est la seule couleur de la page, et c'est ce qui en fait un repère.
+ * filet rouge est la seule couleur de la page, et c'est ce qui en fait un repère.
  */
 export function Masthead({ date }: { date: string }) {
   return (

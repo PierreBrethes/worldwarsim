@@ -1,8 +1,8 @@
 ---
 type: marque
 statut: en cours
-maj: 2026-10-02
-code: [src/emblems/units/manifest.ts, src/emblems/buildings/manifest.ts, src/emblems/objectives/manifest.ts, src/emblems/resources/manifest.ts, src/emblems/Flag.tsx]
+maj: 2026-10-03
+code: [src/shell/media.ts, src/emblems/units/manifest.ts, src/emblems/buildings/manifest.ts, src/emblems/objectives/manifest.ts, src/emblems/resources/manifest.ts, src/emblems/Flag.tsx]
 decisions: []
 voir: [marque-et-site.md, ../../sprites/README.md, ../prompts/images/sprites.md, ../design/10-direction-artistique.md]
 ---
@@ -95,12 +95,15 @@ Aucun fichier local et aucun `@font-face` : `index.html` charge Google Fonts (Ar
 
 | | |
 |---|---|
-| Où | `Claude outputs/teaser/` à la racine du dépôt |
-| Combien, format | `worldwarsim-teaser-16x9.mp4` 19,1 Mo, `-leger.mp4` 7,6 Mo, `-affiche.png` 3,0 Mo, `-source.zip` 1,3 Mo ; 15 s, 1920 × 1080, 25 i/s |
-| Qui charge | rien : aucune page ne le sert encore |
-| Refaire | le zip source contient la scène HTML pilotée par le temps, le rendu Playwright, `sfx.py` et son README. Description : [marque-et-site.md](marque-et-site.md) |
+| Où | `Claude outputs/film/` à la racine du dépôt, ignoré par git (plan-4b-2026-10-02 : les vidéos vivent sur le VPS) |
+| Combien, format | `la-manchette-film-30s.mp4` 29 Mo et `-leger.mp4` 11 Mo (30 s, 1920 × 1080, 25 i/s, son AAC) ; `la-manchette-boucle-8s.mp4` 3 Mo (1600 × 900, muette) et `la-manchette-boucle-poster.jpg` 150 Ko ; `la-manchette-affiche.png` ; `la-manchette-film-source.zip` 2 Mo |
+| Qui charge | `src/shell/media.ts` (les trois URL `/media/…`) : la boucle et son image d'attente en fond de `/connexion` et `/rejoindre/CODE` (`Newspaper`, `backdrop="film"`, choix par `filmBackdrop`), le film léger dans la fenêtre de `src/shell/FilmTrailer.tsx`. Servis par le conteneur `front` depuis `/opt/worldwarsim-media` (VPS), `public/media/` en local, jamais dans git. Le maître de 29 Mo, l'affiche et le zip ne sont chargés par rien |
+| Refaire | le zip source : scène HTML pilotée par le temps, rendu Playwright, `sfx.py`, `loop.py`, README (`./build.sh`, environ 14 minutes). Description : [marque-et-site.md](marque-et-site.md) |
 
-Ce qui manque : le film de 30 s avec son et la boucle muette de 8 s. Le film vit dans `Claude outputs/teaser/` et il est suivi par git (commit 0afc2ea, poussé), à l'inverse de la décision plan-4b-2026-10-02 qui le veut sur le VPS, hors du dépôt ; et le prompt outillage 29 prévoit de supprimer `Claude outputs/`, donc il faut choisir son lieu avant.
+Ce qui manque : la page d'accueil publique (plan-5c) ; la création du dossier média sur le VPS suit [dossier-media](../prompts/vps/dossier-media.md). Le film de 15 s
+(`Claude outputs/teaser/`, WW SIM) est périmé ; il est encore suivi par git (commit 0afc2ea), et
+le prompt outillage 29 prévoit de supprimer `Claude outputs/` : les sources du film n'ont pas de
+domicile durable.
 
 ## Maquettes
 

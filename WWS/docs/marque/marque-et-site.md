@@ -1,9 +1,9 @@
 ---
 type: marque
 statut: en cours
-maj: 2026-10-02
-code: [src/routes/connexion.tsx, src/routes/accueil.tsx, src/routes/salon.tsx, src/shell/Masthead.tsx, src/styles/tokens.css]
-decisions: [marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
+maj: 2026-10-03
+code: [src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/shell/Newspaper.tsx, src/shell/media.ts, src/shell/FilmTrailer.tsx, deploiement/nginx.conf, deploiement/compose.prod.yml, src/routes/accueil.tsx, src/routes/salon.tsx, src/shell/Masthead.tsx, src/styles/tokens.css]
+decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
 voir: [../design/10-direction-artistique.md, ../prompts/code/ready/invitation-par-lien.md]
 ---
 
@@ -11,7 +11,8 @@ voir: [../design/10-direction-artistique.md, ../prompts/code/ready/invitation-pa
 
 **En bref.** Le jeu reste entre amis pour l'instant, mais il se construit comme une marque qui
 pourrait s'ouvrir. Quatre lots : le parcours d'invitation, le nom, le film et la page d'accueil
-publique, les notifications. Le film d'annonce v1 (15 s) existe.
+publique, les notifications. Le film de 30 s et la boucle muette de 8 s existent (02/10/2026) ;
+reste la page d'accueil.
 
 ## Décisions
 
@@ -24,15 +25,18 @@ publique, les notifications. Le film d'annonce v1 (15 s) existe.
 | plan-2a-2026-10-02 | 02/10/2026 | Le nom sera français (le jeu est francophone, ADR 0016). |
 | plan-3b-2026-10-02 | 02/10/2026 | Deux films : 30 s avec son, et une boucle muette de 8 s pour le haut de la page d'accueil. |
 | plan-4b-2026-10-02 | 02/10/2026 | Les vidéos vivent dans un dossier média du VPS servi par Nginx, hors du dépôt. |
+| marque-nom-2026-10-02 | 02/10/2026 | Le jeu s'appelle **La Manchette** (« ça sonne comme une gazette »). La variante de logo reste à choisir ; le nom de code `worldwarsim` (dépôt, Convex, domaine actuel) ne change pas. |
+| marque-logo-2026-10-02 | 02/10/2026 | Logo : variante B de `planche-manchette.png` — « la » en italique, MANCHETTE en didone, filet rouge dessous ; icône : le M de Bodoni Moda sur le pavé rouge. Le renommage passe avant le film et la page d'accueil. |
+| plan-5c-2026-10-02 | 02/10/2026 | La page d'accueil publique attend l'ouverture au public (marque-1c) : les amis arrivent par le lien d'invitation. D'abord la boucle derrière `/connexion` et `/rejoindre` avec le dossier média du VPS, puis le lot D (installation sur téléphone, notifications). |
 
 ## Les lots
 
 | Lot | Contenu | Statut | Où |
 |---|---|---|---|
-| A | Lien d'invitation `/rejoindre/CODE`, compte créé sur la page, arrivée au salon | prompt prêt | [invitation-par-lien](../prompts/code/ready/invitation-par-lien.md) |
-| B | Nom : pistes, vérifications (jeux existants, INPI, domaines), planche de logos | en cours | ci-dessous |
-| C | Film 30 s + boucle 8 s, puis maquette de la page d'accueil publique, puis intégration | attend B | — |
-| D | Installation sur téléphone (manifeste) et notifications push | attend A | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
+| A | Lien d'invitation `/rejoindre/CODE`, compte créé sur la page, arrivée au salon | livré le 02/10/2026 (route `/rejoindre/$code`, `seasons.invitation`, `joinRefusalOf`) | [invitation-par-lien](../prompts/code/ready/invitation-par-lien.md) |
+| B | Nom : pistes, vérifications (jeux existants, INPI, domaines), planche de logos | nom choisi (La Manchette), logo variante B tranché | ci-dessous |
+| C | Film 30 s + boucle 8 s ; la boucle derrière `/connexion` et `/rejoindre` ; la page d'accueil publique à l'ouverture | film et boucle livrés le 02/10/2026 ; pages d'entrée livrées le 03/10/2026 (boucle derrière la feuille, lien vers le film, `/media/` servi par `front`) ; page d'accueil reportée (plan-5c) | [dossier-media](../prompts/vps/dossier-media.md), [film-sur-les-pages-d-entree](../prompts/code/ready/film-sur-les-pages-d-entree.md) |
+| D | Installation sur téléphone (manifeste) et notifications push | suivant, après les pages d'entrée (A est livré) | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
 
 **Ce qui manque aujourd'hui** (constaté le 02/10) : `/` renvoie à `/accueil` puis à `/connexion`
 — aucune page ne présente le jeu avant l'inscription ; `index.html` n'a ni description ni image
@@ -53,8 +57,53 @@ dans la portée d'un avant-poste, passe de résolution, dépêche, carton final.
 - Choix tranchés pour v1 : DA des tokens (fin 40, pas les codes années 50), unités en
   similigravure découpée, carte reconstruite (pas de capture), 16:9, pas de musique, URL en pied.
 - Le tic-tac est celui du télégraphe du jeu ; le relevé passe en morse (R-E-L-E-V-E).
-- `Claude outputs/` n'est pas ignoré par git : ne pas y laisser les vidéos au moment d'un commit
-  (décision plan-4b-2026-10-02 : elles iront sur le VPS).
+- Les vidéos ont été commitées et poussées dans `0afc2ea` (31 Mo), à l'inverse de
+  plan-4b-2026-10-02 (elles doivent vivre sur le VPS). Les retirer de l'historique est une
+  réécriture : décision de Pierre.
+
+## Le film de 30 s et la boucle muette (lot C)
+
+Livrés le 02/10/2026, après le renommage. Même scène que la v1, retendue, avec le titre
+**la Manchette** (variante B) et deux plans nouveaux qui disent « entre amis, sur une semaine ».
+
+| Temps | Plan |
+|---|---|
+| 0 – 3 s | Manchette : les neuf lettres tombent, « la » en italique, le filet rouge frappe comme un tampon, les brèves |
+| 3 – 8 s | Planche I : la carte s'imprime en deux passes, les huit nations s'encrent, « 2 à 8 joueurs — entre amis » |
+| 8 – 14 s | Plateau : quartier général, aérodrome, port ; trois mouvements et une fiche par matériel — char lourd B1 bis, Dewoitine D.520, Le Fantasque (`src/emblems/units/equipment.ts`) |
+| 14 – 18,4 s | Brouillard : portée de l'avant-poste, colonne relevée à 14:05, morse |
+| 18,4 – 21,6 s | Passe de résolution, dépêche « Engagement en Lorraine » |
+| 21,6 – 23,9 s | Presse : l'édition de 15:00 s'imprime (colonnes de `PressWindow`), « 2 rang », la France première aux faits d'armes |
+| 23,9 – 26,8 s | Télégraphe : deux messages arrivent au tic-tac, le troisième s'écrit dans « télégraphier… » et part en silence (le jeu ne sonne qu'à l'arrivée des messages des autres) |
+| 26,8 – 30 s | Carton : la Manchette, le principe directeur, le bureau des engagements, la frise des huit chasseurs |
+
+Les cinq titres du cartouche : « Projeter de la force. », « L'information est chère. », « Tout
+engagement est irréversible. », « La presse tient les comptes. », « Entre amis, sur sept jours. »
+
+**La boucle** : les images de 3,5 à 12,3 s rendues sans aucun texte (`?loop`), la planche qui
+s'imprime puis la carte qui bascule ; les 0,8 premières secondes sont fondues avec les 0,8
+dernières, la fin enchaîne sur le début. 1600 × 900, muette, H.264 seul (en VP9 elle pesait plus
+lourd), avec son image d'attente en JPEG.
+
+- Fichiers : `Claude outputs/film/` à la racine du dépôt, **ignoré par git** (ligne ajoutée au
+  `.gitignore`, plan-4b-2026-10-02) — `la-manchette-film-30s.mp4` (29 Mo, maître),
+  `-leger.mp4` (11 Mo, messageries), `la-manchette-boucle-8s.mp4` (3 Mo),
+  `la-manchette-boucle-poster.jpg` (150 Ko), `la-manchette-affiche.png`,
+  `la-manchette-film-source.zip` (2 Mo : `film.html`, `film.js`, `sfx.py`, `loop.py`, README).
+- Le domaine affiché reste `wws.pierrebrethes.cloud` : le film se refait en une ligne le jour où
+  le domaine change.
+- Le film de 15 s est périmé (il montre WW SIM).
+
+**Sur les pages d'entrée** (03/10/2026). `/connexion` et `/rejoindre/CODE` passent
+`backdrop="film"` à `Newspaper` : la table de carte reste dessous — c'est le repli — et la boucle
+s'y pose en fondu à l'événement `playing`, peu floutée (1,5 px, luminosité 0,65) sous les
+ombres de la table. Une seule fonction pure décide (`filmBackdrop`, `src/shell/media.ts`) :
+économie de données ou largeur sous 900 px → la carte, sans aucune requête ; mouvement réduit →
+l'image d'attente seule ; sinon la vidéo. Un lien « voir le film d'annonce — 30 s » ouvre une
+`<dialog>` native sur le film léger (`FilmTrailer.tsx`), monté seulement à l'ouverture ; sans le
+fichier, la fenêtre dit qu'il n'est pas disponible. Les trois fichiers sont servis par `front`
+sous `/media/`, monté depuis `/opt/worldwarsim-media` (`deploiement/README.md`, § Médias) ; en
+local, `public/media/`, ignoré par git. Captures : `Claude outputs/marque/captures-film/`.
 
 ## Le nom (lot B)
 
@@ -79,4 +128,56 @@ domaines et réseaux restent à vérifier sur les finalistes.
 | **Cartouche** | le cadre d'une carte gravée, et une munition | C · ARTOUCHE |
 | **Communiqué** | le communiqué officiel, « rien à signaler sur le front » | COMMUNIQUÉ seul, pavé sur le C |
 
-Statut : à trier par Pierre (trois finalistes), puis vérifications et planche de logos.
+**Planche de logos (02/10/2026)** : `Claude outputs/marque/planche-noms.png` — chaque piste dans
+le système actuel, sur papier (88 px), dans le bandeau du salon (18 px), sur le bureau sombre
+(30 px), en icône (64, 32, 16 px).
+
+Ce que la planche montre :
+
+- **Le système pavé + didone veut un nom en deux morceaux qui ont chacun un sens**, comme WW + SIM.
+  Un nom d'un seul mot se coupe en « E STAFETTE », « B ELLIGÉRANTS », « C ARTOUCHE » : il se lit
+  comme deux mots. Estafette, Belligérants, Cartouche et Communiqué ne tiennent qu'en changeant le
+  système du logo.
+- *Pli cacheté* est le plus compact (proportions proches de WWSIM) et le seul dont l'icône se lit
+  à 32 px (« PLI »). Il porte les deux piliers : on ne voit pas les ordres des autres, on ne
+  reprend pas les siens.
+- *Sans contrordre* a le meilleur sens mais c'est le plus long (15 lettres) et son icône « SC »
+  ne dit rien.
+- *La Manchette* : « LA » ne porte rien, l'icône « M » est générique.
+- *Édition de guerre* double la ligne de date du jeu (« le monde en jeu — édition de guerre »).
+
+**Préférence de Pierre (02/10/2026, soir) : *La Manchette*, avec des doutes ; les autres pistes ne
+lui plaisent pas.** Planche des variantes : `Claude outputs/marque/planche-manchette.png` — A le
+système actuel (pavé « LA »), B titre de quotidien (« la » italique, MANCHETTE en didone, le pavé
+devient un filet rouge sous le mot), C le nom dans le pavé, D « La Manchette » en casse mixte avec
+un tampon d'édition.
+
+- Pour : le code appelle déjà le logo « la manchette » (`fr.masthead` : « le titre du journal, et
+  le journal est le jeu ») ; double sens titre de une / coup porté ; tout le jeu est un journal.
+- Contre : pour le grand public, « manchette » c'est d'abord le poignet de chemise ou la réception
+  au volley ; Jean-Patrick Manchette occupe la recherche ; c'est un mot courant, difficile à posséder.
+- Domaines (RDAP, 02/10/2026) : `lamanchette.fr` pris (OVH, 2013) · `la-manchette.fr` pris
+  (OVH, 04/2025) · `lamanchette.com` détenu par un revendeur (DomainMarket) · `lamanchette.games`
+  non trouvé, donc a priori libre. Sans conséquence tant que le jeu reste entre amis
+  (marque-1c) : il vit sur `wws.pierrebrethes.cloud`. INPI non vérifié.
+
+**Seconde série, même veine (02/10/2026, soir)** : des titres de journal d'époque qui sont aussi
+des mots de guerre. Planche : `Claude outputs/marque/planche-titres.png`, toutes dessinées comme la
+variante B (article en italique, mot en didone, filet rouge). Ce dessin accepte un mot seul : la
+contrainte « deux morceaux » ne valait que pour le système pavé + didone.
+
+| Titre | Presse | Guerre | `.fr` (RDAP) |
+|---|---|---|---|
+| la Drôle de guerre | — | 1939-1940, l'attente armée : l'année du jeu, et « attendre est parfois la bonne décision » (vision V1) | libre |
+| la Vigie | titre courant de quotidien régional | le guetteur : la détection | pris (2022) |
+| le Bandeau | le titre en bande sur toute la une | le bandeau sur les yeux : le brouillard | libre |
+| la Cinquième colonne | les colonnes de la page | les agents dans les lignes ennemies | pris (08/2026) |
+| l'Éclaireur | *L'Éclaireur de Nice*, quotidien jusqu'en 1944 | l'éclaireur, qui va voir | pris ; aussi une boutique de mode à Paris |
+| le Bouclage | fermer l'édition | encercler | non vérifié |
+| la Morasse | la dernière épreuve de la page avant l'impression | — | non vérifié |
+| le Bélino | la photo transmise par fil (bélinographe) | — | non vérifié |
+
+Aucune collision de jeu trouvée par recherche web pour la Drôle de guerre, la Vigie, le Bandeau,
+la Cinquième colonne. INPI non vérifié.
+
+Statut : **La Manchette retenu le 02/10/2026, variante B.** Renommage : `prompts/code/ready/renommer-la-manchette.md`. Favicon prêt : `Claude outputs/marque/favicon-manchette.svg`.

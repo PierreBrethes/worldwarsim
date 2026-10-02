@@ -11,11 +11,14 @@ import {
 import { ConvexProvider } from 'convex/react';
 import type { ConvexReactClient } from 'convex/react';
 import { ConvexError } from 'convex/values';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { ConnectedSignIn } from './connexion';
 
 afterEach(cleanup);
+
+/** jsdom n'évalue aucune requête média : la feuille d'entrée en lit une pour choisir son fond. */
+vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
 
 /** A client whose actions are refused, as a wrong password is. */
 const refusingClient = {
