@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     // Un `*.test.tsx` sous src/routes/ n'est pas une route : le plugin le signale à chaque
     // exécution, et le préfixer d'un tiret mettrait le test loin du fichier qu'il teste.
-    TanStackRouterVite({ routeFileIgnorePattern: '\\.test\\.tsx?$' }),
+    TanStackRouterVite({ routeFileIgnorePattern: '\\.test\\.tsx?$', autoCodeSplitting: true }),
     react(),
     babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwind(),
