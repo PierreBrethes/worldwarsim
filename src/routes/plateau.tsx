@@ -64,6 +64,7 @@ import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
 import { usePresence } from '@/data/presence';
+import { useBoardView } from '@/data/useBoardView';
 import type { Seat } from '@/data/session';
 import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
@@ -279,7 +280,7 @@ function NoGame() {
 }
 
 function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
-  const server = useQuery(api.view.playerView, seat);
+  const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
   // it on each render would redo the labels and the compass on every keystroke elsewhere.
@@ -288,7 +289,19 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
     [world, server],
   );
   if (view === null) return <Loading />;
-  return <BoardContent world={world} view={view} seat={seat} />;
+  return (
+    <>
+      {interrupted && (
+        <div
+          role="status"
+          className="hud fixed top-4 left-1/2 z-50 -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
+        >
+          {fr.board.linkLost}
+        </div>
+      )}
+      <BoardContent world={world} view={view} seat={seat} />
+    </>
+  );
 }
 
 function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {

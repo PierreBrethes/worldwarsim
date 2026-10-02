@@ -737,6 +737,7 @@ export const fr = {
   },
 
   board: {
+    linkLost: 'liaison interrompue — dernière situation connue',
     unavailableKicker: 'plateau indisponible',
     noGameTitle: 'aucune partie en cours',
     noGameBody:
