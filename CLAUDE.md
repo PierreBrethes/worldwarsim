@@ -208,6 +208,20 @@ par saison** (`SEAT_TAKEN`) ; le pseudo se copie sur la place à l'entrée et y 
 saison. `players.token` est mort avec le wipe du 11/09 — aucune reprise, aucune migration
 (décision 85a). La déconnexion se prend aux Réglages du plateau et à l'accueil.
 
+**Et une invitation est un lien** (02/10/2026, lot A du plan marque et site) : `/rejoindre/CODE`,
+publique — la porte de `__root.tsx` l'ouvre par la **même** condition que `/connexion`
+(`opensWithoutAccount`). La page lit `seasons.invitation`, une query **sans session obligatoire**
+qui ne rend jamais d'exception (un code inconnu est `refusal: 'UNKNOWN_GAME_CODE'`, sans requête
+si le code ne peut pas en être un) et ne donne le `seasonId` qu'à un jeton qui tient déjà une
+place (`seated`) : le code reste le seul secret du salon. **Les refus de `join` et ceux de
+l'invitation sortent d'une seule fonction** (`joinRefusalOf`, `src/domain/off-season.ts` : place
+tenue, saison close, fenêtre, nation, plafond) — l'écran annonce ce que le serveur refuse. Le
+formulaire de compte est partagé (`src/shell/AccountForm.tsx`) ; l'inscription enchaîne
+`register` → `keepSession` → `join` → salon, et si `join` refuse entre-temps le compte est gardé
+sans place — la page le dit, sans retour en arrière. Le salon copie
+`${origin}/rejoindre/${code}` ; reprendre une place passe par `resumeSeat` depuis l'accueil comme
+depuis l'invitation. Pas d'aperçu de lien : il porterait un nom qui va changer.
+
 **Le code est en anglais, le jeu reste uniquement francophone** (ADR 0016) : tout texte
 affiché passe par la table unique `src/i18n/fr.ts` ; le serveur ne renvoie que des codes
 d'erreur (`convex/errors.ts`), jamais une phrase.

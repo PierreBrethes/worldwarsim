@@ -605,6 +605,26 @@ export const fr = {
       'Aucun backend configuré (VITE_CONVEX_URL absent). Lancez la pile locale avec docker compose up — voir deploiement/README.md.',
   },
 
+  /** **La feuille qu'ouvre un lien d'invitation** (`/rejoindre/CODE`). Les refus sont ceux du
+   *  serveur, dits par `fr.errors` : une phrase, jamais un bouton grisé (ADR 0015) — sauf
+   *  l'heure de clôture, que seule cette page sait donner. */
+  invitation: {
+    opening: 'Ouverture de l’invitation…',
+    invitedBy: (founder: string | null) =>
+      founder === null ? 'on vous invite à une partie' : `${founder} vous invite`,
+    tagline: 'une place vous attend à la table',
+    duration: (pace: string) => `saison : ${pace}`,
+    placesLeft: (count: number) =>
+      `${count} place${plural(count, '', 's')} restante${plural(count, '', 's')}`,
+    join: 'rejoindre la partie',
+    resume: 'reprendre',
+    toHome: 'retour à l’accueil',
+    closedSince: (date: string) => `Les nouvelles inscriptions ont été closes le ${date}.`,
+    signedIn: (nickname: string) => `vous entrez sous le nom de ${nickname}`,
+    /** Le compte est né, la place non : le salon s'est rempli entre-temps. Le dossier est gardé. */
+    accountKept: 'Votre dossier est ouvert et gardé — il vous attend à l’accueil.',
+  },
+
   home: {
     edition: 'édition du jour',
     audience: '2 à 8 joueurs — entre amis',
@@ -663,6 +683,8 @@ export const fr = {
     codeNote: 'Partagez ce code pour inviter vos amis tant que les inscriptions sont ouvertes.',
     copyCode: 'copier le code',
     codeCopied: 'code copié',
+    copyLink: 'copier le lien d’invitation',
+    linkCopied: 'lien copié',
     participantCount: (count: number) =>
       `${count} joueur${plural(count, '', 's')} inscrit${plural(count, '', 's')} sur 8`,
     registrationBeforeLaunch: (hours: number) =>

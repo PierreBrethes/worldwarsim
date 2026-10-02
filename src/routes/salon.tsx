@@ -20,7 +20,7 @@ import { TelegraphThread } from '@/shell/TelegraphThread';
 import { useTelegraph } from '@/data/telegraph';
 import { asDayAndTime } from '@/domain/duration';
 import { toLocalMinutes, toUtcMinutes } from '@/domain/rest-window';
-import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
+import { REGISTRATION_WINDOW_HOURS, invitationUrl } from '@/domain/off-season';
 
 export const Route = createFileRoute('/salon')({
   component: Lobby,
@@ -53,6 +53,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
   const destroy = useMutation(api.seasons.destroy);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const { run: runOnce } = useSingleFlight();
 
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
@@ -109,6 +110,15 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
       setTimeout(() => setCopied(false), 1600);
     });
   };
+  /** Le lien est l'origine d'où l'hôte lit la page — jamais une adresse écrite ici. */
+  const copyLink = () => {
+    void navigator.clipboard
+      .writeText(invitationUrl(window.location.origin, lobby.code))
+      .then(() => {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 1600);
+      });
+  };
 
   return (
     <>
@@ -159,6 +169,13 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
                 >
                   {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
+                </button>
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                >
+                  {linkCopied ? fr.lobby.linkCopied : fr.lobby.copyLink}
                 </button>
                 <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
                   {fr.lobby.participantCount(lobby.players.length)}

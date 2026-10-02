@@ -13,6 +13,7 @@ import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
+import { resumeSeat } from '@/data/resumeSeat';
 import { useSingleFlight } from '@/data/useSingleFlight';
 import { forgetSession, keepSeat, useSession } from '@/data/session';
 
@@ -121,13 +122,10 @@ function ConnectedHome() {
    * A concluded season walks back onto the board like a running one: the wipe is manual, and
    * reading the game back is exactly what the season is kept for.
    */
-  const resume = (seat: Seat) => {
-    keepSeat(seat.seasonId);
-    /** A seat on a running season whose owner has not entered the war goes back to the lobby
-     *  too: he holds no nation yet, and it is there that he enters (`seasons.enterWar`). */
-    if (seat.status === 'lobby' || !seat.atWar) toLobby();
-    else setResuming(seat);
-  };
+  /** A seat on a running season whose owner has not entered the war goes back to the lobby
+   *  too: he holds no nation yet, and it is there that he enters (`seasons.enterWar`). */
+  const resume = (seat: Seat) =>
+    resumeSeat(seat, { salon: toLobby, plateau: () => setResuming(seat) });
 
   /** One answer awaited at a time: `seasons.create` refuses nothing, so a double press on
    *  "fonder" would found two seasons. */

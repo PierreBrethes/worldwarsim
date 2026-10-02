@@ -4,7 +4,7 @@ import { ConvexProvider } from 'convex/react';
 import type { ConvexReactClient, Watch } from 'convex/react';
 import { afterEach, expect, it } from 'vitest';
 import { forgetSession, keepSession } from '@/data/session';
-import { SignedIn } from './__root';
+import { SignedIn, opensWithoutAccount } from './__root';
 
 /**
  * **La garde de la porte ne doit pas tourner à vide** (ADR 0022). `SignedIn` monte à chaque
@@ -56,4 +56,18 @@ it('ne rend la porte qu’un nombre borné de fois, session en main', () => {
   );
 
   expect(renders.count).toBeLessThanOrEqual(RENDER_CEILING);
+});
+
+/**
+ * **Deux feuilles s'ouvrent sans compte** : `/connexion`, qui en donne un, et `/rejoindre/CODE`,
+ * qui en donne un *et* une place. Tout le reste reste derrière la porte — une seule condition,
+ * pas une seconde garde.
+ */
+it('ouvre la connexion et les invitations, et rien d’autre, sans compte', () => {
+  expect(opensWithoutAccount('/connexion')).toBe(true);
+  expect(opensWithoutAccount('/rejoindre/K7Q2PX')).toBe(true);
+
+  for (const closed of ['/accueil', '/salon', '/plateau', '/', '/rejoindre', '/connexion/autre']) {
+    expect(opensWithoutAccount(closed), closed).toBe(false);
+  }
 });

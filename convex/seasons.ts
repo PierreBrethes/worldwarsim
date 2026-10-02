@@ -4,8 +4,9 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import {
-  canJoinRegistration,
   gameCode,
+  joinRefusalOf,
+  normalizeGameCode,
   playableRegion,
   registrationDeadline,
 } from '../src/domain/off-season';
@@ -263,37 +264,95 @@ export const join = mutation({
   handler: async (ctx, { token, code }) => {
     const account = await accountOf(ctx, token);
     if (!account) fail('UNKNOWN_SESSION');
-    const season = await ctx.db
-      .query('seasons')
-      .withIndex('byCode', (q) => q.eq('code', code.trim().toUpperCase()))
-      .unique();
+    const season = await seasonByCode(ctx, code);
     if (!season) fail('UNKNOWN_GAME_CODE');
-    /** **Avant tout autre refus**, y compris la fenêtre d'inscription : celui qui a déjà sa
-     *  place la garde, et lui dire que les inscriptions sont closes l'enverrait la chercher
-     *  ailleurs qu'à l'accueil, où elle est. */
-    if (await seatOf(ctx, account, season._id)) fail('SEAT_TAKEN');
-    if (season.status === 'concluded') fail('SEASON_CONCLUDED');
-    if (!canJoinRegistration(season.status, season.launchedAt, Date.now())) {
-      fail('REGISTRATION_CLOSED');
-    }
-    const present = await seatsOf(ctx, season._id);
     /**
-     * A running season hands out no seat it cannot arm: every belligerent already holds a
-     * nation, so a board with none left would open a lobby whose only screen is a wall of taken
-     * flags. The refusal is said here rather than discovered there — **before** the seat count,
-     * because at eight nations for eight seats the two fire together and "no nation left" is the
-     * one that names the real obstacle to a latecomer.
+     * **Les refus sont une seule fonction**, lue ici et par `seasons.invitation` (ADR 0015) :
+     * dans l'ordre, la place déjà tenue, la saison close, la fenêtre d'inscription, la nation
+     * libre, le plafond de places. Le détail de chaque ordre est écrit à côté d'elle, dans le
+     * domaine.
      *
      * The theatre is the one frozen at launch — a latecomer does not redraw it. It does not
-     * narrow the eight nations *yet*: the day a theatre carries its own roster, this is where it
-     * is read.
+     * narrow the eight nations *yet*: the day a theatre carries its own roster, `freeNations`
+     * is where it is read.
      */
-    if (season.status === 'launched' && freeNations(present).length === 0) {
-      fail('NO_FREE_NATION');
-    }
-    if (present.length >= MAX_PLAYERS) fail('LOBBY_FULL', { maximum: MAX_PLAYERS });
+    const present = await seatsOf(ctx, season._id);
+    const refusal = joinRefusalOf({
+      seated: (await seatOf(ctx, account, season._id)) !== null,
+      status: season.status,
+      launchedAt: season.launchedAt,
+      now: Date.now(),
+      seats: present.length,
+      freeNations: freeNations(present).length,
+      maximum: MAX_PLAYERS,
+    });
+    if (refusal === 'LOBBY_FULL') fail(refusal, { maximum: MAX_PLAYERS });
+    if (refusal !== null) fail(refusal);
     await seat(ctx, account, season._id, false);
     return { seasonId: season._id };
+  },
+});
+
+/** The season a typed or linked code opens, `null` when it opens none — a code the alphabet
+ *  never draws is answered without a lookup. */
+async function seasonByCode(ctx: QueryCtx, code: string): Promise<Doc<'seasons'> | null> {
+  const normalized = normalizeGameCode(code);
+  if (normalized === null) return null;
+  return ctx.db
+    .query('seasons')
+    .withIndex('byCode', (q) => q.eq('code', normalized))
+    .unique();
+}
+
+/**
+ * **Ce que la page d'invitation lit avant d'avoir un compte** (`/rejoindre/CODE`). Une query sans
+ * session obligatoire, qui dit ce que `join` ferait sans rien changer : la même fonction de
+ * refus, et **jamais une exception** — un code inconnu est une réponse, que la page sait dire.
+ *
+ * Le code est le seul secret du salon, donc la réponse n'en dit pas plus que ce qu'il faut pour
+ * décider d'entrer : ni le `seasonId`, ni les autres pseudos, ni les nations prises. Le
+ * `seasonId` ne sort que dans `seated`, pour un jeton valide qui tient déjà une place ici.
+ */
+export const invitation = query({
+  args: { code: v.string(), token: v.optional(v.string()) },
+  handler: async (ctx, { code, token }) => {
+    const season = await seasonByCode(ctx, code);
+    if (!season) {
+      return {
+        refusal: 'UNKNOWN_GAME_CODE' as const,
+        founder: null,
+        players: 0,
+        maximum: MAX_PLAYERS,
+        status: null,
+        durationHours: null,
+        registrationClosesAt: null,
+        seated: null,
+      };
+    }
+    const account = token === undefined ? null : await accountOf(ctx, token);
+    const mine = account === null ? null : await seatOf(ctx, account, season._id);
+    const present = await seatsOf(ctx, season._id);
+    return {
+      refusal: joinRefusalOf({
+        seated: mine !== null,
+        status: season.status,
+        launchedAt: season.launchedAt,
+        now: Date.now(),
+        seats: present.length,
+        freeNations: freeNations(present).length,
+        maximum: MAX_PLAYERS,
+      }),
+      founder: founderOf(present)?.nickname ?? null,
+      players: present.length,
+      maximum: MAX_PLAYERS,
+      status: season.status,
+      durationHours: season.durationHours,
+      registrationClosesAt: registrationDeadline(season.launchedAt),
+      seated:
+        mine === null
+          ? null
+          : { seasonId: season._id, status: season.status, atWar: isAtWar(mine, season) },
+    };
   },
 });
 

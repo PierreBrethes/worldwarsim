@@ -14,6 +14,12 @@ export const Route = createRootRoute({
   errorComponent: ({ error, reset }) => <ErrorScreen error={error} reset={reset} />,
 });
 
+/** **Les feuilles qui s'ouvrent sans compte** : celles qui en donnent un. La connexion, et
+ *  l'invitation (`/rejoindre/CODE`), qui en donne un puis une place. Une seule condition, ici —
+ *  une seconde garde dans une page serait la prochaine à être oubliée. */
+export const opensWithoutAccount = (pathname: string): boolean =>
+  pathname === '/connexion' || pathname.startsWith('/rejoindre/');
+
 function Root() {
   // The last-row net: an orphan promise (mutation without `.catch`, timer…) becomes a
   // dismissible dispatch instead of silence. Render errors, in turn, climb to the routes'
@@ -29,9 +35,8 @@ function Root() {
   }, []);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  /** La page de connexion est la seule à s'ouvrir sans compte — c'est celle qui en donne un.
-   *  Sans backend, personne ne garde rien : l'accueil dit déjà ce qui manque. */
-  const open = !convexClient || pathname === '/connexion';
+  /** Sans backend, personne ne garde rien : l'accueil dit déjà ce qui manque. */
+  const open = !convexClient || opensWithoutAccount(pathname);
 
   return (
     <>
