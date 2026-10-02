@@ -302,6 +302,38 @@ describe('the simplified Domination', () => {
     expect(board.standings.find((seat) => seat.nation === 'ussr')!.isReduced).toBe(false);
   });
 
+  /**
+   * **Le dernier coup est celui qui compte** : un joueur mis sous la barre par deux mains
+   * différentes appartient à la seconde, sans quoi un coup porté le mardi paierait toute la
+   * saison et deux joueurs tiendraient le même scalp.
+   */
+  it('gives the scalp to the hand of the last blow, not the first', async () => {
+    const t = boot();
+    const [first, victim, second] = await launchedSeason(t, 4);
+    await overrun(t, first!, victim!);
+
+    const [opening] = await t.run(async (ctx) => ctx.db.query('engagements').collect());
+    const secondId = await playerOf(t, second!);
+    await t.run(async (ctx) => {
+      const { _id, _creationTime, ...blow } = opening!;
+      void _id;
+      void _creationTime;
+      await ctx.db.insert('engagements', {
+        ...blow,
+        attackerId: secondId,
+        at: opening!.at + 60_000,
+        reducedDefender: true,
+      });
+    });
+
+    const reducedBy = async (nation: string) => {
+      const board = (await t.query(api.view.playerView, first!)).season.reduction;
+      return board.standings.find((seat) => seat.nation === nation)!.reduced;
+    };
+    expect(await reducedBy('germany')).toBe(1);
+    expect(await reducedBy('france')).toBe(0);
+  });
+
   it('reads a concluded season and plays nothing on it', async () => {
     const t = boot();
     const [attacker, victim] = await launchedSeason(t, 2);

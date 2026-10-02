@@ -756,7 +756,10 @@ export default defineSchema({
     ),
   })
     .index('byAttacker', ['attackerId'])
-    .index('byDefender', ['defenderId']),
+    .index('byDefender', ['defenderId'])
+    /** Le dernier coup qui a mis un joueur sous la barre, lu seul : `executionerOf` relisait
+     *  autrefois tous les engagements subis pour n'en garder qu'un. */
+    .index('byDefenderReduced', ['defenderId', 'reducedDefender', 'at']),
 
   /**
    * **Le détail frappe par frappe, dans sa propre table** — la matière du rejeu visuel (surface

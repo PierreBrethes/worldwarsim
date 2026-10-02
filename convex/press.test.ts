@@ -215,6 +215,54 @@ describe('what the view serves', () => {
     expect(second.mine!.since).toBe(second.at - PRESS_EDITION_HOURS * HOUR);
   });
 
+  /**
+   * **Les faits d'armes sont un cumul exact, édition après édition** — y compris pour une passe
+   * dont l'`at` est antérieur à l'édition précédente (un travail réveillé en retard date sa
+   * passe de l'instant qu'il rattrape) : la lire par l'`at` la perdrait pour toujours.
+   */
+  it('counts every engagement once, whenever its pass is dated', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const me = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
+    const you = await t.run(async (ctx) => (await seatIn(ctx, guest))._id);
+    const file = async (attackerId: typeof me, defenderId: typeof me, at: number) =>
+      t.run(async (ctx) => {
+        const seasonId = (await ctx.db.get(me))!.seasonId;
+        await ctx.db.insert('engagements', {
+          seasonId,
+          attackerId,
+          defenderId,
+          cause: 'arrival',
+          point: { lon: 2, lat: 48 },
+          hostCountry: 'FRA',
+          at,
+          winner: 'attacker',
+          outpostId: null,
+          disabledUntil: null,
+          troops: [],
+        });
+      });
+    const deedsOf = async (playerId: typeof me) => {
+      const rows = await editions(t);
+      return rows.filter((row) => row.playerId === playerId).sort((a, b) => b.at - a.at)[0]!.deeds;
+    };
+
+    await file(me, you, Date.now());
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await deedsOf(me)).toBe(1);
+    expect(await deedsOf(you)).toBe(1);
+
+    // Filed after the first edition, dated before it.
+    await file(you, me, MIDDAY.getTime());
+    await file(me, you, Date.now());
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await deedsOf(me)).toBe(3);
+    expect(await deedsOf(you)).toBe(3);
+
+    await advance(t, PRESS_EDITION_HOURS);
+    expect(await deedsOf(me)).toBe(3);
+  });
+
   /** L'édition finale ne promet pas de suite : « prochaine édition » y serait un rendez-vous
    *  qui n'aura pas lieu. */
   it('promises no next edition once the final one is out', async () => {

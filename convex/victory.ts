@@ -55,13 +55,13 @@ async function executionerOf(
   ctx: QueryCtx,
   defenderId: Id<'players'>,
 ): Promise<Id<'players'> | null> {
-  const suffered = await ctx.db
+  const blow = await ctx.db
     .query('engagements')
-    .withIndex('byDefender', (q) => q.eq('defenderId', defenderId))
-    .collect();
-  const blow = suffered
-    .filter((engagement) => engagement.reducedDefender)
-    .sort((a, b) => b.at - a.at)[0];
+    .withIndex('byDefenderReduced', (q) =>
+      q.eq('defenderId', defenderId).eq('reducedDefender', true),
+    )
+    .order('desc')
+    .first();
   return blow?.attackerId ?? null;
 }
 
