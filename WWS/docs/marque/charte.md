@@ -29,8 +29,8 @@ dessus (charte-1a-2026-10-03). Le nettoyage sans changement de rendu est lancé 
 - ✅ **Résolu hors exceptions** (03/10/2026) : sept hexadécimaux égaux à une variable restaient dans
   `labels.css` et `compass-rose.css`, ils sont rattachés ; le reste du relevé vit dans le moteur de
   carte, les encres de nation et les planches, exceptions voulues. Le test
-  `src/styles/colors.test.ts` garde. 82 hexadécimaux en dur, 64 valeurs ; 25 identiques à une
-  variable existante (`--critical` ×5, `--notable` ×4, `--routine` ×4, `--sea-ink` ×3…).
+  `src/styles/colors.test.ts` garde. (Le relevé annonçait 25 hexadécimaux « remplaçables » : il
+  comptait à tort le moteur de carte et les encres de nation, qui ne peuvent pas lire le CSS.)
 - ⏳ Reste, décisions de Pierre à part : regrouper les 26 opacités sur une échelle ; les autres
   `rgba()` (le noir des ombres, le blanc des reflets). Le bureau `rgba(23, 18, 8, α)` est rattaché
   à `--map-desk`.
