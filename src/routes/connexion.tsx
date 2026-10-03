@@ -2,9 +2,10 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import { Masthead } from '@/shell/Masthead';
-import { Newspaper, ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
+import { ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
+import { EntrySheet, fittedWordmark } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
@@ -21,7 +22,7 @@ function NoBackend() {
   const { turning } = usePageTurn();
   return (
     <Sheet turning={turning} tagline={fr.auth.loginTagline}>
-      <p className="mx-[30px] py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
+      <p className="mx-(--sheet-pad) py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
     </Sheet>
   );
 }
@@ -36,20 +37,18 @@ function Sheet({
   children: ReactNode;
 }) {
   return (
-    <Newspaper width={WIDTH} turning={turning} backdrop="film">
-      <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
-        <div className="px-[30px] pt-[18px] pb-[16px] text-center">
-          <Masthead date={fr.auth.dateline} />
-          <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
-            {tagline}
-          </p>
-        </div>
-
-        <ThickRuleInverse />
-
-        {children}
+    <EntrySheet width={WIDTH} turning={turning}>
+      <div className="px-(--sheet-pad) pt-[18px] pb-[16px] text-center">
+        <Masthead date={fr.auth.dateline} wordmarkSize={fittedWordmark(54)} />
+        <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
+          {tagline}
+        </p>
       </div>
-    </Newspaper>
+
+      <ThickRuleInverse margin="var(--sheet-pad)" />
+
+      {children}
+    </EntrySheet>
   );
 }
 
@@ -65,7 +64,7 @@ export function ConnectedSignIn() {
         onModeChange={setRegistering}
         onSignedIn={() => turn(() => void navigate({ to: '/accueil' }))}
       />
-      <div className="mx-[30px] pb-5 text-center">
+      <div className="mx-(--sheet-pad) pb-5 text-center">
         <FilmTrailer />
       </div>
     </Sheet>

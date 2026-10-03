@@ -14,11 +14,12 @@ export const Route = createRootRoute({
   errorComponent: ({ error, reset }) => <ErrorScreen error={error} reset={reset} />,
 });
 
-/** **Les feuilles qui s'ouvrent sans compte** : celles qui en donnent un. La connexion, et
- *  l'invitation (`/rejoindre/CODE`), qui en donne un puis une place. Une seule condition, ici —
- *  une seconde garde dans une page serait la prochaine à être oubliée. */
+/** **Les feuilles qui s'ouvrent sans compte** : celles qui en donnent un. La une (`/`), qui mène
+ *  aux deux autres ; la connexion ; et l'invitation (`/rejoindre/CODE`), qui en donne un puis une
+ *  place. Une seule condition, ici — une seconde garde dans une page serait la prochaine à être
+ *  oubliée. */
 export const opensWithoutAccount = (pathname: string): boolean =>
-  pathname === '/connexion' || pathname.startsWith('/rejoindre/');
+  pathname === '/' || pathname === '/connexion' || pathname.startsWith('/rejoindre/');
 
 function Root() {
   // The last-row net: an orphan promise (mutation without `.catch`, timer…) becomes a

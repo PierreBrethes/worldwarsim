@@ -613,6 +613,50 @@ export const fr = {
     unavailable: 'Le film n’est pas disponible pour l’instant.',
   },
 
+  /** **La une** (`/` sans session, maquette 2a du 03/10) : une première page qui ne propose pas
+   *  de compte seul — on entre sur invitation (marque-1c). */
+  front: {
+    /** La date du jour en tête de page, longue au bureau, abrégée sur téléphone. */
+    date: (at: Date) =>
+      new Intl.DateTimeFormat('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(at),
+    shortDate: (at: Date) =>
+      new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(
+        at,
+      ),
+    shortDateline: 'édition de guerre',
+    film: 'voir le film (30 s)',
+    caption: 'Le plateau, à l’encre : des forces se déplacent sur la carte du monde.',
+    headline: 'Sept jours pour refaire le monde',
+    lede: 'Stratégie entre amis sur une carte du monde réel : 2 à 8 joueurs, une saison de sept jours.',
+    stamp: 'sur invitation',
+    codeTitle: 'J’ai un code d’invitation',
+    codeLabel: 'code d’invitation',
+    codeHint: 'Six caractères, reçus avec l’invitation',
+    open: 'ouvrir',
+    accountTitle: 'Déjà un compte ?',
+    signIn: 'se connecter',
+    haveCode: 'j’ai un code',
+    briefs: [
+      {
+        kicker: 'la saison',
+        text: 'Une saison dure sept jours. On y passe quelques minutes, plusieurs fois par jour.',
+      },
+      {
+        kicker: 'la nation',
+        text: 'Chacun prend une nation de 1940, la développe, et envoie ses forces sur terre, en mer et dans les airs.',
+      },
+      {
+        kicker: 'les ordres',
+        text: 'Les ordres se donnent, puis la carte les exécute pendant qu’on vit sa vie. Une dépêche prévient quand il se passe quelque chose.',
+      },
+    ],
+  },
+
   /** **La feuille qu'ouvre un lien d'invitation** (`/rejoindre/CODE`). Les refus sont ceux du
    *  serveur, dits par `fr.errors` : une phrase, jamais un bouton grisé (ADR 0015) — sauf
    *  l'heure de clôture, que seule cette page sait donner. */

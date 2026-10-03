@@ -59,15 +59,16 @@ it('ne rend la porte qu’un nombre borné de fois, session en main', () => {
 });
 
 /**
- * **Deux feuilles s'ouvrent sans compte** : `/connexion`, qui en donne un, et `/rejoindre/CODE`,
- * qui en donne un *et* une place. Tout le reste reste derrière la porte — une seule condition,
- * pas une seconde garde.
+ * **Trois feuilles s'ouvrent sans compte** : la une (`/`), qui mène aux deux autres,
+ * `/connexion`, qui en donne un, et `/rejoindre/CODE`, qui en donne un *et* une place. Tout le
+ * reste reste derrière la porte — une seule condition, pas une seconde garde.
  */
-it('ouvre la connexion et les invitations, et rien d’autre, sans compte', () => {
+it('ouvre la une, la connexion et les invitations, et rien d’autre, sans compte', () => {
+  expect(opensWithoutAccount('/')).toBe(true);
   expect(opensWithoutAccount('/connexion')).toBe(true);
   expect(opensWithoutAccount('/rejoindre/K7Q2PX')).toBe(true);
 
-  for (const closed of ['/accueil', '/salon', '/plateau', '/', '/rejoindre', '/connexion/autre']) {
+  for (const closed of ['/accueil', '/salon', '/plateau', '/rejoindre', '/connexion/autre']) {
     expect(opensWithoutAccount(closed), closed).toBe(false);
   }
 });

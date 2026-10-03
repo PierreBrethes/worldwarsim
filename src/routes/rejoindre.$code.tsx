@@ -5,15 +5,10 @@ import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, clockLabel } from '@/i18n/fr';
 import { AccountForm } from '@/shell/AccountForm';
+import { EntrySheet, TOUCH_TARGET } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Wordmark } from '@/shell/Masthead';
-import {
-  Newspaper,
-  ThickRule,
-  ThickRuleInverse,
-  usePageTurn,
-  type Turning,
-} from '@/shell/Newspaper';
+import { ThickRule, ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { errorMessage } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
@@ -35,7 +30,7 @@ function NoBackend() {
   const { turning } = usePageTurn();
   return (
     <Sheet turning={turning}>
-      <p className="mx-[30px] py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
+      <p className="mx-(--sheet-pad) py-6 text-[13.5px] leading-[1.55]">{fr.auth.noBackend}</p>
     </Sheet>
   );
 }
@@ -43,17 +38,15 @@ function NoBackend() {
 /** Une feuille réduite, comme le salon : la manchette en une ligne, puis ce que la page a à dire. */
 function Sheet({ turning, children }: { turning: Turning; children: ReactNode }) {
   return (
-    <Newspaper width={WIDTH} turning={turning} backdrop="film">
-      <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
-        <div className="flex items-center gap-x-[14px] px-[30px] pt-3 pb-[10px]">
-          <Wordmark size={17} />
-          <span className="flex-1" />
-          <span className="eyebrow">{fr.invitation.tagline}</span>
-        </div>
-        <ThickRule />
-        {children}
+    <EntrySheet width={WIDTH} turning={turning}>
+      <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-(--sheet-pad) pt-3 pb-[10px]">
+        <Wordmark size={17} />
+        <span className="flex-1" />
+        <span className="eyebrow">{fr.invitation.tagline}</span>
       </div>
-    </Newspaper>
+      <ThickRule margin="var(--sheet-pad)" />
+      {children}
+    </EntrySheet>
   );
 }
 
@@ -100,14 +93,14 @@ export function InvitationPage({ code: raw }: { code: string }) {
   const home = (
     <Link
       to="/accueil"
-      className="mt-4 inline-block text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+      className={`mt-4 text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
     >
       {fr.invitation.toHome}
     </Link>
   );
 
   const sentence = (message: string, extra?: string) => (
-    <div className="mx-[30px] py-6">
+    <div className="mx-(--sheet-pad) py-6">
       <p role="alert" className="border border-[var(--critical)] px-3 py-2 text-[13px]">
         {message}
       </p>
@@ -130,7 +123,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
   if (loading) {
     return (
       <Sheet turning={turning}>
-        <p className="mx-[30px] py-6 text-[13.5px]">{fr.invitation.opening}</p>
+        <p className="mx-(--sheet-pad) py-6 text-[13.5px]">{fr.invitation.opening}</p>
       </Sheet>
     );
   }
@@ -140,8 +133,8 @@ export function InvitationPage({ code: raw }: { code: string }) {
   }
 
   const facts = (
-    <div className="mx-[30px] pt-[18px]">
-      <h1 className="font-(family-name:--font-display) text-[26px] leading-none font-extrabold tracking-[.02em] uppercase">
+    <div className="mx-(--sheet-pad) pt-[18px]">
+      <h1 className="font-(family-name:--font-display) text-[26px] leading-none font-extrabold tracking-[.02em] break-words uppercase max-md:text-[22px]">
         {fr.invitation.invitedBy(invitation.founder)}
       </h1>
       <p className="mt-3 text-[12px] text-[var(--ink-note)]">
@@ -158,8 +151,8 @@ export function InvitationPage({ code: raw }: { code: string }) {
     return (
       <Sheet turning={turning}>
         {facts}
-        <ThickRuleInverse />
-        <div className="mx-[30px] py-5">
+        <ThickRuleInverse margin="var(--sheet-pad)" />
+        <div className="mx-(--sheet-pad) py-5">
           <Primary
             onClick={() =>
               resumeSeat(seat, {
@@ -192,9 +185,9 @@ export function InvitationPage({ code: raw }: { code: string }) {
   return (
     <Sheet turning={turning}>
       {facts}
-      <ThickRuleInverse />
+      <ThickRuleInverse margin="var(--sheet-pad)" />
       {me !== undefined && me !== null && token !== null ? (
-        <div className="mx-[30px] py-5">
+        <div className="mx-(--sheet-pad) py-5">
           <p className="mb-3 text-[12px] text-[var(--ink-note)]">
             {fr.invitation.signedIn(me.nickname)}
           </p>
@@ -223,7 +216,7 @@ function Primary({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="min-h-11 w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>

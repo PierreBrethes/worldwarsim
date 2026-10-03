@@ -47,12 +47,16 @@ export function Newspaper({
   width,
   turning = null,
   backdrop = 'map',
+  fit = 'hud',
   children,
 }: {
   width: number;
   turning?: Turning;
   /** `'film'` : les deux pages qu'un invité voit en arrivant, la connexion et l'invitation. */
   backdrop?: 'map' | 'film';
+  /** `'container'` : la feuille borne sa largeur à celle de l'écran, sans corriger le zoom —
+   *  voir `EntrySheet`. */
+  fit?: 'hud' | 'container';
   children: ReactNode;
 }) {
   return (
@@ -65,7 +69,10 @@ export function Newspaper({
         {/* `hud-fit` et non `max-width: 100%` : l'échelle d'interface est un `zoom`, qui multiplie
             aussi le pourcentage — la feuille débordait de vingt pour cent, et sur un téléphone ça
             se lisait comme un défilement horizontal du journal. */}
-        <div className="hud hud-fit relative m-auto" style={{ width }}>
+        <div
+          className={`hud relative m-auto ${fit === 'hud' ? 'hud-fit' : 'max-w-full'}`}
+          style={{ width }}
+        >
           <div
             aria-hidden
             className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
@@ -216,20 +223,24 @@ function TableShade() {
 }
 
 /** The newspaper's strong rule: three points of lead then one — never the reverse. */
-export function ThickRule({ margin = 30 }: { margin?: number }) {
+export function ThickRule({ margin = 30 }: { margin?: number | string }) {
   return (
-    <div aria-hidden style={{ margin: `0 ${margin}px` }}>
+    <div aria-hidden style={{ margin: `0 ${gutter(margin)}` }}>
       <div className="h-[3px] bg-[var(--ink)]" />
       <div className="mt-[2px] h-px bg-[var(--ink)]" />
     </div>
   );
 }
 
-export function ThickRuleInverse({ margin = 30 }: { margin?: number }) {
+export function ThickRuleInverse({ margin = 30 }: { margin?: number | string }) {
   return (
-    <div aria-hidden style={{ margin: `0 ${margin}px` }}>
+    <div aria-hidden style={{ margin: `0 ${gutter(margin)}` }}>
       <div className="h-px bg-[var(--ink)]" />
       <div className="mt-[2px] h-[3px] bg-[var(--ink)]" />
     </div>
   );
 }
+
+/** Un chiffre est en pixels ; une chaîne est déjà une longueur — `var(--sheet-pad)`. */
+const gutter = (margin: number | string): string =>
+  typeof margin === 'number' ? `${margin}px` : margin;

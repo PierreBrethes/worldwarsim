@@ -5,6 +5,7 @@ import { fr } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { keepSession } from '@/data/session';
 import { nicknameRefusal, passwordRefusal } from '@/domain/account';
+import { TOUCH_TARGET } from './EntrySheet';
 
 const ERROR_ID = 'auth-error';
 const NOTE_ID = 'auth-password-note';
@@ -61,7 +62,7 @@ export function AccountForm({
 
   return (
     <>
-      <form onSubmit={submit} className="mx-[30px] mt-[22px]">
+      <form onSubmit={submit} className="mx-(--sheet-pad) mt-[22px]">
         <label htmlFor="auth-nickname" className="eyebrow block">
           {fr.auth.nicknameLabel}
         </label>
@@ -107,7 +108,7 @@ export function AccountForm({
         <button
           type="submit"
           disabled={refused || pending}
-          className={`mt-[18px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
+          className={`mt-[18px] min-h-11 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
             !refused && !pending
               ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
               : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
@@ -117,7 +118,7 @@ export function AccountForm({
         </button>
       </form>
 
-      <div className="mx-[30px] mt-[18px] mb-[22px] border-t border-(color:--ink)/35 pt-[12px] text-center">
+      <div className="mx-(--sheet-pad) mt-[18px] mb-[22px] border-t border-(color:--ink)/35 pt-[12px] text-center">
         <button
           type="button"
           onClick={() => {
@@ -125,7 +126,7 @@ export function AccountForm({
             setRegistering(!registering);
             setError(null);
           }}
-          className="cursor-pointer text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+          className={`cursor-pointer text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
         >
           {registering ? fr.auth.toLogin : fr.auth.toRegister}
         </button>

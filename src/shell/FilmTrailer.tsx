@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
+import { TOUCH_TARGET } from './EntrySheet';
 import { FILM_URL } from './media';
 
 /**
@@ -8,7 +9,14 @@ import { FILM_URL } from './media';
  * qu'à l'ouverture : rien ne se télécharge pour qui ne clique pas, et le lien reste sur un
  * téléphone, où le fond, lui, renonce au film.
  */
-export function FilmTrailer({ className = '' }: { className?: string }) {
+export function FilmTrailer({
+  className = '',
+  plate = false,
+}: {
+  className?: string;
+  /** Le cartouche posé dans le coin de la photo de une, au lieu du lien discret. */
+  plate?: boolean;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -24,9 +32,9 @@ export function FilmTrailer({ className = '' }: { className?: string }) {
       <button
         type="button"
         onClick={show}
-        className={`cursor-pointer text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${className}`}
+        className={`cursor-pointer ${plate ? PLATE : LINK} ${className}`}
       >
-        {fr.film.open}
+        {plate ? fr.front.film : fr.film.open}
       </button>
       <dialog
         ref={dialog}
@@ -62,3 +70,8 @@ export function FilmTrailer({ className = '' }: { className?: string }) {
     </>
   );
 }
+
+const LINK = `text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`;
+
+const PLATE =
+  'min-h-11 border border-[var(--ink)] bg-[var(--paper)] px-4 text-[11px] tracking-[.22em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]';
