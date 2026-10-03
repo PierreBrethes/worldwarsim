@@ -1,4 +1,4 @@
-import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../convex/_generated/api';
@@ -63,9 +63,11 @@ import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
+import { adoptSeason } from '@/data/adoptSeason';
+import { convexClient } from '@/data/convexClient';
 import { usePresence } from '@/data/presence';
 import { useBoardView } from '@/data/useBoardView';
-import type { Seat } from '@/data/session';
+import { keepSeat, readSession, type Seat } from '@/data/session';
 import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
 import { errorCode, handleError } from '@/data/errors';
@@ -226,7 +228,23 @@ export const Route = createFileRoute('/plateau')({
     const windows = readWindows(raw);
     if (windows.length) search.windows = windows;
     if (typeof raw.building === 'string' && raw.building.length > 0) search.building = raw.building;
+    if (typeof raw.season === 'string' && raw.season.length > 0) search.season = raw.season;
     return search;
+  },
+  /** **La saison d'une notification se retient avant le chargement, puis quitte l'adresse** : la
+   *  redirection rejoue la route sans le paramètre, avec la place déjà active. */
+  beforeLoad: async ({ search }) => {
+    if (search.season === undefined) return;
+    const { season, ...rest } = search;
+    await adoptSeason(season, {
+      token: readSession(),
+      seatsOf: (token) =>
+        convexClient === null
+          ? Promise.resolve([])
+          : convexClient.query(api.accounts.seats, { token }),
+      keepSeat,
+    });
+    throw redirect({ to: '/plateau', search: rest, replace: true });
   },
   // The loader only fetches the world and the seat; the view comes from the subscription,
   // so the errors that used to surface here now surface at render — see `BoardError`.

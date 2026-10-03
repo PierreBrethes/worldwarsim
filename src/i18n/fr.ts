@@ -2015,6 +2015,37 @@ export const fr = {
       'irréversible. Si vous avez fondé la partie, le commandement passe au plus ancien joueur encore debout.',
     /** L'état, une fois le geste fait : le bouton a disparu, il ne reste qu'à le constater. */
     surrendered: 'Armes déposées — vous observez cette saison.',
+    /**
+     * **Les alarmes sortent de l'écran** (notif-1a, notif-6). Deux niveaux : la case de **cet
+     * appareil** (l'abonnement), puis une case par genre, valable pour le **compte**. Chaque
+     * cas où la case ne peut pas s'activer a sa phrase — jamais une case morte (ADR 0015).
+     */
+    notifications: {
+      header: 'Notifications',
+      deviceLabel: 'Recevoir les notifications sur cet appareil',
+      deviceNote:
+        'Les alarmes de la saison, sur ce téléphone ou cet ordinateur. Rien ne sonne pendant votre fenêtre de repos.',
+      unsupported: 'Ce navigateur ne sait pas recevoir de notifications.',
+      needsInstall:
+        'Sur iPhone, ajoutez d’abord La Manchette à l’écran d’accueil, puis ouvrez-la depuis l’icône.',
+      denied:
+        'Les notifications sont bloquées pour ce site : rétablissez-les dans les réglages du navigateur.',
+      unconfigured: 'Le serveur n’a pas encore de quoi envoyer des notifications.',
+      failed: 'L’opération a échoué. Réessayez dans un instant.',
+      typesLabel: 'Ce qui sonne',
+      typesNote: 'Valable pour tous vos appareils, même celui-ci tant qu’il n’est pas abonné.',
+      types: {
+        attack: 'Attaque subie',
+        outpost: 'Avant-poste désactivé ou détruit',
+        sighting: 'Colonne relevée sur votre territoire',
+        dryFire: 'Tir à sec',
+        season: 'La saison (lancement et fin)',
+        telegraph: 'Télégraphe',
+      },
+      typeNotes: { telegraph: 'Une fois par heure au plus.' },
+      test: 'envoyer une dépêche d’essai',
+      testNote: 'Une dépêche part vers vos appareils abonnés : c’est la preuve que tout marche.',
+    },
   },
 
   /**

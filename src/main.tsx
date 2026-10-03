@@ -31,6 +31,16 @@ window.addEventListener('vite:preloadError', () => {
   window.location.reload();
 });
 
+/**
+ * **Le service worker ne fait que les notifications** (`public/sw.js`) : l'inscrire n'abonne
+ * personne, et la permission ne se demande que depuis la case des Réglages.
+ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+  });
+}
+
 const router = createRouter({ routeTree, defaultNotFoundComponent: NotFoundScreen });
 
 declare module '@tanstack/react-router' {

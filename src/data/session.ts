@@ -18,7 +18,7 @@ const announce = (): void => {
   for (const subscriber of subscribers) subscriber();
 };
 
-const readSession = (): string | null => localStorage.getItem(SESSION_KEY);
+export const readSession = (): string | null => localStorage.getItem(SESSION_KEY);
 
 export const keepSession = (token: string): void => {
   localStorage.setItem(SESSION_KEY, token);

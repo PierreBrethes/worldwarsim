@@ -56,6 +56,25 @@ n'est pas fait.
    saison dans le stockage local. Le `seasonId` voyage dans la charge utile pour le lot appareil.
 5. **Clés VAPID** : à poser à la main sur le Convex du VPS (`deploiement/README.md`, § 5 bis).
 
+## Ce qui a été codé — lot appareil (03/10/2026)
+
+Prompt : `prompts/code/ready/notifications-appareil.md`.
+
+- **Service worker** : `public/sw.js`, sans build ni cache ; `push` affiche, `notificationclick` met
+  au premier plan un onglet du site (ou en ouvre un) sur `url` + `season=<seasonId>`. Inscrit au
+  chargement depuis `src/main.tsx` ; `/sw.js` en `no-cache` dans `deploiement/nginx.conf`.
+- **Le bon plateau** : `/plateau?season=…` — `beforeLoad` (`src/data/adoptSeason.ts`) retient la
+  saison si le compte y tient une place, ignore sinon, puis redirige sans le paramètre.
+- **Réglages** : `NotificationsSection.tsx` — la case de l'appareil (permission demandée au clic,
+  `usePushDevice` dans `src/data/pushDevice.ts`), ses trois phrases de blocage (non supporté,
+  iPhone non installé, refusé) plus une quatrième que le prompt ne listait pas (serveur sans clé
+  VAPID), les six cases du compte, le bouton « envoyer une dépêche d'essai » quand l'appareil est
+  abonné. Les deux déconnexions (Réglages, accueil) passent l'endpoint du navigateur.
+- **Écart** : `eslint.config.js` déclare les globaux de service worker pour `public/sw.js`.
+- **À vérifier à la main après déploiement** (jamais fait sur un vrai appareil) : Android/Chrome et
+  iPhone depuis l'icône ; cocher, dépêche d'essai, toucher la notification ; puis deux comptes —
+  une attaque, un message au télégraphe, rien pendant la fenêtre de repos.
+
 ## Texte du 28/08
 
 

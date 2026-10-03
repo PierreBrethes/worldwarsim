@@ -25,6 +25,8 @@ import {
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import { forgetSession, type Seat } from '@/data/session';
+import { currentPushEndpoint } from '@/data/pushDevice';
+import { NotificationsSection } from './NotificationsSection';
 
 export function SettingsWindow({
   seat,
@@ -169,6 +171,8 @@ export function SettingsWindow({
             </button>
           </div>
 
+          <NotificationsSection seat={seat} />
+
           {/* La feuille d'entrée en campagne ne se rouvre d'office jamais : c'est ici, et
               nulle part ailleurs, qu'un joueur la retrouve. */}
           <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
@@ -246,10 +250,14 @@ export function SettingsWindow({
             <button
               type="button"
               onClick={() =>
-                void logout({ token: seat.token }).finally(() => {
-                  forgetSession();
-                  void navigate({ to: '/connexion' });
-                })
+                void currentPushEndpoint()
+                  .then((endpoint) =>
+                    logout({ token: seat.token, ...(endpoint === null ? {} : { endpoint }) }),
+                  )
+                  .finally(() => {
+                    forgetSession();
+                    void navigate({ to: '/connexion' });
+                  })
               }
               className="mt-[8px] w-full cursor-pointer border border-[var(--ink)] py-[9px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
             >

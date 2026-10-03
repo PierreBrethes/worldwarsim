@@ -16,6 +16,7 @@ import { handleError } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
 import { useSingleFlight } from '@/data/useSingleFlight';
 import { forgetSession, keepSeat, useSession } from '@/data/session';
+import { currentPushEndpoint } from '@/data/pushDevice';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
 
@@ -248,10 +249,12 @@ function ConnectedHome() {
           <button
             type="button"
             onClick={() =>
-              void logout({ token }).finally(() => {
-                forgetSession();
-                void navigate({ to: '/connexion' });
-              })
+              void currentPushEndpoint()
+                .then((endpoint) => logout({ token, ...(endpoint === null ? {} : { endpoint }) }))
+                .finally(() => {
+                  forgetSession();
+                  void navigate({ to: '/connexion' });
+                })
             }
             className="cursor-pointer text-[11px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
           >

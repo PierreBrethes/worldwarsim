@@ -33,6 +33,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: globals.serviceworker,
+    },
+  },
+  {
     files: ['convex/**/*.ts', 'scripts/**/*.mjs', '*.config.{ts,js}'],
     languageOptions: {
       globals: globals.node,

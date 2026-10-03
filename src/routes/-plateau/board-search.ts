@@ -40,6 +40,11 @@ export type BoardSearch = {
    * Brittany. A stale id is not an error, it is a window without a focus.
    */
   building?: string;
+  /**
+   * La saison qu'une notification veut ouvrir. Elle n'est pas un état du plateau : la route la
+   * consomme avant de se charger (`adoptSeason`) et la retire de l'adresse.
+   */
+  season?: string;
 };
 
 /** The two surfaces a focus can live in. Closing one of them lets it go — there is a single
