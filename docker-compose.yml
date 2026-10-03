@@ -57,6 +57,7 @@ services:
       dockerfile: deploiement/front.Dockerfile
       args:
         VITE_CONVEX_URL: ${CONVEX_CLOUD_ORIGIN:-http://127.0.0.1:3210}
+        VITE_PUBLIC_ORIGIN: ${VITE_PUBLIC_ORIGIN:-https://wws.pierrebrethes.cloud}
     logging:
       driver: json-file
       options:

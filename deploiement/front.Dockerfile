@@ -5,6 +5,8 @@ RUN npm ci
 COPY . .
 ARG VITE_CONVEX_URL
 ENV VITE_CONVEX_URL=${VITE_CONVEX_URL}
+ARG VITE_PUBLIC_ORIGIN=https://wws.pierrebrethes.cloud
+ENV VITE_PUBLIC_ORIGIN=${VITE_PUBLIC_ORIGIN}
 RUN npx vite build
 
 FROM nginx:alpine

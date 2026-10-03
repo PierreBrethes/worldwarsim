@@ -10,6 +10,10 @@ import { fileURLToPath, URL } from 'node:url';
 // fixe le fuseau avant que les workers de vitest ne naissent (voir `convex/invariants.test.ts`).
 process.env.TZ = 'UTC';
 
+// `og:image` doit être absolue et `index.html` ne sait pas se replier seul : une variable
+// absente laisserait `%VITE_PUBLIC_ORIGIN%` en clair dans la page servie.
+process.env.VITE_PUBLIC_ORIGIN ||= 'https://wws.pierrebrethes.cloud';
+
 export default defineConfig({
   plugins: [
     // Un `*.test.tsx` sous src/routes/ n'est pas une route : le plugin le signale à chaque

@@ -3,7 +3,7 @@ type: marque
 statut: en cours
 maj: 2026-10-03
 code: [src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/shell/Newspaper.tsx, src/shell/media.ts, src/shell/FilmTrailer.tsx, deploiement/nginx.conf, deploiement/compose.prod.yml, src/routes/accueil.tsx, src/routes/salon.tsx, src/shell/Masthead.tsx, src/styles/tokens.css]
-decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, charte-1a-2026-10-03, charte-1b-2026-10-03, charte-2a-2026-10-03, charte-2b-2026-10-03, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
+decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, charte-1a-2026-10-03, charte-1b-2026-10-03, charte-2a-2026-10-03, charte-2b-2026-10-03, marque-icone-2026-10-03, marque-apercu-2026-10-03, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
 voir: [../design/10-direction-artistique.md, ../prompts/code/ready/invitation-par-lien.md]
 ---
 
@@ -32,6 +32,8 @@ reste la page d'accueil.
 | charte-1b-2026-10-03 | 03/10/2026 | Le nettoyage passe avant les maquettes : les couleurs rattachées à leurs variables sans changer un pixel ([nettoyer-les-couleurs](../prompts/code/ready/nettoyer-les-couleurs.md)). Les changements visibles (échelle d'opacités, bureau unique, contraste) restent à décider. |
 | charte-2a-2026-10-03 | 03/10/2026 | Les dégradés qui diffèrent de 2 à 4/255 après le nettoyage (arrondi du navigateur sur `color-mix`) sont acceptés ; pas de jeton `--ink-rgb`. |
 | charte-2b-2026-10-03 | 03/10/2026 | Un seul gris de note : `--ink-note` passe à `#6b5b3b` (4,7:1 sur papier) et absorbe `--ink-faint` ([un-seul-gris-de-note](../prompts/code/ready/un-seul-gris-de-note.md), planche `Claude outputs/marque/planche-contraste.png`). |
+| marque-icone-2026-10-03 | 03/10/2026 | L'icône de l'application est la piste B, « la feuille » : M de Bodoni à l'encre sur papier, filet rouge dessous ; partout, onglet compris, le favicon d'onglet redessiné sans trame, bordé d'encre, filet épaissi. Fichiers : `Claude outputs/marque/icones/`. |
+| marque-apercu-2026-10-03 | 03/10/2026 | L'aperçu des liens est la piste B, « la carte » (le plateau, une feuille au centre), le même pour toutes les invitations : pas d'aperçu par partie pour l'instant. |
 
 ## Les lots
 
@@ -40,11 +42,10 @@ reste la page d'accueil.
 | A | Lien d'invitation `/rejoindre/CODE`, compte créé sur la page, arrivée au salon | livré le 02/10/2026 (route `/rejoindre/$code`, `seasons.invitation`, `joinRefusalOf`) | [invitation-par-lien](../prompts/code/ready/invitation-par-lien.md) |
 | B | Nom : pistes, vérifications (jeux existants, INPI, domaines), planche de logos | nom choisi (La Manchette), logo variante B tranché | ci-dessous |
 | C | Film 30 s + boucle 8 s ; la boucle derrière `/connexion` et `/rejoindre` ; la page d'accueil publique à l'ouverture | film et boucle livrés le 02/10/2026 ; pages d'entrée livrées le 03/10/2026 (boucle derrière la feuille, lien vers le film, `/media/` servi par `front`) ; page d'accueil reportée (plan-5c) | [dossier-media](../prompts/vps/dossier-media.md), [film-sur-les-pages-d-entree](../prompts/code/ready/film-sur-les-pages-d-entree.md) |
-| D | Installation sur téléphone (manifeste) et notifications push | suivant, après les pages d'entrée (A est livré) | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
+| D | Installation sur téléphone (manifeste) et notifications push | icône et aperçu choisis (marque-icone, marque-apercu) ; D1 installation et aperçu : codés le 03/10/2026 (manifeste, icônes, balises `og:`, `VITE_PUBLIC_ORIGIN` ; reste à vérifier sur téléphone après déploiement, [installer-l-application](../prompts/code/ready/installer-l-application.md)) ; D2 notifications : spécification à reprendre (la proposition du 28/08 précède les comptes) | maquettes : « La Manchette — icônes et aperçu » (https://claude.ai/artifact/BGYTaPCDx6ew3UdsqNZ8jk, privé) | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
 
 **Ce qui manque aujourd'hui** (constaté le 02/10) : `/` renvoie à `/accueil` puis à `/connexion`
-— aucune page ne présente le jeu avant l'inscription ; `index.html` n'a ni description ni image
-de partage ; pas de manifeste ; les pushes sont validés (28/08) mais pas codés. Sur iPhone, un
+— aucune page ne présente le jeu avant l'inscription ; les pushes sont validés (28/08) mais pas codés. Sur iPhone, un
 site ne reçoit de push qu'une fois ajouté à l'écran d'accueil : D suppose le manifeste.
 
 ## Le film d'annonce v1

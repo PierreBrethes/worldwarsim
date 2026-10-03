@@ -116,6 +116,16 @@ Ce qui manque : la page d'accueil publique (plan-5c) ; la création du dossier m
 le prompt outillage 29 prévoit de supprimer `Claude outputs/` : les sources du film n'ont pas de
 domicile durable.
 
+## Icônes et aperçu des liens
+
+| | |
+|---|---|
+| Où | `public/favicon.svg` (onglet), `public/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png` et les sources `icon.svg`, `icon-maskable.svg`), `public/apple-touch-icon.png` (180 px), `public/og-image.png` (1200 × 630), `public/manifest.webmanifest` |
+| Qui charge | `index.html` (manifeste, icône Apple, balises `og:` et `twitter:`) ; `og:image` est absolue par `%VITE_PUBLIC_ORIGIN%` (argument de `deploiement/front.Dockerfile`, repli dans `vite.config.ts`) |
+| Refaire | partir des SVG de `public/icons/` ; les PNG ont été rendus à part, `src/i18n/name.test.ts` garde les dimensions et les trois couleurs de la charte |
+
+Ce qui manque : un aperçu par partie (décision marque-apercu-2026-10-03 : le même pour toutes les invitations).
+
 ## Maquettes
 
 `WWS/maquettes/`, 5,2 Mo, références écrites à la main, chargées par aucun code : `Interface de saison.dc.html`, `Icônes ressources.dc.html` et `v2`, `Drapeaux bandeau.dc.html`, `Sprite soldat.dc.html`, `Unités et atouts par nation.html`, `support.js`, `tokens.css`, `tokens.json`, `Wireframes-selection.png`, `screenshots/` (4 PNG), `pictos/` (848 Ko) et `modale-de-site/` (2,7 Mo, regénérée par `build.mjs`). Le [README](../../maquettes/README.md) est périmé et ne couvre ni `modale-de-site/`, ni `pictos/`, ni `Unités et atouts par nation.html`. Ce qui manque : un README à jour ; les valeurs de tokens à suivre sont celles de `src/styles/tokens.css`.
