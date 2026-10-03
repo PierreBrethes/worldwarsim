@@ -44,7 +44,7 @@ Valeurs relevées dans le prototype de carte, à réutiliser telles quelles.
 
 | Rôle | Hex |
 |---|---|
-| Fond, le bureau sous la carte | `#171208` |
+| Fond, le bureau sous la carte | `#171208` (moteur de carte ; le bureau de l'interface est `#0f0a04`, `--desk` — voir [charte](../marque/charte.md)) |
 | Papier | `#e4d8bd` |
 | Mer, aplat délavé | `#a9c5cd` |
 | Encre, trame et isobathes | `#2c5063` |
@@ -66,7 +66,7 @@ Allemagne `#6e6a5e` · Japon `#a44a5e` · Italie `#a86c4a` · Chine `#b07434`
 - **Trame de similigravure** inclinée à 45° pour toute surface qui doit lire comme imprimée.
 - Aucune ombre portée, aucun dégradé lisse, aucun néon. Les volumes se lisent par la valeur.
 
-### Typographie — à définir
+### Typographie — définie depuis (voir [charte](../marque/charte.md))
 
 Un **titrage** type presse (serif à empattements marqués, condensé) et un **texte courant** étroit,
 très lisible en petit corps. Chiffres **tabulaires obligatoires** : la moitié de l'UI est faite de

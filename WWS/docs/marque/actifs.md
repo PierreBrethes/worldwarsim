@@ -91,6 +91,17 @@ Ce qui manque : le mode d'emploi de fabrication. `doctrine`, `manpower` et `stee
 
 Aucun fichier local et aucun `@font-face` : `index.html` charge Google Fonts (Archivo Narrow, Bodoni Moda, IBM Plex Mono, Source Serif 4). Les variables sont dans `src/styles/tokens.css` (`--font-display`, `--font-body`, `--font-mono`) et `src/styles/index.css` (`--font-text`). On les « refait » en changeant la ligne `index.html` et ces variables. Ce qui manque : l'auto-hébergement (le jeu dépend du CDN au chargement) ; la fiche [10-direction-artistique.md](../design/10-direction-artistique.md) garde la typographie « à faire ».
 
+## Charte (design system)
+
+| | |
+|---|---|
+| Où | « La Manchette — charte », design system sur claude.ai (https://claude.ai/artifact/UFAnpUE435rS5bseQpn3cQ, privé) ; résumé et écarts : [charte.md](charte.md) |
+| Combien, format | 62 couleurs, 4 faces et 14 styles, espacements, plans, opacités, 8 composants en rendu statique, l'icône, les 8 ressources, les 10 unités françaises, les polices en woff2 |
+| Qui charge | rien : c'est une référence pour qui crée du visuel (film, icônes, page d'accueil, prompts d'images) |
+| Refaire | relevé à la main depuis le dépôt, qui fait foi ([charte.md § Refaire le relevé](charte.md)) |
+
+Ce qui manque : les drapeaux, les bâtiments, les objectifs et les unités des sept autres nations (référencés, pas copiés).
+
 ## Film d'annonce
 
 | | |

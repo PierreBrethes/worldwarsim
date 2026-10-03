@@ -1,0 +1,7 @@
+# `COPY . .` passe après `npm ci` : un node_modules laissé dans le dossier du VPS écraserait
+# celui que l'image vient d'installer depuis le lockfile, et vite bâtirait avec ses versions.
+node_modules
+dist
+.git
+.env
+.env.*

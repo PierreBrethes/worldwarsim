@@ -33,7 +33,7 @@ L'épaisseur des pays et les isobathes sont conservées, comme demandé.
 Deux planches complètent la palette (maquettes `Icônes ressources.dc.html` et
 `Drapeaux bandeau.dc.html`), toutes deux implémentées.
 
-**Trois icônes de ressources**, silhouettes pleines sans détail intérieur : caisse cerclée
+**Trois icônes de ressources** (la planche d'origine ; l'économie v2 en compte huit depuis, voir [charte](../marque/charte.md)), silhouettes pleines sans détail intérieur : caisse cerclée
 (ravitaillement `#b07434`), lingots empilés (acier `#8fa0b0`), casque (effectifs `#8b9160`).
 Formes distinctes à la découpe, donc lisibles même sans la couleur. Sur papier, les teintes
 s'assombrissent : `#8a5a24`, `#4d6376`, `#6a7047`.
@@ -58,14 +58,15 @@ pour les ramener dans la palette : un drapeau officiel saturé crèverait le bud
 
 Le filigrane **ne va que sur fond sombre** : sur papier le drapeau vire au bloc gris.
 L'**URSS** n'existe dans aucun paquet (pays disparu) : son tracé est à nous, dans
-`src/emblemes/urss.svg`. L'**Allemagne** porte le tricolore actuel, jamais le drapeau de 1940.
+`src/emblems/ussr.svg`. L'**Allemagne** porte le tricolore actuel, jamais le drapeau de 1940.
 
 **Ces six teintes étendent la palette verrouillée de la fiche 11.** Elles sont désaturées et
 n'entrent pas en concurrence avec les encres de nation, mais c'est une extension assumée.
 
 ## Ce qui reste à faire
 
-- **Typographie.** Un titrage type presse et un texte étroit. Rien n'est choisi.
+- ~~**Typographie.**~~ Choisie depuis : Bodoni Moda (titrage), Source Serif 4 (labeur), Archivo Narrow
+  (interface), IBM Plex Mono (chiffres). Rôles et styles : [charte](../marque/charte.md).
 - **Les écrans qui comptent.** Fiche de nation, file de production, journal d'événements, fiche
   d'unité. Ils n'existent pas encore — c'est pour ça qu'il est trop tôt pour une passe de design
   complète.

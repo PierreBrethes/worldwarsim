@@ -3,7 +3,7 @@ type: marque
 statut: en cours
 maj: 2026-10-03
 code: [src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/shell/Newspaper.tsx, src/shell/media.ts, src/shell/FilmTrailer.tsx, deploiement/nginx.conf, deploiement/compose.prod.yml, src/routes/accueil.tsx, src/routes/salon.tsx, src/shell/Masthead.tsx, src/styles/tokens.css]
-decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
+decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, charte-1a-2026-10-03, charte-1b-2026-10-03, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
 voir: [../design/10-direction-artistique.md, ../prompts/code/ready/invitation-par-lien.md]
 ---
 
@@ -28,6 +28,8 @@ reste la page d'accueil.
 | marque-nom-2026-10-02 | 02/10/2026 | Le jeu s'appelle **La Manchette** (« ça sonne comme une gazette »). La variante de logo reste à choisir ; le nom de code `worldwarsim` (dépôt, Convex, domaine actuel) ne change pas. |
 | marque-logo-2026-10-02 | 02/10/2026 | Logo : variante B de `planche-manchette.png` — « la » en italique, MANCHETTE en didone, filet rouge dessous ; icône : le M de Bodoni Moda sur le pavé rouge. Le renommage passe avant le film et la page d'accueil. |
 | plan-5c-2026-10-02 | 02/10/2026 | La page d'accueil publique attend l'ouverture au public (marque-1c) : les amis arrivent par le lien d'invitation. D'abord la boucle derrière `/connexion` et `/rejoindre` avec le dossier média du VPS, puis le lot D (installation sur téléphone, notifications). |
+| charte-1a-2026-10-03 | 03/10/2026 | La charte est relevée dans un design system (copie du dépôt, qui fait foi) avec la liste des écarts ; pas de nettoyage du code ni de vrai design system outillé pour l'instant. Une passe de nettoyage ciblée se décidera sur la liste ([charte](charte.md)). |
+| charte-1b-2026-10-03 | 03/10/2026 | Le nettoyage passe avant les maquettes : les couleurs rattachées à leurs variables sans changer un pixel ([nettoyer-les-couleurs](../prompts/code/ready/nettoyer-les-couleurs.md)). Les changements visibles (échelle d'opacités, bureau unique, contraste) restent à décider. |
 
 ## Les lots
 
