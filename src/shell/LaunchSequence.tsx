@@ -93,7 +93,10 @@ export function LaunchSequence({
         </div>
       </div>
 
-      <div aria-hidden className="absolute inset-0 shadow-[inset_0_0_200px_rgba(23,18,8,.55)]" />
+      <div
+        aria-hidden
+        className="absolute inset-0 shadow-[inset_0_0_200px_color-mix(in_srgb,var(--map-desk)_55%,transparent)]"
+      />
 
       {phase < END && (
         <button

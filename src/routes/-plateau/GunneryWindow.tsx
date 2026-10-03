@@ -69,7 +69,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
 
         {/* Ce que la table garantit, imprimé : c'est le garde-fou du projet (fiche 08 §9), et
             c'est la première chose qu'un joueur venu chercher l'arme absolue doit lire. */}
-        <div className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[10px]">
+        <div className="shrink-0 border-b border-(color:--ink)/35 px-4 py-[10px]">
           <p className="font-(family-name:--font-display) text-[17px] leading-[1.25] text-[var(--ink)]">
             {fr.gunnery.guarantee}
           </p>
@@ -121,7 +121,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
                   <Fragment key={row.attacker}>
                     <tr
                       onClick={() => setOpen(unfolded ? null : row.attacker)}
-                      className={`cursor-pointer border-b border-[rgba(42,33,24,.18)] ${
+                      className={`cursor-pointer border-b border-(color:--ink)/18 ${
                         unfolded ? 'bg-[rgba(255,255,255,.3)]' : ''
                       }`}
                     >
@@ -141,7 +141,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
                            une panne au lieu d'une règle. */
                         <td
                           colSpan={columns.length}
-                          className="border-l border-[rgba(42,33,24,.14)] px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
+                          className="border-l border-(color:--ink)/14 px-[10px] py-[5px] text-[11.5px] text-[var(--ink-soft)] italic"
                         >
                           {fr.gunnery.firesNothing}
                         </td>
@@ -154,7 +154,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
                       <tr>
                         <td
                           colSpan={columns.length + 2}
-                          className="border-t border-dashed border-[rgba(42,33,24,.45)] border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
+                          className="border-t border-dashed border-(color:--ink)/45 border-b-[var(--ink)] bg-[rgba(255,255,255,.22)] p-0"
                         >
                           <div className="hud-fold">
                             <GunnerySheet profile={row.attacker} workshop={workshop} />
@@ -171,7 +171,7 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
 
         {/* Les transports ne sont pas des trous de la grille, ils en sont les cibles : le dire
             vaut mieux qu'une colonne muette qui a l'air d'une panne (fiche 08 §9). */}
-        <p className="shrink-0 border-t border-[rgba(42,33,24,.35)] px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
+        <p className="shrink-0 border-t border-(color:--ink)/35 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
           {fr.gunnery.transports(
             TRANSPORT_PROFILES.map((profile) => profileLabel(profile)).join(', '),
           )}
@@ -213,10 +213,10 @@ export function GunnerySheet({
        lire en colonne de trois mots (`md` = le seuil de `shell/viewport.ts`). */
     <div className="flex flex-col md:flex-row md:items-stretch">
       <div
-        className="flex shrink-0 flex-col items-center justify-center gap-[9px] border-b border-[rgba(42,33,24,.22)] px-4 py-[14px] md:w-[190px] md:border-r md:border-b-0"
+        className="flex shrink-0 flex-col items-center justify-center gap-[9px] border-b border-(color:--ink)/22 px-4 py-[14px] md:w-[190px] md:border-r md:border-b-0"
         style={{
           backgroundImage:
-            'repeating-linear-gradient(90deg, rgba(42,33,24,.05) 0 1px, transparent 1px 6px)',
+            'repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink) 5%, transparent) 0 1px, transparent 1px 6px)',
         }}
       >
         <UnitSprite nation={nation} role={role} tier={tier} height={104} width={150} />
@@ -275,7 +275,7 @@ export function GunnerySheet({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-x-[32px] gap-y-2 border-t border-[rgba(42,33,24,.22)] pt-[10px]">
+        <div className="flex flex-wrap gap-x-[32px] gap-y-2 border-t border-(color:--ink)/22 pt-[10px]">
           {sheet.kind === 'combat' ? (
             <>
               <span className="flex min-w-0 flex-col gap-[1px]">
@@ -308,14 +308,14 @@ export function GunnerySheet({
         {/* **La condition, en toutes lettres** (contrat 06) : c'est ce que remplaçaient les
             sections « bloqué » de la fenêtre morte, et c'est la seule marque que l'abaque porte. */}
         {entry !== null && (
-          <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
+          <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[6px] border-t border-(color:--ink)/22 pt-[9px]">
             <span aria-hidden className="h-[7px] w-[7px] shrink-0 bg-[var(--ink)]" />
             <span className="text-[13.5px] text-[var(--ink)]">
               {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
             </span>
             {entry.unlockedAtHqLevel > 0 && (
               <>
-                <span aria-hidden className="h-[14px] w-px bg-[rgba(42,33,24,.4)]" />
+                <span aria-hidden className="h-[14px] w-px bg-(--ink)/40" />
                 <span className="text-[13.5px] text-[var(--ink)]">
                   {fr.production.tier2Locked(entry.unlockedAtHqLevel)}
                 </span>
@@ -361,7 +361,7 @@ function Mark({
   return (
     <div
       className={`relative flex flex-col gap-[5px] ${
-        first ? '' : 'border-l border-[rgba(42,33,24,.22)] pl-[22px]'
+        first ? '' : 'border-l border-(color:--ink)/22 pl-[22px]'
       }`}
     >
       {marked && (
@@ -387,7 +387,7 @@ function Mark({
           {cost.strength} {fr.strengthUnits[role]}
         </span>
       </span>
-      <span className="flex items-baseline gap-2 border-t border-[rgba(42,33,24,.22)] pt-[5px]">
+      <span className="flex items-baseline gap-2 border-t border-(color:--ink)/22 pt-[5px]">
         <span className="text-[9.5px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.production.inService}
         </span>
@@ -472,8 +472,8 @@ function StatGlyph({
  * et une couleur de verdict trancherait à la place du joueur.
  */
 const BAND_STYLE: Readonly<Record<Band, { background: string; color: string }>> = {
-  strong: { background: 'rgba(42,33,24,.78)', color: 'var(--paper)' },
-  even: { background: 'rgba(42,33,24,.22)', color: 'var(--ink)' },
+  strong: { background: 'color-mix(in srgb, var(--ink) 78%, transparent)', color: 'var(--paper)' },
+  even: { background: 'color-mix(in srgb, var(--ink) 22%, transparent)', color: 'var(--ink)' },
   weak: { background: 'transparent', color: 'var(--ink-quiet)' },
 };
 
@@ -485,7 +485,7 @@ function Cell({ attacker, shot }: { attacker: CombatProfile; shot: GunneryShot }
     return (
       <td
         title={fr.gunnery.noShot(from, target)}
-        className="border-l border-[rgba(42,33,24,.14)] px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]"
+        className="border-l border-(color:--ink)/14 px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]"
       >
         {fr.gunnery.outOfReach}
       </td>
@@ -497,7 +497,7 @@ function Cell({ attacker, shot }: { attacker: CombatProfile; shot: GunneryShot }
     <td
       title={fr.gunnery.shot(from, target, printed)}
       style={BAND_STYLE[shot.band]}
-      className="border-l border-[rgba(42,33,24,.14)] px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px]"
+      className="border-l border-(color:--ink)/14 px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px]"
     >
       {printed}
     </td>
@@ -508,13 +508,13 @@ function Cell({ attacker, shot }: { attacker: CombatProfile; shot: GunneryShot }
 function Legend() {
   const bands: ReadonlyArray<Band> = ['strong', 'even', 'weak'];
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-[14px] gap-y-1 border-b border-[rgba(42,33,24,.35)] px-4 py-[7px]">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-[14px] gap-y-1 border-b border-(color:--ink)/35 px-4 py-[7px]">
       <span className="eyebrow">{fr.gunnery.reading}</span>
       {bands.map((band) => (
         <span key={band} className="flex items-center gap-[6px]">
           <span
             aria-hidden
-            className="inline-block h-[12px] w-[18px] border border-[rgba(42,33,24,.35)]"
+            className="inline-block h-[12px] w-[18px] border border-(color:--ink)/35"
             style={{ background: BAND_STYLE[band].background }}
           />
           <span className="text-[11.5px] text-[var(--ink-soft)]">{fr.gunnery.bands[band]}</span>

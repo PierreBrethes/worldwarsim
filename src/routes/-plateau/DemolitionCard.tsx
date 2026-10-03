@@ -82,7 +82,7 @@ export function DemolitionCard({
       }}
     >
       <div className="paper-grain border border-[var(--ink)] p-[3px]">
-        <div className="border border-[rgba(42,33,24,.4)] px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
+        <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
           <div className="text-[9px] tracking-[.2em] text-[var(--critical)] uppercase">
             {fr.demolition.kicker}
           </div>
@@ -108,7 +108,7 @@ export function DemolitionCard({
           {/* L'écrêtage en chiffres : un plafond qui tombe est une perte sèche, et elle doit se
               lire avant le clic, pas se découvrir au bandeau. */}
           {clipping.length > 0 && (
-            <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+            <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
               <div className="text-[10.5px] tracking-[.1em] text-[var(--critical)] uppercase">
                 {fr.demolition.clipping}
               </div>
@@ -124,7 +124,7 @@ export function DemolitionCard({
 
           {/* La phrase de la décision 5a, à part et en dernier : c'est ce qu'on lit juste avant
               d'appuyer. */}
-          <p className="mt-[8px] border-t border-[rgba(42,33,24,.4)] pt-[6px] text-[11px] leading-[1.4] text-[var(--critical)]">
+          <p className="mt-[8px] border-t border-(color:--ink)/40 pt-[6px] text-[11px] leading-[1.4] text-[var(--critical)]">
             {fr.demolition.noRefund}
           </p>
 
@@ -145,7 +145,7 @@ export function DemolitionCard({
           <button
             type="button"
             onClick={onClose}
-            className="mt-[6px] w-full cursor-pointer border border-[rgba(42,33,24,.4)] px-[10px] py-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase hover:bg-[rgba(42,33,24,.07)]"
+            className="mt-[6px] w-full cursor-pointer border border-(color:--ink)/40 px-[10px] py-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase hover:bg-(--ink)/7"
           >
             {fr.demolition.cancel}
           </button>

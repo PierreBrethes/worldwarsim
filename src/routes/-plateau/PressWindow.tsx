@@ -144,8 +144,8 @@ function Table({
         {ordered.map((row) => (
           <div key={row.playerId}>
             <div
-              className={`grid ${GRID} items-center gap-x-[14px] border-b border-[rgba(42,33,24,.16)] px-3 py-[11px] ${
-                row.own === null ? '' : 'bg-[rgba(42,33,24,.06)] outline outline-[var(--ink)]'
+              className={`grid ${GRID} items-center gap-x-[14px] border-b border-(color:--ink)/16 px-3 py-[11px] ${
+                row.own === null ? '' : 'bg-(--ink)/6 outline outline-[var(--ink)]'
               }`}
               /* **Le défait reste à son rang, estompé** : il a cessé d'ordonner, pas d'exister —
                ses positions tiennent et son encre est encore sur la carte. */
@@ -270,7 +270,7 @@ function Registers({ own }: { own: PressOwnLine }) {
   ];
 
   return (
-    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-[rgba(42,33,24,.04)] px-[18px] pt-3 pb-[14px]">
+    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-(--ink)/4 px-[18px] pt-3 pb-[14px]">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--ink)] pb-[6px]">
         <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
           {said.title}
@@ -287,7 +287,7 @@ function Registers({ own }: { own: PressOwnLine }) {
         {cells.map((cell) => (
           <div
             key={cell.label}
-            className="flex flex-col gap-[6px] border-l border-[rgba(42,33,24,.3)] pl-3"
+            className="flex flex-col gap-[6px] border-l border-(color:--ink)/30 pl-3"
           >
             <span className="text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
               {cell.label}

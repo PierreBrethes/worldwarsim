@@ -218,7 +218,7 @@ export function GarrisonPanel({
          * point fait, et pourquoi il ne change plus (ADR 0015).
          */}
         {outpost !== null && outpost.standsAt === null && (
-          <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
+          <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
             <div className="flex items-center gap-2">
               <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
                 {fr.garrison.foundSpecialization}
@@ -244,8 +244,8 @@ export function GarrisonPanel({
                     }}
                     className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
                       outpost.specialization === key
-                        ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)] text-[var(--ink)]'
-                        : 'border-[rgba(42,33,24,.32)] text-[var(--ink-soft)]'
+                        ? 'border-[var(--ink)] bg-(--ink)/7 text-[var(--ink)]'
+                        : 'border-(color:--ink)/32 text-[var(--ink-soft)]'
                     }`}
                   >
                     {fr.specializations[key]}
@@ -323,7 +323,7 @@ function OutpostRaise({
   const held = hold === null ? null : raiseHeld(hold);
 
   return (
-    <div className="mt-[11px] border-t border-[rgba(42,33,24,.32)] pt-[9px]">
+    <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
       <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[4px]">
         <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
           {fr.garrison.raiseHeader}

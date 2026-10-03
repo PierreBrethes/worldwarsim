@@ -259,7 +259,7 @@ function ConnectedHome() {
           </button>
         </div>
 
-        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
           <span>{fr.home.footerLeft}</span>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
             {fr.home.footerRight}
@@ -307,7 +307,7 @@ function GameRow({
         <FlagWatermark nation={seat.nation} opacity={0.34} />
         <span
           className="relative min-w-0 flex-1"
-          style={{ textShadow: '0 1px 3px rgba(23,18,8,.9)' }}
+          style={{ textShadow: '0 1px 3px color-mix(in srgb, var(--map-desk) 90%, transparent)' }}
         >
           <span className="block text-[12px] tracking-[.22em] text-[var(--paper)] uppercase">
             {nationLabel(seat.nation)}
@@ -399,7 +399,7 @@ function Commit({
       className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
         active
           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-          : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
       }`}
     >
       {children}

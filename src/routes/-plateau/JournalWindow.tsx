@@ -181,7 +181,7 @@ export function JournalWindow({
 
               {/* **L'encart du réveil, à droite de la manchette** : ce qui se résoudra sans qu'on
                   y touche, et le seul compteur qui décide de la visite — les slots engagés. */}
-              <aside className="w-full border-t border-[rgba(42,33,24,.35)] pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:border-[var(--ink)] @3xl:pt-0 @3xl:pl-5">
+              <aside className="w-full border-t border-(color:--ink)/35 pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:border-[var(--ink)] @3xl:pt-0 @3xl:pl-5">
                 <h4 className="border-b border-[var(--ink)] pb-[6px] text-[10px] font-bold tracking-[.2em] text-[var(--ink)] uppercase">
                   {fr.journal.atWaking}
                 </h4>
@@ -225,7 +225,7 @@ export function JournalWindow({
               return (
                 <section
                   key={severity}
-                  className="min-w-0 flex-1 border-t border-[rgba(42,33,24,.3)] pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:border-l-[rgba(42,33,24,.3)] @3xl:px-[18px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
+                  className="min-w-0 flex-1 border-t border-(color:--ink)/30 pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:border-l-(color:--ink)/30 @3xl:px-[18px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
                 >
                   <div className="flex items-center gap-2 border-b border-[var(--ink)] pb-[6px]">
                     <span
@@ -317,7 +317,7 @@ function WorldEvents({
                 } ${
                   selected
                     ? 'border-[var(--interaction)] bg-[rgba(176,116,52,.12)]'
-                    : 'border-[rgba(42,33,24,.35)] hover:border-[var(--ink)] hover:bg-[rgba(42,33,24,.05)]'
+                    : 'border-(color:--ink)/35 hover:border-[var(--ink)] hover:bg-(--ink)/5'
                 }`}
               >
                 <span className="flex items-center justify-between gap-3 text-[10px] tracking-[.16em] uppercase">
@@ -383,7 +383,9 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
               className="h-2 w-2 shrink-0 self-center"
               style={{
                 background: standing.isReduced ? 'var(--critical)' : 'transparent',
-                border: standing.isReduced ? 'none' : '1px solid rgba(42,33,24,.5)',
+                border: standing.isReduced
+                  ? 'none'
+                  : '1px solid color-mix(in srgb, var(--ink) 50%, transparent)',
               }}
             />
             <span className={standing.isMine ? 'font-bold text-[var(--ink)]' : 'text-[var(--ink)]'}>
@@ -407,7 +409,7 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
 function Dispatch({ entry }: { entry: JournalDispatch }) {
   return (
     <div
-      className="border-b border-[rgba(42,33,24,.16)] py-[10px] last:border-b-0"
+      className="border-b border-(color:--ink)/16 py-[10px] last:border-b-0"
       style={{ opacity: entry.unread ? 1 : 0.5 }}
     >
       {/* **La sorte dans la marge, la manchette en vedette.** Un cachet en petit corps à côté de

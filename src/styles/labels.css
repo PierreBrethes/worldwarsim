@@ -27,7 +27,7 @@
   font-family: var(--font-body);
   font-variant-numeric: tabular-nums;
   --label-ink: var(--ink);
-  --figures-ink: #2c5063;
+  --figures-ink: var(--sea-ink);
   --label-callout: 28px;
   /* The callout's foot lands at the pool's center, not its top edge: that is where the
      ground is, and a bar stopping above its shadow floats. Half a pool. */
@@ -321,13 +321,13 @@
 /* An enemy estimate: intelligence ink, never a nation's ink. */
 .label--inbound-movement,
 .label--intel {
-  --label-ink: #9d4638;
+  --label-ink: var(--critical);
 }
 
 .label--inbound-movement .label-line--countdown,
 .label--intel .label-line--countdown {
   font-weight: 400;
-  color: #9d4638;
+  color: var(--critical);
 }
 
 .label--inbound-movement .label-line--mention,
@@ -337,12 +337,12 @@
 
 .label--inbound-movement .label-line--nature,
 .label--intel .label-line--nature {
-  color: #9d4638;
+  color: var(--critical);
 }
 
 /* The system's single accent — it only serves imminence. */
 .label--urgent .label-line--countdown {
-  color: #b07434;
+  color: var(--notable);
 }
 
 .label--urgent .label-line--countdown::after {
@@ -352,7 +352,7 @@
   left: 0;
   width: 36px;
   height: 1px;
-  background: #b07434;
+  background: var(--notable);
 }
 
 .label--urgent .label-line--mention {

@@ -55,7 +55,7 @@ export function LootCrateCard({
           </button>
         </DragHandle>
         <ResourceAmounts amounts={sighting.loot} />
-        <div className="mt-[8px] border-t border-[rgba(42,33,24,.24)] pt-[6px] text-[10.5px] leading-[1.45] text-[var(--ink-soft)]">
+        <div className="mt-[8px] border-t border-(color:--ink)/24 pt-[6px] text-[10.5px] leading-[1.45] text-[var(--ink-soft)]">
           <p>{fr.loot.seenAt(asDayAndTime(sighting.seenAt))}</p>
           <p>{fr.loot.seenAgo(asDuration(age))}</p>
         </div>

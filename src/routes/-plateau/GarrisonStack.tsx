@@ -172,7 +172,7 @@ export function GarrisonStack({
               }}
               className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
                 composes ? 'cursor-pointer' : 'opacity-70'
-              } ${on ? 'border-[var(--ink)] bg-[rgba(42,33,24,.07)]' : 'border-[rgba(42,33,24,.32)]'}`}
+              } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
             >
               {composes && (
                 <span
@@ -237,7 +237,7 @@ export function GarrisonStack({
       )}
 
       {composes && lift.offered > 0 && (
-        <div className="mt-[9px] border-t border-[rgba(42,33,24,.32)] pt-[7px]">
+        <div className="mt-[9px] border-t border-(color:--ink)/32 pt-[7px]">
           <span
             className="font-(family-name:--font-mono) text-[11.5px]"
             style={{ color: lift.needed > lift.offered ? 'var(--critical)' : 'var(--ink-soft)' }}

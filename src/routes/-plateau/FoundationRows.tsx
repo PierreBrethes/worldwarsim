@@ -50,7 +50,7 @@ export function FoundationRows({
   const chosen = placements.find((placement) => debtKey(placement) === armed) ?? null;
 
   return (
-    <div className="border-t border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.05)]">
+    <div className="border-t border-(color:--ink)/28 bg-(--ink)/5">
       <div className="py-[3px]">
         {placements.map((placement) => (
           <KeyRow
@@ -63,7 +63,7 @@ export function FoundationRows({
       </div>
 
       {chosen === null ? (
-        <p className="border-t border-[rgba(42,33,24,.22)] px-[13px] py-[8px] text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
+        <p className="border-t border-(color:--ink)/22 px-[13px] py-[8px] text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
           {fr.mobilization.pick}
         </p>
       ) : (
@@ -98,10 +98,8 @@ function KeyRow({
     <button
       type="button"
       onClick={onArm}
-      className={`flex w-full cursor-pointer items-center gap-[9px] border-b border-[rgba(42,33,24,.18)] px-[13px] py-[7px] text-left last:border-b-0 ${
-        armed
-          ? 'bg-[var(--ink)] text-[var(--paper)]'
-          : 'text-[var(--ink)] hover:bg-[rgba(42,33,24,.07)]'
+      className={`flex w-full cursor-pointer items-center gap-[9px] border-b border-(color:--ink)/18 px-[13px] py-[7px] text-left last:border-b-0 ${
+        armed ? 'bg-[var(--ink)] text-[var(--paper)]' : 'text-[var(--ink)] hover:bg-(--ink)/7'
       }`}
     >
       <BuildingPlate building={placement.key} height={24} />
@@ -175,7 +173,7 @@ function Aimed({
           <p className="text-[12.5px] leading-[1.4]">{conditionText(placement.condition)}</p>
         )}
       </div>
-      <div className="border-t border-[rgba(42,33,24,.22)] px-[13px] py-[7px]">
+      <div className="border-t border-(color:--ink)/22 px-[13px] py-[7px]">
         <button
           type="button"
           onClick={onCancel}

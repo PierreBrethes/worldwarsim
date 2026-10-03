@@ -22,26 +22,35 @@ dessus (charte-1a-2026-10-03). Le nettoyage sans changement de rendu est lancé 
 ## Écarts relevés (03/10/2026, `src/` hors tests et commentaires)
 
 ### Couleurs écrites en dur
-- **151 fois l'encre `--ink` en `rgba(42, 33, 24, α)`, 26 opacités différentes, 28 fichiers.**
+- ✅ **Résolu le 03/10/2026** (charte-1b). **151 fois l'encre `--ink` en `rgba(42, 33, 24, α)`, 26 opacités différentes, 28 fichiers.**
   Les plus fréquentes : 0,35 (24), 0,22 (18), 0,16 (12), 0,30 (12), 0,40 (12), 0,07 (10). Deux
   seulement ont un nom (`--rule-medium` 0,32, `--rule-light` 0,18). Cinq ou six crans couvriraient
   presque tout.
-- 82 hexadécimaux en dur, 64 valeurs ; 25 identiques à une variable existante (`--critical` ×5,
-  `--notable` ×4, `--routine` ×4, `--sea-ink` ×3…).
-- 59 autres `rgba()` : surtout le noir des ombres et le bureau `rgba(23, 18, 8, α)`.
+- ✅ **Résolu hors exceptions** (03/10/2026) : sept hexadécimaux égaux à une variable restaient dans
+  `labels.css` et `compass-rose.css`, ils sont rattachés ; le reste du relevé vit dans le moteur de
+  carte, les encres de nation et les planches, exceptions voulues. Le test
+  `src/styles/colors.test.ts` garde. 82 hexadécimaux en dur, 64 valeurs ; 25 identiques à une
+  variable existante (`--critical` ×5, `--notable` ×4, `--routine` ×4, `--sea-ink` ×3…).
+- ⏳ Reste, décisions de Pierre à part : regrouper les 26 opacités sur une échelle ; les autres
+  `rgba()` (le noir des ombres, le blanc des reflets). Le bureau `rgba(23, 18, 8, α)` est rattaché
+  à `--map-desk`.
 - Les plus chargés : `EconomyWindow.tsx` 23, `SiteModal.tsx` 22, `palette.ts` 21 (attendu),
   `GunneryWindow.tsx` 20, `Newspaper.tsx` 16, `salon.tsx` 16.
 
 ### Deux valeurs pour une même chose
-- Deux bureaux : `--desk` `#0f0a04` et `PALETTE.desk` `#171208` (moteur de carte, fiche 11).
-- `.eyebrow` défini dans tokens.css (10 px, 0,2em) puis redéfini dans index.css (9 px, 0,18em),
-  qui gagne : `--size-eyebrow` et `--track-eyebrow` ne disent pas l'écran.
-- La trame en double (`.paper`, `.paper-grain`), le grain en double (`.grain` deux fois).
-- `--font-text` n'existe que dans le `@theme` d'index.css.
+- ⏳ Deux bureaux : `--desk` `#0f0a04` et `PALETTE.desk` `#171208` (moteur de carte, fiche 11).
+  **Nommé, pas unifié** le 03/10/2026 : `--map-desk` dans `tokens.css`, et le test tient les deux
+  d'accord. Les unifier changerait le rendu.
+- ✅ Résolu le 03/10/2026 : `.eyebrow` n'existe plus qu'une fois (index.css, 9 px, `--track-label`
+  0,18em). Relevé d'origine : défini dans tokens.css (10 px, 0,2em) puis redéfini dans index.css
+  (9 px, 0,18em), qui gagne.
+- ✅ Résolus le 03/10/2026 : la trame en double (`.paper`, `.paper-grain`), le grain en double
+  (`.grain`), `--font-text` désormais aussi dans tokens.css.
 
 ### Déclaré mais pas employé
-- `--sp-1` à `--sp-10` : 0 emploi.
-- `--size-*` : 2 emplois, pour 29 tailles de police en dur (de 7 à 52 px).
+- ✅ Supprimés le 03/10/2026 : `--sp-1` à `--sp-10` et les `--size-*` sauf `--size-eyebrow-sm`
+  (aucun emploi dans `src/`, aucune règle qui les cite ; seule la copie `WWS/maquettes/tokens.css`
+  les garde encore). Les 29 tailles de police en dur restent.
 - 19 interlettrages en dur pour 3 variables `--track-*`.
 
 ### Lisibilité (petit texte sous 4,5:1)

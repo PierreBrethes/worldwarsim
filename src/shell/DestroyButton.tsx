@@ -28,7 +28,7 @@ export function DestroyButton({
       <button
         type="button"
         onClick={() => setArmed(true)}
-        className="mt-[10px] w-full cursor-pointer border border-[rgba(42,33,24,.3)] p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-faint)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
+        className="mt-[10px] w-full cursor-pointer border border-(color:--ink)/30 p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-faint)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
       >
         {label}
       </button>
@@ -40,7 +40,7 @@ export function DestroyButton({
       <button
         type="button"
         onClick={() => setArmed(false)}
-        className="w-full cursor-pointer border border-[var(--ink)] p-[9px] text-[10px] tracking-[.2em] uppercase hover:bg-[rgba(42,33,24,.08)]"
+        className="w-full cursor-pointer border border-[var(--ink)] p-[9px] text-[10px] tracking-[.2em] uppercase hover:bg-(--ink)/8"
       >
         {fr.lobby.destroyCancel}
       </button>

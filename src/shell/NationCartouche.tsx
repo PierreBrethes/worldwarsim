@@ -47,7 +47,7 @@ export function NationCartouche({
         className="relative flex items-center"
         style={{
           paddingLeft: Math.round(height * 1.5 * 0.8) + AIR_AFTER_WATERMARK,
-          textShadow: '0 1px 3px rgba(23,18,8,.9)',
+          textShadow: '0 1px 3px color-mix(in srgb, var(--map-desk) 90%, transparent)',
         }}
       >
         <span

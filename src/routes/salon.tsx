@@ -129,7 +129,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               {/* La manchette réduite : le salon est une feuille du même journal que l'accueil,
                   et c'est la seule chose qui le dit une fois la page tournée. */}
               <Wordmark size={17} />
-              <span aria-hidden className="h-[22px] w-px bg-[rgba(42,33,24,.35)]" />
+              <span aria-hidden className="h-[22px] w-px bg-(--ink)/35" />
               <Flag nation={lobby.me.nation} width={33} onPaper />
               <span className="font-(family-name:--font-display) text-[17px] font-extrabold tracking-[.02em] uppercase">
                 {nationLabel(lobby.me.nation)}
@@ -145,7 +145,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   forgetSeat();
                   turn(() => void navigate({ to: '/accueil' }));
                 }}
-                className="cursor-pointer border border-[rgba(42,33,24,.55)] px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                className="cursor-pointer border border-(color:--ink)/55 px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
               >
                 {fr.lobby.quit}
               </button>
@@ -224,7 +224,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                             className="absolute inset-0"
                             style={{
                               background:
-                                'linear-gradient(180deg, rgba(255,255,255,.08), rgba(23,18,8,.2))',
+                                'linear-gradient(180deg, rgba(255,255,255,.08), color-mix(in srgb, var(--map-desk) 20%, transparent))',
                             }}
                           />
                         </span>
@@ -276,7 +276,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   {lobby.players.map((player) => (
                     <li
                       key={player.id}
-                      className="flex items-center gap-[9px] border-b border-[rgba(42,33,24,.16)] px-[2px] py-[6px]"
+                      className="flex items-center gap-[9px] border-b border-(color:--ink)/16 px-[2px] py-[6px]"
                     >
                       <Flag nation={player.nation} width={18} onPaper />
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
@@ -311,11 +311,11 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   {Array.from({ length: freeSeats }, (_, rank) => (
                     <li
                       key={`free-${rank}`}
-                      className="flex items-center gap-[9px] border-b border-dashed border-[rgba(42,33,24,.28)] px-[2px] py-[6px] text-[var(--ink-faint)]"
+                      className="flex items-center gap-[9px] border-b border-dashed border-(color:--ink)/28 px-[2px] py-[6px] text-[var(--ink-faint)]"
                     >
                       <span
                         aria-hidden
-                        className="h-[9px] w-[9px] border border-[rgba(42,33,24,.3)]"
+                        className="h-[9px] w-[9px] border border-(color:--ink)/30"
                       />
                       <span className="text-[11px] tracking-[.14em] uppercase">
                         {fr.lobby.freeSeat}
@@ -361,7 +361,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                       className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         missing === 0
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-                          : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
                       }`}
                     >
                       {fr.lobby.enterWar}
@@ -377,9 +377,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                     type="button"
                     onClick={() => act(() => declareReady({ ...seat, ready: !lobby.me.ready }))}
                     className={`mt-[14px] w-full cursor-pointer border border-[var(--ink)] p-[13px] text-[11px] tracking-[.22em] uppercase ${
-                      lobby.me.ready
-                        ? 'bg-[var(--ink)] text-[var(--paper)]'
-                        : 'hover:bg-[rgba(42,33,24,.08)]'
+                      lobby.me.ready ? 'bg-[var(--ink)] text-[var(--paper)]' : 'hover:bg-(--ink)/8'
                     }`}
                   >
                     {lobby.me.ready ? fr.lobby.declareNotReady : fr.lobby.declareReady}
@@ -395,7 +393,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                       className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         allReady
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-                          : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
                       }`}
                     >
                       {fr.lobby.launch}
@@ -434,7 +432,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               </p>
             )}
 
-            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-[rgba(42,33,24,.35)] pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
               <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>
               <span className="font-(family-name:--font-mono) tracking-[.12em]">
                 {fr.lobby.footerCode(lobby.code)}

@@ -120,7 +120,9 @@ export function Flag({
         height: Math.round((width * 2) / 3),
         borderColor: onPaper ? 'var(--ink)' : 'var(--paper)',
         ...(image === null ? { background: 'var(--routine)' } : {}),
-        ...(onPaper ? {} : { boxShadow: '0 1px 0 rgba(23,18,8,.8)' }),
+        ...(onPaper
+          ? {}
+          : { boxShadow: '0 1px 0 color-mix(in srgb, var(--map-desk) 80%, transparent)' }),
       }}
     >
       {image !== null && (
@@ -131,7 +133,10 @@ export function Flag({
       )}
       <span
         className="absolute inset-0"
-        style={{ background: 'linear-gradient(180deg, rgba(255,255,255,.10), rgba(23,18,8,.22))' }}
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,.10), color-mix(in srgb, var(--map-desk) 22%, transparent))',
+        }}
       />
     </span>
   );

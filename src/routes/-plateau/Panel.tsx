@@ -114,7 +114,7 @@ export function Panel({
 
 export function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-[rgba(42,33,24,.14)] py-[5px] last:border-0">
+    <div className="flex items-baseline justify-between gap-3 border-b border-(color:--ink)/14 py-[5px] last:border-0">
       <span className="text-[12.5px] text-[var(--ink-soft)]">{label}</span>
       <span className="font-(family-name:--font-mono) text-[12.5px] text-[var(--ink)]">
         {value}

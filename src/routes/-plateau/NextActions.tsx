@@ -66,7 +66,7 @@ export function NextActions({
       <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
         {fr.nextActions.header}
       </h2>
-      <span className="h-px flex-1 bg-[rgba(42,33,24,.25)]" />
+      <span className="h-px flex-1 bg-(--ink)/25" />
       <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
         {fr.nextActions.count(actions.length)}
       </span>
@@ -178,7 +178,7 @@ function Row({
     <button
       type="button"
       onClick={onPick}
-      className="flex w-full cursor-pointer items-baseline gap-2 border-b border-[rgba(42,33,24,.18)] px-[13px] py-[8px] text-left last:border-b-0 hover:bg-[rgba(42,33,24,.07)]"
+      className="flex w-full cursor-pointer items-baseline gap-2 border-b border-(color:--ink)/18 px-[13px] py-[8px] text-left last:border-b-0 hover:bg-(--ink)/7"
     >
       <span className="min-w-0 flex-1 text-[12.5px] leading-[1.35] text-[var(--ink)]">
         {action.label}

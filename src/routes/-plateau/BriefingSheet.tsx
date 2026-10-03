@@ -84,7 +84,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
 /** Une colonne de la notice : un titre de rubrique, puis des lignes qu'on lit en diagonale. */
 function Column({ title, lines }: { title: string; lines: ReadonlyArray<string> }) {
   return (
-    <section className="border-b border-[rgba(42,33,24,.22)] px-[22px] py-[16px] last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
+    <section className="border-b border-(color:--ink)/22 px-[22px] py-[16px] last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
       <h2 className="border-b border-[var(--ink)] pb-[6px] font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.05em] uppercase">
         {title}
       </h2>
@@ -92,7 +92,7 @@ function Column({ title, lines }: { title: string; lines: ReadonlyArray<string> 
         {lines.map((line) => (
           <li
             key={line}
-            className="border-l-2 border-[rgba(42,33,24,.28)] pl-[9px] text-[12.5px] leading-[1.45] text-[var(--ink)]"
+            className="border-l-2 border-(color:--ink)/28 pl-[9px] text-[12.5px] leading-[1.45] text-[var(--ink)]"
           >
             {line}
           </li>

@@ -68,11 +68,11 @@ export function Newspaper({
         <div className="hud hud-fit relative m-auto" style={{ width }}>
           <div
             aria-hidden
-            className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-[rgba(23,18,8,.6)] bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
+            className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
           />
           <div
             aria-hidden
-            className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-[rgba(23,18,8,.55)] bg-[var(--paper-pile)] shadow-[0_9px_21px_rgba(0,0,0,.45)]"
+            className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-(color:--map-desk)/55 bg-[var(--paper-pile)] shadow-[0_9px_21px_rgba(0,0,0,.45)]"
           />
           <div
             className="relative origin-left"
@@ -85,7 +85,7 @@ export function Newspaper({
               style={{
                 opacity: turning === 'exit' ? 1 : 0,
                 background:
-                  'linear-gradient(90deg, rgba(23,18,8,.6) 0%, rgba(23,18,8,.12) 45%, rgba(23,18,8,0) 75%)',
+                  'linear-gradient(90deg, color-mix(in srgb, var(--map-desk) 60%, transparent) 0%, color-mix(in srgb, var(--map-desk) 12%, transparent) 45%, color-mix(in srgb, var(--map-desk) 0%, transparent) 75%)',
               }}
             />
           </div>
@@ -191,7 +191,7 @@ function TableShade() {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(68% 52% at 50% -8%, rgba(200,150,72,.26) 0%, rgba(23,18,8,0) 62%), radial-gradient(46% 40% at 18% 88%, rgba(63,90,125,.22) 0%, rgba(23,18,8,0) 70%)',
+            'radial-gradient(68% 52% at 50% -8%, rgba(200,150,72,.26) 0%, color-mix(in srgb, var(--map-desk) 0%, transparent) 62%), radial-gradient(46% 40% at 18% 88%, rgba(63,90,125,.22) 0%, color-mix(in srgb, var(--map-desk) 0%, transparent) 70%)',
         }}
       />
       <div
@@ -205,7 +205,7 @@ function TableShade() {
         className="absolute inset-0 opacity-50"
         style={{
           backgroundImage:
-            'repeating-linear-gradient(45deg, rgba(23,18,8,.5) 0 1px, transparent 1px 4px)',
+            'repeating-linear-gradient(45deg, color-mix(in srgb, var(--map-desk) 50%, transparent) 0 1px, transparent 1px 4px)',
         }}
       />
       {/* the vignette bites into the side bands, the only ones where the map shows:

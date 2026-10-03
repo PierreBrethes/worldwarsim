@@ -7,7 +7,7 @@ import { fr } from '@/i18n/fr';
 export function CargoReadout({ cargo, carriers }: { cargo: CargoView; carriers: number }) {
   if (cargo.carried <= 0) return null;
   return (
-    <div className="mt-[9px] border-t border-[rgba(42,33,24,.32)] pt-[8px]">
+    <div className="mt-[9px] border-t border-(color:--ink)/32 pt-[8px]">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
           {fr.loot.sharedCargo(carriers)}

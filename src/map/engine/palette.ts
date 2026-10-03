@@ -1,3 +1,5 @@
+/** Literals, because the engine cannot read CSS. `src/styles/tokens.css` is the source and
+ *  `src/styles/colors.test.ts` fails when the two drift. */
 export const PALETTE = {
   desk: '#171208',
   paper: '#e4d8bd',

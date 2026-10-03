@@ -135,7 +135,7 @@ function Site({
         <span className="text-[12.5px] text-[var(--ink-soft)]">
           {fr.economy.inRegion(region?.name ?? building.regionId)}
         </span>
-        <span className="border border-[rgba(42,33,24,.45)] px-[7px] py-[2px] text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+        <span className="border border-(color:--ink)/45 px-[7px] py-[2px] text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
           {fr.production.siteLevel(building.level)}
         </span>
         {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
@@ -144,7 +144,7 @@ function Site({
         {region !== undefined && !region.linked && produces(building.key) && (
           <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
         )}
-        <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
+        <span className="h-px flex-1 bg-(--ink)/20" />
         {/* L'élévation passe **après** la fermeture sous le seuil : pleine ligne, elle repoussait
             « fermer » à une troisième ligne et l'en-tête mangeait un tiers du téléphone. */}
         <span className="order-last w-full min-w-0 md:order-none md:w-auto">
@@ -172,7 +172,7 @@ function Site({
           {/* Le plafond est **global** et il est répété dans chaque modale : c'est le seul nombre
               qui borne tout choix de formation, et l'omettre ici forcerait à rouvrir une autre
               surface pour savoir s'il reste de la place. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-x-[18px] gap-y-2 border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-[18px] gap-y-2 border-b border-(color:--ink)/35 px-4 py-[9px]">
             <span className="flex items-baseline gap-[9px]">
               <span className="font-(family-name:--font-mono) text-[19px] text-[var(--ink)]">
                 {workshop.troopsInService}
@@ -188,7 +188,7 @@ function Site({
               queued={workshop.troopsQueued}
               cap={workshop.troopCap}
             />
-            <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
+            <span className="h-px flex-1 bg-(--ink)/20" />
             <span className="max-w-[40ch] text-right text-[11.5px] leading-[1.4] text-[var(--ink-soft)] italic">
               {fr.production.troopCapNote}
             </span>
@@ -244,10 +244,10 @@ function Site({
 
               {/* **La garnison sous ce qui la remplit** (61a) : on lit ce que le site forme, puis
                   ce qu'il tient debout, et on compose la colonne sans changer de fenêtre. */}
-              <section className="border-t border-[rgba(42,33,24,.35)]">
-                <div className="flex items-center gap-3 border-b border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+              <section className="border-t border-(color:--ink)/35">
+                <div className="flex items-center gap-3 border-b border-(color:--ink)/35 px-4 py-[9px]">
                   <span className="eyebrow">{fr.garrison.kicker}</span>
-                  <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
+                  <span className="h-px flex-1 bg-(--ink)/20" />
                   <span className="eyebrow">{fr.garrison.troopCount(held.length)}</span>
                 </div>
                 <div className="px-4 py-3">
@@ -264,8 +264,8 @@ function Site({
               </section>
             </div>
 
-            <aside className="flex w-full min-w-0 flex-col border-t border-[rgba(42,33,24,.35)] @4xl:min-h-0 @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
-              <div className="shrink-0 border-b border-[rgba(42,33,24,.35)] px-4 py-[10px]">
+            <aside className="flex w-full min-w-0 flex-col border-t border-(color:--ink)/35 @4xl:min-h-0 @4xl:w-[300px] @4xl:shrink-0 @4xl:border-t-0 @4xl:border-l">
+              <div className="shrink-0 border-b border-(color:--ink)/35 px-4 py-[10px]">
                 <span className="eyebrow">{fr.production.queueHeader}</span>
               </div>
               <div
@@ -281,7 +281,7 @@ function Site({
                   </p>
                 ) : (
                   <>
-                    <div className="border-b border-[rgba(42,33,24,.35)] bg-[rgba(42,33,24,.05)] px-4 py-[5px]">
+                    <div className="border-b border-(color:--ink)/35 bg-(--ink)/5 px-4 py-[5px]">
                       <span className="eyebrow">
                         {fr.production.queueOf(
                           facility.regionName,
@@ -309,7 +309,7 @@ function Site({
                     ))}
                   </>
                 )}
-                <div className="mt-auto border-t border-[rgba(42,33,24,.35)] px-4 pt-3 pb-5">
+                <div className="mt-auto border-t border-(color:--ink)/35 px-4 pt-3 pb-5">
                   <span className="eyebrow">{fr.production.atWaking}</span>
                   <p className="mt-1 text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
                     {fr.production.wakingNote}
@@ -323,7 +323,7 @@ function Site({
 
       <div className="flex shrink-0 items-center gap-[10px] border-t border-[var(--ink)] px-4 py-[9px]">
         <GunneryButton onOpen={onOpenGunnery} />
-        <span className="h-px flex-1 bg-[rgba(42,33,24,.2)]" />
+        <span className="h-px flex-1 bg-(--ink)/20" />
       </div>
     </>
   );
@@ -351,7 +351,7 @@ function CapPips({ inService, queued, cap }: { inService: number; queued: number
               index < inService
                 ? 'var(--ink)'
                 : index < inService + queued
-                  ? 'rgba(42,33,24,.35)'
+                  ? 'color-mix(in srgb, var(--ink) 35%, transparent)'
                   : 'transparent',
           }}
         />
@@ -409,8 +409,8 @@ function RoleCard({
   const total = owned.reduce((sum, row) => sum + row.count, 0);
 
   return (
-    <div className="flex flex-col border-r border-b border-[rgba(42,33,24,.16)]">
-      <div className="relative flex h-[150px] items-center justify-center border-b border-[rgba(42,33,24,.16)] bg-[rgba(42,33,24,.05)]">
+    <div className="flex flex-col border-r border-b border-(color:--ink)/16">
+      <div className="relative flex h-[150px] items-center justify-center border-b border-(color:--ink)/16 bg-(--ink)/5">
         <UnitSprite nation={nation} role={role} tier={tier} height={132} width={230} />
         {tiers === 2 && (
           <div className="absolute top-[8px] left-[8px] flex gap-[2px]">
@@ -470,7 +470,7 @@ function RoleCard({
 
       {/* The bill and the wait, side by side and ruled apart — the two questions a recruitment
           answers, and the only figures on the card that decide anything. */}
-      <div className="mx-4 flex items-stretch border-y border-[rgba(42,33,24,.16)]">
+      <div className="mx-4 flex items-stretch border-y border-(color:--ink)/16">
         <div className="flex-1 py-[7px]">
           <div className="text-[9px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
             {fr.production.costLabel}
@@ -479,7 +479,7 @@ function RoleCard({
             <Expense resource="alloy" value={cost.alloy} />
           </div>
         </div>
-        <div className="w-px self-stretch bg-[rgba(42,33,24,.16)]" />
+        <div className="w-px self-stretch bg-(--ink)/16" />
         <div className="flex-1 py-[7px] pl-3">
           <div className="text-[9px] tracking-[.16em] text-[var(--ink-quiet)] uppercase">
             {fr.production.trainingLabel}
@@ -526,7 +526,7 @@ function RoleCard({
                 ? fr.production.roleLocked(entry.unlockedAtHqLevel)
                 : fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)
             }
-            className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-[rgba(42,33,24,.35)] disabled:text-[rgba(42,33,24,.35)] disabled:hover:bg-transparent"
+            className="w-full cursor-pointer border border-[var(--ink)] py-[8px] text-[10.5px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:border-(color:--ink)/35 disabled:text-(color:--ink)/35 disabled:hover:bg-transparent"
           >
             {fr.production.enqueue}
           </button>
@@ -555,7 +555,7 @@ function QueueRow({
   onCancel: (() => void) | null;
 }) {
   return (
-    <div className="flex items-center gap-[10px] border-b border-[rgba(42,33,24,.16)] px-4 py-[8px]">
+    <div className="flex items-center gap-[10px] border-b border-(color:--ink)/16 px-4 py-[8px]">
       <UnitSprite
         nation={nation}
         role={batch.role}

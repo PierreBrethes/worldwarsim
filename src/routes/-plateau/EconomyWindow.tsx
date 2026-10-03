@@ -245,7 +245,7 @@ function RunningWork({ view, seat, now }: { view: PlayerView; seat: Seat; now: n
   const left = currentMinutes(running.minutesLeft, view.loadedAt, now);
 
   return (
-    <div className="flex shrink-0 flex-wrap items-stretch border-b-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)]">
+    <div className="flex shrink-0 flex-wrap items-stretch border-b-2 border-[var(--ink)] bg-(--ink)/5">
       <div className="flex min-w-[380px] flex-1 items-center gap-[14px] px-4 py-3">
         {/* Une élévation d'avant-poste n'a pas de planche : ce n'est pas un bâtiment, et lui en
             prêter une le rangerait dans une famille où il n'est pas (précision du 15/09). */}
@@ -269,7 +269,7 @@ function RunningWork({ view, seat, now }: { view: PlayerView; seat: Seat; now: n
         </span>
       </div>
       {queue.length > 0 && (
-        <div className="min-w-[300px] flex-1 border-l border-[rgba(42,33,24,.35)]">
+        <div className="min-w-[300px] flex-1 border-l border-(color:--ink)/35">
           <QueuedWorks queue={queue} seat={seat} observing={view.me.defeated} />
         </div>
       )}
@@ -304,7 +304,7 @@ function QueuedWorks({
       {queue.map((entry, index) => (
         <div
           key={entry.id}
-          className="flex items-center gap-[10px] border-b border-[rgba(42,33,24,.14)] py-[5px] last:border-0"
+          className="flex items-center gap-[10px] border-b border-(color:--ink)/14 py-[5px] last:border-0"
         >
           <span className="w-[22px] shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
             {fr.economy.queueRank(index + 2)}
@@ -562,10 +562,10 @@ function stateOf(view: PlayerView, key: BuildingKey): LinkState {
 /** The skins of a box, said once: solid ink for what stands, a hatch for what rises or waits, a
  *  dotted rule for what is not there — the legend at the head of the chart names them. */
 const SKIN: Readonly<Record<LinkState['kind'], string>> = {
-  built: 'border border-[var(--ink)] bg-[rgba(42,33,24,.06)]',
+  built: 'border border-[var(--ink)] bg-(--ink)/6',
   underway: 'border border-[var(--ink)] chart-underway',
   queued: 'border border-[var(--ink)] chart-underway',
-  missing: 'border border-dashed border-[rgba(42,33,24,.5)]',
+  missing: 'border border-dashed border-(color:--ink)/50',
 };
 
 /**
@@ -589,7 +589,7 @@ function ChartLegend() {
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[var(--ink-soft)]">
       <span className="flex items-center gap-[4px]">
-        <span className="h-[9px] w-[12px] border border-[var(--ink)] bg-[rgba(42,33,24,.06)]" />
+        <span className="h-[9px] w-[12px] border border-[var(--ink)] bg-(--ink)/6" />
         {fr.economy.legendBuilt}
       </span>
       <span className="flex items-center gap-[4px]">
@@ -601,7 +601,7 @@ function ChartLegend() {
         {fr.economy.legendQueued}
       </span>
       <span className="flex items-center gap-[4px]">
-        <span className="h-[9px] w-[12px] border border-dashed border-[rgba(42,33,24,.5)]" />
+        <span className="h-[9px] w-[12px] border border-dashed border-(color:--ink)/50" />
         {fr.economy.legendMissing}
       </span>
     </span>
@@ -640,7 +640,7 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
     return (
       <>
         {!first && <Connector />}
-        <div className="border border-[var(--ink)] bg-[rgba(42,33,24,.06)] px-[8px] py-[6px]">
+        <div className="border border-[var(--ink)] bg-(--ink)/6 px-[8px] py-[6px]">
           <BoxLabel>{fr.economy.roleUpstream}</BoxLabel>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
             <span className="flex min-w-0 items-center gap-[5px] text-[13px] font-semibold text-[var(--ink)]">
@@ -826,7 +826,7 @@ const StateBadge = ({ state, label }: { state: ChainView['state']; label: string
 function OutputBox({ column }: { column: Column }) {
   const dry = column.output.perHour <= 0;
   return (
-    <div className="border border-dashed border-[rgba(42,33,24,.5)] px-[8px] py-[6px]">
+    <div className="border border-dashed border-(color:--ink)/50 px-[8px] py-[6px]">
       <BoxLabel>{fr.economy.roleOutput}</BoxLabel>
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
         <span
@@ -940,7 +940,7 @@ function EstateRow({
   return (
     <div
       ref={row}
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[rgba(42,33,24,.16)] px-4 py-[7px] ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-(color:--ink)/16 px-4 py-[7px] ${
         focused ? `${FOCUS_MARK} pl-2` : ''
       }`}
     >
@@ -990,7 +990,7 @@ function AbsentKeys({
   if (absent.length === 0) return null;
 
   return (
-    <div className="mx-4 mt-3 border border-dashed border-[rgba(42,33,24,.5)] px-3 py-[9px]">
+    <div className="mx-4 mt-3 border border-dashed border-(color:--ink)/50 px-3 py-[9px]">
       <span className="eyebrow">{fr.economy.absentKeys}</span>
       <div className="mt-[5px] grid gap-x-7 gap-y-[5px] @3xl:grid-cols-2">
         {absent.map((key) => (
@@ -1038,8 +1038,8 @@ function HeadquartersColumn({
   const level = view.me.hqLevel;
 
   return (
-    <div className="flex w-full shrink-0 flex-col border-t-2 border-[var(--ink)] bg-[rgba(42,33,24,.03)] md:w-[302px] md:overflow-auto md:border-t-0 md:border-l">
-      <div className="sticky top-0 z-10 border-b border-[rgba(42,33,24,.35)] bg-[var(--paper)] px-4 py-[5px]">
+    <div className="flex w-full shrink-0 flex-col border-t-2 border-[var(--ink)] bg-(--ink)/3 md:w-[302px] md:overflow-auto md:border-t-0 md:border-l">
+      <div className="sticky top-0 z-10 border-b border-(color:--ink)/35 bg-[var(--paper)] px-4 py-[5px]">
         <span className="eyebrow">{fr.buildings.hq}</span>
       </div>
 
@@ -1080,7 +1080,7 @@ function HeadquartersColumn({
           </ul>
 
           {!view.me.defeated && (
-            <div className="mt-[10px] border-t border-[rgba(42,33,24,.22)] pt-[9px]">
+            <div className="mt-[10px] border-t border-(color:--ink)/22 pt-[9px]">
               <UpgradeControl building={hq} view={view} seat={seat} now={now} />
             </div>
           )}
@@ -1108,7 +1108,7 @@ function UnlinkedSites({ view }: { view: PlayerView }) {
   if (cut.length === 0) return null;
 
   return (
-    <div className="border-t border-[rgba(42,33,24,.22)] px-4 py-[9px]">
+    <div className="border-t border-(color:--ink)/22 px-4 py-[9px]">
       <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
       <p className="mt-[5px] text-[11.5px] leading-[1.4] text-[var(--critical)]">
         {fr.economy.unlinkedSites(cut.length)}
@@ -1222,7 +1222,7 @@ function OutpostBudgets({
 }) {
   if (view.me.outposts.length === 0) return null;
   return (
-    <div className="flex flex-col items-end gap-[4px] border-t border-[rgba(42,33,24,.35)] px-4 py-[9px]">
+    <div className="flex flex-col items-end gap-[4px] border-t border-(color:--ink)/35 px-4 py-[9px]">
       {view.me.outposts.map((outpost, rank) => (
         <SiteBudget
           key={outpost.id}
@@ -1245,7 +1245,7 @@ const regionName = (view: PlayerView, regionId: string): string =>
 
 function Header({ children, note }: { children: string; note?: ReactNode }) {
   return (
-    <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-[rgba(42,33,24,.35)] bg-[var(--paper)] px-4 py-[5px]">
+    <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-(color:--ink)/35 bg-[var(--paper)] px-4 py-[5px]">
       <span className="eyebrow">{children}</span>
       {note !== undefined && <span className="ml-auto">{note}</span>}
     </div>
@@ -1269,7 +1269,7 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
   const balance = view.me.resources.food.ratePerHour;
 
   return (
-    <div className="mt-auto flex shrink-0 flex-col gap-[3px] border-t-2 border-[var(--ink)] bg-[rgba(42,33,24,.05)] px-4 py-[9px]">
+    <div className="mt-auto flex shrink-0 flex-col gap-[3px] border-t-2 border-[var(--ink)] bg-(--ink)/5 px-4 py-[9px]">
       {/* **Une seule ligne** : l'empire ne mange plus. L'entretien d'avant-poste est retiré
           depuis le 15/09 (révision de l'ADR 0020 §10) — ce qui reste est ce que l'armée prend,
           et le remède est de la nourrir ou de la faire rentrer. */}
@@ -1286,7 +1286,7 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
             : fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </span>
       </div>
-      <div className="mt-[3px] flex items-baseline justify-end border-t border-[rgba(42,33,24,.28)] pt-[5px]">
+      <div className="mt-[3px] flex items-baseline justify-end border-t border-(color:--ink)/28 pt-[5px]">
         <span
           className="font-(family-name:--font-mono) text-[14px]"
           style={{ color: balance < 0 ? 'var(--critical)' : 'var(--ink)' }}
@@ -1364,7 +1364,7 @@ function LotControl({
   };
 
   return (
-    <div className="shrink-0 border-y border-[rgba(42,33,24,.28)] bg-[rgba(42,33,24,.035)] px-4 py-[10px]">
+    <div className="shrink-0 border-y border-(color:--ink)/28 bg-(--ink)/[.035] px-4 py-[10px]">
       <p className="mb-[6px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
         {fr.buildings[chain.by]} — {fr.economy.lot.commandsItself}
       </p>
@@ -1527,7 +1527,7 @@ function Reading({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-[110px] flex-1 border-l border-[rgba(42,33,24,.3)] py-[9px] pl-3 first:border-l-0 first:pl-0">
+    <div className="min-w-[110px] flex-1 border-l border-(color:--ink)/30 py-[9px] pl-3 first:border-l-0 first:pl-0">
       <div className="eyebrow">{label}</div>
       <div className="mt-[3px] font-(family-name:--font-mono) text-[14px]" style={{ color: ink }}>
         {children}

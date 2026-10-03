@@ -5,6 +5,10 @@
 :root {
   /* surfaces */
   --desk: #0f0a04;
+  /* The map engine paints its own desk (`PALETTE.desk`, `src/map/engine/palette.ts`, which cannot
+     read CSS). It is a warmer, lighter brown than `--desk` and the two are not unified here:
+     naming it keeps the veils laid over the map the same colour as the map's own ground. */
+  --map-desk: #171208;
   --paper: #e4d8bd;
   --ink: #2a2118;
   --ink-soft: #5f5039;
@@ -59,42 +63,24 @@
   --interaction: #3f5a7d;
 
   /* rules */
-  --rule-strong: 1px solid #2a2118;
-  --rule-double: 2px solid #2a2118;
-  --rule-medium: 1px solid rgba(42, 33, 24, 0.32);
-  --rule-light: 1px solid rgba(42, 33, 24, 0.18);
-  --rule-dark: 1px solid #4a4436;
+  --rule-strong: 1px solid var(--ink);
+  --rule-double: 2px solid var(--ink);
+  --rule-medium: 1px solid color-mix(in srgb, var(--ink) 32%, transparent);
+  --rule-light: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  --rule-dark: 1px solid var(--ink-quiet);
 
   /* typography */
   --font-display: 'Bodoni Moda', Georgia, serif;
   --font-body: 'Archivo Narrow', 'Arial Narrow', sans-serif;
+  --font-text: 'Source Serif 4', Georgia, serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
-  --size-masthead: 54px;
-  --size-lead: 38px;
-  --size-panel-title: 22px;
-  --size-headline: 16px;
-  --size-body: 13.5px;
-  --size-body-sm: 12.5px;
-  --size-meta: 11.5px;
-  --size-eyebrow: 10px;
   --size-eyebrow-sm: 9px;
 
   --track-eyebrow: 0.2em;
+  --track-label: 0.18em;
   --track-display: 0.02em;
   --track-masthead: 0.06em;
-
-  /* spacing */
-  --sp-1: 4px;
-  --sp-2: 6px;
-  --sp-3: 8px;
-  --sp-4: 10px;
-  --sp-5: 12px;
-  --sp-6: 14px;
-  --sp-7: 18px;
-  --sp-8: 22px;
-  --sp-9: 26px;
-  --sp-10: 30px;
 
   /* HUD scale — all text and sizing derive from it (CSS zoom) */
   --hud-scale: 1.2;
@@ -132,34 +118,19 @@
 }
 
 /* halftone screen — every paper surface */
-.paper {
+.paper,
+.paper-grain {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(42, 33, 24, 0.055) 0 1px,
+    color-mix(in srgb, var(--ink) 5.5%, transparent) 0 1px,
     transparent 1px 5px
   );
+}
+
+.paper {
   color: var(--ink);
   border: var(--rule-strong);
-}
-
-/* eyebrow: the system's most frequent label */
-.eyebrow {
-  font-size: var(--size-eyebrow);
-  letter-spacing: var(--track-eyebrow);
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-/* print grain — full-screen overlay */
-.grain {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  mix-blend-mode: overlay;
-  opacity: 0.2;
-  background-size: 160px 160px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
 }
 
 body {

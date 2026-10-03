@@ -198,7 +198,7 @@ export function MovementPreview({
       }}
     >
       <div className="paper-grain border border-[var(--ink)] p-[3px]">
-        <div className="border border-[rgba(42,33,24,.4)] px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
+        <div className="border border-(color:--ink)/40 px-[11px] pt-[9px] pb-[11px] text-[var(--ink)]">
           {/* Wrapping rather than abbreviating: the cost says a whole sentence, and on a card
               262 px wide it does not always share a line with the kicker. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-[1px] text-[9px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
@@ -258,7 +258,7 @@ export function MovementPreview({
                   a statement about his own eyes, never about the ground — the note underneath is
                   there so it cannot be read as a guarantee the other way round. */}
               {'estimatedLoot' in preview && (
-                <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+                <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
                   <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
                     {fr.aim.estimatedLoot}
                   </div>
@@ -266,7 +266,7 @@ export function MovementPreview({
                 </div>
               )}
               {'recognised' in preview && !preview.recognised && (
-                <div className="mt-[7px] border-t border-[rgba(42,33,24,.4)] pt-[6px]">
+                <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
                   <div className="text-[10.5px] tracking-[.1em] text-[var(--notable)] uppercase">
                     {fr.aim.unscouted}
                   </div>
@@ -295,7 +295,7 @@ export function MovementPreview({
           <button
             type="button"
             onClick={onClose}
-            className="mt-[6px] w-full cursor-pointer border border-[rgba(42,33,24,.4)] px-[10px] py-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase hover:bg-[rgba(42,33,24,.07)]"
+            className="mt-[6px] w-full cursor-pointer border border-(color:--ink)/40 px-[10px] py-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase hover:bg-(--ink)/7"
           >
             {fr.aim.cancel}
           </button>

@@ -110,14 +110,14 @@ export function AccountForm({
           className={`mt-[18px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
             !refused && !pending
               ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-              : 'cursor-not-allowed border-[rgba(42,33,24,.3)] bg-[rgba(42,33,24,.12)] text-[var(--ink-faint)]'
+              : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
           }`}
         >
           {pending ? fr.auth.pending : registering ? fr.auth.registerSubmit : fr.auth.loginSubmit}
         </button>
       </form>
 
-      <div className="mx-[30px] mt-[18px] mb-[22px] border-t border-[rgba(42,33,24,.35)] pt-[12px] text-center">
+      <div className="mx-[30px] mt-[18px] mb-[22px] border-t border-(color:--ink)/35 pt-[12px] text-center">
         <button
           type="button"
           onClick={() => {

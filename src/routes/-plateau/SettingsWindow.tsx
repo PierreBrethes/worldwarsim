@@ -76,7 +76,7 @@ export function SettingsWindow({
           </div>
           <div className="mt-3 flex items-center gap-[10px]">
             <Step sign="–" onClick={() => set(scale - 10)} disabled={scale <= MIN_HUD_SCALE} />
-            <div className="relative h-[6px] flex-1 bg-[rgba(42,33,24,.14)]">
+            <div className="relative h-[6px] flex-1 bg-(--ink)/14">
               <div
                 className="h-[6px] bg-[var(--interaction)]"
                 style={{
@@ -102,7 +102,7 @@ export function SettingsWindow({
           {/* **La grammaire de la carte ne change pas, quel bouton la porte est au joueur**
               (retour de la partie du 11/09). Deux presets nommés en tête pour qui veut choisir
               sans réfléchir, trois sélecteurs en dessous pour qui veut sa propre main. */}
-          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[13.5px] text-[var(--ink)]">
                 {fr.settingsWindow.mouseLabel}
@@ -145,7 +145,7 @@ export function SettingsWindow({
           {/* **Le son est un réglage à part.** `prefers-reduced-motion` parle d'animation, pas
               d'audio : s'en servir pour taire le télégraphe muterait un joueur qui n'a jamais
               demandé le silence. */}
-          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
             <div className="min-w-[180px] flex-1">
               <div className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.soundLabel}</div>
               <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
@@ -171,7 +171,7 @@ export function SettingsWindow({
 
           {/* La feuille d'entrée en campagne ne se rouvre d'office jamais : c'est ici, et
               nulle part ailleurs, qu'un joueur la retrouve. */}
-          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
             <div className="min-w-[180px] flex-1">
               <div className="text-[13.5px] text-[var(--ink)]">
                 {fr.settingsWindow.briefingLabel}
@@ -193,7 +193,7 @@ export function SettingsWindow({
               sans horloge n'a pas d'autre fin. Deux clics, comme la suppression d'une partie :
               c'est la même famille de geste, sauf que rien n'est effacé. */}
           {mayConclude && (
-            <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+            <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
               <div className="text-[13.5px] text-[var(--ink)]">
                 {fr.settingsWindow.concludeLabel}
               </div>
@@ -213,7 +213,7 @@ export function SettingsWindow({
               sorties d'une saison qu'un joueur décide, et elles prennent le même double clic.
               Une fois le geste fait il n'y a plus de bouton — la capitulation est irréversible,
               et un bouton qui ne rendrait rien serait un bouton qui ment. */}
-          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
             <div className="text-[13.5px] text-[var(--ink)]">
               {fr.settingsWindow.surrenderLabel}
             </div>
@@ -240,7 +240,7 @@ export function SettingsWindow({
               compte, et c'est tout ce qui change avec le jeton de partie — on ferme un
               appareil, on ne rend pas son siège. D'où le clic simple, à côté de deux gestes
               qui, eux, en demandent deux. */}
-          <div className="mt-[18px] border-t border-[rgba(42,33,24,.22)] pt-[14px]">
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
             <div className="text-[13.5px] text-[var(--ink)]">{fr.auth.logout}</div>
             <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">{fr.auth.logoutNote}</p>
             <button

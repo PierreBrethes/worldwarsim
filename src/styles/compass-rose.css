@@ -30,7 +30,7 @@
   animation: rose-open 120ms cubic-bezier(0.2, 0.78, 0.35, 1) both;
 
   --radial-ink: #22475a;
-  --spoke-ink: #2c5063;
+  --spoke-ink: var(--sea-ink);
   --radial-paper: rgb(232 223 200 / 94%);
   --bubble-paper: #e8dfc8;
   /* L'encre de la retenue : la seule branche grisée du jeu (décision 54a) et sa raison. Sépia

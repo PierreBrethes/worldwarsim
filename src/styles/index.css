@@ -164,15 +164,6 @@ body {
   -webkit-mask-position: center;
 }
 
-.paper-grain {
-  background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(42, 33, 24, 0.055) 0 1px,
-    transparent 1px 5px
-  );
-}
-
 .hud {
   zoom: var(--hud-scale);
 }
@@ -184,21 +175,21 @@ body {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(42, 33, 24, 0.2) 0 3px,
+    color-mix(in srgb, var(--ink) 20%, transparent) 0 3px,
     transparent 3px 7px
   );
 }
 
 .eyebrow {
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  font-size: var(--size-eyebrow-sm);
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
 .eyebrow-dark {
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  font-size: var(--size-eyebrow-sm);
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--paper-dim);
 }

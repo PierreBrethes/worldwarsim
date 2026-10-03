@@ -112,7 +112,7 @@ function Notice({ message }: { message: string }) {
   return (
     <div
       role="status"
-      className="paper-grain pointer-events-none border border-[rgba(42,33,24,.42)] px-[14px] py-[9px] shadow-[0_8px_18px_rgba(0,0,0,.4)]"
+      className="paper-grain pointer-events-none border border-(color:--ink)/42 px-[14px] py-[9px] shadow-[0_8px_18px_rgba(0,0,0,.4)]"
     >
       <div className="text-[9px] tracking-[.22em] text-[var(--ink-quiet)] uppercase">
         {fr.notifications.noticeKicker}

@@ -199,7 +199,7 @@ export function ConstructionPanel({
 
         <HeldNotice view={view} site={site} options={options} onRaiseOutpost={onRaiseOutpost} />
 
-        <h3 className="eyebrow mt-3 shrink-0 border-b border-[rgba(42,33,24,.3)] pb-[4px]">
+        <h3 className="eyebrow mt-3 shrink-0 border-b border-(color:--ink)/30 pb-[4px]">
           {fr.construction.offerHeader}
         </h3>
         <div className={size ? 'min-h-0 flex-1 overflow-auto' : 'max-h-[46vh] overflow-auto'}>
@@ -214,7 +214,7 @@ export function ConstructionPanel({
 
           {blocked.length > 0 && (
             <>
-              <h3 className="eyebrow mt-3 border-b border-[rgba(42,33,24,.3)] pb-[4px] text-[var(--ink-soft)]">
+              <h3 className="eyebrow mt-3 border-b border-(color:--ink)/30 pb-[4px] text-[var(--ink-soft)]">
                 {fr.construction.elsewhereHeader}
               </h3>
               {blocked.map((option) => (
@@ -363,7 +363,7 @@ function OptionRow({
       type="button"
       disabled={held}
       onClick={onOrder}
-      className="flex w-full items-center gap-2 border-b border-[rgba(42,33,24,.16)] py-[7px] text-left last:border-0 enabled:cursor-pointer enabled:hover:bg-[rgba(42,33,24,.07)] disabled:cursor-default"
+      className="flex w-full items-center gap-2 border-b border-(color:--ink)/16 py-[7px] text-left last:border-0 enabled:cursor-pointer enabled:hover:bg-(--ink)/7 disabled:cursor-default"
     >
       <BuildingPlate building={option.key} height={30} />
       <span className="min-w-0 flex-1">
@@ -397,7 +397,7 @@ function OptionRow({
  */
 function BlockedRow({ option, built }: { option: BlockedOption; built: number }) {
   return (
-    <div className="flex w-full items-center gap-2 border-b border-[rgba(42,33,24,.16)] py-[7px] opacity-45 last:border-0">
+    <div className="flex w-full items-center gap-2 border-b border-(color:--ink)/16 py-[7px] opacity-45 last:border-0">
       <BuildingPlate building={option.key} height={30} />
       <span className="min-w-0 flex-1">
         <BuildingName building={option.key} built={built} />

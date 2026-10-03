@@ -43,7 +43,9 @@ export function Gauge({
       className="relative w-full"
       style={{
         height,
-        background: onDark ? 'rgba(228,216,189,.14)' : 'rgba(42,33,24,.07)',
+        background: onDark
+          ? 'rgba(228,216,189,.14)'
+          : 'color-mix(in srgb, var(--ink) 7%, transparent)',
         border: onDark ? 'none' : '1px solid var(--ink)',
       }}
     >
@@ -61,7 +63,9 @@ export function Gauge({
           left: `${SATURATION_MARK * 100}%`,
           top: -2,
           bottom: -2,
-          background: onDark ? 'rgba(228,216,189,.32)' : 'rgba(42,33,24,.55)',
+          background: onDark
+            ? 'rgba(228,216,189,.32)'
+            : 'color-mix(in srgb, var(--ink) 55%, transparent)',
         }}
       />
     </div>

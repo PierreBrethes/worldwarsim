@@ -152,7 +152,7 @@ function StandingRow({
       type="button"
       onClick={onLocate}
       title={fr.nationSheet.locate(station)}
-      className="flex cursor-pointer items-center gap-[9px] border-b border-[rgba(42,33,24,.18)] py-[6px] text-left last:border-b-0 hover:bg-[rgba(42,33,24,.07)]"
+      className="flex cursor-pointer items-center gap-[9px] border-b border-(color:--ink)/18 py-[6px] text-left last:border-b-0 hover:bg-(--ink)/7"
     >
       <UnitSprite nation={nation} role={group.role} height={22} width={32} />
       <span className="min-w-0 flex-1">
@@ -247,7 +247,7 @@ function FounderLine({ absence }: { absence: FounderAbsence }) {
 
 function Entry({ header, children }: { header: string; children: ReactNode }) {
   return (
-    <section className="border-b border-[rgba(42,33,24,.22)] px-4 py-[11px]">
+    <section className="border-b border-(color:--ink)/22 px-4 py-[11px]">
       <h2 className="eyebrow mb-[3px]">{header}</h2>
       {children}
     </section>

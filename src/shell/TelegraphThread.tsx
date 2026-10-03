@@ -150,7 +150,7 @@ export function TelegraphThread({
  */
 function Line({ message }: { message: TelegraphMessage }) {
   return (
-    <div className="border-b border-[rgba(42,33,24,.16)] py-[7px] last:border-b-0">
+    <div className="border-b border-(color:--ink)/16 py-[7px] last:border-b-0">
       <div className="flex items-baseline gap-2">
         <span
           title={nationLabel(message.nation)}
