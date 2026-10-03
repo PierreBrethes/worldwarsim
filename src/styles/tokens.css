@@ -15,8 +15,10 @@
   --ink-quiet: #4a4436;
   --paper-dim: #8d7f6a;
   --paper-dim-2: #a9968f;
-  --ink-faint: #8a7c5f;
-  --ink-note: #7d6a45;
+  /* 4,7:1 on --paper, the floor for small text (charte-2b, 03/10/2026). There used to be a fainter
+     grey beside it; raised to the same floor, the two became one colour. Paper only: on the desk
+     it falls near 3:1, and --paper-dim is the grey there. */
+  --ink-note: #6b5b3b;
   --paper-pile: #cfc09e;
   --paper-pile-2: #b8ab8c;
   --sea: #a9c5cd;

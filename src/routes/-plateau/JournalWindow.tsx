@@ -394,7 +394,7 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
             <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
               {fr.victory.tally(standing.reduced, board.target)}
             </span>
-            <span className="text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+            <span className="text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
               {standing.isReduced ? fr.victory.reducedMark : fr.victory.standingMark}
             </span>
           </span>

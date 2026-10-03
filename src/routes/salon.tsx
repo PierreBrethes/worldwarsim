@@ -177,7 +177,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                 >
                   {linkCopied ? fr.lobby.linkCopied : fr.lobby.copyLink}
                 </button>
-                <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-faint)]">
+                <div className="text-center font-(family-name:--font-mono) text-[10px] tracking-[.1em] text-[var(--ink-note)]">
                   {fr.lobby.participantCount(lobby.players.length)}
                 </div>
               </div>
@@ -191,7 +191,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   <span className="eyebrow">
                     {entering ? fr.lobby.enterWarNationsHeader : fr.lobby.nationsHeader}
                   </span>
-                  <span className="text-[10.5px] text-[var(--ink-faint)]">
+                  <span className="text-[10.5px] text-[var(--ink-note)]">
                     {fr.lobby.nationsFree(freeNations)}
                   </span>
                 </div>
@@ -268,7 +268,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   <span className="eyebrow">
                     {entering ? fr.lobby.belligerents : fr.lobby.playersHeader}
                   </span>
-                  <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]">
+                  <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-note)]">
                     {lobby.players.length} / 8
                   </span>
                 </div>
@@ -282,7 +282,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
                         {player.nickname}
                         {player.creator && (
-                          <span className="ml-[6px] text-[9px] tracking-[.14em] text-[var(--ink-faint)] uppercase">
+                          <span className="ml-[6px] text-[9px] tracking-[.14em] text-[var(--ink-note)] uppercase">
                             {fr.lobby.founder}
                           </span>
                         )}
@@ -295,7 +295,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                         style={{
                           color: (entering ? player.atWar : player.ready)
                             ? 'var(--valid)'
-                            : 'var(--ink-faint)',
+                            : 'var(--ink-note)',
                         }}
                       >
                         {entering
@@ -311,7 +311,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   {Array.from({ length: freeSeats }, (_, rank) => (
                     <li
                       key={`free-${rank}`}
-                      className="flex items-center gap-[9px] border-b border-dashed border-(color:--ink)/28 px-[2px] py-[6px] text-[var(--ink-faint)]"
+                      className="flex items-center gap-[9px] border-b border-dashed border-(color:--ink)/28 px-[2px] py-[6px] text-[var(--ink-note)]"
                     >
                       <span
                         aria-hidden
@@ -337,7 +337,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                     <div
                       key={check.label}
                       className="flex items-center gap-[9px] text-[11.5px]"
-                      style={{ color: check.done ? 'var(--ink)' : 'var(--ink-faint)' }}
+                      style={{ color: check.done ? 'var(--ink)' : 'var(--ink-note)' }}
                     >
                       <span className="w-[11px] font-(family-name:--font-mono) text-[11px]">
                         {check.done ? '×' : '·'}
@@ -361,12 +361,12 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                       className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         missing === 0
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
+                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
                       }`}
                     >
                       {fr.lobby.enterWar}
                     </button>
-                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-note)]">
                       {missing === 0
                         ? fr.lobby.enterWarSeedNote
                         : fr.lobby.enterWarMissing(missing)}
@@ -393,12 +393,12 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                       className={`mt-2 w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
                         allReady
                           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
+                          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
                       }`}
                     >
                       {fr.lobby.launch}
                     </button>
-                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                    <p className="mt-[7px] text-center text-[10.5px] text-[var(--ink-note)]">
                       {allReady ? fr.lobby.launchSeedNote : fr.lobby.launchMissing(missing)}
                     </p>
                     <DestroyButton
@@ -415,7 +415,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                     />
                   </>
                 ) : (
-                  <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-faint)]">
+                  <p className="mt-[10px] text-center text-[10.5px] text-[var(--ink-note)]">
                     {fr.lobby.creatorOnly}
                   </p>
                 )}
@@ -432,7 +432,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               </p>
             )}
 
-            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
               <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>
               <span className="font-(family-name:--font-mono) tracking-[.12em]">
                 {fr.lobby.footerCode(lobby.code)}
@@ -479,7 +479,7 @@ function LobbyTelegraph({ seat }: { seat: Seat }) {
     <section className="mx-[30px] mt-4 flex flex-col">
       <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
         <span className="eyebrow">{fr.telegraph.header}</span>
-        <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.telegraph.channel}</span>
+        <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.channel}</span>
       </div>
       <TelegraphThread telegraph={telegraph} seat={seat} height={220} />
     </section>

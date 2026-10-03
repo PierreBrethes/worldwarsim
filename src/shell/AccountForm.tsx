@@ -90,7 +90,7 @@ export function AccountForm({
           className="mt-[6px] w-full border border-[var(--ink)] bg-transparent px-[14px] py-3 text-[17px] text-[var(--ink)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--interaction)]"
           placeholder={fr.auth.passwordPlaceholder}
         />
-        <p id={NOTE_ID} className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
+        <p id={NOTE_ID} className="mt-2 text-[10.5px] text-[var(--ink-note)]">
           {fr.auth.passwordNote}
         </p>
 
@@ -110,7 +110,7 @@ export function AccountForm({
           className={`mt-[18px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
             !refused && !pending
               ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-              : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
+              : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
           }`}
         >
           {pending ? fr.auth.pending : registering ? fr.auth.registerSubmit : fr.auth.loginSubmit}

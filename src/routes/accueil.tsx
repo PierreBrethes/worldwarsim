@@ -168,7 +168,7 @@ function ConnectedHome() {
           <div className="mx-[30px] mt-[20px]">
             <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
               <span className="eyebrow">{fr.home.gamesHeader}</span>
-              <span className="text-[10.5px] text-[var(--ink-faint)]">{fr.home.gamesNote}</span>
+              <span className="text-[10.5px] text-[var(--ink-note)]">{fr.home.gamesNote}</span>
             </div>
             <ul className="mt-3 flex flex-col gap-3">
               {mine.map((seat) => (
@@ -226,7 +226,7 @@ function ConnectedHome() {
               className="mt-[6px] w-full border border-[var(--ink)] bg-transparent p-[14px] text-center font-(family-name:--font-mono) text-[22px] tracking-[.42em] text-[var(--ink)] uppercase outline-none"
               placeholder={fr.home.codePlaceholder}
             />
-            <p className="mt-2 text-[10.5px] text-[var(--ink-faint)]">
+            <p className="mt-2 text-[10.5px] text-[var(--ink-note)]">
               {fr.home.joinHint(REGISTRATION_WINDOW_HOURS)}
             </p>
             <Commit active={code.length === 6 && !pending} type="submit">
@@ -259,7 +259,7 @@ function ConnectedHome() {
           </button>
         </div>
 
-        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-faint)] uppercase">
+        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
           <span>{fr.home.footerLeft}</span>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
             {fr.home.footerRight}
@@ -399,7 +399,7 @@ function Commit({
       className={`mt-[14px] w-full border p-[13px] text-[11px] tracking-[.22em] uppercase ${
         active
           ? 'cursor-pointer border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)] hover:bg-[var(--interaction)]'
-          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-faint)]'
+          : 'cursor-not-allowed border-(color:--ink)/30 bg-(--ink)/12 text-[var(--ink-note)]'
       }`}
     >
       {children}

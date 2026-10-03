@@ -393,7 +393,7 @@ function Mark({
         </span>
         <span
           className="font-(family-name:--font-mono) text-[12.5px]"
-          style={{ color: roster > 0 ? 'var(--ink)' : 'var(--ink-faint)' }}
+          style={{ color: roster > 0 ? 'var(--ink)' : 'var(--ink-note)' }}
         >
           {roster}
         </span>
@@ -485,7 +485,7 @@ function Cell({ attacker, shot }: { attacker: CombatProfile; shot: GunneryShot }
     return (
       <td
         title={fr.gunnery.noShot(from, target)}
-        className="border-l border-(color:--ink)/14 px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]"
+        className="border-l border-(color:--ink)/14 px-[6px] py-[5px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-note)]"
       >
         {fr.gunnery.outOfReach}
       </td>
@@ -523,7 +523,7 @@ function Legend() {
       <span className="flex items-center gap-[6px]">
         <span
           aria-hidden
-          className="inline-block w-[18px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-faint)]"
+          className="inline-block w-[18px] text-center font-(family-name:--font-mono) text-[11px] text-[var(--ink-note)]"
         >
           {fr.gunnery.outOfReach}
         </span>

@@ -42,7 +42,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
         <article className="paper-grain w-[880px] max-w-full border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6)]">
           <div className="flex items-baseline justify-between gap-5 px-[26px] pt-[11px] pb-[7px]">
             <span className="eyebrow">{fr.briefing.kicker}</span>
-            <span className="font-(family-name:--font-mono) text-[10px] tracking-[.14em] text-[var(--ink-faint)]">
+            <span className="font-(family-name:--font-mono) text-[10px] tracking-[.14em] text-[var(--ink-note)]">
               {fr.briefing.subtitle}
             </span>
           </div>

@@ -116,7 +116,7 @@ export function TelegraphThread({
               send();
             }}
             placeholder={fr.telegraph.placeholder}
-            className="min-w-0 flex-1 border border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--ink)]"
+            className="min-w-0 flex-1 border border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] focus:border-[var(--ink)]"
           />
           <button
             type="button"
@@ -160,7 +160,7 @@ function Line({ message }: { message: TelegraphMessage }) {
           {message.nickname}
         </span>
         <span className="flex-1" />
-        <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-faint)]">
+        <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-note)]">
           {new Date(message.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>

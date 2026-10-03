@@ -3,7 +3,7 @@ type: marque
 statut: en cours
 maj: 2026-10-03
 code: [src/styles/tokens.css, src/styles/index.css, src/shell/Masthead.tsx, src/shell/Stamp.tsx, src/shell/Newspaper.tsx, src/shell/TelegraphThread.tsx, src/routes/-plateau/Window.tsx, src/routes/-plateau/PressWindow.tsx, src/map/engine/palette.ts, src/domain/nations.ts]
-decisions: [charte-1a-2026-10-03, charte-1b-2026-10-03]
+decisions: [charte-1a-2026-10-03, charte-1b-2026-10-03, charte-2a-2026-10-03, charte-2b-2026-10-03]
 voir: [marque-et-site.md, actifs.md, ../design/10-direction-artistique.md, ../design/11-brief-ui.md]
 ---
 
@@ -54,8 +54,15 @@ dessus (charte-1a-2026-10-03). Le nettoyage sans changement de rendu est lancé 
 - 19 interlettrages en dur pour 3 variables `--track-*`.
 
 ### Lisibilité (petit texte sous 4,5:1)
-- `--ink-note` sur papier 3,7:1 ; `--ink-faint` 2,9:1 ; `--critical` 4,4:1 (3,2:1 sur `--desk`) ;
-  `--routine` 3,8:1 ; `--notable-paper` 4,2:1.
+- ✅ Livré le 03/10/2026 (charte-2b) : `--ink-faint` fondu dans `--ink-note`, passé à `#6b5b3b`
+  (4,7:1 sur `--paper`) — [un-seul-gris-de-note](../prompts/code/ready/un-seul-gris-de-note.md).
+  Sous l'encre il reste deux gris : `--ink-soft` (5,5:1) et `--ink-note`. Les 28 emplois de
+  `--ink-faint` étaient tous sur papier ; aucun n'a dû passer à `--paper-dim`. `colors.test.ts`
+  refuse le retour de `--ink-faint` et tient `--ink-note` à 4,5:1 sur `--paper`. Réserve :
+  sur `--paper-pile` il ne fait que 3,7:1 — aucun petit texte n'y est posé aujourd'hui. Les
+  dégradés à 2–4/255 près du nettoyage sont acceptés (charte-2a).
+- Restent sous le seuil : `--critical` 4,4:1 (3,2:1 sur `--desk`) ; `--routine` 3,8:1 ;
+  `--notable-paper` 4,2:1.
 
 ### Documentation du coffre périmée (corrigée le 03/10/2026 dans les fiches 10 et 11)
 - `10-direction-artistique.md` : « Typographie : rien n'est choisi », trois ressources (huit

@@ -41,6 +41,37 @@ const holdsLiterals = (path: string): boolean =>
   path === 'src/domain/nations.ts' ||
   path === 'src/styles/tokens.css';
 
+const relativeLuminance = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map((at) => {
+    const channel = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+};
+
+const contrast = (a: string, b: string): number => {
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light! + 0.05) / (dark! + 0.05);
+};
+
+/**
+ * **Un seul gris de note** (charte-2b, 03/10/2026). Le petit texte passait sous 4,5:1 avec deux
+ * gris qui, remontés au seuil, devenaient la même couleur. Le second ne doit pas revenir.
+ */
+describe('le petit texte se lit', () => {
+  it('n’a plus de --ink-faint', () => {
+    const offenders = sourceFiles('src').filter((path) => read(path).includes('--ink-faint'));
+    expect(offenders).toEqual([]);
+  });
+
+  it('tient --ink-note à 4,5:1 au moins sur --paper', () => {
+    const declared = tokenColors();
+    expect(contrast(declared.get('--ink-note')!, declared.get('--paper')!)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  });
+});
+
 describe('les couleurs suivent leurs variables', () => {
   it('n’écrit plus l’encre ni le bureau de la carte en transparence', () => {
     const offenders = sourceFiles('src').filter((path) =>

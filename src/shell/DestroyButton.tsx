@@ -28,7 +28,7 @@ export function DestroyButton({
       <button
         type="button"
         onClick={() => setArmed(true)}
-        className="mt-[10px] w-full cursor-pointer border border-(color:--ink)/30 p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-faint)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
+        className="mt-[10px] w-full cursor-pointer border border-(color:--ink)/30 p-[9px] text-[10px] tracking-[.2em] text-[var(--ink-note)] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
       >
         {label}
       </button>
