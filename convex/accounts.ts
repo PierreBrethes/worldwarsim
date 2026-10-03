@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { fail } from './errors';
+import { dropSubscription } from './notifications';
 import { accountOf, previewOf } from './seasons';
 
 const digestArgs = {
@@ -161,13 +162,17 @@ export const seats = query({
   },
 });
 
+/** `endpoint` est celui de l'appareil qui se déconnecte : il cesse de sonner pour ce compte
+ *  (notif-1a). Les autres appareils du compte gardent leur abonnement. */
 export const logout = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
+  args: { token: v.string(), endpoint: v.optional(v.string()) },
+  handler: async (ctx, { token, endpoint }) => {
     const session = await ctx.db
       .query('sessions')
       .withIndex('byToken', (q) => q.eq('token', token))
       .unique();
-    if (session) await ctx.db.delete(session._id);
+    if (!session) return;
+    if (endpoint !== undefined) await dropSubscription(ctx, endpoint, session.accountId);
+    await ctx.db.delete(session._id);
   },
 });

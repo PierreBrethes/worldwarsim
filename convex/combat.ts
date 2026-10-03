@@ -10,6 +10,8 @@ import {
 import { landAtPoint } from './routes';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
+import { notifyPlayer } from './notifications';
+import { push, journalUrl } from '../src/domain/push';
 import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
 import {
@@ -114,6 +116,7 @@ export async function resolveContact(
         kind: 'firedDry',
         hostCountry,
       });
+      await notifyPlayer(ctx, who, { type: 'dryFire', phrase: push.dryFire, url: journalUrl, at });
     }
   }
 
@@ -182,6 +185,14 @@ export async function resolveContact(
         state: outcome.state,
       };
     }),
+  });
+
+  /** **Le défenseur, et lui seul** : l'attaquant a donné l'ordre, il n'a pas à être averti. */
+  await notifyPlayer(ctx, defender.playerId, {
+    type: 'attack',
+    phrase: push.attack,
+    url: journalUrl,
+    at,
   });
 
   const recoveringPlayerId =

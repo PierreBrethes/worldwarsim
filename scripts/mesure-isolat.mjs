@@ -141,8 +141,15 @@ async function sonderImport(paquet) {
   process.stdout.write(String(process.memoryUsage().heapUsed - avant));
 }
 
+/**
+ * Les actions `"use node"` qui chargent un paquet CommonJS (`web-push`) ne tournent pas dans
+ * l'isolat V8 mais dans un runtime Node où `convex.json` (`node.externalPackages`) le garde hors du
+ * paquet : le bundler ESM de la sonde ne saurait ni l'inliner, ni le retrouver dans `/tmp`.
+ */
+const HORS_ISOLAT = ['convex/pushSend.ts'];
+
 async function phaseImports(atelier) {
-  const modules = modulesDeConvex();
+  const modules = modulesDeConvex().filter((module) => !HORS_ISOLAT.includes(module));
   const entrees = [];
   for (const [rang, module] of modules.entries()) {
     const fichier = path.join(atelier, `sonde-${rang}.ts`);

@@ -4,6 +4,8 @@ import { api } from '../../convex/_generated/api';
 import { PRESENCE_THROTTLE_MIN } from '../../convex/constants';
 import type { Seat } from './session';
 
+const PRESENT_BEAT_MS = 60_000;
+
 /**
  * **Le plateau dit qu'on est là.** Une query ne peut pas écrire, donc la présence est une
  * mutation, et le seul moment où l'on sait qu'un joueur regarde sa partie est le montage du
@@ -20,6 +22,25 @@ import type { Seat } from './session';
  */
 export function usePresence(seat: Seat): void {
   const touch = useMutation(api.players.touch);
+  const beatPresent = useMutation(api.notifications.present);
+  /**
+   * **À la minute, et seulement onglet visible** : c'est ce battement-là qui dit au serveur que
+   * l'écran montre déjà les alarmes, donc qu'une notification serait un doublon
+   * (`src/domain/push.ts`, `IN_PLAY_WINDOW_MS`). Il écrit dans sa propre table, jamais dans la
+   * place du joueur, et se tait de même.
+   */
+  useEffect(() => {
+    const beat = () => {
+      if (document.visibilityState === 'visible') void beatPresent(seat).catch(() => undefined);
+    };
+    beat();
+    const timer = window.setInterval(beat, PRESENT_BEAT_MS);
+    document.addEventListener('visibilitychange', beat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', beat);
+    };
+  }, [beatPresent, seat]);
   useEffect(() => {
     const beat = () => void touch(seat).catch(() => undefined);
     beat();

@@ -36,6 +36,8 @@ import {
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
 import { asPoint, pointOf, seasonMovements, seasonOutposts } from './forces';
+import { notifyPlayer } from '../notifications';
+import { journalUrl, push } from '../../src/domain/push';
 
 type Mobile = {
   readonly movement: Doc<'movements'>;
@@ -165,6 +167,12 @@ export async function revealSighting(
     headingDegrees: seenSegment(marchingForce(movement), sighting.from, sighting.to).headingDegrees,
     detector: sighting.detector,
     detectorRegion: sighting.detectorRegion ?? null,
+  });
+  await notifyPlayer(ctx, sighting.playerId, {
+    type: 'sighting',
+    phrase: push.sighting,
+    url: journalUrl,
+    at: sighting.from,
   });
   await ctx.db.patch(sighting._id, { noticeFiled: true, revealJobId: undefined });
 }

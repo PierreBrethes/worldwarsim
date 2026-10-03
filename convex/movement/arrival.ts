@@ -49,6 +49,8 @@ import {
 } from './forces';
 import { surveyFromPoint } from '../surveys';
 import { seatsOf } from '../seasons';
+import { notifyPlayer } from '../notifications';
+import { journalUrl, push } from '../../src/domain/push';
 import { pacedMinutes } from './orders';
 import { creditToStorage, settle } from '../resources';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
@@ -421,6 +423,12 @@ async function deactivate(
     kind: 'outpostDisabled',
     hostCountry: outpost.hostCountry,
     specialization: outpost.specialization,
+  });
+  await notifyPlayer(ctx, outpost.playerId, {
+    type: 'outpost',
+    phrase: push.outpostDisabled,
+    url: journalUrl,
+    at: now,
   });
   await reportChange(ctx, outpost.seasonId, before, now);
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.

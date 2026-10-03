@@ -1192,6 +1192,21 @@ describe('scrapping a season', () => {
       // And one line of the telegraph: the channel is a table of the season like any other.
       await t.mutation(api.messages.post, { ...creator, text: 'je marche sur Prahova' });
 
+      // The notification queue hangs from the season, the heartbeat from the player.
+      await t.mutation(api.notifications.present, creator);
+      await t.run(async (ctx) => {
+        const seat = await seatIn(ctx, creator);
+        await ctx.db.insert('pushQueue', {
+          accountId: seat.accountId!,
+          seasonId: seat.seasonId,
+          type: 'attack',
+          at: Date.now(),
+          phrase: 'une passe',
+          label: 'une passe',
+          url: '/plateau?windows=journal',
+        });
+      });
+
       const tables = GAME_TABLES as ReadonlyArray<TableNames>;
       const before = await countRows(t, tables);
       // Every table carries something, or the emptiness below proves nothing about it.

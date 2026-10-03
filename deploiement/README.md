@@ -184,6 +184,30 @@ npx convex deploy
 wws-compose --profile prod up -d --build front
 ```
 
+### 5 bis · Notifications — clés VAPID
+
+Les notifications (Web Push) signent leurs envois d'une paire de clés VAPID. **Elles vivent dans
+l'environnement du Convex du VPS, jamais dans le dépôt ni dans le `.env` du front** — le client ne
+reçoit que la clé publique, par `notifications:publicKey`.
+
+```bash
+npx web-push generate-vapid-keys        # une fois ; garder la paire hors du dépôt
+```
+
+Les poser sur le backend auto-hébergé (même variables d'environnement que pour `convex deploy`) :
+
+```bash
+export CONVEX_SELF_HOSTED_URL=https://convex.pierrebrethes.cloud
+export CONVEX_SELF_HOSTED_ADMIN_KEY=<la clé du VPS>
+npx convex env set VAPID_PUBLIC_KEY  <clé publique>
+npx convex env set VAPID_PRIVATE_KEY <clé privée>
+npx convex env set VAPID_SUBJECT     mailto:<une adresse qui répond>
+```
+
+Sans elles, rien ne casse : la file se remplit et se vide, et l'envoi consigne « clés VAPID
+absentes » au lieu de partir. **Changer la paire désabonne tous les appareils** (leurs abonnements
+sont liés à la clé publique) : ils devront réactiver la case des Réglages.
+
 ### 6 · Contrôle
 
 - `https://wws.pierrebrethes.cloud` répond et le jeu se charge ;

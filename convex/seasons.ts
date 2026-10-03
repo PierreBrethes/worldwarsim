@@ -13,6 +13,8 @@ import {
 import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
 import { SEASON_CLOCK_HOURS } from './validators';
 import {
@@ -495,7 +497,15 @@ export const launch = mutation({
       launchedAt: now,
       playableRegion: playableRegion(present.length),
     });
-    for (const entry of present) await endow(ctx, entry, now);
+    for (const entry of present) {
+      await endow(ctx, entry, now);
+      await notifyPlayer(ctx, entry._id, {
+        type: 'season',
+        phrase: push.seasonLaunched,
+        url: journalUrl,
+        at: now,
+      });
+    }
 
     /**
      * **La première édition du classement**, à `launchedAt + PRESS_EDITION_HOURS` et pas une
@@ -579,6 +589,14 @@ export async function concludeSeason(
     winnerNation: winner === null ? null : (winner.nation ?? winner.nickname),
     concludedAt: at,
   });
+  for (const entry of await seatsOf(ctx, seasonId)) {
+    await notifyPlayer(ctx, entry._id, {
+      type: 'season',
+      phrase: winnerId === null ? push.seasonConcluded : push.seasonDominated,
+      url: journalUrl,
+      at,
+    });
+  }
 }
 
 /**
@@ -698,6 +716,12 @@ export const destroy = mutation({
       .collect()) {
       await ctx.db.delete(objective._id);
     }
+    for (const queued of await ctx.db
+      .query('pushQueue')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect()) {
+      await ctx.db.delete(queued._id);
+    }
     await ctx.db.delete(season._id);
   },
 });
@@ -731,6 +755,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'regionSightings'
       | 'stationedLoot'
       | 'notices'
+      | 'presences'
       | 'messages',
   ) =>
     ctx.db
@@ -827,6 +852,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('regionSightings')),
     ...(await byPlayer('stationedLoot')),
     ...(await byPlayer('notices')),
+    ...(await byPlayer('presences')),
     ...(await byPlayer('messages')),
     ...accounts,
   ];

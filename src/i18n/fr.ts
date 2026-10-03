@@ -354,6 +354,7 @@ export const fr = {
     SESSION_TOKEN_COLLISION: () => 'impossible de créer la session — réessayez',
     UNKNOWN_SESSION: () => 'session expirée — reconnectez-vous',
     NO_SEAT: () => 'vous n’avez pas de place dans cette partie',
+    PUSH_ENDPOINT_INVALID: () => 'cet appareil ne peut pas recevoir de notifications',
     SEAT_TAKEN: () => 'vous avez déjà une place dans cette partie — elle est à l’accueil',
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',

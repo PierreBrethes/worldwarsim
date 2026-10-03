@@ -12,6 +12,8 @@ import { reassessDetection } from './movement/detection';
 import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
 import { allRegions } from './regions';
 import { reportChange, settleBeforeChange } from './production';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
 import { credit } from './resources';
 import { playerOf, requirePlayable } from './seasons';
 import { surveyFoundation } from './surveys';
@@ -113,6 +115,12 @@ export async function collapseIfAbandoned(
     kind: 'foundationLost',
     hostCountry: outpost.hostCountry,
     specialization: outpost.specialization,
+  });
+  await notifyPlayer(ctx, outpost.playerId, {
+    type: 'outpost',
+    phrase: push.foundationLost,
+    url: journalUrl,
+    at: now,
   });
   /** Le rendez-vous du lever n'est pas annulé : il trouvera un point disparu et ne fera rien. */
 }

@@ -15,6 +15,8 @@ import {
   ROUTE_LEG,
   MOVEMENT_TYPE,
   NOTICE,
+  PUSH_PREFERENCES,
+  PUSH_TYPE,
   PLUNDER_MISSION,
   RESOURCE_AMOUNTS,
   REST_WINDOW,
@@ -53,6 +55,12 @@ export default defineSchema({
     salt: v.string(),
     iterations: v.number(),
     createdAt: v.number(),
+    /** Les six interrupteurs du compte, absents tant qu'il n'en a touché aucun : un compte sans
+     *  ligne a tout coché (`pushPreferencesOf`, `convex/notifications.ts`). */
+    pushPreferences: v.optional(PUSH_PREFERENCES),
+    /** Le vidage de la file d'envoi qui attend ce compte — un seul à la fois, et c'est cette
+     *  trace qui permet de le déplacer plutôt que d'en empiler un second. */
+    pushFlushJobId: v.optional(v.id('_scheduled_functions')),
   }).index('byNicknameKey', ['nicknameKey']),
 
   sessions: defineTable({
@@ -234,6 +242,9 @@ export default defineSchema({
      * présence, pas un battement.
      */
     lastSeenAt: v.optional(v.number()),
+    /** L'heure du dernier télégraphe parti en notification pour cette place : le télégraphe
+     *  n'en déclenche qu'une par heure (`convex/notifications.ts`). */
+    telegraphPushedAt: v.optional(v.number()),
   })
     .index('byAccountSeason', ['accountId', 'seasonId'])
     .index('bySeason', ['seasonId']),
@@ -828,6 +839,50 @@ export default defineSchema({
   notices: defineTable(NOTICE)
     .index('byPlayer', ['playerId'])
     .index('byPlayerAt', ['playerId', 'at']),
+
+  /**
+   * **Un appareil abonné aux notifications, pour un compte** (décision notif-1a). L'`endpoint`
+   * est l'identité de l'appareil : un endpoint déjà connu d'un autre compte change de compte, il
+   * ne se double pas. Durable comme le compte — la saison qui s'efface ne désabonne personne.
+   */
+  pushSubscriptions: defineTable({
+    accountId: v.id('accounts'),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    deviceLabel: v.string(),
+    createdAt: v.number(),
+    lastSentAt: v.optional(v.number()),
+  })
+    .index('byEndpoint', ['endpoint'])
+    .index('byAccount', ['accountId']),
+
+  /**
+   * **Ce qui attend de partir** : un événement qui compte, déjà mis en phrase, déposé pour un
+   * compte et une saison. Le vidage le groupe, le tait ou le retient (repos, présence, heure du
+   * télégraphe) ; il n'est jamais relu après son envoi.
+   */
+  pushQueue: defineTable({
+    accountId: v.id('accounts'),
+    seasonId: v.id('seasons'),
+    type: PUSH_TYPE,
+    at: v.number(),
+    phrase: v.string(),
+    label: v.string(),
+    url: v.string(),
+  })
+    .index('byAccount', ['accountId'])
+    .index('bySeason', ['seasonId']),
+
+  /**
+   * **Présent à l'écran, à la minute près** — la présence que `players.lastSeenAt` ne peut pas
+   * donner, écrite toutes les demi-heures pour ne pas réinvalider la vue de tous. Une table à
+   * part, jamais lue par `playerView` : battre toutes les minutes n'invalide personne.
+   */
+  presences: defineTable({
+    playerId: v.id('players'),
+    at: v.number(),
+  }).index('byPlayer', ['playerId']),
 
   /**
    * **The telegraph — one general channel per season, and nothing else.** No private channel, no

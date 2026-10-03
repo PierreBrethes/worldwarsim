@@ -8,7 +8,9 @@ import {
   TELEGRAPH_DEPTH,
 } from '../src/domain/telegraph';
 import { fail } from './errors';
-import { playerOf } from './seasons';
+import { notifyPlayer } from './notifications';
+import { telegraphUrl, push } from '../src/domain/push';
+import { playerOf, seatsOf } from './seasons';
 
 /**
  * **On se chambre aussi en attendant le lancement.** The channel opens with the lobby and closes
@@ -54,6 +56,15 @@ export const post = mutation({
       text: trimmed,
       at: now,
     });
+    for (const seat of await seatsOf(ctx, season._id)) {
+      if (seat._id === player._id) continue;
+      await notifyPlayer(ctx, seat._id, {
+        type: 'telegraph',
+        phrase: push.telegraphOne,
+        url: telegraphUrl,
+        at: now,
+      });
+    }
   },
 });
 

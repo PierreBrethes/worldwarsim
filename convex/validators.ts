@@ -703,3 +703,22 @@ export const REST_WINDOW = v.object({
   startMinutes: v.number(),
   endMinutes: v.number(),
 });
+
+/** Les six genres de notification, ceux des cases des Réglages (`src/domain/push.ts`). */
+export const PUSH_TYPE = v.union(
+  v.literal('attack'),
+  v.literal('outpost'),
+  v.literal('sighting'),
+  v.literal('dryFire'),
+  v.literal('season'),
+  v.literal('telegraph'),
+);
+
+export const PUSH_PREFERENCES = v.object({
+  attack: v.boolean(),
+  outpost: v.boolean(),
+  sighting: v.boolean(),
+  dryFire: v.boolean(),
+  season: v.boolean(),
+  telegraph: v.boolean(),
+});

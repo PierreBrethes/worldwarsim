@@ -272,7 +272,7 @@ describe('no table is swept whole', () => {
   /** `dev.reset` purges disposable games while durable identity survives. Keeping both lists
    * exhaustive prevents a new table from silently falling on either side of that boundary. */
   it('classifies every schema table as game or identity state', () => {
-    expect(IDENTITY_TABLES).toEqual(['accounts', 'sessions']);
+    expect(IDENTITY_TABLES).toEqual(['accounts', 'sessions', 'pushSubscriptions']);
     const identity = new Set<string>(IDENTITY_TABLES);
     expect(GAME_TABLES.filter((table) => identity.has(table))).toEqual([]);
     expect([...GAME_TABLES, ...IDENTITY_TABLES].sort()).toEqual(Object.keys(schema.tables).sort());

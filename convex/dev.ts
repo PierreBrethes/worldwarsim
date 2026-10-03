@@ -15,6 +15,8 @@ export const GAME_TABLES = [
   'constructions',
   'messages',
   'notices',
+  'pushQueue',
+  'presences',
   'sightings',
   'campSightings',
   'regionSightings',
@@ -41,7 +43,7 @@ export const GAME_TABLES = [
 ] as const;
 
 /** Durable identity survives both a single-season destruction and the development game reset. */
-export const IDENTITY_TABLES = ['accounts', 'sessions'] as const;
+export const IDENTITY_TABLES = ['accounts', 'sessions', 'pushSubscriptions'] as const;
 
 /**
  * **Wipes every game table.** A season is disposable by design — 48 hours to 7 days, then a
