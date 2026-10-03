@@ -20,11 +20,11 @@
 >   pour le compte entier : attaque subie, avant-poste, colonne relevée, tir à sec, la saison
 >   (lancement et fin), télégraphe. Tout coché par défaut.
 > - Pas de notification quand le joueur est déjà en jeu (vu il y a moins de deux minutes).
-> - Prompts : `prompts/code/ready/notifications-serveur.md` puis `notifications-appareil.md`.
+> - Prompts : `prompts/code/done/notifications-serveur.md` puis `notifications-appareil.md`.
 
 ## Ce qui a été codé — lot serveur (03/10/2026)
 
-Prompt : `prompts/code/ready/notifications-serveur.md`. Le lot appareil (service worker, Réglages)
+Prompt : `prompts/code/done/notifications-serveur.md`. Le lot appareil (service worker, Réglages)
 n'est pas fait.
 
 - **Tables** : `pushSubscriptions` (durable, côté identité du wipe), `pushQueue` (par saison,
@@ -58,7 +58,7 @@ n'est pas fait.
 
 ## Ce qui a été codé — lot appareil (03/10/2026)
 
-Prompt : `prompts/code/ready/notifications-appareil.md`.
+Prompt : `prompts/code/done/notifications-appareil.md`.
 
 - **Service worker** : `public/sw.js`, sans build ni cache ; `push` affiche, `notificationclick` met
   au premier plan un onglet du site (ou en ouvre un) sur `url` + `season=<seasonId>`. Inscrit au

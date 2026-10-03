@@ -6,23 +6,33 @@ import { useEffect, useState } from 'react';
  * ferme au lieu de la pousser. C'est le `md` de Tailwind, et c'est la seule mesure du dépôt —
  * un second chiffre écrit ailleurs se serait désaccordé du premier à la première retouche.
  *
- * La carte, elle, ne lit pas ce seuil : ce qui marche au doigt marche, ce qui demande un clic
- * droit ne marche pas, et c'est assumé (décision du 15/09).
+ * La carte, elle, ne lit pas ce seuil : le doigt s'y décide par événement, sur `pointerType`
+ * (décision mobile-1c du 03/10, qui révise celle du 15/09 — `domain/mouse-mapping.ts`).
  */
 export const NARROW_MAX_WIDTH = 767;
 
 const NARROW = `(max-width: ${NARROW_MAX_WIDTH}px)`;
 
-export function useNarrowScreen(): boolean {
-  const [narrow, setNarrow] = useState(() => matchMedia(NARROW).matches);
+/**
+ * **Ce qu'on affiche du geste, pas ce qu'on en fait.** Le pointeur principal décide quelle notice
+ * on montre — le doigt ou les boutons ; la carte, elle, lit chaque événement.
+ */
+const COARSE = '(pointer: coarse)';
+
+export const useNarrowScreen = (): boolean => useMedia(NARROW);
+
+export const useCoarsePointer = (): boolean => useMedia(COARSE);
+
+function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() => matchMedia(query).matches);
   useEffect(() => {
-    const media = matchMedia(NARROW);
-    const follow = () => setNarrow(media.matches);
+    const media = matchMedia(query);
+    const follow = () => setMatches(media.matches);
     // Une première lecture après le montage : la rotation d'un téléphone peut avoir eu lieu
     // entre l'état initial et l'abonnement.
     follow();
     media.addEventListener('change', follow);
     return () => media.removeEventListener('change', follow);
-  }, []);
-  return narrow;
+  }, [query]);
+  return matches;
 }

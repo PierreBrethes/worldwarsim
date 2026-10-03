@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [src/styles/tokens.css, src/styles/index.css, src/map/engine/palette.ts, src/shell/Newspaper.tsx, src/routes/-plateau/EconomyWindow.tsx, src/routes/-plateau/SiteModal.tsx, src/routes/-plateau/GunneryWindow.tsx, src/routes/salon.tsx]
 decisions: [charte-1a-2026-10-03, charte-1b-2026-10-03]

@@ -20,7 +20,7 @@ self.addEventListener('push', (event) => {
       body: payload.body || '',
       tag: payload.tag,
       icon: payload.icon || '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: payload.url || '/plateau', seasonId: payload.seasonId || null },
     }),
   );

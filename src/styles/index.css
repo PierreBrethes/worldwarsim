@@ -26,6 +26,52 @@ body,
   height: 100dvh;
 }
 
+/* **La page ne rebondit pas** (C2 du relevé mobile) : tirée au-delà du haut ou du bas, Safari
+   faisait glisser le journal entier sous les doigts, carte comprise. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* **Sur le plateau, un pincement ne zoome plus la page** — il zoome la carte ou rien. Posé sur
+   tout ce qui y est monté, portails compris, parce que `touch-action` ne s'hérite pas : une
+   fenêtre, une feuille, un dock, la rose. Une liste défile toujours (`pan-x pan-y`). Le canevas
+   garde son `none` — celui qu'`OrbitControls` pose, et redit ici. Ailleurs (connexion, accueil,
+   salon) le pincement reste au joueur : le zoom d'accessibilité n'est retiré nulle part, d'où
+   l'absence de `user-scalable=no` au viewport. */
+.on-board,
+.on-board * {
+  touch-action: pan-x pan-y;
+}
+
+.on-board canvas {
+  touch-action: none;
+}
+
+/* **Les marges de l'iPhone** (`viewport-fit=cover`) : l'encoche en haut, la barre d'accueil en
+   bas. Le plateau s'y retire en entier ; ce qui est fixe et zoomé s'en retire seul, en divisant
+   par l'échelle comme toute longueur écrite dans une surface `.hud`. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+.board-frame {
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+/* **Seize pixels dans un champ, au moins**, sous le seuil : en deçà Safari zoome au focus et la
+   page reste zoomée après. Divisé par l'échelle là où un `.hud` le grossit ou le rapetisse. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, calc(16px / var(--hud-scale)));
+  }
+}
+
 body {
   margin: 0;
   background: var(--desk);
@@ -100,6 +146,9 @@ body {
 .hud-screen {
   width: calc(100dvw / var(--hud-scale));
   height: calc(100dvh / var(--hud-scale));
+  padding: calc(var(--safe-top) / var(--hud-scale)) calc(var(--safe-right) / var(--hud-scale))
+    calc(var(--safe-bottom) / var(--hud-scale)) calc(var(--safe-left) / var(--hud-scale));
+  background: var(--desk);
 }
 
 /* Une feuille ancrée en bas, au-dessus du rail : ce que devient un panneau d'angle sous le
@@ -108,7 +157,7 @@ body {
 .hud-dock {
   position: fixed;
   left: 0;
-  bottom: var(--rail-h);
+  bottom: calc(var(--rail-h) + var(--safe-bottom) / var(--hud-scale));
   width: calc(100dvw / var(--hud-scale));
   max-height: calc(60dvh / var(--hud-scale));
 }

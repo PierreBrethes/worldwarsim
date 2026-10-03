@@ -9,6 +9,8 @@ import {
   WHEEL_ACTS_MAPPING,
   buttonAt,
   buttonOfRole,
+  cleanPressAt,
+  dragRoleAt,
   isMouseMapping,
   roleAt,
   withRole,
@@ -58,6 +60,41 @@ describe('le mappage de la souris', () => {
   it('nomme le bouton d’un rôle', () => {
     expect(buttonOfRole(CLASSIC_MAPPING, 'act')).toBe('right');
     expect(buttonOfRole(WHEEL_ACTS_MAPPING, 'pan')).toBe('right');
+  });
+});
+
+/** Le préréglage « gauche agit » n'est pas une entrée de `MOUSE_PRESETS` : c'est le troisième
+ *  mappage qu'un joueur compose aux Réglages, et celui qu'un écran tactile faisait espérer. */
+const LEFT_ACTS_MAPPING = withRole(CLASSIC_MAPPING, 'left', 'act');
+
+describe('le rôle d’un geste selon le pointeur', () => {
+  const mappings = [CLASSIC_MAPPING, WHEEL_ACTS_MAPPING, LEFT_ACTS_MAPPING];
+
+  it('laisse la souris telle que le joueur l’a réglée, sur les trois mappages', () => {
+    for (const mapping of mappings) {
+      for (const [index, button] of MOUSE_BUTTONS.entries()) {
+        expect(dragRoleAt(mapping, 'mouse', index)).toBe(mapping[button]);
+        expect(cleanPressAt(mapping, 'mouse', index)).toEqual({
+          reads: button === 'left',
+          acts: mapping[button] === 'act',
+        });
+      }
+    }
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2)).toEqual({ reads: false, acts: true });
+    expect(cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 1)).toEqual({ reads: false, acts: true });
+    expect(cleanPressAt(LEFT_ACTS_MAPPING, 'mouse', 0)).toEqual({ reads: true, acts: true });
+  });
+
+  it('traite le stylet comme une souris : il a des boutons', () => {
+    expect(dragRoleAt(CLASSIC_MAPPING, 'pen', 0)).toBe('orient');
+    expect(cleanPressAt(CLASSIC_MAPPING, 'pen', 0)).toEqual({ reads: true, acts: false });
+  });
+
+  it('au doigt : un toucher net lit et agit, un glissé déplace — quel que soit le réglage', () => {
+    for (const mapping of mappings) {
+      expect(cleanPressAt(mapping, 'touch', 0)).toEqual({ reads: true, acts: true });
+      expect(dragRoleAt(mapping, 'touch', 0)).toBe('pan');
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { fr } from '@/i18n/fr';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
@@ -52,6 +52,9 @@ const FOLDED_FIGURE_WIDTH = 40;
  *
  * **Folding gives back the figures, never a mark.** A band that hid a foundry running for
  * nothing to buy back ten pixels would be worse than no band at all.
+ *
+ * **A finger has no hover** (mobile-1c) : what a hover would leave lit forever, a touch opens
+ * and closes instead — on the figure itself, or anywhere off the band.
  */
 export function ResourceBand({ view }: { view: PlayerView }) {
   const now = useClock();
@@ -62,6 +65,21 @@ export function ResourceBand({ view }: { view: PlayerView }) {
   const narrow = useNarrowScreen();
   const [collapsed, setCollapsed] = useState(readResourceBandCollapsed);
   const [hovered, setHovered] = useState<Hover | null>(null);
+  const band = useRef<HTMLDivElement>(null);
+  const touched = (hover: Hover) =>
+    setHovered((shown) =>
+      shown?.resource === hover.resource && shown.on === hover.on ? null : hover,
+    );
+
+  useEffect(() => {
+    if (hovered === null) return;
+    const offBand = (event: globalThis.PointerEvent) => {
+      if (event.pointerType !== 'touch' || band.current?.contains(event.target as Node)) return;
+      setHovered(null);
+    };
+    document.addEventListener('pointerdown', offBand);
+    return () => document.removeEventListener('pointerdown', offBand);
+  }, [hovered]);
   const marks = marksOf(view, now);
   const marked = BAND_GROUPS.flat().filter((resource) => marks[resource] !== null);
 
@@ -75,11 +93,13 @@ export function ResourceBand({ view }: { view: PlayerView }) {
       plate={collapsed ? FOLDED_PLATE : narrow ? NARROW_PLATE : PLATE}
       figureWidth={collapsed ? FOLDED_FIGURE_WIDTH : narrow ? NARROW_FIGURE_WIDTH : FIGURE_WIDTH}
       onHover={setHovered}
+      onTouch={touched}
     />
   );
 
   return (
     <div
+      ref={band}
       className={`hud relative z-[var(--z-band)] flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] ${
         narrow ? 'px-2 py-[3px]' : 'px-6'
       }`}
@@ -88,7 +108,9 @@ export function ResourceBand({ view }: { view: PlayerView }) {
         height: narrow && !collapsed ? undefined : collapsed ? FOLDED_HEIGHT : BAND_HEIGHT,
         minHeight: narrow && !collapsed ? BAND_HEIGHT : undefined,
       }}
-      onMouseLeave={() => setHovered(null)}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'touch') setHovered(null);
+      }}
     >
       {collapsed ? (
         <div className="flex flex-1 flex-wrap items-center justify-center gap-[14px]">
@@ -150,6 +172,7 @@ function Figure({
   plate,
   figureWidth,
   onHover,
+  onTouch,
 }: {
   resource: ResourceKey;
   view: PlayerView;
@@ -158,26 +181,34 @@ function Figure({
   plate: number;
   figureWidth: number;
   onHover: (hover: Hover) => void;
+  onTouch: (hover: Hover) => void;
 }) {
   const stock = currentStock(view.me.resources[resource], view.loadedAt, now);
   // The band is the tooltip's offset parent — it is the only positioned box on the way up — so
   // the anchor stays right whatever the fold or the interface scale does to the line.
   const anchor = (event: MouseEvent<HTMLElement>) => event.currentTarget.offsetLeft;
+  // Compatibility mouse events follow a tap: only a real mouse may hover.
+  const pointed =
+    (on: Hover['on']) =>
+    (event: PointerEvent<HTMLElement>): void => {
+      const hover = { resource, on, left: anchor(event) };
+      if (event.pointerType === 'touch') {
+        if (event.type === 'pointerup') onTouch(hover);
+      } else if (event.type === 'pointerenter') onHover(hover);
+    };
 
   return (
     <span className="flex items-center gap-[5px]">
       {/* The pavé's gutter is held open whether or not it is inked: a mark that pushed its
           own figure seven pixels aside would break the column it is meant to be read in. */}
       <span
-        onMouseEnter={
-          mark === null
-            ? undefined
-            : (event) => onHover({ resource, on: 'mark', left: anchor(event) })
-        }
+        onPointerEnter={mark === null ? undefined : pointed('mark')}
+        onPointerUp={mark === null ? undefined : pointed('mark')}
         className={`flex h-[7px] w-[7px] shrink-0 ${mark === null ? '' : 'cursor-help bg-[var(--critical)]'}`}
       />
       <span
-        onMouseEnter={(event) => onHover({ resource, on: 'figure', left: anchor(event) })}
+        onPointerEnter={pointed('figure')}
+        onPointerUp={pointed('figure')}
         className="flex cursor-help items-center gap-[5px]"
         style={{ color: mark === null ? 'var(--paper)' : 'var(--critical)' }}
       >

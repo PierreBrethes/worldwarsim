@@ -13,7 +13,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
-import { buttonAt, type MouseMapping } from '@/domain/mouse-mapping';
+import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
@@ -110,6 +110,8 @@ export function MapLabels({
   const countdowns = useRef(new Map<string, HTMLElement>());
   const states = useRef(new Map<string, RenderState>());
   const pendingDegrade = useRef(0);
+  /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
+  const pressedWith = useRef('mouse');
 
   const apply = useCallback((id: string, state: RenderState) => {
     const root = roots.current.get(id);
@@ -279,11 +281,14 @@ export function MapLabels({
             tabIndex={label.lootSightingId === null ? undefined : 0}
             aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
             style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
-            onPointerEnter={() => {
+            onPointerEnter={(event) => {
+              // A finger has no hover to take back: what it lit would stay lit (C4).
+              if (event.pointerType === 'touch') return;
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
               onReachHover(label.reach);
             }}
-            onPointerLeave={() => {
+            onPointerLeave={(event) => {
+              if (event.pointerType === 'touch') return;
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
               onReachHover(null);
             }}
@@ -306,8 +311,10 @@ export function MapLabels({
                 onOpenObjective(label.objective.id, event.clientX, event.clientY);
               } else if (label.hostCountry !== null) onSelect(label.hostCountry);
               // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
-              // `agir` — un seul geste, les deux réponses, comme sur le sprite d'une troupe.
-              if (mapping.left === 'act') onAct(label, event.clientX, event.clientY);
+              // `agir` — un seul geste, les deux réponses, comme sur le sprite d'une troupe. Le
+              // toucher net, lui, agit toujours.
+              if (cleanPressAt(mapping, pressedWith.current, event.button).acts)
+                onAct(label, event.clientX, event.clientY);
             }}
             onKeyDown={(event) => {
               if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
@@ -321,6 +328,7 @@ export function MapLabels({
               }
             }}
             onPointerDown={(event) => {
+              pressedWith.current = event.pointerType;
               // L'autoscroll du navigateur s'arme au bouton du milieu et se plante sur la carte.
               if (buttonAt(event.button) === 'middle') event.preventDefault();
             }}

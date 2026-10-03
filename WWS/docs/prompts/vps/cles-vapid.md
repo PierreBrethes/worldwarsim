@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-03
 code: [convex/pushSend.ts, deploiement/README.md]
 decisions: [notif-1a-2026-10-03]
-voir: [../code/ready/notifications-serveur.md, ../code/ready/notifications-appareil.md]
+voir: [../code/done/notifications-serveur.md, ../code/done/notifications-appareil.md]
 ---
 
 # cles-vapid — poser les clés des notifications sur le Convex du VPS

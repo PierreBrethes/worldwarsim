@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-02
 code: [deploiement/compose.prod.yml, deploiement/nginx.conf]
 decisions: [plan-4b-2026-10-02, plan-5c-2026-10-02]
-voir: [../../marque/marque-et-site.md, ../code/ready/film-sur-les-pages-d-entree.md]
+voir: [../../marque/marque-et-site.md, ../code/done/film-sur-les-pages-d-entree.md]
 ---
 
 # dossier-media — les vidéos du film sur le VPS
@@ -12,7 +12,7 @@ voir: [../../marque/marque-et-site.md, ../code/ready/film-sur-les-pages-d-entree
 **En bref.** Prompt pour le Claude du VPS, en deux étapes : créer le dossier média hors du dépôt
 et vérifier l'envoi (avant le déploiement), puis vérifier que le front le sert (après). Le
 montage dans le conteneur arrive par le dépôt :
-[film-sur-les-pages-d-entree](../code/ready/film-sur-les-pages-d-entree.md).
+[film-sur-les-pages-d-entree](../code/done/film-sur-les-pages-d-entree.md).
 
 Ordre : étape 1 → envoi depuis le Mac → prompt Claude Code, commit, push, CI → étape 2. Le
 dossier doit exister **avant** le déploiement : sinon Docker le crée vide, au nom de root.

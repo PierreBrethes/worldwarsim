@@ -1988,6 +1988,8 @@ export const fr = {
     mouseNote:
       'Trois métiers, trois boutons. Choisir un métier l’échange avec le bouton qui l’avait ; le clic gauche net sélectionne toujours, et espace + clic gauche déplace toujours.',
     mousePreset: { classic: 'classique', wheelActs: 'molette agit' },
+    fingerLabel: 'Le doigt',
+    fingerNote: 'Le doigt ne se règle pas. Une souris branchée garde son propre réglage.',
     soundLabel: 'Son du télégraphe',
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
@@ -2201,6 +2203,12 @@ export const fr = {
         effect: 'ouvrir la rose des vents',
       },
       { gesture: 'molette', effect: 'zoomer' },
+    ],
+    /** **Le doigt ne lit pas le mappage** (décision mobile-1c) : trois lignes, toujours les mêmes. */
+    fingerGestures: [
+      { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
+      { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
+      { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],
     routeScale: 'échelle du trajet',
     dock: 'quai',

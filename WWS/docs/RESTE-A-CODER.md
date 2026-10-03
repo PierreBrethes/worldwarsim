@@ -284,9 +284,37 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
     plus**, affiché sur la fiche de la troupe sélectionnée avec le temps posé ; à chiffrer avec
     le terrain (plafond cumulé à fixer).
 
+## Acté le 03/10 — le mobile entier, et la une à l'entrée
+
+- **Refonte mobile complète** (mobile-1c-2026-10-03) : révise la décision du 15/09 ci-dessous
+  (« la carte reste telle qu'elle est ; ce qui demande un clic droit ne marche pas ») et lève
+  l'exclusion du point 9 de la vision V1. Raison : avec les notifications, une dépêche
+  « attaque » ouvre le plateau sur le téléphone, et on doit pouvoir y répondre. Constat :
+  [relevé mobile](rapports/2026-10-03-releve-mobile.md).
+- **Grammaire du doigt** (mobile-geste-2026-10-03, proposée par Cowork, à confirmer par Pierre) :
+  toucher net = agir (rose + fiche), un doigt = déplacer, deux doigts = zoomer et orienter ;
+  décidée par `pointerType`, indépendante du réglage de la souris.
+- Séquence : M1 [socle tactile](prompts/code/ready/mobile-1-socle-tactile.md) (code) et
+  [maquettes du plateau sur téléphone](prompts/design/plateau-sur-telephone.md) (Claude design)
+  en parallèle ; puis les lots d'intégration d'après la piste retenue ; le relevé relancé sert de
+  contrôle à chaque lot.
+- **Piste A « le pied de page »** retenue (mobile-piste-a-2026-10-03), maquettes dans
+  `Claude outputs/marque/plateau-mobile/`, avec : cinq entrées au pied (à faire, journal,
+  télégraphe, presse, plus) ; **« plus » ajoute un étage à la barre** (nation, économie, abaque,
+  réglages, calques) au lieu d'une feuille ; **bandeau des ressources repliable** (cible 44 px).
+- **Fidélité aux règles** (mobile-regles-2026-10-03) : une maquette n'invente aucune règle. L'écran
+  « vous êtes attaqué » ne propose pas de renfort calculé ; il ne nomme l'assaillant que s'il est
+  relevé ; « préparer un mouvement » ouvre la visée ordinaire.
+- **La carte lisible** (carte-lisible-2026-10-03), sur ordinateur **et** téléphone : la troupe
+  touchée ou cochée grossit, un drapeau planté à l'arrivée de chaque mouvement à soi, un seul
+  cartouche par pile. Lot à part, après le cadre mobile.
+- **La une à l'entrée** (accueil-2a-2026-10-03) : maquette 2a « la une sur le bureau », sans
+  inscription publique (marque-1c tient) ; avance la page d'accueil que plan-5c reportait.
+  [Prompt](prompts/code/ready/page-d-accueil-la-une.md).
+
 ## Acté le 15/09 — retours Discord
 
-- **Fenêtres exploitables sur mobile, carte inchangée** (décision du 15/09, qui révise la 2a
+- **Fenêtres exploitables sur mobile, carte inchangée** (*révisée le 03/10 par mobile-1c, ci-dessus*) (décision du 15/09, qui révise la 2a
   du même jour) : sous 768 px, les huit fenêtres en feuilles plein écran une à la fois, les
   panneaux en feuille basse, cibles tactiles, clavier virtuel ; la carte et les ordres ne
   bougent pas. Le point 9 de la vision V1 reste exclu. Prompt

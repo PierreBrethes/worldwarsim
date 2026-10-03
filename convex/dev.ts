@@ -3,6 +3,7 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 import { heldOf } from './control';
+import { settle } from './resources';
 import { viewOf } from './view';
 
 /**
@@ -61,6 +62,33 @@ export const reset = internalMutation({
       for (const doc of await ctx.db.query(table).collect()) {
         await ctx.db.delete(doc._id);
       }
+    }
+  },
+});
+
+/**
+ * **Remplir les stocks d'une saison de test**, chaque ressource de chaque siège portée à `stock`
+ * — le relevé mobile a besoin d'une caserne, donc d'un QG de niveau 2, donc de charbon qu'une
+ * saison neuve n'a pas. Réglé d'abord, pour que l'écriture ne réécrive pas des heures dues.
+ * Jamais pour une saison réelle : c'est une triche, et elle n'a pas de porte cliente.
+ *
+ * `npx convex run dev:fillStocks '{"seasonId":"…","stock":400}'`
+ */
+export const fillStocks = internalMutation({
+  args: { seasonId: v.id('seasons'), stock: v.number() },
+  handler: async (ctx, { seasonId, stock }) => {
+    const now = Date.now();
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    for (const player of players) {
+      await settle(ctx, player._id, now);
+      const rows = await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect();
+      for (const row of rows) await ctx.db.patch(row._id, { stock, updatedAt: now });
     }
   },
 });

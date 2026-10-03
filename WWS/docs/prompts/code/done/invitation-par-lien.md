@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-02
 code: [convex/seasons.ts, src/routes/connexion.tsx, src/routes/salon.tsx, src/routes/accueil.tsx]
 decisions: [ADR 0022, ADR 0015, ADR 0016, plan-1b-2026-10-02]

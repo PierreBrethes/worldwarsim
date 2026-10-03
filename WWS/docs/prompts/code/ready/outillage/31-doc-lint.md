@@ -15,7 +15,7 @@ Série outillage : lis d'abord `WWS/docs/prompts/code/ready/outillage/README.md`
 Seul `a-mesurer.md` est vérifié. Un prototype du 23/09 (avant 22 à 30, qui en corrigent une part)
 trouvait 6 liens relatifs cassés sur 173 (ADR 0020 ~31 vise `0023-geographie-serveur-raster.md`),
 98 chemins morts entre backticks sur 989 (`scripts/generer-*.mjs`, renommés en f6e10fc, recopiés
-par `WWS/docs/prompts/code/ready/contours-de-region-paresseux.md` ~6), 14 identifiants absents
+par `WWS/docs/prompts/code/done/contours-de-region-paresseux.md` ~6), 14 identifiants absents
 (`Counter`, `Slots`), 0 « ADR NNNN §M » cassé sur 496 ; au jugement, 11 lignes d'index d'ADR sans
 la dernière révision, aucune des 23 propositions au statut fermé, 58 commentaires « décision NNx »
 sans date ni ADR, alors que les codes repartent à chaque session.

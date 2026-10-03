@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [convex/schema.ts, convex/accounts.ts, convex/combat.ts, convex/outposts.ts, convex/messages.ts, convex/seasons.ts, convex/constants.ts, package.json]
 decisions: [notif-1a-2026-10-03, notif-2a-2026-10-03, notif-3a-2026-10-03, notif-4b-2026-10-03, notif-5a-2026-10-03, notif-6-2026-10-03]

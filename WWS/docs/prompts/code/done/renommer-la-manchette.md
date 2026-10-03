@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-02
 code: [src/shell/Masthead.tsx, src/i18n/fr.ts, index.html, public/favicon.svg, src/shell/NationBanner.tsx, src/routes/salon.tsx, src/routes/rejoindre.$code.tsx, src/routes/accueil.tsx, src/routes/connexion.tsx]
 decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02]

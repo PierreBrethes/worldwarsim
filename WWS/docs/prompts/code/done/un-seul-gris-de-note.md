@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [src/styles/tokens.css, src/shell/AccountForm.tsx, src/shell/TelegraphThread.tsx, src/shell/DestroyButton.tsx, src/shell/Masthead.tsx, src/shell/FilmTrailer.tsx, src/routes/accueil.tsx, src/routes/salon.tsx, src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/routes/-plateau/GunneryWindow.tsx, src/routes/-plateau/JournalWindow.tsx, src/routes/-plateau/BriefingSheet.tsx]
 decisions: [charte-2b-2026-10-03]

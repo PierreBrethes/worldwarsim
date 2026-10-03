@@ -15,6 +15,10 @@ import { fr } from '@/i18n/fr';
  * waiting for a hover there is nothing to hover. Explaining an absence is not offering a dead
  * choice (ADR 0015) — there is no medallion to click.
  *
+ * **A finger reads before it acts** (mobile-1c). It has no hover, so the tooltip that names a
+ * mute pictogram would never show: the first clean touch on a medallion opens its tooltip, the
+ * second on the same one acts. The mouse keeps its single click.
+ *
  * Classes are set here and styled in `src/styles/compass-rose.css`.
  */
 export function CompassRose({
@@ -37,6 +41,9 @@ export function CompassRose({
   const root = useRef<HTMLDivElement>(null);
   const bubble = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(-1);
+  /** The medallion a finger has read, waiting for the touch that acts. */
+  const [read, setRead] = useState(-1);
+  const pressedWith = useRef('mouse');
   const [bubbleHeight, setBubbleHeight] = useState(BUBBLE_HEIGHT);
 
   useEffect(() => {
@@ -147,16 +154,29 @@ export function CompassRose({
                   aria-pressed={candidate.key === 'specialize' ? candidate.current : undefined}
                   className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
-                  onPointerEnter={() => setHovered(rank)}
-                  onPointerLeave={() =>
-                    setHovered((previous) => (previous === rank ? -1 : previous))
-                  }
+                  onPointerDown={(event) => {
+                    pressedWith.current = event.pointerType;
+                  }}
+                  onPointerEnter={(event) => {
+                    if (event.pointerType !== 'touch') setHovered(rank);
+                  }}
+                  onPointerLeave={(event) => {
+                    if (event.pointerType === 'touch') return;
+                    setHovered((previous) => (previous === rank ? -1 : previous));
+                  }}
                   onFocus={() => setHovered(rank)}
                   onBlur={() => setHovered((previous) => (previous === rank ? -1 : previous))}
                   /** Retenue, elle se survole et se lit — elle ne part pas. Le bouton reste
                    *  actif plutôt que `disabled` : un bouton désactivé n'émet plus de survol,
                    *  et la raison du grisé est précisément ce qu'il faut pouvoir lire. */
                   onClick={() => {
+                    const finger = pressedWith.current === 'touch';
+                    pressedWith.current = 'mouse';
+                    if (finger && read !== rank) {
+                      setRead(rank);
+                      setHovered(rank);
+                      return;
+                    }
                     if (!held) onAction(candidate);
                   }}
                 >

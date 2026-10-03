@@ -4,6 +4,7 @@ import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { DestroyButton } from '@/shell/DestroyButton';
+import { useCoarsePointer } from '@/shell/viewport';
 import {
   DEFAULT_HUD_SCALE,
   MAX_HUD_SCALE,
@@ -44,6 +45,7 @@ export function SettingsWindow({
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
   const mapping = useMouseMapping();
+  const coarse = useCoarsePointer();
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
   const logout = useMutation(api.accounts.logout);
@@ -104,45 +106,64 @@ export function SettingsWindow({
           {/* **La grammaire de la carte ne change pas, quel bouton la porte est au joueur**
               (retour de la partie du 11/09). Deux presets nommés en tête pour qui veut choisir
               sans réfléchir, trois sélecteurs en dessous pour qui veut sa propre main. */}
-          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
+          {coarse ? (
+            <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
               <span className="text-[13.5px] text-[var(--ink)]">
-                {fr.settingsWindow.mouseLabel}
+                {fr.settingsWindow.fingerLabel}
               </span>
-              <div className="flex gap-[6px]">
-                {MOUSE_PRESETS.map((preset) => (
-                  <Chip
-                    key={preset.key}
-                    label={fr.settingsWindow.mousePreset[preset.key]}
-                    marked={sameMapping(mapping, preset.mapping)}
-                    onClick={() => setMouseMapping(preset.mapping)}
-                  />
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.fingerNote}
+              </p>
+              <dl className="mt-[10px] flex flex-col gap-[7px] text-[11.5px]">
+                {fr.mapUi.fingerGestures.map(({ gesture, effect }) => (
+                  <div key={gesture} className="flex flex-wrap justify-between gap-2">
+                    <dt className="text-[var(--ink)]">{gesture}</dt>
+                    <dd className="text-[var(--ink-soft)]">{effect}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ) : (
+            <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-[13.5px] text-[var(--ink)]">
+                  {fr.settingsWindow.mouseLabel}
+                </span>
+                <div className="flex gap-[6px]">
+                  {MOUSE_PRESETS.map((preset) => (
+                    <Chip
+                      key={preset.key}
+                      label={fr.settingsWindow.mousePreset[preset.key]}
+                      marked={sameMapping(mapping, preset.mapping)}
+                      onClick={() => setMouseMapping(preset.mapping)}
+                    />
+                  ))}
+                </div>
+              </div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.mouseNote}
+              </p>
+              <div className="mt-[10px] flex flex-col gap-[7px]">
+                {MOUSE_BUTTONS.map((button) => (
+                  <div key={button} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11.5px] text-[var(--ink)]">
+                      {fr.mapUi.mouse.button[button]}
+                    </span>
+                    <div className="flex gap-[6px]">
+                      {MOUSE_ROLES.map((role) => (
+                        <Chip
+                          key={role}
+                          label={fr.mapUi.mouse.role[role]}
+                          marked={mapping[button] === role}
+                          onClick={() => setMouseMapping(withRole(mapping, button, role))}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
-              {fr.settingsWindow.mouseNote}
-            </p>
-            <div className="mt-[10px] flex flex-col gap-[7px]">
-              {MOUSE_BUTTONS.map((button) => (
-                <div key={button} className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11.5px] text-[var(--ink)]">
-                    {fr.mapUi.mouse.button[button]}
-                  </span>
-                  <div className="flex gap-[6px]">
-                    {MOUSE_ROLES.map((role) => (
-                      <Chip
-                        key={role}
-                        label={fr.mapUi.mouse.role[role]}
-                        marked={mapping[button] === role}
-                        onClick={() => setMouseMapping(withRole(mapping, button, role))}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* **Le son est un réglage à part.** `prefers-reduced-motion` parle d'animation, pas
               d'audio : s'en servir pour taire le télégraphe muterait un joueur qui n'a jamais

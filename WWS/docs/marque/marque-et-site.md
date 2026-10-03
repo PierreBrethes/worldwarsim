@@ -4,7 +4,7 @@ statut: en cours
 maj: 2026-10-03
 code: [src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/shell/Newspaper.tsx, src/shell/media.ts, src/shell/FilmTrailer.tsx, deploiement/nginx.conf, deploiement/compose.prod.yml, src/routes/accueil.tsx, src/routes/salon.tsx, src/shell/Masthead.tsx, src/styles/tokens.css]
 decisions: [marque-nom-2026-10-02, marque-logo-2026-10-02, plan-5c-2026-10-02, charte-1a-2026-10-03, charte-1b-2026-10-03, charte-2a-2026-10-03, charte-2b-2026-10-03, marque-icone-2026-10-03, marque-apercu-2026-10-03, marque-1c-2026-10-02, marque-2b-2026-10-02, marque-3a-2026-10-02, plan-1b-2026-10-02, plan-2a-2026-10-02, plan-3b-2026-10-02, plan-4b-2026-10-02]
-voir: [../design/10-direction-artistique.md, ../prompts/code/ready/invitation-par-lien.md]
+voir: [../design/10-direction-artistique.md, ../prompts/code/done/invitation-par-lien.md]
 ---
 
 # Marque et site — de l'invitation à la saison
@@ -18,6 +18,7 @@ reste la page d'accueil.
 
 | Id | Date | Décision |
 |---|---|---|
+| accueil-2a-2026-10-03 | 03/10/2026 | Page d'accueil : maquette 2a « la une sur le bureau » (Claude design), un seul champ de code dessiné en six cases, date du jour ; connexion et invitation reprennent la feuille. Avance plan-5c, sans inscription publique (marque-1c tient). [Prompt](../prompts/code/ready/page-d-accueil-la-une.md). |
 | marque-1c-2026-10-02 | 02/10/2026 | Entre amis maintenant, public plus tard : pas de juridique ni de référencement tant que le jeu n'est pas ouvert. |
 | marque-2b-2026-10-02 | 02/10/2026 | Chercher un nom maintenant (WorldWarSim est descriptif, et le créneau est occupé : *Ages of Conflict: World War Simulator*). |
 | marque-3a-2026-10-02 | 02/10/2026 | Le temps de jeu par jour se **mesure** à la prochaine vraie partie, il ne se promet pas avant. Le multiplicateur de ressources récent le change. |
@@ -29,9 +30,9 @@ reste la page d'accueil.
 | marque-logo-2026-10-02 | 02/10/2026 | Logo : variante B de `planche-manchette.png` — « la » en italique, MANCHETTE en didone, filet rouge dessous ; icône : le M de Bodoni Moda sur le pavé rouge. Le renommage passe avant le film et la page d'accueil. |
 | plan-5c-2026-10-02 | 02/10/2026 | La page d'accueil publique attend l'ouverture au public (marque-1c) : les amis arrivent par le lien d'invitation. D'abord la boucle derrière `/connexion` et `/rejoindre` avec le dossier média du VPS, puis le lot D (installation sur téléphone, notifications). |
 | charte-1a-2026-10-03 | 03/10/2026 | La charte est relevée dans un design system (copie du dépôt, qui fait foi) avec la liste des écarts ; pas de nettoyage du code ni de vrai design system outillé pour l'instant. Une passe de nettoyage ciblée se décidera sur la liste ([charte](charte.md)). |
-| charte-1b-2026-10-03 | 03/10/2026 | Le nettoyage passe avant les maquettes : les couleurs rattachées à leurs variables sans changer un pixel ([nettoyer-les-couleurs](../prompts/code/ready/nettoyer-les-couleurs.md)). Les changements visibles (échelle d'opacités, bureau unique, contraste) restent à décider. |
+| charte-1b-2026-10-03 | 03/10/2026 | Le nettoyage passe avant les maquettes : les couleurs rattachées à leurs variables sans changer un pixel ([nettoyer-les-couleurs](../prompts/code/done/nettoyer-les-couleurs.md)). Les changements visibles (échelle d'opacités, bureau unique, contraste) restent à décider. |
 | charte-2a-2026-10-03 | 03/10/2026 | Les dégradés qui diffèrent de 2 à 4/255 après le nettoyage (arrondi du navigateur sur `color-mix`) sont acceptés ; pas de jeton `--ink-rgb`. |
-| charte-2b-2026-10-03 | 03/10/2026 | Un seul gris de note : `--ink-note` passe à `#6b5b3b` (4,7:1 sur papier) et absorbe `--ink-faint` ([un-seul-gris-de-note](../prompts/code/ready/un-seul-gris-de-note.md), planche `Claude outputs/marque/planche-contraste.png`). |
+| charte-2b-2026-10-03 | 03/10/2026 | Un seul gris de note : `--ink-note` passe à `#6b5b3b` (4,7:1 sur papier) et absorbe `--ink-faint` ([un-seul-gris-de-note](../prompts/code/done/un-seul-gris-de-note.md), planche `Claude outputs/marque/planche-contraste.png`). |
 | marque-icone-2026-10-03 | 03/10/2026 | L'icône de l'application est la piste B, « la feuille » : M de Bodoni à l'encre sur papier, filet rouge dessous ; partout, onglet compris, le favicon d'onglet redessiné sans trame, bordé d'encre, filet épaissi. Fichiers : `Claude outputs/marque/icones/`. |
 | marque-apercu-2026-10-03 | 03/10/2026 | L'aperçu des liens est la piste B, « la carte » (le plateau, une feuille au centre), le même pour toutes les invitations : pas d'aperçu par partie pour l'instant. |
 | notif-1a … notif-6-2026-10-03 | 03/10/2026 | Notifications : abonnement par compte et par appareil ; rien pendant la fenêtre de repos, groupé au réveil ; pas d'intendance ; télégraphe une fois par heure au plus ; le clic ouvre le plateau, journal ouvert ; une section Réglages (case par appareil, case par type pour le compte). Détail : [proposition reprise](../design/propositions/notifications-push-et-alarmes.md). |
@@ -40,10 +41,10 @@ reste la page d'accueil.
 
 | Lot | Contenu | Statut | Où |
 |---|---|---|---|
-| A | Lien d'invitation `/rejoindre/CODE`, compte créé sur la page, arrivée au salon | livré le 02/10/2026 (route `/rejoindre/$code`, `seasons.invitation`, `joinRefusalOf`) | [invitation-par-lien](../prompts/code/ready/invitation-par-lien.md) |
+| A | Lien d'invitation `/rejoindre/CODE`, compte créé sur la page, arrivée au salon | livré le 02/10/2026 (route `/rejoindre/$code`, `seasons.invitation`, `joinRefusalOf`) | [invitation-par-lien](../prompts/code/done/invitation-par-lien.md) |
 | B | Nom : pistes, vérifications (jeux existants, INPI, domaines), planche de logos | nom choisi (La Manchette), logo variante B tranché | ci-dessous |
-| C | Film 30 s + boucle 8 s ; la boucle derrière `/connexion` et `/rejoindre` ; la page d'accueil publique à l'ouverture | film et boucle livrés le 02/10/2026 ; pages d'entrée livrées le 03/10/2026 (boucle derrière la feuille, lien vers le film, `/media/` servi par `front`) ; page d'accueil reportée (plan-5c) | [dossier-media](../prompts/vps/dossier-media.md), [film-sur-les-pages-d-entree](../prompts/code/ready/film-sur-les-pages-d-entree.md) |
-| D | Installation sur téléphone (manifeste) et notifications push | icône et aperçu choisis (marque-icone, marque-apercu) ; D1 installation et aperçu : livrés et vérifiés sur téléphone le 03/10/2026 (manifeste servi en `application/manifest+json`, icônes, balises `og:`, `VITE_PUBLIC_ORIGIN` ; [installer-l-application](../prompts/code/ready/installer-l-application.md)) ; D2 notifications : spécification reprise le 03/10/2026 (notif-1a … notif-6) ; lot serveur ([prompt](../prompts/code/ready/notifications-serveur.md)) livré et déployé ; lot appareil ([prompt](../prompts/code/ready/notifications-appareil.md)) codé le 03/10/2026 (service worker, section Réglages, saison dans l'adresse), **reste à vérifier sur Android et iPhone après déploiement** | maquettes : « La Manchette — icônes et aperçu » (https://claude.ai/artifact/BGYTaPCDx6ew3UdsqNZ8jk, privé) | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
+| C | Film 30 s + boucle 8 s ; la boucle derrière `/connexion` et `/rejoindre` ; la page d'accueil publique à l'ouverture | film et boucle livrés le 02/10/2026 ; pages d'entrée livrées le 03/10/2026 (boucle derrière la feuille, lien vers le film, `/media/` servi par `front`) ; page d'accueil reportée (plan-5c) | [dossier-media](../prompts/vps/dossier-media.md), [film-sur-les-pages-d-entree](../prompts/code/done/film-sur-les-pages-d-entree.md) |
+| D | Installation sur téléphone (manifeste) et notifications push | icône et aperçu choisis (marque-icone, marque-apercu) ; D1 installation et aperçu : livrés et vérifiés sur téléphone le 03/10/2026 (manifeste servi en `application/manifest+json`, icônes, balises `og:`, `VITE_PUBLIC_ORIGIN` ; [installer-l-application](../prompts/code/done/installer-l-application.md)) ; D2 notifications : spécification reprise le 03/10/2026 (notif-1a … notif-6) ; lot serveur ([prompt](../prompts/code/done/notifications-serveur.md)) livré et déployé ; lot appareil ([prompt](../prompts/code/done/notifications-appareil.md)) codé le 03/10/2026 (service worker, section Réglages, saison dans l'adresse), déployé, clés VAPID posées ; vérifié sur iPhone installé le 03/10/2026 (dépêche d'essai, ouverture du plateau) ; Android non testé faute d'appareil ; **reste : partie à deux comptes (attaque, télégraphe, fenêtre de repos, saison dans l'adresse)** | maquettes : « La Manchette — icônes et aperçu » (https://claude.ai/artifact/BGYTaPCDx6ew3UdsqNZ8jk, privé) | [notifications-push-et-alarmes](../design/propositions/notifications-push-et-alarmes.md) |
 
 **Ce qui manque aujourd'hui** (constaté le 02/10) : `/` renvoie à `/accueil` puis à `/connexion`
 — aucune page ne présente le jeu avant l'inscription ; les pushes sont validés (28/08) mais pas codés. Sur iPhone, un
@@ -186,4 +187,4 @@ contrainte « deux morceaux » ne valait que pour le système pavé + didone.
 Aucune collision de jeu trouvée par recherche web pour la Drôle de guerre, la Vigie, le Bandeau,
 la Cinquième colonne. INPI non vérifié.
 
-Statut : **La Manchette retenu le 02/10/2026, variante B.** Renommage : `prompts/code/ready/renommer-la-manchette.md`. Favicon prêt : `Claude outputs/marque/favicon-manchette.svg`.
+Statut : **La Manchette retenu le 02/10/2026, variante B.** Renommage : `prompts/code/done/renommer-la-manchette.md`. Favicon prêt : `Claude outputs/marque/favicon-manchette.svg`.

@@ -17,7 +17,7 @@ ressources et les unités françaises. **Le dépôt fait foi** : la charte en es
 refaire quand `tokens.css` ou les composants de `src/shell/` changent. Rien du code n'a été
 modifié. Le relevé a produit la liste d'écarts ci-dessous ; une passe de nettoyage se décide
 dessus (charte-1a-2026-10-03). Le nettoyage sans changement de rendu est lancé le 03/10
-(charte-1b-2026-10-03 : [nettoyer-les-couleurs](../prompts/code/ready/nettoyer-les-couleurs.md)).
+(charte-1b-2026-10-03 : [nettoyer-les-couleurs](../prompts/code/done/nettoyer-les-couleurs.md)).
 
 ## Écarts relevés (03/10/2026, `src/` hors tests et commentaires)
 
@@ -55,7 +55,7 @@ dessus (charte-1a-2026-10-03). Le nettoyage sans changement de rendu est lancé 
 
 ### Lisibilité (petit texte sous 4,5:1)
 - ✅ Livré le 03/10/2026 (charte-2b) : `--ink-faint` fondu dans `--ink-note`, passé à `#6b5b3b`
-  (4,7:1 sur `--paper`) — [un-seul-gris-de-note](../prompts/code/ready/un-seul-gris-de-note.md).
+  (4,7:1 sur `--paper`) — [un-seul-gris-de-note](../prompts/code/done/un-seul-gris-de-note.md).
   Sous l'encre il reste deux gris : `--ink-soft` (5,5:1) et `--ink-note`. Les 28 emplois de
   `--ink-faint` étaient tous sur papier ; aucun n'a dû passer à `--paper-dim`. `colors.test.ts`
   refuse le retour de `--ink-faint` et tient `--ink-note` à 4,5:1 sur `--paper`. Réserve :

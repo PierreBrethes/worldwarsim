@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-02
 code: [deploiement/nginx.conf, deploiement/compose.prod.yml, deploiement/README.md, src/shell/Newspaper.tsx, src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/i18n/fr.ts, .gitignore]
 decisions: [plan-3b-2026-10-02, plan-4b-2026-10-02, plan-5c-2026-10-02]

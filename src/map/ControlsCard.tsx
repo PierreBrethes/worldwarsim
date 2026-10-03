@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { useMouseMapping } from '@/data/mouseMapping';
+import { useCoarsePointer } from '@/shell/viewport';
 import { isTyping } from './typing';
 
 /**
@@ -17,6 +18,9 @@ export function ControlsCard() {
   const [open, setOpen] = useState(false);
   // Elle lit le mappage, elle ne le règle pas : les six gestes sont ceux de ce joueur-là.
   const mapping = useMouseMapping();
+  // Sur un écran au doigt, la notice est celle du doigt : un tableau de boutons n'y répond à rien.
+  const coarse = useCoarsePointer();
+  const gestures = coarse ? fr.mapUi.fingerGestures : fr.mapUi.gestures(mapping);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -50,7 +54,7 @@ export function ControlsCard() {
             </button>
           </div>
           <dl className="mt-[10px] grid grid-cols-[126px_1fr] gap-x-3 gap-y-[7px] text-[11.5px] leading-[1.35]">
-            {fr.mapUi.gestures(mapping).map(({ gesture, effect }) => (
+            {gestures.map(({ gesture, effect }) => (
               <div key={gesture} className="contents">
                 <dt className="text-[var(--paper-dim)]">{gesture}</dt>
                 <dd className="text-[var(--paper)]">{effect}</dd>

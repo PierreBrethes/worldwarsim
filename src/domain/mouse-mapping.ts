@@ -7,6 +7,11 @@
  * Ce qui ne se règle pas et n'a donc aucun champ ici : le clic net gauche qui lit, l'alias
  * `espace + glisser gauche` qui déplace, et le fait qu'`agir` soit un clic net quand `orienter`
  * et `déplacer` sont des glissers.
+ *
+ * **Le doigt ne se règle pas non plus, et ne lit pas le réglage** (décision mobile-1c du 03/10,
+ * qui révise celle du 15/09). Il se décide par événement, sur `pointerType` : un toucher net lit
+ * **et** agit, un doigt qui glisse déplace, deux doigts pincent et orientent. Un ordinateur
+ * tactile garde ainsi sa souris telle que le joueur l'a permutée, et son écran suit le doigt.
  */
 export type MouseRole = 'orient' | 'pan' | 'act';
 export type MouseButton = 'left' | 'middle' | 'right';
@@ -77,4 +82,34 @@ export const buttonAt = (index: number): MouseButton | null => BY_INDEX[index] ?
 export function roleAt(mapping: MouseMapping, index: number): MouseRole | null {
   const button = buttonAt(index);
   return button === null ? null : mapping[button];
+}
+
+/** `PointerEvent.pointerType` : seul `'touch'` change la grammaire — un stylet a des boutons. */
+const isFinger = (pointerType: string): boolean => pointerType === 'touch';
+
+/**
+ * Le rôle d'un **glisser**. Un doigt seul déplace toujours : il n'a qu'un bouton, et ce bouton
+ * ne peut pas porter `agir`, qui est un geste net. Les deux doigts sont aux contrôles orbitaux.
+ */
+export function dragRoleAt(
+  mapping: MouseMapping,
+  pointerType: string,
+  index: number,
+): MouseRole | null {
+  return isFinger(pointerType) ? 'pan' : roleAt(mapping, index);
+}
+
+/**
+ * Ce que fait un **appui net**. À la souris, le gauche lit quel que soit son rôle et le bouton
+ * qui agit ouvre la rose — les deux quand le joueur a mis `agir` à gauche. Au doigt, les deux
+ * toujours : la rose s'ouvre et la lecture que donnait le clic gauche s'affiche avec elle, sans
+ * quoi ce qui se lit à la souris deviendrait illisible au toucher.
+ */
+export function cleanPressAt(
+  mapping: MouseMapping,
+  pointerType: string,
+  index: number,
+): { readonly reads: boolean; readonly acts: boolean } {
+  if (isFinger(pointerType)) return { reads: true, acts: true };
+  return { reads: buttonAt(index) === 'left', acts: roleAt(mapping, index) === 'act' };
 }

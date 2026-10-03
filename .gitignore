@@ -23,3 +23,6 @@ Claude outputs/film/
 
 # Les films déposés pour tester en local : ils vivent sur le VPS, jamais dans git.
 public/media/
+
+# Le relevé mobile du 03/10 : script Playwright et captures, jamais de la documentation.
+Claude outputs/releve-mobile/

@@ -7,6 +7,7 @@ import {
   PerspectiveCamera,
   Raycaster,
   Scene,
+  TOUCH,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -23,6 +24,8 @@ import { isTyping } from '@/map/typing';
 import {
   DEFAULT_MOUSE_MAPPING,
   buttonAt,
+  cleanPressAt,
+  dragRoleAt,
   type MouseButton,
   type MouseMapping,
   type MouseRole,
@@ -128,6 +131,10 @@ type MouseButtonOrNull = ReturnType<typeof buttonAt>;
  * never flips mid-drag, otherwise the gesture changes nature under the player's fingers.
  */
 type Gesture = {
+  readonly pointerId: number;
+  /** `PointerEvent.pointerType` and `button`, kept raw: the domain says what they mean. */
+  readonly pointerType: string;
+  readonly index: number;
   readonly button: MouseButtonOrNull;
   readonly panning: boolean;
   traveledPx: number;
@@ -232,6 +239,13 @@ export class MapEngine {
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
+  /**
+   * **A finger has no hover** (C4 of the mobile survey): it lands, lifts, and no `pointerleave`
+   * ever takes back what it lit. While it is the last pointer on the board, the hover is still
+   * aimed — the placement ghost and a tap's reading need it — but nothing of it is announced or
+   * lit.
+   */
+  private fingerOnBoard = false;
   private hoveredArc: string | null = null;
 
   constructor(
@@ -269,6 +283,10 @@ export class MapEngine {
     this.controls.minDistance = 4;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
+    // **Le doigt ne lit pas le réglage de la souris** (décision mobile-1c) : un doigt déplace,
+    // deux pincent et orientent. Le toucher net, lui, est au moteur — il agit, comme le bouton
+    // qui agit (`cleanPressAt`).
+    this.controls.touches = { ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_ROTATE };
     // The button that acts belongs to the compass rose and drives nothing here. Which one it
     // is is the player's setting; the space alias doubles the pan whatever the mapping, since
     // many trackpads have no third button and that path must stay open.
@@ -611,12 +629,8 @@ export class MapEngine {
       this.postponeRest();
     });
     canvas.addEventListener('pointermove', (event) => {
-      const rect = canvas.getBoundingClientRect();
-      this.pointerScreen.x = event.clientX - rect.left;
-      this.pointerScreen.y = event.clientY - rect.top;
-      this.pointer.x = (this.pointerScreen.x / rect.width) * 2 - 1;
-      this.pointer.y = -(this.pointerScreen.y / rect.height) * 2 + 1;
-      this.hoverDirty = true;
+      this.fingerOnBoard = event.pointerType === 'touch';
+      this.aimPointer(event.clientX, event.clientY);
     });
     canvas.addEventListener('pointerleave', () => {
       this.pointer.set(-2, -2);
@@ -624,10 +638,21 @@ export class MapEngine {
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
+      this.fingerOnBoard = event.pointerType === 'touch';
+      // A second finger makes it a pinch: the press it joins can no longer be a clean one.
+      if (this.gesture !== null && this.fingerOnBoard) {
+        this.gesture.pastThreshold = true;
+        return;
+      }
       const button = buttonAt(event.button);
+      const role = this.roleOf(event.pointerType, event.button);
       this.gesture = {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        index: event.button,
         button,
-        panning: this.roleOf(button) === 'pan' || (button === 'left' && this.spaceHeld),
+        // A finger pans only once it has moved: still, it is a clean press that acts.
+        panning: !this.fingerOnBoard && (role === 'pan' || (button === 'left' && this.spaceHeld)),
         traveledPx: 0,
         x: event.clientX,
         y: event.clientY,
@@ -663,13 +688,14 @@ export class MapEngine {
 
   private trackGesture = (event: PointerEvent): void => {
     const gesture = this.gesture;
-    if (gesture === null) return;
+    if (gesture === null || event.pointerId !== gesture.pointerId) return;
     gesture.traveledPx += Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
     gesture.x = event.clientX;
     gesture.y = event.clientY;
     if (gesture.pastThreshold || gesture.traveledPx < CLEAN_CLICK_PX) return;
     gesture.pastThreshold = true;
-    if (this.roleOf(gesture.button) === 'orient' && !gesture.panning) this.onOrientationStarted();
+    if (this.roleOf(gesture.pointerType, gesture.index) === 'orient' && !gesture.panning)
+      this.onOrientationStarted();
   };
 
   /**
@@ -677,17 +703,27 @@ export class MapEngine {
    * invariant is what keeps the board selectable under any mapping — and the one that acts opens
    * the rose. A drag was an orientation or a pan; held space makes the left button a pan, not a
    * designation. Both fire when the player put `act` on the left button, and in that order: the
-   * rose answers about what the click has just designated.
+   * rose answers about what the click has just designated. A clean touch is always both.
    */
   private endGesture = (event: PointerEvent): void => {
     const gesture = this.gesture;
+    // Another finger of a pinch lifted: the press stays spoiled until its own finger goes.
+    if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
     if (gesture.panning || gesture.pastThreshold) return;
-    if (gesture.button === 'left') this.readAt(event);
-    if (this.roleOf(gesture.button) === 'act') {
+    const press = cleanPressAt(this.mapping, gesture.pointerType, gesture.index);
+    // A finger has no hover to read from: the board is aimed where it lifted, now, so the
+    // ghost of a placement and the country under it answer for this point and not the last.
+    if (this.fingerOnBoard) {
+      this.aimPointer(event.clientX, event.clientY);
+      this.hoverDirty = false;
+      this.updateHover();
+    }
+    if (press.reads) this.readAt(event);
+    if (press.acts) {
       this.onAct({
         country: this.countryAtPoint(event.clientX, event.clientY),
         region: this.regionAtPoint(event.clientX, event.clientY),
@@ -740,8 +776,17 @@ export class MapEngine {
    * number: a second reading would be a second mapping, and the day the player swaps two
    * buttons only one of them would have moved.
    */
-  private roleOf(button: MouseButtonOrNull): MouseRole | null {
-    return button === null ? null : this.mapping[button];
+  private roleOf(pointerType: string, index: number): MouseRole | null {
+    return dragRoleAt(this.mapping, pointerType, index);
+  }
+
+  private aimPointer(clientX: number, clientY: number): void {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointerScreen.x = clientX - rect.left;
+    this.pointerScreen.y = clientY - rect.top;
+    this.pointer.x = (this.pointerScreen.x / rect.width) * 2 - 1;
+    this.pointer.y = -(this.pointerScreen.y / rect.height) * 2 + 1;
+    this.hoverDirty = true;
   }
 
   /**
@@ -928,12 +973,16 @@ export class MapEngine {
 
   private updateHover(): void {
     this.ray.setFromCamera(this.pointer, this.camera);
-    const hit = this.ray.intersectObjects(this.countries, false)[0];
+    /** **The pointer's rest, (-2, -2), is off the screen but not off the board**: tilted and
+     *  close, a ray cast outside the frame still lands on a country, and the dock would announce
+     *  a hover nobody made — on a phone, from the first frame. */
+    const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
+    const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
 
-    this.updateRegionHover(hit?.point ?? null);
+    this.updateRegionHover(this.fingerOnBoard ? null : (hit?.point ?? null));
 
-    const arc = this.arcs.hover(this.ray);
+    const arc = this.fingerOnBoard || !onScreen ? null : this.arcs.hover(this.ray);
     if (arc !== this.hoveredArc) {
       this.hoveredArc = arc;
       this.onArcHover(arc);
@@ -945,7 +994,7 @@ export class MapEngine {
     if (this.placing !== null) {
       const arrived = this.ghost.spot === null;
       this.ray.setFromCamera(this.pointer, this.camera);
-      const board = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+      const board = onScreen ? this.ray.intersectObjects(this.aimable, false)[0]?.point : undefined;
       this.ghost.aimAt(
         board === undefined ? null : board.x + this.frame.centerX,
         board === undefined ? null : board.z + this.frame.centerY,
@@ -954,7 +1003,7 @@ export class MapEngine {
     }
 
     this.hovered = touched ?? null;
-    const adm0 = this.hovered?.userData.adm0 ?? null;
+    const adm0 = this.fingerOnBoard ? null : (this.hovered?.userData.adm0 ?? null);
     if (adm0 !== this.hoveredCountry) {
       this.hoveredCountry = adm0;
       this.onCountryHover(adm0);
@@ -979,7 +1028,7 @@ export class MapEngine {
 
   private lightCountries(): void {
     for (const mesh of this.countries) {
-      const isHovered = mesh === this.hovered;
+      const isHovered = mesh === this.hovered && !this.fingerOnBoard;
       const isSelected = mesh.userData.adm0 === this.selection;
       const intensity = isSelected ? 0.26 : isHovered ? 0.12 : 0;
       mesh.material.emissive.setRGB(intensity, intensity * 0.85, intensity * 0.55);

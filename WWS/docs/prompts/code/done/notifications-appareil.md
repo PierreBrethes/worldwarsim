@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [public/sw.js, src/main.tsx, src/routes/-plateau/SettingsWindow.tsx, src/i18n/fr.ts, deploiement/nginx.conf]
 decisions: [notif-1a-2026-10-03, notif-5a-2026-10-03, notif-6-2026-10-03]

@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [index.html, public/favicon.svg, public/manifest.webmanifest, public/icons, public/apple-touch-icon.png, public/og-image.png, deploiement/front.Dockerfile, deploiement/compose.prod.yml, deploiement/nginx.conf, src/i18n/name.test.ts]
 decisions: [marque-icone-2026-10-03, marque-apercu-2026-10-03]

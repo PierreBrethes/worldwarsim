@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { PlayerView } from '@/domain/player-view';
 import { NationBanner } from './NationBanner';
 import { ResourceBand } from './ResourceBand';
@@ -18,8 +18,14 @@ export function Shell({
    *  `flex-col-reverse` le pose en bas sans le déplacer dans la page, donc la tabulation continue
    *  de rencontrer la navigation avant la carte. */
   const narrow = useNarrowScreen();
+  /** **Le pincement est à la carte tant que le plateau est monté** (`.on-board`, `index.css`) : sur
+   *  la racine du document et non sur ce cadre, parce que fenêtres et docks sont des portails. */
+  useEffect(() => {
+    document.documentElement.classList.add('on-board');
+    return () => document.documentElement.classList.remove('on-board');
+  }, []);
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="board-frame flex h-full flex-col overflow-hidden">
       <NationBanner view={view} />
       <ResourceBand view={view} />
       <div className={`flex min-h-0 flex-1 ${narrow ? 'flex-col-reverse' : ''}`}>
