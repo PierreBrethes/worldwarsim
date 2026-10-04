@@ -196,10 +196,15 @@ function Line({ message }: { message: TelegraphMessage }) {
  * d'œil qui parle.
  */
 function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
-  return threadLayout(messages).map(({ entry: message, opensDay, opensRun }) => (
+  return threadLayout(messages).map(({ entry: message, opensDay, opensRun }, index) => (
     <div key={message.id} className="contents">
+      {/* Chaque séparateur est le premier de son enveloppe : `first:` les aurait tous collés. */}
       {opensDay && (
-        <div className="my-2 flex items-center gap-[10px] text-[9.5px] tracking-[.18em] text-[var(--ink-note)] uppercase first:mt-0">
+        <div
+          className={`flex items-center gap-[10px] text-[9.5px] tracking-[.18em] text-[var(--ink-note)] uppercase ${
+            index === 0 ? 'mb-2' : 'my-2'
+          }`}
+        >
           <span className="h-px flex-1 bg-(--ink)/30" />
           {dayOf(message.at)}
           <span className="h-px flex-1 bg-(--ink)/30" />

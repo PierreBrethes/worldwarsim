@@ -1630,25 +1630,37 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [narrow, view, recruitments],
   );
 
-  const locateUnderway = useCallback((line: Underway) => {
-    const { place } = line;
-    const id =
-      place.kind === 'movement'
-        ? place.arcId
-        : place.kind === 'outpost'
-          ? `outpost-${place.outpostId}`
-          : `building-${place.regionId}-${place.key}`;
-    setFocus({ ids: [id], nonce: Date.now() });
-  }, []);
+  /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
+   *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
+  const focusBuilding = useCallback(
+    (regionId: string, key: string) => {
+      const point = view.me.regions.find((region) => region.id === regionId)?.point;
+      if (!toggles.buildings && point !== undefined)
+        setFocus({ ids: [], places: [point], nonce: Date.now() });
+      else setFocus({ ids: [`building-${regionId}-${key}`], nonce: Date.now() });
+    },
+    [view.me.regions, toggles.buildings],
+  );
+
+  const locateUnderway = useCallback(
+    (line: Underway) => {
+      const { place } = line;
+      if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
+      else if (place.kind === 'outpost')
+        setFocus({ ids: [`outpost-${place.outpostId}`], nonce: Date.now() });
+      else focusBuilding(place.regionId, place.key);
+    },
+    [focusBuilding],
+  );
 
   /** **Le chemin du retour** : le quartier général, ou la capitale de 1940 tant qu'il n'est pas
    *  posé — le même repli que le cadrage d'ouverture. */
   const recenterOnHome = useCallback(() => {
     const hq = view.me.buildings.find((building) => building.key === 'hq');
-    if (hq !== undefined) setFocus({ ids: [`building-${hq.regionId}-hq`], nonce: Date.now() });
+    if (hq !== undefined) focusBuilding(hq.regionId, 'hq');
     else if (view.me.capitalPoint !== null)
       setFocus({ ids: [], places: [view.me.capitalPoint], nonce: Date.now() });
-  }, [view.me.buildings, view.me.capitalPoint]);
+  }, [view.me.buildings, view.me.capitalPoint, focusBuilding]);
 
   /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
    *  cartouche « transmis » prend le relais le temps qu'on le lise. */

@@ -409,7 +409,7 @@ function NarrowPress({
             <div className="flex items-center gap-4 border-b border-[var(--ink)] px-4 pt-4 pb-[14px]">
               <span className="font-(family-name:--font-display) text-[64px] leading-[.8] font-extrabold text-[var(--critical)]">
                 {mine.rank}
-                <span className="align-top text-[24px]">{mine.rank === 1 ? 'ᵉʳ' : 'ᵉ'}</span>
+                <span className="align-top text-[24px]">{fr.press.ordinalSuffix(mine.rank)}</span>
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

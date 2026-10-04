@@ -933,6 +933,8 @@ export const fr = {
     score: (value: number): string => decimal(value, 0),
     /** Le rang de la dernière édition, à la française : « 1ᵉʳ », puis « 2ᵉ ». */
     ordinal: (rank: number): string => (rank === 1 ? '1ᵉʳ' : `${rank}ᵉ`),
+    /** L'exposant seul, quand le chiffre se compose à part (la vedette du téléphone, 1j). */
+    ordinalSuffix: (rank: number): string => (rank === 1 ? 'ᵉʳ' : 'ᵉ'),
     /** **Sous le seuil, la prochaine édition se compte à rebours** (refonte mobile, 1j) : on
      *  ouvre la presse pour savoir où l'on en est, et quand on le saura de nouveau. */
     nextIn: (time: string, hours: number, minutes: number) =>

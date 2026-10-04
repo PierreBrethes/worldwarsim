@@ -491,14 +491,22 @@ export function WorldMap({
       if (fan === null || !fan.actions.some(isOrder)) return [];
       return [{ labelId: label.id, name: fan.name, compass: fan }];
     });
-    if (aimOrigin === null || readyEngine === null) return found;
+    return found;
+  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
+  /** **Rangées au commit, pas au rendu** : le moteur ne connaît la place d'une étiquette neuve
+   *  qu'une fois `MapLabels` lui a passé ses ancres, dans son propre effet — qui précède
+   *  celui-ci. Mesurées pendant le rendu, les cibles de l'armement tombaient à l'infini et la
+   *  feuille offrait des lointaines pour les plus proches. */
+  useEffect(() => {
+    if (onDestinations === undefined) return;
+    if (aimOrigin === null || readyEngine === null) {
+      onDestinations(destinations);
+      return;
+    }
     const away = (destination: Destination) =>
       readyEngine.labelSeparation(aimOrigin, destination.labelId) ?? Infinity;
-    return [...found].sort((first, second) => away(first) - away(second));
-  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt, aimOrigin, readyEngine]);
-  useEffect(() => {
-    onDestinations?.(destinations);
-  }, [destinations, onDestinations]);
+    onDestinations([...destinations].sort((first, second) => away(first) - away(second)));
+  }, [destinations, onDestinations, aimOrigin, readyEngine]);
   const destinationIds = useMemo(
     () => new Set(destinations.map((destination) => destination.labelId)),
     [destinations],

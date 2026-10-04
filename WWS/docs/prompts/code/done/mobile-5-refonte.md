@@ -77,7 +77,11 @@ Relecture du diff (04/10), quatre bloquants corrigés : des piles de troupes con
 une liste vide (`coincident` réservé aux mâts) ; le rang de la presse contredisait son tri ; la
 tenue d'envoi gardait l'ordre du premier toucher et allait au bout sous un bouton désactivé (elle
 lit l'envoi au bout, s'arrête à la désactivation, repart à zéro au changement d'ordre) ; les cartes
-de garnison taisaient la coque d'un passager (« à bord · cargo »).
+de garnison taisaient la coque d'un passager (« à bord · cargo »). Puis quatre retouches : les cibles
+les plus proches se rangent après que le moteur a reçu les ancres (au rendu, elles tombaient à
+l'infini) ; « En cours » et « recentrer » visent le point de la région quand le calque bâtiments
+est éteint ; l'exposant de rang passe par `fr.press.ordinalSuffix` ; les séparateurs de jour du
+télégraphe gardent leur marge.
 
 ## Ce qui reste
 
