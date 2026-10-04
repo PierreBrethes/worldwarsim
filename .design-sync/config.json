@@ -1,0 +1,80 @@
+{
+  "projectId": "4202fb66-b853-4a1a-81d0-68eaf370e88d",
+  "pkg": "worldwarsim",
+  "globalName": "Manchette",
+  "shape": "package",
+  "srcDir": ".design-sync/ds-src",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".design-sync/ds.css",
+  "libOverrides": {
+    "bundle.mjs": "add .webp dataurl loader and Vite ?raw imports (ussr.svg?raw) for src/emblems"
+  },
+  "entry": "./dist/index.js",
+  "componentSrcMap": {
+    "Flag": "src/emblems/Flag.tsx",
+    "FlagBanner": "src/emblems/Flag.tsx",
+    "FlagWatermark": "src/emblems/Flag.tsx",
+    "BuildingPlate": "src/emblems/Plate.tsx",
+    "ObjectivePlate": "src/emblems/Plate.tsx",
+    "ResourcePlate": "src/emblems/Plate.tsx",
+    "ResourceIcon": "src/emblems/ResourceIcon.tsx",
+    "UnitSprite": "src/emblems/UnitSprite.tsx",
+    "Stamp": "src/shell/Stamp.tsx",
+    "Gauge": "src/shell/Gauge.tsx",
+    "Glyph": "src/shell/Glyph.tsx",
+    "TelegraphGlyph": "src/shell/Glyph.tsx",
+    "PressGlyph": "src/shell/Glyph.tsx",
+    "SettingsGlyph": "src/shell/Glyph.tsx",
+    "LayersGlyph": "src/shell/Glyph.tsx",
+    "IngotGlyph": "src/shell/Glyph.tsx",
+    "ClockGlyph": "src/shell/Glyph.tsx",
+    "HeartGlyph": "src/shell/Glyph.tsx",
+    "EyeGlyph": "src/shell/Glyph.tsx",
+    "Pictogram": null,
+    "IndustryGlyph": "src/shell/IndicatorGlyph.tsx",
+    "IndicatorGlyph": null,
+    "Wordmark": "src/shell/Masthead.tsx",
+    "Masthead": "src/shell/Masthead.tsx",
+    "HoverCard": "src/shell/HoverCard.tsx"
+  },
+  "dtsPropsFor": {
+    "Flag": "nation: string | null; width?: number; onPaper?: boolean",
+    "FlagBanner": "nation: string | null",
+    "FlagWatermark": "nation: string | null; opacity?: number",
+    "BuildingPlate": "building: \"hq\"|\"farm\"|\"mill\"|\"mine\"|\"oilWell\"|\"foundry\"|\"arsenal\"|\"quartermaster\"|\"barracks\"|\"airfield\"|\"port\"|\"listening\"|\"billets\"|\"warehouse\"|\"depot\"; height: number",
+    "ObjectivePlate": "objective: string; label: string; height: number",
+    "ResourcePlate": "resource: \"food\"|\"textile\"|\"coal\"|\"oil\"|\"ore\"|\"alloy\"|\"ammunition\"|\"bandages\"; height: number; width?: number; onDark?: boolean; boxed?: boolean",
+    "ResourceIcon": "resource: \"food\"|\"textile\"|\"coal\"|\"oil\"|\"ore\"|\"alloy\"|\"ammunition\"|\"bandages\"; size?: number",
+    "UnitSprite": "nation: string | null; role: \"infantry\"|\"armor\"|\"landTransport\"|\"fighter\"|\"bomber\"|\"airTransport\"|\"escort\"|\"cargo\"|\"carrier\"; tier?: 1|2; height: number; width?: number",
+    "Stamp": "label: string; tone?: \"ink\"|\"critical\"; size?: \"default\"|\"small\"",
+    "Gauge": "filled: number; height?: number; onDark?: boolean; inflow?: number | null",
+    "Glyph": "children: React.ReactNode; size?: number",
+    "TelegraphGlyph": "size?: number",
+    "PressGlyph": "size?: number",
+    "SettingsGlyph": "size?: number",
+    "LayersGlyph": "size?: number",
+    "IndustryGlyph": "size?: number",
+    "IngotGlyph": "size?: number; label: string",
+    "ClockGlyph": "size?: number; label: string",
+    "HeartGlyph": "size?: number; label: string",
+    "EyeGlyph": "size?: number; label: string",
+    "Wordmark": "size?: number | string",
+    "Masthead": "date: React.ReactNode; dateline?: React.ReactNode; wordmarkSize?: number | string",
+    "HoverCard": "left: number; top?: number; ink?: string; width?: number; children: React.ReactNode"
+  },
+  "overrides": {
+    "FlagBanner": {
+      "cardMode": "column"
+    },
+    "FlagWatermark": {
+      "cardMode": "column"
+    },
+    "Masthead": {
+      "cardMode": "column"
+    },
+    "Wordmark": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}
