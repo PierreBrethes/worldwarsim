@@ -1836,6 +1836,9 @@ export const fr = {
     opening: 'Ouverture du site…',
     domains: { land: 'terre', air: 'air', sea: 'mer' },
     queueHeader: 'files de production',
+    /** **Les sections de la modale sur téléphone** (retour de Pierre, 04/10) : une seule feuille
+     *  qui défile, dans l'ordre où l'on décide — monter le site, former, suivre, composer. */
+    narrowSections: { raise: 'le site', form: 'former ici', queue: 'la file' },
     /** La modale ne parle que d'un site : le nom du bâtiment, sa région et son niveau sont son
      *  kicker, et le bandeau de garnison compte ce qui s'y tient. */
     siteLevel: (level: number) => `niveau ${level}`,

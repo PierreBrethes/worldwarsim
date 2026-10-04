@@ -66,7 +66,7 @@ export function FootBar({
       ref={ref}
       className="hud board-foot paper-grain relative z-[var(--z-band)] shrink-0 border-t-2 border-[var(--ink)] text-[var(--ink)]"
     >
-      <ul className="grid h-[56px] grid-cols-[1fr_1fr_1.08fr_1fr_1fr]">
+      <ul className="grid grid-cols-[1fr_1fr_1.08fr_1fr_1fr]">
         {entry(
           'economy',
           <IndustryGlyph size={22} />,

@@ -81,17 +81,14 @@ export function NarrowBand({
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
         <span className="flex-1" />
-        {/* Le libellé passe au-dessus des cases : sur une ligne, à 375 px, il se tronquait ou
-            cassait le compte en colonne. */}
-        <span className="flex shrink-0 flex-col items-end gap-[4px]">
-          <span className="text-[8.5px] leading-none tracking-[.16em] text-[var(--paper-dim)] uppercase">
+        {/* Le compte seul, sans cases (retour de Pierre, 04/10) : trois carrés vides redisaient
+            le chiffre d'à côté. */}
+        <span className="flex shrink-0 items-baseline gap-[8px] whitespace-nowrap">
+          <span className="text-[9px] leading-none tracking-[.16em] text-[var(--paper-dim)] uppercase">
             {fr.resourceBand.slots}
           </span>
-          <span className="flex items-center gap-[8px]">
-            <SlotPips used={me.slots.used} total={me.slots.total} />
-            <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium whitespace-nowrap text-[var(--paper)]">
-              {fr.banner.slotsCount(me.slots.used, me.slots.total)}
-            </span>
+          <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium text-[var(--paper)]">
+            {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
         </span>
       </div>
@@ -143,25 +140,6 @@ export function NarrowBand({
       )}
       {surface === 'layers' && <LayersSheet onClose={() => setSurface(null)} />}
     </div>
-  );
-}
-
-/** **Un slot pris prend l'ambre des arcs** : la pastille qui s'allume à l'envoi est de la couleur
- *  du fil qui vient de partir sur la carte (1d). */
-function SlotPips({ used, total }: { used: number; total: number }) {
-  return (
-    <span aria-hidden className="flex shrink-0 gap-[3px]">
-      {Array.from({ length: total }, (_, rank) => (
-        <span
-          key={rank}
-          className={`h-[10px] w-[10px] border-[1.5px] ${
-            rank < used
-              ? 'border-[var(--arc-mine)] bg-[var(--arc-mine)]'
-              : 'border-[var(--paper-dim)]'
-          }`}
-        />
-      ))}
-    </span>
   );
 }
 

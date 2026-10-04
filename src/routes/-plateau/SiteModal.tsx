@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from 'convex/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { aBuilding, fr, roleLabel } from '@/i18n/fr';
@@ -27,6 +27,7 @@ import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
 import { FloatingWindow, useWindowSized, type WindowProps } from './Window';
+import { useNarrowScreen } from '@/shell/viewport';
 import type { Seat } from '@/data/session';
 
 /**
@@ -100,6 +101,7 @@ function Site({
 }) {
   const now = useClock();
   const sized = useWindowSized();
+  const narrow = useNarrowScreen();
   const nation = view.me.nation;
   const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
@@ -125,6 +127,59 @@ function Site({
    *  parce que `workshop` n'a pas changé (contrat 03 : aucun changement serveur). */
   const facility = workshop?.facilities.find((candidate) => candidate.id === building.id) ?? null;
 
+  /** **Nul, l'ordre n'existe pas** — c'est ainsi que l'observateur lit la fiche sans qu'elle lui
+   *  promette une compagnie : un bouton grisé se lit comme « pas encore », et ce n'est pas « pas
+   *  encore ». */
+  const enqueueOf = (role: UnitRole): (() => void) | null =>
+    observing
+      ? null
+      : () => {
+          setError(null);
+          void recruit({
+            ...seat,
+            buildingId: building.id as Id<'buildings'>,
+            role,
+            tier: tiers[role] ?? 1,
+          }).catch(onFailure);
+        };
+  const cancelOf = (batch: Batch): (() => void) | null =>
+    observing
+      ? null
+      : () => {
+          setError(null);
+          void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
+        };
+  const roles =
+    facility === null
+      ? []
+      : (workshop?.grid ?? []).filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain);
+  const unlinked = region !== undefined && !region.linked && produces(building.key);
+
+  if (narrow)
+    return (
+      <NarrowSite
+        view={view}
+        seat={seat}
+        building={building}
+        regionName={region?.name ?? building.regionId}
+        unlinked={unlinked}
+        now={now}
+        error={error}
+        workshop={workshop}
+        facility={facility}
+        roles={roles}
+        tiers={tiers}
+        onTier={(role, picked) => setTiers((previous) => ({ ...previous, [role]: picked }))}
+        enqueueOf={enqueueOf}
+        cancelOf={cancelOf}
+        station={station}
+        held={held}
+        onOpenGunnery={onOpenGunnery}
+        onPrepare={onPrepare}
+        onClose={onClose}
+      />
+    );
+
   return (
     <>
       <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px]">
@@ -141,9 +196,7 @@ function Site({
         {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
             debout, entier, et c'est sa région qui a changé de couleur. Le tampon le constate, et
             il n'ouvre aucun bouton — ce qui se reprend se reprend sur la carte. */}
-        {region !== undefined && !region.linked && produces(building.key) && (
-          <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
-        )}
+        {unlinked && <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />}
         <span className="h-px flex-1 bg-(--ink)/20" />
         {/* L'élévation passe **après** la fermeture sous le seuil : pleine ligne, elle repoussait
             « fermer » à une troisième ligne et l'en-tête mangeait un tiers du téléphone. */}
@@ -205,41 +258,24 @@ function Site({
               }`}
             >
               <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3">
-                {workshop.grid
-                  .filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain)
-                  .map((entry) => (
-                    <RoleCard
-                      key={entry.role}
-                      entry={entry}
-                      nation={nation}
-                      tier={tiers[entry.role] ?? 1}
-                      onTier={(picked) =>
-                        setTiers((previous) => ({ ...previous, [entry.role]: picked }))
-                      }
-                      owned={workshop.roster.filter((row) => row.role === entry.role)}
-                      tier2Unlocked={workshop.tier2Unlocked}
-                      requiredLevel={workshop.requiredHqLevel}
-                      hqLevel={workshop.hqLevel}
-                      siteLevel={facility.level}
-                      siteName={facility.regionName}
-                      /** **Nul, l'ordre n'existe pas** — c'est ainsi que l'observateur lit la
-                       *  fiche sans qu'elle lui promette une compagnie : un bouton grisé se lit
-                       *  comme « pas encore », et ce n'est pas « pas encore ». */
-                      onEnqueue={
-                        observing
-                          ? null
-                          : () => {
-                              setError(null);
-                              void recruit({
-                                ...seat,
-                                buildingId: building.id as Id<'buildings'>,
-                                role: entry.role,
-                                tier: tiers[entry.role] ?? 1,
-                              }).catch(onFailure);
-                            }
-                      }
-                    />
-                  ))}
+                {roles.map((entry) => (
+                  <RoleCard
+                    key={entry.role}
+                    entry={entry}
+                    nation={nation}
+                    tier={tiers[entry.role] ?? 1}
+                    onTier={(picked) =>
+                      setTiers((previous) => ({ ...previous, [entry.role]: picked }))
+                    }
+                    owned={workshop.roster.filter((row) => row.role === entry.role)}
+                    tier2Unlocked={workshop.tier2Unlocked}
+                    requiredLevel={workshop.requiredHqLevel}
+                    hqLevel={workshop.hqLevel}
+                    siteLevel={facility.level}
+                    siteName={facility.regionName}
+                    onEnqueue={enqueueOf(entry.role)}
+                  />
+                ))}
               </div>
 
               {/* **La garnison sous ce qui la remplit** (61a) : on lit ce que le site forme, puis
@@ -297,14 +333,7 @@ function Site({
                         nation={nation}
                         loadedAt={workshop.loadedAt}
                         now={now}
-                        onCancel={
-                          observing
-                            ? null
-                            : () => {
-                                setError(null);
-                                void cancel({ ...seat, recruitmentId: batch.id }).catch(onFailure);
-                              }
-                        }
+                        onCancel={cancelOf(batch)}
                       />
                     ))}
                   </>
@@ -332,6 +361,362 @@ function Site({
 type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
 type Facility = WorkshopView['facilities'][number];
 type GridEntry = WorkshopView['grid'][number];
+type Batch = Facility['queue'][number];
+
+/** Ce qu'un rôle coûte au palier choisi, et ce qui le retient : la carte du bureau et la ligne
+ *  du téléphone lisent la même règle. */
+function roleTermsOf(entry: GridEntry, tier: UnitTier, hqLevel: number, siteLevel: number) {
+  return {
+    // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
+    roleLocked: hqLevel < (entry.unlockedAtHqLevel ?? 0),
+    /**
+     * **La carte reste, la condition se dit, le bouton s'en va** (67b) : le porte-avions se lit
+     * sur un port de niveau 1 — rien de caché ne se débloque (60b) — et un bouton grisé se lirait
+     * « pas encore » là où il faut lire « montez le port ».
+     */
+    siteLocked: siteLevel < entry.unlockedAtSiteLevel,
+    cost: tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit,
+  };
+}
+
+/**
+ * **La modale d'un site, sur un téléphone** (retour de Pierre, 04/10). La fenêtre du bureau y
+ * tenait un en-tête, une bande de plafond et un pied fixes, et laissait aux cartes une boîte de
+ * quelques pixels. Ici tout défile d'un seul tenant, comme le journal et la presse : l'en-tête
+ * reste collé, et les sections suivent l'ordre où l'on décide — monter le site, former, suivre la
+ * file, composer la garnison.
+ */
+function NarrowSite({
+  view,
+  seat,
+  building,
+  regionName,
+  unlinked,
+  now,
+  error,
+  workshop,
+  facility,
+  roles,
+  tiers,
+  onTier,
+  enqueueOf,
+  cancelOf,
+  station,
+  held,
+  onOpenGunnery,
+  onPrepare,
+  onClose,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  building: Building;
+  regionName: string;
+  unlinked: boolean;
+  now: number;
+  error: string | null;
+  workshop: WorkshopView | undefined;
+  facility: Facility | null;
+  roles: ReadonlyArray<GridEntry>;
+  tiers: Partial<Record<UnitRole, UnitTier>>;
+  onTier: (role: UnitRole, tier: UnitTier) => void;
+  enqueueOf: (role: UnitRole) => (() => void) | null;
+  cancelOf: (batch: Batch) => (() => void) | null;
+  station: TroopStation;
+  held: ReturnType<typeof troopsAt>;
+  onOpenGunnery: () => void;
+  onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <article className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]">
+      <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
+        <div className="flex min-h-[58px] items-center gap-[10px] py-[6px] pr-3 pl-4">
+          <BuildingPlate building={building.key} height={32} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-(family-name:--font-display) text-[20px] leading-[1.1] font-extrabold">
+              {fr.buildings[building.key]}
+            </div>
+            <div className="truncate text-[12px] text-[var(--ink-soft)]">
+              {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
+            </div>
+          </div>
+          <GunneryButton onOpen={onOpenGunnery} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
+          >
+            {fr.common.close}
+          </button>
+        </div>
+        {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
+        {unlinked && (
+          <div className="px-4 pb-2">
+            <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p className="border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
+          {error}
+        </p>
+      )}
+
+      {!view.me.defeated && (
+        <NarrowSection title={fr.production.narrowSections.raise}>
+          <div className="px-4 py-3">
+            <UpgradeControl building={building} view={view} seat={seat} now={now} />
+          </div>
+        </NarrowSection>
+      )}
+
+      {workshop === undefined || facility === null ? (
+        <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
+      ) : (
+        <>
+          <NarrowSection title={fr.production.narrowSections.form}>
+            {/* Le plafond est global et répété ici : c'est le seul nombre qui borne le choix. */}
+            <div className="border-b border-(color:--ink)/18 px-4 py-3">
+              <div className="flex flex-wrap items-baseline gap-x-[9px]">
+                <span className="font-(family-name:--font-mono) text-[17px]">
+                  {workshop.troopsInService}
+                </span>
+                <span className="eyebrow">{fr.production.inService}</span>
+                <span className="ml-[6px] font-(family-name:--font-mono) text-[17px]">
+                  {workshop.troopsQueued}
+                </span>
+                <span className="eyebrow">{fr.production.inQueue}</span>
+              </div>
+              <div className="mt-[8px]">
+                <CapPips
+                  inService={workshop.troopsInService}
+                  queued={workshop.troopsQueued}
+                  cap={workshop.troopCap}
+                />
+              </div>
+              <p className="mt-[8px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
+                {fr.production.troopCapNote}
+              </p>
+            </div>
+            {roles.map((entry) => (
+              <RoleLine
+                key={entry.role}
+                entry={entry}
+                nation={view.me.nation}
+                tier={tiers[entry.role] ?? 1}
+                onTier={(picked) => onTier(entry.role, picked)}
+                owned={workshop.roster.filter((row) => row.role === entry.role)}
+                tier2Unlocked={workshop.tier2Unlocked}
+                requiredLevel={workshop.requiredHqLevel}
+                hqLevel={workshop.hqLevel}
+                siteLevel={facility.level}
+                siteName={facility.regionName}
+                onEnqueue={enqueueOf(entry.role)}
+              />
+            ))}
+          </NarrowSection>
+
+          <NarrowSection
+            title={fr.production.narrowSections.queue}
+            count={`${facility.queue.length} / ${workshop.maxQueue}`}
+          >
+            {facility.queue.length === 0 ? (
+              <p className="px-4 py-4 text-[12.5px] text-[var(--ink-soft)]">
+                {fr.production.queueEmpty}
+              </p>
+            ) : (
+              facility.queue.map((batch) => (
+                <QueueRow
+                  key={batch.id}
+                  batch={batch}
+                  nation={view.me.nation}
+                  loadedAt={workshop.loadedAt}
+                  now={now}
+                  onCancel={cancelOf(batch)}
+                />
+              ))
+            )}
+          </NarrowSection>
+        </>
+      )}
+
+      <NarrowSection title={fr.garrison.kicker} count={fr.garrison.troopCount(held.length)}>
+        <div className="px-3 pt-3 pb-4">
+          <GarrisonStack
+            view={view}
+            station={station}
+            held={held}
+            preselect={[]}
+            canPrepare
+            observing={view.me.defeated}
+            onPrepare={onPrepare}
+          />
+        </div>
+      </NarrowSection>
+    </article>
+  );
+}
+
+/** Le titre d'une section, à la manière des familles des Chantiers. */
+function NarrowSection({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <div className="flex justify-between border-b border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),var(--ink)_6%)] px-4 pt-2 pb-[6px] text-[10px] font-bold tracking-[.18em] uppercase">
+        <span>{title}</span>
+        {count !== undefined && (
+          <span className="font-(family-name:--font-mono) font-normal tracking-normal text-[var(--ink-soft)]">
+            {count}
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * **Un rôle sur un téléphone : une ligne, pas une affiche.** La carte du bureau donne cent
+ * cinquante pixels à la vignette ; ici la vignette tient à gauche, le prix et l'attente sous le
+ * nom, et le bouton prend toute la largeur sous le pouce. La règle est celle de la carte
+ * (`roleTermsOf`) : une condition se dit, le bouton s'en va.
+ */
+function RoleLine({
+  entry,
+  nation,
+  tier,
+  onTier,
+  owned,
+  tier2Unlocked,
+  requiredLevel,
+  hqLevel,
+  siteLevel,
+  siteName,
+  onEnqueue,
+}: {
+  entry: GridEntry;
+  nation: string;
+  tier: UnitTier;
+  onTier: (chosen: UnitTier) => void;
+  owned: ReadonlyArray<{ tier: number; count: number }>;
+  tier2Unlocked: boolean;
+  requiredLevel: number;
+  hqLevel: number;
+  siteLevel: number;
+  siteName: string;
+  onEnqueue: (() => void) | null;
+}) {
+  const { role, tiers } = entry;
+  const { roleLocked, siteLocked, cost } = roleTermsOf(entry, tier, hqLevel, siteLevel);
+  const sheet = fr.unitSheets[role];
+  const equipment = equipmentLabel(nation, role, tier);
+  const total = owned.reduce((sum, row) => sum + row.count, 0);
+
+  return (
+    <div className="border-b border-(color:--ink)/18 px-4 py-3">
+      <div className="flex gap-3">
+        <div className="flex h-[78px] w-[100px] shrink-0 items-center justify-center bg-(--ink)/5">
+          <UnitSprite nation={nation} role={role} tier={tier} height={70} width={96} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-(family-name:--font-display) text-[18px] leading-[1.1] font-extrabold">
+            {roleLabel(role, 1)}
+          </div>
+          <div className="truncate text-[12.5px] text-[var(--ink-soft)]">
+            {equipment && `${equipment} · `}
+            <span className="font-(family-name:--font-mono) text-[11px]">
+              {total} {fr.production.inService}
+            </span>
+          </div>
+          <div className="mt-[6px] flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Expense resource="alloy" value={cost.alloy} />
+            <span className="font-(family-name:--font-mono) text-[12.5px]">
+              {asDuration(cost.minutes)}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[12.5px]">
+              {cost.strength}{' '}
+              <span className="font-(family-name:--font-body) text-[11px] text-[var(--ink-soft)]">
+                {fr.strengthUnits[role]}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+      {roleLocked && (
+        <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">
+          {fr.production.roleLocked(entry.unlockedAtHqLevel)}
+        </p>
+      )}
+      {siteLocked && (
+        <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">
+          {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+        </p>
+      )}
+      <div className="mt-[7px] text-[12px] leading-[1.45]">
+        {sheet.kind === 'combat' ? (
+          <>
+            <div>
+              <span className="text-[var(--ink-soft)]">{fr.production.strongAgainst} </span>
+              {sheet.strongAgainst.join(', ')}
+            </div>
+            <div>
+              <span className="text-[var(--ink-soft)]">{fr.production.weakAgainst} </span>
+              {sheet.weakAgainst.join(', ')}
+            </div>
+          </>
+        ) : (
+          <p className="text-[var(--ink-soft)] italic">
+            {sheet.contribution} {fr.production.supportNote}
+          </p>
+        )}
+      </div>
+      {onEnqueue !== null && !siteLocked && (
+        <div className="mt-[9px] flex gap-[6px]">
+          {tiers === 2 &&
+            ([1, 2] as const).map((level) => {
+              const locked = level === 2 && !tier2Unlocked;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  disabled={locked}
+                  aria-pressed={tier === level}
+                  title={
+                    locked
+                      ? fr.production.tier2Locked(requiredLevel)
+                      : fr.production.tierLabel(level)
+                  }
+                  onClick={() => onTier(level)}
+                  className={`min-h-[44px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12px] disabled:cursor-not-allowed disabled:opacity-35 ${
+                    tier === level ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
+                  }`}
+                >
+                  {tierLabel(level)}
+                </button>
+              );
+            })}
+          <button
+            type="button"
+            disabled={roleLocked}
+            onClick={onEnqueue}
+            title={fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)}
+            className="min-h-[44px] flex-1 cursor-pointer bg-[var(--ink)] text-[11px] font-semibold tracking-[.16em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            {fr.production.enqueue}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * **The ceiling, drawn.** The same three numbers as the figures beside it — standing, queued,
@@ -395,15 +780,7 @@ function RoleCard({
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
-  // The role's own threshold, above the building that forms it: the tank arrives with mark 2.
-  const roleLocked = hqLevel < (entry.unlockedAtHqLevel ?? 0);
-  /**
-   * **La carte reste, la condition se dit, le bouton s'en va** (67b) : le porte-avions se lit
-   * sur un port de niveau 1 — rien de caché ne se débloque (60b) — et un bouton grisé se lirait
-   * « pas encore » là où il faut lire « montez le port ».
-   */
-  const siteLocked = siteLevel < entry.unlockedAtSiteLevel;
-  const cost = tier === 2 && entry.unitTier2 ? entry.unitTier2 : entry.unit;
+  const { roleLocked, siteLocked, cost } = roleTermsOf(entry, tier, hqLevel, siteLevel);
   const sheet = fr.unitSheets[role];
   const equipment = equipmentLabel(nation, role, tier);
   const total = owned.reduce((sum, row) => sum + row.count, 0);
@@ -548,7 +925,7 @@ function QueueRow({
   now,
   onCancel,
 }: {
-  batch: Facility['queue'][number];
+  batch: Batch;
   nation: string;
   loadedAt: number;
   now: number;

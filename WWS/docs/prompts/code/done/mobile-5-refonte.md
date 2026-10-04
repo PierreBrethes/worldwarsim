@@ -83,6 +83,13 @@ l'infini) ; « En cours » et « recentrer » visent le point de la région quan
 est éteint ; l'exposant de rang passe par `fr.press.ordinalSuffix` ; les séparateurs de jour du
 télégraphe gardent leur marge.
 
+Retours de Pierre sur iPhone 13 Pro (04/10) : le bandeau ne dessine plus les cases des slots,
+le compte suffit ; les tuiles de la barre de pied descendent jusqu'au bord de l'écran (le creux
+de la barre d'accueil passe dans chaque tuile, sous son mot) ; la modale de site — caserne, port,
+aérodrome — a une branche téléphone (`NarrowSite`) qui défile d'un seul tenant, en-tête collé,
+sections « le site », « former ici », « la file », « garnison », un rôle par ligne
+(`RoleLine`, même règle que la carte du bureau par `roleTermsOf`).
+
 ## Ce qui reste
 
 - **Aucun vrai téléphone** n'a été regardé : le relevé tourne dans Chromium en émulation tactile.
@@ -90,7 +97,6 @@ télégraphe gardent leur marge.
 - Le mappage des feuilles de **garnison** et le **dossier** sur iPhone SE couché ne sont pas relevés.
 - L'en-tête du panneau de garnison garde le titre générique de `Panel` (la maquette voulait
   « Garnison · Caserne — Nord » et un compte).
-- La modale de site (non touchée par ce lot) est serrée sous 400 px : « fermer » passe sous le titre.
 - Le titre de la feuille « à faire maintenant » s'affiche « A faire » sans accent dans la police
   de titre (`first-letter:uppercase`) — à vérifier.
 - L'aide-mémoire du bureau parle encore du widget « Troupes, en bas à gauche », retiré le 30/08.

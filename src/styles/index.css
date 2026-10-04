@@ -202,11 +202,21 @@ body {
   overflow-y: auto;
 }
 
-/* La barre de pied descend sous la barre d'accueil de l'iPhone : le papier va jusqu'au bord et
-   les entrées restent au-dessus, là où le cadre les a posées. */
+/* La barre de pied descend sous la barre d'accueil de l'iPhone, et ses tuiles avec elle : la
+   tuile « à faire » et le fond de l'onglet ouvert touchent le bord de l'écran (retour de Pierre,
+   iPhone 13 Pro, 04/10). Le creux passe dans chaque tuile, sous son pictogramme et son mot, qui
+   restent au-dessus de la barre d'accueil. */
 .board-foot {
-  margin-bottom: calc(-1 * var(--safe-bottom) / var(--hud-scale));
-  padding-bottom: calc(var(--safe-bottom) / var(--hud-scale));
+  --foot-safe: calc(var(--safe-bottom) / var(--hud-scale));
+  margin-bottom: calc(-1 * var(--foot-safe));
+}
+
+.board-foot > ul {
+  height: calc(56px + var(--foot-safe));
+}
+
+.board-foot > ul > li > * {
+  padding-bottom: var(--foot-safe);
 }
 
 /* **Quarante-quatre pixels sous le doigt.** La fonte ne bouge pas — le style presse tient à ses
