@@ -430,6 +430,14 @@ export type CompassAction =
       readonly point: LonLat;
     };
 
+/** **Les branches qui font partir une colonne** : une marche, une expédition, un ramassage. Ce
+ *  sont elles qui font d'une étiquette une destination, et elles seules que la feuille d'ordre du
+ *  téléphone offre en onglets (refonte mobile, 1c). */
+export type OrderAction = Extract<CompassAction, { readonly key: 'aim' | 'plunder' | 'collect' }>;
+
+export const isOrder = (action: CompassAction): action is OrderAction =>
+  action.key === 'aim' || action.key === 'plunder' || action.key === 'collect';
+
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */
   readonly kicker: string;

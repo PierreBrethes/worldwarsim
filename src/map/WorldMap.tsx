@@ -9,7 +9,12 @@ import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
-import { type CompassAction, type CompassTarget, type Compass } from '@/domain/compass-rose';
+import {
+  isOrder,
+  type CompassAction,
+  type CompassTarget,
+  type Compass,
+} from '@/domain/compass-rose';
 import type { ArcView, TroopStation } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useMouseMapping } from '@/data/mouseMapping';
@@ -129,6 +134,17 @@ type Props = {
    * décide lesquelles, par la même rose que le geste ouvrirait.
    */
   showDestinations?: boolean;
+  /** **Ces destinations, rendues au plateau**, de la plus proche à la plus lointaine de
+   *  `aimOrigin` — l'étiquette d'où la colonne part : la feuille en offre les trois premières
+   *  sous le pouce (refonte mobile, 1b). */
+  aimOrigin?: string | null;
+  onDestinations?: (destinations: ReadonlyArray<Destination>) => void;
+  /**
+   * **Sous le seuil, une cible visée ouvre la feuille d'ordre, pas la rose** (refonte mobile,
+   * 1c) : le type d'ordre s'y choisit. Le plateau rend vrai quand il a pris la cible — une rose
+   * qui ne porte que son motif de refus s'ouvre encore, c'est elle qui sait le dire.
+   */
+  onOrderTarget?: ((compass: Compass, at: { x: number; y: number }) => boolean) | undefined;
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
   covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
@@ -158,9 +174,19 @@ export type PlacingBuilding = {
   readonly figures: string;
 };
 
+/**
+ * **Une destination de la colonne armée** : l'étiquette qui la porte, le nom que sa rose
+ * écrit, et cette rose même — c'est elle qu'un raccourci de la feuille rejoue, jamais une copie.
+ */
+export type Destination = {
+  readonly labelId: string;
+  readonly name: string;
+  readonly compass: Compass;
+};
+
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
-const NO_DESTINATIONS: ReadonlyMap<string, string> = new Map();
+const NO_DESTINATIONS: ReadonlyArray<Destination> = [];
 
 export function WorldMap({
   world,
@@ -200,6 +226,9 @@ export function WorldMap({
   searchArea = null,
   fingerRose = null,
   showDestinations = false,
+  aimOrigin = null,
+  onDestinations,
+  onOrderTarget,
   covered = false,
   reveal = null,
 }: Props) {
@@ -274,6 +303,11 @@ export function WorldMap({
       const drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (drawn === null || rect === undefined) return;
+      const at = { x: clientX - rect.left, y: clientY - rect.top };
+      if (aiming && onOrderTarget?.(drawn, at) === true) {
+        setRose(null);
+        return;
+      }
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
        *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
@@ -282,13 +316,13 @@ export function WorldMap({
       setRose({
         opening: openings.current,
         compass: drawn,
-        x: exact ? clientX - rect.left : clamp(clientX - rect.left, margin, rect.width),
-        y: exact ? clientY - rect.top : clamp(clientY - rect.top, margin, rect.height),
+        x: exact ? at.x : clamp(at.x, margin, rect.width),
+        y: exact ? at.y : clamp(at.y, margin, rect.height),
         width: rect.width,
         height: rect.height,
       });
     },
-    [compassOf, fingerRose],
+    [compassOf, fingerRose, aiming, onOrderTarget],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -448,39 +482,43 @@ export function WorldMap({
    * ramassage — la même fonction que le geste, donc jamais un cercle sur ce que la rose refuse
    * (ADR 0015). Le sol nu n'y est pas : il est partout.
    */
-  const destinations = useMemo<ReadonlyMap<string, string>>(() => {
+  const destinations = useMemo<ReadonlyArray<Destination>>(() => {
     if (!aiming || !showDestinations) return NO_DESTINATIONS;
-    const named = new Map<string, string>();
-    for (const label of labels) {
+    const found = labels.flatMap((label): ReadonlyArray<Destination> => {
       const target = targetOfLabel(label, null, null, coastAt, landAt);
-      if (target === null || target.kind === 'country' || target.kind === 'point') continue;
+      if (target === null || target.kind === 'country' || target.kind === 'point') return [];
       const fan = compassOf(target);
-      if (
-        fan === null ||
-        !fan.actions.some(
-          (action) => action.key === 'aim' || action.key === 'plunder' || action.key === 'collect',
-        )
-      )
-        continue;
-      named.set(label.id, fan.name);
-    }
-    return named;
-  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
-  const destinationIds = useMemo(() => new Set(destinations.keys()), [destinations]);
+      if (fan === null || !fan.actions.some(isOrder)) return [];
+      return [{ labelId: label.id, name: fan.name, compass: fan }];
+    });
+    if (aimOrigin === null || readyEngine === null) return found;
+    const away = (destination: Destination) =>
+      readyEngine.labelSeparation(aimOrigin, destination.labelId) ?? Infinity;
+    return [...found].sort((first, second) => away(first) - away(second));
+  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt, aimOrigin, readyEngine]);
+  useEffect(() => {
+    onDestinations?.(destinations);
+  }, [destinations, onDestinations]);
+  const destinationIds = useMemo(
+    () => new Set(destinations.map((destination) => destination.labelId)),
+    [destinations],
+  );
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord comme une destination**
    * (carte-lisible, 03/10) — le même cartouche nommé, le même toucher qui y recentre. Il ne
    * rejoint pas les cercles au pied : un drapeau dit où va ce qui est parti, pas où l'on peut
    * aller.
    */
-  const edgeNames = useMemo<ReadonlyMap<string, string>>(() => {
-    const arrivals = labels.filter((label) => label.type === 'arrival');
-    if (arrivals.length === 0) return destinations;
-    return new Map([
-      ...destinations,
-      ...arrivals.map((label) => [label.id, lineText(label, 'nature') ?? ''] as const),
-    ]);
-  }, [labels, destinations]);
+  const edgeNames = useMemo<ReadonlyMap<string, string>>(
+    () =>
+      new Map([
+        ...destinations.map((destination) => [destination.labelId, destination.name] as const),
+        ...labels
+          .filter((label) => label.type === 'arrival')
+          .map((label) => [label.id, lineText(label, 'nature') ?? ''] as const),
+      ]),
+    [labels, destinations],
+  );
 
   // **Effet immédiat, sans rechargement** : le moteur reçoit le mappage comme il reçoit une
   // bascule, et un glisser en cours garde le sien jusqu'au relâchement.

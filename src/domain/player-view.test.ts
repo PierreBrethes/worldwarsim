@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stackLabel } from '@/i18n/fr';
-import { currentMinutes, currentStock } from './player-view';
+import { currentMinutes, currentStock, seasonDayOf, type PlayerView } from './player-view';
 
 describe('stack label', () => {
   it('spells out each role with its agreement', () => {
@@ -43,5 +43,20 @@ describe('client-side extrapolation', () => {
   it('counts minutes down without going below zero', () => {
     expect(currentMinutes(10, loadedAt, loadedAt + 4 * 60_000)).toBe(6);
     expect(currentMinutes(10, loadedAt, loadedAt + 15 * 60_000)).toBe(0);
+  });
+});
+
+describe('the season day', () => {
+  const season = (elapsedHours: number, durationHours: number | null) =>
+    ({ elapsedHours, durationHours }) as PlayerView['season'];
+
+  it('counts from one, and the twenty-fifth hour opens the second day', () => {
+    expect(seasonDayOf(season(0, 168))).toEqual({ day: 1, totalDays: 7 });
+    expect(seasonDayOf(season(24, 168))).toEqual({ day: 2, totalDays: 7 });
+  });
+
+  it('stays on the last day past the end, and promises no end without a clock', () => {
+    expect(seasonDayOf(season(200, 168)).day).toBe(7);
+    expect(seasonDayOf(season(200, null))).toEqual({ day: 9, totalDays: null });
   });
 });

@@ -96,8 +96,12 @@ export function CompassRose({
     if (finger === null || fitted.current || root.current === null) return;
     fitted.current = true;
     const frame = root.current.closest('.compass-rose')?.getBoundingClientRect();
+    /** Le réticule compte : c'est la chose désignée, et une rose posée au-dessus de la feuille
+     *  sur une troupe restée dessous montrait l'ordre sans ce qu'il commande. */
     const box = boxOf(
-      root.current.querySelectorAll('.rose-medallion, .rose-caption, .rose-figure'),
+      root.current.querySelectorAll(
+        '.rose-medallion, .rose-caption, .rose-figure, .rose-crosshair-circle',
+      ),
     );
     if (frame === undefined || box === null) return;
     /** La feuille déjà ouverte par le même toucher — une fiche qui épouse son contenu peut monter

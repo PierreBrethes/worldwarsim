@@ -146,6 +146,18 @@ export function MapLabels({
   const widths = useRef(new Map<string, number>());
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
   const pressedWith = useRef('mouse');
+  /** La pile de mâts ouverte en liste, par son identifiant — elle se referme si elle se défait. */
+  const [opened, setOpened] = useState<string | null>(null);
+  const openedGroup = groups.find((group) => group.id === opened) ?? null;
+  useEffect(() => {
+    if (openedGroup === null) return;
+    const elsewhere = (event: PointerEvent) => {
+      const anchor = groupAnchors.current.get(openedGroup.id);
+      if (anchor?.contains(event.target as Node) !== true) setOpened(null);
+    };
+    document.addEventListener('pointerdown', elsewhere);
+    return () => document.removeEventListener('pointerdown', elsewhere);
+  }, [openedGroup]);
 
   const apply = useCallback((id: string, state: RenderState) => {
     const root = roots.current.get(id);
@@ -227,14 +239,15 @@ export function MapLabels({
      * qu'on touche sans effet est une promesse cassée. Chacun reprend alors ses mots, sur un mât
      * allongé juste assez pour dégager ceux qui le précèdent (`fanOffsets`).
      */
-    const fanned = engine?.atZoomFloor() ?? false;
+    /** **Sauf une pile de mâts d'une même région** (refonte mobile, 1r) : aucune distance ne la
+     *  séparera, elle reste une pile et s'ouvre en liste au toucher. */
+    const atFloor = engine?.atZoomFloor() ?? false;
+    const fans = (group: LabelGroup) => atFloor && !group.coincident;
     const lifts = new Map<string, number>();
-    if (fanned) {
-      const rectOf = new Map(measured.map(({ label, rect }) => [label.id, rect] as const));
-      for (const group of formed) {
-        const offsets = fanOffsets(group.members.map((member) => rectOf.get(member)!));
-        group.members.forEach((member, rank) => lifts.set(member, offsets[rank] ?? 0));
-      }
+    const rectOf = new Map(measured.map(({ label, rect }) => [label.id, rect] as const));
+    for (const group of formed.filter(fans)) {
+      const offsets = fanOffsets(group.members.map((member) => rectOf.get(member)!));
+      group.members.forEach((member, rank) => lifts.set(member, offsets[rank] ?? 0));
     }
 
     // Un cartouche réuni se place au rang de son premier membre, et cède comme une étiquette :
@@ -250,9 +263,9 @@ export function MapLabels({
           placedGroups.set(group.id, standing);
           if (standing) kept.push(group.box);
         }
-        state.grouped = standing && !fanned;
+        state.grouped = standing && !fans(group);
         state.folded = !standing;
-        if (standing && fanned) state.stagger = lifts.get(label.id) ?? 0;
+        if (standing && fans(group)) state.stagger = lifts.get(label.id) ?? 0;
       } else {
         state.folded = kept.some((other) => boxesOverlap(other, rect, OVERLAP_MARGIN));
         if (!state.folded) kept.push(rect);
@@ -260,7 +273,7 @@ export function MapLabels({
       apply(label.id, state);
     }
 
-    const shown = fanned ? [] : formed;
+    const shown = formed.filter((group) => !fans(group));
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
   }, [labels, apply, engine]);
@@ -581,6 +594,16 @@ export function MapLabels({
       ))}
       {groups.map((group) => {
         const ink = inkOf(group.members[0] ?? '');
+        const members = group.members.flatMap((member) => {
+          const label = labels.find((candidate) => candidate.id === member);
+          return label === undefined ? [] : [label];
+        });
+        /** **Une pile de mâts porte leurs planches** (refonte mobile, 1r) : deux, l'une sur
+         *  l'autre — on voit ce qui se tient là avant de compter. */
+        const plates =
+          group.kind === 'building'
+            ? members.flatMap((member) => (member.plate === null ? [] : [member.plate])).slice(0, 2)
+            : [];
         return (
           <div
             key={group.id}
@@ -597,18 +620,91 @@ export function MapLabels({
               <button
                 type="button"
                 className="label-block"
-                aria-label={fr.labels.groupZoom(group.caption)}
-                onClick={() => separate(group)}
+                aria-expanded={group.coincident ? opened === group.id : undefined}
+                aria-label={
+                  group.coincident
+                    ? fr.labels.groupList(group.caption)
+                    : fr.labels.groupZoom(group.caption)
+                }
+                onClick={() =>
+                  group.coincident
+                    ? setOpened((open) => (open === group.id ? null : group.id))
+                    : separate(group)
+                }
               >
+                {plates.length > 0 && (
+                  <span className="label-pictogram label-group-plates">
+                    {plates.map((plate, rank) => (
+                      <img key={rank} className="label-plate" src={plate} alt="" />
+                    ))}
+                  </span>
+                )}
                 <span className="label-bar" />
                 <span className="label-lines">
-                  <span className="label-line label-line--nature">{group.caption}</span>
+                  <span className="label-line label-line--nature">
+                    {group.caption}
+                    {group.kind === 'building' && <span aria-hidden> ›</span>}
+                  </span>
                 </span>
               </button>
+              {opened === group.id && (
+                <GroupList
+                  caption={group.caption}
+                  members={members}
+                  onOpen={(buildingId, clientX, clientY) => {
+                    setOpened(null);
+                    onOpenBuilding(buildingId, clientX, clientY);
+                  }}
+                  onClose={() => setOpened(null)}
+                />
+              )}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * **La pile ouverte en liste** (refonte mobile, 1r) : des mâts d'une même région ne se
+ * sépareront à aucune distance, alors ils s'écartent en lignes de 46 px — la planche, le nom, le
+ * niveau — et chacune ouvre son bâtiment comme son mât l'aurait fait.
+ */
+function GroupList({
+  caption,
+  members,
+  onOpen,
+  onClose,
+}: {
+  caption: string;
+  members: ReadonlyArray<MapLabel>;
+  onOpen: (buildingId: string, clientX: number, clientY: number) => void;
+  onClose: () => void;
+}) {
+  const region = members.find((member) => member.building !== null)?.building?.regionName;
+  return (
+    <div className="label-group-list paper-grain">
+      <div className="label-group-list-head">
+        <span>{region === undefined ? caption : fr.labels.groupHeader(caption, region)}</span>
+        <button type="button" aria-label={fr.common.close} onClick={onClose}>
+          ×
+        </button>
+      </div>
+      {members.map(({ id, building, plate }) =>
+        building === null ? null : (
+          <button
+            key={id}
+            type="button"
+            className="label-group-list-row"
+            onClick={(event) => onOpen(building.id, event.clientX, event.clientY)}
+          >
+            {plate !== null && <img src={plate} alt="" />}
+            <span className="label-group-list-name">{fr.buildings[building.key]}</span>
+            <span className="label-group-list-level">{fr.common.levelShort(building.level)} ›</span>
+          </button>
+        ),
+      )}
     </div>
   );
 }

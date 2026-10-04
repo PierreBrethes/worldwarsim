@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { ConvexProvider } from 'convex/react';
 import type { ConvexReactClient } from 'convex/react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Telegraph } from '@/data/telegraph';
 import type { Seat } from '@/data/session';
 import { TelegraphThread } from './TelegraphThread';
@@ -56,6 +56,17 @@ const lay = (element: HTMLDivElement, scrollHeight: number) => {
   Object.defineProperty(element, 'clientHeight', { value: HEIGHT, configurable: true });
 };
 
+/** jsdom n'évalue aucune requête média : la largeur se pose à la main — le bureau par défaut. */
+const atWidth = (pixels: number): void => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: pixels <= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+};
+
+beforeEach(() => atWidth(1440));
 afterEach(cleanup);
 
 const mount = (telegraph: Telegraph) =>
@@ -122,4 +133,51 @@ it('recolle en bas quand un message arrive et qu’on y était', () => {
     </ConvexProvider>,
   );
   expect(list.scrollTop).toBe(4_000);
+});
+
+/** **Sous le seuil, les messages d'un même joueur se rangent sous un seul nom** (refonte mobile,
+ *  1i), et les siens se signent « vous ». */
+it('groups a sender’s run under one name on a phone, and signs one’s own « vous »', () => {
+  atWidth(390);
+  const now = Date.now();
+  const messages: Telegraph = {
+    messages: [
+      {
+        id: 'a',
+        at: now - 3_000,
+        text: 'un',
+        nickname: 'Koval',
+        nation: 'ussr',
+        ink: '#9d4638',
+        mine: false,
+      },
+      {
+        id: 'b',
+        at: now - 2_000,
+        text: 'deux',
+        nickname: 'Koval',
+        nation: 'ussr',
+        ink: '#9d4638',
+        mine: false,
+      },
+      {
+        id: 'c',
+        at: now - 1_000,
+        text: 'trois',
+        nickname: 'Théo',
+        nation: 'france',
+        ink: '#276893',
+        mine: true,
+      },
+    ],
+    unread: 0,
+  };
+  render(
+    <ConvexProvider client={mute()}>
+      <TelegraphThread telegraph={messages} seat={SEAT} height="fill" />
+    </ConvexProvider>,
+  );
+  expect(screen.getAllByText('Koval')).toHaveLength(1);
+  expect(screen.getByText('vous')).toBeTruthy();
+  expect(screen.getByText('aujourd’hui')).toBeTruthy();
 });

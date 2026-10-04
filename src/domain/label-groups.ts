@@ -38,7 +38,16 @@ export type LabelGroup = {
   readonly caption: string;
   /** Le cartouche réuni couvre ce que couvraient les siens : le repli des autres le lit. */
   readonly box: ScreenBox;
+  /**
+   * **Les siens tombent au même point de l'écran** — des mâts d'une même région pendent tous de
+   * son point intérieur : aucune distance ne les séparera, et la pile s'ouvre en liste au lieu de
+   * rapprocher la caméra (refonte mobile, 1r).
+   */
+  readonly coincident: boolean;
 };
+
+/** En deçà d'un pixel, deux pieds de mât sont le même point : la projection arrondit. */
+const COINCIDENT_PX = 1;
 
 /**
  * **La marge du repli, et pas une autre** : 14 px de chaque côté, l'écart minimal de la maquette
@@ -107,6 +116,9 @@ export function groupOverlapping(
           right: Math.max(...members.map((member) => member.box.right)),
           bottom: Math.max(...members.map((member) => member.box.bottom)),
         },
+        coincident: members.every(
+          (member) => Math.hypot(member.x - first.x, member.y - first.y) < COINCIDENT_PX,
+        ),
       };
     });
 }

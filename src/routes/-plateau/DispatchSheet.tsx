@@ -57,17 +57,7 @@ export function DispatchSheet({
           {said.title(attacking, combat.cause === 'interception', where)}
         </h3>
         <div className="mt-[8px]">
-          <Row
-            label={said.engaged}
-            value={said.engagedValue(combat.mine.troops, combat.theirs.troops)}
-          />
-          <Row
-            label={said.losses}
-            value={said.lossesValue(combat.mine.lost, combat.mine.destroyed, combat.mine.routed)}
-          />
-          <Row label={said.theirs} value={said.theirsValue(combat.theirs.lost)} />
-          <Row label={said.ground} value={combat.won ? said.held : said.lost} />
-          {combat.outpostDisabled && <Row label={said.outpost} value={said.outpostDisabled} />}
+          <CombatLines combat={combat} />
         </div>
       </div>
       {/* Collés au pied de la feuille : sur un petit écran les lignes défilent derrière, et ce
@@ -100,5 +90,30 @@ export function DispatchSheet({
         </div>
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * **Ce que le compte rendu dit d'un engagement, en lignes** : les engagées, les pertes de chaque
+ * côté, le terrain, l'avant-poste désactivé s'il l'est. La feuille d'arrivée et la manchette du
+ * journal sur téléphone les impriment de la même façon — jamais l'assaillant, que le compte rendu
+ * ne nomme pas (ADR 0005).
+ */
+export function CombatLines({ combat }: { combat: CombatReport }) {
+  const said = fr.dispatchSheet;
+  return (
+    <>
+      <Row
+        label={said.engaged}
+        value={said.engagedValue(combat.mine.troops, combat.theirs.troops)}
+      />
+      <Row
+        label={said.losses}
+        value={said.lossesValue(combat.mine.lost, combat.mine.destroyed, combat.mine.routed)}
+      />
+      <Row label={said.theirs} value={said.theirsValue(combat.theirs.lost)} />
+      <Row label={said.ground} value={combat.won ? said.held : said.lost} />
+      {combat.outpostDisabled && <Row label={said.outpost} value={said.outpostDisabled} />}
+    </>
   );
 }

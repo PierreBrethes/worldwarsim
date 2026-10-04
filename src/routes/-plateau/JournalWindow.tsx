@@ -1,16 +1,21 @@
 import { useMutation } from 'convex/react';
-import { useCallback } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isAlarm } from '@/domain/journal';
 import { asDayAndTime } from '@/domain/duration';
 import { Stamp } from '@/shell/Stamp';
-import type {
-  JournalDispatch,
-  DispatchSeverity,
-  PlayerView,
-  ReductionBoard,
+import {
+  seasonDayOf,
+  type CombatReport,
+  type JournalDispatch,
+  type DispatchSeverity,
+  type PlayerView,
+  type ReductionBoard,
+  type TroopStation,
 } from '@/domain/player-view';
+import { useNarrowScreen } from '@/shell/viewport';
+import { CombatLines } from './DispatchSheet';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import type { Seat } from '@/data/session';
@@ -40,6 +45,9 @@ export function JournalWindow({
   selectedRumorId,
   onSelectRumor,
   leadReport = null,
+  garrisonAt,
+  onShowCombat,
+  onOpenGarrison,
   onClose,
   ...windowProps
 }: WindowProps & {
@@ -51,7 +59,12 @@ export function JournalWindow({
   rumors: ReadonlyArray<LootRumor> | undefined;
   selectedRumorId: string | null;
   onSelectRumor: (rumor: LootRumor) => void;
+  /** Ce qui se tient encore à soi au lieu d'un combat — `null` quand il n'y a rien à ouvrir. */
+  garrisonAt: (combat: CombatReport) => TroopStation | null;
+  onShowCombat: (combat: CombatReport) => void;
+  onOpenGarrison: (station: TroopStation) => void;
 }) {
+  const narrow = useNarrowScreen();
   const markRead = useMutation(api.journal.markRead);
   const dispatches = view.journal;
   const unread = dispatches.filter((dispatch) => dispatch.unread);
@@ -88,22 +101,47 @@ export function JournalWindow({
    *  à venir (`resolutionAt`), dans l'ordre où le journal les sert. */
   const stalled = dispatches.filter((dispatch) => dispatch.resolutionAt !== null);
   const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  /** Sans horloge il n'y a pas de « sur n » : le jour se compte encore, la fin ne se promet pas. */
-  const totalDays =
-    view.season.durationHours === null ? null : Math.ceil(view.season.durationHours / 24);
-  const elapsedDay = Math.floor(view.season.elapsedHours / 24) + 1;
-  const day = totalDays === null ? elapsedDay : Math.min(totalDays, elapsedDay);
+  const { day, totalDays } = seasonDayOf(view.season);
+  const seasonDay =
+    totalDays === null
+      ? fr.journal.seasonDayNoClock(view.season.number, day)
+      : fr.journal.seasonDay(view.season.number, day, totalDays);
+
+  if (narrow) {
+    /** Ce qui mène à la carte referme le journal : sur un téléphone il couvre la carte entière. */
+    const leaving =
+      <T,>(then: (subject: T) => void) =>
+      (subject: T) => {
+        close();
+        then(subject);
+      };
+    return (
+      <FloatingWindow name="journal" onClose={close} {...windowProps} width={1040}>
+        <NarrowJournal
+          view={view}
+          edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+          lead={lead}
+          stalled={stalled}
+          garrisonAt={garrisonAt}
+          onShowCombat={leaving(onShowCombat)}
+          onOpenGarrison={leaving(onOpenGarrison)}
+          onClose={close}
+        >
+          <div className="px-4 pb-6">
+            <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
+            <ReductionLine board={view.season.reduction} />
+          </div>
+        </NarrowJournal>
+      </FloatingWindow>
+    );
+  }
 
   return (
     <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="top" width={1040}>
       <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[30px] pt-[26px] pb-5">
         <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           <span>{fr.journal.editionOf(time)}</span>
-          <span>
-            {totalDays === null
-              ? fr.journal.seasonDayNoClock(view.season.number, day)
-              : fr.journal.seasonDay(view.season.number, day, totalDays)}
-          </span>
+          <span>{seasonDay}</span>
           <button
             type="button"
             onClick={close}
@@ -279,6 +317,303 @@ export function JournalWindow({
         </div>
       </article>
     </FloatingWindow>
+  );
+}
+
+type JournalFilter = 'all' | 'unread' | DispatchSeverity;
+
+const passes = (dispatch: JournalDispatch, filter: JournalFilter): boolean =>
+  filter === 'all' || (filter === 'unread' ? dispatch.unread : dispatch.severity === filter);
+
+/**
+ * **Le journal du téléphone : un seul défilement** (refonte mobile, 1h). Restent collés en tête
+ * l'édition, « fermer » et les filtres ; la manchette défile avec le reste. Les trois colonnes du
+ * bureau deviennent des filtres — trois défilements dans 390 px n'en font aucun de lisible — et
+ * le fil se coupe en deux : ce qui est arrivé depuis la dernière visite, puis ce qui est lu.
+ *
+ * **Une dépêche de combat mène à son lieu**, et la manchette d'une attaque porte ses deux gestes
+ * — voir sur la carte, ouvrir la garnison. Les autres dépêches n'ont pas d'adresse servie : elles
+ * se lisent, elles ne mènent nulle part. Le pied fixe « retour au plateau » est parti : « fermer »
+ * est en tête, et la barre de pied reste sous le pouce.
+ */
+function NarrowJournal({
+  view,
+  edition,
+  lead,
+  stalled,
+  garrisonAt,
+  onShowCombat,
+  onOpenGarrison,
+  onClose,
+  children,
+}: {
+  view: PlayerView;
+  edition: string;
+  lead: JournalDispatch | null;
+  stalled: ReadonlyArray<JournalDispatch>;
+  garrisonAt: (combat: CombatReport) => TroopStation | null;
+  onShowCombat: (combat: CombatReport) => void;
+  onOpenGarrison: (station: TroopStation) => void;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const [filter, setFilter] = useState<JournalFilter>('all');
+  const dispatches = view.journal;
+  const unread = dispatches.filter((dispatch) => dispatch.unread);
+  const shown = dispatches.filter((dispatch) => dispatch !== lead && passes(dispatch, filter));
+  const fresh = shown.filter((dispatch) => dispatch.unread);
+  const earlier = shown.filter((dispatch) => !dispatch.unread);
+  const leadShown = lead !== null && passes(lead, filter);
+  const station = lead?.combat ? garrisonAt(lead.combat) : null;
+  const filters: ReadonlyArray<readonly [JournalFilter, string]> = [
+    ['all', fr.journal.filters.all],
+    ['unread', fr.journal.filters.unread(unread.length)],
+    ['critical', fr.journal.filters.critical],
+    ['notable', fr.journal.filters.notable],
+    ['routine', fr.journal.filters.routine],
+  ];
+
+  return (
+    <article className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]">
+      <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
+        <div className="flex h-[46px] items-center gap-[10px] pr-3 pl-4">
+          <span className="flex-1 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+            {edition}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
+          >
+            {fr.common.close}
+          </button>
+        </div>
+        <div className="flex gap-[5px] overflow-x-auto px-3 pb-[10px]">
+          {filters.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={filter === key}
+              onClick={() => setFilter(key)}
+              className={`shrink-0 cursor-pointer border border-[var(--ink)] px-[9px] text-[10.5px] font-semibold tracking-[.1em] whitespace-nowrap uppercase ${
+                filter === key ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mx-4 mt-[14px]">
+        <div className="border-t-[3px] border-[var(--ink)] pt-[2px]">
+          <div className="border-t border-[var(--ink)]" />
+        </div>
+        <div className="flex items-center gap-3 border-b border-[var(--ink)] pt-[10px] pb-[9px]">
+          <h2 className="min-w-0 flex-1 font-(family-name:--font-display) text-[29px] leading-[1.14] font-extrabold tracking-[.04em] uppercase">
+            {fr.journal.masthead}
+          </h2>
+          {unread.length > 0 && (
+            <span className="flex shrink-0 flex-col items-end gap-[4px] text-[var(--critical)]">
+              <span className="font-(family-name:--font-display) text-[44px] leading-[.8] font-extrabold">
+                {unread.length}
+              </span>
+              <span className="text-[9px] leading-none tracking-[.18em] whitespace-nowrap uppercase">
+                {fr.journal.unreadLabel(unread.length)}
+              </span>
+            </span>
+          )}
+        </div>
+        <div className="pt-[7px] text-center text-[10.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {nationLabel(view.me.nation)} · {fr.journal.dispatches(dispatches.length)}
+          {view.season.reduction.concludedAt !== null && (
+            <span className="ml-2 inline-block align-middle">
+              <Stamp label={fr.stamps.seasonClosed} size="small" />
+            </span>
+          )}
+        </div>
+      </div>
+
+      {leadShown && (
+        <section className="mx-4 mt-[14px] border-b border-[var(--ink)] pb-[14px]">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-[9px] w-[9px] shrink-0"
+              style={{ background: SEVERITY_INK[lead.severity] }}
+            />
+            <span
+              className="text-[10px] font-bold tracking-[.2em] uppercase"
+              style={{ color: SEVERITY_INK[lead.severity] }}
+            >
+              {fr.journal.severities[lead.severity]} — {lead.t}
+            </span>
+            <span className="flex-1" />
+            <Stamp
+              label={fr.stamps.dispatches[lead.kind]}
+              tone={isAlarm(lead.kind) ? 'critical' : 'ink'}
+              size="small"
+            />
+          </div>
+          <h3 className="mt-2 font-(family-name:--font-display) text-[23px] leading-[1.15] font-bold text-pretty break-words">
+            {lead.text}
+          </h3>
+          {lead.combat !== null && (
+            <>
+              <div className="mt-2">
+                <CombatLines combat={lead.combat} />
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => lead.combat && onShowCombat(lead.combat)}
+                  className="min-h-[44px] flex-1 cursor-pointer bg-[var(--ink)] text-[10.5px] font-bold tracking-[.16em] text-[var(--paper)] uppercase"
+                >
+                  {fr.journal.showOnMap}
+                </button>
+                {station !== null && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenGarrison(station)}
+                    className="min-h-[44px] flex-1 cursor-pointer border border-[var(--ink)] text-[10.5px] font-bold tracking-[.16em] uppercase"
+                  >
+                    {fr.dispatchSheet.openGarrison}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      <section className="mx-4 mt-[14px] border border-[var(--ink)] px-3 py-[10px]">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] font-bold tracking-[.2em] uppercase">
+            {fr.journal.atWaking}
+          </span>
+          <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-quiet)]">
+            {fr.journal.slotsEngaged} {view.me.slots.used} / {view.me.slots.total}
+          </span>
+        </div>
+        {stalled.length > 0 ? (
+          stalled.map((entry) => (
+            <p
+              key={`${entry.at}-${entry.text}`}
+              className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] break-words"
+            >
+              {entry.text}
+              {fr.journal.stalledResolution}
+              <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+            </p>
+          ))
+        ) : (
+          <p className="mt-[6px] font-(family-name:--font-text) text-[14px] leading-[1.45] text-[var(--ink-soft)]">
+            {fr.journal.noneStalled}
+          </p>
+        )}
+      </section>
+
+      {fresh.length > 0 && (
+        <DispatchList
+          title={fr.journal.sinceLastVisit}
+          entries={fresh}
+          onShowCombat={onShowCombat}
+        />
+      )}
+      {earlier.length > 0 && (
+        <DispatchList title={fr.journal.earlier} entries={earlier} onShowCombat={onShowCombat} />
+      )}
+      {shown.length === 0 && !leadShown && (
+        <p className="px-4 py-6 text-center font-(family-name:--font-text) text-[14px] text-[var(--ink-soft)] italic">
+          {fr.journal.noneFiltered}
+        </p>
+      )}
+      {children}
+    </article>
+  );
+}
+
+/**
+ * **Une liste de dépêches, une ligne chacune** : la gravité en carré — plein quand elle est
+ * neuve, au trait quand elle est lue —, l'heure, la sorte en cachet, la phrase en vedette. Une
+ * dépêche de combat porte son chevron : elle mène au lieu.
+ */
+function DispatchList({
+  title,
+  entries,
+  onShowCombat,
+}: {
+  title: string;
+  entries: ReadonlyArray<JournalDispatch>;
+  onShowCombat: (combat: CombatReport) => void;
+}) {
+  return (
+    <section className="mt-4">
+      <h3 className="border-t-2 border-b border-[var(--ink)] px-4 py-[6px] text-[10px] font-bold tracking-[.18em] uppercase">
+        {title}
+      </h3>
+      {entries.map((entry) => {
+        const { combat } = entry;
+        const line = (
+          <>
+            <span
+              className="mt-[5px] h-[8px] w-[8px] shrink-0"
+              style={
+                entry.unread
+                  ? { background: SEVERITY_INK[entry.severity] }
+                  : { border: `1.5px solid ${SEVERITY_INK[entry.severity]}` }
+              }
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+                  {entry.t}
+                </span>
+                <span className="flex-1" />
+                <Stamp
+                  label={fr.stamps.dispatches[entry.kind]}
+                  tone={isAlarm(entry.kind) ? 'critical' : 'ink'}
+                  size="small"
+                />
+              </span>
+              <span
+                className="mt-1 block font-(family-name:--font-display) text-[16.5px] leading-[1.3] font-semibold text-pretty break-words"
+                style={{ color: entry.unread ? 'var(--ink)' : 'var(--ink-soft)' }}
+              >
+                {entry.text}
+              </span>
+              {entry.resolutionAt && (
+                <span className="mt-[3px] block font-(family-name:--font-text) text-[12px] text-[var(--ink-soft)]">
+                  {fr.journal.resolutionAt(entry.resolutionAt)}
+                </span>
+              )}
+            </span>
+          </>
+        );
+        const row =
+          'flex w-full items-start gap-[10px] border-b border-(color:--ink)/16 py-3 pr-[14px] pl-4 text-left';
+        return combat === null ? (
+          <div key={`${entry.at}-${entry.text}`} className={row}>
+            {line}
+          </div>
+        ) : (
+          <button
+            key={`${entry.at}-${entry.text}`}
+            type="button"
+            title={fr.journal.showOnMap}
+            onClick={() => onShowCombat(combat)}
+            className={`${row} cursor-pointer`}
+          >
+            {line}
+            <span
+              aria-hidden
+              className="self-center text-[20px] leading-none text-[var(--ink-soft)]"
+            >
+              ›
+            </span>
+          </button>
+        );
+      })}
+    </section>
   );
 }
 

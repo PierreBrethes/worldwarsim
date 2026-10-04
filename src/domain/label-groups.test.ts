@@ -61,7 +61,20 @@ describe('groupOverlapping', () => {
       { id: 'port', kind: 'building', box: box(20, 4), x: 20, y: 34, count: 1 },
     ]);
     expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ members: ['mine', 'port'], caption: '2 bâtiments' });
+    expect(groups[0]).toMatchObject({
+      members: ['mine', 'port'],
+      caption: '2 sites',
+      coincident: false,
+    });
+  });
+
+  /** Des mâts d'une même région pendent tous de son point : la pile s'ouvrira en liste (1r). */
+  it('marks a group whose members fall on one point, which no distance will part', () => {
+    const [group] = groupOverlapping([
+      { id: 'mine', kind: 'building', box: box(10, 0), x: 10, y: 30, count: 1 },
+      { id: 'barracks', kind: 'building', box: box(12, 6), x: 10.4, y: 30, count: 1 },
+    ]);
+    expect(group?.coincident).toBe(true);
   });
 
   it('keeps the candidates’ order, so the first member is the one the group stands for', () => {

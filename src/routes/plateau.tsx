@@ -12,7 +12,7 @@ import {
 } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard } from '@/map/ControlsCard';
-import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
+import { WorldMap, type Destination, type PlacingBuilding } from '@/map/WorldMap';
 import {
   readWindows,
   withWindow,
@@ -39,19 +39,27 @@ import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
-import { compassOf, type CompassAction, type CompassTarget } from '@/domain/compass-rose';
+import {
+  compassOf,
+  isOrder,
+  type Compass,
+  type CompassAction,
+  type CompassTarget,
+  type OrderAction,
+} from '@/domain/compass-rose';
 import { placementOf } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
-import type { Column, MovementAim } from '@/domain/movement-orders';
+import type { Column } from '@/domain/movement-orders';
 import type {
   ArcView,
+  CombatReport,
   Cost,
-  MovementType,
   PlayerView,
   Stack,
   TroopStation,
   TroopView,
 } from '@/domain/player-view';
+import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underway';
 import {
   PROJECTION_BY_DOMAIN,
   marchingTroopIds,
@@ -81,13 +89,18 @@ import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
 import {
-  AimingSheet,
   MovementPreview,
   wireOrigin,
   wireTarget,
-  type PreviewMission,
+  type OrderChoice,
   type Previewed,
+  type Sent,
 } from './-plateau/MovementPreview';
+import { AimingSheet } from './-plateau/AimingSheet';
+import { SentNotice } from './-plateau/SentNotice';
+import { UnderwayColumn } from './-plateau/UnderwayColumn';
+import { LayersSheet } from '@/shell/LayersSheet';
+import { LayersGlyph, Glyph } from '@/shell/Glyph';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { NextActions } from './-plateau/NextActions';
@@ -153,24 +166,20 @@ type PostedForce = {
   readonly y: number;
 };
 
-/** An aim named on the map: what the preview card sits on and what the mutation will carry. */
 /**
- * **Ce que la carte a déjà décidé, en attente de la confirmation au bout de l'arc.** Trois
- * missions et pas une de plus : la marche ordinaire, l'expédition sur un site relevé, le
- * ramassage d'une caisse relevée. Chacune a son aperçu et sa mutation — un seul objet à champs
- * optionnels aurait laissé au rendu le soin de deviner laquelle.
+ * **Ce que la carte a déjà décidé, en attente de la confirmation au bout de l'arc**, et le point
+ * où elle se pose. `choices` est tout ce que la cible accepte de cette pile : la rose du bureau en
+ * a déjà choisi un, la feuille du téléphone les offre en onglets (refonte mobile, 1c).
  */
-type Order = {
-  readonly aim: MovementAim;
-  readonly type: MovementType;
-  readonly label: string;
+type Order = OrderChoice & {
+  readonly choices: ReadonlyArray<OrderChoice>;
   readonly x: number;
   readonly y: number;
-} & (
-  | { readonly mission: 'march' }
-  | { readonly mission: 'plunder'; readonly buildingId: string }
-  | { readonly mission: 'collect'; readonly sightingId: string }
-);
+};
+
+/** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
+ *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
+type SentOrder = Sent & { readonly order: string };
 
 /** The three buildings that station a column — their mast opens a garrison. Since ADR 0019 they
  *  no longer decide what it may ask for, only where a domain gate is read. */
@@ -367,6 +376,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
   const [column, setColumn] = useState<ArmedColumn | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+  const [sent, setSent] = useState<SentOrder | null>(null);
+  /** Les destinations de la colonne armée, telles que la carte les cercle : la feuille du
+   *  téléphone en offre les plus proches (refonte mobile, 1b). */
+  const [destinations, setDestinations] = useState<ReadonlyArray<Destination>>([]);
+  const [layersOpen, setLayersOpen] = useState(false);
   /**
    * **Une troupe seule est désignée, pas ouverte** (décision Pierre, 29/08). La fenêtre de
    * garnison sert à composer une pile ; un point qui n'en porte qu'une n'a rien à composer, et
@@ -766,50 +780,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           setDismantling({ outpostId: action.outpostId, x: at.x, y: at.y });
           return;
         case 'aim':
-          setOrder({
-            mission: 'march',
-            aim: action.aim,
-            type: action.type,
-            label: action.label,
-            x: at.x,
-            y: at.y,
-          });
-          return;
-        /**
-         * **Piller ou saboter — un seul ordre, la même carte de confirmation** (S8). Le type sur
-         * le fil reste `march` : l'expédition marche jusqu'au site, et ce qui la distingue est ce
-         * qu'elle y fait, que le serveur seul écrit (`movements.plunder`).
-         */
         case 'plunder':
-          setOrder({
-            mission: 'plunder',
-            buildingId: action.buildingId,
-            aim: action.aim,
-            type: 'march',
-            label: action.label,
-            x: at.x,
-            y: at.y,
-          });
+        case 'collect': {
+          const choice = choiceOf(action);
+          setOrder({ ...choice, choices: [choice], x: at.x, y: at.y });
           return;
-        case 'collect':
-          setOrder({
-            mission: 'collect',
-            sightingId: action.sightingId,
-            aim: {
-              kind: 'point',
-              lon: action.point[0],
-              lat: action.point[1],
-              onLand: true,
-              coastal: false,
-              /** Un ramassage est une marche : le relevé du sol ne décide de rien pour lui. */
-              surveyed: false,
-            },
-            type: 'march',
-            label: action.label,
-            x: at.x,
-            y: at.y,
-          });
-          return;
+        }
         /**
          * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
          * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
@@ -838,6 +814,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     },
     [foundHere, startConstruction, raiseOutpost, respecialize, seat, narrow],
   );
+
+  /**
+   * **Sous le seuil, la cible touchée ouvre la feuille d'ordre**, pas la rose (refonte mobile,
+   * 1c) : tout ce qu'elle accepte de la pile, en onglets, et le premier choisi — l'ordre même où
+   * la rose les aurait posés. Une cible qui n'accepte rien rend la main à la rose, qui seule sait
+   * dire pourquoi.
+   */
+  const orderFrom = useCallback((compass: Compass, at: { x: number; y: number }): boolean => {
+    const choices = compass.actions.filter(isOrder).map(choiceOf);
+    const first = choices[0];
+    if (first === undefined) return false;
+    setOrder({ ...first, choices, x: at.x, y: at.y });
+    return true;
+  }, []);
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
    *  cartouche est ce qui les porte tous les deux. */
@@ -1190,12 +1180,14 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     const work = view.me.construction;
     const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
+    const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
       id: `building-${building.regionId}-${building.key}`,
       buildingId: building.id,
       key: building.key,
       regionId: building.regionId,
+      regionName: nameOfRegion.get(building.regionId) ?? building.regionId,
       lonLat: building.point,
       hostCountry: host,
       name: building.name,
@@ -1231,6 +1223,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               buildingId: null,
               key: site.key,
               regionId: site.regionId,
+              regionName: site.regionName,
               lonLat: site.point,
               hostCountry: host,
               name: site.name,
@@ -1525,13 +1518,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ? null
       : (view.journal.find((dispatch) => dispatch.combat?.id === openedReport) ?? null);
   const openedCombat = openedDispatch?.combat ?? null;
-  const combatStation = useMemo(
-    () =>
-      openedCombat === null
-        ? null
-        : stationAtCombat(view.me, openedCombat, marching, ARRIVAL_RADIUS_KM),
-    [openedCombat, view.me, marching],
+  /** Ce qui se tient encore à soi au lieu d'un combat : la garnison qu'ouvre sa dépêche. */
+  const garrisonAtCombat = useCallback(
+    (combat: CombatReport) => stationAtCombat(view.me, combat, marching, ARRIVAL_RADIUS_KM),
+    [view.me, marching],
   );
+  const combatStation = openedCombat === null ? null : garrisonAtCombat(openedCombat);
+  const showCombat = useCallback((combat: CombatReport) => {
+    setFocus({
+      ids: [],
+      places: [[combat.point.lon, combat.point.lat]],
+      distance: COMBAT_VIEW_DISTANCE,
+      nonce: Date.now(),
+    });
+  }, []);
 
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -1546,30 +1546,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           origin: wireOrigin(column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
         };
+  const mission = order?.mission ?? null;
   const marchPreview = useQuery(
     api.movements.preview,
-    dispatch === null || order === null || order.mission !== 'march'
+    dispatch === null || order === null || mission?.kind !== 'march'
       ? 'skip'
       : { ...dispatch, target: wireTarget(order.aim), type: order.type },
   );
   const plunderPreview = useQuery(
     api.movements.previewPlunder,
-    dispatch === null || order === null || order.mission !== 'plunder'
+    dispatch === null || mission?.kind !== 'plunder'
       ? 'skip'
-      : { ...dispatch, buildingId: order.buildingId as Id<'buildings'> },
+      : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
   );
   const collectPreview = useQuery(
     api.movements.previewLootCollection,
-    dispatch === null || order === null || order.mission !== 'collect'
+    dispatch === null || mission?.kind !== 'collect'
       ? 'skip'
-      : { ...dispatch, sightingId: order.sightingId as Id<'lootCrateSightings'> },
+      : { ...dispatch, sightingId: mission.sightingId as Id<'lootCrateSightings'> },
   );
   const preview =
-    order === null
+    mission === null
       ? undefined
-      : order.mission === 'plunder'
+      : mission.kind === 'plunder'
         ? plunderPreview
-        : order.mission === 'collect'
+        : mission.kind === 'collect'
           ? collectPreview
           : marchPreview;
 
@@ -1592,8 +1593,86 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.arcs, column, order, preview],
   );
 
-  /** La place que la feuille à l'aperçu prend au pied du plateau : la rose s'ouvre au-dessus. */
-  const fingerRose = useMemo(() => (narrow ? { floor: sheetHeight('peek') } : null), [narrow]);
+  /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
+   *  au-dessus. L'aperçu épouse son contenu jusqu'à mi-hauteur, et la fiche d'une troupe armée,
+   *  avec ses cibles, y monte (refonte mobile, 1b) : mesurée au tiers, elle laissait la troupe
+   *  sous la feuille. */
+  const fingerRose = useMemo(() => (narrow ? { floor: sheetHeight('half') } : null), [narrow]);
+
+  /** L'étiquette d'où la colonne armée part : ses cibles se rangent de la plus proche à la plus
+   *  lointaine de ce point-là. */
+  const aimOrigin = column === null ? null : markerOfStation(view, column.station);
+
+  /**
+   * **Les recrutements commencés, datés par l'atelier** : la vue ne sert que la liste des casernes
+   * occupées, et « En cours » ne vit que sous le seuil — l'abonnement aussi.
+   */
+  const workshop = useQuery(api.troops.workshop, narrow ? seat : 'skip');
+  const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
+    () =>
+      (workshop?.facilities ?? []).flatMap((facility) => {
+        const head = facility.queue[0];
+        if (head === undefined || !head.started) return [];
+        return [
+          {
+            buildingId: facility.id,
+            key: facility.key,
+            regionId: facility.regionId,
+            regionName: facility.regionName,
+            endsAt: workshop!.loadedAt + head.minutesLeft * 60_000,
+          },
+        ];
+      }),
+    [workshop],
+  );
+  const underway = useMemo(
+    () => (narrow ? underwayOf(view, recruitments) : []),
+    [narrow, view, recruitments],
+  );
+
+  const locateUnderway = useCallback((line: Underway) => {
+    const { place } = line;
+    const id =
+      place.kind === 'movement'
+        ? place.arcId
+        : place.kind === 'outpost'
+          ? `outpost-${place.outpostId}`
+          : `building-${place.regionId}-${place.key}`;
+    setFocus({ ids: [id], nonce: Date.now() });
+  }, []);
+
+  /** **Le chemin du retour** : le quartier général, ou la capitale de 1940 tant qu'il n'est pas
+   *  posé — le même repli que le cadrage d'ouverture. */
+  const recenterOnHome = useCallback(() => {
+    const hq = view.me.buildings.find((building) => building.key === 'hq');
+    if (hq !== undefined) setFocus({ ids: [`building-${hq.regionId}-hq`], nonce: Date.now() });
+    else if (view.me.capitalPoint !== null)
+      setFocus({ ids: [], places: [view.me.capitalPoint], nonce: Date.now() });
+  }, [view.me.buildings, view.me.capitalPoint]);
+
+  /** **L'ordre parti, la feuille se referme seule** (refonte mobile, 1d) : sous le seuil, le
+   *  cartouche « transmis » prend le relais le temps qu'on le lise. */
+  const afterSent = useCallback(
+    (filed: Sent) => {
+      if (narrow && order !== null) setSent({ ...filed, order: order.label });
+      setOrder(null);
+      setColumn(null);
+      setPosted(null);
+    },
+    [narrow, order],
+  );
+  useEffect(() => {
+    if (sent === null) return;
+    const timer = setTimeout(() => setSent(null), SENT_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [sent]);
+
+  const pickDestination = useCallback(
+    (destination: Destination) => orderFrom(destination.compass, boardPoint()),
+    [orderFrom, boardPoint],
+  );
+
+  const showBriefing = useCallback(() => setBriefing(true), []);
 
   const nextActions = (frame: 'card' | 'sheet') => (
     <NextActions
@@ -1614,7 +1693,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   return (
-    <Shell view={view} telegraphUnread={telegraph.unread} todo={nextActions('sheet')}>
+    <Shell
+      view={view}
+      telegraphUnread={telegraph.unread}
+      todo={nextActions('sheet')}
+      onShowBriefing={showBriefing}
+    >
       <div ref={board} className="relative min-w-0 flex-1">
         <WorldMap
           world={world}
@@ -1654,6 +1738,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           searchArea={searchArea}
           fingerRose={fingerRose}
           showDestinations={narrow}
+          aimOrigin={aimOrigin}
+          onDestinations={setDestinations}
+          onOrderTarget={narrow ? orderFrom : undefined}
           covered={narrow && windows.length > 0}
           reveal={reveal}
         />
@@ -1757,31 +1844,43 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             key={posted.labelId}
             nation={view.me.nation}
             troops={posted.troops}
+            where={fr.troops.postedIn(pilePlace(posted.station, stationNames(view), regionAt))}
             at={posted}
             aiming={column !== null}
             cargo={postedCargo}
+            destinations={destinations}
+            onPick={pickDestination}
             onOpenGunnery={() => openWindow('gunnery')}
             onClose={releasePosted}
           />
         )}
         {column && order && (
           <MovementPreview
-            label={order.label}
             seat={seat}
             origin={column.station}
             troopIds={column.troopIds}
-            aim={order.aim}
-            type={order.type}
+            strength={view.me.troops
+              .filter((troop) => column.troopIds.includes(troop.id))
+              .reduce((sum, troop) => sum + troop.strength, 0)}
+            choice={order}
+            choices={order.choices}
+            onChoose={(choice) =>
+              setOrder(
+                (previous) =>
+                  previous && {
+                    ...choice,
+                    choices: previous.choices,
+                    x: previous.x,
+                    y: previous.y,
+                  },
+              )
+            }
             at={order}
             preview={preview}
-            mission={missionOf(order)}
             slots={view.me.slots}
             originName={stationNames(view).place(column.station)}
-            onClose={() => {
-              setOrder(null);
-              setColumn(null);
-              setPosted(null);
-            }}
+            onClose={releasePosted}
+            onSent={afterSent}
           />
         )}
         {narrow && column && order === null && posted === null && (
@@ -1789,6 +1888,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             count={column.troopIds.length}
             originName={stationNames(view).place(column.station)}
             slots={view.me.slots}
+            destinations={destinations}
+            onPick={pickDestination}
             onCancel={releasePosted}
           />
         )}
@@ -1827,7 +1928,30 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
         {!narrow && <div className="absolute bottom-4 left-4 z-10">{nextActions('card')}</div>}
-        <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
+        {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
+            la cible, et la colonne passerait sous le doigt qui la nomme. */}
+        {narrow && column === null && (
+          <div className="absolute top-[10px] left-2 z-10">
+            <UnderwayColumn
+              lines={underway}
+              nation={view.me.nation}
+              fresh={sent === null ? null : `movement-${sent.movementId}`}
+              onLocate={locateUnderway}
+            />
+          </div>
+        )}
+        {narrow && sent !== null && (
+          <div className="absolute inset-x-[10px] bottom-[14px] z-[var(--z-indicator)]">
+            <SentNotice
+              order={sent.order}
+              destination={sent.destination}
+              arrivesAt={sent.arrivesAt}
+              slots={view.me.slots}
+              onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
+            />
+          </div>
+        )}
+        <div className="pointer-events-none absolute right-4 bottom-4 z-[var(--z-indicator)] flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
           {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
           {!aimingOnPhone && (
@@ -1847,8 +1971,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onDeselect={() => select(null)}
             />
           )}
-          <ControlsCard />
+          {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
+              coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place
+              au cartouche « transmis » le temps qu'il se lit. */}
+          {!narrow ? (
+            <ControlsCard />
+          ) : (
+            sent === null && (
+              <MapButtons onRecenter={recenterOnHome} onLayers={() => setLayersOpen(true)} />
+            )
+          )}
         </div>
+        {layersOpen && <LayersSheet onClose={() => setLayersOpen(false)} />}
       </div>
       <Suspense fallback={null}>
         {windows.map((name, rank) => {
@@ -1873,6 +2007,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   rumors={lootRumors}
                   selectedRumorId={selectedRumorId}
                   onSelectRumor={selectRumor}
+                  garrisonAt={garrisonAtCombat}
+                  onShowCombat={showCombat}
+                  onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
                   {...windowProps}
                 />
               );
@@ -1920,7 +2057,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   seat={seat}
                   mayConclude={view.me.mayConclude}
                   defeated={view.me.defeated}
-                  onShowBriefing={() => setBriefing(true)}
+                  onShowBriefing={showBriefing}
                   {...windowProps}
                 />
               );
@@ -1951,9 +2088,48 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  */
 const COMBAT_VIEW_DISTANCE = 20;
 
+/** Le temps de lire « transmis » et de voir la ligne neuve sortir de « En cours ». */
+const SENT_NOTICE_MS = 6000;
+
 /** En visée sous le seuil, toucher nomme une destination : la sélection du pays n'en est pas
  *  une, et la feuille du sol reviendrait sous le pouce une fois l'ordre parti. */
 const keepSelection = (): void => {};
+
+/**
+ * **Les deux boutons de la carte, sous le seuil** (refonte mobile, 1a) : revenir chez soi, et les
+ * calques — ceux-ci gardent aussi leur ligne au dossier de la nation. Quarante-quatre pixels de
+ * papier, au-dessus de la barre de pied, sous le pouce.
+ */
+function MapButtons({ onRecenter, onLayers }: { onRecenter: () => void; onLayers: () => void }) {
+  return (
+    <div className="hud flex flex-col gap-2">
+      <button
+        type="button"
+        title={fr.mapUi.recenter}
+        aria-label={fr.mapUi.recenter}
+        onClick={onRecenter}
+        className={MAP_BUTTON}
+      >
+        <Glyph size={22}>
+          <circle cx="10" cy="10" r="5.2" />
+          <path d="M10 1.5v4.2M10 14.3v4.2M1.5 10h4.2M14.3 10h4.2" />
+        </Glyph>
+      </button>
+      <button
+        type="button"
+        title={fr.foot.layersTitle}
+        aria-label={fr.foot.layersTitle}
+        onClick={onLayers}
+        className={MAP_BUTTON}
+      >
+        <LayersGlyph size={22} />
+      </button>
+    </div>
+  );
+}
+
+const MAP_BUTTON =
+  'paper-grain flex h-[44px] w-[44px] cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] shadow-[0_2px_0_rgba(15,10,4,.55)]';
 
 function Loading() {
   return (
@@ -1971,13 +2147,40 @@ function Loading() {
  * `station` is the address the garrison panel was opened on, whichever of its two doors — the
  * ground under it is only consulted for the domain gates, and a point carries none.
  */
-/** L'ordre dit déjà quelle mutation il vise ; la carte n'a qu'à le relire. */
-const missionOf = (order: Order): PreviewMission =>
-  order.mission === 'plunder'
-    ? { kind: 'plunder', buildingId: order.buildingId }
-    : order.mission === 'collect'
-      ? { kind: 'collect', sightingId: order.sightingId }
-      : { kind: 'march' };
+/**
+ * **Une branche de la rose, devenue un ordre.** Piller ou saboter — un seul ordre, la même carte
+ * de confirmation (S8) : le type sur le fil reste `march`, l'expédition marche jusqu'au site et
+ * ce qui la distingue est ce qu'elle y fait, que le serveur seul écrit (`movements.plunder`). Un
+ * ramassage est une marche vers un relevé, et le relevé du sol ne décide de rien pour lui.
+ */
+function choiceOf(action: OrderAction): OrderChoice {
+  const said = { label: action.label, consequence: action.consequence };
+  switch (action.key) {
+    case 'aim':
+      return { ...said, aim: action.aim, type: action.type, mission: { kind: 'march' } };
+    case 'plunder':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: { kind: 'plunder', buildingId: action.buildingId },
+      };
+    case 'collect':
+      return {
+        ...said,
+        aim: {
+          kind: 'point',
+          lon: action.point[0],
+          lat: action.point[1],
+          onLand: true,
+          coastal: false,
+          surveyed: false,
+        },
+        type: 'march',
+        mission: { kind: 'collect', sightingId: action.sightingId },
+      };
+  }
+}
 
 function armedColumn(
   view: PlayerView,

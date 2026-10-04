@@ -1,27 +1,39 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fr } from '@/i18n/fr';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  type AnyRouter,
+} from '@tanstack/react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
-import { NarrowBand } from './ResourceBand';
+import { NarrowBand } from './NarrowBand';
+import { SoleSurfaceProvider } from './sole-surface';
 
 /**
- * **Le bandeau du téléphone se replie sur sa ligne de nation** (piste A, A1 et A2) : déplié, huit
- * colonnes ; replié, la nation et les mouvements, et un toucher sur cette ligne ou sur la poignée
- * le rouvre. Le pli survit au rechargement, dans le réglage du bandeau de bureau.
+ * **Le bandeau du téléphone** (refonte mobile, 1a et 1s) : la ligne de la nation et des
+ * mouvements, huit colonnes dessous, et le drapeau qui ouvre le dossier de la nation — ce qu'on
+ * cherche à froid, une ligne par porte. Il ne se replie plus.
  */
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);
 
 const view = {
   loadedAt: Date.now(),
+  season: { number: 1, elapsedHours: 460, durationHours: 168 * 4 },
+  press: { mine: { rank: 2, nickname: 'Théo' } },
   me: {
     nation: 'france',
     defeated: false,
-    slots: { total: 2, used: 0 },
+    slots: { total: 3, used: 1 },
     chains: [],
     buildings: [],
+    troops: [{}, {}, {}],
     resources: Object.fromEntries(
       RESOURCES.map((key) => [key, { stock: 40, ratePerHour: 2, cap: 400 }]),
     ),
@@ -31,32 +43,84 @@ const view = {
 const columns = () =>
   RESOURCES.flatMap((resource) => screen.queryAllByTitle(fr.resources[resource]));
 
+async function mount(onShowBriefing = () => {}): Promise<AnyRouter> {
+  const root = createRootRoute();
+  const board = createRoute({
+    getParentRoute: () => root,
+    path: '/plateau',
+    component: () => (
+      <SoleSurfaceProvider>
+        <NarrowBand view={view} onShowBriefing={onShowBriefing} />
+      </SoleSurfaceProvider>
+    ),
+  });
+  const router = createRouter({
+    routeTree: root.addChildren([board]),
+    history: createMemoryHistory({ initialEntries: ['/plateau'] }),
+  });
+  render(<RouterProvider router={router} />);
+  await screen.findAllByTitle(fr.resources.coal);
+  return router;
+}
+
+const dossierButton = () => screen.getByTitle(fr.dossier.open(nationLabel('france')));
+
 describe('the narrow band', () => {
-  it('reads eight columns under the nation line', () => {
-    render(<NarrowBand view={view} />);
+  it('reads eight columns under the nation line, and the slots beside it', async () => {
+    await mount();
     expect(columns()).toHaveLength(8);
-    expect(screen.getByText(fr.banner.slotsCount(0, 2))).toBeTruthy();
+    expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
     expect(screen.getByText(fr.resourceBand.abbreviations.alloy)).toBeTruthy();
   });
 
-  it('folds to the nation line by its handle, and reopens from that line', () => {
-    render(<NarrowBand view={view} />);
-
-    act(() => screen.getByTitle(fr.resourceBand.collapse).click());
-    expect(columns()).toHaveLength(0);
-    expect(screen.getByText(fr.banner.slotsCount(0, 2))).toBeTruthy();
-    expect(localStorage.getItem('wws-resource-band')).toBe('collapsed');
-
-    const line = screen
-      .getAllByTitle(fr.resourceBand.expand)
-      .find((button) => button.textContent?.includes(fr.resourceBand.slots));
-    act(() => line!.click());
-    expect(columns()).toHaveLength(8);
-  });
-
-  it('opens a resource’s detail on a touch, never on a hover', () => {
-    render(<NarrowBand view={view} />);
+  it('opens a resource’s detail on a touch, never on a hover', async () => {
+    await mount();
     act(() => screen.getByTitle(fr.resources.coal).click());
     expect(screen.getByText(/charbon · 40 \/ 400/)).toBeTruthy();
+  });
+
+  it('opens the nation’s dossier from its flag, one line per door', async () => {
+    await mount();
+    act(() => dossierButton().click());
+
+    const dossier = screen.getByRole('dialog', { name: nationLabel('france') });
+    expect(within(dossier).getByText('Théo · saison 1, jour 20 · 2ᵉ au score')).toBeTruthy();
+    expect(within(dossier).getByText(fr.dossier.nationNote(3))).toBeTruthy();
+    expect(within(dossier).getByText(fr.dossier.gunnery)).toBeTruthy();
+    expect(within(dossier).getByText(fr.dossier.settings)).toBeTruthy();
+    expect(within(dossier).getByText(fr.settingsWindow.briefingLabel)).toBeTruthy();
+  });
+
+  it('opens a window from the dossier, and the dossier gives way', async () => {
+    const router = await mount();
+    act(() => dossierButton().click());
+    await act(async () => screen.getByRole('link', { name: /Fiche de nation/ }).click());
+
+    expect(router.state.location.search).toEqual({ windows: ['nation'] });
+    expect(screen.queryByRole('dialog', { name: nationLabel('france') })).toBeNull();
+  });
+
+  it('trades the dossier for the layers sheet, eight toggles on two columns', async () => {
+    await mount();
+    act(() => dossierButton().click());
+    act(() => screen.getByRole('button', { name: /Calques de la carte/ }).click());
+
+    const layers = screen.getByRole('dialog', { name: fr.foot.layersTitle });
+    expect(
+      within(layers)
+        .getAllByRole('button')
+        .filter((toggle) => toggle.hasAttribute('aria-pressed')),
+    ).toHaveLength(8);
+    expect(screen.queryByRole('dialog', { name: nationLabel('france') })).toBeNull();
+  });
+
+  it('hands the briefing back to the board, which owns it', async () => {
+    const showBriefing = vi.fn();
+    await mount(showBriefing);
+    act(() => dossierButton().click());
+    act(() => screen.getByRole('button', { name: /Aide-mémoire du commandement/ }).click());
+
+    expect(showBriefing).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog', { name: nationLabel('france') })).toBeNull();
   });
 });

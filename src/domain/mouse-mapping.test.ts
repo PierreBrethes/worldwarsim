@@ -138,13 +138,32 @@ describe('les notices lisent le mappage', () => {
   });
 
   it('nomme le même bouton dans l’aide-mémoire et dans le bandeau', () => {
-    const column = (mapping: MouseMapping) =>
-      fr.briefing.columns(60, 25, 120, mapping)[0]!.lines.join(' ');
+    const columns = (mapping: MouseMapping) =>
+      fr.briefing.columns(60, 25, 120, { finger: false, phone: false, mapping });
+    const column = (mapping: MouseMapping) => columns(mapping)[0]!.lines.join(' ');
     expect(column(CLASSIC_MAPPING)).toContain('La rose des vents : clic droit net');
     expect(column(WHEEL_ACTS_MAPPING)).toContain('La rose des vents : clic molette net');
     expect(column(WHEEL_ACTS_MAPPING)).toContain('Déplacer la carte : clic droit glissé');
+    expect(columns(WHEEL_ACTS_MAPPING)[1]!.lines.join(' ')).toContain(
+      'Clic molette net sur un avant-poste à vous',
+    );
 
     expect(fr.mapUi.gestureHint(CLASSIC_MAPPING).pan).toContain('molette enfoncée');
     expect(fr.mapUi.gestureHint(WHEEL_ACTS_MAPPING).pan).toContain('clic droit glissé');
+  });
+});
+
+/** **Au doigt, la notice ne nomme aucun bouton** (refonte mobile) : le « ? » du coin de carte
+ *  n'existe plus sous le seuil, et ses gestes vivent dans l'aide-mémoire. */
+describe('l’aide-mémoire au doigt', () => {
+  it('dit les gestes du doigt et les bureaux du téléphone, sans un mot de souris', () => {
+    const notice = fr.briefing
+      .columns(60, 25, 120, { finger: true, phone: true, mapping: CLASSIC_MAPPING })
+      .flatMap((column) => column.lines)
+      .join(' ');
+    expect(notice).toContain('deux doigts pincent pour zoomer');
+    expect(notice).toContain('Le drapeau du bandeau ouvre le dossier de la nation');
+    expect(notice).toContain('Toucher net sur un avant-poste à vous');
+    expect(notice).not.toMatch(/clic|souris|molette|rail/);
   });
 });

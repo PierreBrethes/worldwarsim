@@ -10,15 +10,18 @@ import {
   boards,
   stackRows,
   stationKeyOf,
+  tierLabel,
   DOMAIN_BY_ROLE,
   LIFT_CAPACITY,
   LIFT_COST,
+  ROLE_ORDER,
 } from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { useNarrowScreen } from '@/shell/viewport';
 import { CargoReadout } from './CargoReadout';
+import { StrengthBar } from './StrengthBar';
 
 /**
  * **La pile qu'on compose, et la seule.** Elle avait deux portes — le mât d'un bâtiment et une
@@ -129,103 +132,98 @@ export function GarrisonStack({
 
   return (
     <>
-      {/* Sous le seuil la feuille défile d'un bloc : une seconde barre de défilement dans la
-          première ne se tient pas au doigt. */}
-      <div className={`flex flex-col gap-[6px] ${narrow ? '' : 'max-h-[46vh] overflow-auto'}`}>
-        {rows.map(({ troop, carrier }) => {
-          const on = picked.has(troop.id);
-          const rides = (LIFT_COST[troop.role] ?? 0) > 0;
-          const lifts = (LIFT_CAPACITY[troop.role] ?? 0) > 0;
-          const aimed = over?.carrier === troop.id;
-          return (
-            /* Un rang, pas un `<button>` : Chromium ne démarre pas de glisser natif depuis
-               un bouton, et le geste est l'autre porte de la même coche. Le rôle et le
-               `tabIndex` gardent ce qu'un bouton donnait — la même paire que la carte des
-               mouvements du widget. */
-            <div
-              key={troop.id}
-              role={composes ? 'checkbox' : undefined}
-              aria-checked={composes ? on : undefined}
-              tabIndex={composes ? 0 : -1}
-              onClick={() => composes && toggle(troop.id)}
-              onKeyDown={(key) =>
-                composes && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
-              }
-              draggable={composes && rides}
-              onDragStart={() => setDragged(troop.id)}
-              onDragEnd={() => {
-                setDragged(null);
-                setOver(null);
-              }}
-              /* Le refus se voit **et** se sent : sans `preventDefault`, le curseur du
-                 navigateur porte déjà l'interdit et le lâcher ne part jamais. */
-              onDragOver={(gesture) => {
-                if (!lifts || dragged === null || dragged === troop.id) return;
-                const taken = boards(held, picked, placements, dragged, troop.id);
-                if (taken) gesture.preventDefault();
-                setOver({ carrier: troop.id, taken });
-              }}
-              onDragLeave={() =>
-                setOver((previous) => (previous?.carrier === troop.id ? null : previous))
-              }
-              onDrop={(gesture) => {
-                gesture.preventDefault();
-                if (dragged !== null) drop(dragged, troop.id);
-                setOver(null);
-              }}
-              style={{
-                marginLeft: carrier === null ? undefined : 18,
-                borderColor: aimed
-                  ? over?.taken
-                    ? 'var(--notable)'
-                    : 'var(--critical)'
-                  : undefined,
-              }}
-              className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left max-md:min-h-[44px] ${
-                composes ? 'cursor-pointer' : 'opacity-70'
-              } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
-            >
-              {composes && (
-                <span
-                  className="flex h-[13px] w-[13px] shrink-0 items-center justify-center border border-[var(--ink)] text-[9px] leading-none max-md:h-[22px] max-md:w-[22px] max-md:text-[14px]"
-                  style={{
-                    background: on ? 'var(--ink)' : undefined,
-                    color: on ? 'var(--paper)' : 'transparent',
-                  }}
-                >
-                  ×
+      {narrow ? (
+        <>
+          {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
+          <TroopCards
+            nation={view.me.nation}
+            troops={rows.map(({ troop }) => troop)}
+            picked={picked}
+            composes={composes}
+            onToggle={toggle}
+          />
+        </>
+      ) : (
+        <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto">
+          {rows.map(({ troop, carrier }) => {
+            const on = picked.has(troop.id);
+            const rides = (LIFT_COST[troop.role] ?? 0) > 0;
+            const lifts = (LIFT_CAPACITY[troop.role] ?? 0) > 0;
+            const aimed = over?.carrier === troop.id;
+            return (
+              /* Un rang, pas un `<button>` : Chromium ne démarre pas de glisser natif depuis
+                 un bouton, et le geste est l'autre porte de la même coche. Le rôle et le
+                 `tabIndex` gardent ce qu'un bouton donnait — la même paire que la carte des
+                 mouvements du widget. */
+              <div
+                key={troop.id}
+                role={composes ? 'checkbox' : undefined}
+                aria-checked={composes ? on : undefined}
+                tabIndex={composes ? 0 : -1}
+                onClick={() => composes && toggle(troop.id)}
+                onKeyDown={(key) =>
+                  composes && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
+                }
+                draggable={composes && rides}
+                onDragStart={() => setDragged(troop.id)}
+                onDragEnd={() => {
+                  setDragged(null);
+                  setOver(null);
+                }}
+                /* Le refus se voit **et** se sent : sans `preventDefault`, le curseur du
+                   navigateur porte déjà l'interdit et le lâcher ne part jamais. */
+                onDragOver={(gesture) => {
+                  if (!lifts || dragged === null || dragged === troop.id) return;
+                  const taken = boards(held, picked, placements, dragged, troop.id);
+                  if (taken) gesture.preventDefault();
+                  setOver({ carrier: troop.id, taken });
+                }}
+                onDragLeave={() =>
+                  setOver((previous) => (previous?.carrier === troop.id ? null : previous))
+                }
+                onDrop={(gesture) => {
+                  gesture.preventDefault();
+                  if (dragged !== null) drop(dragged, troop.id);
+                  setOver(null);
+                }}
+                style={{
+                  marginLeft: carrier === null ? undefined : 18,
+                  borderColor: aimed
+                    ? over?.taken
+                      ? 'var(--notable)'
+                      : 'var(--critical)'
+                    : undefined,
+                }}
+                className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
+                  composes ? 'cursor-pointer' : 'opacity-70'
+                } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
+              >
+                {composes && (
+                  <span
+                    className="flex h-[13px] w-[13px] shrink-0 items-center justify-center border border-[var(--ink)] text-[9px] leading-none"
+                    style={{
+                      background: on ? 'var(--ink)' : undefined,
+                      color: on ? 'var(--paper)' : 'transparent',
+                    }}
+                  >
+                    ×
+                  </span>
+                )}
+                <UnitSprite nation={view.me.nation} role={troop.role} height={28} width={40} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
+                    {roleLabel(troop.role, 1)}
+                  </span>
+                  <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                    {fr.troops.strength(troop.strength, troop.nominalStrength)}
+                  </span>
+                  <Upkeep troop={troop} />
                 </span>
-              )}
-              <UnitSprite nation={view.me.nation} role={troop.role} height={28} width={40} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
-                  {roleLabel(troop.role, 1)}
-                </span>
-                <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                  {fr.troops.strength(troop.strength, troop.nominalStrength)}
-                </span>
-                {/**
-                 * **La vie et le coût sur la même carte.** L'effectif *est* la barre de vie
-                 * (ADR 0014) ; l'entretien est ce qu'elle coûte à l'heure, au taux plein ou
-                 * au taux relevé — une coque posée en mer paie le second, et c'est ici
-                 * qu'on l'apprend, pas sur un écran de comptabilité.
-                 */}
-                <span
-                  className="block font-(family-name:--font-mono) text-[10.5px]"
-                  style={{ color: troop.supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
-                >
-                  {troop.supplied
-                    ? fr.troops.upkeepRate(FOOD_UPKEEP_PER_TROOP_PER_HOUR)
-                    : fr.troops.upkeepRaised(
-                        FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER,
-                        UPKEEP_UNSUPPLIED_MULTIPLIER,
-                      )}
-                </span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {cargoGroups.map((group) => (
         <CargoReadout
@@ -235,7 +233,7 @@ export function GarrisonStack({
         />
       ))}
 
-      {composes && onLand && (
+      {composes && onLand && !narrow && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']}
         </div>
@@ -264,21 +262,26 @@ export function GarrisonStack({
       )}
 
       {/**
-       * **Sous le seuil, le bouton sous le pouce** (A7) : une ligne — ce qui est coché, ce que la
-       * pile peut ramener — puis « préparer un mouvement » sur toute la largeur, collé au pied
-       * de la feuille quand la liste défile.
+       * **Sous le seuil, le compte et le bouton restent collés en bas** (refonte mobile, 1e),
+       * quelle que soit la taille de la garnison : ce qui est coché, l'allure et ce que la pile
+       * peut ramener, puis « préparer un mouvement » sur toute la largeur.
        */}
       {composes && narrow ? (
-        <div className="paper-grain sticky bottom-0 mt-[11px] border-t border-(color:--ink)/32 pt-[8px] pb-[2px]">
-          <div className="flex items-baseline justify-between gap-3 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-            <span>{fr.garrison.picked(picked.size)}</span>
-            <span>{fr.garrison.lootShort(carryCapacity)}</span>
+        <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
+              {fr.garrison.picked(picked.size)}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+              {onLand && `${fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']} · `}
+              {fr.garrison.lootShort(carryCapacity)}
+            </span>
           </div>
           <button
             type="button"
             disabled={picked.size === 0}
             onClick={() => onPrepare(station, [...picked])}
-            className="mt-[8px] min-h-[44px] w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
+            className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
           >
             {fr.garrison.prepare}
           </button>
@@ -307,5 +310,141 @@ export function GarrisonStack({
         )
       )}
     </>
+  );
+}
+
+/**
+ * **La vie et le coût sur la même carte.** L'effectif *est* la barre de vie (ADR 0014) ;
+ * l'entretien est ce qu'elle coûte à l'heure, au taux plein ou au taux relevé — une coque posée en
+ * mer paie le second, et c'est ici qu'on l'apprend, pas sur un écran de comptabilité.
+ */
+function Upkeep({ troop }: { troop: TroopView }) {
+  return (
+    <span
+      className="block font-(family-name:--font-mono) text-[10.5px]"
+      style={{ color: troop.supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
+    >
+      {troop.supplied
+        ? fr.troops.upkeepRate(FOOD_UPKEEP_PER_TROOP_PER_HOUR)
+        : fr.troops.upkeepRaised(
+            FOOD_UPKEEP_PER_TROOP_PER_HOUR * UPKEEP_UNSUPPLIED_MULTIPLIER,
+            UPKEEP_UNSUPPLIED_MULTIPLIER,
+          )}
+    </span>
+  );
+}
+
+/**
+ * **Les raccourcis de la composition** (refonte mobile, 1e) : tout, rien, ou un rôle entier d'un
+ * toucher. Le raccourci allumé est celui que la coche reproduit exactement — composer à la main
+ * l'éteint, il ne ment pas sur ce qui part.
+ */
+function RoleShortcuts({
+  held,
+  picked,
+  onPick,
+}: {
+  held: ReadonlyArray<TroopView>;
+  picked: ReadonlySet<string>;
+  onPick: (picked: ReadonlySet<string>) => void;
+}) {
+  const same = (troops: ReadonlyArray<TroopView>) =>
+    troops.length === picked.size && troops.every((troop) => picked.has(troop.id));
+  const shortcuts = [
+    { label: fr.garrison.pickAll, troops: held },
+    { label: fr.garrison.pickNone, troops: [] },
+    ...ROLE_ORDER.flatMap((role) => {
+      const ofRole = held.filter((troop) => troop.role === role);
+      return ofRole.length === 0 || ofRole.length === held.length
+        ? []
+        : [{ label: fr.garrison.pickRole(roleLabel(role, 1), ofRole.length), troops: ofRole }];
+    }),
+  ];
+  return (
+    <div className="mb-[10px] flex flex-wrap gap-[6px]">
+      {shortcuts.map(({ label, troops }) => {
+        const on = same(troops);
+        return (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onPick(new Set(troops.map((troop) => troop.id)))}
+            className={`min-h-[36px] cursor-pointer border border-[var(--ink)] px-[11px] text-[10.5px] font-semibold tracking-[.12em] uppercase ${
+              on ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * **Une pile se compose en cartes qu'on coche d'un toucher** (refonte mobile, 1e) : deux par
+ * ligne, la planche, le rôle et sa marque, l'entretien, l'effectif sur sa barre et la case au
+ * coin. Le glisser d'un passager sous un transport reste au bureau — un doigt ne glisse pas une
+ * carte, il déplace la feuille.
+ */
+function TroopCards({
+  nation,
+  troops,
+  picked,
+  composes,
+  onToggle,
+}: {
+  nation: string;
+  troops: ReadonlyArray<TroopView>;
+  picked: ReadonlySet<string>;
+  composes: boolean;
+  onToggle: (troopId: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-[8px]">
+      {troops.map((troop) => {
+        const on = picked.has(troop.id);
+        return (
+          <button
+            key={troop.id}
+            type="button"
+            role={composes ? 'checkbox' : undefined}
+            aria-checked={composes ? on : undefined}
+            disabled={!composes}
+            onClick={() => onToggle(troop.id)}
+            className={`relative flex min-h-[104px] cursor-pointer gap-[9px] px-[10px] py-[9px] text-left disabled:cursor-default ${
+              on
+                ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]'
+                : 'border border-(color:--ink)/45'
+            }`}
+          >
+            <UnitSprite nation={nation} role={troop.role} height={58} width={40} />
+            <span className="flex min-w-0 flex-1 flex-col gap-[3px] pr-[22px]">
+              <span className="text-[14.5px] leading-[1.1] font-bold">
+                {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
+              </span>
+              <Upkeep troop={troop} />
+            </span>
+            <span className="absolute right-[10px] bottom-[10px] left-[59px] flex flex-col gap-1">
+              <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
+                {fr.troops.strength(troop.strength, troop.nominalStrength)}
+              </span>
+              <StrengthBar strength={troop.strength} nominal={troop.nominalStrength} />
+            </span>
+            {composes && (
+              <span
+                aria-hidden
+                className={`absolute top-2 right-2 flex h-[24px] w-[24px] items-center justify-center border-[1.5px] border-[var(--ink)] text-[14px] text-[var(--paper)] ${
+                  on ? 'bg-[var(--ink)]' : ''
+                }`}
+              >
+                {on ? '✓' : ''}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

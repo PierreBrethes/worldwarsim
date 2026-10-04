@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { ARRIVAL_RADIUS_KM, DETECTION_RANGE_KM, outpostReachKm } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { useMouseMapping } from '@/data/mouseMapping';
+import { useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 
 /**
  * **Un mode d'emploi, pas un tutoriel.** Une feuille posée sur le plateau à la première entrée
@@ -18,6 +19,10 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
   // Le mappage de la souris est la seconde exception, et de la même famille que les rayons :
   // un réglage du joueur, pas l'état d'une partie — et la notice mentirait sans le lire.
   const mapping = useMouseMapping();
+  /** La main et l'écran, lus comme partout : le doigt par le pointeur principal, les bureaux par
+   *  le seuil (`shell/viewport.ts`). */
+  const finger = useCoarsePointer();
+  const phone = useNarrowScreen();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -54,7 +59,11 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
             {/* Le rayon d'un point neuf : la feuille se lit avant d'en avoir fondé un, et c'est
                 celui du premier qu'on plantera (`outpostReachKm`, il monte avec le niveau). */}
             {fr.briefing
-              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1), mapping)
+              .columns(DETECTION_RANGE_KM.infantry, ARRIVAL_RADIUS_KM, outpostReachKm(1), {
+                finger,
+                phone,
+                mapping,
+              })
               .map((column) => (
                 <Column key={column.title} title={column.title} lines={column.lines} />
               ))}

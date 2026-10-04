@@ -17,6 +17,58 @@ export function Glyph({ children, size = 19 }: { children: ReactNode; size?: num
 }
 
 /**
+ * **Un manipulateur morse** : le levier sur son pivot, le bouton à la main, deux étincelles.
+ * Dessiné et non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire
+ * pour lui, exactement comme la bascule des bâtiments et l'icône des réglages.
+ */
+export function TelegraphGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M3 15.5h11" />
+      <path d="M5 11.5h7" />
+      <path d="M9.5 11.5v4" />
+      <circle cx="5" cy="11.5" r="1.3" />
+      <path d="M14 8.2l1.8-1.7M16.4 9.4l2.3-.7" />
+    </Glyph>
+  );
+}
+
+/**
+ * **Un journal plié** : la pliure au milieu, la manchette et trois lignes de colonne. Tracé et
+ * non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire pour lui, et le
+ * pictogramme `journal` est déjà pris par le bouton du bandeau, dont il serait le sosie.
+ */
+export function PressGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M3 5h14v10H3z" />
+      <path d="M10 5v10" />
+      <path d="M5 8h3M5 11h3M12 8h3M12 11h3" />
+    </Glyph>
+  );
+}
+
+export function SettingsGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M4 6.5h12M4 13.5h12" />
+      <path d="M8 4.5v4M13 11.5v4" />
+    </Glyph>
+  );
+}
+
+/** Trois feuilles posées l'une sur l'autre : les calques de la carte, au dossier et sur la carte. */
+export function LayersGlyph({ size = 19 }: { size?: number }) {
+  return (
+    <Glyph size={size}>
+      <path d="M10 3l7.5 4-7.5 4-7.5-4z" />
+      <path d="M2.5 10.6l7.5 4 7.5-4" />
+      <path d="M2.5 14l7.5 4 7.5-4" />
+    </Glyph>
+  );
+}
+
+/**
  * **La famille pleine du rail, en vecteur** (planche 68a). Les onze pictogrammes du jeu sont des
  * PNG masqués (`Pictogram`) ; ces trois-là n'ont pas de planche rasterisée, alors ils se tracent
  * — mais dans leur famille et non dans celle des bascules : une silhouette pleine, sans contour,

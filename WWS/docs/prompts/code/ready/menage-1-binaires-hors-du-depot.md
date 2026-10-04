@@ -15,7 +15,7 @@ le contexte Docker du front, qui embarque `WWS/` et `Claude outputs/` à chaque 
 
 Lis `CLAUDE.md`, `.gitignore`, `.dockerignore`, `deploiement/front.Dockerfile`,
 `WWS/sprites/README.md` (§ unités et § 7), `WWS/docs/marque/actifs.md`. Ne commit pas, ne push
-pas. Un chantier, un commit. Ne touche ni aux `.md` de `Claude outputs/` ni à `Claude outputs/project-claude-ai/` (c'est menage-2).
+pas. Un chantier, un commit. Ne touche ni aux `.md` posés à la racine de `Claude outputs/`, ni à `Claude outputs/project-claude-ai/` (c'est menage-2).
 **Suppose :** l'arbre de départ propre (`git status --short` vide) ; sinon, relève-le et dis-le au rapport.
 
 ## Ce qui sort de `HEAD` (`git rm -r`)

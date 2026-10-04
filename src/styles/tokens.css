@@ -63,6 +63,10 @@
   --notable-paper: #8a5a24;
   --routine: #6e6a5e;
   --interaction: #3f5a7d;
+  /* The amber of my own arcs, which the engine paints itself (`ARC_COLORS.mine.trace`,
+     `src/map/engine/palette.ts`, which cannot read CSS). A slot spent and a movement under way
+     wear it off the map too, so that the band and the thread say the same thing. */
+  --arc-mine: #c98a3c;
 
   /* rules */
   --rule-strong: 1px solid var(--ink);

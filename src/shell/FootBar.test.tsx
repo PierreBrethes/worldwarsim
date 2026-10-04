@@ -15,10 +15,10 @@ import { FootBar } from './FootBar';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
- * **La barre de pied** (piste A, passe 2, A1 à A5) : cinq entrées dans l'ordre de la maquette,
- * un étage que « plus » ajoute et replie, et les deux feuilles qu'elle tient elle-même. Les
- * comptes viennent des sources du bureau — la liste « à faire », le non-lu du journal, le badge
- * du télégraphe, le rang de la dernière édition.
+ * **La barre de pied** (refonte mobile, 1a) : cinq entrées dans l'ordre de la maquette — « à
+ * faire » au centre —, et la feuille qu'elle tient elle-même. Les comptes viennent des sources du
+ * bureau — la liste « à faire », le non-lu du journal, le badge du télégraphe, le rang de la
+ * dernière édition.
  */
 afterEach(cleanup);
 
@@ -74,49 +74,14 @@ describe('the foot bar', () => {
   it('lays five entries in the mockup’s order, with the desk’s counts', async () => {
     await mount();
 
-    expect(entries()).toEqual(['à faire1', 'journal1', 'télégraphe3', 'presse2e', 'plus']);
+    expect(entries()).toEqual(['chantiers', 'journal1', '1à faire', 'presse2ᵉ', 'télégraphe3']);
   });
 
-  it('adds a floor under « plus », and folds it on a second touch', async () => {
-    await mount();
-    const more = screen.getByRole('button', { name: fr.foot.more });
-
-    act(() => more.click());
-    expect(entries().slice(0, 5)).toEqual([
-      'nation',
-      'économie',
-      'abaque de tir',
-      'réglages',
-      'calques',
-    ]);
-
-    act(() => more.click());
-    expect(entries()).toHaveLength(5);
-  });
-
-  it('folds the floor when another entry opens', async () => {
+  it('opens the works, which left « plus » for the bar itself', async () => {
     const router = await mount();
-    act(() => screen.getByRole('button', { name: fr.foot.more }).click());
-    expect(entries()).toHaveLength(10);
 
-    await act(async () => screen.getByRole('link', { name: /journal/ }).click());
-    expect(entries()).toHaveLength(5);
-    expect(router.state.location.search).toEqual({ windows: ['journal'] });
-  });
-
-  it('keeps the floor open under the layers sheet, eight toggles on two columns', async () => {
-    await mount();
-    act(() => screen.getByRole('button', { name: fr.foot.more }).click());
-    act(() => screen.getByRole('button', { name: fr.foot.layers }).click());
-
-    const layers = screen.getByRole('dialog', { name: fr.foot.layersTitle });
-    expect(within(layers).getAllByRole('button', { pressed: true }).length).toBeGreaterThan(0);
-    expect(
-      within(layers)
-        .getAllByRole('button')
-        .filter((toggle) => toggle.hasAttribute('aria-pressed')),
-    ).toHaveLength(8);
-    expect(entries()).toHaveLength(10);
+    await act(async () => screen.getByRole('link', { name: /chantiers/ }).click());
+    expect(router.state.location.search).toEqual({ windows: ['economy'] });
   });
 
   it('opens « à faire » as a sheet carrying the board’s lines', async () => {

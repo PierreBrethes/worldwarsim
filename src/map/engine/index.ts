@@ -444,6 +444,14 @@ export class MapEngine {
     return this.camera.position.distanceTo(this.controls.target);
   }
 
+  /** **L'écart entre deux étiquettes, sur le plateau** : de quoi ranger les cibles d'une colonne
+   *  de la plus proche à la plus lointaine. `null` quand l'une n'est pas posée. */
+  labelSeparation(first: string, second: string): number | null {
+    const from = this.labels.position(first, this.arcs.headPositions);
+    const to = this.labels.position(second, this.arcs.headPositions);
+    return from === undefined || to === undefined ? null : from.distanceTo(to);
+  }
+
   /** La caméra ne peut plus s'approcher : ce que le zoom ne sépare pas doit se séparer autrement. */
   atZoomFloor(): boolean {
     return this.cameraDistance() <= this.controls.minDistance * ZOOM_FLOOR_SLACK;

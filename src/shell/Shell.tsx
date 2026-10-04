@@ -2,7 +2,8 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import type { PlayerView } from '@/domain/player-view';
 import { FootBar } from './FootBar';
 import { NationBanner } from './NationBanner';
-import { NarrowBand, ResourceBand } from './ResourceBand';
+import { NarrowBand } from './NarrowBand';
+import { ResourceBand } from './ResourceBand';
 import { SoleSurfaceProvider } from './sole-surface';
 import { SurfaceRail } from './SurfaceRail';
 import { useNarrowScreen } from './viewport';
@@ -11,6 +12,7 @@ export function Shell({
   view,
   telegraphUnread,
   todo,
+  onShowBriefing,
   children,
 }: {
   view: PlayerView;
@@ -18,11 +20,13 @@ export function Shell({
   /** Les lignes « à faire maintenant » que la feuille du pied porte sous le seuil : le plateau
    *  seul sait où mène chacune. */
   todo: ReactNode;
+  /** L'aide-mémoire, que le dossier de la nation rouvre sous le seuil. */
+  onShowBriefing: () => void;
   children: ReactNode;
 }) {
-  /** **Sous le seuil, le pied de page** (piste A, passe 2) : un bandeau repliable en tête, la
-   *  carte, et une barre de cinq entrées au pied, qui remplace le rail. Au-dessus, rien ne
-   *  change. */
+  /** **Sous le seuil, le pied de page** (refonte mobile du 04/10) : le bandeau en tête, dont le
+   *  drapeau ouvre le dossier de la nation, la carte, et une barre de cinq entrées au pied, qui
+   *  remplace le rail. Au-dessus, rien ne change. */
   const narrow = useNarrowScreen();
   const top = useRef<HTMLDivElement>(null);
   const foot = useRef<HTMLElement>(null);
@@ -38,7 +42,7 @@ export function Shell({
     return (
       <SoleSurfaceProvider>
         <div className="board-frame flex h-full flex-col overflow-hidden">
-          <NarrowBand view={view} ref={top} />
+          <NarrowBand view={view} onShowBriefing={onShowBriefing} ref={top} />
           <main className="relative flex min-h-0 min-w-0 flex-1">{children}</main>
           <FootBar view={view} telegraphUnread={telegraphUnread} todo={todo} ref={foot} />
         </div>
@@ -65,9 +69,9 @@ export function Shell({
 
 /**
  * **Les deux bords du plateau, publiés en pixels d'écran** (`--board-top`, `--board-bottom`) :
- * feuilles et fenêtres se posent entre eux sans connaître la hauteur du bandeau — qui se replie —
- * ni celle du pied — qui gagne un étage. Mesurés et non calculés, parce que l'échelle d'interface,
- * l'encoche et la barre d'accueil s'y ajoutent chacune de son côté.
+ * feuilles et fenêtres se posent entre eux sans connaître la hauteur du bandeau ni celle du pied.
+ * Mesurés et non calculés, parce que l'échelle d'interface, l'encoche et la barre d'accueil s'y
+ * ajoutent chacune de son côté.
  */
 function usePublishedEdges(
   top: RefObject<HTMLElement | null>,

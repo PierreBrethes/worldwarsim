@@ -161,6 +161,8 @@ export type MapMarker =
        *  (`constructions.start`) and what the compass rose raises a level of. */
       readonly key: BuildingKey;
       readonly regionId: string;
+      /** La région en toutes lettres : la liste d'une pile de mâts la porte en tête (1r). */
+      readonly regionName: string;
       readonly hostCountry: string | null;
       readonly name: string;
       /** `null` while the first level is still under the crane: nothing stands to be levelled. */
@@ -272,6 +274,7 @@ export type BuildingHandle = {
   readonly id: string;
   readonly key: BuildingKey;
   readonly regionId: string;
+  readonly regionName: string;
   readonly level: number;
 };
 
@@ -669,6 +672,7 @@ function markerLabel(marker: MapMarker): MapLabel {
                 id: marker.buildingId,
                 key: marker.key,
                 regionId: marker.regionId,
+                regionName: marker.regionName,
                 level: marker.level,
               },
         // Under the crane the portrait is wrong twice over: a first level has nothing to

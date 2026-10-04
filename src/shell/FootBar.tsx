@@ -1,27 +1,32 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
-import type { PlayerView } from '@/domain/player-view';
+import { asShortDuration } from '@/domain/duration';
+import { currentMinutes, type PlayerView } from '@/domain/player-view';
 import { nextActionsOf } from '@/domain/next-actions';
-import { CATEGORIES } from '@/domain/indicators';
-import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
-import { toggleWindow, windowOpen, type BoardSearch } from '@/routes/-plateau/board-search';
+import {
+  toggleWindow,
+  windowOpen,
+  type BoardSearch,
+  type BoardWindow,
+} from '@/routes/-plateau/board-search';
 import { BottomSheet } from './BottomSheet';
-
-type FootSheet = 'todo' | 'layers';
+import { PressGlyph, TelegraphGlyph } from './Glyph';
+import { IndustryGlyph, Pictogram } from './IndicatorGlyph';
+import { useClock } from './clock';
 
 /**
- * **La barre de pied, sous 768 px** (piste A, passe 2, A1 à A5) : elle remplace le rail. Cinq
- * entrées — à faire, journal, télégraphe, presse, plus — et un étage que « plus » ajoute
- * au-dessus d'elle pour ce qu'on cherche à froid : nation, économie, abaque, réglages, calques.
+ * **La barre de pied, sous 768 px** (refonte mobile du 04/10, 1a) : elle remplace le rail. Cinq
+ * entrées — chantiers, journal, « à faire » au centre et en relief, presse, télégraphe. « Plus »
+ * est parti : ce qu'on cherche à froid s'ouvre au drapeau du bandeau, et les chantiers, qu'on
+ * ouvre souvent, sont sortis de son étage.
  *
  * **Rien n'y est recalculé** : le compte de « à faire » est la liste de la carte du bureau
  * (`nextActionsOf`), celui du journal le non-lu du bandeau, celui du télégraphe le badge du rail,
- * et le rang celui de la dernière édition — jamais un classement refait ici.
+ * le rang celui de la dernière édition et l'heure du chantier celle de la vue.
  *
  * Ce qu'elle ouvre est **la seule surface ouverte** : une fenêtre recouverte se ferme d'elle-même
- * (`Window.tsx`), et les deux feuilles qu'elle tient réclament la place en montant
- * (`sole-surface.tsx`).
+ * (`Window.tsx`), et la feuille « à faire » réclame la place en montant (`sole-surface.tsx`).
  */
 export function FootBar({
   view,
@@ -35,109 +40,81 @@ export function FootBar({
   ref?: Ref<HTMLElement>;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
-  const [more, setMore] = useState(false);
-  const [sheet, setSheet] = useState<FootSheet | null>(null);
+  const now = useClock();
+  const [todoOpen, setTodoOpen] = useState(false);
   const waiting = nextActionsOf(view).length;
   const unread = view.journal.filter((dispatch) => dispatch.unread).length;
   const rank = view.press?.mine?.rank ?? null;
+  const work = view.me.construction;
+
+  const entry = (name: BoardWindow, icon: ReactNode, label: string, corner: ReactNode) => (
+    <li className="flex">
+      <Link
+        to="/plateau"
+        search={toggleWindow(search, name)}
+        className={`${CELL} ${windowOpen(search, name) ? ACTIVE : 'border-transparent'}`}
+      >
+        {icon}
+        <span className={LABEL}>{label}</span>
+        {corner}
+      </Link>
+    </li>
+  );
 
   return (
-    <nav ref={ref} className="hud board-foot shrink-0 bg-[var(--paper)] text-[var(--ink)]">
-      {more && (
-        <ul className="grid grid-cols-5 border-t border-[var(--ink)] bg-(--ink)/8">
-          {(['nation', 'economy', 'gunnery', 'settings'] as const).map((name) => (
-            <li key={name} className="flex border-r border-(color:--ink)/25">
-              <Link
-                to="/plateau"
-                search={toggleWindow(search, name)}
-                onClick={() => setMore(false)}
-                className={`${CELL} ${windowOpen(search, name) ? ACTIVE : 'border-transparent'}`}
-              >
-                <span className={LABEL}>{fr.foot[name]}</span>
-              </Link>
-            </li>
-          ))}
-          <li className="flex">
-            <button
-              type="button"
-              aria-pressed={sheet === 'layers'}
-              onClick={() => setSheet((open) => (open === 'layers' ? null : 'layers'))}
-              className={`${CELL} ${sheet === 'layers' ? ACTIVE : 'border-transparent'}`}
-            >
-              <span className={LABEL}>{fr.foot.layers}</span>
-            </button>
-          </li>
-        </ul>
-      )}
-
-      <ul className="grid grid-cols-5 border-t border-[var(--ink)]">
-        <li className="flex border-r border-(color:--ink)/25">
-          <button
-            type="button"
-            aria-pressed={sheet === 'todo'}
-            onClick={() => {
-              setMore(false);
-              setSheet((open) => (open === 'todo' ? null : 'todo'));
-            }}
-            className={`${CELL} ${
-              waiting > 0
-                ? 'border-transparent bg-[var(--ink)] text-[var(--paper)]'
-                : sheet === 'todo'
-                  ? ACTIVE
-                  : 'border-transparent'
-            }`}
-          >
-            <span className={LABEL}>{fr.foot.todo}</span>
-            {waiting > 0 && <Count value={waiting} inverted />}
-          </button>
-        </li>
-        {(['journal', 'telegraph'] as const).map((name) => {
-          const count = name === 'journal' ? unread : telegraphUnread;
-          return (
-            <li key={name} className="flex border-r border-(color:--ink)/25">
-              <Link
-                to="/plateau"
-                search={toggleWindow(search, name)}
-                onClick={() => setMore(false)}
-                className={`${CELL} ${windowOpen(search, name) ? ACTIVE : 'border-transparent'}`}
-              >
-                <span className={LABEL}>{fr.foot[name]}</span>
-                {count > 0 && <Count value={count} />}
-              </Link>
-            </li>
-          );
-        })}
-        <li className="flex border-r border-(color:--ink)/25">
-          <Link
-            to="/plateau"
-            search={toggleWindow(search, 'press')}
-            onClick={() => setMore(false)}
-            className={`${CELL} ${windowOpen(search, 'press') ? ACTIVE : 'border-transparent'}`}
-          >
-            <span className={LABEL}>{fr.foot.press}</span>
-            {rank !== null && (
-              <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
-                {fr.foot.rank(rank)}
-              </span>
-            )}
-          </Link>
-        </li>
+    <nav
+      ref={ref}
+      className="hud board-foot paper-grain relative z-[var(--z-band)] shrink-0 border-t-2 border-[var(--ink)] text-[var(--ink)]"
+    >
+      <ul className="grid h-[56px] grid-cols-[1fr_1fr_1.08fr_1fr_1fr]">
+        {entry(
+          'economy',
+          <IndustryGlyph size={22} />,
+          fr.foot.works,
+          work !== null && (
+            <Corner>{asShortDuration(currentMinutes(work.minutesLeft, view.loadedAt, now))}</Corner>
+          ),
+        )}
+        {entry(
+          'journal',
+          <Pictogram pictogram="journal" weight={40} size={22} />,
+          fr.foot.journal,
+          unread > 0 && <Count value={unread} tone="critical" />,
+        )}
         <li className="flex">
           <button
             type="button"
-            aria-expanded={more}
-            onClick={() => {
-              setSheet(null);
-              setMore((open) => !open);
-            }}
-            className={`${CELL} ${more ? ACTIVE : 'border-transparent'}`}
+            aria-pressed={todoOpen}
+            onClick={() => setTodoOpen((open) => !open)}
+            className={`-mt-[12px] flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-1 border-2 border-b-0 border-[var(--ink)] text-[var(--paper)] ${
+              todoOpen ? 'bg-[var(--interaction)]' : 'bg-[var(--ink)]'
+            }`}
           >
-            <span className={LABEL}>{fr.foot.more}</span>
+            {waiting > 0 && (
+              <span className="font-(family-name:--font-mono) text-[21px] leading-none font-medium">
+                {waiting}
+              </span>
+            )}
+            <span className="text-[10px] leading-none font-bold tracking-[.12em] uppercase">
+              {fr.foot.todo}
+            </span>
           </button>
         </li>
+        {entry(
+          'press',
+          <PressGlyph size={22} />,
+          fr.foot.press,
+          rank !== null && <Corner>{fr.press.ordinal(rank)}</Corner>,
+        )}
+        {entry(
+          'telegraph',
+          <TelegraphGlyph size={22} />,
+          fr.foot.telegraph,
+          telegraphUnread > 0 && <Count value={telegraphUnread} tone="ink" />,
+        )}
       </ul>
 
-      {sheet === 'todo' && (
+      {todoOpen && (
         <BottomSheet
           title={fr.nextActions.header}
           aside={
@@ -147,14 +124,9 @@ export function FootBar({
               </span>
             )
           }
-          onClose={() => setSheet(null)}
+          onClose={() => setTodoOpen(false)}
         >
           {todo}
-        </BottomSheet>
-      )}
-      {sheet === 'layers' && (
-        <BottomSheet title={fr.foot.layersTitle} onClose={() => setSheet(null)}>
-          <Layers />
         </BottomSheet>
       )}
     </nav>
@@ -162,61 +134,31 @@ export function FootBar({
 }
 
 const CELL =
-  'flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-[3px] border-t-2 px-[2px] py-[5px] text-center';
+  'relative -mt-[2px] flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-1 border-t-[3px] px-[2px] text-center';
 
 const ACTIVE = 'border-[var(--ink)] bg-(--ink)/12';
 
-const LABEL = 'text-[8.5px] leading-[1.15] font-semibold tracking-[.1em] uppercase';
+const LABEL = 'text-[10px] leading-none font-semibold tracking-[.08em] uppercase';
 
-/** Un carré d'encre, pas une pastille : le pied est composé, pas notifié. */
-function Count({ value, inverted = false }: { value: number; inverted?: boolean }) {
+/** Ce qui se lit dans le coin d'une entrée sans être un compte : l'heure du chantier, le rang. */
+function Corner({ children }: { children: ReactNode }) {
   return (
-    <span
-      className={`flex h-[13px] min-w-[13px] items-center justify-center px-[3px] font-(family-name:--font-mono) text-[8.5px] leading-none ${
-        inverted
-          ? 'border border-(color:--paper)/70 text-[var(--paper)]'
-          : 'bg-[var(--ink)] text-[var(--paper)]'
-      }`}
-    >
-      {value > 99 ? '99+' : value}
+    <span className="absolute top-[6px] left-1/2 ml-[12px] font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+      {children}
     </span>
   );
 }
 
-/**
- * **Les huit bascules du rail, en cases de 44 px sur deux colonnes** (A4). La même source que le
- * rail du bureau (`useIndicatorToggles`), donc la même mémoire : allumer les chantiers au
- * téléphone les allume aussi au bureau du même navigateur.
- */
-function Layers() {
-  const toggles = useIndicatorToggles();
+/** **Un carré, pas une pastille** : le pied est composé, pas notifié. Le journal le porte à
+ *  l'encre critique — une dépêche peut dire une attaque — et le télégraphe à l'encre. */
+function Count({ value, tone }: { value: number; tone: 'critical' | 'ink' }) {
   return (
-    <ul className="grid grid-cols-2 gap-[8px] p-4">
-      {CATEGORIES.map((category) => {
-        const on = toggles[category];
-        return (
-          <li key={category} className="flex">
-            <button
-              type="button"
-              aria-pressed={on}
-              onClick={() => toggleIndicator(category)}
-              className={`flex w-full cursor-pointer items-center gap-[10px] border px-[10px] text-left ${
-                on ? 'border-[var(--ink)]' : 'border-(color:--ink)/35'
-              }`}
-            >
-              <span
-                aria-hidden
-                className="flex h-[16px] w-[16px] shrink-0 items-center justify-center border border-[var(--ink)]"
-              >
-                {on && <span className="h-[8px] w-[8px] bg-[var(--ink)]" />}
-              </span>
-              <span className="block text-[13px] first-letter:uppercase">
-                {fr.indicatorCategories[category]}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <span
+      className={`absolute top-[5px] left-1/2 ml-[9px] h-[16px] min-w-[16px] px-[3px] text-center font-(family-name:--font-mono) text-[10px] leading-[16px] font-medium text-[var(--paper)] ${
+        tone === 'critical' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
+      }`}
+    >
+      {value > 99 ? '99+' : value}
+    </span>
   );
 }

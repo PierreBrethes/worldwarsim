@@ -1,5 +1,5 @@
 import { useMutation } from 'convex/react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import {
@@ -13,9 +13,11 @@ import { handleError } from '@/data/errors';
 import { Gauge } from '@/shell/Gauge';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
+import { useNarrowScreen } from '@/shell/viewport';
 import {
   BUILDINGS,
   DEPOSITS,
+  RESOURCES,
   isOutpostWork,
   type BuildingKey,
   type DepositKey,
@@ -23,11 +25,18 @@ import {
 } from '@/domain/ids';
 import { PRODUCER_OF } from '@/domain/economy';
 import { unlinkedProducers } from '@/domain/next-actions';
-import { pledgedOn, placementOf, slotsOn, type Placement } from '@/domain/construction';
+import {
+  pledgedOn,
+  placementOf,
+  slotsOn,
+  upgradeHold,
+  type Placement,
+  type UpgradeHold,
+} from '@/domain/construction';
 import { asDayAndTime, asDuration } from '@/domain/duration';
 import type { Building, ChainView, PlayerView, QueuedWork, SiteRef } from '@/domain/player-view';
 import { sameSite } from '@/domain/player-view';
-import { currentMinutes } from '@/domain/player-view';
+import { currentMinutes, lotFinishesAt } from '@/domain/player-view';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { conditionText } from './FoundationRows';
 import { FOCUS_MARK, useFocusRow } from './focus';
@@ -74,11 +83,33 @@ export function EconomyWindow({
    *  et le panneau du point s'ouvre, où l'élévation se commande. */
   onRaiseOutpost: (outpostId: string) => void;
 }) {
+  const narrow = useNarrowScreen();
   const now = useClock();
   // One reading of the placement rule for the whole window: the chart, the projection and the
   // works all ask the same question of the same fifteen keys.
   const placements = useMemo(() => placementsOf(view), [view]);
   const columns = useMemo(() => supplyColumns(view), [view]);
+  /** **Le remède d'un point plein mène à sa porte** : la fenêtre se ferme, le panneau s'ouvre. */
+  const raiseOutpost = (outpostId: string) => {
+    onClose();
+    onRaiseOutpost(outpostId);
+  };
+
+  if (narrow)
+    return (
+      <FloatingWindow name="economy" onClose={onClose} {...windowProps} width={1280}>
+        <WorksSheet
+          view={view}
+          seat={seat}
+          now={now}
+          focused={focused}
+          placements={placements}
+          columns={columns}
+          onRaiseOutpost={raiseOutpost}
+          onClose={onClose}
+        />
+      </FloatingWindow>
+    );
 
   return (
     <FloatingWindow name="economy" onClose={onClose} {...windowProps} alignment="top" width={1280}>
@@ -135,6 +166,7 @@ export function EconomyWindow({
                   key={chain.by}
                   chain={chain}
                   seat={seat}
+                  loadedAt={view.loadedAt}
                   now={now}
                   observing={view.me.defeated}
                 />
@@ -179,10 +211,7 @@ export function EconomyWindow({
             seat={seat}
             now={now}
             focused={focused}
-            onRaiseOutpost={(outpostId) => {
-              onClose();
-              onRaiseOutpost(outpostId);
-            }}
+            onRaiseOutpost={raiseOutpost}
           />
         </div>
       </div>
@@ -190,16 +219,12 @@ export function EconomyWindow({
   );
 }
 
+const EXTRACTION_KEYS: ReadonlyArray<BuildingKey> = ['farm', 'mill', 'mine', 'oilWell'];
+
+const TRANSFORMATION_KEYS: ReadonlyArray<BuildingKey> = ['foundry', 'arsenal', 'quartermaster'];
+
 /** The seven keys the chart draws — exploitation and transformation, in family order. */
-const CHAIN_KEYS: ReadonlyArray<BuildingKey> = [
-  'farm',
-  'mill',
-  'mine',
-  'oilWell',
-  'foundry',
-  'arsenal',
-  'quartermaster',
-];
+const CHAIN_KEYS: ReadonlyArray<BuildingKey> = [...EXTRACTION_KEYS, ...TRANSFORMATION_KEYS];
 
 /** What arms: the section of the projection. */
 const PROJECTION_KEYS: ReadonlyArray<BuildingKey> = ['barracks', 'billets', 'airfield', 'port'];
@@ -292,8 +317,7 @@ function QueuedWorks({
   /** Un observateur lit sa file — elle continue de se bâtir — et n'en retire plus rien. */
   observing: boolean;
 }) {
-  const cancel = useMutation(api.constructions.cancel);
-  const [error, setError] = useState<string | null>(null);
+  const { cancel, error } = useQueueCancel(seat);
 
   return (
     <div className="px-4 pt-[8px] pb-2">
@@ -321,12 +345,7 @@ function QueuedWorks({
             <button
               type="button"
               title={fr.economy.queueCancelTitle}
-              onClick={() => {
-                setError(null);
-                cancel({ ...seat, constructionId: entry.id as Id<'constructions'> }).catch(
-                  (problem: unknown) => handleError(problem, setError),
-                );
-              }}
+              onClick={() => cancel(entry.id)}
               className="shrink-0 cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--critical)] hover:text-[var(--paper)]"
             >
               {fr.economy.queueCancel}
@@ -337,6 +356,24 @@ function QueuedWorks({
       {error !== null && <p className="pt-1 text-[11px] text-[var(--critical)]">{error}</p>}
     </div>
   );
+}
+
+/**
+ * **Retirer une entrée de la file, et la rembourser** : ce qui n'a pas commencé n'a rien coûté au
+ * jeu. Le refus n'a qu'un cas — l'entrée est passée en tête entre-temps — et il se dit sous la
+ * ligne.
+ */
+function useQueueCancel(seat: Seat) {
+  const drop = useMutation(api.constructions.cancel);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = (constructionId: string, then?: () => void) => {
+    setError(null);
+    drop({ ...seat, constructionId: constructionId as Id<'constructions'> }).then(
+      then,
+      (problem: unknown) => handleError(problem, setError),
+    );
+  };
+  return { cancel, error };
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1142,30 +1179,8 @@ function SiteBudget({
    *  ailleurs — seul un avant-poste a une porte à ouvrir ici. */
   onRaise?: (() => void) | null;
 }) {
-  const held = view.me.siteSlots.find((budget) => sameSite(budget.site, site));
-  const total = held?.total ?? 0;
-  const taken = slotsOn(view, site).taken;
-  const pledged = pledgedOn(view, site);
+  const { taken, total, free, said } = budgetOf(view, site, relief);
   const filled = total === 0 ? 0 : Math.min(1, taken / total);
-  const free = total - taken;
-
-  /**
-   * **Le site plein dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé
-   * — pas avant : une ligne permanente sur la décision la plus structurante de la saison redevient
-   * du bruit de fond, et c'est la faute que le chantier en tête a déjà coûtée une fois.
-   *
-   * Les deux nombres arrivent servis (`me.homeSlotRelief`) : `homeSlots` est lu une fois, côté
-   * serveur, par la phrase et par le refus qui la motive. Un avant-poste n'en a pas — ce qui
-   * l'élargit est son propre niveau, et rien ne le monte encore.
-   */
-  const said =
-    free > 0 && pledged === 0
-      ? null
-      : !relief
-        ? fr.economy.budgetRaiseOutpost
-        : view.me.homeSlotRelief === null
-          ? fr.economy.budgetAtCeiling
-          : fr.economy.budgetRelief(view.me.homeSlotRelief);
 
   return (
     <span className="flex min-w-[230px] flex-col items-end gap-[2px]">
@@ -1209,6 +1224,33 @@ function SiteBudget({
         ))}
     </span>
   );
+}
+
+/**
+ * **Le budget d'un site, lu une fois pour ses deux cadres** — la barre du bureau, les cases du
+ * téléphone. Le compte est servi pour ce qui se tient et complété par la file prépayée
+ * (`slotsOn`).
+ *
+ * **Le site plein dit son remède** (25/08). Annoncé quand il mord ou quand la file l'a entamé — pas
+ * avant : une ligne permanente sur la décision la plus structurante de la saison redevient du
+ * bruit de fond, et c'est la faute que le chantier en tête a déjà coûtée une fois. Les deux
+ * nombres arrivent servis (`me.homeSlotRelief`) : `homeSlots` est lu une fois, côté serveur, par
+ * la phrase et par le refus qui la motive. Un avant-poste n'en a pas — ce qui l'élargit est son
+ * propre niveau.
+ */
+function budgetOf(view: PlayerView, site: SiteRef, relief: boolean) {
+  const total = view.me.siteSlots.find((budget) => sameSite(budget.site, site))?.total ?? 0;
+  const taken = slotsOn(view, site).taken;
+  const free = total - taken;
+  const said =
+    free > 0 && pledgedOn(view, site) === 0
+      ? null
+      : !relief
+        ? fr.economy.budgetRaiseOutpost
+        : view.me.homeSlotRelief === null
+          ? fr.economy.budgetAtCeiling
+          : fr.economy.budgetRelief(view.me.homeSlotRelief);
+  return { taken, total, free, said };
 }
 
 /** One line per outpost, in the headquarters column. A point is a site like the home ground, and
@@ -1316,11 +1358,13 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
 function LotControl({
   chain,
   seat,
+  loadedAt,
   now,
   observing,
 }: {
   chain: ChainView;
   seat: Seat;
+  loadedAt: number;
   now: number;
   /** Le lot en cours se lit jusqu'à sa livraison — il court tout seul —, il ne s'annule plus et
    *  il ne s'en commande plus d'autre : le serveur refuse déjà les deux (`requirePlayable`). */
@@ -1347,14 +1391,7 @@ function LotControl({
   const hours = chain.nominalPerHour > 0 ? wanted / chain.nominalPerHour : 0;
   const coversNight = hours * 60 >= REST_WINDOW_MINUTES;
 
-  /**
-   * A lot in flight is dated at the rate it will actually hold. `perHour` is the settled rate
-   * over the next hour, and the end of a lot clamps it — three left on a line that does three
-   * an hour reads one an hour, and the countdown would triple. A running line runs at nominal;
-   * only a throttled one is dated by what it managed.
-   */
-  const rate = chain.state === 'running' ? chain.nominalPerHour : chain.perHour;
-  const owed = order === null ? 0 : order.ordered - order.produced;
+  const finishesAt = lotFinishesAt(chain, loadedAt);
 
   const send = (action: Promise<unknown>) => {
     setError(null);
@@ -1376,13 +1413,13 @@ function LotControl({
               {fr.economy.lot.progress(order.produced, order.ordered, outputLabel)}
             </span>
             <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
-              {rate > 0
-                ? fr.economy.lot.remaining(asDuration((owed / rate) * 60))
-                : fr.economy.lot.remainingUnknown}
+              {finishesAt === null
+                ? fr.economy.lot.remainingUnknown
+                : fr.economy.lot.remaining(asDuration((finishesAt - now) / 60_000))}
             </span>
-            {rate > 0 && (
+            {finishesAt !== null && (
               <span className="font-(family-name:--font-mono) text-[var(--ink-soft)]">
-                {fr.economy.lot.endsAt(asDayAndTime(now + (owed / rate) * 3_600_000))}
+                {fr.economy.lot.endsAt(asDayAndTime(finishesAt))}
               </span>
             )}
             {!observing && (
@@ -1531,6 +1568,820 @@ function Reading({
       <div className="eyebrow">{label}</div>
       <div className="mt-[3px] font-(family-name:--font-mono) text-[14px]" style={{ color: ink }}>
         {children}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// « Chantiers », sous le seuil
+// ---------------------------------------------------------------------------------------
+
+type WorksTab = keyof typeof fr.works.tabs;
+
+const WORKS_TABS: ReadonlyArray<WorksTab> = ['underway', 'sites', 'chains', 'hq'];
+
+/** Ce que l'en-tête collé occupe — le titre et les onglets : une section visée s'arrête dessous. */
+const WORKS_HEADER_PX = 90;
+
+/** Les familles des sites, dans l'ordre où la matière les traverse : ce qui se tire du sol, ce
+ *  qui le transforme, ce qui arme, puis ce qui garde. Le quartier général n'y est pas : il a sa
+ *  carte, et deux boutons pour une même marche en feraient deux ordres. */
+const FAMILIES: ReadonlyArray<{
+  readonly name: keyof typeof fr.works.families;
+  readonly keys: ReadonlyArray<BuildingKey>;
+}> = [
+  { name: 'extraction', keys: EXTRACTION_KEYS },
+  { name: 'transformation', keys: TRANSFORMATION_KEYS },
+  { name: 'projection', keys: PROJECTION_KEYS },
+  { name: 'command', keys: WORK_KEYS },
+];
+
+/** Le temps de lire « en file » et d'y revenir, sans que le cartouche reste à demeure. */
+const QUEUED_NOTICE_MS = 10_000;
+
+type Queued = { readonly key: BuildingKey; readonly regionId: string; readonly name: string };
+
+/**
+ * **« Chantiers », un seul défilement et un toucher par site** (refonte mobile, 1f et 1g). La
+ * fenêtre du bureau tient cinq boîtes qui défilent chacune ; sur un téléphone l'en-tête prenait
+ * 280 px et l'on lisait deux sites à la fois. Ici l'en-tête tient 90 px et reste collé, ses
+ * quatre onglets mènent aux sections d'un même défilement, et l'heure du chantier y remonte une
+ * fois sa carte passée.
+ *
+ * **Chaque ligne de site porte son bouton et sa facture** : un toucher met en file, parce que la
+ * file se rembourse — « annuler » reste à l'écran le temps qu'on le lise. Ce qui ne peut pas
+ * monter le dit à la place du bouton, jamais grisé. Rien de neuf n'est calculé : budgets,
+ * maillons, conditions et entretien sont les lectures du bureau.
+ */
+function WorksSheet({
+  view,
+  seat,
+  now,
+  focused,
+  placements,
+  columns,
+  onRaiseOutpost,
+  onClose,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  focused: string | null;
+  placements: Readonly<Record<BuildingKey, Placement>>;
+  columns: ReadonlyArray<Column>;
+  onRaiseOutpost: (outpostId: string) => void;
+  onClose: () => void;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLDivElement>(null);
+  const sections = useRef(new Map<WorksTab, HTMLElement>());
+  const [current, setCurrent] = useState<WorksTab>('underway');
+  const [pastHead, setPastHead] = useState(false);
+  const [queued, setQueued] = useState<Queued | null>(null);
+  const running = view.me.construction;
+
+  useEffect(() => {
+    if (queued === null) return;
+    const timer = setTimeout(() => setQueued(null), QUEUED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [queued]);
+
+  /** L'onglet allumé est la dernière section dont le haut est passé sous l'en-tête. */
+  const follow = () => {
+    const box = scroller.current;
+    if (box === null) return;
+    const line = box.scrollTop + WORKS_HEADER_PX + 1;
+    setCurrent(
+      WORKS_TABS.filter((tab) => (sections.current.get(tab)?.offsetTop ?? Infinity) <= line).at(
+        -1,
+      ) ?? 'underway',
+    );
+    const card = head.current;
+    setPastHead(
+      card !== null && box.scrollTop + WORKS_HEADER_PX > card.offsetTop + card.offsetHeight,
+    );
+  };
+
+  const goTo = (tab: WorksTab) => {
+    const section = sections.current.get(tab);
+    scroller.current?.scrollTo({
+      top: (section?.offsetTop ?? 0) - WORKS_HEADER_PX,
+      behavior: 'smooth',
+    });
+  };
+
+  const section = (tab: WorksTab) => (node: HTMLElement | null) => {
+    if (node === null) sections.current.delete(tab);
+    else sections.current.set(tab, node);
+  };
+
+  return (
+    <div
+      ref={scroller}
+      onScroll={follow}
+      className="paper-grain relative min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]"
+    >
+      <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
+        <div className="flex h-[50px] items-center gap-[10px] pr-3 pl-4">
+          <h2 className="font-(family-name:--font-display) text-[21px] leading-none font-extrabold tracking-[.04em] uppercase">
+            {fr.works.header}
+          </h2>
+          {pastHead && running !== null ? (
+            <span className="flex-1 truncate font-(family-name:--font-mono) text-[11px] text-[var(--notable-paper)]">
+              {fr.works.headCountdown(
+                running.name,
+                asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)),
+              )}
+            </span>
+          ) : (
+            <span className="flex-1 truncate text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+              {fr.economy.subtitle(nationLabel(view.me.nation), view.season.number)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
+          >
+            {fr.common.close}
+          </button>
+        </div>
+        <div className="grid h-[40px] grid-cols-4">
+          {WORKS_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              aria-current={current === tab}
+              onClick={() => goTo(tab)}
+              className={`cursor-pointer border-b-[3px] text-[10.5px] tracking-[.14em] uppercase ${
+                current === tab
+                  ? 'border-[var(--ink)] font-bold'
+                  : 'border-transparent font-semibold text-[var(--ink-soft)]'
+              }`}
+            >
+              {fr.works.tabs[tab]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <section ref={section('underway')}>
+        <div className="flex flex-col gap-2 px-4 pt-3 pb-3">
+          <BudgetLine view={view} site={HOME_SITE} label={fr.economy.budgetHome} relief />
+          {view.me.outposts.map((outpost, rank) => (
+            <BudgetLine
+              key={outpost.id}
+              view={view}
+              site={{ outpostId: outpost.id }}
+              label={fr.economy.budgetOutpost(rank + 1, outpost.level)}
+              relief={false}
+              onRaise={outpost.atMaxLevel ? null : () => onRaiseOutpost(outpost.id)}
+            />
+          ))}
+        </div>
+        <div ref={head}>
+          {running === null ? (
+            <p className="mx-3 border border-dashed border-(color:--ink)/50 px-3 py-[10px] text-[12.5px] leading-[1.45] text-[var(--ink-soft)]">
+              {fr.economy.constructionNone}
+            </p>
+          ) : (
+            <RunningCard view={view} now={now} />
+          )}
+        </div>
+        {view.me.constructionQueue.length > 0 && (
+          <QueueLines queue={view.me.constructionQueue} seat={seat} observing={view.me.defeated} />
+        )}
+      </section>
+
+      <section ref={section('sites')} className="mt-[18px] border-t-2 border-[var(--ink)]">
+        <div className="flex items-baseline gap-[10px] px-4 pt-3 pb-[6px]">
+          <span className="font-(family-name:--font-display) text-[19px] font-extrabold first-letter:uppercase">
+            {fr.works.sitesHeader}
+          </span>
+          <span className="text-[12px] text-[var(--ink-note)]">{fr.works.sitesNote}</span>
+        </div>
+        {FAMILIES.map(({ name, keys }) => {
+          const standing = keys.flatMap((key) =>
+            view.me.buildings.filter((building) => building.key === key),
+          );
+          if (standing.length === 0) return null;
+          return (
+            <div key={name}>
+              <div className="sticky top-[90px] z-[1] flex justify-between border-b border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),var(--ink)_6%)] px-4 pt-2 pb-[6px] text-[10px] font-bold tracking-[.18em] uppercase">
+                <span>{fr.works.families[name]}</span>
+                <span className="font-(family-name:--font-mono) font-normal tracking-normal text-[var(--ink-soft)]">
+                  {standing.length}
+                </span>
+              </div>
+              {standing.map((building) => (
+                <SiteLine
+                  key={building.id}
+                  building={building}
+                  view={view}
+                  seat={seat}
+                  now={now}
+                  focused={focused === building.id}
+                  onQueued={setQueued}
+                />
+              ))}
+            </div>
+          );
+        })}
+        <AbsentKeys view={view} placements={placements} />
+        <p className="px-4 pt-2 pb-1 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
+          {fr.economy.listeningTemporary}
+        </p>
+      </section>
+
+      <section ref={section('chains')} className="mt-[18px] border-t-2 border-[var(--ink)]">
+        <p className="px-4 pt-3 pb-2 font-(family-name:--font-text) text-[13.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
+          {fr.works.chainsLead}
+        </p>
+        <div className="border-b border-[var(--ink)] px-4 pb-[10px]">
+          <ChartLegend />
+        </div>
+        {columns.map((column) => (
+          <ChainLine
+            key={column.id}
+            column={column}
+            view={view}
+            placements={placements}
+            seat={seat}
+            now={now}
+          />
+        ))}
+      </section>
+
+      <section ref={section('hq')} className="mt-4">
+        <HeadquartersCard
+          view={view}
+          seat={seat}
+          now={now}
+          focused={focused}
+          onQueued={setQueued}
+        />
+        <UnlinkedSites view={view} />
+        <UpkeepFoot view={view} />
+      </section>
+
+      {queued !== null && (
+        <QueuedNotice queued={queued} view={view} seat={seat} onDone={() => setQueued(null)} />
+      )}
+      <div className="h-6" />
+    </div>
+  );
+}
+
+/**
+ * **Le budget d'un site en cases** : une case pleine par emplacement pris, vide par libre — le
+ * compte se lit avant d'être lu. Le remède suit quand le site mord, et celui d'un avant-poste
+ * mène à sa porte.
+ */
+function BudgetLine({
+  view,
+  site,
+  label,
+  relief,
+  onRaise = null,
+}: {
+  view: PlayerView;
+  site: SiteRef;
+  label: string;
+  relief: boolean;
+  onRaise?: (() => void) | null;
+}) {
+  const { taken, total, free, said } = budgetOf(view, site, relief);
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {label}
+        </div>
+        <div className="mt-[3px] text-[14.5px]">
+          <b>{fr.economy.budgetTaken(taken, total)}</b>
+          <span style={{ color: free <= 0 ? 'var(--critical)' : undefined }}>
+            {' · '}
+            {fr.economy.budgetFree(free)}
+          </span>
+        </div>
+        {said !== null &&
+          (onRaise === null ? (
+            <div className="mt-[2px] text-[12px] text-[var(--ink-note)]">{said}</div>
+          ) : (
+            <button
+              type="button"
+              onClick={onRaise}
+              className="mt-[2px] cursor-pointer text-left text-[12px] text-[var(--ink-note)] underline decoration-dotted underline-offset-2"
+            >
+              {said}
+            </button>
+          ))}
+      </div>
+      <span aria-hidden className="flex flex-wrap justify-end gap-[3px]">
+        {Array.from({ length: total }, (_, rank) => (
+          <span
+            key={rank}
+            className={`h-[14px] w-[14px] ${rank < taken ? 'bg-[var(--ink)]' : 'border-[1.5px] border-[var(--ink)]'}`}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/** **Le chantier en tête, et son heure** : la seule échéance de la file. Sans bouton
+ *  d'annulation — un chantier commencé a consommé le temps de la file (`RunningWork`). */
+function RunningCard({ view, now }: { view: PlayerView; now: number }) {
+  const running = view.me.construction;
+  if (running === null) return null;
+  const standing = view.me.buildings.find(
+    (building) => building.regionId === running.regionId && building.key === running.key,
+  );
+  const from = standing?.level ?? 0;
+  return (
+    <div className="mx-3 flex items-center gap-3 border-2 border-[var(--ink)] bg-(--ink)/5 p-3">
+      {isOutpostWork(running.key) ? null : <BuildingPlate building={running.key} height={46} />}
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {fr.economy.constructionHeader}
+        </div>
+        <div className="mt-[2px] font-(family-name:--font-display) text-[21px] leading-[1.05] font-extrabold">
+          {running.name}
+        </div>
+        <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">
+          {isOutpostWork(running.key)
+            ? fr.economy.inRegion(running.regionName)
+            : fr.works.raising(running.regionName, from, from + 1)}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-(family-name:--font-display) text-[25px] leading-none font-extrabold">
+          {asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now))}
+        </div>
+        <div className="mt-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {fr.works.remaining}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** La file derrière la tête, une ligne par entrée et son « annuler » : rien n'y est daté, le rang
+ *  est ce qui est vrai (`QueuedWorks`). */
+function QueueLines({
+  queue,
+  seat,
+  observing,
+}: {
+  queue: ReadonlyArray<QueuedWork>;
+  seat: Seat;
+  observing: boolean;
+}) {
+  const { cancel, error } = useQueueCancel(seat);
+  return (
+    <div className="mt-[14px]">
+      <div className="flex items-baseline justify-between gap-[10px] px-4 pb-1">
+        <span className="text-[10px] font-bold tracking-[.18em] uppercase">
+          {fr.economy.legendQueued}
+        </span>
+        <span className="text-[12px] text-[var(--ink-note)]">{fr.works.queueNote}</span>
+      </div>
+      {queue.map((entry, index) => (
+        <div
+          key={entry.id}
+          className="flex min-h-[52px] items-center gap-[10px] border-b border-(color:--ink)/18 py-[2px] pr-[10px] pl-4"
+        >
+          <span className="w-[28px] font-(family-name:--font-display) text-[18px] font-extrabold">
+            {fr.economy.queueRank(index + 2)}
+          </span>
+          {isOutpostWork(entry.key) ? null : <BuildingPlate building={entry.key} height={30} />}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-bold">{entry.name}</span>
+            <span className="block truncate text-[12px] text-[var(--ink-soft)]">
+              {entry.regionName} · {fr.economy.queueLevel(entry.level)}
+            </span>
+          </span>
+          {!observing && (
+            <button
+              type="button"
+              title={fr.economy.queueCancelTitle}
+              onClick={() => cancel(entry.id)}
+              className="cursor-pointer px-[6px] text-[10.5px] font-semibold tracking-[.16em] uppercase underline underline-offset-[3px]"
+            >
+              {fr.economy.queueCancel}
+            </button>
+          )}
+        </div>
+      ))}
+      {error !== null && <p className="px-4 pt-1 text-[11px] text-[var(--critical)]">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * **Une ligne par site, son bouton et sa facture** : le nom et le niveau, la région, ce que le
+ * bâtiment fait — et le cachet « hors réseau » quand sa région ne porte plus les couleurs.
+ */
+function SiteLine({
+  building,
+  view,
+  seat,
+  now,
+  focused,
+  onQueued,
+}: {
+  building: Building;
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  focused: boolean;
+  onQueued: (queued: Queued) => void;
+}) {
+  const row = useFocusRow<HTMLDivElement>(focused);
+  const cut = unlinkedProducers(view).some((producer) => producer.id === building.id);
+
+  return (
+    <div
+      ref={row}
+      className={`flex min-h-[70px] items-center gap-[10px] border-b border-(color:--ink)/18 py-2 pr-3 pl-[14px] ${
+        focused ? FOCUS_MARK : ''
+      }`}
+    >
+      <BuildingPlate building={building.key} height={42} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[16px] leading-[1.1] font-bold">
+          {fr.buildings[building.key]}
+        </div>
+        {/* Le niveau descend sur la ligne de la région : à côté du nom, sous la largeur d'un
+            téléphone, il coupait « Caserne » en « Case… ». */}
+        <div className="mt-[2px] truncate text-[12.5px] text-[var(--ink-soft)]">
+          <span className="font-(family-name:--font-mono) text-[11px]">
+            {fr.common.levelShort(building.level)}
+          </span>
+          {' · '}
+          {fr.economy.inRegion(regionName(view, building.regionId))}
+        </div>
+        <div className="mt-[3px] flex items-center gap-2">
+          {cut && <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />}
+          <span className="truncate text-[10px] font-semibold tracking-[.1em] text-[var(--ink-soft)] uppercase">
+            {building.key === 'listening'
+              ? fr.economy.listeningUnfigured
+              : fr.buildingEffects[building.key]}
+          </span>
+        </div>
+      </div>
+      <RaiseControl building={building} view={view} seat={seat} now={now} onQueued={onQueued} />
+    </div>
+  );
+}
+
+/**
+ * **Monter d'un niveau, d'un toucher** : la mutation d'`UpgradeControl` et la même retenue
+ * (`upgradeHold`). Ce qui retient se dit à la place du bouton — en chantier et son heure, son rang
+ * en file, le plafond du QG, la matière qui manque — et jamais grisé. Un observateur n'y trouve
+ * rien à toucher. `wide` est la marche du quartier général, sur toute la largeur de sa carte.
+ */
+function RaiseControl({
+  building,
+  view,
+  seat,
+  now,
+  onQueued,
+  wide = false,
+}: {
+  building: Building;
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  onQueued: (queued: Queued) => void;
+  wide?: boolean;
+}) {
+  const start = useMutation(api.constructions.start);
+  const [error, setError] = useState<string | null>(null);
+  if (view.me.defeated) return null;
+  const hold = upgradeHold(building, view, now);
+  const next = building.level + 1;
+
+  if (hold !== null)
+    return (
+      <span
+        className={`shrink-0 px-1 text-[10.5px] leading-[1.35] font-bold tracking-[.1em] uppercase ${
+          wide ? 'block pt-1' : 'w-[128px] text-right'
+        }`}
+        style={{ color: hold.kind === 'materials' ? 'var(--critical)' : 'var(--ink-soft)' }}
+      >
+        {holdText(hold, building, view, now)}
+      </span>
+    );
+
+  return (
+    <span className={`flex shrink-0 flex-col gap-1 ${wide ? '' : 'w-[128px]'}`}>
+      <button
+        type="button"
+        title={fr.works.raiseTitle(building.name, next)}
+        onClick={() => {
+          setError(null);
+          start({ ...seat, building: building.key, regionId: building.regionId }).then(
+            () => onQueued({ key: building.key, regionId: building.regionId, name: building.name }),
+            (problem: unknown) => handleError(problem, setError),
+          );
+        }}
+        className={`flex min-h-[50px] cursor-pointer text-left ${
+          wide
+            ? 'items-center justify-between bg-[var(--ink)] px-[14px] text-[var(--paper)]'
+            : 'flex-col items-start justify-center gap-[5px] border border-[var(--ink)] bg-(--paper)/40 px-[10px]'
+        }`}
+      >
+        <span className="text-[10.5px] leading-none font-bold tracking-[.12em] uppercase">
+          {fr.works.raise(next, asDuration(building.nextLevelMinutes))}
+        </span>
+        <span
+          className={`font-(family-name:--font-mono) text-[10.5px] leading-none ${
+            wide ? 'text-[var(--paper-dim-2)]' : 'text-[var(--ink-quiet)]'
+          }`}
+        >
+          {billOf(building.nextLevelCost)}
+        </span>
+      </button>
+      {error !== null && (
+        <span className="text-[11px] leading-[1.35] text-[var(--critical)]">{error}</span>
+      )}
+    </span>
+  );
+}
+
+/** Ce que la retenue d'une marche dit d'elle-même, sur une ligne. Une entrée retenue par la file
+ *  dit si elle avance déjà, ou à quel rang elle attend. */
+function holdText(hold: UpgradeHold, building: Building, view: PlayerView, now: number): string {
+  switch (hold.kind) {
+    case 'alreadyQueued': {
+      const running = view.me.construction;
+      if (running !== null && running.regionId === building.regionId)
+        return fr.works.underway(
+          asDuration(currentMinutes(running.minutesLeft, view.loadedAt, now)),
+        );
+      const rank = view.me.constructionQueue.findIndex(
+        (entry) => entry.regionId === building.regionId,
+      );
+      return fr.works.queued(rank + 2);
+    }
+    case 'cappedByHq':
+      return fr.economy.cappedByHq;
+    case 'materials':
+      return fr.works.lacking(hold.needed - hold.available, fr.resources[hold.resource]);
+  }
+}
+
+/** La facture en abrégé, matière par matière : « 240 all. · 80 cha. ». */
+const billOf = (cost: Building['nextLevelCost']): string =>
+  RESOURCES.filter((key) => (cost[key] ?? 0) > 0)
+    .map((key) => fr.works.cost(cost[key] ?? 0, fr.resourceBand.abbreviations[key]))
+    .join(' · ');
+
+/**
+ * **Ce qui vient d'être mis en file, et la porte pour le reprendre** (refonte mobile, 1f) : la
+ * file se rembourse, donc un toucher suffisait — et « annuler » reste là le temps qu'on le lise.
+ * Une entrée passée aussitôt en tête n'a plus de retour : le cartouche le dit, sans le bouton.
+ */
+function QueuedNotice({
+  queued,
+  view,
+  seat,
+  onDone,
+}: {
+  queued: Queued;
+  view: PlayerView;
+  seat: Seat;
+  onDone: () => void;
+}) {
+  const { cancel, error } = useQueueCancel(seat);
+  const region = regionName(view, queued.regionId);
+  const rank = view.me.constructionQueue.findIndex(
+    (entry) => entry.key === queued.key && entry.regionId === queued.regionId,
+  );
+  const entry = view.me.constructionQueue[rank];
+  const started =
+    view.me.construction?.key === queued.key && view.me.construction.regionId === queued.regionId;
+  if (entry === undefined && !started) return null;
+
+  return (
+    <div
+      role="status"
+      className="sticky bottom-3 z-[3] mx-[10px] mt-3 flex items-center gap-[10px] bg-[var(--ink)] py-2 pr-2 pl-[14px] text-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,.45)]"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+        <span className="text-[13.5px] font-bold">
+          {entry === undefined
+            ? fr.works.startedToast(queued.name, region)
+            : fr.works.queuedToast(queued.name, region, rank + 2)}
+        </span>
+        <span className="text-[11px] text-[var(--paper-dim-2)]">{error ?? fr.works.toastNote}</span>
+      </span>
+      {entry !== undefined && (
+        <button
+          type="button"
+          onClick={() => cancel(entry.id, onDone)}
+          className="cursor-pointer border border-[var(--paper-dim)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase"
+        >
+          {fr.economy.queueCancel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Le maillon d'une filière, en étiquette : ce qu'il est, et comment il se tient. */
+type Link = {
+  readonly text: string;
+  readonly skin: 'deposit' | 'none' | 'input' | LinkState['kind'];
+};
+
+const LINK_SKIN: Readonly<Record<Link['skin'], string>> = {
+  deposit: 'border border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]',
+  none: 'border border-dashed border-[var(--critical)] text-[var(--critical)]',
+  input: 'border border-(color:--ink)/40 text-[var(--ink-soft)] italic',
+  built: 'border border-[var(--ink)]',
+  underway: 'chart-underway border border-[var(--ink)]',
+  queued: 'chart-underway border border-dashed border-[var(--ink)]',
+  missing: 'border border-dashed border-[var(--ink)] text-[var(--ink-soft)]',
+};
+
+/**
+ * **La filière en lignes** (refonte mobile, 1g) : huit colonnes ne tiennent pas dans 390 px, huit
+ * lignes si. Chacune porte son débit réel, le verdict du règlement quand il y en a un — une
+ * filière brute n'en a pas, on n'en invente pas —, ses maillons du sol à la sortie, et la phrase
+ * qui dit ce qui manque, celle même du bureau. Le lot d'une chaîne commandée se règle dessous.
+ */
+function ChainLine({
+  column,
+  view,
+  placements,
+  seat,
+  now,
+}: {
+  column: Column;
+  view: PlayerView;
+  placements: Readonly<Record<BuildingKey, Placement>>;
+  seat: Seat;
+  now: number;
+}) {
+  const worked = column.sources.flatMap((source) =>
+    source.kind === 'deposit' ? [source.deposit] : [],
+  );
+  const cut = isCut(view, column, worked);
+  const dry = column.output.perHour <= 0;
+  const stepOf = (key: BuildingKey): Link => {
+    const state = stateOf(view, key);
+    return {
+      text:
+        state.kind === 'built'
+          ? fr.works.linkLevel(fr.buildings[key], state.level)
+          : fr.buildings[key],
+      skin: state.kind,
+    };
+  };
+  const chain = column.conversion;
+  const order = chain?.commanded ? chain.order : null;
+  const links: ReadonlyArray<Link> = [
+    ...column.sources.map<Link>((source) =>
+      source.kind === 'chain'
+        ? { text: fr.resources[source.resource], skin: 'input' }
+        : source.held === 0
+          ? { text: fr.economy.roleDepositNone, skin: 'none' }
+          : { text: fr.works.deposits(source.held), skin: 'deposit' },
+    ),
+    ...column.extraction.map(stepOf),
+    ...(chain === null ? [] : [stepOf(chain.by)]),
+    order !== null && order.produced < order.ordered
+      ? { text: fr.works.lot(order.produced, order.ordered), skin: 'built' }
+      : { text: fr.economy.roleOutput, skin: dry ? 'missing' : 'built' },
+  ];
+  const missing = [...column.extraction, ...(chain === null ? [] : [chain.by])].find(
+    (key) => stateOf(view, key).kind === 'missing',
+  );
+  const bare = column.sources.find(
+    (source): source is Extract<Source, { kind: 'deposit' }> =>
+      source.kind === 'deposit' && source.held === 0,
+  );
+  const note =
+    bare !== undefined
+      ? fr.economy.depositNoneHeld(fr.deposits[bare.deposit])
+      : missing !== undefined
+        ? conditionOf(placements[missing])
+        : null;
+
+  return (
+    <div className="border-b border-(color:--ink)/18 py-3 pr-[14px] pl-4">
+      <div className="flex items-center gap-[10px]">
+        <ResourcePlate resource={column.output.resource} height={24} />
+        <span className="flex-1 text-[16px] font-bold">{fr.resources[column.output.resource]}</span>
+        {cut ? (
+          <StateBadge state="unlinked" label={fr.economy.chainStates.unlinked} />
+        ) : (
+          chain !== null && <ChainVerdict chain={chain} />
+        )}
+        <span
+          className="w-[72px] text-right font-(family-name:--font-mono) text-[15px] font-medium"
+          style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
+        >
+          {fr.economy.perHour(column.output.perHour)}
+        </span>
+      </div>
+      <div className="mt-[9px] flex flex-wrap items-center gap-[5px] pl-[34px]">
+        {links.map((link, rank) => (
+          <span key={`${link.text}-${rank}`} className="flex items-center gap-[5px]">
+            <span
+              className={`inline-flex h-[24px] items-center px-[7px] text-[11.5px] whitespace-nowrap ${LINK_SKIN[link.skin]}`}
+            >
+              {link.text}
+            </span>
+            {rank < links.length - 1 && (
+              <span aria-hidden className="text-[12px] text-[var(--ink-soft)]">
+                →
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+      {note !== null && (
+        <p className="mt-[6px] pl-[34px] font-(family-name:--font-text) text-[13px] leading-[1.4] text-[var(--ink-quiet)]">
+          {note}
+        </p>
+      )}
+      {chain !== null && chain.commanded && chain.level > 0 && (
+        <div className="-mr-[14px] -ml-4 pt-2">
+          <LotControl
+            chain={chain}
+            seat={seat}
+            loadedAt={view.loadedAt}
+            now={now}
+            observing={view.me.defeated}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * **Le quartier général en carte** : ce qu'il porte et sa marche suivante. Les nombres sont ceux
+ * de la colonne du bureau (`HeadquartersColumn`), servis ou lus dans `constants.ts`.
+ */
+function HeadquartersCard({
+  view,
+  seat,
+  now,
+  focused,
+  onQueued,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  focused: string | null;
+  onQueued: (queued: Queued) => void;
+}) {
+  const hq = view.me.buildings.find((building) => building.key === 'hq') ?? null;
+  const card = useFocusRow<HTMLDivElement>(hq !== null && focused === hq.id);
+  if (hq === null)
+    return (
+      <p className="mx-3 border-2 border-[var(--ink)] p-3 text-[12.5px] leading-[1.5] text-[var(--critical)]">
+        {fr.economy.hqMissing}
+      </p>
+    );
+  const level = view.me.hqLevel;
+  return (
+    <div ref={card} className="mx-3 border-2 border-[var(--ink)] p-3">
+      <div className="flex items-center gap-3">
+        <BuildingPlate building="hq" height={50} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {fr.works.hqWhere(regionName(view, hq.regionId))}
+          </div>
+          <div className="mt-[3px] font-(family-name:--font-display) text-[21px] font-extrabold first-letter:uppercase">
+            {fr.economy.hqLevelLine(level, MAX_HQ_LEVEL)}
+          </div>
+        </div>
+      </div>
+      <div className="mt-[10px] text-[10px] font-bold tracking-[.16em] uppercase">
+        {fr.economy.hqCarriesHeader}
+      </div>
+      <div className="mt-[5px] grid grid-cols-2 gap-x-3 gap-y-1 text-[13px] text-[var(--ink-quiet)]">
+        <span>{fr.economy.hqSlots(view.me.slots.total)}</span>
+        <span>
+          {fr.economy.hqPlacements(
+            view.me.siteSlots.find((budget) => sameSite(budget.site, HOME_SITE))?.total ?? 0,
+          )}
+        </span>
+        <span>{fr.economy.hqChainSpeed(chainSpeed(level).toFixed(2))}</span>
+        <span>
+          {level >= view.me.tier2HqLevel
+            ? fr.economy.hqTier2
+            : fr.economy.hqTier2Locked(view.me.tier2HqLevel)}
+        </span>
+      </div>
+      <div className="mt-3">
+        <RaiseControl building={hq} view={view} seat={seat} now={now} onQueued={onQueued} wide />
       </div>
     </div>
   );

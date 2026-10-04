@@ -11,7 +11,7 @@ import {
   type BoardWindow,
 } from '@/routes/-plateau/board-search';
 import { AbacusMark } from '@/routes/-plateau/GunneryButton';
-import { Glyph } from './Glyph';
+import { PressGlyph, SettingsGlyph, TelegraphGlyph } from './Glyph';
 import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
@@ -47,7 +47,7 @@ export function SurfaceRail({
         ? `${fr.rail.telegraph.title} — ${fr.rail.telegraphUnread(telegraphUnread)}`
         : fr.rail.telegraph.title,
     label: fr.rail.telegraph.label,
-    icon: <TelegraphIcon />,
+    icon: <TelegraphGlyph />,
     target: toggled('telegraph'),
     active: windowOpen(search, 'telegraph'),
     unread: telegraphUnread,
@@ -78,7 +78,7 @@ export function SurfaceRail({
     {
       title: fr.rail.press.title,
       label: fr.rail.press.label,
-      icon: <FoldedPaperIcon />,
+      icon: <PressGlyph />,
       target: toggled('press'),
       active: windowOpen(search, 'press'),
     },
@@ -118,7 +118,7 @@ export function SurfaceRail({
               : 'border-transparent text-[var(--paper-dim)] hover:text-[var(--paper)]'
           }`}
         >
-          <SettingsIcon />
+          <SettingsGlyph />
         </Link>
         <div
           title={
@@ -231,44 +231,3 @@ const LIT_INK: Readonly<Record<IndicatorCategory, string | undefined>> = {
   inbound: 'var(--critical)',
   intel: 'var(--routine)',
 };
-
-/**
- * **Un manipulateur morse** : le levier sur son pivot, le bouton à la main, deux étincelles.
- * Dessiné et non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire
- * pour lui, exactement comme la bascule des bâtiments et l'icône des réglages.
- */
-function TelegraphIcon() {
-  return (
-    <Glyph>
-      <path d="M3 15.5h11" />
-      <path d="M5 11.5h7" />
-      <path d="M9.5 11.5v4" />
-      <circle cx="5" cy="11.5" r="1.3" />
-      <path d="M14 8.2l1.8-1.7M16.4 9.4l2.3-.7" />
-    </Glyph>
-  );
-}
-
-/**
- * **Un journal plié** : la pliure au milieu, la manchette et trois lignes de colonne. Tracé et
- * non massicoté comme les onze pictogrammes — il n'existe pas de planche à cuire pour lui, et le
- * pictogramme `journal` est déjà pris par le bouton du bandeau, dont il serait le sosie.
- */
-function FoldedPaperIcon() {
-  return (
-    <Glyph>
-      <path d="M3 5h14v10H3z" />
-      <path d="M10 5v10" />
-      <path d="M5 8h3M5 11h3M12 8h3M12 11h3" />
-    </Glyph>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <Glyph>
-      <path d="M4 6.5h12M4 13.5h12" />
-      <path d="M8 4.5v4M13 11.5v4" />
-    </Glyph>
-  );
-}

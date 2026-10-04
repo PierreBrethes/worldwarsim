@@ -4,8 +4,10 @@ import { api } from '../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import type { Telegraph, TelegraphMessage } from '@/data/telegraph';
-import { MESSAGE_MAX_CHARS } from '@/domain/telegraph';
+import { asPressDate } from '@/domain/duration';
+import { MESSAGE_MAX_CHARS, threadLayout } from '@/domain/telegraph';
 import type { Seat } from '@/data/session';
+import { useNarrowScreen } from './viewport';
 
 /** À partir d'où le décompte paraît : plus tôt, il compterait par-dessus l'épaule du joueur. */
 const COUNTDOWN_FROM = 60;
@@ -42,6 +44,7 @@ export function TelegraphThread({
   height: number | 'fill';
   autoFocus?: boolean;
 }) {
+  const narrow = useNarrowScreen();
   const post = useMutation(api.messages.post);
   const [draft, setDraft] = useState('');
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -91,19 +94,25 @@ export function TelegraphThread({
           const box = event.currentTarget;
           pinned.current = box.scrollHeight - box.scrollTop - box.clientHeight <= NEAR_BOTTOM_PX;
         }}
-        className={height === 'fill' ? 'min-h-0 flex-1 overflow-y-auto' : 'min-h-0 overflow-y-auto'}
+        className={`min-h-0 overflow-y-auto overscroll-contain ${height === 'fill' ? 'flex-1' : ''} ${
+          narrow ? 'flex flex-col px-3 py-[10px]' : ''
+        }`}
         style={height === 'fill' ? undefined : { height }}
       >
         {telegraph.messages.length === 0 ? (
           <p className="py-6 text-center text-[12.5px] text-[var(--ink-soft)] italic">
             {fr.telegraph.empty}
           </p>
+        ) : narrow ? (
+          <Bands messages={telegraph.messages} />
         ) : (
           telegraph.messages.map((message) => <Line key={message.id} message={message} />)
         )}
       </div>
 
-      <div className="mt-[8px] shrink-0">
+      <div
+        className={`shrink-0 ${narrow ? 'border-t-2 border-[var(--ink)] px-3 pt-[10px] pb-3' : 'mt-[8px]'}`}
+      >
         <div className="flex items-center gap-2">
           <input
             ref={field}
@@ -116,13 +125,21 @@ export function TelegraphThread({
               send();
             }}
             placeholder={fr.telegraph.placeholder}
-            className="telegraph-field min-w-0 flex-1 border border-[var(--ink-quiet)] max-md:min-h-11 bg-transparent px-[9px] py-[6px] text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] focus:border-[var(--ink)]"
+            className={`telegraph-field min-w-0 flex-1 border text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] ${
+              narrow
+                ? 'min-h-[46px] border-[var(--ink)] bg-(--paper)/50 px-3 focus:outline-2 focus:outline-[var(--interaction)]'
+                : 'border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] focus:border-[var(--ink)]'
+            }`}
           />
           <button
             type="button"
             onClick={send}
             disabled={draft.trim().length === 0}
-            className="shrink-0 cursor-pointer bg-[var(--ink)] px-3 py-[7px] max-md:min-h-11 text-[9px] tracking-[.2em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-40"
+            className={`shrink-0 cursor-pointer bg-[var(--ink)] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-40 ${
+              narrow
+                ? 'min-h-[46px] px-4 text-[11px] font-bold tracking-[.18em]'
+                : 'px-3 py-[7px] text-[9px] tracking-[.2em]'
+            }`}
           >
             {fr.telegraph.send}
           </button>
@@ -161,7 +178,7 @@ function Line({ message }: { message: TelegraphMessage }) {
         </span>
         <span className="flex-1" />
         <span className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-note)]">
-          {new Date(message.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+          {timeOf(message.at)}
         </span>
       </div>
       <p className="mt-[2px] text-[13.5px] leading-[1.45] break-words text-[var(--ink)]">
@@ -169,4 +186,66 @@ function Line({ message }: { message: TelegraphMessage }) {
       </p>
     </div>
   );
+}
+
+/**
+ * **Le fil du téléphone** (refonte mobile, 1i) : les messages qui se suivent d'un même joueur se
+ * rangent sous un seul nom, en bandes serrées ; les siens à droite, à l'encre ; ceux des autres à
+ * gauche, le nom teinté de leur nation. Une date traverse le fil à chaque jour nouveau. Le bureau
+ * garde ses lignes justifiées — c'est la largeur d'un téléphone qui demande qu'on voie d'un coup
+ * d'œil qui parle.
+ */
+function Bands({ messages }: { messages: ReadonlyArray<TelegraphMessage> }) {
+  return threadLayout(messages).map(({ entry: message, opensDay, opensRun }) => (
+    <div key={message.id} className="contents">
+      {opensDay && (
+        <div className="my-2 flex items-center gap-[10px] text-[9.5px] tracking-[.18em] text-[var(--ink-note)] uppercase first:mt-0">
+          <span className="h-px flex-1 bg-(--ink)/30" />
+          {dayOf(message.at)}
+          <span className="h-px flex-1 bg-(--ink)/30" />
+        </div>
+      )}
+      <div
+        className={`flex max-w-[86%] flex-col ${message.mine ? 'items-end self-end' : 'items-start self-start'} ${
+          opensRun ? 'mt-2' : 'mt-[2px]'
+        }`}
+      >
+        {opensRun && (
+          <div className="mx-[2px] mb-[2px] flex items-baseline gap-2">
+            <span
+              title={message.mine ? undefined : nationLabel(message.nation)}
+              className="text-[9.5px] font-bold tracking-[.18em] uppercase"
+              style={{ color: message.mine ? 'var(--ink-soft)' : message.ink }}
+            >
+              {message.mine ? fr.telegraph.you : message.nickname}
+            </span>
+            <span className="font-(family-name:--font-mono) text-[9.5px] text-[var(--ink-note)]">
+              {timeOf(message.at)}
+            </span>
+          </div>
+        )}
+        <p
+          className={`border px-2 pt-1 pb-[5px] text-[14.5px] leading-[1.3] break-words ${
+            message.mine
+              ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
+              : 'border-(color:--ink)/35 bg-(--paper)/45 text-[var(--ink)]'
+          }`}
+        >
+          {message.text}
+        </p>
+      </div>
+    </div>
+  ));
+}
+
+const timeOf = (at: number) =>
+  new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+/** « aujourd'hui », « hier », puis la date de presse : le fil se lit comme un carnet. */
+function dayOf(at: number): string {
+  const day = new Date(at).toDateString();
+  const today = new Date();
+  if (day === today.toDateString()) return fr.telegraph.today;
+  today.setDate(today.getDate() - 1);
+  return day === today.toDateString() ? fr.telegraph.yesterday : asPressDate(at);
 }

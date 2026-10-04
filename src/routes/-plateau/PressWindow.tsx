@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { fr, nationLabel } from '@/i18n/fr';
-import { asLocalTime } from '@/domain/duration';
+import { asClockTime, asLocalTime } from '@/domain/duration';
 import type { PressEdition, PressLine, PressOwnLine } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
+import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
@@ -29,7 +30,15 @@ export function PressWindow({
   onClose,
   ...windowProps
 }: WindowProps & { press: PressEdition | null }) {
-  const [sort, setSort] = useState<SortKey>('territory');
+  const narrow = useNarrowScreen();
+  const [sort, setSort] = useState<SortKey>(narrow ? 'general' : 'territory');
+
+  if (narrow)
+    return (
+      <FloatingWindow name="press" onClose={onClose} {...windowProps} width={1040}>
+        <NarrowPress press={press} sort={sort} onSort={setSort} onClose={onClose} />
+      </FloatingWindow>
+    );
 
   return (
     <FloatingWindow name="press" onClose={onClose} {...windowProps} alignment="top" width={1040}>
@@ -96,6 +105,21 @@ type Row = PressLine & { readonly own: PressOwnLine | null };
 
 const GRID = 'grid-cols-[36px_32px_minmax(0,150px)_minmax(150px,1fr)_96px_120px_116px]';
 
+/** Les lignes de l'édition, la mienne recousue parmi les autres à son rang. */
+const rowsOf = (press: PressEdition): ReadonlyArray<Row> => [
+  ...press.others.map((line) => ({ ...line, own: null })),
+  ...(press.mine === null ? [] : [{ ...press.mine, playerId: 'me', own: press.mine }]),
+];
+
+/** Le tri du territoire est l'ordre servi, et le but de la saison. Il est stable sur le rang,
+ *  sinon deux parts égales échangeraient de place au moindre repeint. */
+const sortedBy = (rows: ReadonlyArray<Row>, sort: SortKey): ReadonlyArray<Row> =>
+  [...rows].sort((left, right) =>
+    sort === 'territory'
+      ? left.rank - right.rank
+      : right[sort] - left[sort] || left.rank - right.rank,
+  );
+
 function Table({
   press,
   sort,
@@ -105,26 +129,14 @@ function Table({
   sort: SortKey;
   onSort: (key: SortKey) => void;
 }) {
-  const narrow = useNarrowScreen();
-  const rows: ReadonlyArray<Row> = [
-    ...press.others.map((line) => ({ ...line, own: null })),
-    ...(press.mine === null
-      ? []
-      : [{ ...press.mine, playerId: 'me', general: press.mine.general, own: press.mine }]),
-  ];
-  /** Le tri par défaut est celui du territoire — l'ordre servi, et le but de la saison. Il est
-   *  stable sur le rang, sinon deux parts égales échangeraient de place au moindre repeint. */
-  const ordered = [...rows].sort((left, right) =>
-    sort === 'territory' ? left.rank - right.rank : right[sort] - left[sort],
-  );
+  const rows = rowsOf(press);
+  const ordered = sortedBy(rows, sort);
   const best = Object.fromEntries(
     (['territory', 'general', 'deeds'] as const).map((key) => [
       key,
       Math.max(...rows.map((row) => row[key])),
     ]),
   ) as Record<SortKey, number>;
-
-  if (narrow) return <NarrowTable rows={ordered} best={best} sort={sort} onSort={onSort} />;
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -185,93 +197,14 @@ function Table({
   );
 }
 
-/**
- * **Quatre colonnes sur un téléphone** (piste A, A5) : le rang, la nation et son pseudo sur deux
- * lignes, le territoire, le score. Les faits d'armes cèdent la place — ils restent dans « nos
- * registres », sous ma ligne, et au bureau. La ligne du joueur est teintée, comme au bureau.
- */
-const NARROW_GRID = 'grid-cols-[26px_minmax(0,1fr)_62px_62px]';
-
-function NarrowTable({
-  rows,
-  best,
-  sort,
-  onSort,
-}: {
-  rows: ReadonlyArray<Row>;
-  best: Record<SortKey, number>;
-  sort: SortKey;
-  onSort: (key: SortKey) => void;
-}) {
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div
-        className={`grid ${NARROW_GRID} items-center gap-x-[8px] border-b border-[var(--ink)] px-3 text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase`}
-      >
-        <span>{fr.press.columns.rank}</span>
-        <span>{fr.press.columnsShort.nation}</span>
-        <SortHeader column="territory" sort={sort} onSort={onSort} short />
-        <SortHeader column="general" sort={sort} onSort={onSort} short />
-      </div>
-      {rows.map((row) => (
-        <div key={row.playerId}>
-          <div
-            className={`grid ${NARROW_GRID} items-center gap-x-[8px] border-b border-(color:--ink)/16 px-3 py-[9px] ${
-              row.own === null ? '' : 'bg-(--ink)/8'
-            }`}
-            style={row.defeated ? { opacity: 0.45 } : undefined}
-          >
-            <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
-              {row.rank}
-            </span>
-            <span className="flex min-w-0 items-center gap-[8px]">
-              <Flag nation={row.nation} width={22} onPaper />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate font-(family-name:--font-display) text-[16px] leading-[1.1] font-extrabold text-[var(--ink)]">
-                  {nationLabel(row.nation)}
-                </span>
-                <span
-                  className={`truncate text-[11.5px] text-[var(--ink-soft)] ${row.own === null ? '' : 'font-bold'}`}
-                >
-                  {row.nickname}
-                </span>
-              </span>
-              {row.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
-            </span>
-            <NarrowFigure
-              value={fr.press.percent(row.territory)}
-              lead={row.territory === best.territory}
-            />
-            <NarrowFigure value={fr.press.score(row.general)} lead={row.general === best.general} />
-          </div>
-          {row.own !== null && <Registers own={row.own} />}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function NarrowFigure({ value, lead }: { value: string; lead: boolean }) {
-  return (
-    <span
-      className="text-right font-(family-name:--font-mono) text-[13px] whitespace-nowrap"
-      style={{ color: lead ? 'var(--critical)' : 'var(--ink)' }}
-    >
-      {value}
-    </span>
-  );
-}
-
 function SortHeader({
   column,
   sort,
   onSort,
-  short = false,
 }: {
   column: SortKey;
   sort: SortKey;
   onSort: (key: SortKey) => void;
-  short?: boolean;
 }) {
   const label = fr.press.columns[column];
   return (
@@ -285,7 +218,7 @@ function SortHeader({
           : 'border-transparent text-[var(--ink-soft)] hover:text-[var(--ink)]'
       }`}
     >
-      <span>{short ? fr.press.columnsShort[column] : label}</span>
+      <span>{label}</span>
       <span className="text-[8px]">▼</span>
     </button>
   );
@@ -353,7 +286,7 @@ function Registers({ own }: { own: PressOwnLine }) {
   ];
 
   return (
-    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-(--ink)/4 px-[18px] pt-3 pb-[14px] max-md:ml-3 max-md:px-3">
+    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-(--ink)/4 px-[18px] pt-3 pb-[14px]">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--ink)] pb-[6px]">
         <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
           {said.title}
@@ -366,7 +299,7 @@ function Registers({ own }: { own: PressOwnLine }) {
           {fr.press.ownRegisters}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-x-[18px] max-md:grid-cols-2 max-md:gap-y-3">
+      <div className="mt-3 grid grid-cols-5 gap-x-[18px]">
         {cells.map((cell) => (
           <div
             key={cell.label}
@@ -382,6 +315,296 @@ function Registers({ own }: { own: PressOwnLine }) {
               <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
                 {cell.delta}
               </span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Une variation lue d'un coup d'œil : le gain au vert, la perte au rouge, l'immobilité à l'encre. */
+function Delta({ value, decimals = 0 }: { value: number; decimals?: number }) {
+  const said = fr.press.delta(value, decimals);
+  return (
+    <span
+      className="font-(family-name:--font-mono) text-[10.5px]"
+      style={{
+        color: said === '=' ? 'var(--ink-soft)' : value > 0 ? 'var(--valid)' : 'var(--critical)',
+      }}
+    >
+      {said}
+    </span>
+  );
+}
+
+const MINUTE = 60_000;
+
+/**
+ * **La presse du téléphone : son rang d'abord, puis la table** (refonte mobile, 1j). On l'ouvre
+ * pour savoir où l'on en est : le rang passe en tête, le score général le premier, avec ce qui a
+ * bougé depuis l'édition précédente. La table se classe au score — territoire et faits d'armes
+ * restent lisibles en second — et ma ligne reste collée au pied tant qu'elle n'est pas à
+ * l'écran. La prochaine édition se compte à rebours. Un seul défilement, l'en-tête collé.
+ */
+function NarrowPress({
+  press,
+  sort,
+  onSort,
+  onClose,
+}: {
+  press: PressEdition | null;
+  sort: SortKey;
+  onSort: (key: SortKey) => void;
+  onClose: () => void;
+}) {
+  const now = useClock(MINUTE);
+  const mine = press?.mine ?? null;
+  const wait = press?.next == null ? null : Math.max(0, Math.round((press.next - now) / MINUTE));
+
+  return (
+    <div className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]">
+      <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
+        <div className="flex h-[50px] items-center gap-[10px] pr-3 pl-4">
+          <span className="font-(family-name:--font-display) text-[21px] leading-none font-extrabold tracking-[.08em] uppercase">
+            {fr.press.title}
+          </span>
+          <span className="flex-1 text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {fr.press.kicker}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
+          >
+            {fr.common.close}
+          </button>
+        </div>
+        {press !== null && (
+          <div className="flex flex-wrap justify-between gap-x-3 gap-y-[3px] px-4 pb-[9px] font-(family-name:--font-mono) text-[10.5px]">
+            <span className="whitespace-nowrap text-[var(--ink-soft)]">
+              {fr.press.capturedAt(asClockTime(press.at))}
+            </span>
+            {press.final ? (
+              <Stamp label={fr.press.final} size="small" />
+            ) : (
+              press.next !== null &&
+              wait !== null && (
+                <span className="text-right whitespace-nowrap text-[var(--notable-paper)]">
+                  {fr.press.nextIn(asClockTime(press.next), Math.floor(wait / 60), wait % 60)}
+                </span>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
+      {press === null ? (
+        <p className="px-6 py-12 text-center font-(family-name:--font-display) text-[18px] leading-[1.45] text-[var(--ink-quiet)] italic">
+          {fr.press.none}
+        </p>
+      ) : (
+        <>
+          {mine !== null && (
+            <div className="flex items-center gap-4 border-b border-[var(--ink)] px-4 pt-4 pb-[14px]">
+              <span className="font-(family-name:--font-display) text-[64px] leading-[.8] font-extrabold text-[var(--critical)]">
+                {mine.rank}
+                <span className="align-top text-[24px]">{mine.rank === 1 ? 'ᵉʳ' : 'ᵉ'}</span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Flag nation={mine.nation} width={26} onPaper />
+                  <span className="truncate font-(family-name:--font-display) text-[22px] font-extrabold">
+                    {nationLabel(mine.nation)}
+                  </span>
+                  <span className="truncate text-[12.5px] text-[var(--ink-soft)]">
+                    {mine.nickname}
+                  </span>
+                </div>
+                <div className="mt-[10px] grid grid-cols-[repeat(3,auto)] items-end justify-between gap-[10px]">
+                  <Headline label={fr.press.columns.general} lead>
+                    <span className="font-(family-name:--font-display) text-[26px] leading-none font-extrabold">
+                      {fr.press.score(mine.general)}
+                    </span>
+                    {mine.delta && <Delta value={mine.delta.general} />}
+                  </Headline>
+                  <Headline label={fr.press.columns.deeds}>
+                    <span className="font-(family-name:--font-mono) text-[15px] font-medium">
+                      {fr.press.score(mine.deeds)}
+                    </span>
+                    {mine.delta && <Delta value={mine.delta.deeds} />}
+                  </Headline>
+                  <Headline label={fr.press.columns.territory}>
+                    <span className="font-(family-name:--font-mono) text-[15px] font-medium">
+                      {fr.press.percent(mine.territory)}
+                    </span>
+                    {mine.delta && <Delta value={mine.delta.territory} decimals={1} />}
+                  </Headline>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div
+            role="radiogroup"
+            className="mx-4 mt-3 mb-[6px] grid grid-cols-3 border border-[var(--ink)]"
+          >
+            {(['general', 'deeds', 'territory'] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={sort === key}
+                onClick={() => onSort(key)}
+                className={`min-h-[40px] cursor-pointer border-l border-[var(--ink)] text-[10.5px] font-semibold tracking-[.1em] uppercase first:border-l-0 ${
+                  sort === key ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
+                }`}
+              >
+                {fr.press.columns[key]}
+              </button>
+            ))}
+          </div>
+          <div className="flex border-b border-[var(--ink)] px-4 pt-2 pb-[6px] text-[9.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            <span className="w-[34px]">{fr.press.columns.rank}</span>
+            <span className="flex-1">{fr.press.columns.nation}</span>
+            <span>{fr.press.columns[sort]}</span>
+          </div>
+          {sortedBy(rowsOf(press), sort).map((row) => (
+            <RankLine key={row.playerId} row={row} sort={sort} />
+          ))}
+
+          {mine !== null && <NarrowRegisters own={mine} />}
+          <p className="px-4 pt-[10px] pb-[26px] font-(family-name:--font-text) text-[13px] text-[var(--ink-note)] italic">
+            {fr.press.frozen}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Headline({
+  label,
+  lead = false,
+  children,
+}: {
+  label: string;
+  lead?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex flex-col gap-[2px]">
+      <span
+        className={`text-[9.5px] tracking-[.14em] uppercase ${lead ? 'font-bold' : 'text-[var(--ink-soft)]'}`}
+      >
+        {label}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** **Ma ligne reste au pied tant qu'elle n'est pas à l'écran** : on cherche d'abord où l'on est,
+ *  et la table défile par-dessus sans la perdre. */
+function RankLine({ row, sort }: { row: Row; sort: SortKey }) {
+  const main =
+    sort === 'territory'
+      ? fr.press.percent(row.territory)
+      : sort === 'general'
+        ? fr.press.score(row.general)
+        : fr.press.score(row.deeds);
+  const side =
+    sort === 'territory'
+      ? [fr.press.points(row.general), fr.press.deedsCount(row.deeds)]
+      : sort === 'general'
+        ? [fr.press.percent(row.territory), fr.press.deedsCount(row.deeds)]
+        : [fr.press.percent(row.territory), fr.press.points(row.general)];
+  return (
+    <div
+      className={`flex min-h-[60px] items-center gap-[10px] border-b border-(color:--ink)/20 px-4 py-[6px] ${
+        row.own === null
+          ? ''
+          : 'sticky bottom-0 z-[1] bg-[color-mix(in_srgb,var(--paper),var(--ink)_8%)]'
+      }`}
+      style={row.defeated ? { opacity: 0.55 } : undefined}
+    >
+      <span className="w-[24px] font-(family-name:--font-display) text-[22px] font-extrabold">
+        {row.rank}
+      </span>
+      <Flag nation={row.nation} width={26} onPaper />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-(family-name:--font-display) text-[17px] leading-[1.1] font-bold">
+          {nationLabel(row.nation)}
+        </div>
+        <div className="mt-[2px] flex items-center gap-[6px] text-[12px] text-[var(--ink-soft)]">
+          <span className="truncate">{row.nickname}</span>
+          {row.own !== null && (
+            <span className="shrink-0 text-[9.5px] font-bold tracking-[.16em] whitespace-nowrap text-[var(--ink)] uppercase">
+              · {fr.press.you}
+            </span>
+          )}
+          {row.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold">
+          {main}
+        </div>
+        <div className="mt-[2px] font-(family-name:--font-mono) text-[10.5px] whitespace-nowrap text-[var(--ink-soft)]">
+          {side.join(' · ')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** « Nos registres », en lignes : le seul endroit du jeu où le détail existe, et sa variation. */
+function NarrowRegisters({ own }: { own: PressOwnLine }) {
+  const said = fr.press.registers;
+  const lines: ReadonlyArray<{
+    label: string;
+    value: string;
+    delta: number | null;
+    decimals?: number;
+  }> = [
+    { label: said.general, value: fr.press.score(own.general), delta: own.delta?.general ?? null },
+    {
+      label: said.territory,
+      value: fr.press.percent(own.territory),
+      delta: own.delta?.territory ?? null,
+      decimals: 1,
+    },
+    {
+      label: said.industry,
+      value: fr.press.score(own.industry),
+      delta: own.delta?.industry ?? null,
+    },
+    {
+      label: said.military,
+      value: fr.press.score(own.military),
+      delta: own.delta?.military ?? null,
+    },
+    { label: said.deeds, value: fr.press.score(own.deeds), delta: own.delta?.deeds ?? null },
+  ];
+  return (
+    <section className="px-4 pt-[18px] pb-2">
+      <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[6px]">
+        <span className="font-(family-name:--font-display) text-[18px] font-extrabold first-letter:uppercase">
+          {said.title}
+        </span>
+        <span className="text-[11.5px] text-[var(--ink-note)]">
+          {own.since === null ? said.noPrevious : said.since(asClockTime(own.since))}
+        </span>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_56px] items-baseline gap-x-3 gap-y-[7px] pt-2 text-[14px]">
+        {lines.map((line, rank) => (
+          <div key={line.label} className="contents">
+            <span className={rank === 0 ? 'font-bold' : ''}>{line.label}</span>
+            <span className={`font-(family-name:--font-mono) ${rank === 0 ? 'font-semibold' : ''}`}>
+              {line.value}
+            </span>
+            <span className="text-right">
+              {line.delta !== null && <Delta value={line.delta} decimals={line.decimals ?? 0} />}
             </span>
           </div>
         ))}

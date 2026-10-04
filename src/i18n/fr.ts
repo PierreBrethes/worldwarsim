@@ -567,6 +567,8 @@ export const fr = {
     players: (count: number) => `${count} joueur${plural(count, '', 's')}`,
     slot: '1 slot',
     dash: '—',
+    /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
+    levelShort: (level: number) => `niv ${level}`,
   },
 
   /**
@@ -898,17 +900,11 @@ export const fr = {
     none: 'Aucune édition n’a encore paru — la première tombe trois heures après le lancement.',
     columns: {
       rank: 'rang',
+      nation: 'nation',
       pseudo: 'pseudo',
       territory: 'territoire',
       general: 'score général',
       deeds: 'faits d’armes',
-    },
-    /** Sous le seuil la table tient quatre colonnes (A5) : les en-têtes s'y abrègent. */
-    columnsShort: {
-      nation: 'nation',
-      territory: 'terr.',
-      general: 'score',
-      deeds: 'faits',
     },
     /** Le tri est une lecture, jamais un ordre : la page n'envoie rien, et l'ordre servi reste
      *  celui du territoire — le but de la saison (79a). */
@@ -935,6 +931,18 @@ export const fr = {
         : `${value > 0 ? '+' : '−'}${decimal(Math.abs(value), decimals)}`,
     percent: (value: number): string => `${decimal(value, 1)} %`,
     score: (value: number): string => decimal(value, 0),
+    /** Le rang de la dernière édition, à la française : « 1ᵉʳ », puis « 2ᵉ ». */
+    ordinal: (rank: number): string => (rank === 1 ? '1ᵉʳ' : `${rank}ᵉ`),
+    /** **Sous le seuil, la prochaine édition se compte à rebours** (refonte mobile, 1j) : on
+     *  ouvre la presse pour savoir où l'on en est, et quand on le saura de nouveau. */
+    nextIn: (time: string, hours: number, minutes: number) =>
+      `prochaine ${time} · dans ${hours > 0 ? `${hours} h ${String(minutes).padStart(2, '0')}` : `${minutes} min`}`,
+    points: (value: number): string => `${decimal(value, 0)} pts`,
+    deedsCount: (value: number): string => `${decimal(value, 0)} fait${plural(value, '', 's')}`,
+    you: 'vous',
+    /** Ce que la page tient de son propre dispositif — la seule phrase d'explication qu'elle
+     *  s'autorise, sous la table. */
+    frozen: 'Entre deux éditions, recruter ne déplace pas un chiffre de la page.',
   },
 
   rail: {
@@ -965,24 +973,56 @@ export const fr = {
   },
 
   /**
-   * **La barre de pied, sous 768 px** (piste A, passe 2) : cinq entrées, et « plus » qui ouvre un
-   * étage pour ce qu'on cherche à froid. Les libellés sont ceux de la maquette, en capitales par
-   * la feuille de style.
+   * **La barre de pied, sous 768 px** (refonte mobile du 04/10) : cinq entrées, « à faire » au
+   * centre. « Plus » est parti — ce qu'on cherche à froid s'ouvre au drapeau du bandeau
+   * (`dossier`) — et les chantiers en sont sortis, parce qu'on les ouvre souvent. Les libellés
+   * sont ceux de la maquette, en capitales par la feuille de style.
    */
   foot: {
-    todo: 'à faire',
+    works: 'chantiers',
     journal: 'journal',
-    telegraph: 'télégraphe',
+    todo: 'à faire',
     press: 'presse',
-    more: 'plus',
-    nation: 'nation',
-    economy: 'économie',
-    gunnery: 'abaque de tir',
-    settings: 'réglages',
-    layers: 'calques',
+    telegraph: 'télégraphe',
     layersTitle: 'Calques de la carte',
-    /** Le rang de la dernière édition, à la française : « 1er », puis « 2e ». */
-    rank: (rank: number) => (rank === 1 ? '1er' : `${rank}e`),
+  },
+
+  /**
+   * **La colonne « En cours »** (refonte mobile, 1a) : chaque compte à rebours du joueur, du plus
+   * proche au plus lointain. Les libellés sont en capitales par la feuille de style.
+   */
+  underway: {
+    header: 'en cours',
+    fold: 'replier la colonne « en cours »',
+    unfold: 'déplier la colonne « en cours »',
+    locate: (label: string) => `${label} — recentrer la carte`,
+    movement: (type: string, destination: string) => `${type} → ${destination}`,
+    construction: (building: string, level: number) => `${building} → niveau ${num(level)}`,
+    raise: (level: number) => `avant-poste → niveau ${num(level)}`,
+    foundation: (country: string) => `fondation · ${country}`,
+    recruitment: (region: string) => `recrutement · ${region}`,
+    lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
+  },
+
+  /**
+   * **Le dossier de la nation, sous le drapeau du bandeau** (refonte mobile, 1s) : tout ce qu'on
+   * cherche à froid, une ligne par porte, et la phrase sous chacune dit ce qu'on y trouve.
+   */
+  dossier: {
+    open: (nation: string) => `${nation} — ouvrir le dossier de la nation`,
+    seasonDay: (season: number, day: number) => `saison ${season}, jour ${day}`,
+    rank: (ordinal: string) => `${ordinal} au score`,
+    nation: 'Fiche de nation',
+    nationNote: (troops: number) =>
+      `${num(troops)} troupe${plural(troops, '', 's')}, nos registres, entretien`,
+    gunnery: 'Abaque de tir',
+    gunneryNote: 'qui bat qui — tout le matériel du jeu',
+    layers: 'Calques de la carte',
+    layersNote: (lit: number, total: number) =>
+      `${lit} sur ${total} allumé${plural(lit, '', 's')} — aussi sur la carte`,
+    settings: 'Réglages',
+    settingsNote: 'son du télégraphe, notifications, échelle',
+    briefingNote: 'les gestes, le terrain, vos bureaux',
   },
 
   indicatorCategories: {
@@ -1166,6 +1206,19 @@ export const fr = {
      *  non-lues en numéral et ne garde ici que le mot qui l'accorde. */
     unreadLabel: (count: number) => `non lue${plural(count, '', 's')}`,
     allRead: 'tout est lu',
+    /** **Sous le seuil, des filtres et non des colonnes** (refonte mobile, 1h) : trois colonnes ne
+     *  tiennent pas dans 390 px, et un défilement par colonne serait trois défilements. */
+    filters: {
+      all: 'tout',
+      unread: (count: number) => `non lues ${count}`,
+      critical: 'alertes',
+      notable: 'notables',
+      routine: 'routine',
+    },
+    sinceLastVisit: 'depuis votre dernière visite',
+    earlier: 'plus tôt — déjà lues',
+    noneFiltered: 'Aucune dépêche de cette sorte.',
+    showOnMap: 'voir sur la carte',
     worldEvents: {
       title: 'événements mondiaux',
       note: 'signalements publics',
@@ -1365,6 +1418,8 @@ export const fr = {
     /** A column left standing on the map (ADR 0019 §3), named the same way. */
     postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
     postedAtSea: 'en campagne — en mer',
+    /** Le même état, nommé par la région sous la pile quand la carte la connaît. */
+    postedIn: (place: string) => `en campagne — ${place}`,
     /** Le lieu seul, pour une ligne qui dit déjà de quoi elle parle : « 1 troupe sans ordre —
      *  en mer », où « en campagne — en mer » dirait deux fois la même chose. */
     atSea: 'en mer',
@@ -1389,6 +1444,11 @@ export const fr = {
      * l'état — et la carte trace son cercle de détection. La fenêtre reste pour composer une pile.
      */
     badgeKicker: 'troupe',
+    /** Sous le seuil la feuille n'a pas de point d'ancrage à côté du sprite : son surtitre dit
+     *  où se tient ce qu'elle décrit (refonte mobile, 1b). */
+    badgeKickerAt: (where: string) => `troupe · ${where}`,
+    /** Le cachet de la feuille du téléphone : l'état et son prix, sans la phrase du bureau. */
+    unsuppliedStamp: (factor: number) => `hors ravitaillement ×${factor}`,
     badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
     /** Ce que la fenêtre « visée armée » disait d'unique, et la seule chose qu'elle disait :
      *  combien de troupes partent ensemble (décision du 30/08). */
@@ -1492,6 +1552,10 @@ export const fr = {
         ? 'pile : aucune troupe cochée'
         : `pile : ${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')}`,
     lootShort: (capacity: number) => `butin : ${num(capacity)}`,
+    /** Les raccourcis de la composition sous le seuil (refonte mobile, 1e). */
+    pickAll: 'tout',
+    pickNone: 'aucune',
+    pickRole: (role: string, count: number) => `${role} ×${count}`,
     prepare: 'préparer un mouvement',
     /** Founding is what a column does where it stands (ADR 0019 §1) — the terrain is under its
      *  feet when the specialisation is chosen, which is why the choice lives here. */
@@ -1537,8 +1601,38 @@ export const fr = {
     kicker: (count: number, from: string) =>
       `visée · ${count} troupe${plural(count, '', 's')} depuis ${from}`,
     slots: (used: number, total: number) => `mouv. ${used} / ${total}`,
-    reach: (km: number, time: string) => `${km} km · arrivée ${time}`,
     pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées, celles hors champ s’annoncent au bord.',
+    /** **Les trois plus proches sous le pouce** (refonte mobile, 1b) : la carte reste la porte, la
+     *  feuille en offre un raccourci. */
+    pickShort: 'Touchez une cible cerclée, ou :',
+    allTargets: (count: number) => `toutes les cibles (${count})`,
+    fewerTargets: 'les plus proches',
+  },
+
+  /**
+   * **La feuille d'ordre, sous le seuil** (refonte mobile, 1c) : le type d'ordre s'y choisit, et
+   * l'envoi s'y tient appuyé — rien d'irréversible en un toucher.
+   */
+  orderSheet: {
+    kicker: 'ordre de mouvement',
+    from: (count: number, origin: string) =>
+      `${count} troupe${plural(count, '', 's')} depuis ${origin}`,
+    duration: 'durée',
+    arrival: 'arrivée',
+    route: (leg: string, km: number, count: number, strength: number) =>
+      `${leg} · ${num(km)} km · ${count} troupe${plural(count, '', 's')}, effectif ${num(strength)}`,
+    hold: 'tenir pour envoyer',
+    holding: 'maintenez…',
+    holdNote: 'irréversible · 1 slot',
+  },
+
+  /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
+  sent: {
+    stamp: 'transmis',
+    title: (order: string, destination: string) => `${order} — ${destination}`,
+    line: (time: string, used: number, total: number) =>
+      `arrivée ${time} · mouvements ${used} / ${total}`,
+    follow: 'suivre',
   },
 
   /**
@@ -1784,6 +1878,47 @@ export const fr = {
     cancel: 'annuler',
   },
 
+  /**
+   * **« Chantiers », la fenêtre Économie du téléphone** (refonte mobile, 1f et 1g) : un seul
+   * défilement, l'en-tête collé, quatre onglets qui y mènent. Les phrases de l'Économie y sont
+   * reprises telles quelles ; celles-ci n'existent que parce que la ligne d'un site y porte son
+   * bouton et sa facture.
+   */
+  works: {
+    header: 'chantiers',
+    tabs: { underway: 'en cours', sites: 'sites', chains: 'filière', hq: 'QG' },
+    remaining: 'restant',
+    raising: (region: string, from: number, to: number) => `en ${region} · niveau ${from} → ${to}`,
+    queueNote: 'payé d’avance · remboursé si annulé',
+    sitesHeader: 'les sites',
+    sitesNote: 'un toucher met en file',
+    families: {
+      extraction: 'extraction',
+      transformation: 'transformation',
+      projection: 'projection',
+      command: 'commandement',
+    },
+    raise: (level: number, duration: string) => `▲ niv ${level} · ${duration}`,
+    raiseTitle: (name: string, level: number) =>
+      `mettre ${lowerFirst(name)} en file pour le niveau ${level}`,
+    cost: (amount: number, abbreviation: string) => `${num(amount)} ${abbreviation}.`,
+    underway: (time: string) => `en chantier · ${time}`,
+    queued: (rank: number) => `en file · ${rank}ᵉ`,
+    lacking: (amount: number, resource: string) => `il manque ${num(amount)} ${resource}`,
+    queuedToast: (name: string, region: string, rank: number) =>
+      `${name} en ${region} — ${rank}ᵉ en file`,
+    startedToast: (name: string, region: string) => `${name} en ${region} — chantier en cours`,
+    toastNote: 'payé d’avance — remboursé intégralement si annulé',
+    chainsLead:
+      'Une ligne par ressource : son débit réel, son état, et ce qui manque. Les réserves restent au bandeau.',
+    deposits: (count: number) => `gisement${plural(count, '', 's')} ×${count}`,
+    linkLevel: (building: string, level: number) => `${building} · ${level}`,
+    lot: (made: number, ordered: number) => `lot ${made} / ${ordered}`,
+    /** L'heure du chantier remonte à l'en-tête une fois sa carte passée. */
+    headCountdown: (building: string, time: string) => `${lowerFirst(building)} · ${time}`,
+    hqWhere: (region: string) => `quartier général · ${region}`,
+  },
+
   upgrade: {
     action: 'améliorer',
     title: (name: string, level: number) => `passer ${name} au niveau ${level}`,
@@ -1966,7 +2101,8 @@ export const fr = {
 
     /** Le goulot central du jeu (ADR 0015), lu là où l'on décide quoi poser ensuite — **sur le
      *  site**, jamais sur la nation (ADR 0020 §10). */
-    budgetTaken: (taken: number, total: number) => `${taken} emplacements sur ${total}`,
+    budgetTaken: (taken: number, total: number) =>
+      `${taken} emplacement${plural(taken, '', 's')} sur ${total}`,
     /**
      * **Le site plein dit son remède, à l'endroit où le joueur décide quoi poser.** L'ordre de
      * mobilisation dit quoi poser gratuitement ; celle-ci dit quand monter le QG — même règle
@@ -2112,6 +2248,9 @@ export const fr = {
     /** Le décompte ne paraît qu'à l'approche de la borne : un compteur permanent transforme une
      *  conversation en formulaire. */
     remaining: (left: number) => `${left} caractère${plural(left, '', 's')}`,
+    you: 'vous',
+    today: 'aujourd’hui',
+    yesterday: 'hier',
   },
 
   settingsWindow: {
@@ -2210,46 +2349,76 @@ export const fr = {
     kicker: 'entrée en campagne',
     header: 'aide-mémoire du commandement',
     subtitle: 'Notice à l’usage de l’officier nouvellement affecté',
+    /**
+     * **La notice suit la main et l'écran** : les gestes de la souris ou ceux du doigt, les
+     * bureaux du rail ou ceux du téléphone (refonte mobile — le « ? » du coin de carte n'existe
+     * plus sous le seuil, ses gestes vivent ici). Le terrain, lui, est le même partout.
+     */
     columns: (
       scoutRadiusKm: number,
       contactRadiusKm: number,
       outpostReachKm: number,
-      mapping: MouseMapping,
-    ) => [
-      {
-        title: 'La carte et la souris',
-        lines: [
-          `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
-          `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
-          `La rose des vents : ${fr.mapUi.mouse.click[buttonOfRole(mapping, 'act')]} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-          'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
-          'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
-          'Le « ? » en bas à droite rouvre les commandes à tout moment.',
-        ],
-      },
-      {
-        title: 'Lire le terrain',
-        lines: [
-          'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
-          'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
-          `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
-          `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
-          `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
-          'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
-          'Clic droit sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.',
-        ],
-      },
-      {
-        title: 'Vos bureaux',
-        lines: [
-          'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
-          'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
-          'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
-          'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
-          'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
-        ],
-      },
-    ],
+      hand: { readonly finger: boolean; readonly phone: boolean; readonly mapping: MouseMapping },
+    ) => {
+      const act = hand.finger
+        ? 'toucher net'
+        : fr.mapUi.mouse.click[buttonOfRole(hand.mapping, 'act')];
+      return [
+        hand.finger
+          ? {
+              title: 'La carte et le doigt',
+              lines: [
+                'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
+                'La rose des vents propose ce que ce point accepte, et rien d’autre.',
+                'Une troupe touchée est armée : touchez une cible cerclée, ou l’un des raccourcis de sa fiche. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
+                'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
+              ],
+            }
+          : {
+              title: 'La carte et la souris',
+              lines: [
+                `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
+                `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
+                `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
+                'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
+                'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
+                'Le « ? » en bas à droite rouvre les commandes à tout moment.',
+              ],
+            },
+        {
+          title: 'Lire le terrain',
+          lines: [
+            'Les gisements ne sont le secret de personne : la géologie de 1940 est fixe. La carte les montre sur les terres où vous pouvez bâtir.',
+            'Vous voyez ce que vous tenez. Le reste dort dans le brouillard — ni bâtiments, ni avant-postes adverses.',
+            `Une troupe posée observe : elle relève les mouvements qui passent à moins de ${scoutRadiusKm} km. Un fil, un cap, une heure estimée — jamais le type, jamais la nation.`,
+            `Une pile à vous porte deux cercles : le trait plein est ce qu’elle touche — ${contactRadiusKm} km, la portée de contact ; le tireté est ce qu’elle voit.`,
+            `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Il se conteste, il ne se prend pas.`,
+            'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — un emplacement de plus et le rayon suivant, payés dans la file de chantier.',
+            `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
+          ],
+        },
+        hand.phone
+          ? {
+              title: 'Vos bureaux',
+              lines: [
+                'Au pied de l’écran : chantiers, journal, « à faire », presse, télégraphe. Une entrée ouverte se referme d’un second toucher.',
+                'Le drapeau du bandeau ouvre le dossier de la nation : sa fiche, l’abaque de tir, les calques de la carte, les réglages, et cette feuille.',
+                '« En cours », sous le bandeau : chaque compte à rebours, du plus proche au plus lointain. Un toucher y recentre la carte.',
+                '« À faire » : vos poses offertes et tout ce qui attend un ordre.',
+              ],
+            }
+          : {
+              title: 'Vos bureaux',
+              lines: [
+                'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
+                'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
+                'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
+                'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
+                'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
+              ],
+            },
+      ];
+    },
     foot: 'Cette feuille se relit depuis les Réglages.',
     dismiss: 'compris',
     dismissTitle: 'fermer l’aide-mémoire',
@@ -2309,6 +2478,8 @@ export const fr = {
   },
 
   mapUi: {
+    /** Le bouton qui ramène la carte chez soi, sous le seuil (refonte mobile, 1a). */
+    recenter: 'recentrer sur le quartier général',
     /**
      * **Aucune phrase de la carte ne nomme un bouton en dur** : quel bouton oriente, déplace ou
      * agit est une préférence (`mouseMapping`), et une notice qui répondrait « clic droit » à un
@@ -2589,8 +2760,12 @@ export const fr = {
     stackPlace: (place: string, troops: number) => `${place} · ${troops}`,
     /** Deux cartouches qui se chevauchent n'en font qu'un : les piles, puis les troupes. */
     stackGroup: (piles: number, troops: number) => `${piles} piles · ${troops}`,
-    buildingGroup: (buildings: number) => `${buildings} bâtiments`,
+    buildingGroup: (buildings: number) => `${buildings} sites`,
     groupZoom: (caption: string) => `${caption} — rapprocher pour les séparer`,
+    /** **Des mâts d'une même région ne se sépareront jamais** (refonte mobile, 1r) : la pile
+     *  s'ouvre en liste, une ligne par site. */
+    groupList: (caption: string) => `${caption} — ouvrir la liste`,
+    groupHeader: (caption: string, region: string) => `${caption} · ${region}`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la

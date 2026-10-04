@@ -116,8 +116,8 @@ export function BottomSheet({
             <h2
               className={
                 kicker
-                  ? 'min-w-0 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
-                  : 'min-w-0 truncate font-(family-name:--font-display) text-[18px] leading-none font-extrabold tracking-[.02em] first-letter:uppercase'
+                  ? 'line-clamp-2 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
+                  : 'line-clamp-2 min-w-0 font-(family-name:--font-display) text-[18px] leading-[1.05] font-extrabold tracking-[.02em] first-letter:uppercase'
               }
             >
               {title}
@@ -128,7 +128,7 @@ export function BottomSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-[44px] cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+                className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
               >
                 {fr.common.close}
               </button>

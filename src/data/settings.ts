@@ -36,6 +36,16 @@ export const keepResourceBandCollapsed = (collapsed: boolean): void => {
   localStorage.setItem(RESOURCE_BAND_KEY, collapsed ? 'collapsed' : 'expanded');
 };
 
+const UNDERWAY_KEY = 'wws-underway';
+
+/** La colonne « En cours » repliée est un choix de la main, comme le bandeau du bureau : il
+ *  survit au rechargement, et ce qui vient de partir s'y montre déplié malgré lui. */
+export const readUnderwayFolded = (): boolean => localStorage.getItem(UNDERWAY_KEY) === 'folded';
+
+export const keepUnderwayFolded = (folded: boolean): void => {
+  localStorage.setItem(UNDERWAY_KEY, folded ? 'folded' : 'open');
+};
+
 const GESTURE_HINT_KEY = 'wws-gesture-hint';
 
 /**

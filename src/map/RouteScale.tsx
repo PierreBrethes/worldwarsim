@@ -11,8 +11,8 @@ import type { ArcView } from '@/domain/player-view';
  * double the timeline and eat the contrast budget that belongs to the board.
  */
 const MEDIUM_INK: Readonly<Record<Medium, string>> = {
-  land: '#c98a3c',
-  sea: 'rgba(201,138,60,.55)',
+  land: 'var(--arc-mine)',
+  sea: 'color-mix(in srgb, var(--arc-mine) 55%, transparent)',
   air: '#e0a552',
 };
 

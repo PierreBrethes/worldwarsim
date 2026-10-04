@@ -3,10 +3,14 @@ import { fr, roleLabel, stackLabel } from '@/i18n/fr';
 import { representativeRole, tierLabel } from '@/domain/troops';
 import type { CargoView, Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import type { Destination } from '@/map/WorldMap';
+import { Stamp } from '@/shell/Stamp';
 import { useNarrowScreen } from '@/shell/viewport';
+import { AimTargets } from './AimingSheet';
 import { MapCard } from './MapCard';
 import { GunneryButton } from './GunneryButton';
 import { CargoReadout } from './CargoReadout';
+import { StrengthBar } from './StrengthBar';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Ce cartouche dit ce que la vue du
@@ -28,13 +32,18 @@ import { CargoReadout } from './CargoReadout';
 export function TroopBadge({
   nation,
   troops,
+  where,
   at,
   aiming,
   cargo,
+  destinations,
+  onPick,
   onOpenGunnery,
   onClose,
 }: {
   nation: string;
+  /** Où elle se tient, en toutes lettres : le surtitre de la feuille du téléphone. */
+  where: string;
   /** La force désignée, une troupe ou la pile entière qu'une garnison a armée. Jamais vide. */
   troops: ReadonlyArray<TroopView>;
   at: { x: number; y: number };
@@ -48,6 +57,10 @@ export function TroopBadge({
     readonly cargo: CargoView;
     readonly carriers: number;
   }>;
+  /** Les destinations de la colonne, de la plus proche à la plus lointaine : sous le seuil, la
+   *  feuille en offre le raccourci (refonte mobile, 1b). */
+  destinations: ReadonlyArray<Destination>;
+  onPick: (destination: Destination) => void;
   /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
    *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
   onOpenGunnery: () => void;
@@ -62,6 +75,75 @@ export function TroopBadge({
   // Une seule troupe hors ravitaillement suffit à le dire : la ligne nomme le surcoût, et le
   // surcoût est payé dès qu'il y en a une.
   const supplied = troops.every((troop) => troop.supplied);
+  const name =
+    troops.length > 1
+      ? stackLabel(stackOf(troops))
+      : `${roleLabel(lead.role, 1)} · ${tierLabel(lead.tier)}`;
+  const scouting = fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)));
+
+  /**
+   * **Sous le seuil, une fiche de 230 px et la visée sous le pouce** (refonte mobile, 1b) : le
+   * nom en vedette, l'effectif sur sa barre, l'état en cachet, puis les cibles les plus proches.
+   * L'en-tête ne tient qu'une ligne — il prenait un tiers de la feuille.
+   */
+  if (narrow) {
+    return (
+      <MapCard
+        kicker={fr.troops.badgeKickerAt(where)}
+        aside={
+          <button
+            type="button"
+            onClick={onOpenGunnery}
+            className="shrink-0 cursor-pointer border border-(color:--ink)/45 px-[10px] text-[10px] font-semibold tracking-[.14em] uppercase"
+          >
+            {fr.rail.gunnery.label}
+          </button>
+        }
+        at={at}
+        gap={{ x: ANCHOR_GAP, y: 14 }}
+        width={228}
+        onClose={onClose}
+      >
+        <div className="flex items-center gap-3">
+          <UnitSprite nation={nation} role={lead.role} height={50} width={34} />
+          <div className="min-w-0 flex-1">
+            <div className="font-(family-name:--font-display) text-[23px] leading-[1.05] font-extrabold">
+              {name}
+            </div>
+            <div className="mt-[6px] flex items-center gap-[10px]">
+              <span className="font-(family-name:--font-mono) text-[12px] whitespace-nowrap text-[var(--ink-quiet)]">
+                {fr.troops.strength(strength, nominal)}
+              </span>
+              <span className="max-w-[110px] min-w-0 flex-1">
+                <StrengthBar strength={strength} nominal={nominal} height={5} />
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-[6px] pt-2">
+          {!supplied && (
+            <Stamp
+              label={fr.troops.unsuppliedStamp(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+              tone="critical"
+              size="small"
+            />
+          )}
+          {troops.length > 1 && (
+            <span className="text-[11px] font-semibold tracking-[.1em] text-[var(--ink-soft)] uppercase">
+              {fr.troops.badgePile(troops.length)}
+            </span>
+          )}
+          <span className="text-[11px] font-semibold tracking-[.1em] text-[var(--ink-soft)] uppercase">
+            {scouting}
+          </span>
+        </div>
+        {cargo.map((group) => (
+          <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
+        ))}
+        {aiming && <AimTargets destinations={destinations} onPick={onPick} />}
+      </MapCard>
+    );
+  }
 
   return (
     <MapCard
@@ -75,11 +157,7 @@ export function TroopBadge({
       <div className="mt-[7px] flex items-center gap-[9px]">
         <UnitSprite nation={nation} role={lead.role} height={28} width={40} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-bold text-[var(--ink)] max-md:font-(family-name:--font-display) max-md:text-[20px] max-md:leading-[1.15] max-md:font-extrabold">
-            {troops.length > 1
-              ? stackLabel(stackOf(troops))
-              : `${roleLabel(lead.role, 1)} · ${tierLabel(lead.tier)}`}
-          </span>
+          <span className="block truncate text-[13px] font-bold text-[var(--ink)]">{name}</span>
           <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
             {fr.troops.strength(strength, nominal)}
           </span>
@@ -101,9 +179,7 @@ export function TroopBadge({
       </p>
 
       {/* Ce que le cercle tracé sur la carte veut dire, une fois, à côté de lui (ADR 0019 §5). */}
-      <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-        {fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)))}
-      </p>
+      <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">{scouting}</p>
 
       {cargo.map((group) => (
         <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
@@ -112,18 +188,14 @@ export function TroopBadge({
       {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste
             qui reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin
             lit. Un observateur n'a plus d'ailleurs à viser : le pied se tait pour lui. */}
-      {/* Sous le seuil il n'y a ni clic droit ni Échap : la feuille dit le toucher, et c'est son
-          « fermer » qui désarme. */}
       {aiming && (
         <>
           <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
-            {narrow ? fr.aimSheet.pick : fr.troops.badgeAiming}
+            {fr.troops.badgeAiming}
           </p>
-          {!narrow && (
-            <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
-              {fr.troops.badgeDisarm}
-            </p>
-          )}
+          <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
+            {fr.troops.badgeDisarm}
+          </p>
         </>
       )}
     </MapCard>

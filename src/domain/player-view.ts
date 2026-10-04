@@ -1124,3 +1124,32 @@ export function currentStock(resource: Resource, loadedAt: number, now: number):
 export function currentMinutes(minutesLeft: number, loadedAt: number, now: number): number {
   return Math.max(0, minutesLeft - Math.max(0, now - loadedAt) / 60_000);
 }
+
+/**
+ * **Le jour de la saison, compté depuis un** : la vingt-cinquième heure ouvre le jour 2. Sans
+ * horloge il n'y a pas de « sur n » — le jour se compte encore, la fin ne se promet pas — et une
+ * saison qui déborde de sa durée reste à son dernier jour.
+ */
+export function seasonDayOf(season: PlayerView['season']): {
+  readonly day: number;
+  readonly totalDays: number | null;
+} {
+  const totalDays = season.durationHours === null ? null : Math.ceil(season.durationHours / 24);
+  const elapsedDay = Math.floor(season.elapsedHours / 24) + 1;
+  return { day: totalDays === null ? elapsedDay : Math.min(totalDays, elapsedDay), totalDays };
+}
+
+/**
+ * **La fin d'un lot se date au débit qu'il tiendra.** `perHour` est le débit réglé sur l'heure
+ * qui vient, et la fin d'un lot le borne — trois unités restantes sur une ligne qui en fait trois
+ * à l'heure se lisent une à l'heure, et le compte à rebours triplerait. Une ligne qui tourne
+ * tourne au nominal ; seule une ligne bridée se date à ce qu'elle a tenu. `null` quand rien ne
+ * court, ou que rien n'avance : on ne date pas un lot arrêté.
+ */
+export function lotFinishesAt(chain: ChainView, loadedAt: number): number | null {
+  const { order } = chain;
+  if (order === null || order.produced >= order.ordered) return null;
+  const rate = chain.state === 'running' ? chain.nominalPerHour : chain.perHour;
+  if (rate <= 0) return null;
+  return loadedAt + ((order.ordered - order.produced) / rate) * 3_600_000;
+}

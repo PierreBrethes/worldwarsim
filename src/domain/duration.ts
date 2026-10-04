@@ -15,6 +15,16 @@ export const asDuration = (minutes: number) => {
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 };
 
+/**
+ * **Le compte à rebours plié** : « 1:29 », heures et minutes, là où il n'y a pas la place de
+ * trois champs — la colonne « En cours » repliée, le coin d'une entrée de la barre de pied.
+ * L'horloge complète est un toucher plus loin, et c'est elle qui bat à la seconde.
+ */
+export const asShortDuration = (minutes: number) => {
+  const total = Math.max(0, Math.floor(minutes));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+};
+
 export const asLocalTime = (instant: number) =>
   new Date(instant).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
