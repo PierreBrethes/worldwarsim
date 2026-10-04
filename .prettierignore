@@ -6,6 +6,7 @@ src/routeTree.gen.ts
 convex/_generated
 WWS
 Claude outputs
+.design-sync
 public
 package-lock.json
 *.md

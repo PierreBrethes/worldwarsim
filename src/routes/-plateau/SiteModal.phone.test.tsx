@@ -1,0 +1,195 @@
+// @vitest-environment jsdom
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { ConvexProvider, type ConvexReactClient } from 'convex/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fr } from '@/i18n/fr';
+import { RESOURCES } from '@/domain/ids';
+import type { PlayerView } from '@/domain/player-view';
+import type { Seat } from '@/data/session';
+import { SiteModal } from './SiteModal';
+
+/**
+ * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : former, la file et la
+ * garnison en onglets ; ce que le site n'ouvre pas encore descend sous « plus haut » avec sa
+ * condition ; ce qui retient un rôle ouvert se dit à la place du bouton.
+ */
+const NOW = Date.UTC(2026, 9, 4, 14, 0);
+const sent = vi.fn();
+let workshop: unknown;
+const client = {
+  watchQuery: () => ({
+    localQueryResult: () => workshop,
+    onUpdate: () => () => {},
+    journal: () => undefined,
+  }),
+  mutation: (_reference: unknown, args: unknown) => {
+    sent(args);
+    return Promise.resolve({ cost: { alloy: 18 }, rank: 0, recruitmentId: 'R-new' });
+  },
+} as unknown as ConvexReactClient;
+
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('max-width'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
+  sent.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
+
+const SEAT = { token: 'jeton', seasonId: 'saison' } as unknown as Seat;
+const priced = (alloy: number, minutes: number, strength: number) => ({ alloy, minutes, strength });
+const GRID = [
+  {
+    role: 'infantry',
+    tiers: 2,
+    producedBy: 'barracks',
+    unlockedAtHqLevel: 0,
+    unlockedAtSiteLevel: 1,
+    unit: priced(18, 16, 50),
+    unitTier2: priced(29, 26, 30),
+  },
+  {
+    role: 'landTransport',
+    tiers: 1,
+    producedBy: 'barracks',
+    unlockedAtHqLevel: 0,
+    unlockedAtSiteLevel: 2,
+    unit: priced(40, 37, 24),
+    unitTier2: null,
+  },
+  {
+    role: 'armor',
+    tiers: 2,
+    producedBy: 'barracks',
+    unlockedAtHqLevel: 0,
+    unlockedAtSiteLevel: 3,
+    unit: priced(95, 57, 12),
+    unitTier2: priced(152, 91, 6),
+  },
+];
+const workshopWith = (
+  queue: ReadonlyArray<unknown>,
+  { inService = 3, cap = 12 }: { inService?: number; cap?: number } = {},
+) => ({
+  loadedAt: NOW,
+  hqLevel: 1,
+  tier2Unlocked: true,
+  requiredHqLevel: 2,
+  maxQueue: 5,
+  troopCap: cap,
+  troopsInService: inService,
+  troopsQueued: queue.length,
+  facilities: [{ id: 'B-1', key: 'barracks', domain: 'land', level: 1, regionName: 'Nord', queue }],
+  roster: [{ role: 'infantry', tier: 1, count: 3 }],
+  grid: GRID,
+});
+
+const resource = (stock: number) => ({ stock, ratePerHour: 0, cap: 1_000 });
+const view = {
+  loadedAt: NOW,
+  arcs: [],
+  me: {
+    nation: 'france',
+    defeated: false,
+    troops: [],
+    stationedCargo: [],
+    construction: null,
+    constructionQueue: [],
+    resources: Object.fromEntries(RESOURCES.map((key) => [key, resource(500)])),
+    regions: [{ id: 'FR-NOR', name: 'Nord', linked: true }],
+    buildings: [
+      {
+        id: 'B-1',
+        key: 'barracks',
+        name: 'Caserne',
+        regionId: 'FR-NOR',
+        level: 1,
+        cappedByHq: false,
+        nextLevelCost: { alloy: 72 },
+        nextLevelMinutes: 72,
+      },
+    ],
+  },
+} as unknown as PlayerView;
+
+const mount = () =>
+  render(
+    <ConvexProvider client={client}>
+      <SiteModal
+        view={view}
+        seat={SEAT}
+        buildingId="B-1"
+        rank={0}
+        inFront
+        onBringForward={() => {}}
+        onOpenGunnery={() => {}}
+        onPrepare={() => {}}
+        onClose={() => {}}
+      />
+    </ConvexProvider>,
+  );
+
+describe('a site sheet on a phone', () => {
+  it('forms what the site opens and sends the rest under « plus haut » with its condition', () => {
+    workshop = workshopWith([]);
+    mount();
+
+    expect(screen.getByText(fr.production.sheet.capFree(9, 12))).toBeTruthy();
+    expect(screen.getByText(fr.production.sheet.opens(2, 'le transport terrestre'))).toBeTruthy();
+    expect(screen.getByText(fr.production.sheet.waits('le blindé', 3))).toBeTruthy();
+    expect(screen.getByText(fr.production.formsIn('une caserne', 3))).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /\+ 1 troupe/ })).toHaveLength(1);
+
+    act(() => screen.getByRole('button', { name: 'MK2' }).click());
+    act(() => screen.getByRole('button', { name: /\+ 1 troupe/ }).click());
+    expect(sent).toHaveBeenCalledWith(
+      expect.objectContaining({ buildingId: 'B-1', role: 'infantry', tier: 2 }),
+    );
+  });
+
+  it('says the ceiling in place of the button once it is reached', () => {
+    workshop = workshopWith([], { inService: 12 });
+    mount();
+
+    expect(screen.getByText(fr.production.sheet.capFull(12))).toBeTruthy();
+    expect(screen.getByText(fr.production.sheet.capReached(12))).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /\+ 1 troupe/ })).toBeNull();
+  });
+
+  it('lists the queue from the nearest to the farthest, only the waiting ones cancellable', () => {
+    workshop = workshopWith([
+      { id: 'R-1', role: 'infantry', tier: 1, strength: 50, started: true, minutesLeft: 12 },
+      { id: 'R-2', role: 'infantry', tier: 2, strength: 30, started: false, minutesLeft: 38 },
+    ]);
+    mount();
+
+    const queueTab = screen.getByRole('tab', { name: /file/ });
+    expect(queueTab.textContent).toContain('2');
+    act(() => queueTab.click());
+
+    expect(screen.getByText(fr.production.sheet.running)).toBeTruthy();
+    expect(screen.getByText('Infanterie MK1')).toBeTruthy();
+    expect(screen.getByText(fr.production.sheet.rank(2))).toBeTruthy();
+    const cancels = screen.getAllByRole('button', { name: fr.production.cancel });
+    expect(cancels).toHaveLength(1);
+
+    act(() => cancels[0]!.click());
+    expect(sent).toHaveBeenCalledWith(expect.objectContaining({ recruitmentId: 'R-2' }));
+  });
+
+  it('says what stands nowhere when the garrison is empty', () => {
+    workshop = workshopWith([]);
+    mount();
+
+    act(() => screen.getByRole('tab', { name: /garnison/ }).click());
+    expect(screen.getByText(fr.production.sheet.garrisonEmpty.land)).toBeTruthy();
+  });
+});

@@ -1836,9 +1836,56 @@ export const fr = {
     opening: 'Ouverture du site…',
     domains: { land: 'terre', air: 'air', sea: 'mer' },
     queueHeader: 'files de production',
-    /** **Les sections de la modale sur téléphone** (retour de Pierre, 04/10) : une seule feuille
-     *  qui défile, dans l'ordre où l'on décide — monter le site, former, suivre, composer. */
-    narrowSections: { raise: 'le site', form: 'former ici', queue: 'la file' },
+    /**
+     * **La feuille d'un site sur téléphone** (refonte mobile, 2a à 2c) : un seul gabarit pour la
+     * caserne, le port et l'aérodrome — former, la file, la garnison en onglets, le plafond collé
+     * sous eux. Ce qui n'est pas encore ouvert descend sous « plus haut » avec sa condition.
+     */
+    sheet: {
+      tabs: { form: 'former', queue: 'file', garrison: 'garnison' },
+      capLine: (inService: number, queued: number) => `${inService} en service · ${queued} en file`,
+      capFree: (free: number, cap: number) =>
+        `${free} place${plural(free, '', 's')} libre${plural(free, '', 's')} sur ${cap}`,
+      capFull: (cap: number) => `plafond atteint — ${cap} sur ${cap}`,
+      siteKicker: (level: number) => `le site · niveau ${level}`,
+      opens: (level: number, roles: string) => `Le niveau ${level} ouvre ${roles}`,
+      waits: (role: string, level: number) => `${role} attend le niveau ${level}`,
+      and: ' et ',
+      formHeader: 'former ici',
+      formNote: 'un toucher, une troupe',
+      lockedHeader: 'Plus haut',
+      lockedNote: 'le site doit monter',
+      bill: (alloy: number, duration: string) => `${alloy} all. · ${duration}`,
+      /** La raison à la place du bouton, jamais un bouton grisé (ADR 0015). */
+      capReached: (cap: number) =>
+        `Plafond atteint — ${cap} troupes sur ${cap}. Montez les baraquements.`,
+      queueFull: (max: number) => `File pleine — ${max} lots sur ${max}.`,
+      alloyShort: (missing: number) => `Il manque ${missing} alliage.`,
+      running: 'en chaîne',
+      remaining: 'restant',
+      deliveredAround: (time: string) => `livrée vers ${time}`,
+      waitingHeader: 'en attente',
+      waitingNote: 'payé d’avance · remboursé si annulé',
+      rank: (rank: number) => `${rank}ᵉ`,
+      queueEmptyTitle: 'Aucune troupe en chaîne.',
+      queueEmptyNote:
+        'La première troupe enfilée commence aussitôt ; les suivantes attendent leur tour et restent remboursables.',
+      queueNote: (aSecond: string) =>
+        `Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : ${aSecond} forme en parallèle.`,
+      garrisonEmpty: {
+        land: 'Personne au quartier.',
+        sea: 'Rien n’est à quai.',
+        air: 'Rien n’est au parc.',
+      },
+      garrisonEmptyNote: 'Ce que le site forme s’y tient jusqu’au premier mouvement.',
+      /** Une troupe en tête de file a commencé : le cartouche le dit, sans offrir un « annuler »
+       *  qui mentirait. */
+      toastRunning: (name: string, time: string) => `${name} — en chaîne · vers ${time}`,
+      toastQueued: (name: string, rank: number, time: string) =>
+        `${name} — ${rank}ᵉ en file · vers ${time}`,
+      toastRunningNote: 'commencée aussitôt : une troupe commencée ne s’annule plus',
+      toastQueuedNote: 'payé d’avance — remboursé intégralement si annulé',
+    },
     /** La modale ne parle que d'un site : le nom du bâtiment, sa région et son niveau sont son
      *  kicker, et le bandeau de garnison compte ce qui s'y tient. */
     siteLevel: (level: number) => `niveau ${level}`,
@@ -2886,6 +2933,18 @@ export const theBuilding = (key: BuildingKey): string => {
     ? `l’${name}`
     : `${fr.buildingGender[key] === 'f' ? 'la' : 'le'} ${name}`;
 };
+
+/** `le blindé`, `l’escorte` — a role designated, for the sentence that says what a level opens. */
+export const theRole = (role: UnitRole): string => {
+  const name = fr.roles[role].one;
+  return startsWithVowel(name)
+    ? `l’${name}`
+    : `${fr.roleGender[role] === 'f' ? 'la' : 'le'} ${name}`;
+};
+
+/** `une seconde caserne`, `un second port` — the building a parallel queue would need. */
+export const aSecondBuilding = (key: BuildingKey): string =>
+  `${fr.buildingGender[key] === 'f' ? 'une seconde' : 'un second'} ${lowerFirst(fr.buildings[key])}`;
 
 /** `une caserne`, `un aérodrome` — the sentence that names the remedy. */
 export const aBuilding = (key: BuildingKey): string =>

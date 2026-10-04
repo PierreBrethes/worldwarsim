@@ -2,7 +2,7 @@
 type: prompt
 statut: livré
 maj: 2026-10-04
-code: [src/shell/NarrowBand.tsx, src/shell/FootBar.tsx, src/shell/LayersSheet.tsx, src/shell/BottomSheet.tsx, src/domain/underway.ts, src/routes/-plateau/UnderwayColumn.tsx, src/routes/-plateau/MovementPreview.tsx, src/routes/-plateau/AimingSheet.tsx, src/routes/-plateau/TroopBadge.tsx, src/routes/-plateau/SentNotice.tsx, src/routes/-plateau/GarrisonStack.tsx, src/routes/-plateau/EconomyWindow.tsx, src/routes/-plateau/JournalWindow.tsx, src/shell/TelegraphThread.tsx, src/routes/-plateau/PressWindow.tsx, src/domain/label-groups.ts, src/map/MapLabels.tsx, src/map/CompassRose.tsx, src/i18n/fr.ts]
+code: [src/routes/-plateau/SiteModal.tsx, src/routes/-plateau/RaiseControl.tsx, src/shell/NarrowBand.tsx, src/shell/FootBar.tsx, src/shell/LayersSheet.tsx, src/shell/BottomSheet.tsx, src/domain/underway.ts, src/routes/-plateau/UnderwayColumn.tsx, src/routes/-plateau/MovementPreview.tsx, src/routes/-plateau/AimingSheet.tsx, src/routes/-plateau/TroopBadge.tsx, src/routes/-plateau/SentNotice.tsx, src/routes/-plateau/GarrisonStack.tsx, src/routes/-plateau/EconomyWindow.tsx, src/routes/-plateau/JournalWindow.tsx, src/shell/TelegraphThread.tsx, src/routes/-plateau/PressWindow.tsx, src/domain/label-groups.ts, src/map/MapLabels.tsx, src/map/CompassRose.tsx, src/i18n/fr.ts]
 decisions: []
 voir: [mobile-3-ordres.md, mobile-2-cadre.md, ../../design/plateau-sur-telephone-2.md]
 ---
@@ -86,9 +86,26 @@ télégraphe gardent leur marge.
 Retours de Pierre sur iPhone 13 Pro (04/10) : le bandeau ne dessine plus les cases des slots,
 le compte suffit ; les tuiles de la barre de pied descendent jusqu'au bord de l'écran (le creux
 de la barre d'accueil passe dans chaque tuile, sous son mot) ; la modale de site — caserne, port,
-aérodrome — a une branche téléphone (`NarrowSite`) qui défile d'un seul tenant, en-tête collé,
-sections « le site », « former ici », « la file », « garnison », un rôle par ligne
-(`RoleLine`, même règle que la carte du bureau par `roleTermsOf`).
+aérodrome — a une branche téléphone (`NarrowSite`) qui défile d'un seul tenant, en-tête collé.
+
+**Planches 2a à 2c (recrutement, 04/10).** `NarrowSite` suit désormais la section « Recrutement —
+caserne, port, aérodrome » de la maquette : en-tête, trois onglets **former / file / garnison**
+(comptes de la file et de la garnison) et plafond commun collés ensemble ; sous « former », le bloc
+« le site » (ce que le niveau suivant ouvre, ce qui attend plus haut, et le bouton d'élévation des
+Chantiers — `RaiseControl`, sorti d'`EconomyWindow.tsx` pour son second appelant), une carte par
+rôle ouvert (MK1 / MK2 et « + 1 troupe » avec prix et durée), puis « Plus haut » pour les rôles que
+le site n'ouvre pas encore, avec leur condition. Ce qui retient un rôle ouvert se dit à la place du
+bouton, en pointillé rouge, dans l'ordre des refus de `troops.recruit` : QG, plafond, file pleine,
+alliage. La file montre la troupe en chaîne (compte à rebours, barre, heure de livraison) puis les
+suivantes avec rang, heure et « annuler » ; un cartouche suit chaque mise en file, avec « annuler »
+tant que la troupe n'a pas commencé. Règle commune avec la carte du bureau : `roleTermsOf`.
+Test : `SiteModal.phone.test.tsx`.
+
+Écarts à 2a–2c : l'onglet garnison porte la composition de 1e (`GarrisonStack`) elle-même plutôt
+qu'une liste et un bouton « composer une pile » qui n'ouvrirait qu'elle ; le bloc « le site »
+n'existe que s'il reste un rôle fermé (2c : tout est ouvert, le niveau se monte depuis Chantiers) ;
+une tête de file que la famine laisse non datée reste « en attente » et annulable ; MK2 reste
+désactivé tant que le QG ne l'ouvre pas, comme au bureau. Pas de relevé sur écran pour ce lot.
 
 ## Ce qui reste
 

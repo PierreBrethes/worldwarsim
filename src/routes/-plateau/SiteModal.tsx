@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from 'convex/react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { aBuilding, fr, roleLabel } from '@/i18n/fr';
+import { aBuilding, aSecondBuilding, fr, roleLabel, theRole } from '@/i18n/fr';
 import { useClock } from '@/shell/clock';
 import { Stamp } from '@/shell/Stamp';
 import { handleError } from '@/data/errors';
@@ -15,14 +15,16 @@ import {
   DOMAIN_BY_ROLE,
   marchingTroopIds,
   stationKeyOf,
+  TIERS_BY_ROLE,
   tierLabel,
   troopsAt,
 } from '@/domain/troops';
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
-import { currentMinutes } from '@/domain/player-view';
-import { asDuration } from '@/domain/duration';
+import { currentMinutes, currentStock } from '@/domain/player-view';
+import { asClockTime, asDuration } from '@/domain/duration';
 import { produces } from '@/domain/economy';
 import { UpgradeControl } from './UpgradeControl';
+import { RaiseControl } from './RaiseControl';
 import { DragHandle } from './Draggable';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
@@ -130,7 +132,10 @@ function Site({
   /** **Nul, l'ordre n'existe pas** — c'est ainsi que l'observateur lit la fiche sans qu'elle lui
    *  promette une compagnie : un bouton grisé se lit comme « pas encore », et ce n'est pas « pas
    *  encore ». */
-  const enqueueOf = (role: UnitRole): (() => void) | null =>
+  const enqueueOf = (
+    role: UnitRole,
+    onRecruited?: (recruitmentId: string) => void,
+  ): (() => void) | null =>
     observing
       ? null
       : () => {
@@ -140,7 +145,7 @@ function Site({
             buildingId: building.id as Id<'buildings'>,
             role,
             tier: tiers[role] ?? 1,
-          }).catch(onFailure);
+          }).then(({ recruitmentId }) => onRecruited?.(recruitmentId), onFailure);
         };
   const cancelOf = (batch: Batch): (() => void) | null =>
     observing
@@ -379,12 +384,16 @@ function roleTermsOf(entry: GridEntry, tier: UnitTier, hqLevel: number, siteLeve
   };
 }
 
+type SheetTab = 'form' | 'queue' | 'garrison';
+
+/** Le temps qu'on laisse au cartouche pour se lire, et à son « annuler » pour servir. */
+const RECRUITED_NOTICE_MS = 8_000;
+
 /**
- * **La modale d'un site, sur un téléphone** (retour de Pierre, 04/10). La fenêtre du bureau y
+ * **La feuille d'un site, sur un téléphone** (refonte mobile, 2a à 2c). La fenêtre du bureau y
  * tenait un en-tête, une bande de plafond et un pied fixes, et laissait aux cartes une boîte de
- * quelques pixels. Ici tout défile d'un seul tenant, comme le journal et la presse : l'en-tête
- * reste collé, et les sections suivent l'ordre où l'on décide — monter le site, former, suivre la
- * file, composer la garnison.
+ * quelques pixels. Ici toute la feuille défile ; l'en-tête, les trois onglets et le plafond restent
+ * collés. Un seul gabarit pour la caserne, le port et l'aérodrome : former, la file, la garnison.
  */
 function NarrowSite({
   view,
@@ -419,7 +428,7 @@ function NarrowSite({
   roles: ReadonlyArray<GridEntry>;
   tiers: Partial<Record<UnitRole, UnitTier>>;
   onTier: (role: UnitRole, tier: UnitTier) => void;
-  enqueueOf: (role: UnitRole) => (() => void) | null;
+  enqueueOf: (role: UnitRole, onRecruited: (recruitmentId: string) => void) => (() => void) | null;
   cancelOf: (batch: Batch) => (() => void) | null;
   station: TroopStation;
   held: ReturnType<typeof troopsAt>;
@@ -427,24 +436,81 @@ function NarrowSite({
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<SheetTab>('form');
+  const [recruited, setRecruited] = useState<{ id: string; at: number } | null>(null);
+  const sheet = useRef<HTMLElement>(null);
+  const pick = (next: SheetTab) => {
+    setTab(next);
+    if (sheet.current !== null) sheet.current.scrollTop = 0;
+  };
+
+  const ready = workshop !== undefined && facility !== null;
+  const queue = facility?.queue ?? [];
+  const nation = view.me.nation;
+  const free = ready ? workshop.troopCap - workshop.troopsInService - workshop.troopsQueued : 0;
+  const alloy = Math.floor(currentStock(view.me.resources.alloy, view.loadedAt, now));
+  const siteLevel = facility?.level ?? building.level;
+  const termsOf = (entry: GridEntry) =>
+    roleTermsOf(entry, tiers[entry.role] ?? 1, workshop?.hqLevel ?? 0, siteLevel);
+  const open = roles.filter((entry) => !termsOf(entry).siteLocked);
+  const locked = roles.filter((entry) => termsOf(entry).siteLocked);
+  /** Ce qui retient un rôle ouvert, dit à la place du bouton : la même chaîne de refus que le
+   *  serveur (`troops.recruit`), dans son ordre. */
+  const blockOf = (entry: GridEntry): string | null => {
+    if (!ready) return null;
+    const { roleLocked, cost } = termsOf(entry);
+    if (roleLocked) return fr.production.roleLocked(entry.unlockedAtHqLevel);
+    if (free <= 0) return fr.production.sheet.capReached(workshop.troopCap);
+    if (queue.length >= workshop.maxQueue) return fr.production.sheet.queueFull(workshop.maxQueue);
+    if (alloy < cost.alloy) return fr.production.sheet.alloyShort(cost.alloy - alloy);
+    return null;
+  };
+  const minutesOf = (batch: Batch) => {
+    const entry = roles.find((candidate) => candidate.role === batch.role);
+    if (entry === undefined) return 0;
+    return batch.tier === 2 && entry.unitTier2 ? entry.unitTier2.minutes : entry.unit.minutes;
+  };
+  const deliveredAt = (batch: Batch) =>
+    asClockTime((workshop?.loadedAt ?? now) + batch.minutesLeft * 60_000);
+
+  const noticeIndex =
+    recruited !== null && now - recruited.at < RECRUITED_NOTICE_MS
+      ? queue.findIndex((batch) => batch.id === recruited.id)
+      : -1;
+  const noticed = noticeIndex >= 0 ? queue[noticeIndex] : undefined;
+
+  const counts: Record<SheetTab, string> = {
+    form: '',
+    queue: String(queue.length),
+    garrison: String(held.length),
+  };
+  /** Une tête que la famine a laissée sans date n'a pas commencé : elle attend, et se rembourse. */
+  const running = queue[0]?.started === true ? queue[0] : undefined;
+  const waiting = running === undefined ? queue : queue.slice(1);
+
   return (
-    <article className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]">
+    <article
+      ref={sheet}
+      className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]"
+    >
       <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
-        <div className="flex min-h-[58px] items-center gap-[10px] py-[6px] pr-3 pl-4">
-          <BuildingPlate building={building.key} height={32} />
+        <div className="flex min-h-[56px] items-center gap-[10px] py-[6px] pr-3 pl-[14px]">
+          <BuildingPlate building={building.key} height={40} />
           <div className="min-w-0 flex-1">
-            <div className="truncate font-(family-name:--font-display) text-[20px] leading-[1.1] font-extrabold">
+            <div className="truncate font-(family-name:--font-display) text-[21px] leading-[1.05] font-extrabold">
               {fr.buildings[building.key]}
             </div>
-            <div className="truncate text-[12px] text-[var(--ink-soft)]">
+            <div className="mt-[2px] truncate text-[12.5px] text-[var(--ink-soft)]">
               {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
             </div>
           </div>
-          <GunneryButton onOpen={onOpenGunnery} />
+          <span className="flex h-[36px] w-[44px] shrink-0 [&>button]:h-full [&>button]:w-full [&>button]:justify-center">
+            <GunneryButton onOpen={onOpenGunnery} />
+          </span>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
+            className="h-[36px] shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
           >
             {fr.common.close}
           </button>
@@ -455,6 +521,53 @@ function NarrowSite({
             <Stamp label={fr.stamps.unlinked} tone="critical" size="small" />
           </div>
         )}
+        <div role="tablist" className="grid h-[40px] grid-cols-3">
+          {(['form', 'queue', 'garrison'] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => pick(id)}
+              className={`flex cursor-pointer items-center justify-center gap-[6px] border-b-[3px] text-[10.5px] tracking-[.14em] uppercase ${
+                tab === id
+                  ? 'border-[var(--ink)] font-bold text-[var(--ink)]'
+                  : 'border-transparent font-semibold text-[var(--ink-soft)]'
+              }`}
+            >
+              {fr.production.sheet.tabs[id]}
+              {counts[id] !== '' && (
+                <span className="font-(family-name:--font-mono) text-[11px] tracking-normal">
+                  {counts[id]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        {/* Le plafond est commun aux trois sites et répété ici : c'est le seul nombre qui borne le
+            choix, et chaque troupe enfilée y remplit une case. */}
+        {ready && (
+          <div className="flex min-h-[42px] items-center gap-3 border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
+            <SheetPips
+              inService={workshop.troopsInService}
+              queued={workshop.troopsQueued}
+              cap={workshop.troopCap}
+            />
+            <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
+              <span className="truncate text-[12.5px] leading-[1.1]">
+                {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
+              </span>
+              <span
+                className="truncate text-[11px] leading-[1.1]"
+                style={{ color: free > 0 ? 'var(--ink-soft)' : 'var(--critical)' }}
+              >
+                {free > 0
+                  ? fr.production.sheet.capFree(free, workshop.troopCap)
+                  : fr.production.sheet.capFull(workshop.troopCap)}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -463,85 +576,124 @@ function NarrowSite({
         </p>
       )}
 
-      {!view.me.defeated && (
-        <NarrowSection title={fr.production.narrowSections.raise}>
-          <div className="px-4 py-3">
-            <UpgradeControl building={building} view={view} seat={seat} now={now} />
-          </div>
-        </NarrowSection>
-      )}
-
-      {workshop === undefined || facility === null ? (
+      {!ready ? (
         <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
-      ) : (
+      ) : tab === 'form' ? (
         <>
-          <NarrowSection title={fr.production.narrowSections.form}>
-            {/* Le plafond est global et répété ici : c'est le seul nombre qui borne le choix. */}
-            <div className="border-b border-(color:--ink)/18 px-4 py-3">
-              <div className="flex flex-wrap items-baseline gap-x-[9px]">
-                <span className="font-(family-name:--font-mono) text-[17px]">
-                  {workshop.troopsInService}
+          {/* Tout est ouvert : pas de bloc « le site », le niveau se monte depuis Chantiers. */}
+          {!view.me.defeated && locked.length > 0 && (
+            <SiteLadder
+              building={building}
+              view={view}
+              seat={seat}
+              now={now}
+              siteLevel={siteLevel}
+              locked={locked}
+            />
+          )}
+          <SheetHeading
+            title={fr.production.sheet.formHeader}
+            note={fr.production.sheet.formNote}
+          />
+          {open.map((entry) => (
+            <RoleSheetCard
+              key={entry.role}
+              entry={entry}
+              nation={nation}
+              tier={tiers[entry.role] ?? 1}
+              onTier={(picked) => onTier(entry.role, picked)}
+              owned={workshop.roster.filter((row) => row.role === entry.role)}
+              tier2Unlocked={workshop.tier2Unlocked}
+              requiredLevel={workshop.requiredHqLevel}
+              cost={termsOf(entry).cost}
+              siteName={facility.regionName}
+              blocked={blockOf(entry)}
+              onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
+            />
+          ))}
+          {locked.length > 0 && (
+            <>
+              <div className="mt-[18px] flex items-baseline justify-between gap-[10px] border-t-2 border-[var(--ink)] px-4 pt-3 pb-[6px]">
+                <span className="font-(family-name:--font-display) text-[18px] font-extrabold">
+                  {fr.production.sheet.lockedHeader}
                 </span>
-                <span className="eyebrow">{fr.production.inService}</span>
-                <span className="ml-[6px] font-(family-name:--font-mono) text-[17px]">
-                  {workshop.troopsQueued}
+                <span className="text-[12px] text-[var(--ink-quiet)]">
+                  {fr.production.sheet.lockedNote}
                 </span>
-                <span className="eyebrow">{fr.production.inQueue}</span>
               </div>
-              <div className="mt-[8px]">
-                <CapPips
-                  inService={workshop.troopsInService}
-                  queued={workshop.troopsQueued}
-                  cap={workshop.troopCap}
-                />
-              </div>
-              <p className="mt-[8px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
-                {fr.production.troopCapNote}
-              </p>
-            </div>
-            {roles.map((entry) => (
-              <RoleLine
-                key={entry.role}
-                entry={entry}
-                nation={view.me.nation}
-                tier={tiers[entry.role] ?? 1}
-                onTier={(picked) => onTier(entry.role, picked)}
-                owned={workshop.roster.filter((row) => row.role === entry.role)}
-                tier2Unlocked={workshop.tier2Unlocked}
-                requiredLevel={workshop.requiredHqLevel}
-                hqLevel={workshop.hqLevel}
-                siteLevel={facility.level}
-                siteName={facility.regionName}
-                onEnqueue={enqueueOf(entry.role)}
+              {locked.map((entry) => (
+                <LockedRoleLine key={entry.role} entry={entry} nation={nation} />
+              ))}
+            </>
+          )}
+          <p className="mx-4 mt-4 mb-6 font-(family-name:--font-body) text-[12.5px] leading-[1.45] text-[var(--ink-soft)] italic">
+            {fr.production.troopCapNote}
+          </p>
+        </>
+      ) : tab === 'queue' ? (
+        <>
+          {running !== undefined && (
+            <RunningCard
+              batch={running}
+              nation={nation}
+              loadedAt={workshop.loadedAt}
+              now={now}
+              totalMinutes={minutesOf(running)}
+              deliveredAt={deliveredAt(running)}
+            />
+          )}
+          {waiting.length > 0 && (
+            <>
+              <SheetHeading
+                title={fr.production.sheet.waitingHeader}
+                note={fr.production.sheet.waitingNote}
               />
-            ))}
-          </NarrowSection>
-
-          <NarrowSection
-            title={fr.production.narrowSections.queue}
-            count={`${facility.queue.length} / ${workshop.maxQueue}`}
-          >
-            {facility.queue.length === 0 ? (
-              <p className="px-4 py-4 text-[12.5px] text-[var(--ink-soft)]">
-                {fr.production.queueEmpty}
-              </p>
-            ) : (
-              facility.queue.map((batch) => (
-                <QueueRow
+              {waiting.map((batch, index) => (
+                <WaitingLine
                   key={batch.id}
                   batch={batch}
-                  nation={view.me.nation}
-                  loadedAt={workshop.loadedAt}
-                  now={now}
+                  rank={index + (running === undefined ? 1 : 2)}
+                  nation={nation}
+                  minutes={minutesOf(batch)}
+                  deliveredAt={deliveredAt(batch)}
                   onCancel={cancelOf(batch)}
                 />
-              ))
-            )}
-          </NarrowSection>
+              ))}
+            </>
+          )}
+          {queue.length === 0 && (
+            <div className="px-4 pt-7 pb-1">
+              <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
+                {fr.production.sheet.queueEmptyTitle}
+              </div>
+              <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+                {fr.production.sheet.queueEmptyNote}
+              </div>
+              <button
+                type="button"
+                onClick={() => pick('form')}
+                className="mt-[14px] h-[48px] cursor-pointer border border-[var(--ink)] px-[18px] text-[11px] font-bold tracking-[.16em] uppercase"
+              >
+                {fr.production.sheet.formHeader}
+              </button>
+            </div>
+          )}
+          <p className="mx-4 mt-[18px] mb-6 font-(family-name:--font-body) text-[12.5px] leading-[1.45] text-[var(--ink-soft)] italic">
+            {fr.production.sheet.queueNote(aSecondBuilding(building.key))}
+          </p>
         </>
-      )}
-
-      <NarrowSection title={fr.garrison.kicker} count={fr.garrison.troopCount(held.length)}>
+      ) : held.length === 0 ? (
+        <div className="px-4 pt-7 pb-6">
+          <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
+            {fr.production.sheet.garrisonEmpty[facility.domain]}
+          </div>
+          <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+            {fr.production.sheet.garrisonEmptyNote}
+          </div>
+        </div>
+      ) : (
+        /* La garnison du site est la composition même de 1e : la feuille la porte telle quelle
+           plutôt qu'un bouton « composer une pile » qui n'ouvrirait qu'elle. */
         <div className="px-3 pt-3 pb-4">
           <GarrisonStack
             view={view}
@@ -553,43 +705,113 @@ function NarrowSite({
             onPrepare={onPrepare}
           />
         </div>
-      </NarrowSection>
+      )}
+
+      {noticed !== undefined && (
+        <RecruitedNotice
+          batch={noticed}
+          rank={noticeIndex + 1}
+          deliveredAt={deliveredAt(noticed)}
+          onUndo={noticed.started ? null : cancelOf(noticed)}
+          onDone={() => setRecruited(null)}
+        />
+      )}
     </article>
   );
 }
 
-/** Le titre d'une section, à la manière des familles des Chantiers. */
-function NarrowSection({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count?: string;
-  children: ReactNode;
-}) {
+/** Un titre de section en petites capitales, et sa phrase à droite. */
+function SheetHeading({ title, note }: { title: string; note: string }) {
   return (
-    <section>
-      <div className="flex justify-between border-b border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),var(--ink)_6%)] px-4 pt-2 pb-[6px] text-[10px] font-bold tracking-[.18em] uppercase">
-        <span>{title}</span>
-        {count !== undefined && (
-          <span className="font-(family-name:--font-mono) font-normal tracking-normal text-[var(--ink-soft)]">
-            {count}
-          </span>
-        )}
-      </div>
-      {children}
-    </section>
+    <div className="flex items-baseline justify-between gap-[10px] px-4 pt-[14px] pb-1">
+      <span className="text-[10px] font-bold tracking-[.18em] uppercase">{title}</span>
+      <span className="text-right text-[12px] text-[var(--ink-quiet)]">{note}</span>
+    </div>
+  );
+}
+
+/** Le plafond dessiné, à la taille du pouce : pleines ce qui tient, à demi ce qui est en file. */
+function SheetPips({ inService, queued, cap }: { inService: number; queued: number; cap: number }) {
+  return (
+    <span className="flex shrink-0 gap-[2px]">
+      {Array.from({ length: cap }, (_, index) => (
+        <span
+          key={index}
+          className="h-[16px] w-[8px] border border-[var(--ink)]"
+          style={{
+            background:
+              index < inService
+                ? 'var(--ink)'
+                : index < inService + queued
+                  ? 'color-mix(in srgb, var(--ink) 35%, transparent)'
+                  : 'transparent',
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
 /**
- * **Un rôle sur un téléphone : une ligne, pas une affiche.** La carte du bureau donne cent
- * cinquante pixels à la vignette ; ici la vignette tient à gauche, le prix et l'attente sous le
- * nom, et le bouton prend toute la largeur sous le pouce. La règle est celle de la carte
- * (`roleTermsOf`) : une condition se dit, le bouton s'en va.
+ * **Ce que le niveau suivant ouvre, et le bouton qui le monte** — en tête de « former », parce que
+ * c'est la seule question que pose un rôle encore fermé. Le premier palier qui ouvre quelque chose
+ * est la phrase ; les suivants l'attendent dessous. Le bouton est celui des Chantiers.
  */
-function RoleLine({
+function SiteLadder({
+  building,
+  view,
+  seat,
+  now,
+  siteLevel,
+  locked,
+}: {
+  building: Building;
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  siteLevel: number;
+  locked: ReadonlyArray<GridEntry>;
+}) {
+  const levels = [...new Set(locked.map((entry) => entry.unlockedAtSiteLevel))].sort(
+    (a, b) => a - b,
+  );
+  const [first, ...later] = levels;
+  const rolesAt = (level: number) =>
+    locked.filter((entry) => entry.unlockedAtSiteLevel === level).map((entry) => entry.role);
+
+  return (
+    <div className="mx-3 mt-3 flex items-center gap-[10px] border border-[var(--ink)] bg-(--paper)/35 py-[10px] pr-[10px] pl-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {fr.production.sheet.siteKicker(siteLevel)}
+        </div>
+        {first !== undefined && (
+          <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
+            {fr.production.sheet.opens(
+              first,
+              rolesAt(first).map(theRole).join(fr.production.sheet.and),
+            )}
+          </div>
+        )}
+        {later.flatMap((level) =>
+          rolesAt(level).map((role) => (
+            <div key={role} className="mt-[2px] text-[12px] text-[var(--ink-soft)]">
+              {fr.production.sheet.waits(theRole(role), level)}
+            </div>
+          )),
+        )}
+      </div>
+      <RaiseControl building={building} view={view} seat={seat} now={now} />
+    </div>
+  );
+}
+
+/**
+ * **Un rôle ouvert, une carte** : la vignette, le nom, l'équipement et ce qu'il bat ; MK1 / MK2 et
+ * le bouton sous le pouce, prix et durée dedans. Ce qui retient se dit à la place du bouton, en
+ * pointillé rouge — jamais un bouton grisé (ADR 0015).
+ */
+function RoleSheetCard({
   entry,
   nation,
   tier,
@@ -597,9 +819,9 @@ function RoleLine({
   owned,
   tier2Unlocked,
   requiredLevel,
-  hqLevel,
-  siteLevel,
+  cost,
   siteName,
+  blocked,
   onEnqueue,
 }: {
   entry: GridEntry;
@@ -609,77 +831,55 @@ function RoleLine({
   owned: ReadonlyArray<{ tier: number; count: number }>;
   tier2Unlocked: boolean;
   requiredLevel: number;
-  hqLevel: number;
-  siteLevel: number;
+  cost: GridEntry['unit'];
   siteName: string;
+  blocked: string | null;
   onEnqueue: (() => void) | null;
 }) {
   const { role, tiers } = entry;
-  const { roleLocked, siteLocked, cost } = roleTermsOf(entry, tier, hqLevel, siteLevel);
   const sheet = fr.unitSheets[role];
   const equipment = equipmentLabel(nation, role, tier);
   const total = owned.reduce((sum, row) => sum + row.count, 0);
 
   return (
-    <div className="border-b border-(color:--ink)/18 px-4 py-3">
-      <div className="flex gap-3">
-        <div className="flex h-[78px] w-[100px] shrink-0 items-center justify-center bg-(--ink)/5">
-          <UnitSprite nation={nation} role={role} tier={tier} height={70} width={96} />
+    <div className="mx-3 mt-[10px] border border-[var(--ink)] bg-(--paper)/30">
+      <div className="flex gap-3 pt-[10px] pr-3 pl-[10px]">
+        <div className="flex h-[92px] w-[112px] shrink-0 items-center justify-center bg-(--ink)/7">
+          <UnitSprite nation={nation} role={role} tier={tier} height={84} width={104} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-(family-name:--font-display) text-[18px] leading-[1.1] font-extrabold">
+          <div className="font-(family-name:--font-display) text-[19px] leading-[1.1] font-extrabold first-letter:uppercase">
             {roleLabel(role, 1)}
           </div>
-          <div className="truncate text-[12.5px] text-[var(--ink-soft)]">
-            {equipment && `${equipment} · `}
-            <span className="font-(family-name:--font-mono) text-[11px]">
-              {total} {fr.production.inService}
-            </span>
+          <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">
+            {[equipment, `${cost.strength} ${fr.strengthUnits[role]}`].filter(Boolean).join(' · ')}
           </div>
-          <div className="mt-[6px] flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Expense resource="alloy" value={cost.alloy} />
-            <span className="font-(family-name:--font-mono) text-[12.5px]">
-              {asDuration(cost.minutes)}
-            </span>
-            <span className="font-(family-name:--font-mono) text-[12.5px]">
-              {cost.strength}{' '}
-              <span className="font-(family-name:--font-body) text-[11px] text-[var(--ink-soft)]">
-                {fr.strengthUnits[role]}
-              </span>
-            </span>
+          <div className="mt-px font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+            {total} {fr.production.inService}
           </div>
+          {sheet.kind === 'combat' ? (
+            <div className="mt-[6px] text-[12.5px] leading-[1.4]">
+              <div>
+                <span className="text-[var(--ink-soft)]">{fr.production.strongAgainst} </span>
+                {sheet.strongAgainst.join(', ')}
+              </div>
+              <div>
+                <span className="text-[var(--ink-soft)]">{fr.production.weakAgainst} </span>
+                {sheet.weakAgainst.join(', ')}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-[6px] text-[12.5px] leading-[1.4] text-[var(--ink-soft)] italic">
+              {sheet.contribution} {fr.production.supportNote}
+            </p>
+          )}
         </div>
       </div>
-      {roleLocked && (
-        <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">
-          {fr.production.roleLocked(entry.unlockedAtHqLevel)}
-        </p>
-      )}
-      {siteLocked && (
-        <p className="mt-[6px] text-[11.5px] text-[var(--critical)]">
-          {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
-        </p>
-      )}
-      <div className="mt-[7px] text-[12px] leading-[1.45]">
-        {sheet.kind === 'combat' ? (
-          <>
-            <div>
-              <span className="text-[var(--ink-soft)]">{fr.production.strongAgainst} </span>
-              {sheet.strongAgainst.join(', ')}
-            </div>
-            <div>
-              <span className="text-[var(--ink-soft)]">{fr.production.weakAgainst} </span>
-              {sheet.weakAgainst.join(', ')}
-            </div>
-          </>
-        ) : (
-          <p className="text-[var(--ink-soft)] italic">
-            {sheet.contribution} {fr.production.supportNote}
-          </p>
-        )}
-      </div>
-      {onEnqueue !== null && !siteLocked && (
-        <div className="mt-[9px] flex gap-[6px]">
+      {/* L'observateur lit la carte sans bouton : il ne décide plus (décision du 31/08). */}
+      {onEnqueue === null ? (
+        <div className="h-[10px]" />
+      ) : (
+        <div className="flex gap-[6px] p-[10px]">
           {tiers === 2 &&
             ([1, 2] as const).map((level) => {
               const locked = level === 2 && !tier2Unlocked;
@@ -695,7 +895,7 @@ function RoleLine({
                       : fr.production.tierLabel(level)
                   }
                   onClick={() => onTier(level)}
-                  className={`min-h-[44px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12px] disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`h-[52px] w-[52px] shrink-0 cursor-pointer border border-[var(--ink)] font-(family-name:--font-mono) text-[12.5px] disabled:cursor-not-allowed disabled:opacity-35 ${
                     tier === level ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
                   }`}
                 >
@@ -703,16 +903,226 @@ function RoleLine({
                 </button>
               );
             })}
-          <button
-            type="button"
-            disabled={roleLocked}
-            onClick={onEnqueue}
-            title={fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)}
-            className="min-h-[44px] flex-1 cursor-pointer bg-[var(--ink)] text-[11px] font-semibold tracking-[.16em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            {fr.production.enqueue}
-          </button>
+          {blocked === null ? (
+            <button
+              type="button"
+              onClick={onEnqueue}
+              title={fr.production.enqueueTitle(roleLabel(role, 1), tierLabel(tier), siteName)}
+              className="flex h-[52px] min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 bg-[var(--ink)] px-[14px] text-[var(--paper)]"
+            >
+              <span className="text-[11.5px] font-bold tracking-[.12em] whitespace-nowrap uppercase">
+                {fr.production.enqueue}
+              </span>
+              <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper-dim-2)]">
+                {fr.production.sheet.bill(cost.alloy, asDuration(cost.minutes))}
+              </span>
+            </button>
+          ) : (
+            <span className="flex min-h-[52px] min-w-0 flex-1 items-center border border-dashed border-[var(--critical)] px-3 py-[6px] text-[12.5px] leading-[1.3] text-[var(--critical)]">
+              {blocked}
+            </span>
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Un rôle que le site n'ouvre pas encore : sa vignette, son prix pour qu'on prépare l'alliage, et
+ *  sa condition en toutes lettres — la même que l'abaque (contrats 03 et 06). */
+function LockedRoleLine({ entry, nation }: { entry: GridEntry; nation: string }) {
+  const { role, unit } = entry;
+  const equipment = equipmentLabel(nation, role, 1);
+  return (
+    <div className="flex min-h-[76px] items-center gap-3 border-b border-(color:--ink)/18 py-2 pr-[14px] pl-3">
+      <div className="flex h-[58px] w-[76px] shrink-0 items-center justify-center bg-(--ink)/7">
+        <UnitSprite nation={nation} role={role} height={52} width={70} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[16px] leading-[1.1] font-bold first-letter:uppercase">
+            {roleLabel(role, 1)}
+          </span>
+          <span className="shrink-0 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+            {fr.production.sheet.bill(unit.alloy, asDuration(unit.minutes))}
+          </span>
+        </div>
+        <div className="mt-[2px] text-[12px] text-[var(--ink-soft)]">
+          {[equipment, `${unit.strength} ${fr.strengthUnits[role]}`].filter(Boolean).join(' · ')}
+        </div>
+        <div className="mt-1 text-[10.5px] font-semibold tracking-[.1em] text-[var(--critical)] uppercase">
+          {fr.production.formsIn(aBuilding(entry.producedBy), entry.unlockedAtSiteLevel)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Le nom d'un lot : le rôle, et sa marque quand le rôle en a deux. */
+const batchName = (batch: Batch): string => {
+  const name = roleLabel(batch.role, 1);
+  const label = name.charAt(0).toUpperCase() + name.slice(1);
+  return TIERS_BY_ROLE[batch.role] === 2
+    ? `${label} ${tierLabel(batch.tier === 2 ? 2 : 1)}`
+    : label;
+};
+
+/**
+ * **La troupe en chaîne, en tête et seule** : son compte à rebours, sa barre, son heure. Elle ne
+ * porte pas de bouton, elle porte la phrase — une troupe commencée ne s'annule plus.
+ */
+function RunningCard({
+  batch,
+  nation,
+  loadedAt,
+  now,
+  totalMinutes,
+  deliveredAt,
+}: {
+  batch: Batch;
+  nation: string;
+  loadedAt: number;
+  now: number;
+  totalMinutes: number;
+  deliveredAt: string;
+}) {
+  const left = currentMinutes(batch.minutesLeft, loadedAt, now);
+  const done = totalMinutes > 0 ? Math.min(1, Math.max(0, 1 - left / totalMinutes)) : 0;
+  const tier = batch.tier === 2 ? 2 : 1;
+  const equipment = equipmentLabel(nation, batch.role, tier);
+  return (
+    <div className="mx-3 mt-3 border-2 border-[var(--ink)] bg-(--ink)/5 p-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-[52px] w-[64px] shrink-0 items-center justify-center">
+          <UnitSprite nation={nation} role={batch.role} tier={tier} height={52} width={64} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {fr.production.sheet.running}
+          </div>
+          <div className="mt-[2px] font-(family-name:--font-display) text-[19px] leading-[1.05] font-extrabold">
+            {batchName(batch)}
+          </div>
+          <div className="mt-[2px] text-[12.5px] text-[var(--ink-soft)]">
+            {[equipment, `${batch.strength} ${fr.strengthUnits[batch.role]}`]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-(family-name:--font-display) text-[23px] leading-none font-extrabold">
+            {asDuration(left)}
+          </div>
+          <div className="mt-[5px] text-[10px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {fr.production.sheet.remaining}
+          </div>
+        </div>
+      </div>
+      <div className="mt-[10px] h-[4px] bg-(--ink)/16">
+        <div className="h-[4px] bg-[var(--ink)]" style={{ width: `${Math.round(done * 100)}%` }} />
+      </div>
+      <div className="mt-2 text-[12px] text-[var(--ink-quiet)] italic">
+        {fr.production.sheet.deliveredAround(deliveredAt)} · {fr.production.cancelStarted}
+      </div>
+    </div>
+  );
+}
+
+/** Une troupe qui attend son tour : son rang, sa durée, son heure, et l'annulation remboursée. */
+function WaitingLine({
+  batch,
+  rank,
+  nation,
+  minutes,
+  deliveredAt,
+  onCancel,
+}: {
+  batch: Batch;
+  rank: number;
+  nation: string;
+  minutes: number;
+  deliveredAt: string;
+  onCancel: (() => void) | null;
+}) {
+  return (
+    <div className="flex min-h-[58px] items-center gap-[10px] border-b border-(color:--ink)/18 py-[2px] pr-[10px] pl-4">
+      <span className="w-[28px] shrink-0 font-(family-name:--font-display) text-[18px] font-extrabold">
+        {fr.production.sheet.rank(rank)}
+      </span>
+      <span className="flex h-[36px] w-[46px] shrink-0 items-center justify-center">
+        <UnitSprite
+          nation={nation}
+          role={batch.role}
+          tier={batch.tier === 2 ? 2 : 1}
+          height={36}
+          width={46}
+        />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-bold">{batchName(batch)}</span>
+        <span className="block truncate text-[12px] text-[var(--ink-soft)]">
+          {asDuration(minutes)} · {fr.production.sheet.deliveredAround(deliveredAt)}
+        </span>
+      </span>
+      {onCancel !== null && (
+        <button
+          type="button"
+          onClick={onCancel}
+          title={fr.production.cancelRefund}
+          className="h-[44px] shrink-0 cursor-pointer px-[6px] text-[10.5px] font-semibold tracking-[.16em] uppercase underline underline-offset-[3px]"
+        >
+          {fr.production.cancel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * **Ce qui vient d'être enfilé, et la porte pour le reprendre** — le cartouche des Chantiers. Une
+ * troupe passée aussitôt en tête n'a plus de retour : le cartouche le dit, sans le bouton.
+ */
+function RecruitedNotice({
+  batch,
+  rank,
+  deliveredAt,
+  onUndo,
+  onDone,
+}: {
+  batch: Batch;
+  rank: number;
+  deliveredAt: string;
+  onUndo: (() => void) | null;
+  onDone: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className="sticky bottom-3 z-[3] mx-[10px] mt-3 flex min-h-[60px] items-center gap-[10px] bg-[var(--ink)] py-2 pr-2 pl-[14px] text-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,.45)]"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+        <span className="text-[13.5px] font-bold">
+          {batch.started
+            ? fr.production.sheet.toastRunning(batchName(batch), deliveredAt)
+            : fr.production.sheet.toastQueued(batchName(batch), rank, deliveredAt)}
+        </span>
+        <span className="text-[11px] leading-[1.3] text-[var(--paper-dim-2)]">
+          {batch.started
+            ? fr.production.sheet.toastRunningNote
+            : fr.production.sheet.toastQueuedNote}
+        </span>
+      </span>
+      {onUndo !== null && (
+        <button
+          type="button"
+          onClick={() => {
+            onUndo();
+            onDone();
+          }}
+          className="h-[44px] shrink-0 cursor-pointer border border-[var(--paper-dim)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase"
+        >
+          {fr.production.cancel}
+        </button>
       )}
     </div>
   );
