@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { fr } from '@/i18n/fr';
+import { BottomSheet } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle, HandleContext } from './Draggable';
 
@@ -21,6 +21,7 @@ export function Panel({
   position,
   width = 260,
   height,
+  onClose,
   children,
 }: {
   title: string;
@@ -33,6 +34,9 @@ export function Panel({
    * height is his, not the list's.
    */
   height?: number;
+  /** Sous le seuil, ce qui ferme la feuille : sans lui, elle suit une sélection et ne réclame pas
+   *  la place des autres surfaces. Au bureau, le panneau garde ses propres boutons. */
+  onClose?: () => void;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -53,9 +57,7 @@ export function Panel({
         aria-expanded={!collapsed}
         title={collapsed ? fr.panel.expand : fr.panel.collapse}
         onClick={() => setCollapsed((previous) => !previous)}
-        className={`shrink-0 cursor-pointer border border-[var(--ink)] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)] ${
-          narrow ? 'w-[44px] text-[15px]' : 'h-[15px] w-[15px] text-[11px] leading-[13px]'
-        }`}
+        className="h-[15px] w-[15px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-[13px] text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)]"
       >
         {collapsed ? '+' : '–'}
       </button>
@@ -63,31 +65,29 @@ export function Panel({
   );
 
   /**
-   * **Sous le seuil, un panneau devient une feuille ancrée en bas** (décision du 15/09) : pleine
-   * largeur, au-dessus du rail, bornée à 60 % de l'écran et défilante. La carte reste visible
-   * par-dessus — un panneau de garnison qui la cache ne sert plus la visée.
-   *
-   * Il sort par un portail parce que ses appelants le posent dans un `Draggable`, dont la
-   * translation est un bloc conteneur : un `fixed` à l'intérieur se mesurerait sur la poussée du
-   * joueur au lieu de l'écran. Et le `HandleContext` est coupé au passage — la feuille est
-   * ancrée, son en-tête ne promet pas un geste qui n'a plus lieu.
-   *
-   * **Son plan est celui du bandeau** (`--z-band`), le seul qui tienne les deux bouts : au-dessus
-   * de ce que la carte épingle — à `--z-marker` et `--z-indicator`, les chiffres de gisement
-   * traversaient la feuille — et sous les fenêtres, parce qu'un panneau n'a jamais été au-dessus
-   * d'une fenêtre et que l'écran étroit ne renverse pas cet ordre.
+   * **Sous le seuil, un panneau devient la feuille basse** (piste A, passe 2) : la même que « à
+   * faire » et les calques, trois hauteurs et une poignée, entre le bandeau et la barre de pied.
+   * Le repli du bureau n'y a plus de bouton — c'est la poignée qui descend d'un cran. Le
+   * `HandleContext` est coupé au passage : la feuille est ancrée, son en-tête ne promet pas un
+   * geste qui n'a plus lieu.
    */
   if (narrow) {
-    return createPortal(
+    return (
       <HandleContext.Provider value={null}>
-        <section className="hud hud-dock paper-grain z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)]">
-          {header}
-          {!collapsed && (
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-[10px]">{children}</div>
-          )}
-        </section>
-      </HandleContext.Provider>,
-      document.body,
+        <BottomSheet
+          title={title}
+          aside={
+            marker && (
+              <span className="font-(family-name:--font-mono) text-[9px] text-[var(--ink-soft)]">
+                {marker}
+              </span>
+            )
+          }
+          {...(onClose ? { onClose } : {})}
+        >
+          <div className="px-3 py-[10px]">{children}</div>
+        </BottomSheet>
+      </HandleContext.Provider>
     );
   }
 

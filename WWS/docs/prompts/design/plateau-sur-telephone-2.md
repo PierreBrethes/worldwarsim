@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-03
 code: []
 decisions: [mobile-piste-a-2026-10-03, mobile-regles-2026-10-03, carte-lisible-2026-10-03]
-voir: [plateau-sur-telephone.md, ../code/ready/mobile-1-socle-tactile.md, ../../rapports/2026-10-03-releve-mobile.md]
+voir: [plateau-sur-telephone.md, ../code/done/mobile-1-socle-tactile.md, ../../rapports/2026-10-03-releve-mobile.md]
 ---
 # Prompt Claude design — le plateau sur téléphone, seconde passe
 

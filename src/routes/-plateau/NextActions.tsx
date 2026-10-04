@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fr } from '@/i18n/fr';
-import { useNarrowScreen } from '@/shell/viewport';
+import { useSheetClose } from '@/shell/BottomSheet';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import {
@@ -22,6 +22,7 @@ import { FoundationRows, type FoundationPlacement } from './FoundationRows';
  */
 export function NextActions({
   view,
+  frame = 'card',
   placements,
   armed,
   error,
@@ -32,6 +33,12 @@ export function NextActions({
   onOpenOutpost,
 }: {
   view: PlayerView;
+  /**
+   * **Sous le seuil, la carte quitte la carte** (piste A, passe 2, A5) : elle devient la feuille
+   * qu'ouvre l'entrée « à faire » du pied, qui porte déjà le titre et le compte. Il n'en reste que
+   * les lignes, et une phrase quand rien n'attend — l'entrée, elle, reste au pied.
+   */
+  frame?: 'card' | 'sheet';
   placements: ReadonlyArray<FoundationPlacement>;
   /** L'identité de la dette armée (`debtKey`), jamais son gisement seul : le quartier
    *  général n'en a pas, et deux mines dues ne se distinguent que par le leur. */
@@ -50,94 +57,71 @@ export function NextActions({
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
    *  sans plus rien à l'écran pour dire pourquoi. */
   const [unfolded, setUnfolded] = useState(true);
-  /**
-   * **Sous le seuil, la carte est repliée sur sa manchette** : elle vit au bas d'un écran où la
-   * carte n'a plus de marge à lui prêter, et six lignes posées là cachent le terrain qu'elles
-   * demandent d'aller voir. L'en-tête reste, avec son compte — c'est lui la nouvelle — et un
-   * appui l'ouvre.
-   */
-  const narrow = useNarrowScreen();
-  const [open, setOpen] = useState(!narrow);
+  const closeSheet = useSheetClose();
   const actions = nextActionsOf(view);
-  if (actions.length === 0) return null;
 
-  const heading = (
-    <>
-      <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
-        {fr.nextActions.header}
-      </h2>
-      <span className="h-px flex-1 bg-(--ink)/25" />
-      <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-        {fr.nextActions.count(actions.length)}
-      </span>
-    </>
+  if (actions.length === 0) {
+    return frame === 'sheet' ? (
+      <p className="px-4 py-[14px] text-[13px] text-[var(--ink-soft)] italic">
+        {fr.nextActions.nothing}
+      </p>
+    ) : null;
+  }
+
+  const rows = actions.map((action) =>
+    action.target.kind === 'unfold' ? (
+      <div key={action.id}>
+        <Row
+          action={action}
+          destination={unfolded ? fr.nextActions.fold : fr.nextActions.unfold}
+          leads={false}
+          onPick={() => {
+            onArm(null);
+            setUnfolded((previous) => !previous);
+          }}
+        />
+        {unfolded && (
+          <FoundationRows
+            view={view}
+            placements={placements}
+            armed={armed}
+            error={error}
+            onArm={onArm}
+          />
+        )}
+      </div>
+    ) : (
+      <Row
+        key={action.id}
+        action={action}
+        destination={destinationWord(action.target)}
+        leads
+        onPick={() => {
+          const target = action.target;
+          if (target.kind === 'map') onGoToMap(target.point);
+          else if (target.kind === 'surface') onOpenSurface(target.surface);
+          else if (target.kind === 'site') onOpenSite(target.buildingId);
+          else if (target.kind === 'outpost') onOpenOutpost(target.outpostId);
+          closeSheet?.();
+        }}
+      />
+    ),
   );
+
+  if (frame === 'sheet') return <div>{rows}</div>;
 
   return (
     <section className="hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]">
-      {narrow ? (
-        <button
-          type="button"
-          aria-expanded={open}
-          title={open ? fr.panel.collapse : fr.panel.expand}
-          onClick={() => setOpen((shown) => !shown)}
-          className="flex w-full cursor-pointer items-baseline gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2 text-left"
-        >
-          {heading}
-          <span className="shrink-0 text-[13px] leading-none">{open ? '–' : '+'}</span>
-        </button>
-      ) : (
-        <div className="flex items-baseline gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
-          {heading}
-        </div>
-      )}
-
-      <div
-        className={
-          narrow
-            ? `max-h-[calc(50dvh/var(--hud-scale))] overflow-y-auto ${open ? '' : 'hidden'}`
-            : ''
-        }
-      >
-        {actions.map((action) =>
-          action.target.kind === 'unfold' ? (
-            <div key={action.id}>
-              <Row
-                action={action}
-                destination={unfolded ? fr.nextActions.fold : fr.nextActions.unfold}
-                leads={false}
-                onPick={() => {
-                  onArm(null);
-                  setUnfolded((previous) => !previous);
-                }}
-              />
-              {unfolded && (
-                <FoundationRows
-                  view={view}
-                  placements={placements}
-                  armed={armed}
-                  error={error}
-                  onArm={onArm}
-                />
-              )}
-            </div>
-          ) : (
-            <Row
-              key={action.id}
-              action={action}
-              destination={destinationWord(action.target)}
-              leads
-              onPick={() => {
-                const target = action.target;
-                if (target.kind === 'map') onGoToMap(target.point);
-                else if (target.kind === 'surface') onOpenSurface(target.surface);
-                else if (target.kind === 'site') onOpenSite(target.buildingId);
-                else if (target.kind === 'outpost') onOpenOutpost(target.outpostId);
-              }}
-            />
-          ),
-        )}
+      <div className="flex items-baseline gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
+        <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
+          {fr.nextActions.header}
+        </h2>
+        <span className="h-px flex-1 bg-(--ink)/25" />
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+          {fr.nextActions.count(actions.length)}
+        </span>
       </div>
+      {rows}
     </section>
   );
 }

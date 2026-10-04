@@ -1,5 +1,6 @@
 import {
   createContext,
+  type CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -10,6 +11,8 @@ import {
 } from 'react';
 import { fr } from '@/i18n/fr';
 import { keepWindowGeometry, readWindowGeometry } from '@/data/settings';
+import { useSwipe } from '@/shell/BottomSheet';
+import { useSoleSurface } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
 import { HandleContext } from './Draggable';
 import { followDrag, scaleOf, useDragOffset, type Grab, type Offset } from './dragging';
@@ -64,33 +67,115 @@ export function FloatingWindow(props: FrameProps) {
 }
 
 /**
- * **Une feuille, jamais une fenêtre** : elle occupe l'écran, ne se pousse pas (aucun
- * `HandleContext`, donc les en-têtes gardent un curseur ordinaire) et se ferme par son propre
- * bouton ou par Échap. Elle se déclare *dimensionnée* : elle porte une hauteur à elle, exactement
- * comme une fenêtre dont on aurait tiré le coin, et les défileurs intérieurs doivent donc cesser
- * de se plafonner en pixels.
+ * **Une feuille, jamais une fenêtre** : elle occupe l'écran entre le bandeau et la barre de pied
+ * (piste A, passe 2), ne se pousse pas (aucun `HandleContext`, donc les en-têtes gardent un
+ * curseur ordinaire) et se ferme par son propre bouton, par Échap ou d'un geste vers le bas sur
+ * sa poignée. Elle se déclare *dimensionnée* : elle porte une hauteur à elle, exactement comme
+ * une fenêtre dont on aurait tiré le coin, et les défileurs intérieurs doivent donc cesser de se
+ * plafonner en pixels.
+ *
+ * **Elle est la seule surface ouverte** : en montant, elle ferme la feuille ou le panneau qui
+ * l'était (`useSoleSurface`), et une fenêtre qu'une autre recouvre se ferme d'elle-même.
  */
 function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
   const container = useRef<HTMLDivElement>(null);
   useOpeningFocus(container);
   useEscapeToClose(onClose, inFront);
+  useSoleSurface(onClose, inFront);
+  useClosedWhenCovered(onClose, inFront);
+  const keyboard = useKeyboardEdges();
+  const [pull, setPull] = useState(0);
+  const grip = useSwipe(
+    (travel) => setPull(Math.max(0, travel)),
+    (travel) => {
+      setPull(0);
+      if (travel > SWIPE_TO_CLOSE_PX) onClose();
+    },
+  );
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 flex"
-      style={{ zIndex: `calc(var(--z-window) + ${rank})` }}
+      ref={container}
+      tabIndex={-1}
+      role="dialog"
+      className="hud board-window @container flex flex-col overflow-hidden outline-none"
+      style={
+        {
+          zIndex: `calc(var(--z-window) + ${rank})`,
+          ...(keyboard === null
+            ? {}
+            : {
+                '--window-top': `calc(${keyboard.top}px + var(--safe-top))`,
+                '--window-bottom': `${keyboard.bottom}px`,
+              }),
+          ...(pull > 0 ? { transform: `translateY(${pull / scaleOf(container.current)}px)` } : {}),
+        } as CSSProperties
+      }
     >
       <div
-        ref={container}
-        tabIndex={-1}
-        role="dialog"
-        className="hud hud-screen @container pointer-events-auto flex flex-col overflow-hidden outline-none"
+        {...grip}
+        aria-hidden
+        className="flex h-[14px] shrink-0 cursor-grab items-center justify-center"
+        style={{ touchAction: 'none' }}
       >
-        <SizedContext.Provider value>{children}</SizedContext.Provider>
+        <span className="block h-[3px] w-[40px] bg-[var(--paper-dim)]" />
       </div>
+      <SizedContext.Provider value>{children}</SizedContext.Provider>
     </div>
   );
 }
+
+/**
+ * **Recouverte, une feuille se ferme par son propre geste** (piste A, passe 2, qui révise le
+ * 15/09 : fermer celle du dessus rendait la précédente). Par le sien et non par l'URL, parce que
+ * le journal et le télégraphe datent la lecture à la fermeture — une fenêtre retirée en silence
+ * laisserait son badge compter ce qu'on vient de lire. Une fois : le geste navigue, et la fenêtre
+ * se redessine encore avant de partir.
+ */
+function useClosedWhenCovered(onClose: () => void, inFront: boolean): void {
+  const closed = useRef(false);
+  useEffect(() => {
+    if (inFront || closed.current) return;
+    closed.current = true;
+    onClose();
+  }, [inFront, onClose]);
+}
+
+/** Un geste franc, pas un défilement qui a dérapé sur la poignée. */
+const SWIPE_TO_CLOSE_PX = 80;
+
+/**
+ * **Le clavier prend la place du pied** (A5 bis) : le champ et « envoyer » montent au-dessus de
+ * lui, les en-têtes restent en tête. `visualViewport` est la seule mesure du clavier qu'ont les
+ * deux moteurs ; `null` tant qu'il est rangé, et la feuille retombe alors sur les bords du
+ * plateau.
+ */
+function useKeyboardEdges(): { top: number; bottom: number } | null {
+  const [edges, setEdges] = useState<{ top: number; bottom: number } | null>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const follow = () => {
+      const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+      setEdges(
+        covered < KEYBOARD_MIN_PX
+          ? null
+          : { top: viewport.offsetTop, bottom: Math.max(0, Math.round(covered)) },
+      );
+    };
+    follow();
+    viewport.addEventListener('resize', follow);
+    viewport.addEventListener('scroll', follow);
+    return () => {
+      viewport.removeEventListener('resize', follow);
+      viewport.removeEventListener('scroll', follow);
+    };
+  }, []);
+  return edges;
+}
+
+/** En deçà, c'est une barre d'outils du navigateur qui bouge, pas un clavier. */
+const KEYBOARD_MIN_PX = 120;
 
 function DeskWindow({
   name,

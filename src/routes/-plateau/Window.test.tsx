@@ -7,8 +7,8 @@ import { Panel } from './Panel';
 /**
  * **Le seuil change le cadre, jamais le contenu** (décision du 15/09). Ce qui se vérifie ici est
  * la seule chose que les huit fenêtres et les trois panneaux aient en commun : sous 768 px une
- * fenêtre est une feuille pleine page qu'on ne pousse ni ne redimensionne, un panneau est une
- * feuille ancrée en bas — et au-dessus du seuil rien n'a bougé, ce qui est le cas d'acceptation
+ * fenêtre tient l'écran entre le bandeau et la barre de pied sans qu'on la pousse ni la
+ * redimensionne, un panneau est la feuille basse (piste A, passe 2) — et au-dessus du seuil rien n'a bougé, ce qui est le cas d'acceptation
  * 7 (captures identiques au bureau).
  *
  * jsdom ne met rien en page et n'évalue aucune requête média : `matchMedia` est donc posée à la
@@ -46,9 +46,32 @@ it('lays a window flat on the screen under the threshold', () => {
     </FloatingWindow>,
   );
 
-  expect(container.querySelector('.hud-screen')).not.toBeNull();
+  const sheet = container.querySelector<HTMLElement>('.board-window');
+  expect(sheet).not.toBeNull();
   expect(container.querySelector('[title]')).toBeNull();
-  expect(container.querySelector('[role="dialog"]')?.getAttribute('style')).toBeNull();
+  expect(container.querySelector('.resize-corner')).toBeNull();
+  expect(sheet?.style.transform).toBe('');
+});
+
+/** Recouverte, une feuille se ferme par son propre geste — une fois, quoi qu'il se redessine. */
+it('closes a narrow window that another one covers, once', () => {
+  atWidth(375);
+  const onClose = vi.fn();
+  const { rerender } = render(
+    <FloatingWindow name="journal" width={1040} {...frame} onClose={onClose}>
+      <p>dépêches</p>
+    </FloatingWindow>,
+  );
+  expect(onClose).not.toHaveBeenCalled();
+
+  for (const _ of [1, 2]) {
+    rerender(
+      <FloatingWindow name="journal" width={1040} {...frame} inFront={false} onClose={onClose}>
+        <p>dépêches</p>
+      </FloatingWindow>,
+    );
+  }
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
 
 it('keeps the desk window above the threshold', () => {
@@ -59,7 +82,7 @@ it('keeps the desk window above the threshold', () => {
     </FloatingWindow>,
   );
 
-  expect(container.querySelector('.hud-screen')).toBeNull();
+  expect(container.querySelector('.board-window')).toBeNull();
   expect(container.querySelector('.resize-corner')).not.toBeNull();
   expect(container.querySelector<HTMLElement>('[role="dialog"]')?.style.width).toBe(
     'min(1040px, 100%)',
@@ -75,8 +98,8 @@ it('anchors a panel at the foot of a narrow screen, outside the push its caller 
   );
 
   // Le portail : la feuille sort du cadre de l'appelant pour se mesurer sur l'écran.
-  expect(container.querySelector('.hud-dock')).toBeNull();
-  expect(document.body.querySelector('.hud-dock')).not.toBeNull();
+  expect(container.querySelector('.board-sheet')).toBeNull();
+  expect(document.body.querySelector('.board-sheet')).not.toBeNull();
 });
 
 it('leaves the panel where the board anchors it above the threshold', () => {
@@ -87,6 +110,6 @@ it('leaves the panel where the board anchors it above the threshold', () => {
     </Panel>,
   );
 
-  expect(document.body.querySelector('.hud-dock')).toBeNull();
+  expect(document.body.querySelector('.board-sheet')).toBeNull();
   expect(container.querySelector('section')?.className).toContain('relative');
 });

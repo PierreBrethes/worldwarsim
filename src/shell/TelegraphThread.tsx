@@ -116,13 +116,13 @@ export function TelegraphThread({
               send();
             }}
             placeholder={fr.telegraph.placeholder}
-            className="min-w-0 flex-1 border border-[var(--ink-quiet)] bg-transparent px-[9px] py-[6px] text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] focus:border-[var(--ink)]"
+            className="telegraph-field min-w-0 flex-1 border border-[var(--ink-quiet)] max-md:min-h-11 bg-transparent px-[9px] py-[6px] text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-note)] focus:border-[var(--ink)]"
           />
           <button
             type="button"
             onClick={send}
             disabled={draft.trim().length === 0}
-            className="shrink-0 cursor-pointer bg-[var(--ink)] px-3 py-[7px] text-[9px] tracking-[.2em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="shrink-0 cursor-pointer bg-[var(--ink)] px-3 py-[7px] max-md:min-h-11 text-[9px] tracking-[.2em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {fr.telegraph.send}
           </button>

@@ -4,6 +4,7 @@ import { asLocalTime } from '@/domain/duration';
 import type { PressEdition, PressLine, PressOwnLine } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { Stamp } from '@/shell/Stamp';
+import { useNarrowScreen } from '@/shell/viewport';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 
@@ -104,6 +105,7 @@ function Table({
   sort: SortKey;
   onSort: (key: SortKey) => void;
 }) {
+  const narrow = useNarrowScreen();
   const rows: ReadonlyArray<Row> = [
     ...press.others.map((line) => ({ ...line, own: null })),
     ...(press.mine === null
@@ -121,6 +123,8 @@ function Table({
       Math.max(...rows.map((row) => row[key])),
     ]),
   ) as Record<SortKey, number>;
+
+  if (narrow) return <NarrowTable rows={ordered} best={best} sort={sort} onSort={onSort} />;
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -181,14 +185,93 @@ function Table({
   );
 }
 
+/**
+ * **Quatre colonnes sur un téléphone** (piste A, A5) : le rang, la nation et son pseudo sur deux
+ * lignes, le territoire, le score. Les faits d'armes cèdent la place — ils restent dans « nos
+ * registres », sous ma ligne, et au bureau. La ligne du joueur est teintée, comme au bureau.
+ */
+const NARROW_GRID = 'grid-cols-[26px_minmax(0,1fr)_62px_62px]';
+
+function NarrowTable({
+  rows,
+  best,
+  sort,
+  onSort,
+}: {
+  rows: ReadonlyArray<Row>;
+  best: Record<SortKey, number>;
+  sort: SortKey;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        className={`grid ${NARROW_GRID} items-center gap-x-[8px] border-b border-[var(--ink)] px-3 text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase`}
+      >
+        <span>{fr.press.columns.rank}</span>
+        <span>{fr.press.columnsShort.nation}</span>
+        <SortHeader column="territory" sort={sort} onSort={onSort} short />
+        <SortHeader column="general" sort={sort} onSort={onSort} short />
+      </div>
+      {rows.map((row) => (
+        <div key={row.playerId}>
+          <div
+            className={`grid ${NARROW_GRID} items-center gap-x-[8px] border-b border-(color:--ink)/16 px-3 py-[9px] ${
+              row.own === null ? '' : 'bg-(--ink)/8'
+            }`}
+            style={row.defeated ? { opacity: 0.45 } : undefined}
+          >
+            <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
+              {row.rank}
+            </span>
+            <span className="flex min-w-0 items-center gap-[8px]">
+              <Flag nation={row.nation} width={22} onPaper />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-(family-name:--font-display) text-[16px] leading-[1.1] font-extrabold text-[var(--ink)]">
+                  {nationLabel(row.nation)}
+                </span>
+                <span
+                  className={`truncate text-[11.5px] text-[var(--ink-soft)] ${row.own === null ? '' : 'font-bold'}`}
+                >
+                  {row.nickname}
+                </span>
+              </span>
+              {row.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
+            </span>
+            <NarrowFigure
+              value={fr.press.percent(row.territory)}
+              lead={row.territory === best.territory}
+            />
+            <NarrowFigure value={fr.press.score(row.general)} lead={row.general === best.general} />
+          </div>
+          {row.own !== null && <Registers own={row.own} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NarrowFigure({ value, lead }: { value: string; lead: boolean }) {
+  return (
+    <span
+      className="text-right font-(family-name:--font-mono) text-[13px] whitespace-nowrap"
+      style={{ color: lead ? 'var(--critical)' : 'var(--ink)' }}
+    >
+      {value}
+    </span>
+  );
+}
+
 function SortHeader({
   column,
   sort,
   onSort,
+  short = false,
 }: {
   column: SortKey;
   sort: SortKey;
   onSort: (key: SortKey) => void;
+  short?: boolean;
 }) {
   const label = fr.press.columns[column];
   return (
@@ -202,7 +285,7 @@ function SortHeader({
           : 'border-transparent text-[var(--ink-soft)] hover:text-[var(--ink)]'
       }`}
     >
-      <span>{label}</span>
+      <span>{short ? fr.press.columnsShort[column] : label}</span>
       <span className="text-[8px]">▼</span>
     </button>
   );
@@ -270,7 +353,7 @@ function Registers({ own }: { own: PressOwnLine }) {
   ];
 
   return (
-    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-(--ink)/4 px-[18px] pt-3 pb-[14px]">
+    <section className="mx-3 mt-[2px] mb-[6px] ml-[54px] border border-[var(--ink)] bg-(--ink)/4 px-[18px] pt-3 pb-[14px] max-md:ml-3 max-md:px-3">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--ink)] pb-[6px]">
         <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
           {said.title}
@@ -283,7 +366,7 @@ function Registers({ own }: { own: PressOwnLine }) {
           {fr.press.ownRegisters}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-x-[18px]">
+      <div className="mt-3 grid grid-cols-5 gap-x-[18px] max-md:grid-cols-2 max-md:gap-y-3">
         {cells.map((cell) => (
           <div
             key={cell.label}

@@ -8,6 +8,7 @@ import type { PlayableRegion } from '@/domain/ids';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
+import { fittedWordmark } from '@/shell/EntrySheet';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
@@ -38,22 +39,22 @@ function OfflineHome() {
 function HomeSheet({ turning, children }: { turning: Turning; children: ReactNode }) {
   return (
     <Newspaper width={WIDTH} turning={turning}>
-      <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
-        <div className="flex items-baseline justify-between gap-5 px-[30px] pt-[13px] pb-[9px]">
+      <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+        <div className="flex items-baseline justify-between gap-5 px-(--sheet-pad) pt-[13px] pb-[9px]">
           <span className="eyebrow">{fr.home.edition}</span>
           <span className="eyebrow">{fr.home.audience}</span>
         </div>
 
         {/* La date a quitté l'oreille pour la ligne de date de la manchette, qui est sa place
             dans un quotidien — et il n'y en a qu'une sur la page. */}
-        <div className="px-[30px] pt-[6px] pb-[18px] text-center">
-          <Masthead date={romanDate(new Date())} />
+        <div className="px-(--sheet-pad) pt-[6px] pb-[18px] text-center">
+          <Masthead date={romanDate(new Date())} wordmarkSize={fittedWordmark(54)} />
           <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
             {fr.home.tagline}
           </p>
         </div>
 
-        <ThickRuleInverse />
+        <ThickRuleInverse margin="var(--sheet-pad)" />
 
         {children}
 
@@ -166,7 +167,7 @@ function ConnectedHome() {
     <>
       <HomeSheet turning={turning}>
         {mine.length > 0 && (
-          <div className="mx-[30px] mt-[20px]">
+          <div className="mx-(--sheet-pad) mt-[20px]">
             <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
               <span className="eyebrow">{fr.home.gamesHeader}</span>
               <span className="text-[10.5px] text-[var(--ink-note)]">{fr.home.gamesNote}</span>
@@ -191,7 +192,7 @@ function ConnectedHome() {
         {/* Les deux bureaux côte à côte tant que la page en a la largeur ; l'un sous l'autre
             sous une feuille étroite, où chacun n'avait plus que cent trente pixels et débordait
             de la page. */}
-        <div className="mx-[30px] mt-6 flex flex-col items-stretch border-t border-[var(--ink)] @md:flex-row">
+        <div className="mx-(--sheet-pad) mt-6 flex flex-col items-stretch border-t border-[var(--ink)] @md:flex-row">
           <form onSubmit={submitCreate} className="flex-1 pt-4 pb-1 @md:pr-[26px]">
             <Title numeral="I" title={fr.home.foundTitle} />
             <p className="mt-[5px] text-[11.5px] text-[var(--ink-note)]">
@@ -237,14 +238,14 @@ function ConnectedHome() {
         </div>
 
         {error && (
-          <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+          <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
             {error}
           </p>
         )}
 
         {/** **La déconnexion vit aussi ici**, et pas seulement dans les Réglages du plateau :
          *   un compte sans partie n'a pas de plateau, et il serait enfermé sur cette feuille. */}
-        <div className="mx-[30px] mt-[22px] flex items-baseline justify-between gap-4">
+        <div className="mx-(--sheet-pad) mt-[22px] flex items-baseline justify-between gap-4">
           <span className="eyebrow">{fr.auth.signedIn(me?.nickname ?? '')}</span>
           <button
             type="button"
@@ -256,13 +257,13 @@ function ConnectedHome() {
                   void navigate({ to: '/connexion' });
                 })
             }
-            className="cursor-pointer text-[11px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+            className={`cursor-pointer text-[11px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] max-md:min-h-11`}
           >
             {fr.auth.logout}
           </button>
         </div>
 
-        <div className="mx-[30px] mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
+        <div className="mx-(--sheet-pad) mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
           <span>{fr.home.footerLeft}</span>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
             {fr.home.footerRight}
@@ -412,7 +413,7 @@ function Commit({
 
 function NoBackend() {
   return (
-    <p className="px-[30px] pt-6 pb-4 text-[13.5px] leading-[1.55]">
+    <p className="px-(--sheet-pad) pt-6 pb-4 text-[13.5px] leading-[1.55]">
       {fr.home.noBackend.before}
       <span className="font-(family-name:--font-mono)">{fr.home.noBackend.env}</span>
       {fr.home.noBackend.middle}

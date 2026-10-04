@@ -38,7 +38,7 @@ export function BriefingSheet({ onDismiss }: { onDismiss: () => void }) {
       {/* `hud-fit` et la hauteur qui va avec : l'échelle d'interface est un `zoom`, qui multiplie
           aussi un `100%` — la feuille dépassait de vingt pour cent en haut et en bas, et sur un
           téléphone la notice s'ouvrait déjà coupée. */}
-      <div className="hud hud-fit max-h-[calc(100%/var(--hud-scale))] overflow-auto">
+      <div className="hud hud-fit max-h-[calc(100%/var(--hud-scale))] overflow-auto max-md:max-h-full">
         <article className="paper-grain w-[880px] max-w-full border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6)]">
           <div className="flex items-baseline justify-between gap-5 px-[26px] pt-[11px] pb-[7px]">
             <span className="eyebrow">{fr.briefing.kicker}</span>

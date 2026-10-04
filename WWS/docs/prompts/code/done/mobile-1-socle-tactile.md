@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [src/map/engine/index.ts, src/domain/mouse-mapping.ts, src/map/ControlsCard.tsx, src/routes/-plateau/SettingsWindow.tsx, src/styles/index.css, index.html, public/sw.js]
 decisions: [mobile-1c-2026-10-03, mobile-geste-2026-10-03]

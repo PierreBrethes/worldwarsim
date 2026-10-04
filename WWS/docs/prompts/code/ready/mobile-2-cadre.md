@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-04
 code: [src/shell/SurfaceRail.tsx, src/shell/ResourceBand.tsx, src/routes/-plateau/NextActions.tsx, src/routes/-plateau/Window.tsx, src/routes/-plateau/Panel.tsx, src/routes/plateau.tsx, src/i18n/fr.ts]
 decisions: [mobile-1c-2026-10-03, mobile-piste-a-2026-10-03]
-voir: [mobile-1-socle-tactile.md, ../../design/plateau-sur-telephone-2.md, ../../../rapports/2026-10-03-releve-mobile.md]
+voir: [../done/mobile-1-socle-tactile.md, ../../design/plateau-sur-telephone-2.md, ../../../rapports/2026-10-03-releve-mobile.md]
 ---
 # mobile-2-cadre — la barre de pied, le bandeau, les feuilles
 
@@ -64,12 +64,23 @@ la barre**, avec la poignée et « fermer » de la maquette. La presse et le té
 A5 bis : au télégraphe, le champ et « envoyer » montent au-dessus du clavier, les canaux restent en
 tête, texte saisi en 17 px.
 
-## 6. Hors périmètre
+## 6. Accueil et salon, et `hud-fit`
+
+- **`hud-fit` ne marche plus** (constat du lot de la une, 04/10) : il suppose que `zoom` multiplie
+  les pourcentages, ce que Chromium 153 et WebKit 26 ne font plus ; une feuille d'iPhone 13
+  faisait 298 px sur 358. Sous 768 px, plus aucune surface ne passe par `hud-fit` : la feuille de
+  la une (`EntrySheet`, `fit="container"`) sert de modèle.
+- **Accueil et salon** (débordements mesurés au relevé, cause C3) prennent ces mesures sous
+  768 px : enseigne, code et boutons « copier » dans le cadre, cibles de 44 px, champ de l'heure de
+  repos à 16 px.
+- Au-dessus de 768 px, `hud-fit` ne change pas dans ce lot : voir le lot suivant.
+
+## 7. Hors périmètre
 
 Rose des vents, fiche, panneau de garnison, visée, panneaux construction et sol, arrivée depuis une
 notification (lot 3) ; taille des troupes, drapeau d'arrivée, cartouches (lot 4).
 
-## 7. Vérification
+## 8. Vérification
 
 - Tests des composants : barre (cinq entrées, étage plus), bandeau (replié/déplié), feuille (trois
   hauteurs, une seule surface ouverte).

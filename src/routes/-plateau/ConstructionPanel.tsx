@@ -165,6 +165,7 @@ export function ConstructionPanel({
         marker={fr.construction.kicker}
         position="static"
         width={size?.width ?? 310}
+        onClose={onClose}
         {...(size ? { height: size.height } : {})}
       >
         <div className="flex shrink-0 items-baseline gap-2 text-[11.5px] text-[var(--ink-soft)]">

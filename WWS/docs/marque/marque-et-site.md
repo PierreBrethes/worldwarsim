@@ -18,7 +18,7 @@ reste la page d'accueil.
 
 | Id | Date | Décision |
 |---|---|---|
-| accueil-2a-2026-10-03 | 03/10/2026 | Page d'accueil : maquette 2a « la une sur le bureau » (Claude design), un seul champ de code dessiné en six cases, date du jour ; connexion et invitation reprennent la feuille. Avance plan-5c, sans inscription publique (marque-1c tient). [Prompt](../prompts/code/ready/page-d-accueil-la-une.md). |
+| accueil-2a-2026-10-03 | 03/10/2026 | Page d'accueil : maquette 2a « la une sur le bureau » (Claude design), un seul champ de code dessiné en six cases, date du jour ; connexion et invitation reprennent la feuille. Avance plan-5c, sans inscription publique (marque-1c tient). [Prompt](../prompts/code/done/page-d-accueil-la-une.md). |
 | marque-1c-2026-10-02 | 02/10/2026 | Entre amis maintenant, public plus tard : pas de juridique ni de référencement tant que le jeu n'est pas ouvert. |
 | marque-2b-2026-10-02 | 02/10/2026 | Chercher un nom maintenant (WorldWarSim est descriptif, et le créneau est occupé : *Ages of Conflict: World War Simulator*). |
 | marque-3a-2026-10-02 | 02/10/2026 | Le temps de jeu par jour se **mesure** à la prochaine vraie partie, il ne se promet pas avant. Le multiplicateur de ressources récent le change. |

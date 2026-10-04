@@ -12,7 +12,6 @@ import { NationCartouche } from './NationCartouche';
 import { Stamp } from './Stamp';
 import { Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
-import { useNarrowScreen } from './viewport';
 
 /**
  * Forty-two pixels. The bar held 52 to seat a gauge under each of the eight figures; the
@@ -40,17 +39,10 @@ export function NationBanner({ view }: { view: PlayerView }) {
   const unread = view.journal.filter((dispatch) => dispatch.unread);
   const critical = unread.find((dispatch) => dispatch.severity === 'critical') ?? null;
   const hasNews = unread.length > 0;
-  /** **Sous le seuil, la barre garde ce qu'on y lit, pas ce qui la titre** : la manchette et la
-   *  manchette du jour cèdent la place au cartouche, au chantier, aux slots et au journal, qui
-   *  sont les quatre choses qu'on y regarde. Ce qui déborde encore défile à l'horizontale plutôt
-   *  que de rétrécir une ligne déjà à neuf pixels d'œil. */
-  const narrow = useNarrowScreen();
 
   return (
     <header
-      className={`hud flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)] ${
-        narrow ? 'overflow-x-auto' : ''
-      }`}
+      className="hud flex shrink-0 items-center border-b border-[var(--ink-quiet)] bg-[var(--desk)]"
       style={{ fontFamily: 'var(--font-body)', height: BANNER_HEIGHT }}
     >
       {/* **La manchette réduite, à la tête du seul en-tête du jeu.** Le pavé et sa suite, rien
@@ -59,13 +51,11 @@ export function NationBanner({ view }: { view: PlayerView }) {
 
           L'encre de la barre est celle du papier (`.hud` sert `--ink`) : « SIM » prend la
           couleur courante et disparaissait sur le bureau sombre. Ici il tire du papier. */}
-      {!narrow && (
-        <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3 text-[var(--paper)]">
-          <Wordmark size={15} />
-        </div>
-      )}
+      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3 text-[var(--paper)]">
+        <Wordmark size={15} />
+      </div>
 
-      <NationCartouche nation={me.nation} height={BANNER_HEIGHT} narrow={narrow} />
+      <NationCartouche nation={me.nation} height={BANNER_HEIGHT} />
 
       {/* **Le cachet de la défaite, contre le cartouche.** À l'encre du papier et non au rouge :
           la règle 3 des tampons réserve le rouge à ce qui exige un geste, et un observateur n'en
@@ -86,16 +76,12 @@ export function NationBanner({ view }: { view: PlayerView }) {
       {/* The slots ride with the journal, on the same edge: both are things one glances at
           rather than reads, and the free slot is the first question before any dispatch. */}
       <div
-        className={`flex h-full shrink-0 items-center gap-[10px] border-l border-[var(--ink-quiet)] whitespace-nowrap ${
-          narrow ? 'px-2' : 'px-4'
-        }`}
+        className="flex h-full shrink-0 items-center gap-[10px] border-l border-[var(--ink-quiet)] px-4 whitespace-nowrap"
         title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
       >
-        {!narrow && (
-          <span className="text-[9px] leading-none tracking-[.14em] text-[var(--paper-dim)] uppercase">
-            {fr.banner.slots}
-          </span>
-        )}
+        <span className="text-[9px] leading-none tracking-[.14em] text-[var(--paper-dim)] uppercase">
+          {fr.banner.slots}
+        </span>
         <span className="font-(family-name:--font-mono) text-[14px] font-medium text-[var(--paper)]">
           {fr.banner.slotsCount(me.slots.used, me.slots.total)}
         </span>
@@ -105,9 +91,7 @@ export function NationBanner({ view }: { view: PlayerView }) {
         to="/plateau"
         search={withWindow(search, 'journal')}
         title={hasNews ? undefined : fr.banner.journalEmpty}
-        className={`flex h-full min-w-0 items-center gap-3 border-l border-[var(--ink-quiet)] whitespace-nowrap hover:bg-[var(--ink)] ${
-          narrow ? 'px-3' : 'px-4'
-        }`}
+        className="flex h-full min-w-0 items-center gap-3 border-l border-[var(--ink-quiet)] px-4 whitespace-nowrap hover:bg-[var(--ink)]"
       >
         <span
           className="shrink-0"
@@ -117,20 +101,12 @@ export function NationBanner({ view }: { view: PlayerView }) {
         </span>
         {/* The headline beats the counter: a newspaper titles, it does not enumerate.
             But a paper without a dispatch has no headline either — it stays silent. */}
-        {hasNews && !narrow && (
+        {hasNews && (
           <span
             className="min-w-0 max-w-[260px] overflow-hidden text-[12.5px] text-ellipsis"
             style={{ color: critical ? 'var(--critical)' : 'var(--paper)' }}
           >
             {critical ? critical.text : fr.banner.unread(unread.length)}
-          </span>
-        )}
-        {hasNews && narrow && (
-          <span
-            className="font-(family-name:--font-mono) text-[12px]"
-            style={{ color: critical ? 'var(--critical)' : 'var(--paper)' }}
-          >
-            {unread.length}
           </span>
         )}
       </Link>

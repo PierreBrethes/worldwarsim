@@ -124,8 +124,8 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
     <>
       <div className="h-full">
         <Newspaper width={WIDTH} turning={turning}>
-          <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
-            <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-[30px] pt-3 pb-[10px]">
+          <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+            <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-(--sheet-pad) pt-3 pb-[10px]">
               {/* La manchette réduite : le salon est une feuille du même journal que l'accueil,
                   et c'est la seule chose qui le dit une fois la page tournée. */}
               <Wordmark size={17} />
@@ -145,15 +145,15 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                   forgetSeat();
                   turn(() => void navigate({ to: '/accueil' }));
                 }}
-                className="cursor-pointer border border-(color:--ink)/55 px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                className="max-md:min-h-11 cursor-pointer border border-(color:--ink)/55 px-[13px] py-[6px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
               >
                 {fr.lobby.quit}
               </button>
             </div>
 
-            <ThickRule />
+            <ThickRule margin="var(--sheet-pad)" />
 
-            <div className="flex flex-wrap items-center gap-[26px] px-[30px] pt-[18px] pb-4">
+            <div className="flex flex-wrap items-center gap-[26px] px-(--sheet-pad) pt-[18px] pb-4">
               <div className="min-w-0 flex-1">
                 <div className="eyebrow">{fr.lobby.codeLabel}</div>
                 <div className="font-(family-name:--font-display) text-[clamp(34px,6.6cqi,68px)] leading-[1.04] font-extrabold tracking-[.22em]">
@@ -166,14 +166,14 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
                 <button
                   type="button"
                   onClick={copyCode}
-                  className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                  className="max-md:min-h-11 cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
                 >
                   {copied ? fr.lobby.codeCopied : fr.lobby.copyCode}
                 </button>
                 <button
                   type="button"
                   onClick={copyLink}
-                  className="cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                  className="max-md:min-h-11 cursor-pointer border border-[var(--ink)] p-[10px] text-[10px] tracking-[.2em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
                 >
                   {linkCopied ? fr.lobby.linkCopied : fr.lobby.copyLink}
                 </button>
@@ -183,9 +183,9 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               </div>
             </div>
 
-            <ThickRuleInverse />
+            <ThickRuleInverse margin="var(--sheet-pad)" />
 
-            <div className="mx-[30px] flex flex-col @2xl:flex-row @2xl:items-stretch">
+            <div className="mx-(--sheet-pad) flex flex-col @2xl:flex-row @2xl:items-stretch">
               <section className="min-w-0 flex-1 pt-4 pb-2 @2xl:pr-[26px]">
                 <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
                   <span className="eyebrow">
@@ -422,17 +422,17 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
               </aside>
             </div>
 
-            <ThickRuleInverse />
+            <ThickRuleInverse margin="var(--sheet-pad)" />
 
             <LobbyTelegraph seat={seat} />
 
             {error && (
-              <p className="mx-[30px] mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
+              <p className="mx-(--sheet-pad) mt-4 border border-[var(--critical)] px-3 py-2 text-[12.5px]">
                 {error}
               </p>
             )}
 
-            <div className="mx-[30px] mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
+            <div className="mx-(--sheet-pad) mt-[14px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
               <span>{entering ? fr.lobby.footerEnterWar : fr.lobby.footerLeft}</span>
               <span className="font-(family-name:--font-mono) tracking-[.12em]">
                 {fr.lobby.footerCode(lobby.code)}
@@ -476,7 +476,7 @@ function LobbyTelegraph({ seat }: { seat: Seat }) {
   );
 
   return (
-    <section className="mx-[30px] mt-4 flex flex-col">
+    <section className="mx-(--sheet-pad) mt-4 flex flex-col">
       <div className="flex items-baseline justify-between border-b border-[var(--ink)] pb-[7px]">
         <span className="eyebrow">{fr.telegraph.header}</span>
         <span className="text-[10.5px] text-[var(--ink-note)]">{fr.telegraph.channel}</span>
@@ -522,7 +522,7 @@ function RestWindowForm({
           setStart(event.target.value);
           setSaved(false);
         }}
-        className="border border-[var(--ink)] bg-transparent px-2 py-[5px] font-(family-name:--font-mono) text-[13px] text-[var(--ink)] outline-none"
+        className="max-md:min-h-11 border border-[var(--ink)] bg-transparent px-2 py-[5px] font-(family-name:--font-mono) text-[13px] text-[var(--ink)] outline-none"
       />
       <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
         {fr.lobby.restUntil(asHtmlTime(endOf(asMinutes(start))))}
@@ -535,7 +535,7 @@ function RestWindowForm({
             .then(() => setSaved(true))
             .catch((problem: unknown) => handleError(problem, onError));
         }}
-        className="cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        className="max-md:min-h-11 cursor-pointer border border-[var(--ink)] px-2 py-[6px] text-[9px] tracking-[.14em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
       >
         {saved ? fr.lobby.restDeclared : fr.lobby.restDeclare}
       </button>

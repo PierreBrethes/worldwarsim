@@ -131,7 +131,13 @@ export function GarrisonPanel({
         bottom: fromBottom ? `calc(100% - ${at.y}px)` : undefined,
       }}
     >
-      <Panel title={title} marker={fr.garrison.kicker} position="static" width={340}>
+      <Panel
+        title={title}
+        marker={fr.garrison.kicker}
+        position="static"
+        width={340}
+        onClose={onClose}
+      >
         {/**
          * **Désactivé, jamais pris** (ADR 0004) : un raid gagné met le point hors service pour un
          * temps, il ne change pas de main. Le tampon est rouge parce que c'est la seule chose du

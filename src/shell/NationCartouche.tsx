@@ -16,27 +16,14 @@ import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
  */
 const AIR_AFTER_WATERMARK = 6;
 
-export function NationCartouche({
-  nation,
-  height,
-  narrow = false,
-}: {
-  nation: string | null;
-  height: number;
-  /** Sous le seuil, le nom descend de quatre pixels et la marge de droite se resserre : c'est
-   *  exactement ce qu'il fallait rendre pour que le journal reste sur l'écran, et il est le
-   *  bout de barre qu'on va chercher. */
-  narrow?: boolean;
-}) {
+export function NationCartouche({ nation, height }: { nation: string | null; height: number }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   return (
     <Link
       to="/plateau"
       search={withWindow(search, 'nation')}
       title={fr.banner.nationSheet(nationLabel(nation))}
-      className={`relative flex shrink-0 items-center overflow-hidden whitespace-nowrap hover:brightness-125 ${
-        narrow ? 'pr-3' : 'pr-5'
-      }`}
+      className="relative flex shrink-0 items-center overflow-hidden pr-5 whitespace-nowrap hover:brightness-125"
       style={{ height }}
     >
       <FlagWatermark nation={nation} />
@@ -50,11 +37,7 @@ export function NationCartouche({
           textShadow: '0 1px 3px color-mix(in srgb, var(--map-desk) 90%, transparent)',
         }}
       >
-        <span
-          className={`font-(family-name:--font-display) leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase ${
-            narrow ? 'text-[15px]' : 'text-[19px]'
-          }`}
-        >
+        <span className="font-(family-name:--font-display) text-[19px] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
           {nationLabel(nation)}
         </span>
       </div>

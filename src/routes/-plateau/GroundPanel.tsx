@@ -55,6 +55,7 @@ export function GroundPanel({
   holding,
   suspendedUntil,
   view,
+  onDeselect,
 }: {
   selected: string | null;
   hoveredCountry: string | null;
@@ -68,6 +69,8 @@ export function GroundPanel({
    */
   suspendedUntil: number | null;
   view: PlayerView;
+  /** Sous le seuil le panneau est une feuille, et « fermer » y défait la sélection qui l'a ouvert. */
+  onDeselect: () => void;
 }) {
   const coastal = useCoastalRegions();
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
@@ -98,6 +101,7 @@ export function GroundPanel({
       marker={hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker}
       position="static"
       width={280}
+      onClose={onDeselect}
     >
       <h2 className="font-(family-name:--font-display) text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
         {countryLabel(country)}

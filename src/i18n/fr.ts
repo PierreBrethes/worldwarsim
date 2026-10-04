@@ -863,6 +863,19 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
+    /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : huit colonnes sur un téléphone,
+     *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
+    abbreviations: {
+      food: 'nou',
+      textile: 'tis',
+      coal: 'cha',
+      oil: 'pét',
+      ore: 'min',
+      alloy: 'all',
+      ammunition: 'mun',
+      bandages: 'ban',
+    } satisfies Record<ResourceKey, string>,
+    slots: 'mouvements',
   },
 
   /**
@@ -889,6 +902,13 @@ export const fr = {
       territory: 'territoire',
       general: 'score général',
       deeds: 'faits d’armes',
+    },
+    /** Sous le seuil la table tient quatre colonnes (A5) : les en-têtes s'y abrègent. */
+    columnsShort: {
+      nation: 'nation',
+      territory: 'terr.',
+      general: 'score',
+      deeds: 'faits',
     },
     /** Le tri est une lecture, jamais un ordre : la page n'envoie rien, et l'ordre servi reste
      *  celui du territoire — le but de la saison (79a). */
@@ -942,6 +962,27 @@ export const fr = {
       `bâtiments sur la carte — ${on ? 'affichés' : 'masqués'}`,
     // Same reading as the buildings bascule, same reason: it governs the board, not the edge.
     toggleDepositsTitle: (on: boolean) => `gisements sur la carte — ${on ? 'affichés' : 'masqués'}`,
+  },
+
+  /**
+   * **La barre de pied, sous 768 px** (piste A, passe 2) : cinq entrées, et « plus » qui ouvre un
+   * étage pour ce qu'on cherche à froid. Les libellés sont ceux de la maquette, en capitales par
+   * la feuille de style.
+   */
+  foot: {
+    todo: 'à faire',
+    journal: 'journal',
+    telegraph: 'télégraphe',
+    press: 'presse',
+    more: 'plus',
+    nation: 'nation',
+    economy: 'économie',
+    gunnery: 'abaque de tir',
+    settings: 'réglages',
+    layers: 'calques',
+    layersTitle: 'Calques de la carte',
+    /** Le rang de la dernière édition, à la française : « 1er », puis « 2e ». */
+    rank: (rank: number) => (rank === 1 ? '1er' : `${rank}e`),
   },
 
   indicatorCategories: {
@@ -1392,6 +1433,8 @@ export const fr = {
     toOutpost: 'à l’avant-poste',
     unfold: 'déplier',
     fold: 'replier',
+    /** La feuille s'ouvre même vide, puisque l'entrée reste au pied : elle le dit en un mot. */
+    nothing: 'Rien n’attend.',
   },
 
   /**

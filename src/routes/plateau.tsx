@@ -325,12 +325,11 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
 function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {
   const { country, windows = [], building: focused } = Route.useSearch();
   /**
-   * **Une seule feuille à l'écran sous le seuil** (décision du 15/09) : les autres restent dans
-   * l'URL — fermer celle du dessus révèle la précédente — et le lien partagé s'ouvre des deux
-   * côtés. Une pile de fenêtres n'a de sens que là où il reste du bureau autour.
+   * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
+   * est rendue entière, et une fenêtre qu'une autre recouvre se ferme d'elle-même (`Window.tsx`) —
+   * fermer celle du dessus rend la carte, pas la précédente.
    */
   const narrow = useNarrowScreen();
-  const stacked = narrow ? windows.slice(-1) : windows;
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
@@ -1472,8 +1471,26 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.arcs, column, order, preview],
   );
 
+  const nextActions = (frame: 'card' | 'sheet') => (
+    <NextActions
+      view={view}
+      frame={frame}
+      placements={foundation}
+      armed={armed}
+      error={mobilizeError}
+      onArm={(debt) => {
+        setMobilizeError(null);
+        setMobilized(debt);
+      }}
+      onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
+      onOpenSurface={openWindow}
+      onOpenSite={openBuilding}
+      onOpenOutpost={openOutpost}
+    />
+  );
+
   return (
-    <Shell view={view} telegraphUnread={telegraph.unread}>
+    <Shell view={view} telegraphUnread={telegraph.unread} todo={nextActions('sheet')}>
       <div ref={board} className="relative min-w-0 flex-1">
         <WorldMap
           world={world}
@@ -1646,25 +1663,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         )}
         {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
             remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
-            **Elle échange sa place avec le refus de fondation sous le seuil** : le bas de l'écran
-            étroit appartient au rail et aux panneaux ancrés, qui l'auraient recouverte en
-            permanence dès qu'un pays est désigné. */}
-        <div className={`absolute left-4 z-10 ${narrow ? 'top-4' : 'bottom-4'}`}>
-          <NextActions
-            view={view}
-            placements={foundation}
-            armed={armed}
-            error={mobilizeError}
-            onArm={(debt) => {
-              setMobilizeError(null);
-              setMobilized(debt);
-            }}
-            onGoToMap={(point) => setFocus({ ids: [], places: [point], nonce: Date.now() })}
-            onOpenSurface={openWindow}
-            onOpenSite={openBuilding}
-            onOpenOutpost={openOutpost}
-          />
-        </div>
+            **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
+            du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
+        {!narrow && <div className="absolute bottom-4 left-4 z-10">{nextActions('card')}</div>}
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
           <GroundPanel
             selected={country ?? null}
@@ -1677,15 +1678,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               hoveredRegion === null ? null : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
             }
             view={view}
+            onDeselect={() => select(null)}
           />
           <ControlsCard />
         </div>
       </div>
       <Suspense fallback={null}>
-        {stacked.map((name, rank) => {
+        {windows.map((name, rank) => {
           const windowProps = {
             rank,
-            inFront: rank === stacked.length - 1,
+            inFront: rank === windows.length - 1,
             onBringForward: () => bringForward(name),
             onClose: () => closeWindow(name),
           };

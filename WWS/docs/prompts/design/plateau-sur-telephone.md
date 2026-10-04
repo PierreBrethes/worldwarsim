@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-03
 code: []
 decisions: [mobile-1c-2026-10-03, mobile-geste-2026-10-03]
-voir: [../../rapports/2026-10-03-releve-mobile.md, ../code/ready/mobile-1-socle-tactile.md, ../../design/11-brief-ui.md, page-d-accueil.md]
+voir: [../../rapports/2026-10-03-releve-mobile.md, ../code/done/mobile-1-socle-tactile.md, ../../design/11-brief-ui.md, page-d-accueil.md]
 ---
 # Prompt Claude design — le plateau sur téléphone
 

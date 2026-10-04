@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-03
 code: [src/routes/index.tsx, src/routes/connexion.tsx, src/routes/rejoindre.$code.tsx, src/shell/Newspaper.tsx, src/shell/Masthead.tsx, src/shell/FilmTrailer.tsx, src/i18n/fr.ts]
 decisions: [accueil-2a-2026-10-03, marque-1c-2026-10-02]

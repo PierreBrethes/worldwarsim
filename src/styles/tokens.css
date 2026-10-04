@@ -108,9 +108,10 @@
   /* geometry */
   --topbar-h: 58px;
   --rail-w: 52px;
-  /* Le rail passe en bas sous le seuil étroit : il y prend une hauteur au lieu d'une largeur,
-     et c'est sur elle que les feuilles ancrées s'arrêtent (`.hud-dock`). */
-  --rail-h: 52px;
+  /* Les deux bords du plateau sous le seuil, en pixels d'écran : le cadre les mesure et les
+     publie (`shell/Shell.tsx`), feuilles et fenêtres se posent entre eux. */
+  --board-top: 0px;
+  --board-bottom: 0px;
   --dock-w: 430px;
   --panel-ctx-w: 308px;
   --panel-side-w: 250px;

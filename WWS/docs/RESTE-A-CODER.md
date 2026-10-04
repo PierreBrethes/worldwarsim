@@ -294,7 +294,7 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 - **Grammaire du doigt** (mobile-geste-2026-10-03, proposée par Cowork, à confirmer par Pierre) :
   toucher net = agir (rose + fiche), un doigt = déplacer, deux doigts = zoomer et orienter ;
   décidée par `pointerType`, indépendante du réglage de la souris.
-- Séquence : M1 [socle tactile](prompts/code/ready/mobile-1-socle-tactile.md) (code) et
+- Séquence : M1 [socle tactile](prompts/code/done/mobile-1-socle-tactile.md) (code) et
   [maquettes du plateau sur téléphone](prompts/design/plateau-sur-telephone.md) (Claude design)
   en parallèle ; puis les lots d'intégration d'après la piste retenue ; le relevé relancé sert de
   contrôle à chaque lot.
@@ -308,9 +308,12 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
 - **La carte lisible** (carte-lisible-2026-10-03), sur ordinateur **et** téléphone : la troupe
   touchée ou cochée grossit, un drapeau planté à l'arrivée de chaque mouvement à soi, un seul
   cartouche par pile. Lot à part, après le cadre mobile.
+- **`hud-fit` faux sur les navigateurs actuels** (hud-fit-2026-10-04) : `zoom` ne multiplie plus les
+  pourcentages ; corrigé sous 768 px par `mobile-2-cadre`, sur ordinateur par
+  [echelle-d-interface](prompts/code/ready/echelle-d-interface.md), captures avant/après.
 - **La une à l'entrée** (accueil-2a-2026-10-03) : maquette 2a « la une sur le bureau », sans
   inscription publique (marque-1c tient) ; avance la page d'accueil que plan-5c reportait.
-  [Prompt](prompts/code/ready/page-d-accueil-la-une.md).
+  [Prompt](prompts/code/done/page-d-accueil-la-une.md).
 
 ## Acté le 15/09 — retours Discord
 
