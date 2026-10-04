@@ -128,28 +128,13 @@ body {
   background: var(--scroll-gutter);
 }
 
-/* **Le `zoom` de `.hud` multiplie aussi les pourcentages.** L'échelle d'interface est un `zoom`
-   CSS (`--hud-scale`), et toute longueur écrite *dans* une surface zoomée est rendue à l'échelle
-   — y compris un `100%` résolu sur un parent qui, lui, ne l'est pas. Une feuille en
-   `max-width: 100%` dépasse donc de vingt pour cent, et sur un téléphone ça se lit comme un
-   débordement horizontal. Les trois règles ci-dessous écrivent la mesure d'écran voulue dans
-   l'unité de la surface : elles sont l'inverse exact du zoom, une fois, ici. */
-.hud-fit {
-  max-width: calc(100% / var(--hud-scale));
-}
-
-/* **Sous le seuil, la borne est l'écran, tout court** (lot de la une, 04/10) : mesuré sur
-   Chromium 153 et WebKit 26, `zoom` ne multiplie plus le pourcentage, et la division laissait une
-   feuille d'iPhone 13 à 298 px sur 358. Au-dessus, la règle ne change pas dans ce lot. */
-@media (max-width: 767px) {
-  .hud-fit {
-    max-width: 100%;
-  }
-}
-
-/* Elle ne vaut que **sous un parent de largeur définie** : dans une boîte dimensionnée par son
-   contenu — un cartouche posé au point cliqué — le pourcentage se résout sur la largeur propre de
-   la carte, et la borne la rétrécit d'un sixième au lieu de ne rien faire. */
+/* **Ce que `zoom` multiplie, et ce qu'il laisse** (mesuré le 04/10 sur Chromium 153 et WebKit 26,
+   1440 × 900 et 1920 × 1080). Dans une surface `.hud` les `px`, `vw`, `vh`, `dvw` et `dvh` sont
+   rendus à l'échelle : on les divise par `--hud-scale` pour dire une mesure d'écran. Les
+   pourcentages ne le sont pas — `100%` est déjà la place du parent, en pixels d'écran — donc on
+   les écrit tels quels, sans division : c'était la règle `hud-fit`, qui rétrécissait les feuilles
+   d'un sixième au lieu de les ajuster. `cqi`, lui, diffère : Chromium le lit sur la boîte du
+   conteneur avant zoom, WebKit sur sa taille d'écran puis le zoome encore (voir `FrontPage`). */
 
 /* **Entre le bandeau et la barre de pied** (piste A, passe 2) : le cadre du plateau publie ses
    deux bords en pixels d'écran (`--board-top`, `--board-bottom`, `shell/Shell.tsx`), et ce qui

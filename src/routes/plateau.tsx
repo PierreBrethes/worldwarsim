@@ -277,7 +277,7 @@ function NoGame() {
   const navigate = useNavigate();
   return (
     <div className="flex h-full items-center justify-center bg-[var(--desk)] px-6">
-      <div className="hud paper-grain hud-fit w-[520px] border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
+      <div className="hud paper-grain w-[520px] max-w-full border border-[var(--ink)] px-[30px] pt-[22px] pb-6 text-center">
         <p className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
           {fr.board.unavailableKicker}
         </p>

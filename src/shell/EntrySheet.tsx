@@ -8,11 +8,6 @@ import { Newspaper, type Turning } from './Newspaper';
  * à une enseigne qui en demandait 400, d'où la manchette rognée du relevé mobile (C3). La marge
  * est une variable, `--sheet-pad`, que tout ce qui se pose sur la feuille lit au lieu d'écrire
  * son propre chiffre.
- *
- * **Et la feuille prend toute la largeur de l'écran, pas cinq sixièmes.** `hud-fit` divise le
- * pourcentage par l'échelle parce que `zoom` le multipliait ; mesuré le 04/10 sur Chromium 153 et
- * WebKit 26, il ne le multiplie plus, et la feuille d'un iPhone 13 tombait à 298 px sur 358.
- * Les pages d'entrée bornent donc à `100%` tout court.
  */
 export function EntrySheet({
   width,
@@ -26,7 +21,7 @@ export function EntrySheet({
   children: ReactNode;
 }) {
   return (
-    <Newspaper width={width} turning={turning} backdrop={backdrop} fit="container">
+    <Newspaper width={width} turning={turning} backdrop={backdrop}>
       <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)] [--sheet-pad:30px] max-md:[--sheet-pad:16px]">
         {children}
       </div>

@@ -88,7 +88,7 @@ export function FrontPage() {
               <section
                 ref={desk}
                 aria-label={fr.front.stamp}
-                className="mt-7 border border-[var(--ink)] p-[3px] max-md:order-last"
+                className="mt-7 border border-[var(--ink)] p-[3px] max-md:order-last md:mt-4"
               >
                 <InvitationDesk codeField={codeField} onCode={openInvitation} onSignIn={signIn} />
               </section>
@@ -193,7 +193,7 @@ function InvitationDesk({
   };
 
   return (
-    <div className="relative border border-[var(--ink)] px-4 pt-7 pb-4 max-md:px-3">
+    <div className="relative border border-[var(--ink)] px-4 pt-7 pb-4 max-md:px-3 md:pt-6 md:pb-3">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[var(--paper)]">
         <Stamp label={fr.front.stamp} />
       </div>
@@ -224,7 +224,7 @@ function InvitationDesk({
         </div>
       </form>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-(color:--ink)/35 pt-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-(color:--ink)/35 pt-4 md:mt-3 md:pt-3">
         <h2 className="font-(family-name:--font-display) text-[16px] font-bold">
           {fr.front.accountTitle}
         </h2>
@@ -249,6 +249,10 @@ function InvitationDesk({
  * La taille suit la largeur de l'encadré (`cqi`) sans descendre sous seize pixels affichés —
  * en deçà, Safari zoome au focus. Elle est écrite sur le champ lui-même parce que la règle des
  * seize pixels de `index.css` vise l'élément et l'emporterait sur une taille héritée.
+ *
+ * **Le conteneur annule le zoom de la feuille** : `cqi` y est lu autrement par Chromium et par
+ * WebKit (voir `index.css`), et les cases débordaient de l'encadré sous WebKit. À l'échelle 1
+ * les deux moteurs s'accordent, et les longueurs du champ s'écrivent en pixels d'écran.
  */
 function CodeField({
   inputRef,
@@ -260,10 +264,10 @@ function CodeField({
   onChange: (raw: string) => void;
 }) {
   return (
-    <div className="mt-3 @container">
+    <div className="mt-3 @container [zoom:calc(1/var(--hud-scale))]">
       <div
         className="relative w-[16em] max-w-full focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-[var(--interaction)]"
-        style={{ fontSize: CODE_FONT_SIZE, height: 'max(2.4em, calc(44px / var(--hud-scale)))' }}
+        style={{ fontSize: CODE_FONT_SIZE, height: 'max(2.4em, 44px)' }}
       >
         {Array.from({ length: CODE_LENGTH }, (_, index) => (
           <span
@@ -302,7 +306,7 @@ function CodeField({
 
 const CELL_EM = 2.5;
 const GAP_EM = 0.3;
-const CODE_FONT_SIZE = 'max(calc(16px / var(--hud-scale)), min(24px, calc(100cqi / 16)))';
+const CODE_FONT_SIZE = 'max(16px, min(calc(24px * var(--hud-scale)), calc(100cqi / 16)))';
 
 const prefersReducedMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
