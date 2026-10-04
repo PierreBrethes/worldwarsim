@@ -1,5 +1,5 @@
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { fr } from '@/i18n/fr';
+import { countryLabel, fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
 import {
   RESOURCES,
@@ -115,6 +115,9 @@ export type MapMarker =
       /** The address a click opens the garrison of, and what the camera flies to. */
       readonly station: TroopStation;
       readonly stack: Stack;
+      /** What the address is called on the map — `stationNames(view).place`, never a second
+       *  naming: the cartouche reads « Piémont · 3 » as « à faire maintenant » does. */
+      readonly place: string;
       /**
        * The pile's own portrait — the sprite of its majority role, the same plate the garrison
        * panel shows. `null` for a role its nation has no drawing for; the pictogram stands in
@@ -228,7 +231,10 @@ export type LabelType =
   | 'deposit'
   | 'my-movement'
   | 'inbound-movement'
-  | 'intel';
+  | 'intel'
+  /** **Le drapeau planté au bout d'un de mes mouvements** (carte-lisible, 03/10). Il n'existe
+   *  que sur la branche `mine` de l'arc : un relevé adverse ne sert pas de destination (4a). */
+  | 'arrival';
 
 /**
  * A line's role, not its shape: the mockup decides that a nature line is spaced capitals and
@@ -347,6 +353,12 @@ export type MapLabel = {
    * second read-only sheet for the same pile.
    */
   readonly station: TroopStation | null;
+  /**
+   * **What a pile weighs, for the one label that is troops.** The cartouche says « Lieu · n » and
+   * nothing more (carte-lisible, 03/10) : the composition left the map, but the compass rose
+   * still names it and the grouping still sums the headcounts — read here, never off the words.
+   */
+  readonly force: { readonly headcount: number; readonly composition: string } | null;
 };
 
 export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role: 'countdown' }> =>
@@ -379,6 +391,8 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
    *  qui garde la sienne lisible. */
   installation: 1,
   deposit: 0,
+  /** Le drapeau ne repousse rien et n'est repoussé par rien : il est hors du repli. */
+  arrival: 0,
 };
 
 /** Below this remainder, the label switches to the mockup's urgency accent. */
@@ -402,7 +416,54 @@ export function buildLabels(
   return [
     ...markers.map(markerLabel),
     ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt)).filter(exists),
+    ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
+}
+
+/**
+ * **Chacun de mes mouvements finit par un drapeau** (carte-lisible, 03/10), planté au bout du
+ * fil — le dernier point de la route, là où le trait s'arrête, et non `to`, qui peut tomber à
+ * une demi-cellule de lui. Un arc adverse n'en a jamais : le relevé sert un tronçon et un cap,
+ * pas une destination (décision 4a du 13/09), et un drapeau au bout du tronçon la suggérerait.
+ * Le nom voyage en ligne de nature : c'est lui que le bord de l'écran annonce, hors champ.
+ */
+export function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
+  if (arc.state !== 'mine') return null;
+  return {
+    id: `arrival-${arc.id}`,
+    type: 'arrival',
+    priority: PRIORITY.arrival,
+    anchor: { kind: 'ground', lonLat: arc.route.points.at(-1) ?? arc.to },
+    reach: null,
+    ink,
+    pictogram: null,
+    plate: null,
+    deposit: null,
+    lootSightingId: null,
+    lootCurrent: true,
+    washed: false,
+    // Une marche vers un point nu n'a pas de nom de lieu : le serveur rend alors le code du pays
+    // (`convex/view.ts`), que le bord de l'écran afficherait tel quel — « FRA ».
+    lines: [
+      {
+        role: 'nature',
+        text:
+          arc.destinationLabel === arc.destinationCountry
+            ? countryLabel(arc.destinationCountry)
+            : arc.destinationLabel,
+      },
+    ],
+    identified: false,
+    offensive: false,
+    idle: false,
+    hostCountry: null,
+    building: null,
+    installation: null,
+    camp: null,
+    objective: null,
+    station: null,
+    force: null,
+  };
 }
 
 const exists = <T>(value: T | null): value is T => value !== null;
@@ -450,6 +511,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     camp: null,
     objective: null,
     station: null,
+    force: null,
     /** Only two things cover ground, and only while the pointer asks: everything else answers
      *  `null` and the map draws nothing (`map/engine/reach.ts`). */
     reach: marker.kind === 'outpost' || marker.kind === 'building' ? marker.reach : null,
@@ -579,9 +641,17 @@ function markerLabel(marker: MapMarker): MapLabel {
         plate: marker.plate,
         station: marker.station,
         hostCountry: null,
+        force: {
+          headcount: stackHeadcount(marker.stack),
+          composition: abbreviateStack(marker.stack),
+        },
+        // **Un cartouche par pile, jamais une étiquette par troupe** (carte-lisible, 03/10) : le
+        // lieu et le compte. La composition se lit dans la garnison, que le clic ouvre.
         lines: [
-          { role: 'headcount', text: String(stackHeadcount(marker.stack)) },
-          { role: 'figures', text: abbreviateStack(marker.stack) },
+          {
+            role: 'nature',
+            text: fr.labels.stackPlace(marker.place, stackHeadcount(marker.stack)),
+          },
         ],
       };
     case 'construction':
@@ -681,6 +751,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       hostCountry: null,
       building: null,
       station: null,
+      force: null,
       lines: [
         ...scheduleLines(arc, loadedAt),
         ...(cargoVisible
@@ -726,6 +797,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       hostCountry: null,
       building: null,
       station: null,
+      force: null,
       lines: [{ role: 'mention', text: fr.camps.lastKnown(asDuration(arc.seenMinutesAgo)) }],
     };
   }
@@ -771,6 +843,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     hostCountry: null,
     building: null,
     station: null,
+    force: null,
     lines: [...schedule, second],
   };
 }

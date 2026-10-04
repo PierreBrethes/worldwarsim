@@ -2585,6 +2585,12 @@ export const fr = {
     outpostUnderConstruction: 'avant-poste en chantier',
     outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
+    /** **Un cartouche par pile** (carte-lisible, 03/10) : le lieu et le compte, rien d'autre. */
+    stackPlace: (place: string, troops: number) => `${place} · ${troops}`,
+    /** Deux cartouches qui se chevauchent n'en font qu'un : les piles, puis les troupes. */
+    stackGroup: (piles: number, troops: number) => `${piles} piles · ${troops}`,
+    buildingGroup: (buildings: number) => `${buildings} bâtiments`,
+    groupZoom: (caption: string) => `${caption} — rapprocher pour les séparer`,
     constructionPrefix: 'chantier ',
     estimated: 'estimé',
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la

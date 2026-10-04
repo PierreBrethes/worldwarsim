@@ -44,7 +44,7 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
 });
 
 const viewWith = (arcs: ReadonlyArray<ArcView>): PlayerView =>
-  ({ arcs, loadedAt: LOADED_AT }) as PlayerView;
+  ({ arcs, loadedAt: LOADED_AT, me: { ink: '#2f4f78' } }) as PlayerView;
 
 const OUTPOST: MapMarker = {
   kind: 'outpost',
@@ -138,6 +138,7 @@ describe('buildLabels', () => {
           lonLat: [0, 0],
           station: { kind: 'point', lonLat: [0, 0], country: 'FRA', afloat: false, coastal: false },
           stack: { infantry: 4 },
+          place: 'France',
           plate: null,
           ink: '#000',
         },
@@ -157,7 +158,76 @@ describe('buildLabels', () => {
       .slice()
       .sort((first, second) => second.priority - first.priority)
       .map((label) => label.id);
-    expect(order).toEqual(['at-me', 'mine', 'elsewhere', 'construction', 'ap-1', 'stack']);
+    expect(order).toEqual([
+      'at-me',
+      'mine',
+      'elsewhere',
+      'construction',
+      'ap-1',
+      'stack',
+      'arrival-mine',
+    ]);
+  });
+
+  /** **Le drapeau d'arrivée** (carte-lisible, 03/10) : mes mouvements seuls. Un relevé adverse
+   *  ne sert pas de destination (décision 4a), et un souvenir encore moins. */
+  it('plants an arrival flag at the end of my movements only', () => {
+    const route = directRoute([0, 0], [4, 2], 'land', 10);
+    const labels = buildLabels(
+      viewWith([
+        mineArc({ id: 'mine', route, destinationLabel: 'Ancône' }),
+        detectedArc({ id: 'enemy' }),
+        {
+          state: 'lastKnown',
+          detector: 'troop',
+          detectorRegion: null,
+          id: 'old',
+          from: [0, 0],
+          to: [1, 1],
+          route: directRoute([0, 0], [1, 1], 'land', 10),
+          headingDegrees: 10,
+          seenMinutesAgo: 5,
+          progress: 0.2,
+        },
+      ]),
+      [],
+    );
+    const flags = labels.filter((label) => label.type === 'arrival');
+    expect(flags.map((flag) => flag.id)).toEqual(['arrival-mine']);
+    expect(flags[0]).toMatchObject({
+      anchor: { kind: 'ground', lonLat: route.points.at(-1) },
+      ink: '#2f4f78',
+      lines: [{ role: 'nature', text: 'Ancône' }],
+    });
+  });
+
+  it('names a flag planted on bare ground after its country, never by its code', () => {
+    const labels = buildLabels(
+      viewWith([mineArc({ destinationCountry: 'FRA', destinationLabel: 'FRA' })]),
+      [],
+    );
+    expect(labels.find((label) => label.type === 'arrival')?.lines).toEqual([
+      { role: 'nature', text: 'France' },
+    ]);
+  });
+
+  /** **Un cartouche par pile** : le lieu et le compte, jamais une ligne par troupe. Le poids
+   *  voyage à part, pour la rose et pour le regroupement. */
+  it('reads a pile as one cartouche, place and headcount', () => {
+    const [label] = buildLabels(viewWith([]), [
+      {
+        kind: 'stack',
+        id: 'stack',
+        lonLat: [0, 0],
+        station: { kind: 'point', lonLat: [0, 0], country: 'ITA', afloat: false, coastal: false },
+        stack: { infantry: 2, armor: 1 },
+        place: 'Italie',
+        plate: null,
+        ink: '#000',
+      },
+    ]);
+    expect(texts(label!.lines)).toEqual(['Italie · 3']);
+    expect(label?.force).toEqual({ headcount: 3, composition: '2 INF · 1 BLD' });
   });
 
   /** **Un souvenir se nomme, une maîtrise de la mer non** (ADR 0024 §2) : l'arc figé dit son âge
@@ -206,6 +276,7 @@ describe('buildLabels', () => {
         lonLat: [0, 0],
         station: { kind: 'point', lonLat: [0, 0], country: 'FRA', afloat: false, coastal: false },
         stack: { infantry: 4 },
+        place: 'France',
         plate: null,
         ink: '#000',
       },

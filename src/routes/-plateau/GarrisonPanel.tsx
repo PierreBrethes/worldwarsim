@@ -56,6 +56,7 @@ export function GarrisonPanel({
   preselect,
   onClose,
   onPrepare,
+  onPickedChange,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -66,6 +67,8 @@ export function GarrisonPanel({
   preselect: ReadonlyArray<string>;
   onClose: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  /** Ce qui est coché, pour la carte : la troupe cochée y grossit (carte-lisible, 03/10). */
+  onPickedChange?: (troopIds: ReadonlyArray<string>) => void;
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const stationKey = stationKeyOf(station);
@@ -203,6 +206,7 @@ export function GarrisonPanel({
             canPrepare={canPrepare}
             observing={view.me.defeated}
             onPrepare={onPrepare}
+            onPickedChange={onPickedChange}
           />
         </div>
 

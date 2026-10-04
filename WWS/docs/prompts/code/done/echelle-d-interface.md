@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-04
 code: [src/styles/index.css, src/styles/tokens.css, src/styles/labels.css, src/styles/compass-rose.css, src/shell/Newspaper.tsx, src/shell/EntrySheet.tsx, src/routes/-index/FrontPage.tsx]
 decisions: [hud-fit-2026-10-04]

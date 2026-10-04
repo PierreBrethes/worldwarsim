@@ -62,6 +62,7 @@ import {
   type MarchStation,
 } from '@/domain/troops';
 import { stationNames } from '@/domain/station-name';
+import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
@@ -374,6 +375,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * s'ouvre, et le cartouche dit le reste.
    */
   const [posted, setPosted] = useState<PostedForce | null>(null);
+  /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
+   *  la composition reste au panneau, qui seul la soumet. */
+  const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
@@ -532,6 +536,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  une porte qui ne s'ouvre que parfois se lit comme une panne, et ses troupes restent
        *  les siennes à regarder. */
       setGarrison({ station, preselect, ...at });
+      setGarrisonPicked(preselect);
       const marker = markerOfStation(view, station);
       /** **Sous le seuil la garnison est une feuille à mi-hauteur** (A7) : la carte remonte le
        *  point au-dessus d'elle plutôt que de le cadrer dessous. */
@@ -646,7 +651,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       setGarrison(null);
       setOrderError(null);
       setOrder(null);
-      setPosted({ station, troops: [alone], labelId: `stack-${stationKeyOf(station)}`, ...at });
+      setPosted({ station, troops: [alone], labelId: stackLabelId(station), ...at });
       /** Le cartouche d'un observateur se lit — encre, effectif, abaque de tir — mais désigner
        *  n'arme plus rien : il n'a plus d'ailleurs à nommer (décision du 31/08). */
       if (!view.me.defeated) setColumn(armedColumn(view, station, [alone.id]));
@@ -1261,6 +1266,31 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
   /**
+   * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
+   * dit laquelle — la colonne armée, la troupe désignée, puis les cases de la garnison. La pile
+   * prend alors le visage de ce qui est mis en avant : un char coché dans une garnison
+   * d'infanterie se voit char. Le visage voyage à côté des étiquettes plutôt que dedans, pour
+   * qu'une case cochée ne reconstruise pas toute la couche.
+   */
+  const highlight = useMemo(
+    () =>
+      highlightOf(
+        column && { station: column.station, troopIds: column.troopIds },
+        posted && { station: posted.station, troopIds: posted.troops.map((troop) => troop.id) },
+        garrison && { station: garrison.station, troopIds: garrisonPicked },
+      ),
+    [column, posted, garrison, garrisonPicked],
+  );
+  const highlightPlate = useMemo(() => {
+    if (highlight === null) return null;
+    const chosen = view.me.troops.filter((troop) => highlight.troopIds.includes(troop.id));
+    const face = representativeRole(stackOf(chosen));
+    if (face === null) return null;
+    const tier = chosen.find((troop) => troop.role === face)?.tier ?? 1;
+    return spriteUrl(view.me.nation, face, tier);
+  }, [highlight, view.me]);
+
+  /**
    * **Le cercle de détection de la troupe désignée** (ADR 0019 §5) : le seul détecteur qui soit
    * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il est rendu comme le cercle
    * d'écoute — une onde, pas une couche — et part avec la désignation.
@@ -1384,7 +1414,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           const troop = view.me.troops.find((candidate) => candidate.id === troopId);
           return troop ? [troop] : [];
         }),
-        labelId: `stack-${stationKeyOf(station)}`,
+        labelId: stackLabelId(station),
         x: from.x,
         y: from.y,
       });
@@ -1599,7 +1629,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           onOpenLoot={openLoot}
           onOpenCamp={openCamp}
           onOpenObjective={openObjective}
-          selectedLabel={posted?.labelId ?? null}
+          selectedLabel={highlight?.labelId ?? null}
+          selectedPlate={highlightPlate}
           selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
           reach={postedReach ?? movementReach}
           onCountryHover={setHoveredCountry}
@@ -1711,6 +1742,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             preselect={garrison.preselect}
             onClose={() => setGarrison(null)}
             onPrepare={prepareColumn}
+            onPickedChange={setGarrisonPicked}
           />
         )}
         {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
@@ -2051,6 +2083,7 @@ function postedStacks(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
 ): ReadonlyArray<MapMarker> {
+  const names = stationNames({ me });
   const posts = new Map<
     string,
     { readonly at: Extract<TroopStation, { kind: 'point' }>; readonly held: TroopView[] }
@@ -2064,28 +2097,32 @@ function postedStacks(
     else post.held.push(troop);
   }
 
-  return [...posts].map(([key, { at, held }]) => {
-    const stack: Stack = held.reduce<Stack>(
-      (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
-      {},
-    );
+  return [...posts.values()].map(({ at, held }) => {
+    const stack = stackOf(held);
     const face = representativeRole(stack);
     const tier = held.find((troop) => troop.role === face)?.tier ?? 1;
     return {
       kind: 'stack' as const,
-      id: `stack-${key}`,
+      id: stackLabelId(at),
       lonLat: at.lonLat,
       station: at,
       stack,
+      place: names.place(at),
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
       ink: me.ink,
     };
   });
 }
 
+const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
+  troops.reduce<Stack>(
+    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
+    {},
+  );
+
 function markerOfStation(view: PlayerView, station: TroopStation): string | null {
   /** Une pile posée a désormais son marqueur : la caméra a où aller quand on ouvre sa carte. */
-  if (station.kind === 'point') return `stack-${stationKeyOf(station)}`;
+  if (station.kind === 'point') return stackLabelId(station);
   if (station.kind === 'outpost') {
     return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
       ? `outpost-${station.outpostId}`

@@ -60,6 +60,8 @@ type Props = {
   onOpenObjective?: (objectiveId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
+  /** Le visage de la pile mise en avant — ce qui est coché, et non la majorité de la pile. */
+  selectedPlate?: string | null;
   selectedLootLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
@@ -172,6 +174,7 @@ export function WorldMap({
   onOpenCamp,
   onOpenObjective,
   selectedLabel = null,
+  selectedPlate = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -449,6 +452,20 @@ export function WorldMap({
     return named;
   }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
   const destinationIds = useMemo(() => new Set(destinations.keys()), [destinations]);
+  /**
+   * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord comme une destination**
+   * (carte-lisible, 03/10) — le même cartouche nommé, le même toucher qui y recentre. Il ne
+   * rejoint pas les cercles au pied : un drapeau dit où va ce qui est parti, pas où l'on peut
+   * aller.
+   */
+  const edgeNames = useMemo<ReadonlyMap<string, string>>(() => {
+    const arrivals = labels.filter((label) => label.type === 'arrival');
+    if (arrivals.length === 0) return destinations;
+    return new Map([
+      ...destinations,
+      ...arrivals.map((label) => [label.id, lineText(label, 'nature') ?? ''] as const),
+    ]);
+  }, [labels, destinations]);
 
   // **Effet immédiat, sans rechargement** : le moteur reçoit le mappage comme il reçoit une
   // bascule, et un glisser en cours garde le sien jusqu'au relâchement.
@@ -577,6 +594,7 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         selected={selectedLabel}
+        selectedPlate={selectedPlate}
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
@@ -595,7 +613,7 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         toggles={indicators}
-        destinations={destinations}
+        destinations={edgeNames}
       />
       {designatedArc && (
         <div className="absolute top-4 left-4 z-10">
@@ -839,8 +857,8 @@ export function targetOfLabel(
       kind: 'force',
       id: label.id,
       country,
-      name: lineText(label, 'figures') ?? fr.compass.fallbackForce,
-      headcount: Number(lineText(label, 'headcount') ?? 0),
+      name: label.force?.composition ?? fr.compass.fallbackForce,
+      headcount: label.force?.headcount ?? 0,
       onLand: label.anchor.kind === 'ground' && landAt(label.anchor.lonLat),
       /** Son adresse : on fonde où l'on se tient, donc c'est le point que la branche plantera. */
       station: label.station,
@@ -850,7 +868,7 @@ export function targetOfLabel(
   return country === null ? null : { kind: 'country', country };
 }
 
-function lineText(label: MapLabel, role: 'nature' | 'headcount' | 'figures'): string | null {
+function lineText(label: MapLabel, role: 'nature'): string | null {
   const line = label.lines.find((candidate) => candidate.role === role);
   return line === undefined || line.role === 'countdown' ? null : line.text;
 }

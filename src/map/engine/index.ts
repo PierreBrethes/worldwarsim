@@ -438,6 +438,17 @@ export class MapEngine {
     };
   }
 
+  /** Où la caméra se tient de son point visé : un regroupement en tire la distance qui sépare
+   *  les siens (`separatingDistance`). */
+  cameraDistance(): number {
+    return this.camera.position.distanceTo(this.controls.target);
+  }
+
+  /** La caméra ne peut plus s'approcher : ce que le zoom ne sépare pas doit se séparer autrement. */
+  atZoomFloor(): boolean {
+    return this.cameraDistance() <= this.controls.minDistance * ZOOM_FLOOR_SLACK;
+  }
+
   /**
    * **Pousser la carte de quelques pixels, sans voyage** : la rose s'ouvre là où le doigt a
    * touché, et quand elle déborderait de l'écran c'est la carte qui se recale sous elle — un
@@ -1116,6 +1127,9 @@ export class MapEngine {
     this.onEdges(projections);
   };
 }
+
+/** Une marge au-dessus du plancher : la molette s'arrête rarement pile sur `minDistance`. */
+const ZOOM_FLOOR_SLACK = 1.15;
 
 type Journey = {
   readonly departure: Vector3;

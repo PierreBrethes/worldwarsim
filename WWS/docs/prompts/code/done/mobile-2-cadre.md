@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-04
 code: [src/shell/SurfaceRail.tsx, src/shell/ResourceBand.tsx, src/routes/-plateau/NextActions.tsx, src/routes/-plateau/Window.tsx, src/routes/-plateau/Panel.tsx, src/routes/plateau.tsx, src/i18n/fr.ts]
 decisions: [mobile-1c-2026-10-03, mobile-piste-a-2026-10-03]

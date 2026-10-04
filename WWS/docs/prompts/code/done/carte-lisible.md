@@ -1,10 +1,10 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-04
-code: [src/map/engine/index.ts, src/map/engine/billboard.ts, src/map/engine/arcs.ts, src/map/engine/labels.ts, src/map/MapLabels.tsx]
+code: [src/domain/force-highlight.ts, src/domain/label-groups.ts, src/domain/labels.ts, src/map/MapLabels.tsx, src/map/WorldMap.tsx, src/map/engine/index.ts, src/routes/plateau.tsx, src/routes/-plateau/GarrisonStack.tsx, src/styles/labels.css]
 decisions: [carte-lisible-2026-10-03]
-voir: [mobile-2-cadre.md, ../../design/plateau-sur-telephone-2.md]
+voir: [../done/mobile-2-cadre.md, ../../design/plateau-sur-telephone-2.md]
 ---
 # carte-lisible — la troupe touchée grossit, un drapeau à l'arrivée, un cartouche par pile
 
@@ -48,3 +48,28 @@ garde son arc actuel, **sans drapeau** : le relevé ne donne pas la destination 
   pays, une région), sur la saison de test du relevé.
 - Pas de baisse de fluidité mesurable : compte les objets ajoutés et dis-le.
 - `npm run verifier` complet.
+
+## Livré (04/10/2026)
+
+- **Mise en avant** : `highlightOf` (`src/domain/force-highlight.ts`) est la seule source — la
+  colonne armée, puis la troupe désignée, puis les cases cochées de la garnison (remontées par
+  `GarrisonStack.onPickedChange`). La planche de la pile grossit ×1,3 depuis son pied contre le
+  mât, cernée d'un filet d'encre, et prend le visage de ce qui est mis en avant. Seules les piles
+  posées grossissent : un mât de bâtiment ou d'avant-poste dit une adresse, pas une troupe.
+- **Drapeau** : une étiquette `arrival` par mouvement `mine`, au dernier point de la route, à
+  l'encre de la nation, sans clic. Hors champ, elle s'annonce au bord par le cartouche nommé des
+  destinations (`WorldMap.edgeNames`). Aucun drapeau sur un arc adverse ni un souvenir (test).
+  Une marche vers un point nu reçoit du serveur le code pays comme nom (`convex/view.ts`,
+  `destinationName`) : le drapeau le traduit par `countryLabel` ; les autres surfaces qui lisent
+  `destinationLabel` gardent le défaut.
+- **Cartouches** : une pile se lit « Lieu · n » (le lieu de `stationNames.place`, donc le pays
+  pour un point nu, pas la ville). Piles et bâtiments qui se chevauchent — à la marge du repli,
+  14 px — se regroupent (`groupOverlapping`, transitif, jamais pile et bâtiment ensemble) ; le
+  cartouche réuni cède par priorité comme une étiquette. Le toucher rapproche la caméra
+  (`separatingDistance`) ; **au plancher du zoom** (distance 4), deux piles à 15 km ne se séparent
+  pas, et le groupe s'ouvre alors en éventail (`fanOffsets`, mâts allongés).
+- **Coût** : aucun objet three.js ajouté. Par mouvement à moi, un nœud d'étiquette (SVG de deux
+  tracés) et un cartouche de bord ; par regroupement visible, un nœud. La boucle par image ne fait
+  qu'écrire le `transform` des regroupements ; tout le reste tourne au repos ou à la seconde.
+- Captures avant/après : `Claude outputs/releve-mobile/captures/carte__{avant,apres}__*.png`
+  (script `carte.mjs`), saison du relevé, ordinateur 1440×900 et iPhone 13.

@@ -310,7 +310,7 @@ côté** (1a du 06/09) ; le 🔴 « fondateur parti » de `QUESTIONS.md` est fer
   cartouche par pile. Lot à part, après le cadre mobile.
 - **`hud-fit` faux sur les navigateurs actuels** (hud-fit-2026-10-04) : `zoom` ne multiplie plus les
   pourcentages ; corrigé sous 768 px par `mobile-2-cadre`, sur ordinateur par
-  [echelle-d-interface](prompts/code/ready/echelle-d-interface.md), captures avant/après.
+  [echelle-d-interface](prompts/code/done/echelle-d-interface.md), captures avant/après.
 - **La une à l'entrée** (accueil-2a-2026-10-03) : maquette 2a « la une sur le bureau », sans
   inscription publique (marque-1c tient) ; avance la page d'accueil que plan-5c reportait.
   [Prompt](prompts/code/done/page-d-accueil-la-une.md).

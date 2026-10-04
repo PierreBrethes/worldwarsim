@@ -28,7 +28,10 @@
   font-variant-numeric: tabular-nums;
   --label-ink: var(--ink);
   --figures-ink: var(--sea-ink);
-  --label-callout: 28px;
+  /* L'éventail d'un groupe au plancher du zoom allonge le mât : le cartouche monte, le pied
+     reste sur le point désigné. */
+  --label-stagger: 0px;
+  --label-callout: calc(28px + var(--label-stagger));
   /* The callout's foot lands at the pool's center, not its top edge: that is where the
      ground is, and a bar stopping above its shadow floats. Half a pool. */
   --label-sink: 5px;
@@ -459,8 +462,7 @@
 
 /* La troupe désignée. Sélectionner ne l'ouvre plus (décision du 29/08) : ce que le clic répond
    se lit sur la carte, et c'est ici que ça se dit. La planche prend l'encre du joueur en halo et
-   sa flaque d'ombre passe à la même encre — rien d'autre ne bouge, ni la taille, ni la place :
-   une planche qui grossit à la sélection déplace la troupe sous le pointeur. */
+   sa flaque d'ombre passe à la même encre. */
 .label--selected .label-plate,
 .label--selected .label-pictogram {
   filter: drop-shadow(0 0 2px var(--label-ink)) drop-shadow(0 0 4px var(--label-ink))
@@ -469,6 +471,92 @@
 
 .label--selected::before {
   background: radial-gradient(closest-side, var(--label-ink), rgb(38 30 20 / 0%));
+}
+
+/* **La troupe touchée ou cochée grossit de 30 %, cernée d'un filet d'encre** (carte-lisible,
+   03/10), et les autres gardent leur taille. La décision du 29/08 refusait de grossir parce que
+   la planche aurait déplacé la troupe sous le pointeur : elle grossit donc **depuis son pied
+   contre le mât** — le coin qui touche le point désigné ne bouge pas, seul le dessin s'étend
+   vers le haut et vers l'extérieur. Le halo cède la place au filet : les deux à la fois
+   faisaient une tache. */
+.label--stack.label--selected .label-plate {
+  transform: scale(1.3);
+  transform-origin: 100% 100%;
+  outline: 1.5px solid var(--label-ink);
+  outline-offset: 2px;
+  background: rgb(232 223 200 / 55%);
+  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1.5px rgb(38 30 20 / 45%));
+}
+
+.label--stack.label--selected .label-pictogram {
+  filter: none;
+}
+
+.label-plate {
+  transition: transform 0.14s ease;
+}
+
+/* **Le drapeau planté au bout de mes mouvements** (carte-lisible, 03/10), à l'encre de ma
+   nation. Il ne porte ni mât d'étiquette, ni flaque, ni mots — le nom de l'arrivée ne sert qu'au
+   bord de l'écran — et il ne prend aucun clic : le sol où il est planté reste celui que la rose
+   vise. Son pied est le point exact où le fil s'arrête. */
+.label--arrival::before,
+.label--arrival .label-bar,
+.label--arrival .label-lines {
+  content: none;
+  display: none;
+}
+
+.label--arrival .label-block,
+.label--arrival.label--glyph .label-block {
+  bottom: -1px;
+  left: -2px;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.label-flag {
+  display: block;
+  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1px rgb(38 30 20 / 40%));
+}
+
+.label-flag-pole {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.label-flag-cloth {
+  fill: var(--label-ink);
+  stroke: var(--ink);
+  stroke-width: 0.8;
+}
+
+/* **Deux cartouches qui se chevauchent n'en font qu'un** (carte-lisible, 03/10) : les mots des
+   siens s'effacent, leurs planches restent, et le cartouche réuni se tient au pied du premier. */
+.label--grouped .label-lines,
+.label--grouped .label-bar {
+  display: none;
+}
+
+.label--group::before {
+  content: none;
+}
+
+.label--group .label-block {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+.label--group .label-line--nature {
+  display: block;
+  text-decoration: underline dotted 1px;
+  text-underline-offset: 3px;
 }
 
 .label--clickable::before,

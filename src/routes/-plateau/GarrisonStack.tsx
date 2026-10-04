@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CARRY_CAPACITY_BY_ROLE,
   FOOD_UPKEEP_PER_TROOP_PER_HOUR,
@@ -37,6 +37,7 @@ export function GarrisonStack({
   canPrepare,
   observing,
   onPrepare,
+  onPickedChange,
 }: {
   view: PlayerView;
   station: TroopStation;
@@ -49,9 +50,15 @@ export function GarrisonStack({
    *  une case cochable lui promettrait l'ordre que `requirePlayable` refuse. */
   observing: boolean;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
 }) {
   const narrow = useNarrowScreen();
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
+  /** La coche reste ici ; la carte n'en reçoit que l'écho, pour mettre en avant ce qui est
+   *  coché — jamais un second état qu'elle pourrait modifier. */
+  useEffect(() => {
+    onPickedChange?.([...picked]);
+  }, [picked, onPickedChange]);
   /**
    * **Ce que le geste a dit, et rien de plus.** Purement client, jamais envoyé, jamais stocké :
    * il déplace une troupe d'un transport à l'autre dans l'image, il ne change pas la pile — la

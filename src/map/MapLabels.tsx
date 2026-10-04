@@ -3,7 +3,14 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { asDuration } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import {
@@ -14,6 +21,16 @@ import {
   type Reach,
 } from '@/domain/labels';
 import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
+import {
+  GROUP_MARGIN_PX,
+  boxesOverlap,
+  fanOffsets,
+  groupOverlapping,
+  separatingDistance,
+  type GroupCandidate,
+  type LabelGroup,
+  type ScreenBox,
+} from '@/domain/label-groups';
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
@@ -53,6 +70,7 @@ export function MapLabels({
   labels,
   engine,
   selected,
+  selectedPlate,
   secondarySelected,
   onMovementHover,
   onReachHover,
@@ -72,6 +90,9 @@ export function MapLabels({
   /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
    *  et rien d'autre ne bouge (décision du 29/08). */
   selected: string | null;
+  /** **La pile mise en avant prend le visage de ce qui est coché** (carte-lisible, 03/10) : un
+   *  char coché dans une garnison d'infanterie se voit char. `null` garde la planche de la pile. */
+  selectedPlate: string | null;
   /** A private crate card may coexist with the armed troop designation. */
   secondarySelected: string | null;
   onMovementHover: (id: string | null) => void;
@@ -113,6 +134,16 @@ export function MapLabels({
   const countdowns = useRef(new Map<string, HTMLElement>());
   const states = useRef(new Map<string, RenderState>());
   const pendingDegrade = useRef(0);
+  /**
+   * **Les cartouches réunis** : leur composition change au repos de la caméra, jamais à chaque
+   * image — c'est un rendu React, comme la liste des étiquettes. Leur position, elle, suit la
+   * boucle comme celle de n'importe quelle étiquette.
+   */
+  const [groups, setGroups] = useState<ReadonlyArray<LabelGroup>>([]);
+  const groupsNow = useRef<ReadonlyArray<LabelGroup>>([]);
+  const groupAnchors = useRef(new Map<string, HTMLElement>());
+  /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
+  const widths = useRef(new Map<string, number>());
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
   const pressedWith = useRef('mouse');
 
@@ -122,11 +153,21 @@ export function MapLabels({
     const expanded = state.lod === 'expanded' && !state.folded;
     root.classList.toggle('label--expanded', expanded);
     root.classList.toggle('label--glyph', !expanded);
+    root.classList.toggle('label--grouped', expanded && state.grouped);
+    const stagger = expanded ? state.stagger : 0;
+    if (root.dataset.stagger !== String(stagger)) {
+      root.dataset.stagger = String(stagger);
+      // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait.
+      const zoom = Number(getComputedStyle(root).zoom) || 1;
+      root.style.setProperty('--label-stagger', `${Math.round(stagger / zoom)}px`);
+    }
   }, []);
 
   /**
    * Overlap degradation, by decreasing priority: of two overlapping labels, the lower
-   * priority falls back to the glyph.
+   * priority falls back to the glyph — **unless they are two piles, or two buildings**: those
+   * share one cartouche instead (carte-lisible, 03/10), « 2 piles · 5 », and keep their plates.
+   * The shared cartouche covers what its members covered, so what comes after folds against it.
    *
    * The order of the two loops is everything: expand **everyone** in the DOM first, measure
    * after. Measuring before expanding read the previous round's folded width — every label
@@ -137,7 +178,8 @@ export function MapLabels({
     const candidates = labels
       .filter((label) => {
         const state = states.current.get(label.id);
-        return state?.visible === true && state.lod === 'expanded';
+        // Un drapeau n'a pas de mots à replier, et il ne cède sa place à personne.
+        return state?.visible === true && state.lod === 'expanded' && label.type !== 'arrival';
       })
       .slice()
       .sort((first, second) => second.priority - first.priority);
@@ -146,20 +188,82 @@ export function MapLabels({
       const state = states.current.get(label.id);
       if (!state) continue;
       state.folded = false;
+      state.grouped = false;
+      state.stagger = 0;
       apply(label.id, state);
     }
 
-    const kept: DOMRect[] = [];
-    for (const label of candidates) {
+    const measured = candidates.flatMap((label) => {
       const block = blocks.current.get(label.id);
       const state = states.current.get(label.id);
-      if (!block || !state) continue;
+      if (!block || !state) return [];
       const rect = block.getBoundingClientRect();
-      state.folded = kept.some((other) => overlap(other, rect));
-      if (!state.folded) kept.push(rect);
+      widths.current.set(label.id, rect.width);
+      return [{ label, state, rect }];
+    });
+
+    const formed = groupOverlapping(
+      measured.flatMap<GroupCandidate>(({ label, state, rect }) =>
+        label.type === 'stack' || label.type === 'building'
+          ? [
+              {
+                id: label.id,
+                kind: label.type,
+                box: rect,
+                x: state.x,
+                y: state.y,
+                count: label.force?.headcount ?? 1,
+              },
+            ]
+          : [],
+      ),
+    );
+    const groupOf = new Map(
+      formed.flatMap((group) => group.members.map((member) => [member, group] as const)),
+    );
+    /**
+     * **Au plancher du zoom, le regroupement s'ouvre en éventail** : deux piles à quinze
+     * kilomètres l'une de l'autre ne se séparent à aucune distance permise, et un cartouche réuni
+     * qu'on touche sans effet est une promesse cassée. Chacun reprend alors ses mots, sur un mât
+     * allongé juste assez pour dégager ceux qui le précèdent (`fanOffsets`).
+     */
+    const fanned = engine?.atZoomFloor() ?? false;
+    const lifts = new Map<string, number>();
+    if (fanned) {
+      const rectOf = new Map(measured.map(({ label, rect }) => [label.id, rect] as const));
+      for (const group of formed) {
+        const offsets = fanOffsets(group.members.map((member) => rectOf.get(member)!));
+        group.members.forEach((member, rank) => lifts.set(member, offsets[rank] ?? 0));
+      }
+    }
+
+    // Un cartouche réuni se place au rang de son premier membre, et cède comme une étiquette :
+    // replié, il rend leurs mots à personne et ses membres retombent tous au glyphe.
+    const kept: ScreenBox[] = [];
+    const placedGroups = new Map<string, boolean>();
+    for (const { label, state, rect } of measured) {
+      const group = groupOf.get(label.id);
+      if (group !== undefined) {
+        let standing = placedGroups.get(group.id);
+        if (standing === undefined) {
+          standing = !kept.some((other) => boxesOverlap(other, group.box, OVERLAP_MARGIN));
+          placedGroups.set(group.id, standing);
+          if (standing) kept.push(group.box);
+        }
+        state.grouped = standing && !fanned;
+        state.folded = !standing;
+        if (standing && fanned) state.stagger = lifts.get(label.id) ?? 0;
+      } else {
+        state.folded = kept.some((other) => boxesOverlap(other, rect, OVERLAP_MARGIN));
+        if (!state.folded) kept.push(rect);
+      }
       apply(label.id, state);
     }
-  }, [labels, apply]);
+
+    const shown = fanned ? [] : formed;
+    groupsNow.current = shown;
+    setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
+  }, [labels, apply, engine]);
 
   /**
    * One degradation per frame at most, and only when something asked for it. Crossing the
@@ -192,7 +296,16 @@ export function MapLabels({
     states.current = new Map(
       labels.map((label) => [
         label.id,
-        { visible: false, lod: 'glyph', folded: false, fade: 1, x: 0, y: 0 },
+        {
+          visible: false,
+          lod: 'glyph',
+          folded: false,
+          grouped: false,
+          stagger: 0,
+          fade: 1,
+          x: 0,
+          y: 0,
+        },
       ]),
     );
     refreshCountdowns();
@@ -254,6 +367,17 @@ export function MapLabels({
           scheduleDegrade();
         }
       }
+
+      // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
+      // dont il prend la place — et disparaît avec lui.
+      for (const group of groupsNow.current) {
+        const anchor = groupAnchors.current.get(group.id);
+        const lead = states.current.get(group.members[0] ?? '');
+        if (!anchor) continue;
+        const shown = lead?.visible === true && lead.grouped;
+        anchor.style.display = shown ? '' : 'none';
+        if (shown) anchor.style.transform = `translate3d(${lead.x}px, ${lead.y}px, 0)`;
+      }
     };
     const unsubscribe = engine.subscribeRest(degrade);
     return () => {
@@ -263,6 +387,31 @@ export function MapLabels({
       pendingDegrade.current = 0;
     };
   }, [engine, apply, degrade, scheduleDegrade]);
+
+  /**
+   * **Toucher un regroupement rapproche la caméra jusqu'à ce que les siens se séparent** — la
+   * paire la plus serrée doit s'écarter d'un cartouche entier, le plus large des siens.
+   */
+  const separate = useCallback(
+    (group: LabelGroup) => {
+      if (!engine) return;
+      const points = group.members.flatMap((member) => {
+        const state = states.current.get(member);
+        return state?.visible === true ? [{ x: state.x, y: state.y }] : [];
+      });
+      const widest = Math.max(0, ...group.members.map((member) => widths.current.get(member) ?? 0));
+      const needed = (widest + 2 * GROUP_MARGIN_PX) * SEPARATION_SLACK;
+      engine.journeyTo(
+        group.members,
+        [],
+        0,
+        separatingDistance(engine.cameraDistance(), points, needed),
+      );
+    },
+    [engine],
+  );
+
+  const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
     <div className={muted ? 'map-labels pointer-events-none' : 'map-labels'}>
@@ -358,7 +507,21 @@ export function MapLabels({
             >
               {label.plate !== null && (
                 <span className="label-pictogram">
-                  <img className="label-plate" src={label.plate} alt="" />
+                  <img
+                    className="label-plate"
+                    src={
+                      label.id === selected && selectedPlate !== null ? selectedPlate : label.plate
+                    }
+                    alt=""
+                  />
+                </span>
+              )}
+              {label.type === 'arrival' && (
+                <span className="label-flag" aria-hidden>
+                  <svg viewBox="0 0 16 22" width="16" height="22">
+                    <path className="label-flag-pole" d="M2 1v21" />
+                    <path className="label-flag-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
+                  </svg>
                 </span>
               )}
               {label.deposit !== null && (
@@ -416,6 +579,36 @@ export function MapLabels({
           </div>
         </div>
       ))}
+      {groups.map((group) => {
+        const ink = inkOf(group.members[0] ?? '');
+        return (
+          <div
+            key={group.id}
+            className="label-anchor"
+            style={{ display: 'none' }}
+            ref={(node) => {
+              register(groupAnchors.current, group.id, node);
+            }}
+          >
+            <div
+              className={`label label--expanded label--group label--${group.kind}-group label--clickable`}
+              style={ink === null ? undefined : ({ '--label-ink': ink } as CSSProperties)}
+            >
+              <button
+                type="button"
+                className="label-block"
+                aria-label={fr.labels.groupZoom(group.caption)}
+                onClick={() => separate(group)}
+              >
+                <span className="label-bar" />
+                <span className="label-lines">
+                  <span className="label-line label-line--nature">{group.caption}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -434,6 +627,10 @@ type RenderState = {
   visible: boolean;
   lod: DetailLevel;
   folded: boolean;
+  /** Ses mots sont passés dans un cartouche réuni ; sa planche reste. */
+  grouped: boolean;
+  /** De combien son cartouche monte dans l'éventail d'un groupe au plancher du zoom, en pixels. */
+  stagger: number;
   fade: number;
   x: number;
   y: number;
@@ -488,11 +685,26 @@ function classesOf(label: MapLabel, selected: boolean, destination: boolean): st
     .join(' ');
 }
 
-/** The mockup's minimum gap: 28 px between two labels, 14 px of margin each. */
-const OVERLAP_MARGIN = 14;
+/** The mockup's minimum gap: 28 px between two labels, 14 px of margin each — the grouping's own,
+ *  so that what would fold a pile groups it instead. */
+const OVERLAP_MARGIN = GROUP_MARGIN_PX;
 
-const overlap = (first: DOMRect, second: DOMRect): boolean =>
-  first.left - OVERLAP_MARGIN < second.right + OVERLAP_MARGIN &&
-  first.right + OVERLAP_MARGIN > second.left - OVERLAP_MARGIN &&
-  first.top - OVERLAP_MARGIN < second.bottom + OVERLAP_MARGIN &&
-  first.bottom + OVERLAP_MARGIN > second.top - OVERLAP_MARGIN;
+/** Un peu plus qu'un cartouche d'écart : arrivée juste à la limite, la paire se regrouperait au
+ *  premier degré d'orbite. */
+const SEPARATION_SLACK = 1.15;
+
+/** Camera rest replays the computation: an identical composition must not re-render. */
+function sameGroups(first: ReadonlyArray<LabelGroup>, second: ReadonlyArray<LabelGroup>): boolean {
+  return (
+    first.length === second.length &&
+    first.every((group, rank) => {
+      const other = second[rank];
+      return (
+        other !== undefined &&
+        group.id === other.id &&
+        group.caption === other.caption &&
+        group.members.join() === other.members.join()
+      );
+    })
+  );
+}

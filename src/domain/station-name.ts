@@ -18,7 +18,7 @@ export type StationNames = {
   readonly place: (station: TroopStation) => string;
 };
 
-export function stationNames(view: PlayerView): StationNames {
+export function stationNames(view: Pick<PlayerView, 'me'>): StationNames {
   const buildings = new Map(view.me.buildings.map((building) => [building.id, building]));
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
   const outposts = new Map(view.me.outposts.map((outpost) => [outpost.id, outpost]));
