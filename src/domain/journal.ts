@@ -452,6 +452,17 @@ function written(notice: Notice): Written {
         kind: 'siteSabotaged',
         text: said.siteSabotaged(fr.buildings[notice.building], notice.regionName),
       };
+    case 'expeditionFoundNothing':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.expeditionFoundNothing(
+          fr.buildings[notice.building],
+          notice.regionName,
+          notice.reason,
+        ),
+      };
     case 'lootLost':
       return {
         at: notice.at,

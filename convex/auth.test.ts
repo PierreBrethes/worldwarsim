@@ -3,7 +3,15 @@
 import { convexTest } from 'convex-test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
+import { LOGIN_MIN_INTERVAL_MS } from '../src/domain/account';
 import { hashPassword } from './passwords';
+import {
+  refreshSession,
+  SESSION_IDLE_MS,
+  SESSION_REFRESH_MS,
+  sessionOf,
+  tokenDigest,
+} from './sessions';
 import schema from './schema';
 import { modules } from './test.setup';
 
@@ -48,7 +56,8 @@ describe('account registration', () => {
       account: { nickname: 'Léa', nicknameKey: 'lea', createdAt: Date.now() },
       session: {
         accountId: expect.any(String),
-        token: result.token,
+        /** The table keeps the digest, never the token: a leaked base opens nothing. */
+        token: await tokenDigest(result.token),
         createdAt: Date.now(),
         lastSeenAt: Date.now(),
       },
@@ -105,6 +114,8 @@ describe('account registration', () => {
 });
 
 describe('account login and sessions', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('logs in with the normalized nickname and returns no digest fields', async () => {
     const t = boot();
     const registered = await t.action(api.auth.register, {
@@ -135,6 +146,36 @@ describe('account login and sessions', () => {
     await expect(t.action(api.auth.login, { nickname, password })).rejects.toThrow(
       'BAD_CREDENTIALS',
     );
+  });
+
+  /**
+   * **A pause, never a lock.** The right password is refused too inside the interval — the
+   * attempt is not even examined — and a refused attempt does not push the next one back, or
+   * hammering a nickname would shut its owner out for as long as one cared to hammer.
+   */
+  it('examines one login attempt per nickname every three seconds', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const t = boot();
+    await t.action(api.auth.register, { nickname: 'Pierre', password: 'mot de passe solide' });
+    const wrong = { nickname: 'Pierre', password: 'mauvais secret' };
+    const right = { nickname: 'pierre', password: 'mot de passe solide' };
+
+    await expect(t.action(api.auth.login, wrong)).rejects.toThrow('BAD_CREDENTIALS');
+    await expect(t.action(api.auth.login, wrong)).rejects.toThrow('LOGIN_TOO_FAST');
+    await expect(t.action(api.auth.login, right)).rejects.toThrow('LOGIN_TOO_FAST');
+
+    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS - 1);
+    await expect(t.action(api.auth.login, right)).rejects.toThrow('LOGIN_TOO_FAST');
+    vi.setSystemTime(Date.now() + 1);
+    expect(await t.action(api.auth.login, right)).toEqual({
+      token: expect.stringMatching(tokenPattern),
+    });
+
+    /** Another nickname is another door: one account under fire slows nobody else down. */
+    await t.action(api.auth.register, { nickname: 'Camille', password: 'mot de passe solide' });
+    expect(
+      await t.action(api.auth.login, { nickname: 'Camille', password: 'mot de passe solide' }),
+    ).toEqual({ token: expect.stringMatching(tokenPattern) });
   });
 
   it('keeps sessions independent and makes logout idempotent', async () => {
@@ -211,13 +252,117 @@ describe('account login and sessions', () => {
   });
 });
 
+describe('what a session is worth, and for how long', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const account = { nickname: 'Pierre', password: 'mot de passe solide' };
+
+  it('does not open on the digest the table keeps', async () => {
+    const t = boot();
+    const { token } = await t.action(api.auth.register, account);
+    const kept = await t.run(async (ctx) => (await ctx.db.query('sessions').first())!);
+
+    expect(kept.token).not.toBe(token);
+    expect(kept.hashed).toBe(true);
+    expect(await t.query(api.accounts.me, { token: kept.token })).toBeNull();
+    expect(await t.query(api.accounts.me, { token })).toEqual({ nickname: 'Pierre' });
+  });
+
+  it('still reads a session written before the digest, and converts it on its first write', async () => {
+    const t = boot();
+    await t.action(api.auth.register, account);
+    await t.run(async (ctx) => {
+      const session = (await ctx.db.query('sessions').first())!;
+      await ctx.db.insert('sessions', {
+        accountId: session.accountId,
+        token: 'jeton en clair',
+        createdAt: Date.now(),
+        lastSeenAt: Date.now(),
+      });
+    });
+    const legacy = { token: 'jeton en clair' };
+    expect(await t.query(api.accounts.me, legacy)).toEqual({ nickname: 'Pierre' });
+
+    await t.run((ctx) => refreshSession(ctx, legacy.token));
+    const converted = await t.run((ctx) => sessionOf(ctx, legacy.token));
+    expect(converted).toMatchObject({ hashed: true, token: await tokenDigest(legacy.token) });
+    expect(await t.query(api.accounts.me, legacy)).toEqual({ nickname: 'Pierre' });
+  });
+
+  it('expires after thirty idle days, and lives on when it is used', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+    const t = boot();
+    const idle = await t.action(api.auth.register, account);
+    vi.setSystemTime(Date.now() + 5_000);
+    const used = await t.action(api.auth.login, account);
+
+    vi.setSystemTime(Date.now() + SESSION_REFRESH_MS - 10_000);
+    await t.run((ctx) => refreshSession(ctx, used.token));
+    expect((await t.run((ctx) => sessionOf(ctx, used.token)))!.lastSeenAt).toBeLessThan(Date.now());
+
+    vi.setSystemTime(Date.now() + SESSION_IDLE_MS - SESSION_REFRESH_MS);
+    await t.run((ctx) => refreshSession(ctx, used.token));
+    expect((await t.run((ctx) => sessionOf(ctx, used.token)))!.lastSeenAt).toBe(Date.now());
+
+    vi.setSystemTime(Date.now() + SESSION_REFRESH_MS + 60_000);
+    expect(await t.query(api.accounts.me, idle)).toBeNull();
+    expect(await t.query(api.accounts.me, used)).toEqual({ nickname: 'Pierre' });
+
+    /** The door sweeps: what the account let expire leaves the table at its next login. */
+    await t.action(api.auth.login, account);
+    expect(await t.run(async (ctx) => ctx.db.query('sessions').collect())).toHaveLength(2);
+  });
+
+  it('closes every other device, sessions and notifications alike', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+    const t = boot();
+    const here = await t.action(api.auth.register, account);
+    vi.setSystemTime(Date.now() + 5_000);
+    const elsewhere = await t.action(api.auth.login, account);
+    const other = await t.action(api.auth.register, { ...account, nickname: 'Camille' });
+
+    const device = { p256dh: 'clef', auth: 'secret', userAgent: 'Firefox' };
+    for (const [session, endpoint] of [
+      [here, 'https://push.example/ici'],
+      [elsewhere, 'https://push.example/ailleurs'],
+      [other, 'https://push.example/camille'],
+    ] as const) {
+      await t.mutation(api.notifications.subscribe, { ...session, ...device, endpoint });
+    }
+
+    expect(
+      await t.mutation(api.accounts.logoutOthers, {
+        ...here,
+        endpoint: 'https://push.example/ici',
+      }),
+    ).toEqual({ closed: 1 });
+
+    expect(await t.query(api.accounts.me, here)).toEqual({ nickname: 'Pierre' });
+    expect(await t.query(api.accounts.me, elsewhere)).toBeNull();
+    expect(await t.query(api.accounts.me, other)).toEqual({ nickname: 'Camille' });
+    expect((await t.query(api.notifications.devices, here)).map((kept) => kept.endpoint)).toEqual([
+      'https://push.example/ici',
+    ]);
+    expect(await t.query(api.notifications.devices, other)).toHaveLength(1);
+    await expect(t.mutation(api.accounts.logoutOthers, elsewhere)).rejects.toThrow(
+      'UNKNOWN_SESSION',
+    );
+  });
+});
+
 describe('password recovery and login races', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('revokes every session and accepts only the replacement password', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
     const t = boot();
     const first = await t.action(api.auth.register, {
       nickname: 'Pierre',
       password: 'ancien secret',
     });
+    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
     const second = await t.action(api.auth.login, {
       nickname: 'Pierre',
       password: 'ancien secret',
@@ -230,9 +375,11 @@ describe('password recovery and login races', () => {
 
     expect(await t.query(api.accounts.me, first)).toBeNull();
     expect(await t.query(api.accounts.me, second)).toBeNull();
+    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
     await expect(
       t.action(api.auth.login, { nickname: 'Pierre', password: 'ancien secret' }),
     ).rejects.toThrow('BAD_CREDENTIALS');
+    vi.setSystemTime(Date.now() + LOGIN_MIN_INTERVAL_MS);
     const replacement = await t.action(api.auth.login, {
       nickname: 'Pierre',
       password: 'nouveau secret',

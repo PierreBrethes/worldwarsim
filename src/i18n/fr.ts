@@ -350,6 +350,7 @@ export const fr = {
     PASSWORD_TOO_LONG: () => 'mot de passe trop long — 72 octets maximum',
     NICKNAME_TAKEN: () => 'ce pseudo est déjà utilisé',
     BAD_CREDENTIALS: () => 'pseudo ou mot de passe incorrect',
+    LOGIN_TOO_FAST: () => 'une tentative toutes les trois secondes — patientez un instant',
     ACCOUNT_NOT_FOUND: () => 'compte introuvable',
     SESSION_TOKEN_COLLISION: () => 'impossible de créer la session — réessayez',
     UNKNOWN_SESSION: () => 'session expirée — reconnectez-vous',
@@ -605,6 +606,13 @@ export const fr = {
     logout: 'se déconnecter',
     logoutNote:
       'la place reste au compte — on ferme un appareil, on ne rend pas son siège. Reconnectez-vous et la partie est là.',
+    logoutOthers: 'déconnecter les autres appareils',
+    logoutOthersNote:
+      'ferme ce compte partout ailleurs et y coupe les notifications. Cet appareil reste connecté.',
+    logoutOthersDone: (closed: number) =>
+      closed === 0
+        ? 'aucun autre appareil n’était connecté'
+        : `${closed} ${plural(closed, 'session fermée', 'sessions fermées')}`,
     noBackend:
       'Aucun backend configuré (VITE_CONVEX_URL absent). Lancez la pile locale avec docker compose up — voir deploiement/README.md.',
   },
@@ -1259,6 +1267,11 @@ export const fr = {
         `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.`,
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
+      /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
+      expeditionFoundNothing: (building: string, region: string, reason: 'gone' | 'disabled') =>
+        reason === 'gone'
+          ? `Expédition bredouille — ${region} : ${building} relevé n’est plus debout. La colonne rentre à vide.`
+          : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,

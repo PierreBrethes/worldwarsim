@@ -62,6 +62,31 @@ const returnEmpty = async (
   await forgetMovement(ctx, movement._id);
 };
 
+/**
+ * **Le relevé datait, et c'est sur place que la colonne l'apprend.** L'ordre est parti sur ce
+ * que le joueur avait relevé (`surveyedPlunderTarget`) ; ce qui se tient là maintenant ne se lit
+ * qu'ici. Sans cette ligne l'expédition rentrait à vide et le journal n'en disait rien.
+ */
+async function reportNothingFound(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  now: number,
+): Promise<void> {
+  if (movement.plunder?.phase !== 'outbound') return;
+  const standing = await ctx.db.get(movement.plunder.buildingId);
+  const building = standing?.key ?? movement.plunder.surveyed?.key;
+  const regionId = standing?.regionId ?? movement.plunder.surveyed?.regionId;
+  if (building === undefined || regionId === undefined) return;
+  await ctx.db.insert('notices', {
+    playerId: movement.playerId,
+    at: now,
+    kind: 'expeditionFoundNothing',
+    building,
+    regionId,
+    reason: standing === null ? 'gone' : 'disabled',
+  });
+}
+
 async function startPresence(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
@@ -151,6 +176,7 @@ export async function arriveForPlunder(
   const target = await targetAt(ctx, movement, now);
   const troops = await troopsCarriedBy(ctx, movement);
   if (target === null || !troops.some((troop) => troop.role === 'infantry')) {
+    if (target === null) await reportNothingFound(ctx, movement, now);
     await returnEmpty(ctx, movement, troops, now);
     return;
   }

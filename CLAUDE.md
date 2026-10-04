@@ -209,6 +209,19 @@ par saison** (`SEAT_TAKEN`) ; le pseudo se copie sur la place à l'entrée et y 
 saison. `players.token` est mort avec le wipe du 11/09 — aucune reprise, aucune migration
 (décision 85a). La déconnexion se prend aux Réglages du plateau et à l'accueil.
 
+**Et une session se garde comme un secret — 05/10/2026** (`convex/sessions.ts`). La table ne
+porte plus le jeton mais son **empreinte** (SHA-256, `sessions.hashed`) : une base qui fuit
+n'ouvre rien. Une ligne d'avant, encore en clair, se relit par son jeton et se convertit à sa
+première écriture — personne n'est déconnecté. Une session **expire après trente jours sans
+servir** (`SESSION_IDLE_MS`) ; c'est le plateau ouvert qui la tient en vie (`players.touch` →
+`refreshSession`, une écriture par jour au plus), et le ménage se fait à la connexion suivante.
+« Déconnecter les autres appareils », aux Réglages, ferme les autres sessions du compte **et**
+leurs abonnements aux notifications (`accounts.logoutOthers`). La connexion n'examine qu'**une
+tentative toutes les trois secondes par pseudo** (`LOGIN_TOO_FAST`, `LOGIN_MIN_INTERVAL_MS`) :
+une pause et jamais un verrouillage — les pseudos sont publics, et une tentative refusée ne
+repousse pas la suivante. Elle ne protège pas le CPU d'essais sur des pseudos inconnus : cela
+reste l'affaire d'une limite par IP au proxy.
+
 **Et une invitation est un lien** (02/10/2026, lot A du plan marque et site) : `/rejoindre/CODE`,
 publique — la porte de `__root.tsx` l'ouvre par la **même** condition que `/connexion`
 (`opensWithoutAccount`). La page lit `seasons.invitation`, une query **sans session obligatoire**
@@ -315,6 +328,25 @@ ici et coûterait un modèle mental de plus.
 **La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
 géométrie plate et le clic tombe à côté sur les bords de la carte.
 
+**La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
+dessinait soixante images par seconde même posée et immobile. La boucle tourne toujours, mais
+l'image n'est due que si quelque chose a remué la carte dans les 1,5 s (`SETTLE_MS`, qui couvre
+l'inertie de la caméra et la pousse des accessoires), si un fil est affiché — ses tirets coulent,
+donc **un mouvement à l'écran garde le rendu continu** —, ou au battement de secours, deux fois
+par seconde. **Trois règles quand on touche au moteur**, et la première est vérifiée par un test
+qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
+
+- toute méthode publique de `MapEngine` qui change ce qu'on voit **commence par
+  `this.invalidate()`** ; une méthode qui ne fait que lire s'inscrit dans `READ_ONLY` du test ;
+- une animation nouvelle qui dure plus que `SETTLE_MS`, ou qui tourne sans fin, se déclare dans
+  la boucle comme `arcs.isFlowing` — sinon elle saccade à deux images par seconde ;
+- un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
+  `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
+  `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
+
+Le battement est un filet, pas une excuse : un oubli se lit comme une demi-seconde de retard au
+lieu d'une carte gelée, et il se corrige.
+
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
 porte aucune capacité. Un nouveau `depot` est refusé (`UNKNOWN_BUILDING`) ; un dépôt
@@ -348,7 +380,10 @@ libre nulle il n'y a pas de branche, il y a la phrase qui dit pourquoi. Rien n'e
 et le serveur sortent de **la même fonction** (`plunderOrderRefusalOf`,
 `lootCollectionOrderRefusalOf`, `src/domain/movement-orders.ts`), et l'aperçu — durée, capacité
 libre, présence sur site, **butin estimé au relevé** — vient de `movements.previewPlunder` et
-`previewLootCollection`, jamais d'un stock adverse que le brouillard n'a pas servi. La rumeur, la
+`previewLootCollection`, jamais d'un stock adverse que le brouillard n'a pas servi. **L'ordre
+part sur la foi du relevé, depuis le 05/10** (`surveyedPlunderTarget`) : un bâtiment rasé ou mis à
+l'arrêt depuis n'est plus refusé au départ — le refus apprenait à distance ce que seul le terrain
+doit dire —, la colonne y va, rentre à vide, et la dépêche `expeditionFoundNothing` dit pourquoi. La rumeur, la
 caisse et le sabotage sont jugés à la partie à deux (ADR 0005, révisée le 10/09).
 **Le contrôle à deux joueurs sur une partie réelle n'a pas été fait** : la preuve tient au
 scénario public complet de `convex/plunder.test.ts`.

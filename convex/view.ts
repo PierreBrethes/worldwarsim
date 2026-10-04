@@ -69,6 +69,7 @@ import {
   warEntryOf,
 } from './seasons';
 import { seasonObjectives } from './objectives';
+import { readMarksOf } from './readMarks';
 import { recruitmentsOf, troopsOf } from './troops';
 import { reductionTarget, standingsOf } from './victory';
 import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
@@ -947,7 +948,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       .map(named),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
-    journalReadAt: player.journalReadAt ?? null,
+    journalReadAt: (await readMarksOf(ctx, player)).journalReadAt,
     journal: [],
     loadedAt: now,
     opponents: others.map((other) => ({
@@ -1088,6 +1089,7 @@ function named(notice: Doc<'notices'>) {
     case 'lootTaken':
     case 'sitePlundered':
     case 'siteSabotaged':
+    case 'expeditionFoundNothing':
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'lootDelivered':
       return { ...notice, regionName: nameOf(notice.regionId) };

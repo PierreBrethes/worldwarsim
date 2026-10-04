@@ -34,6 +34,7 @@ import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
+import { FrameDemand } from './frame-demand';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
@@ -201,6 +202,8 @@ export class MapEngine {
    * the same thread. So the sweep is done on demand rather than sixty times a second.
    */
   private hoverDirty = true;
+  /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
+  private readonly demand = new FrameDemand(performance.now());
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -349,7 +352,19 @@ export class MapEngine {
     this.loop();
   }
 
+  /**
+   * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
+   * publique qui change ce qu'on voit commence par cet appel — `frame-demand.test.ts` le vérifie
+   * sur la source —, et un composant qui pose ses propres nœuds sur la carte (étiquettes,
+   * indicateurs de bord) l'appelle après chaque rendu : ses nœuds naissent cachés et c'est la
+   * prochaine image qui les place.
+   */
+  invalidate(): void {
+    this.demand.stir(performance.now());
+  }
+
   displayArcs(arcs: ReadonlyArray<ArcView>): void {
+    this.invalidate();
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
     // nothing on screen moved.
@@ -357,6 +372,7 @@ export class MapEngine {
   }
 
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
+    this.invalidate();
     this.labels.setAnchors(anchors);
     // The label set changed: the overlap degradation must be redone, but not before the
     // loop has laid the new positions — the camera rest serves that too.
@@ -364,6 +380,7 @@ export class MapEngine {
   }
 
   displayRegions(data: RegionsData): void {
+    this.invalidate();
     this.regions.display(data);
     // The 500 KB land half a second after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
@@ -375,11 +392,13 @@ export class MapEngine {
   }
 
   setPlayerNation(nation: string | null): void {
+    this.invalidate();
     this.arcs.setPlayerNation(nation);
     this.hoverDirty = true;
   }
 
   accentArc(id: string | null): void {
+    this.invalidate();
     this.arcs.accent(id);
   }
 
@@ -406,6 +425,7 @@ export class MapEngine {
     /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder. */
     distance?: number,
   ): void {
+    this.invalidate();
     const points = [
       ...ids
         .map((id) => this.labels.position(id, this.arcs.headPositions))
@@ -464,6 +484,7 @@ export class MapEngine {
    * en pixels du plateau.
    */
   nudge(dx: number, dy: number): void {
+    this.invalidate();
     if (dx === 0 && dy === 0) return;
     this.journey = null;
     const distance = this.camera.position.distanceTo(this.controls.target);
@@ -498,6 +519,7 @@ export class MapEngine {
    * the requested subject is the whole circle, not a pin whose wider map context must survive.
    */
   showSearchArea(area: SearchArea | null): void {
+    this.invalidate();
     this.searchArea.show(area);
     if (area === null) {
       this.restoreDefaultZoom();
@@ -538,6 +560,7 @@ export class MapEngine {
   }
 
   select(adm0: string | null): void {
+    this.invalidate();
     this.selection = adm0;
   }
 
@@ -596,6 +619,7 @@ export class MapEngine {
 
   /** The camera holds still while a rose is open: one does not aim at a moving target. */
   freezeOrbit(frozen: boolean): void {
+    this.invalidate();
     this.controls.enabled = !frozen;
   }
 
@@ -605,6 +629,7 @@ export class MapEngine {
    * absent from it returns to neutral land — resetting the table is enough to undo.
    */
   colorNations(inkByCountry: ReadonlyMap<string, string>): void {
+    this.invalidate();
     for (const mesh of this.countries) {
       mesh.material.color.set(inkByCountry.get(mesh.userData.name) ?? PALETTE.neutralLand);
     }
@@ -616,6 +641,7 @@ export class MapEngine {
    * the 500 KB land.
    */
   showBuiltRegions(built: BuiltRegions): void {
+    this.invalidate();
     this.regions.showBuilt(new Set(built.regionIds), built.ink);
   }
 
@@ -624,11 +650,13 @@ export class MapEngine {
    * s'effacent : on lit qui tient quoi sans lire le découpage — voir `RegionLayer.showHeld`.
    */
   showHeldRegions(claims: ReadonlyArray<HeldClaim>): void {
+    this.invalidate();
     this.regions.showHeld(claims);
   }
 
   /** The ground an armed key accepts, as the domain computed it — see `RegionLayer.showDesignated`. */
   showDesignatedRegions(regionIds: ReadonlyArray<string>): void {
+    this.invalidate();
     this.regions.showDesignated(new Set(regionIds));
   }
 
@@ -637,10 +665,12 @@ export class MapEngine {
    * `null` puts it away — the ring is an answer to a hover, not a layer of the board.
    */
   showReach(reach: Reach | null): void {
+    this.invalidate();
     this.reach.show(reach);
   }
 
   setCurvature(intensity: number): void {
+    this.invalidate();
     this.frame.curvature = intensity;
     this.curvature.applyAll();
     this.reach.rebuild();
@@ -654,6 +684,7 @@ export class MapEngine {
   }
 
   resize(): void {
+    this.invalidate();
     const { clientWidth, clientHeight } = this.container;
     if (!clientWidth || !clientHeight) return;
     this.camera.aspect = clientWidth / clientHeight;
@@ -701,6 +732,7 @@ export class MapEngine {
   private wireInputs(): void {
     const canvas = this.renderer.domElement;
     this.controls.addEventListener('change', () => {
+      this.invalidate();
       this.hoverDirty = true;
       this.postponeRest();
     });
@@ -871,6 +903,7 @@ export class MapEngine {
    * joueur ferait d'un geste commencé un autre geste.
    */
   setMouseMapping(mapping: MouseMapping): void {
+    this.invalidate();
     this.mapping = mapping;
     this.applyMapping();
     this.refreshCursor();
@@ -905,6 +938,7 @@ export class MapEngine {
 
   /** The board wears the trowel while a construction panel is open, and only then. */
   setBuilding(building: boolean): void {
+    this.invalidate();
     if (building === this.building) return;
     this.building = building;
     this.refreshCursor();
@@ -912,6 +946,7 @@ export class MapEngine {
 
   /** The board is in aim: a column is armed and the next right click names its march. */
   setAiming(aiming: boolean): void {
+    this.invalidate();
     if (aiming === this.aiming) return;
     this.aiming = aiming;
     this.refreshCursor();
@@ -923,6 +958,7 @@ export class MapEngine {
    * a building down — and a second cursor for one gesture is one vocabulary too many.
    */
   setDesignating(designating: boolean): void {
+    this.invalidate();
     if (designating === this.designating) return;
     this.designating = designating;
     this.refreshCursor();
@@ -940,6 +976,7 @@ export class MapEngine {
    * a click the server would send back.
    */
   setPlacing(regionId: string | null, sprite: string | null): void {
+    this.invalidate();
     if (regionId === this.placing) return;
     this.placing = regionId;
     if (regionId === null) {
@@ -997,6 +1034,7 @@ export class MapEngine {
   /** The journey yields to the first hand on the camera: we do not fight the player. */
   private animateJourney(): void {
     if (this.journey === null) return;
+    this.invalidate();
     const share = Math.min(1, (performance.now() - this.journey.startMs) / JOURNEY_MS);
     const eased = share * share * (3 - 2 * share);
 
@@ -1116,9 +1154,14 @@ export class MapEngine {
     this.animateJourney();
     this.controls.update();
     if (this.hoverDirty) {
+      // Le survol change ce qui s'allume, et sème les accessoires d'une région qui poussent.
+      this.invalidate();
       this.hoverDirty = false;
       this.updateHover();
     }
+    // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image.
+    if (this.arcs.isFlowing) this.invalidate();
+    if (!this.demand.due(performance.now())) return;
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear

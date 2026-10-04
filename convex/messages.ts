@@ -10,6 +10,7 @@ import {
 import { fail } from './errors';
 import { notifyPlayer } from './notifications';
 import { telegraphUrl, push } from '../src/domain/push';
+import { readMarksOf, stampReadMark } from './readMarks';
 import { playerOf, seatsOf } from './seasons';
 
 /**
@@ -96,7 +97,7 @@ export const recent = query({
     return {
       /** The hour he last closed the window, `null` while he never has: the client counts what
        *  is unread from it, exactly as the journal does, and nothing here counts for him. */
-      readAt: player.telegraphReadAt ?? null,
+      readAt: (await readMarksOf(ctx, player)).telegraphReadAt,
       messages: latest.reverse().map((message) => {
         const sender = byId.get(message.playerId);
         return {
@@ -122,6 +123,6 @@ export const markRead = mutation({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
     const { player } = await playerOf(ctx, token, seasonId);
-    await ctx.db.patch(player._id, { telegraphReadAt: Date.now() });
+    await stampReadMark(ctx, player._id, { telegraphReadAt: Date.now() });
   },
 });

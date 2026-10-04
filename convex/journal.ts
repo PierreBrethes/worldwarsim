@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
+import { stampReadMark } from './readMarks';
 import { playerOf, requireStarted } from './seasons';
 
 /**
@@ -21,6 +22,6 @@ export const markRead = mutation({
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
-    await ctx.db.patch(player._id, { journalReadAt: Date.now() });
+    await stampReadMark(ctx, player._id, { journalReadAt: Date.now() });
   },
 });

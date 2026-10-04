@@ -48,12 +48,12 @@ import {
   namesATroopTwice,
   pacedMinutes,
   sameStation,
+  plunderAimOf,
   surveyedPlunderTarget,
-  surveyedPlunderAim,
   troopsAmong,
 } from './movement/orders';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
-import { nearestRegion, pointOfBuilding, regionFacts } from './regions';
+import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seasons';
@@ -389,14 +389,15 @@ export const plunder = mutation({
   handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    const target = await surveyedPlunderTarget(ctx, player, buildingId);
     return march(ctx, {
       playerId: player._id,
       season,
       type: 'march',
       origin,
       troopIds,
-      aim: await surveyedPlunderAim(ctx, player, buildingId),
-      plunder: { buildingId },
+      aim: plunderAimOf(target),
+      plunder: { buildingId, surveyed: { key: target.key, regionId: target.regionId } },
     });
   },
 });
@@ -537,12 +538,12 @@ export const previewPlunder = query({
       plunderRefusalOf(
         { kind: 'building', buildingId: target._id, key: target.key },
         column.roles,
-        target.playerId === player._id,
+        false,
       ) !== null
     ) {
       return null;
     }
-    const point = pointOfBuilding(target);
+    const point = target.point;
     const region = regionFacts(target.regionId);
     if (point === null || region === null) return null;
     const route = routeBetween(

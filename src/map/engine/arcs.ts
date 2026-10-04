@@ -142,6 +142,12 @@ export class ArcLayer {
     this.animate();
   }
 
+  /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
+   *  marche. Tant qu'il y en a un, chaque image est due (`frame-demand.ts`). */
+  get isFlowing(): boolean {
+    return this.rendered.length > 0;
+  }
+
   /**
    * Hover comes from the timeline or the pointer, but the accent never climbs back to
    * React: an id comes in, opacities change, the loop keeps running at sixty frames.

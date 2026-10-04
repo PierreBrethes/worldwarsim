@@ -803,6 +803,15 @@ export type Notice =
       readonly building: BuildingKey;
       readonly regionName: string;
     }
+  /** L'expédition est arrivée devant un relevé périmé : le bâtiment n'est plus debout (`gone`)
+   *  ou un autre l'a mis à l'arrêt avant elle (`disabled`). Elle rentre à vide. */
+  | {
+      readonly kind: 'expeditionFoundNothing';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly reason: 'gone' | 'disabled';
+    }
   | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
   | {
       readonly kind: 'lootRecovered';

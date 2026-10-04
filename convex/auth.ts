@@ -54,6 +54,14 @@ export const login = action({
     const snapshot = await ctx.runQuery(internal.accounts.passwordDigest, {
       nicknameKey: nicknameKey(nickname),
     });
+    if (
+      snapshot !== null &&
+      !(await ctx.runMutation(internal.accounts.claimLoginAttempt, {
+        accountId: snapshot.accountId,
+      }))
+    ) {
+      fail('LOGIN_TOO_FAST');
+    }
     const verified = await verifyPassword(password, snapshot ?? DUMMY_DIGEST);
     if (!snapshot || !verified) fail('BAD_CREDENTIALS');
 

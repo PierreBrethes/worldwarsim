@@ -149,6 +149,10 @@ export const PLUNDER_MISSION = v.union(
   v.object({
     phase: v.literal('outbound'),
     buildingId: v.id('buildings'),
+    /** **Ce que le relevé disait de la cible au départ.** L'ordre part sur la foi du relevé, et
+     *  le bâtiment peut ne plus être là à l'arrivée : c'est d'ici que la dépêche d'échec tire
+     *  son nom et sa région. Absent sur une expédition partie avant le champ. */
+    surveyed: v.optional(v.object({ key: BUILDING_KEY, regionId: v.string() })),
     returnRegionId: v.optional(v.union(v.string(), v.null())),
   }),
   v.object({
@@ -479,6 +483,19 @@ export const NOTICE = v.union(
     kind: v.literal('siteSabotaged'),
     building: BUILDING_KEY,
     regionId: v.string(),
+  }),
+  /**
+   * **L'expédition est arrivée devant rien.** Le relevé datait : le bâtiment a été rasé, ou un
+   * autre l'a mis à l'arrêt avant elle. L'ordre n'est plus refusé au départ pour cela — le refus
+   * disait à distance ce que seul le terrain doit apprendre (ADR 0005) —, donc c'est ici que le
+   * joueur l'apprend, sur place.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('expeditionFoundNothing'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    reason: v.union(v.literal('gone'), v.literal('disabled')),
   }),
   /**
    * **Un objectif neutre, annoncé à tout le monde au lancement** (objectifs neutres, 17/09/2026).

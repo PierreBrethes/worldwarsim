@@ -13,6 +13,7 @@ import {
 import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { fail } from './errors';
+import { sessionOf } from './sessions';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
@@ -50,10 +51,7 @@ export async function playerOf(ctx: QueryCtx, token: string, seasonId: Id<'seaso
 /** Le compte derrière un jeton de session, `null` si personne ne répond — une session
  *  inconnue, ou orpheline d'un compte effacé, ce que le lecteur ne distingue pas. */
 export async function accountOf(ctx: QueryCtx, token: string): Promise<Doc<'accounts'> | null> {
-  const session = await ctx.db
-    .query('sessions')
-    .withIndex('byToken', (q) => q.eq('token', token))
-    .unique();
+  const session = await sessionOf(ctx, token);
   return session === null ? null : await ctx.db.get(session.accountId);
 }
 
@@ -756,6 +754,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
       | 'stationedLoot'
       | 'notices'
       | 'presences'
+      | 'readMarks'
       | 'messages',
   ) =>
     ctx.db
@@ -853,6 +852,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('stationedLoot')),
     ...(await byPlayer('notices')),
     ...(await byPlayer('presences')),
+    ...(await byPlayer('readMarks')),
     ...(await byPlayer('messages')),
     ...accounts,
   ];

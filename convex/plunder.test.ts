@@ -225,11 +225,9 @@ async function resolve(
   atArrival = false,
 ) {
   const player = await playerOf(t, seat);
-  return t.run((ctx) =>
-    atArrival
-      ? revalidatePlunderTarget(ctx, player, buildingId)
-      : surveyedPlunderTarget(ctx, player, buildingId),
-  );
+  return atArrival
+    ? t.run((ctx) => revalidatePlunderTarget(ctx, player, buildingId))
+    : t.run((ctx) => surveyedPlunderTarget(ctx, player, buildingId));
 }
 
 describe('surveyed plunder targets', () => {
@@ -315,14 +313,32 @@ describe('surveyed plunder targets', () => {
     await expect(resolve(t, seat, warehouseId, false)).rejects.toThrow('UNKNOWN_BUILDING');
   });
 
-  it('refuses an already disabled warehouse through the same opaque target gate', async () => {
+  /**
+   * **The survey answers, not the board.** Refusing here told the player from a distance that
+   * somebody else had got there first, and for how long — and a razed building answered the same
+   * way. The order leaves on what was surveyed; only the arrival reads the truth.
+   */
+  it('still files against a surveyed warehouse that was disabled or razed since', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const warehouseId = await building(t, guest, 'warehouse');
     await observe(t, seat);
-    await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil: Date.now() + HOUR }));
 
-    await expect(resolve(t, seat, warehouseId)).rejects.toThrow('UNKNOWN_BUILDING');
+    await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil: Date.now() + HOUR }));
+    await expect(resolve(t, seat, warehouseId)).resolves.toMatchObject({
+      _id: warehouseId,
+      key: 'warehouse',
+      regionId: PRAHOVA,
+    });
+    await expect(resolve(t, seat, warehouseId, true)).rejects.toThrow('UNKNOWN_BUILDING');
+
+    await t.run((ctx) => ctx.db.delete(warehouseId));
+    await expect(resolve(t, seat, warehouseId)).resolves.toMatchObject({
+      _id: warehouseId,
+      key: 'warehouse',
+      regionId: PRAHOVA,
+      point: regionFacts(PRAHOVA)!.point,
+    });
   });
 });
 
@@ -513,6 +529,43 @@ describe('plunder presence', () => {
     const [back] = await returnsOf(t, seat);
     expect(back?.loot).toBeUndefined();
     expect(await t.run((ctx) => ctx.db.query('plunderReports').collect())).toEqual([]);
+
+    /** It walked for nothing, and the journal says why — to the one who walked, and to him only. */
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.notices.filter((notice) => notice.kind === 'expeditionFoundNothing')).toMatchObject(
+      [{ building: 'warehouse', reason: 'disabled' }],
+    );
+    const theirs = await t.query(api.view.playerView, guest);
+    expect(theirs.notices.some((notice) => notice.kind === 'expeditionFoundNothing')).toBe(false);
+  });
+
+  it('marches on a surveyed warehouse razed since, and reports it gone on arrival', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    await observe(t, seat);
+    await t.run((ctx) => ctx.db.delete(warehouseId));
+
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [infantry],
+      buildingId: warehouseId,
+    };
+    expect(await t.query(api.movements.previewPlunder, order)).toMatchObject({
+      destinationName: regionFacts(PRAHOVA)!.name,
+      effect: 'loot',
+    });
+    await t.mutation(api.movements.plunder, order);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.notices.filter((notice) => notice.kind === 'expeditionFoundNothing')).toMatchObject(
+      [{ building: 'warehouse', reason: 'gone', regionName: regionFacts(PRAHOVA)!.name }],
+    );
+    expect((await t.run((ctx) => ctx.db.get(infantry)))?.stationedAt).toBe(barracks);
   });
 
   it('returns the surviving escort empty when the infantry is lost during presence', async () => {

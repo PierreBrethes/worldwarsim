@@ -49,6 +49,8 @@ export function SettingsWindow({
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
   const logout = useMutation(api.accounts.logout);
+  const logoutOthers = useMutation(api.accounts.logoutOthers);
+  const [closedElsewhere, setClosedElsewhere] = useState<number | null>(null);
   const navigate = useNavigate();
 
   const set = (value: number) => {
@@ -283,6 +285,35 @@ export function SettingsWindow({
               className="mt-[8px] w-full cursor-pointer border border-[var(--ink)] py-[9px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
             >
               {fr.auth.logout}
+            </button>
+          </div>
+
+          {/* L'appareil qu'on ne tient plus : il ne doit ni entrer ni sonner. Celui-ci reste —
+              son abonnement est nommé au serveur pour être le seul gardé. */}
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="text-[13.5px] text-[var(--ink)]">{fr.auth.logoutOthers}</div>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {closedElsewhere === null
+                ? fr.auth.logoutOthersNote
+                : fr.auth.logoutOthersDone(closedElsewhere)}
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                void currentPushEndpoint()
+                  .catch(() => null)
+                  .then((endpoint) =>
+                    logoutOthers({
+                      token: seat.token,
+                      ...(endpoint === null ? {} : { endpoint }),
+                    }),
+                  )
+                  .then(({ closed }) => setClosedElsewhere(closed))
+                  .catch(() => undefined)
+              }
+              className="mt-[8px] w-full cursor-pointer border border-[var(--ink)] py-[9px] text-[10px] tracking-[.2em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            >
+              {fr.auth.logoutOthers}
             </button>
           </div>
         </div>

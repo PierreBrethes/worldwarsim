@@ -7,6 +7,7 @@ import { nicknameKey } from '../src/domain/account';
 import { isNation } from '../src/domain/nations';
 import { capitalRegionOf } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
+import { openSession, sessionOf } from './sessions';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -40,7 +41,7 @@ export async function signIn(t: Bench, nickname: string): Promise<string> {
       iterations: 1,
       createdAt: now,
     });
-    await ctx.db.insert('sessions', { accountId, token, createdAt: now, lastSeenAt: now });
+    await openSession(ctx, accountId, token);
   });
   return token;
 }
@@ -74,10 +75,7 @@ export async function joinSeat(t: Bench, code: string, nickname: string): Promis
  * a plus d'index qui aille du jeton à lui directement.
  */
 export async function seatIn(ctx: QueryCtx, seat: Seat): Promise<Doc<'players'>> {
-  const session = await ctx.db
-    .query('sessions')
-    .withIndex('byToken', (q) => q.eq('token', seat.token))
-    .unique();
+  const session = await sessionOf(ctx, seat.token);
   if (!session) throw new Error('session not found');
   const player = await ctx.db
     .query('players')

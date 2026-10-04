@@ -18,6 +18,7 @@ export const GAME_TABLES = [
   'notices',
   'pushQueue',
   'presences',
+  'readMarks',
   'sightings',
   'campSightings',
   'regionSightings',

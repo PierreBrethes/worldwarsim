@@ -151,42 +151,70 @@ export type Aimed = {
   readonly host: string;
 };
 
+/** An expedition target as the observer's survey holds it — never the building's own row. */
+export type SurveyedPlunderTarget = {
+  readonly _id: Id<'buildings'>;
+  readonly key: Doc<'buildings'>['key'];
+  readonly regionId: string;
+  readonly point: LonLat | null;
+};
+
 /**
- * Resolve only an expedition target frozen in this observer's survey. Every truth check keeps
- * the same opaque refusal; arrival uses the narrower revalidation below without serving it.
+ * **The survey answers, not the board.** An expedition is filed against what this player has
+ * surveyed, and what stands there *now* is not asked: refusing a target that was razed or put
+ * out of service since told the player, from his armchair and for free, what only the ground
+ * should (ADR 0005) — the length of a sabotage he did not carry out. The truth is read at
+ * arrival (`plunderTargetAt`), and the column that finds nothing says so (`plunder.ts`).
+ *
+ * What is still read off the row is what never changes under an order: whose it is and which
+ * season it stands in. A razed building is marched at by its region's point, the only place the
+ * survey can still name.
  */
 export async function surveyedPlunderTarget(
   ctx: QueryCtx,
   player: Doc<'players'>,
   buildingId: Id<'buildings'>,
-): Promise<Doc<'buildings'>> {
-  const building = await revalidatePlunderTarget(ctx, player, buildingId);
-  const survey = await ctx.db
+): Promise<SurveyedPlunderTarget> {
+  const surveys = await ctx.db
     .query('regionSightings')
-    .withIndex('byPlayerRegion', (q) =>
-      q.eq('playerId', player._id).eq('regionId', building.regionId),
+    .withIndex('byPlayerHasInstallations', (q) =>
+      q.eq('playerId', player._id).eq('hasInstallations', true),
     )
-    .unique();
-  if (!(survey?.installations ?? []).some((seen) => seen.buildingId === buildingId)) {
+    .collect();
+  const seen = surveys
+    .flatMap((survey) =>
+      (survey.installations ?? []).map((installation) => ({
+        ...installation,
+        regionId: survey.regionId,
+      })),
+    )
+    .find((installation) => installation.buildingId === buildingId);
+  if (seen === undefined || !isPlunderTarget(seen.key)) fail('UNKNOWN_BUILDING');
+
+  const building = await ctx.db.get(buildingId);
+  if (
+    building !== null &&
+    (building.seasonId !== player.seasonId || building.playerId === player._id)
+  ) {
     fail('UNKNOWN_BUILDING');
   }
-  return building;
+  return {
+    _id: buildingId,
+    key: seen.key,
+    regionId: seen.regionId,
+    point:
+      building === null ? (regionFacts(seen.regionId)?.point ?? null) : pointOfBuilding(building),
+  };
 }
 
 /** A surveyed enemy installation is an aim only for plunder; normal building aims stay mine. */
-export async function surveyedPlunderAim(
-  ctx: QueryCtx,
-  player: Doc<'players'>,
-  buildingId: Id<'buildings'>,
-): Promise<Aimed> {
-  const building = await surveyedPlunderTarget(ctx, player, buildingId);
-  const region = regionFacts(building.regionId);
-  const point = pointOfBuilding(building);
-  if (region === null || point === null) fail('UNKNOWN_BUILDING');
+export function plunderAimOf(target: SurveyedPlunderTarget): Aimed {
+  const region = regionFacts(target.regionId);
+  if (region === null || target.point === null) fail('UNKNOWN_BUILDING');
   return {
-    aim: { kind: 'building', buildingId: building._id, key: building.key },
-    target: { kind: 'building', buildingId: building._id },
-    point,
+    aim: { kind: 'building', buildingId: target._id, key: target.key },
+    target: { kind: 'building', buildingId: target._id },
+    point: target.point,
     name: region.name,
     host: region.country,
   };
@@ -495,7 +523,10 @@ export async function march(
     origin: MarchOrigin;
     troopIds: ReadonlyArray<Id<'troops'>>;
     aim: Aimed;
-    plunder?: { readonly buildingId: Id<'buildings'> };
+    plunder?: {
+      readonly buildingId: Id<'buildings'>;
+      readonly surveyed: { readonly key: Doc<'buildings'>['key']; readonly regionId: string };
+    };
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -567,7 +598,13 @@ export async function march(
     arrivesAt,
     ...(plunder === undefined
       ? {}
-      : { plunder: { phase: 'outbound' as const, buildingId: plunder.buildingId } }),
+      : {
+          plunder: {
+            phase: 'outbound' as const,
+            buildingId: plunder.buildingId,
+            surveyed: plunder.surveyed,
+          },
+        }),
     /** **Pourquoi elle y va**, puisque la cible stockée n'est qu'un point : sans cette marque,
      *  une attaque qui passe par là emporterait un dépôt que personne n'est venu chercher. */
     ...(aim.aim.kind === 'objective'

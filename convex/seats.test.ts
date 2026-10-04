@@ -4,6 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import schema from './schema';
 import { foundSeat, joinSeat, seatIn, seatsOf, signIn } from './seats.fixture';
+import { sessionOf } from './sessions';
 import { modules } from './test.setup';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -183,10 +184,7 @@ describe('la place et l’appareil', () => {
     await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
 
     const phone = await t.run(async (ctx) => {
-      const session = await ctx.db
-        .query('sessions')
-        .withIndex('byToken', (q) => q.eq('token', seat.token))
-        .unique();
+      const session = await sessionOf(ctx, seat.token);
       const now = Date.now();
       await ctx.db.insert('sessions', {
         accountId: session!.accountId,

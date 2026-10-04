@@ -401,6 +401,13 @@ export function MapLabels({
     };
   }, [engine, apply, degrade, scheduleDegrade]);
 
+  // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
+  // rend plus sans raison (`engine/frame-demand.ts`) : chaque rendu de ce composant en demande
+  // donc une — sans dépendances, exprès, pour qu'aucun changement de la liste ne passe à côté.
+  useEffect(() => {
+    engine?.invalidate();
+  });
+
   /**
    * **Toucher un regroupement rapproche la caméra jusqu'à ce que les siens se séparent** — la
    * paire la plus serrée doit s'écarter d'un cartouche entier, le plus large des siens.

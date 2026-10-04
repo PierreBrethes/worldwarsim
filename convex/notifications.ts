@@ -18,6 +18,7 @@ import {
   type PushType,
 } from '../src/domain/push';
 import { fail } from './errors';
+import { readMarksOf, stampReadMark } from './readMarks';
 import { accountOf, playerOf } from './seasons';
 import { PUSH_TYPE } from './validators';
 
@@ -136,7 +137,7 @@ export const flush = internalMutation({
         {
           presentAt: presence?.at ?? null,
           restWindow: player.restWindow,
-          telegraphPushedAt: player.telegraphPushedAt ?? null,
+          telegraphPushedAt: (await readMarksOf(ctx, player)).telegraphPushedAt,
         },
         now,
       );
@@ -159,7 +160,7 @@ export const flush = internalMutation({
       const gathered = groupTelegraph(telegraph.length, seasonId);
       if (gathered !== null) departures.push({ ...gathered, seasonId });
       for (const row of telegraph) await ctx.db.delete(row._id);
-      await ctx.db.patch(player._id, { telegraphPushedAt: now });
+      await stampReadMark(ctx, player._id, { telegraphPushedAt: now });
     }
 
     for (const departure of departures) {

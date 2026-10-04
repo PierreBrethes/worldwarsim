@@ -64,11 +64,16 @@ export default defineSchema({
     /** Le dernier essai de notification demandé, pour n'en laisser partir qu'un à la fois
      *  (`PUSH_TEST_INTERVAL_MS`). */
     pushTestAt: v.optional(v.number()),
+    /** La dernière tentative de connexion **examinée** sur ce pseudo (`LOGIN_MIN_INTERVAL_MS`). */
+    loginAttemptAt: v.optional(v.number()),
   }).index('byNicknameKey', ['nicknameKey']),
 
   sessions: defineTable({
     accountId: v.id('accounts'),
+    /** L'empreinte du jeton quand `hashed` est vrai, le jeton lui-même sur une ligne d'avant
+     *  (`convex/sessions.ts`) — une ligne en clair se convertit à sa première écriture. */
     token: v.string(),
+    hashed: v.optional(v.boolean()),
     createdAt: v.number(),
     lastSeenAt: v.number(),
   })
@@ -885,6 +890,19 @@ export default defineSchema({
   presences: defineTable({
     playerId: v.id('players'),
     at: v.number(),
+  }).index('byPlayer', ['playerId']),
+
+  /**
+   * **Ce qu'un joueur a lu** — la fermeture du journal, celle du télégraphe, et l'heure du
+   * dernier télégraphe parti en notification. Une ligne par place, hors de `players` pour la
+   * raison de `presences` : une écriture ici ne réveille que son lecteur (`convex/readMarks.ts`).
+   * Les champs du même nom restent sur `players`, legacy et relus en repli seulement.
+   */
+  readMarks: defineTable({
+    playerId: v.id('players'),
+    journalReadAt: v.optional(v.number()),
+    telegraphReadAt: v.optional(v.number()),
+    telegraphPushedAt: v.optional(v.number()),
   }).index('byPlayer', ['playerId']),
 
   /**

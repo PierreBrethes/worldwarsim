@@ -159,7 +159,10 @@ describe('le télégraphe', () => {
     await t.mutation(api.messages.markRead, seat);
     expect((await t.query(api.messages.recent, seat)).readAt).toBe(MIDDAY.getTime());
     // Le journal garde le sien : une fenêtre lue n'en tait pas une autre.
+    expect((await t.query(api.view.playerView, seat)).journalReadAt).toBeNull();
+    // Et la place n'est pas réécrite : lire ne réveille le plateau de personne d'autre.
     const player = await seatDoc(t, seat);
+    expect(player.telegraphReadAt).toBeUndefined();
     expect(player.journalReadAt).toBeUndefined();
   });
 });

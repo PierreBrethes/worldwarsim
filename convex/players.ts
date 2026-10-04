@@ -4,6 +4,7 @@ import type { Doc } from './_generated/dataModel';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason, isAtWar, playerOf, requirePlayable, seatsOf } from './seasons';
+import { refreshSession } from './sessions';
 
 /**
  * **Il est là.** La seule écriture de présence du jeu, et elle n'a qu'un lecteur : le fondateur
@@ -24,6 +25,9 @@ export const touch = mutation({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
+    /** Le plateau ouvert est ce qui tient une session en vie (`convex/sessions.ts`) — salon et
+     *  observateur compris, d'où sa place avant les deux sorties. */
+    await refreshSession(ctx, token);
     if (season.status !== 'launched') return;
     if (player.defeated === true) return;
 
