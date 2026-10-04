@@ -1819,6 +1819,30 @@ describe('a march goes to a point and the column stays there', () => {
     expect(await engagementsIn(t)).toHaveLength(0);
   });
 
+  it('refuses a point the map does not carry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+
+    for (const point of [
+      { lon: 361.99, lat: 44.6 },
+      { lon: 25.2, lat: 91 },
+      { lon: Number.NaN, lat: 44.6 },
+      { lon: 25.2, lat: Number.POSITIVE_INFINITY },
+    ]) {
+      await expect(
+        t.mutation(api.movements.marchTo, {
+          ...seat,
+          origin: { kind: 'building', buildingId: barracks },
+          troopIds: [troop],
+          point,
+        }),
+      ).rejects.toThrow('POINT_OFF_MAP');
+    }
+    expect(await movementsOf(t, seat)).toHaveLength(0);
+  });
+
   /**
    * **Rien ne se bat sans ordre** (ADR 0024 §3, révision de l'ADR 0019 §3). L'embuscade
    * automatique a disparu : une marche s'arrête à dix kilomètres d'un camp adverse et il ne se

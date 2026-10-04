@@ -190,6 +190,59 @@ describe('a season reads its own board and no other', () => {
   });
 
   /**
+   * **An id is not a border.** A seat reads outpost ids off its own engagements, and an account
+   * may sit at two tables: naming a point of the other season in an order of this one used to
+   * march this season's column at it, fight its garrison and put it out of service. It is
+   * answered as an id nobody knows — in the order and in its preview alike, which would
+   * otherwise hand back the point's position for free.
+   */
+  it('refuses an order aimed at an outpost of another season', async () => {
+    const t = boot();
+    const here = await launchedSeason(t, 'Pierre', 'Léa');
+    const elsewhere = await launchedSeason(t, 'Camille', 'Nour');
+    await disbandTheGift(t, here.seat, here.guest, elsewhere.seat, elsewhere.guest);
+
+    const theirOutpost = await plant(t, elsewhere.guest, pointOf(PRAHOVA), 'relay');
+    const barracks = await raise(t, here.seat, MARNE);
+    const troop = await form(t, here.seat, barracks);
+    const order = {
+      ...here.seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [troop],
+    };
+
+    await expect(
+      t.mutation(api.movements.raid, { ...order, outpostId: theirOutpost }),
+    ).rejects.toThrow('UNKNOWN_OUTPOST');
+    await expect(
+      t.mutation(api.movements.attack, {
+        ...order,
+        target: { kind: 'outpost', outpostId: theirOutpost },
+      }),
+    ).rejects.toThrow('UNKNOWN_OUTPOST');
+    await expect(
+      t.query(api.movements.preview, {
+        ...order,
+        type: 'raid',
+        target: { kind: 'outpost', outpostId: theirOutpost },
+      }),
+    ).rejects.toThrow('UNKNOWN_OUTPOST');
+
+    expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toHaveLength(0);
+
+    /** The same point, named from its own season, is a target like any other. */
+    const theirBarracks = await raise(t, elsewhere.seat, MARNE);
+    const theirTroop = await form(t, elsewhere.seat, theirBarracks);
+    await t.mutation(api.movements.raid, {
+      ...elsewhere.seat,
+      origin: { kind: 'building', buildingId: theirBarracks },
+      troopIds: [theirTroop],
+      outpostId: theirOutpost,
+    });
+    expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toHaveLength(1);
+  });
+
+  /**
    * **The camp is sixty kilometres from the road, which is inside a sentry's reach**
    * (the infantry role range) — so the same board, played inside one season, does file the relevé the
    * case above demands not to see. Without this the first guard would pass on a game that never

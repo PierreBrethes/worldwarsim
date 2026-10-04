@@ -112,6 +112,9 @@ export function EdgeIndicators({
     if (!engine) return;
     engine.onEdges = (projections) => {
       latest.current = projections;
+      /** Le cadre se mesure **une fois par passe** : relu pour chaque cartouche, il forçait une
+       *  mise en page après chaque écriture de style. Ils ont tous le même parent. */
+      let frame: { width: number; height: number } | null = null;
       for (const projection of projections) {
         const tag = named.current.get(projection.id);
         if (tag === undefined) continue;
@@ -120,10 +123,13 @@ export function EdgeIndicators({
           continue;
         }
         tag.style.display = '';
+        frame ??= {
+          width: tag.parentElement?.clientWidth ?? 0,
+          height: tag.parentElement?.clientHeight ?? 0,
+        };
+        const { width, height } = frame;
         /** Tourné vers l'intérieur : collé au bord droit, le cartouche part vers la gauche ; collé
          *  en haut ou en bas, il se pose dans l'écran plutôt qu'à cheval sur le bord. */
-        const width = tag.parentElement?.clientWidth ?? 0;
-        const height = tag.parentElement?.clientHeight ?? 0;
         const across = projection.edgeX > width / 2 ? '-100%' : '0';
         const down =
           projection.edgeY < height * 0.15

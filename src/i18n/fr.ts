@@ -525,6 +525,7 @@ export const fr = {
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
+    POINT_OFF_MAP: () => 'ce point n’est pas sur la carte',
     /** ADR 0024 §4 : on attaque un relevé, pas un endroit. La phrase dit ce qu'il faut avoir
      *  fait avant — regarder — plutôt que de laisser croire à une portée qui manque. */
     NOTHING_TO_ATTACK: () =>

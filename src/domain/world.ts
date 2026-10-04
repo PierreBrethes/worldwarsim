@@ -90,8 +90,22 @@ export function loadCoastalRegions(url = '/region-index.json'): Promise<Readonly
 /**
  * The admin-1 regions are a separate file: several times the weight of the world, purely
  * decorative, and invisible until you zoom in — the board must not wait for them.
+ *
+ * Fetched and parsed once for the lifetime of the tab, like the world: every return to the board
+ * mounts a new engine, and each one used to pull and parse the 2.6 MB again. A failure is
+ * forgotten, so the next mount tries afresh.
  */
-export async function loadRegions(url = '/regions.json'): Promise<RegionsData> {
+let regions: Promise<RegionsData> | null = null;
+
+export function loadRegions(url = '/regions.json'): Promise<RegionsData> {
+  regions ??= fetchRegions(url).catch((error: unknown) => {
+    regions = null;
+    throw error;
+  });
+  return regions;
+}
+
+async function fetchRegions(url: string): Promise<RegionsData> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`regions not found: ${url}`);
   const raw = (await response.json()) as {

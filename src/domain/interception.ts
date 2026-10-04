@@ -51,8 +51,7 @@ export function pointAtDistanceShare(points: ReadonlyArray<LonLat>, share: numbe
   if (first === undefined || last === undefined) throw new Error('a force without a route');
   if (points.length === 1) return first;
 
-  const legs = points.slice(1).map((point, index) => distanceKm(points[index]!, point));
-  const total = legs.reduce((sum, leg) => sum + leg, 0);
+  const { legs, total } = measured(points);
   if (total === 0) return first;
 
   let walked = Math.min(1, Math.max(0, share)) * total;
@@ -64,6 +63,27 @@ export function pointAtDistanceShare(points: ReadonlyArray<LonLat>, share: numbe
     return between(points[index]!, points[index + 1]!, leg === 0 ? 0 : walked / leg);
   }
   return last;
+}
+
+/**
+ * **A thread is measured once.** The detection pass asks where a column stands some five hundred
+ * times per observer and per target, and each answer used to re-measure every vertex of the same
+ * polyline — a haversine apiece. Keyed on the array itself, which a route never rewrites in
+ * place (`ReadonlyArray`), and weakly, so a thread nobody holds any more is forgotten with it.
+ */
+const lengths = new WeakMap<
+  ReadonlyArray<LonLat>,
+  { readonly legs: ReadonlyArray<number>; readonly total: number }
+>();
+
+function measured(points: ReadonlyArray<LonLat>) {
+  let known = lengths.get(points);
+  if (known === undefined) {
+    const legs = points.slice(1).map((point, index) => distanceKm(points[index]!, point));
+    known = { legs, total: legs.reduce((sum, leg) => sum + leg, 0) };
+    lengths.set(points, known);
+  }
+  return known;
 }
 
 /**

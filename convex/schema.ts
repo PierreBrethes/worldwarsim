@@ -61,6 +61,9 @@ export default defineSchema({
     /** Le vidage de la file d'envoi qui attend ce compte — un seul à la fois, et c'est cette
      *  trace qui permet de le déplacer plutôt que d'en empiler un second. */
     pushFlushJobId: v.optional(v.id('_scheduled_functions')),
+    /** Le dernier essai de notification demandé, pour n'en laisser partir qu'un à la fois
+     *  (`PUSH_TEST_INTERVAL_MS`). */
+    pushTestAt: v.optional(v.number()),
   }).index('byNicknameKey', ['nicknameKey']),
 
   sessions: defineTable({

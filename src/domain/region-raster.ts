@@ -204,6 +204,19 @@ export function cellsOfRegion(raster: RegionRaster, regionId: string): ReadonlyA
 }
 
 /**
+ * **« Cette cellule est-elle de la région »**, sans dresser la liste : `cellsOfRegion` balaie le
+ * raster entier, et les deux lecteurs ci-dessous n'interrogent qu'une poignée de cellules — neuf
+ * pour une bordure, celles d'une route pour une entrée. Même réponse, cellule par cellule.
+ */
+function memberOf(raster: RegionRaster, regionId: string): (cell: number) => boolean {
+  const anchor = raster.anchorOfRegion.get(regionId);
+  if (anchor !== undefined) return (cell) => cell === anchor;
+  const code = raster.codeOfRegion.get(regionId);
+  if (code === undefined) return () => false;
+  return (cell) => raster.regions[cell] === code;
+}
+
+/**
  * **Une cellule de bordure de la région**, ce que le polygone appelait « le point est sur le
  * contour ». Le raster n'a pas de contour : il a des cellules qui touchent autre chose. C'est le
  * contrôle du point d'entrée gravé d'un retour chargé (`plunder.ts`), et il accepte exactement ce
@@ -221,16 +234,16 @@ export function isRegionBorderCell(
   lonLat: LonLat,
   regionId: string,
 ): boolean {
-  const cells = new Set(cellsOfRegion(raster, regionId));
+  const isMember = memberOf(raster, regionId);
   const cell = cellAt(raster, lonLat);
-  if (!cells.has(cell)) return false;
+  if (!isMember(cell)) return false;
   const column = cell % raster.width;
   const row = Math.floor(cell / raster.width);
   for (const [dx, dy] of NEIGHBOURS) {
     const next = row + dy;
     if (next < 0 || next >= raster.height) return true;
     const across = (column + dx + raster.width) % raster.width;
-    if (!cells.has(next * raster.width + across)) return true;
+    if (!isMember(next * raster.width + across)) return true;
   }
   return false;
 }
@@ -266,9 +279,9 @@ export function firstRegionEntry(
   path: ReadonlyArray<LonLat>,
   regionId: string,
 ): RegionEntry | null {
-  const cells = new Set(cellsOfRegion(raster, regionId));
-  if (cells.size === 0 || path.length < 2) return null;
-  const inside = (point: LonLat): boolean => cells.has(cellAt(raster, point));
+  if (path.length < 2) return null;
+  const isMember = memberOf(raster, regionId);
+  const inside = (point: LonLat): boolean => isMember(cellAt(raster, point));
 
   for (let segmentIndex = 0; segmentIndex < path.length - 1; segmentIndex += 1) {
     for (const piece of splitAtAntimeridian(path[segmentIndex]!, path[segmentIndex + 1]!)) {

@@ -135,9 +135,21 @@ export async function upkeepOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
 
+  /** Vingt troupes logent dans trois casernes : l'adresse se lit une fois, pas une fois par
+   *  troupe — ce calcul passe à chaque vue, à chaque règlement et à chaque débit. */
+  const stationed = new Map<string, LonLat | null>();
   const unsuppliedTroopIds: Array<Id<'troops'>> = [];
   for (const troop of troops) {
-    const point = await standsAt(ctx, troop);
+    const address = troop.stationedAt;
+    let point: LonLat | null;
+    if (typeof address !== 'string') {
+      point = await standsAt(ctx, troop);
+    } else if (stationed.has(address)) {
+      point = stationed.get(address)!;
+    } else {
+      point = await standsAt(ctx, troop);
+      stationed.set(address, point);
+    }
     /** A troop the game cannot place is at home: `null` is national soil hanging from nothing
      *  that stands (schema), and so is a building razed under it. Neither is an expedition. */
     if (point === null) continue;

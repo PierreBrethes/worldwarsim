@@ -314,9 +314,12 @@ export class RegionLayer {
    * (ADR 0005).
    */
   showBuilt(regionIds: ReadonlySet<string>, ink: string): void {
-    this.builtIds = regionIds;
     this.builtMaterial.color.set(builtInk(ink));
-    this.rebuild();
+    /** La liste est refaite à chaque battement de la vue : sans ce garde, un pas de colonne
+     *  retriangulait le sol bâti **et toute la couleur tenue**, qui n'avait pas bougé. */
+    if (sameIds(regionIds, this.builtIds)) return;
+    this.builtIds = regionIds;
+    this.fill(this.built, this.builtIds, BUILT_LIFT);
   }
 
   /**
@@ -325,8 +328,9 @@ export class RegionLayer {
    * a second reading here would highlight ground the server refuses.
    */
   showDesignated(regionIds: ReadonlySet<string>): void {
+    if (sameIds(regionIds, this.designatedIds)) return;
     this.designatedIds = regionIds;
-    this.rebuild();
+    this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
   }
 
   /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
@@ -693,4 +697,10 @@ function contains(region: DisplayedRegion, x: number, y: number): boolean {
     }
   }
   return inside;
+}
+
+function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) return false;
+  for (const id of left) if (!right.has(id)) return false;
+  return true;
 }

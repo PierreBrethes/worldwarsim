@@ -660,6 +660,43 @@ describe('le vidage', () => {
     expect(device!.lastSentAt!).toBeGreaterThanOrEqual(NOON + 2 * MINUTE);
   });
 
+  it('refuse une adresse que le serveur n’a pas à appeler', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    for (const endpoint of ['http://push.example/a', 'https://10.0.0.5/a', 'https://backend/a']) {
+      await expect(subscribe(t, seat, endpoint)).rejects.toThrow('PUSH_ENDPOINT_INVALID');
+    }
+    expect(await t.query(api.notifications.devices, { token: seat.token })).toEqual([]);
+  });
+
+  it('ne garde que les dix derniers appareils d’un compte', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    for (let rank = 0; rank < 12; rank += 1) {
+      vi.setSystemTime(NOON + rank * MINUTE);
+      await subscribe(t, seat, `https://push.example/${rank}`);
+    }
+    const kept = await t.query(api.notifications.devices, { token: seat.token });
+    expect(kept.map((device) => device.endpoint).sort()).toEqual(
+      Array.from({ length: 10 }, (_, rank) => `https://push.example/${rank + 2}`).sort(),
+    );
+  });
+
+  it('ne laisse partir qu’un essai à la fois', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t, 'Pierre');
+    await subscribe(t, seat, 'https://push.example/pierre');
+    await t.mutation(api.notifications.sendTest, { token: seat.token });
+    await t.mutation(api.notifications.sendTest, { token: seat.token });
+    await drain(t);
+    expect(webpush.sent).toHaveLength(1);
+
+    vi.setSystemTime(Date.now() + 11_000);
+    await t.mutation(api.notifications.sendTest, { token: seat.token });
+    await drain(t);
+    expect(webpush.sent).toHaveLength(2);
+  });
+
   it('envoie la notification d’essai sans passer par la file', async () => {
     const t = boot();
     const { seat } = await foundSeat(t, 'Pierre');

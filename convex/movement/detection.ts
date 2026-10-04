@@ -462,7 +462,18 @@ async function syncCampSightings(
         detectorRegion: caught.detectorRegion,
       };
       if (row !== undefined) {
-        await ctx.db.patch(row._id, seen);
+        /** Un camp qui n'a pas bougé sous le même détecteur ne se réécrit pas : la réévaluation
+         *  passe à chaque départ et à chaque arrivée de la saison, et chaque écriture ici
+         *  réveillait le plateau de l'observateur pour lui resservir la même ligne. */
+        const unchanged =
+          row.until === null &&
+          row.point.lon === seen.point.lon &&
+          row.point.lat === seen.point.lat &&
+          row.medium === seen.medium &&
+          row.detector === seen.detector &&
+          row.detectorId === seen.detectorId &&
+          row.detectorRegion === seen.detectorRegion;
+        if (!unchanged) await ctx.db.patch(row._id, seen);
         continue;
       }
       await ctx.db.insert('campSightings', {
@@ -834,7 +845,7 @@ async function replaceSighting(
   now: number,
 ): Promise<void> {
   if (row.from <= now) {
-    await ctx.db.patch(row._id, { to: Math.max(row.to, next.to) });
+    if (next.to > row.to) await ctx.db.patch(row._id, { to: next.to });
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);

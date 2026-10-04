@@ -64,7 +64,7 @@ services:
         max-size: '10m'
         max-file: '5'
     ports:
-      - '8080:80'
+      - '127.0.0.1:8080:80'
     depends_on:
       backend:
         condition: service_healthy

@@ -256,6 +256,9 @@ export type AimTarget =
   | { readonly kind: 'camp'; readonly campId: Id<'campSightings'> }
   | { readonly kind: 'objective'; readonly objectiveId: Id<'objectives'> };
 
+const seasonIdOf = async (ctx: QueryCtx, playerId: Id<'players'>): Promise<Id<'seasons'> | null> =>
+  (await ctx.db.get(playerId))?.seasonId ?? null;
+
 export async function aimOf(
   ctx: QueryCtx,
   /** Read for one target only: a building is aimed at by its owner and by nobody else. */
@@ -265,6 +268,11 @@ export async function aimOf(
   /** **A point is kept as it was aimed** (ADR 0019 §1): nothing looks up what stands there. Only
    *  the country is read off it, because the rest window is owed to whoever owns the ground. */
   if (target.kind === 'point') {
+    /** La carte ne tend que des points qu'elle porte (`lonLatAt` borne les deux axes) ; un
+     *  client qui écrit le sien posait une colonne aérienne hors du monde, telle quelle. */
+    const { lon, lat } = target.point;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lon) > 180 || Math.abs(lat) > 90)
+      fail('POINT_OFF_MAP');
     const point = pointOf(target.point);
     const country = hostAtPoint(point);
     return {
@@ -323,7 +331,9 @@ export async function aimOf(
    */
   if (target.kind === 'objective') {
     const objective = await ctx.db.get(target.objectiveId);
-    if (objective === null) fail('UNKNOWN_OBJECTIVE');
+    if (objective === null || objective.seasonId !== (await seasonIdOf(ctx, playerId))) {
+      fail('UNKNOWN_OBJECTIVE');
+    }
     const point = pointOf(objective.point);
     const country = hostAtPoint(point);
     return {
@@ -342,7 +352,12 @@ export async function aimOf(
   }
   if (target.kind === 'outpost') {
     const outpost = await ctx.db.get(target.outpostId);
-    if (!outpost) fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
+    /** **Un point d'une autre saison n'existe pas dans celle-ci**, et il se refuse du mot d'un
+     *  identifiant inconnu : un compte assis à deux tables tient les identifiants de l'une, et
+     *  sans ce contrôle ses colonnes de l'autre venaient s'y battre et désactiver le point. */
+    if (!outpost || outpost.seasonId !== (await seasonIdOf(ctx, playerId))) {
+      fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
+    }
     const anchor = pointOf(outpost.point);
     return {
       aim: {

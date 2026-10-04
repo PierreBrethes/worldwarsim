@@ -11,4 +11,5 @@ RUN npx vite build
 
 FROM nginx:alpine
 COPY deploiement/nginx.conf /etc/nginx/conf.d/default.conf
+COPY deploiement/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=construction /app/dist /usr/share/nginx/html

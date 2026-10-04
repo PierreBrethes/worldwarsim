@@ -161,6 +161,40 @@ export function readSeat(seat: SeatHolding, now: number): SeatReading {
   };
 }
 
+/** Un compte garde ses dix derniers appareils : au-delà le plus ancien cède la place, et un
+ *  compte ne devient pas un moyen de faire partir cent requêtes d'un seul appel. */
+export const MAX_PUSH_DEVICES = 10;
+export const PUSH_TEST_INTERVAL_MS = 10_000;
+/** Une clé P-256 non compressée fait 87 caractères en base64url, le secret 22. */
+export const PUSH_KEY_MAX_LENGTH = 256;
+
+const PRIVATE_SUFFIXES = ['.local', '.localhost', '.internal', '.lan', '.home', '.localdomain'];
+
+/**
+ * **Une adresse qu'un service de push peut porter, et pas autre chose.** L'endpoint vient du
+ * client et c'est le serveur qui l'appelle : sans ce contrôle, n'importe quel compte lui faisait
+ * émettre des requêtes vers l'hôte de son choix — un service du réseau du VPS compris — et lisait
+ * le résultat dans la liste de ses appareils (un 404 retire la ligne, un succès la date).
+ *
+ * HTTPS sur son port, sans identifiants, vers un nom de domaine public : ni adresse IP, ni nom
+ * court (`backend`, `dashboard` sont ceux du réseau Docker), ni suffixe privé. **Ce n'est pas une
+ * liste des services connus**, exprès : elle refuserait le navigateur qu'on n'a pas prévu.
+ */
+export function isPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' || url.port !== '' || url.username !== '' || url.password !== '') {
+    return false;
+  }
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  if (host.startsWith('[') || /^[\d.]+$/.test(host) || !host.includes('.')) return false;
+  return !PRIVATE_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
 /**
  * **Le libellé d'un appareil, tiré de l'user-agent** — pour la liste des Réglages, pas pour
  * identifier : « Chrome sur Android », « Safari sur iPhone ». Ce qu'on ne reconnaît pas reste

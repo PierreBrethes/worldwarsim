@@ -5,9 +5,13 @@ import { internalMutation, internalQuery, mutation, query } from './_generated/s
 import type { MutationCtx } from './_generated/server';
 import {
   FLUSH_DELAY_MS,
+  MAX_PUSH_DEVICES,
+  PUSH_KEY_MAX_LENGTH,
+  PUSH_TEST_INTERVAL_MS,
   deviceLabelOf,
   groupAlarms,
   groupTelegraph,
+  isPushEndpoint,
   pushPreferencesOf,
   readSeat,
   type OutgoingPush,
@@ -178,7 +182,12 @@ export const subscribe = mutation({
   handler: async (ctx, { token, endpoint, p256dh, auth, userAgent }) => {
     const account = await accountOf(ctx, token);
     if (account === null) fail('UNKNOWN_SESSION');
-    if (endpoint.length === 0 || endpoint.length > ENDPOINT_MAX_LENGTH)
+    if (
+      endpoint.length > ENDPOINT_MAX_LENGTH ||
+      !isPushEndpoint(endpoint) ||
+      p256dh.length > PUSH_KEY_MAX_LENGTH ||
+      auth.length > PUSH_KEY_MAX_LENGTH
+    )
       fail('PUSH_ENDPOINT_INVALID');
 
     const known = await ctx.db
@@ -190,6 +199,13 @@ export const subscribe = mutation({
       await ctx.db.patch(known._id, fresh);
       return;
     }
+    const devices = await ctx.db
+      .query('pushSubscriptions')
+      .withIndex('byAccount', (q) => q.eq('accountId', account._id))
+      .collect();
+    const surplus = Math.max(0, devices.length - MAX_PUSH_DEVICES + 1);
+    const oldestFirst = [...devices].sort((left, right) => left.createdAt - right.createdAt);
+    for (const device of oldestFirst.slice(0, surplus)) await ctx.db.delete(device._id);
     await ctx.db.insert('pushSubscriptions', { ...fresh, endpoint, createdAt: Date.now() });
   },
 });
@@ -302,6 +318,13 @@ export const sendTest = mutation({
   handler: async (ctx, { token }) => {
     const account = await accountOf(ctx, token);
     if (account === null) fail('UNKNOWN_SESSION');
+    /** Un essai sonne sur chaque appareil du compte : rejoué en boucle, c'est le serveur qui
+     *  frappe à la porte des services de push. Un second appui trop tôt ne fait rien. */
+    const now = Date.now();
+    if (account.pushTestAt !== undefined && now - account.pushTestAt < PUSH_TEST_INTERVAL_MS) {
+      return;
+    }
+    await ctx.db.patch(account._id, { pushTestAt: now });
     await ctx.scheduler.runAfter(0, internal.pushSend.deliver, {
       accountId: account._id,
       body: 'Notification d’essai : cet appareil sonne.',

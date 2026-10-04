@@ -199,9 +199,18 @@ async function defenceNear(
     byPlayer.set(present.playerId, kept);
   }
 
+  /** Toutes les troupes de la saison passent ici, et presque toutes partagent une poignée
+   *  d'adresses : un bâtiment ou un point se lit une fois, pas une fois par troupe logée. */
+  const stances = new Map<string, Awaited<ReturnType<typeof stanceOf>>>();
+  const stanceAt = async (address: TroopAddress) => {
+    if (typeof address !== 'string') return stanceOf(ctx, address);
+    if (!stances.has(address)) stances.set(address, await stanceOf(ctx, address));
+    return stances.get(address)!;
+  };
+
   for (const troop of await seasonTroops(ctx, movement.seasonId)) {
     if (troop.playerId === movement.playerId || marching.has(troop._id)) continue;
-    const stance = await stanceOf(ctx, troop.stationedAt);
+    const stance = await stanceAt(troop.stationedAt);
     if (stance === null || distanceKm(stance.point, arrival) > ARRIVAL_RADIUS_KM) continue;
     const kept = byPlayer.get(troop.playerId) ?? {
       troops: [],

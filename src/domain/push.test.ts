@@ -5,6 +5,7 @@ import {
   deviceLabelOf,
   groupAlarms,
   groupTelegraph,
+  isPushEndpoint,
   journalUrl,
   pushPreferencesOf,
   readSeat,
@@ -142,5 +143,35 @@ describe('deviceLabelOf', () => {
     ['', 'Appareil inconnu'],
   ])('reconnaît %#', (userAgent, label) => {
     expect(deviceLabelOf(userAgent)).toBe(label);
+  });
+});
+
+describe('isPushEndpoint', () => {
+  it.each([
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    'https://web.push.apple.com/abc',
+    'https://wns2-par02p.notify.windows.com/w/?token=abc',
+  ])('accepte %s', (endpoint) => {
+    expect(isPushEndpoint(endpoint)).toBe(true);
+  });
+
+  it.each([
+    '',
+    'pas une adresse',
+    'http://fcm.googleapis.com/fcm/send/abc',
+    'https://fcm.googleapis.com:8443/fcm/send/abc',
+    'https://user:secret@fcm.googleapis.com/abc',
+    'https://127.0.0.1/abc',
+    'https://2130706433/abc',
+    'https://0x7f.1/abc',
+    'https://[::1]/abc',
+    'https://10.0.0.5/abc',
+    'https://localhost/abc',
+    'https://backend/abc',
+    'https://dashboard.internal/abc',
+    'https://nas.local./abc',
+  ])('refuse %s', (endpoint) => {
+    expect(isPushEndpoint(endpoint)).toBe(false);
   });
 });

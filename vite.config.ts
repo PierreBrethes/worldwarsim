@@ -28,7 +28,11 @@ export default defineConfig({
   },
   // Le dépôt vit sur /mnt/c : inotify ne traverse pas le pont WSL2, aucun événement de
   // fichier n'arrive. Sans scrutation, le HMR est muet et il faut relancer le serveur.
-  server: { watch: { usePolling: true, interval: 300 } },
+  // Ailleurs (macOS, ext4 natif) les événements arrivent, et scruter tout le dépôt toutes les
+  // 300 ms ne ferait que chauffer le poste.
+  server: {
+    watch: process.cwd().startsWith('/mnt/') ? { usePolling: true, interval: 300 } : {},
+  },
   test: {
     server: { deps: { inline: ['convex-test'] } },
     projects: [
