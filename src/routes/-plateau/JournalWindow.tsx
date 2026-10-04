@@ -111,7 +111,7 @@ export function JournalWindow({
             Les deux joues de la grille tiennent la manchette centrée même quand l'une est vide —
             le cachet à gauche, le compte à droite, là où l'œil retombe après le titre. */}
         <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px]">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-[18px]">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-[18px] max-md:gap-x-[8px]">
             {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
                 relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
             <div className="justify-self-start">
