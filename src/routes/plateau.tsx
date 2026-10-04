@@ -61,7 +61,7 @@ import {
   troopsAt,
   type MarchStation,
 } from '@/domain/troops';
-import { stationNames } from '@/domain/station-name';
+import { pilePlace, placeLabel, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
@@ -378,6 +378,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
+  /** De quoi nommer la région d'une pile, dès que la carte a chargé ses régions. */
+  const [regionAt, setRegionAt] = useState<RegionAt | null>(null);
+  const keepRegionAt = useCallback((lookup: RegionAt) => setRegionAt(() => lookup), []);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
@@ -1126,7 +1129,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
      * jamais savoir où. Les autres adresses ne passent pas par ici : une garnison de bâtiment
      * se lit sur sa plaque, celle d'un avant-poste sur son point.
      */
-    const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching);
+    const stacks: ReadonlyArray<MapMarker> = postedStacks(view.me, marching, regionAt);
 
     /**
      * **Ce qu'on a relevé chez l'autre se tient sur la carte** (S8) : sans mât, l'expédition
@@ -1252,6 +1255,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     ];
   }, [
     marching,
+    regionAt,
     view.me,
     view.loadedAt,
     view.lootSightings,
@@ -1635,6 +1639,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           reach={postedReach ?? movementReach}
           onCountryHover={setHoveredCountry}
           onRegionHover={setHoveredRegion}
+          onRegionsLoaded={keepRegionAt}
           onArcHover={setHoveredArc}
           onLabelHover={setHoveredLabel}
           compassOf={compassOfTarget}
@@ -2043,8 +2048,8 @@ function previewArc(column: ArmedColumn, order: Order, preview: NonNullable<Prev
         : order.aim.kind === 'outpost'
           ? order.aim.hostCountry
           : '',
-    originLabel: preview.originName,
-    destinationLabel: preview.destinationName,
+    originLabel: placeLabel(preview.originName),
+    destinationLabel: placeLabel(preview.destinationName),
     type: order.type,
     stack: column.rule.roles.reduce<Record<string, number>>(
       (counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }),
@@ -2082,6 +2087,7 @@ const PREVIEW_ARC = 'preview';
 function postedStacks(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
+  regionAt: RegionAt | null,
 ): ReadonlyArray<MapMarker> {
   const names = stationNames({ me });
   const posts = new Map<
@@ -2107,7 +2113,7 @@ function postedStacks(
       lonLat: at.lonLat,
       station: at,
       stack,
-      place: names.place(at),
+      place: pilePlace(at, names, regionAt),
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
       ink: me.ink,
     };

@@ -59,11 +59,10 @@ garde son arc actuel, **sans drapeau** : le relevé ne donne pas la destination 
 - **Drapeau** : une étiquette `arrival` par mouvement `mine`, au dernier point de la route, à
   l'encre de la nation, sans clic. Hors champ, elle s'annonce au bord par le cartouche nommé des
   destinations (`WorldMap.edgeNames`). Aucun drapeau sur un arc adverse ni un souvenir (test).
-  Une marche vers un point nu reçoit du serveur le code pays comme nom (`convex/view.ts`,
-  `destinationName`) : le drapeau le traduit par `countryLabel` ; les autres surfaces qui lisent
-  `destinationLabel` gardent le défaut.
-- **Cartouches** : une pile se lit « Lieu · n » (le lieu de `stationNames.place`, donc le pays
-  pour un point nu, pas la ville). Piles et bâtiments qui se chevauchent — à la marge du repli,
+  Le nom vient de la vue (`destinationLabel`).
+- **Cartouches** : une pile se lit « Région · n » — la région admin-1 sous elle (`pilePlace`,
+  `src/domain/station-name.ts`, lue par `engine.regionAtLonLat`, la lecture du survol) ; le pays
+  seulement à flot ou tant que la couche de régions n'est pas chargée.  Piles et bâtiments qui se chevauchent — à la marge du repli,
   14 px — se regroupent (`groupOverlapping`, transitif, jamais pile et bâtiment ensemble) ; le
   cartouche réuni cède par priorité comme une étiquette. Le toucher rapproche la caméra
   (`separatingDistance`) ; **au plancher du zoom** (distance 4), deux piles à 15 km ne se séparent
@@ -73,3 +72,15 @@ garde son arc actuel, **sans drapeau** : le relevé ne donne pas la destination 
   qu'écrire le `transform` des regroupements ; tout le reste tourne au repos ou à la seconde.
 - Captures avant/après : `Claude outputs/releve-mobile/captures/carte__{avant,apres}__*.png`
   (script `carte.mjs`), saison du relevé, ordinateur 1440×900 et iPhone 13.
+
+### Reprise du 04/10/2026
+
+- **Le nom d'un point nu, à la source** : `convex/placeNames.ts` (`regionNameAt`, sur le raster de
+  l'ADR 0023) nomme la destination d'une marche vers un point, l'origine d'une colonne partie d'un
+  point (qui prenait jusqu'ici le pays **d'arrivée**, `originCountry` compris), et la destination
+  d'un aperçu vers un point, un camp ou un objectif. En mer, le serveur rend toujours le code du
+  pays — la chaîne vide au large — et le client le traduit en un seul endroit (`placeLabel`), lu
+  par l'adaptateur de vue et l'aperçu. Le palliatif du drapeau est retiré.
+- **Le double toucher de la rose** (`upgrade`, `raiseOutpost`, `found`, `specialize`) était déjà
+  livré par mobile-3 (`CONFIRMED_BY_SECOND_TOUCH`, `src/map/CompassRose.tsx`) ; sa règle
+  `readsFirst` est désormais testée.

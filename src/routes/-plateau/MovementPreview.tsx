@@ -10,6 +10,7 @@ import { pathLengthKm, type LonLat } from '@/domain/geo';
 import { landPaceOf, routeMedium } from '@/domain/routing';
 import type { MarchStation } from '@/domain/troops';
 import { handleError } from '@/data/errors';
+import { placeLabel } from '@/domain/station-name';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import type {
@@ -412,7 +413,9 @@ function destinationOf(aim: MovementAim, preview: Previewed | undefined): string
     const region = preview?.destinationName;
     return region === undefined ? fr.buildings[aim.key] : `${fr.buildings[aim.key]} · ${region}`;
   }
-  return preview?.destinationName ?? '—';
+  /** Un camp ou un objectif se nomme par la région sous lui, ou par son pays en mer. */
+  const named = preview?.destinationName;
+  return named === undefined ? '—' : placeLabel(named);
 }
 
 /**

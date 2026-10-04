@@ -36,6 +36,7 @@ import {
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
+import { regionNameAt } from '../placeNames';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
 import { surveyFromPoint } from '../surveys';
@@ -104,7 +105,7 @@ export async function departureOf(
     const point = pointOf(origin.point);
     return {
       point,
-      name: hostAtPoint(point),
+      name: regionNameAt(point) ?? hostAtPoint(point),
       regionId: null,
       stationId: origin.point,
       fromBuildingId: null,
@@ -277,7 +278,7 @@ export async function aimOf(
       },
       target: { kind: 'point', point: target.point },
       point,
-      name: country,
+      name: regionNameAt(point) ?? country,
       host: country,
     };
   }
@@ -307,7 +308,7 @@ export async function aimOf(
       },
       target: { kind: 'point', point: camp.point },
       point,
-      name: country,
+      name: regionNameAt(point) ?? country,
       host: country,
     };
   }
@@ -335,7 +336,7 @@ export async function aimOf(
       },
       target: { kind: 'point', point: objective.point },
       point,
-      name: country,
+      name: regionNameAt(point) ?? country,
       host: country,
     };
   }

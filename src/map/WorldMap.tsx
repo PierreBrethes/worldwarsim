@@ -71,6 +71,12 @@ type Props = {
   reach?: Reach | null;
   onCountryHover?: (adm0: string | null) => void;
   onRegionHover?: (region: RegionIdentity | null) => void;
+  /**
+   * **La couche admin-1 est arrivée** : la carte tend au plateau de quoi nommer la région sous un
+   * point, par la même lecture que le survol. Un cartouche de pile en a besoin, et il est écrit
+   * au plateau, pas ici.
+   */
+  onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
   /** What the target allows. The map asks the question; it does not know the view. */
@@ -179,6 +185,7 @@ export function WorldMap({
   reach = null,
   onCountryHover,
   onRegionHover,
+  onRegionsLoaded,
   onArcHover,
   onLabelHover,
   compassOf,
@@ -197,6 +204,12 @@ export function WorldMap({
   reveal = null,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
+   *  callback that changed identity. */
+  const regionsLoaded = useRef(onRegionsLoaded);
+  useEffect(() => {
+    regionsLoaded.current = onRegionsLoaded;
+  }, [onRegionsLoaded]);
   const engine = useRef<MapEngine | null>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
   /** Une rose rouverte est une autre rose : elle se mesure et se recale à son tour. */
@@ -223,7 +236,9 @@ export function WorldMap({
     let abandoned = false;
     loadRegions()
       .then((data) => {
-        if (!abandoned) instance.displayRegions(data);
+        if (abandoned) return;
+        instance.displayRegions(data);
+        regionsLoaded.current?.((lonLat) => instance.regionAtLonLat(lonLat));
       })
       .catch(() => {});
 

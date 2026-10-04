@@ -27,6 +27,7 @@ import {
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { regionFacts } from './regions';
+import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
@@ -1527,6 +1528,32 @@ describe('a march aimed at a point', () => {
     expect(movement!.hostCountry).toBe('ROU');
   });
 
+  /**
+   * **Un point nu se nomme par la région sous lui** : le serveur rendait le code du pays, et le
+   * bord de l'écran imprimait « ROU ». La vue et l'aperçu disent la même chose.
+   */
+  it('names a march to bare ground after the region under it, never by the country code', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'point' as const, point: { lon: AIMED[0], lat: AIMED[1] } },
+    };
+    const region = regionFacts(regionAtRoutePoint(AIMED)!)!;
+    expect(region.country).toBe('ROU');
+
+    const preview = await t.query(api.movements.preview, { ...order, type: 'march' });
+    await attacking(t, order);
+    const [movement] = (await t.query(api.view.playerView, seat)).movements;
+
+    expect(movement!.destinationName).toBe(region.name);
+    expect(preview!.destinationName).toBe(region.name);
+  });
+
   it('answers the same route in the preview as the march will take', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
@@ -1677,6 +1704,11 @@ describe('an arrival on a point finds who stands there', () => {
       target: { kind: 'region', regionId: RUHR },
     });
     expect(sent.minutes).toBeGreaterThan(0);
+
+    /** Sans caserne, l'origine se nomme par le point quitté — et non par le pays d'arrivée. */
+    const [movement] = (await t.query(api.view.playerView, seat)).movements;
+    expect(movement!.originName).toBe(regionFacts(PRAHOVA)!.name);
+    expect(movement!.originCountry).toBe('ROU');
   });
 
   it('refuses a column ordered out of a point it does not stand on', async () => {
@@ -3685,6 +3717,11 @@ describe('rester en mer', () => {
         point: { lon: HELIGOLAND[0], lat: HELIGOLAND[1] },
       }),
     ).resolves.toBeDefined();
+    /** En mer il n'y a pas de région : le nom est celui du large, la chaîne vide, que le client
+     *  lit « en mer » (`placeLabel`). */
+    const [sailing] = (await t.query(api.view.playerView, seat)).movements;
+    expect(sailing!.destinationName).toBe(hostAtPoint(HELIGOLAND));
+    expect(regionAtRoutePoint(HELIGOLAND)).toBeNull();
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const second = { kind: 'point' as const, point: { lon: HELIGOLAND[0], lat: HELIGOLAND[1] } };

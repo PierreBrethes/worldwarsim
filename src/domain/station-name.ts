@@ -1,4 +1,5 @@
 import { countryLabel, fr } from '@/i18n/fr';
+import type { LonLat } from './geo';
 import type { PlayerView, TroopStation } from './player-view';
 
 /**
@@ -13,6 +14,16 @@ import type { PlayerView, TroopStation } from './player-view';
  *
  * A station the view no longer carries falls back to home rather than printing an id.
  */
+/**
+ * **Ce que le serveur nomme d'un lieu, mis en français.** Un nom de lieu arrive soit en nom propre
+ * de région — Natural Earth, rien à traduire —, soit, faute de région (un point en mer, hors de
+ * tout admin-1), en **code** du pays sous lui : le serveur ne renvoie pas de phrase (ADR 0016).
+ * La chaîne vide est la mer. C'est la seule traduction de ces noms : la vue des mouvements et
+ * l'aperçu passent par elle, sans quoi un écran imprimait « FRA ».
+ */
+export const placeLabel = (name: string): string =>
+  name === '' ? fr.troops.atSea : countryLabel(name);
+
 export type StationNames = {
   readonly full: (station: TroopStation) => string;
   readonly place: (station: TroopStation) => string;
@@ -56,4 +67,23 @@ export function stationNames(view: Pick<PlayerView, 'me'>): StationNames {
       return region ?? buildingName(station.buildingId) ?? fr.troops.atHome;
     },
   };
+}
+
+/** La région sous un point, telle que la couche admin-1 chargée la connaît — `null` tant qu'elle
+ *  n'est pas arrivée, ou hors de toute région. */
+export type RegionAt = (lonLat: LonLat) => { readonly name: string } | null;
+
+/**
+ * **Le cartouche d'une pile nomme sa région** (« Piémont · 3 »), et retombe sur le pays de
+ * `place` en deux cas seulement : une coque à flot — le polygone d'une région côtière déborde sur
+ * l'eau, et une flotte au large n'est pas « dans le Nord » —, et une couche de régions pas encore
+ * chargée, ces 500 Ko arrivant après le plateau.
+ */
+export function pilePlace(
+  station: Extract<TroopStation, { kind: 'point' }>,
+  names: StationNames,
+  regionAt: RegionAt | null,
+): string {
+  if (station.afloat || regionAt === null) return names.place(station);
+  return regionAt(station.lonLat)?.name ?? names.place(station);
 }

@@ -44,6 +44,7 @@ import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movem
 import { marchingForce } from './movement/detection';
 import { heldOver } from './holding';
 import { regionsWithinReach } from './regionGeometry';
+import { regionNameAt } from './placeNames';
 import { restHold } from './movements';
 import {
   capitalRegionOf,
@@ -761,6 +762,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         const barracks =
           movement.fromBuildingId === null ? null : await ctx.db.get(movement.fromBuildingId);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
+        const departurePoint = pointOf(movement.from);
         const destination =
           movement.target.kind === 'region'
             ? regionFacts(movement.target.regionId)
@@ -801,10 +803,19 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           distanceUnits: movement.distanceUnits,
           costUnits: movement.costUnits,
           landCost: movement.landCost,
-          originCountry: origin?.country ?? movement.hostCountry,
-          originName: origin?.name ?? movement.hostCountry,
+          /** Une colonne partie d'un point n'a pas de caserne : elle se nomme par la région et le
+           *  pays de ce point, et non par le pays d'arrivée, que ce repli écrivait faute de mieux. */
+          originCountry: origin?.country ?? hostAtPoint(departurePoint),
+          originName: origin?.name ?? regionNameAt(departurePoint) ?? hostAtPoint(departurePoint),
           destinationCountry: movement.hostCountry,
-          destinationName: destination?.name ?? movement.hostCountry,
+          /** Une marche vers un point nu prend le nom de la région sous lui, et le code du pays
+           *  seulement en mer — un code que le client traduit (ADR 0016). */
+          destinationName:
+            destination?.name ??
+            (movement.target.kind === 'point'
+              ? regionNameAt(pointOf(movement.target.point))
+              : null) ??
+            movement.hostCountry,
           /** The troops it carries: they keep their address, so the board has to know which
            *  ones are on the road before it offers them to a second order. */
           troopIds: movement.troopIds,

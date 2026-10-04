@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fitShift } from './CompassRose';
+import type { CompassAction } from '@/domain/compass-rose';
+import { fitShift, readsFirst } from './CompassRose';
 
 /**
  * **La rose ne sort jamais de l'écran** (lot mobile-3, §1). Au relevé du 03/10, trois libellés
@@ -30,5 +31,39 @@ describe('fitShift', () => {
 
   it('centre une rose plus grande que le cadre plutôt que de sacrifier un bord', () => {
     expect(fitShift({ left: -50, top: 200, right: 450, bottom: 400 }, frame, 10).dx).toBe(-5);
+  });
+});
+
+const action = (key: CompassAction['key'], hold: unknown = null): CompassAction =>
+  ({ key, hold }) as unknown as CompassAction;
+
+/**
+ * **Ce qui paie sans carte de confirmation se touche deux fois** (sous le seuil) : élever, monter
+ * un point, fonder, changer de métier partent au serveur dès l'action, et leur facture n'est
+ * écrite que dans la bulle. Le premier toucher la lit, le second agit.
+ */
+describe('readsFirst', () => {
+  it.each(['upgrade', 'raiseOutpost', 'found', 'specialize'] as const)(
+    'fait lire %s au premier toucher, sous le seuil',
+    (key) => {
+      expect(readsFirst(action(key), true)).toBe(true);
+    },
+  );
+
+  /** Viser, piller, ramasser ouvrent un aperçu qui confirme ; bâtir un panneau ; raser et
+   *  démanteler leur carte : un second toucher n'y protégerait rien. */
+  it.each(['aim', 'plunder', 'collect', 'build', 'demolish', 'dismantle'] as const)(
+    'laisse %s agir au premier toucher, sous le seuil',
+    (key) => {
+      expect(readsFirst(action(key), true)).toBe(false);
+    },
+  );
+
+  it('fait toujours lire une branche retenue : elle n’a que sa raison à donner', () => {
+    expect(readsFirst(action('upgrade', { reason: 'stock' }), true)).toBe(true);
+  });
+
+  it('fait toujours lire au-dessus du seuil, où le pictogramme est muet', () => {
+    expect(readsFirst(action('aim'), false)).toBe(true);
   });
 });

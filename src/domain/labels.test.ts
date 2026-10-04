@@ -201,16 +201,6 @@ describe('buildLabels', () => {
     });
   });
 
-  it('names a flag planted on bare ground after its country, never by its code', () => {
-    const labels = buildLabels(
-      viewWith([mineArc({ destinationCountry: 'FRA', destinationLabel: 'FRA' })]),
-      [],
-    );
-    expect(labels.find((label) => label.type === 'arrival')?.lines).toEqual([
-      { role: 'nature', text: 'France' },
-    ]);
-  });
-
   /** **Un cartouche par pile** : le lieu et le compte, jamais une ligne par troupe. Le poids
    *  voyage à part, pour la rose et pour le regroupement. */
   it('reads a pile as one cartouche, place and headcount', () => {

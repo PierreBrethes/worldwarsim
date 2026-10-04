@@ -8,6 +8,7 @@ import type { World } from '@/domain/world';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
 import { arcTiming } from '@/domain/arc-timing';
+import { placeLabel } from '@/domain/station-name';
 import type { LonLat } from '@/domain/geo';
 import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
@@ -213,8 +214,8 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     route: routeOf(movement),
     originCountry: movement.originCountry,
     destinationCountry: movement.destinationCountry,
-    originLabel: movement.originName,
-    destinationLabel: movement.destinationName,
+    originLabel: placeLabel(movement.originName),
+    destinationLabel: placeLabel(movement.destinationName),
     type: movement.type,
     stack: stackOf(movement.roles as ReadonlyArray<UnitRole>),
     troopIds: movement.troopIds,

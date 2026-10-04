@@ -564,6 +564,17 @@ export class MapEngine {
     return this.regions.regionAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
   }
 
+  /**
+   * The region under a lon/lat, by the same pick as the hover — enclave first — so a pile's
+   * cartouche and the hover card can never name two regions for one spot. `null` until the
+   * layer has landed, and wherever no region lies. The curvature only moves the height, never
+   * `x` or `z`, so the projected point reads straight back.
+   */
+  regionAtLonLat(lonLat: LonLat): RegionIdentity | null {
+    const point = this.frame.projectLonLat(lonLat);
+    return this.regions.regionAt(point.x + this.frame.centerX, point.z + this.frame.centerY);
+  }
+
   private aimAt(clientX: number, clientY: number, includeSea = false): Intersection | undefined {
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return undefined;

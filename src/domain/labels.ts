@@ -1,5 +1,5 @@
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { countryLabel, fr } from '@/i18n/fr';
+import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
 import {
   RESOURCES,
@@ -442,17 +442,7 @@ export function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     lootSightingId: null,
     lootCurrent: true,
     washed: false,
-    // Une marche vers un point nu n'a pas de nom de lieu : le serveur rend alors le code du pays
-    // (`convex/view.ts`), que le bord de l'écran afficherait tel quel — « FRA ».
-    lines: [
-      {
-        role: 'nature',
-        text:
-          arc.destinationLabel === arc.destinationCountry
-            ? countryLabel(arc.destinationCountry)
-            : arc.destinationLabel,
-      },
-    ],
+    lines: [{ role: 'nature', text: arc.destinationLabel }],
     identified: false,
     offensive: false,
     idle: false,
