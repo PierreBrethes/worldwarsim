@@ -31,7 +31,7 @@ export function PressWindow({
   ...windowProps
 }: WindowProps & { press: PressEdition | null }) {
   const narrow = useNarrowScreen();
-  const [sort, setSort] = useState<SortKey>(narrow ? 'general' : 'territory');
+  const [sort, setSort] = useState<SortKey>('territory');
 
   if (narrow)
     return (
@@ -422,8 +422,17 @@ function NarrowPress({
                   </span>
                 </div>
                 <div className="mt-[10px] grid grid-cols-[repeat(3,auto)] items-end justify-between gap-[10px]">
-                  <Headline label={fr.press.columns.general} lead>
+                  {/* Le rang en vedette est celui du territoire (ADR 0020 §2) : sa mesure se
+                      lit la première, sans quoi « 2ᵉ » se posait à côté d'un score général qui
+                      n'est pas le sien. */}
+                  <Headline label={fr.press.columns.territory} lead>
                     <span className="font-(family-name:--font-display) text-[26px] leading-none font-extrabold">
+                      {fr.press.percent(mine.territory)}
+                    </span>
+                    {mine.delta && <Delta value={mine.delta.territory} decimals={1} />}
+                  </Headline>
+                  <Headline label={fr.press.columns.general}>
+                    <span className="font-(family-name:--font-mono) text-[15px] font-medium">
                       {fr.press.score(mine.general)}
                     </span>
                     {mine.delta && <Delta value={mine.delta.general} />}
@@ -434,12 +443,6 @@ function NarrowPress({
                     </span>
                     {mine.delta && <Delta value={mine.delta.deeds} />}
                   </Headline>
-                  <Headline label={fr.press.columns.territory}>
-                    <span className="font-(family-name:--font-mono) text-[15px] font-medium">
-                      {fr.press.percent(mine.territory)}
-                    </span>
-                    {mine.delta && <Delta value={mine.delta.territory} decimals={1} />}
-                  </Headline>
                 </div>
               </div>
             </div>
@@ -449,7 +452,7 @@ function NarrowPress({
             role="radiogroup"
             className="mx-4 mt-3 mb-[6px] grid grid-cols-3 border border-[var(--ink)]"
           >
-            {(['general', 'deeds', 'territory'] as const).map((key) => (
+            {(['territory', 'general', 'deeds'] as const).map((key) => (
               <button
                 key={key}
                 type="button"

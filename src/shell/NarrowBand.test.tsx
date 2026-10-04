@@ -84,7 +84,7 @@ describe('the narrow band', () => {
     act(() => dossierButton().click());
 
     const dossier = screen.getByRole('dialog', { name: nationLabel('france') });
-    expect(within(dossier).getByText('Théo · saison 1, jour 20 · 2ᵉ au score')).toBeTruthy();
+    expect(within(dossier).getByText('Théo · saison 1, jour 20 · 2ᵉ au classement')).toBeTruthy();
     expect(within(dossier).getByText(fr.dossier.nationNote(3))).toBeTruthy();
     expect(within(dossier).getByText(fr.dossier.gunnery)).toBeTruthy();
     expect(within(dossier).getByText(fr.dossier.settings)).toBeTruthy();

@@ -399,7 +399,9 @@ export function MovementPreview({
           >
             {fr.aim.cancel}
           </button>
-          <HoldButton disabled={blocked} onConfirm={send} />
+          {/* Changer d'ordre remonte le bouton : une tenue commencée sur l'ancien s'arrête là, au
+              lieu de l'envoyer 700 ms plus tard. */}
+          <HoldButton key={choice.label} disabled={blocked} onConfirm={send} />
         </div>
       </BottomSheet>
     );
@@ -501,7 +503,20 @@ function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
   const [progress, setProgress] = useState(0);
   const frame = useRef(0);
   const reached = useRef(0);
+  /** L'envoi lu au bout de la tenue, pas au toucher : l'aperçu a pu changer entre-temps. */
+  const confirm = useRef(onConfirm);
+  useEffect(() => {
+    confirm.current = onConfirm;
+  });
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  /** Un bouton qui se ferme sous le doigt ne reçoit plus le relâcher : la tenue s'arrête ici,
+   *  sinon elle irait au bout et enverrait un ordre que l'écran refuse déjà. */
+  useEffect(() => {
+    if (!disabled) return;
+    cancelAnimationFrame(frame.current);
+    reached.current = 0;
+    setProgress(0);
+  }, [disabled]);
 
   const show = (value: number) => {
     reached.current = value;
@@ -521,7 +536,7 @@ function HoldButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
        *  retient alors le bouton, et un refus le rend prêt à être tenu de nouveau. */
       if (filling && next >= 1) {
         show(0);
-        onConfirm();
+        confirm.current();
         return;
       }
       show(next);

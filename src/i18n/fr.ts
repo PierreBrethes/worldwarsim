@@ -1011,7 +1011,7 @@ export const fr = {
   dossier: {
     open: (nation: string) => `${nation} — ouvrir le dossier de la nation`,
     seasonDay: (season: number, day: number) => `saison ${season}, jour ${day}`,
-    rank: (ordinal: string) => `${ordinal} au score`,
+    rank: (ordinal: string) => `${ordinal} au classement`,
     nation: 'Fiche de nation',
     nationNote: (troops: number) =>
       `${num(troops)} troupe${plural(troops, '', 's')}, nos registres, entretien`,
@@ -1507,6 +1507,9 @@ export const fr = {
     projection: 'bâtiment de projection',
     troopCount: (count: number) => `${count} troupe${plural(count, '', 's')}`,
     empty: 'Aucune troupe ne stationne ici.',
+    /** **Sur téléphone, les cartes ne s'indentent pas** : le passager dit sa coque en toutes
+     *  lettres, ce que le retrait sous elle dit au bureau (`stackRows`). */
+    aboard: (carrier: string) => `à bord · ${carrier}`,
     /** **L'en-tête d'un avant-poste** : le sol qu'il tient d'office (précision du 04/09) et son
      *  niveau, qui décide de sa portée comme de ses emplacements. Le mât dit déjà les deux, et
      *  le panneau qu'on vient d'ouvrir dessus ne doit pas en dire moins. Sans région nommée —

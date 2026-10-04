@@ -77,6 +77,12 @@ describe('groupOverlapping', () => {
     expect(group?.coincident).toBe(true);
   });
 
+  /** La liste n'ouvre que des bâtiments : deux piles confondues s'écartent toujours. */
+  it('never marks piles, which the list could not open', () => {
+    const [group] = groupOverlapping([pile('a', 10, 0), pile('b', 10, 0)]);
+    expect(group?.coincident).toBe(false);
+  });
+
   it('keeps the candidates’ order, so the first member is the one the group stands for', () => {
     const [group] = groupOverlapping([pile('z', 50, 0), pile('a', 0, 0)]);
     expect(group?.members).toEqual(['z', 'a']);

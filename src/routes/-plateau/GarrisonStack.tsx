@@ -15,6 +15,7 @@ import {
   LIFT_CAPACITY,
   LIFT_COST,
   ROLE_ORDER,
+  type StackRow,
 } from '@/domain/troops';
 import { liftOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
@@ -137,7 +138,7 @@ export function GarrisonStack({
           {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
           <TroopCards
             nation={view.me.nation}
-            troops={rows.map(({ troop }) => troop)}
+            rows={rows}
             picked={picked}
             composes={composes}
             onToggle={toggle}
@@ -390,20 +391,20 @@ function RoleShortcuts({
  */
 function TroopCards({
   nation,
-  troops,
+  rows,
   picked,
   composes,
   onToggle,
 }: {
   nation: string;
-  troops: ReadonlyArray<TroopView>;
+  rows: ReadonlyArray<StackRow<TroopView>>;
   picked: ReadonlySet<string>;
   composes: boolean;
   onToggle: (troopId: string) => void;
 }) {
   return (
     <div className="grid grid-cols-2 gap-[8px]">
-      {troops.map((troop) => {
+      {rows.map(({ troop, carrier }) => {
         const on = picked.has(troop.id);
         return (
           <button
@@ -424,7 +425,13 @@ function TroopCards({
               <span className="text-[14.5px] leading-[1.1] font-bold">
                 {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
               </span>
-              <Upkeep troop={troop} />
+              {carrier === null ? (
+                <Upkeep troop={troop} />
+              ) : (
+                <span className="text-[11.5px] font-semibold text-[var(--ink-soft)]">
+                  {fr.garrison.aboard(roleLabel(carrier.role, 1))}
+                </span>
+              )}
             </span>
             <span className="absolute right-[10px] bottom-[10px] left-[59px] flex flex-col gap-1">
               <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">

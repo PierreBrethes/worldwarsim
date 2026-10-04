@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fr } from '@/i18n/fr';
+import { fr, roleLabel } from '@/i18n/fr';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { GarrisonStack } from './GarrisonStack';
 
@@ -70,5 +70,21 @@ describe('the garrison on a phone', () => {
 
     act(() => screen.getByRole('button', { name: fr.garrison.pickNone }).click());
     expect(screen.getByText(fr.garrison.picked(0))).toBeTruthy();
+  });
+
+  /** Le retrait sous la coque n'existe pas en cartes : le passager la nomme (noyé, il coule avec). */
+  it('names the hull a ticked passenger rides', () => {
+    render(
+      <GarrisonStack
+        view={view}
+        station={station}
+        held={[troop('c-1', 'cargo'), troop('i-1', 'infantry')]}
+        preselect={['c-1', 'i-1']}
+        canPrepare
+        observing={false}
+        onPrepare={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(fr.garrison.aboard(roleLabel('cargo', 1)))).toBeTruthy();
   });
 });

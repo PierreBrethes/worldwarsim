@@ -41,7 +41,8 @@ export type LabelGroup = {
   /**
    * **Les siens tombent au même point de l'écran** — des mâts d'une même région pendent tous de
    * son point intérieur : aucune distance ne les séparera, et la pile s'ouvre en liste au lieu de
-   * rapprocher la caméra (refonte mobile, 1r).
+   * rapprocher la caméra (refonte mobile, 1r). **Des mâts seulement** : la liste ne sait ouvrir
+   * qu'un bâtiment, et des piles confondues y tombaient vides — elles s'écartent comme avant.
    */
   readonly coincident: boolean;
 };
@@ -116,9 +117,11 @@ export function groupOverlapping(
           right: Math.max(...members.map((member) => member.box.right)),
           bottom: Math.max(...members.map((member) => member.box.bottom)),
         },
-        coincident: members.every(
-          (member) => Math.hypot(member.x - first.x, member.y - first.y) < COINCIDENT_PX,
-        ),
+        coincident:
+          first.kind === 'building' &&
+          members.every(
+            (member) => Math.hypot(member.x - first.x, member.y - first.y) < COINCIDENT_PX,
+          ),
       };
     });
 }

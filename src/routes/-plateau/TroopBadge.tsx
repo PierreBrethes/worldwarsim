@@ -3,10 +3,8 @@ import { fr, roleLabel, stackLabel } from '@/i18n/fr';
 import { representativeRole, tierLabel } from '@/domain/troops';
 import type { CargoView, Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
-import type { Destination } from '@/map/WorldMap';
 import { Stamp } from '@/shell/Stamp';
 import { useNarrowScreen } from '@/shell/viewport';
-import { AimTargets } from './AimingSheet';
 import { MapCard } from './MapCard';
 import { GunneryButton } from './GunneryButton';
 import { CargoReadout } from './CargoReadout';
@@ -36,8 +34,6 @@ export function TroopBadge({
   at,
   aiming,
   cargo,
-  destinations,
-  onPick,
   onOpenGunnery,
   onClose,
 }: {
@@ -57,10 +53,6 @@ export function TroopBadge({
     readonly cargo: CargoView;
     readonly carriers: number;
   }>;
-  /** Les destinations de la colonne, de la plus proche à la plus lointaine : sous le seuil, la
-   *  feuille en offre le raccourci (refonte mobile, 1b). */
-  destinations: ReadonlyArray<Destination>;
-  onPick: (destination: Destination) => void;
   /** **La seule chose qu'on peut cliquer ici, et elle n'agit pas** : l'abaque de tir ouvre une
    *  lecture, il ne prend aucun ordre. La règle « la popin lit, la carte agit » tient. */
   onOpenGunnery: () => void;
@@ -140,7 +132,14 @@ export function TroopBadge({
         {cargo.map((group) => (
           <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
         ))}
-        {aiming && <AimTargets destinations={destinations} onPick={onPick} />}
+        {/* **La fiche lit, la carte agit** (décision du 30/08, retenue au 04/10 contre la planche
+            1b) : les cibles sont cerclées sur la carte et celles hors champ s'annoncent au bord,
+            donc la fiche dit seulement où toucher — elle ne porte pas de raccourci d'ordre. */}
+        {aiming && (
+          <p className="pt-[10px] text-[13px] leading-[1.45] text-[var(--ink-soft)]">
+            {fr.aimSheet.pick}
+          </p>
+        )}
       </MapCard>
     );
   }

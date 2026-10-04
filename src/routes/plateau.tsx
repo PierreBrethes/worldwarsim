@@ -1848,8 +1848,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             at={posted}
             aiming={column !== null}
             cargo={postedCargo}
-            destinations={destinations}
-            onPick={pickDestination}
             onOpenGunnery={() => openWindow('gunnery')}
             onClose={releasePosted}
           />

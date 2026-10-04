@@ -10,8 +10,8 @@ const NEAREST = 3;
 /**
  * **La visée avant la destination, sous le seuil**, pour une pile armée depuis un mât ou un
  * avant-poste : rien de désigné sur la carte ne porte son cartouche. La feuille dit ce qui est
- * armé, d'où, offre les cibles les plus proches et donne la sortie. Une troupe posée porte la
- * même offre dans sa fiche (`TroopBadge`).
+ * armé, d'où, offre les cibles les plus proches et donne la sortie. La fiche d'une troupe posée,
+ * elle, n'offre rien : elle lit (`TroopBadge`).
  */
 export function AimingSheet({
   count,

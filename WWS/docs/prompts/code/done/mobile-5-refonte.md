@@ -37,8 +37,15 @@ passé au-dessus des étiquettes (`--z-indicator`), qui le recouvraient.
 
 ## Écarts volontaires à la maquette
 
-- Les raccourcis de cible (1b) disent les **types d'ordre, pas les durées** : une durée demande un
-  `movements.preview` serveur par cible ; seule la feuille d'ordre date un mouvement.
+- **La fiche de troupe ne porte pas les raccourcis de cible** de la planche 1b (décision de Pierre,
+  04/10) : « la popin lit, la carte agit » tient, et tout ce qu'ils offraient se touche sur la
+  carte — cibles cerclées, celles hors champ annoncées au bord. La fiche dit seulement où toucher.
+  Les raccourcis restent dans la feuille de visée d'une pile armée depuis un mât ou un avant-poste
+  (`AimingSheet`), qui n'a pas de fiche ; ils y disent les **types d'ordre, pas les durées** : une
+  durée demande un `movements.preview` serveur par cible.
+- La presse du téléphone s'ouvre **triée par territoire**, comme au bureau : le rang servi est
+  celui du territoire, et la vedette lit sa mesure en premier (la maquette ouvrait sur le score
+  général, à côté d'un rang qui n'était pas le sien).
 - Les cartes de garnison montrent l'**entretien** à la place d'un nom d'équipement, qui n'existe pas
   dans le jeu.
 - Journal : seules les dépêches de **combat** mènent à la carte (les autres n'ont pas de lieu) ;
@@ -65,6 +72,12 @@ feuille d'ordre). Retouches qui en sont sorties :
   Chantiers (le niveau descend sur la ligne de la région) ; types d'ordre des raccourcis sur deux
   lignes ;
 - accords : « 1 fait », « 1 emplacement sur 4 ».
+
+Relecture du diff (04/10), quatre bloquants corrigés : des piles de troupes confondues ouvraient
+une liste vide (`coincident` réservé aux mâts) ; le rang de la presse contredisait son tri ; la
+tenue d'envoi gardait l'ordre du premier toucher et allait au bout sous un bouton désactivé (elle
+lit l'envoi au bout, s'arrête à la désactivation, repart à zéro au changement d'ordre) ; les cartes
+de garnison taisaient la coque d'un passager (« à bord · cargo »).
 
 ## Ce qui reste
 
