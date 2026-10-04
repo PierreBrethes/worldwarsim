@@ -696,6 +696,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         side,
         won: engagement.winner === side,
         hostCountry: engagement.hostCountry,
+        /** **Le lieu du combat, que les deux camps ont vu** : c'est là que la notification d'une
+         *  attaque centre la carte (lot mobile-3, §6). Rien de la position de l'adversaire
+         *  ensuite — seulement l'endroit où l'on s'est battu. */
+        point: engagement.point,
+        outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),

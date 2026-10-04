@@ -114,6 +114,21 @@ l'objectif belge, pas le joueur britannique, qui ne peut pas rejoindre le contin
 camp et l'objectif partagent le même point, et le toucher ouvre la fiche de l'objectif. Toujours
 non atteint : un vrai adversaire piloté.
 
+**04/10, après le lot mobile-3 (ordres)** — `mobile3.mjs`, trois appareils, captures
+`captures/mobile3__<appareil>__…`. Mesuré : la rose ne sort plus de l'écran (0 pièce hors cadre,
+0 sous une feuille, sur les trois, bord droit compris) ; une seule surface ouverte à chaque écran
+(fiche, garnison, visée, construction, dépêche) ; à la garnison, le point reste au-dessus de la
+feuille (iPhone 13 : point à 221 px, feuille à 368) ; sept destinations cerclées en visée, celles
+hors champ nommées au bord ; l'aperçu de visée montre destination, distance, heure, « annuler » et
+« envoyer — irréversible » sous le pouce. Parcours au doigt, sans réglage de souris : troupe posée
+→ destination → « marche » → bouton « envoyer » en trois touchers ; et, envoyé pour de bon sur
+l'iPhone 13 depuis la garnison du QG (six touchers, mouvement parti, 1 / 3). Pour la dépêche, la
+saison de test a reçu **un engagement fabriqué** (`convex import --append`, la France défend à son
+point posé contre le Royaume-Uni) : `/plateau?report=<id>` ouvre la feuille, retire le paramètre,
+et « ouvrir la garnison » ouvre la pile posée ; au bureau, la même adresse ouvre le journal avec
+cette dépêche en manchette. Non atteint : un camp relevé *seul* — le camp neutre et l'objectif
+belge partagent le point, et le toucher ouvre la fiche de l'objectif (rose réduite à son refus).
+
 ## 5. Ce que l'émulation ne montre pas — à vérifier sur ton iPhone
 
 Chromium émulé n'est pas Safari iOS (les captures et mesures sont celles de Chromium).

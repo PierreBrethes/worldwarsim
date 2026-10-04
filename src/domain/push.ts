@@ -63,11 +63,21 @@ export const push = {
 export const journalUrl = '/plateau?windows=journal';
 export const telegraphUrl = '/plateau?windows=telegraph';
 
+/**
+ * **Une attaque seule ouvre sa dépêche, pas le journal** (lot mobile-3, §6) : l'adresse porte
+ * l'identifiant de l'engagement, et rien de ce que l'écran verrouillé affiche ne change — la
+ * phrase reste celle de `push.attack`, qui ne nomme personne. Le plateau la lit (`report`) et
+ * centre la carte sur le lieu du combat.
+ */
+export const reportUrl = (reportId: string): string =>
+  `/plateau?report=${encodeURIComponent(reportId)}`;
+
 export type QueuedPush = {
   readonly type: PushType;
   readonly at: number;
   readonly phrase: string;
   readonly label: string;
+  readonly url: string;
 };
 
 export type OutgoingPush = {
@@ -85,8 +95,13 @@ const ALARM_ORDER: ReadonlyArray<Exclude<PushType, 'telegraph'>> = [
 ];
 
 /**
- * **Le reste part en une seule notification** : un événement, sa phrase ; plusieurs, un résumé
- * qui ouvre le journal. Le télégraphe est tenu à part — il a sa propre cadence.
+ * **Le reste part en une seule notification** : un événement, sa phrase ; plusieurs, un résumé.
+ * Le télégraphe est tenu à part — il a sa propre cadence.
+ *
+ * **L'adresse suit les attaques, pas le compte des alarmes** (lot mobile-3, §6). Une seule
+ * attaque dans le lot ouvre sa dépêche, même quand la colonne relevée en approche part dans la
+ * même minute — c'est le cas ordinaire, le relevé précède l'arrivée de peu. Plusieurs attaques
+ * gardent le journal : une adresse ne mène qu'à une dépêche, et choisir l'une tairait les autres.
  */
 export function groupAlarms(
   rows: ReadonlyArray<QueuedPush>,
@@ -95,12 +110,14 @@ export function groupAlarms(
   const alarms = rows.filter((row) => row.type !== 'telegraph').sort((a, b) => a.at - b.at);
   if (alarms.length === 0) return null;
   const tag = `${seasonId}:alarms`;
-  if (alarms.length === 1) return { body: alarms[0]!.phrase, url: journalUrl, tag };
+  const attacks = alarms.filter((row) => row.type === 'attack');
+  const url = attacks.length === 1 ? attacks[0]!.url : journalUrl;
+  if (alarms.length === 1) return { body: alarms[0]!.phrase, url, tag };
   const labels = ALARM_ORDER.flatMap((type) => {
     const count = alarms.filter((row) => row.type === type).length;
     return count === 0 ? [] : [push.alarmLabels[type](count)];
   }).join(', ');
-  return { body: push.alarmSummary(alarms.length, labels), url: journalUrl, tag };
+  return { body: push.alarmSummary(alarms.length, labels), url, tag };
 }
 
 export function groupTelegraph(count: number, seasonId: string): OutgoingPush | null {

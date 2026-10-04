@@ -14,6 +14,20 @@ export const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
 
 export type SheetHeight = (typeof SHEET_HEIGHTS)[number];
 
+/**
+ * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
+ * par ce qui doit garder un point visible au-dessus d'une feuille : la carte qui remonte, la rose
+ * qui se recale. Le plein écran n'y est pas, il ne laisse rien à garder.
+ */
+const SHEET_SHARE = { peek: 0.3, half: 0.5 } as const;
+
+/** La hauteur d'une feuille à ce cran, en pixels d'écran. */
+export const sheetHeight = (height: keyof typeof SHEET_SHARE): number =>
+  window.innerHeight * SHEET_SHARE[height];
+
+/** Ce dont un point cadré au centre doit monter pour tomber au milieu de ce qui reste visible. */
+export const sheetLift = (height: keyof typeof SHEET_SHARE): number => sheetHeight(height) / 2;
+
 /** Ce qu'un doigt doit parcourir pour changer de cran : en deçà, c'est un toucher qui a tremblé. */
 const STEP_PX = 40;
 
@@ -43,6 +57,8 @@ export function BottomSheet({
   aside,
   onClose,
   initial = 'half',
+  kicker = false,
+  hug = false,
   children,
 }: {
   title: string;
@@ -52,6 +68,14 @@ export function BottomSheet({
    *  gestes défont, et elle n'a pas de bouton à offrir. */
   onClose?: () => void;
   initial?: SheetHeight;
+  /** **Le titre en surtitre** (lot mobile-3) : quand la feuille porte son propre nom en vedette —
+   *  une troupe, une destination, une dépêche —, l'en-tête ne dit que *de quoi il s'agit*, en
+   *  petites capitales, sans tronquer la phrase. */
+  kicker?: boolean;
+  /** **L'aperçu épouse ce qu'il porte**, jusqu'à la moitié de l'écran : une fiche courte ne laisse
+   *  pas un blanc, une dépêche longue ne cache pas ses boutons sous la barre. Les autres crans
+   *  gardent leur hauteur. */
+  hug?: boolean;
   children: ReactNode;
 }) {
   const [height, setHeight] = useState<SheetHeight>(initial);
@@ -80,6 +104,7 @@ export function BottomSheet({
         role="dialog"
         aria-label={title}
         data-height={height}
+        data-hug={hug ? '' : undefined}
         className="hud board-sheet paper-grain z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]"
         style={
           pull > 0 ? { transform: `translateY(${pull / scaleOf(sheet.current)}px)` } : undefined
@@ -88,7 +113,13 @@ export function BottomSheet({
         <div {...grip} className="shrink-0 cursor-grab" style={{ touchAction: 'none' }}>
           <span aria-hidden className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35" />
           <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
-            <h2 className="min-w-0 truncate font-(family-name:--font-display) text-[18px] leading-none font-extrabold tracking-[.02em] first-letter:uppercase">
+            <h2
+              className={
+                kicker
+                  ? 'min-w-0 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
+                  : 'min-w-0 truncate font-(family-name:--font-display) text-[18px] leading-none font-extrabold tracking-[.02em] first-letter:uppercase'
+              }
+            >
               {title}
             </h2>
             {aside}

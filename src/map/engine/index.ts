@@ -399,7 +399,13 @@ export class MapEngine {
    * `places` are lon/lat rather than anchors, for what has no marker to aim at: a troop left on
    * open ground is a place before it is a datum, and « à faire maintenant » names it that way.
    */
-  journeyTo(ids: ReadonlyArray<string>, places: ReadonlyArray<LonLat> = []): void {
+  journeyTo(
+    ids: ReadonlyArray<string>,
+    places: ReadonlyArray<LonLat> = [],
+    lift = 0,
+    /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder. */
+    distance?: number,
+  ): void {
     const points = [
       ...ids
         .map((id) => this.labels.position(id, this.arcs.headPositions))
@@ -414,18 +420,58 @@ export class MapEngine {
     const radius = Math.max(...points.map((point) => point.distanceTo(arrival)));
     const currentDistance = this.camera.position.distanceTo(this.controls.target);
     const framing = radius / Math.tan((this.camera.fov * Math.PI) / 360);
+    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    const arrivalDistance = Math.min(
+      this.controls.maxDistance,
+      Math.max(distance ?? currentDistance, framing, this.controls.minDistance),
+    );
 
     this.journey = {
       departure: this.controls.target.clone(),
-      arrival,
-      orientation: this.camera.position.clone().sub(this.controls.target).normalize(),
+      /** **Le sujet monte au-dessus de ce qui le couvrirait** : une feuille basse cache le bas de
+       *  la carte, et un point cadré au centre tomberait dessous. */
+      arrival: arrival.add(this.groundShift(0, -lift, arrivalDistance, orientation)),
+      orientation,
       departureDistance: currentDistance,
-      arrivalDistance: Math.min(
-        this.controls.maxDistance,
-        Math.max(currentDistance, framing, this.controls.minDistance),
-      ),
+      arrivalDistance,
       startMs: performance.now(),
     };
+  }
+
+  /**
+   * **Pousser la carte de quelques pixels, sans voyage** : la rose s'ouvre là où le doigt a
+   * touché, et quand elle déborderait de l'écran c'est la carte qui se recale sous elle — un
+   * médaillon hors cadre est une action vue mais imprenable. Positif vers la droite et le bas,
+   * en pixels du plateau.
+   */
+  nudge(dx: number, dy: number): void {
+    if (dx === 0 && dy === 0) return;
+    this.journey = null;
+    const distance = this.camera.position.distanceTo(this.controls.target);
+    const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
+    const shift = this.groundShift(dx, dy, distance, orientation);
+    this.controls.target.add(shift);
+    this.camera.position.add(shift);
+    this.hoverDirty = true;
+    this.postponeRest();
+  }
+
+  /**
+   * Le déplacement au sol qui fait glisser ce qu'on voit de `(dx, dy)` pixels d'écran. Au centre
+   * de l'image et à cette distance : la carte est inclinée, et un pixel vertical y couvre plus de
+   * sol qu'un pixel horizontal — d'où le sinus de l'élévation, borné pour qu'une caméra rasante
+   * ne parte pas à l'horizon.
+   */
+  private groundShift(dx: number, dy: number, distance: number, orientation: Vector3): Vector3 {
+    const perPixel = this.unitsPerPixel(distance);
+    const flat = new Vector3(-orientation.x, 0, -orientation.z);
+    const along = flat.length();
+    const forward = along < 1e-3 ? new Vector3(0, 0, -1) : flat.divideScalar(along);
+    const right = new Vector3(-forward.z, 0, forward.x);
+    const elevation = Math.max(0.35, orientation.y);
+    return right
+      .multiplyScalar(-dx * perPixel)
+      .add(forward.multiplyScalar((dy * perPixel) / elevation));
   }
 
   /**

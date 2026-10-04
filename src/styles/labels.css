@@ -475,3 +475,19 @@
 .label--clickable .label-block {
   cursor: pointer;
 }
+
+/* **Une destination de la colonne armée** (lot mobile-3, A8) : un cercle au pied du mât, là où
+   l'ordre arrivera. Il n'existe que sous le seuil et en visée — le plateau le décide. */
+.label--destination::after {
+  content: '';
+  position: absolute;
+  top: -17px;
+  left: -17px;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  border: 2px solid var(--sea-ink);
+  border-radius: 50%;
+  background: rgb(232 223 200 / 18%);
+  pointer-events: none;
+}

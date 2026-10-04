@@ -1,5 +1,13 @@
+import { distanceKm, type LonLat } from './geo';
 import { BUILDINGS, type BuildingKey, type Medium, type UnitRole, type UnitTier } from './ids';
-import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from './player-view';
+import type {
+  ArcView,
+  CombatReport,
+  PlayerView,
+  Stack,
+  TroopStation,
+  TroopView,
+} from './player-view';
 
 export type { UnitTier };
 export type UnitDomain = Medium;
@@ -396,4 +404,41 @@ export function boards<T extends { readonly id: string; readonly role: UnitRole 
  *  it, and offering them to a second order is the one thing the two sections exist to prevent. */
 export function marchingTroopIds(arcs: ReadonlyArray<ArcView>): ReadonlySet<string> {
   return new Set(arcs.flatMap((arc) => (arc.state === 'mine' ? [...arc.troopIds] : [])));
+}
+
+/**
+ * **La garnison qu'une dépêche de combat ouvre** (lot mobile-3, §6) : l'avant-poste visé quand
+ * c'en était un des miens, sinon la plus proche de mes adresses debout qui tient encore quelqu'un
+ * dans l'allonge du combat. `null` quand rien de moi ne s'y tient plus — la passe a tout emporté,
+ * et une porte vers une garnison vide promettrait une composition qui n'existe pas.
+ *
+ * Elle ne lit que ma vue et le compte rendu : le lieu de la passe, que les deux camps ont tenu.
+ */
+export function stationAtCombat(
+  me: PlayerView['me'],
+  combat: Pick<CombatReport, 'point' | 'outpostId'>,
+  marching: ReadonlySet<string>,
+  reachKm: number,
+): TroopStation | null {
+  if (combat.outpostId !== null && me.outposts.some((outpost) => outpost.id === combat.outpostId))
+    return { kind: 'outpost', outpostId: combat.outpostId };
+  const where: LonLat = [combat.point.lon, combat.point.lat];
+  const placeOf = (station: TroopStation): LonLat | null => {
+    if (station.kind === 'point') return station.lonLat;
+    if (station.kind === 'outpost')
+      return me.outposts.find((outpost) => outpost.id === station.outpostId)?.lonLat ?? null;
+    if (station.kind === 'building')
+      return me.buildings.find((building) => building.id === station.buildingId)?.point ?? null;
+    return null;
+  };
+  let nearest: { readonly station: TroopStation; readonly km: number } | null = null;
+  for (const troop of me.troops) {
+    if (marching.has(troop.id)) continue;
+    const place = placeOf(troop.stationedAt);
+    if (place === null) continue;
+    const km = distanceKm(place, where);
+    if (km <= reachKm && (nearest === null || km < nearest.km))
+      nearest = { station: troop.stationedAt, km };
+  }
+  return nearest?.station ?? null;
 }

@@ -4,7 +4,7 @@ import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { journalUrl, push, telegraphUrl, type PushType } from '../src/domain/push';
+import { journalUrl, push, reportUrl, telegraphUrl, type PushType } from '../src/domain/push';
 import { DETECTION_RANGE_KM, nominalStrength } from './constants';
 import { notifyPlayer } from './notifications';
 import { regionFacts } from './regions';
@@ -348,6 +348,56 @@ describe('ce qui entre dans la file', () => {
 
     expect(await types(t, guest)).toContain('attack');
     expect(await types(t, seat)).toEqual(['dryFire']);
+  });
+
+  it('attaque seule : l’adresse ouvre sa dépêche, et l’écran verrouillé n’en dit pas plus', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('pushQueue').collect()) await ctx.db.delete(row._id);
+    });
+    webpush.sent.length = 0;
+    const point = pointOf(PRAHOVA);
+    await post(t, guest, point);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const sent = await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [await form(t, seat, 'infantry', barracks)],
+      target: { kind: 'point', point: asPoint(point) },
+    });
+    vi.advanceTimersByTime(sent.minutes * MINUTE);
+    await t.finishInProgressScheduledFunctions();
+    const engagement = (await t.run(async (ctx) => ctx.db.query('engagements').first()))!;
+    await advance(t, MINUTE);
+
+    const toGuest = webpush.sent.filter((entry) => entry.endpoint === 'https://push.example/lea');
+    expect(toGuest).toHaveLength(1);
+    /** La colonne relevée en approche part dans la même minute : le résumé la compte, et
+     *  l'adresse mène quand même à la seule attaque du lot. Le corps ne nomme personne. */
+    expect(toGuest[0]!.payload.url).toBe(reportUrl(engagement._id));
+    expect(String(toGuest[0]!.payload.body)).toContain('une passe de résolution');
+    expect(String(toGuest[0]!.payload.body)).not.toMatch(/France|URSS|Pierre/);
+  });
+
+  it('attaques groupées : le résumé garde le journal', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    const playerId = await playerOf(t, seat);
+    for (const reportId of ['engagement-a', 'engagement-b'])
+      await t.run(async (ctx) =>
+        notifyPlayer(ctx, playerId, {
+          type: 'attack',
+          phrase: push.attack,
+          url: reportUrl(reportId),
+          at: Date.now(),
+        }),
+      );
+    await advance(t, MINUTE);
+
+    expect(webpush.sent).toHaveLength(1);
+    expect(webpush.sent[0]!.payload.url).toBe(journalUrl);
   });
 
   it('avant-poste : son propriétaire, quand un raid le désactive', async () => {

@@ -3,7 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
 import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
@@ -103,10 +103,39 @@ type Props = {
   focus?: {
     readonly ids: ReadonlyArray<string>;
     readonly places?: ReadonlyArray<LonLat>;
+    /** Pixels dont le sujet monte au-dessus du centre : ce qu'une feuille basse couvrira. */
+    readonly lift?: number;
+    /** La distance d'arrivée, quand le sujet est un lieu à regarder de près — le combat d'une
+     *  dépêche — et non une étiquette à retrouver : seule cette demande rapproche la caméra. */
+    readonly distance?: number;
     readonly nonce: number;
   } | null;
+  /**
+   * **Sous le seuil, la rose du doigt** (lot mobile-3, §1) : la place que la feuille basse
+   * réserve au pied du plateau. La carte ne lit pas le seuil — le plateau le lui dit.
+   */
+  fingerRose?: { readonly floor: number } | null;
+  /**
+   * **Les destinations d'une colonne armée, cerclées sur la carte et nommées au bord** quand
+   * elles sont hors champ (lot mobile-3, A8). Le plateau l'allume sous le seuil ; la carte
+   * décide lesquelles, par la même rose que le geste ouvrirait.
+   */
+  showDestinations?: boolean;
+  /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien. */
+  covered?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
+  /**
+   * **Un point de la carte qu'une feuille basse va couvrir**, en coordonnées du plateau : la
+   * carte le remonte au milieu de ce qui reste visible au-dessus de `floor` pixels — la règle de
+   * la garnison (A7), appliquée à ce qui n'a pas de marqueur à cadrer, un chantier visé.
+   */
+  reveal?: {
+    readonly x: number;
+    readonly y: number;
+    readonly floor: number;
+    readonly nonce: number;
+  } | null;
 };
 
 /**
@@ -123,6 +152,7 @@ export type PlacingBuilding = {
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
+const NO_DESTINATIONS: ReadonlyMap<string, string> = new Map();
 
 export function WorldMap({
   world,
@@ -158,10 +188,16 @@ export function WorldMap({
   onDesignateRegion,
   focus = null,
   searchArea = null,
+  fingerRose = null,
+  showDestinations = false,
+  covered = false,
+  reveal = null,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const engine = useRef<MapEngine | null>(null);
   const [rose, setRose] = useState<OpenRose | null>(null);
+  /** Une rose rouverte est une autre rose : elle se mesure et se recale à son tour. */
+  const openings = useRef(0);
   const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
@@ -221,16 +257,26 @@ export function WorldMap({
       const rect = container.current?.getBoundingClientRect();
       if (drawn === null || rect === undefined) return;
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
+      /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
+       *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
+      const exact = fingerRose !== null;
+      openings.current += 1;
       setRose({
+        opening: openings.current,
         compass: drawn,
-        x: clamp(clientX - rect.left, margin, rect.width),
-        y: clamp(clientY - rect.top, margin, rect.height),
+        x: exact ? clientX - rect.left : clamp(clientX - rect.left, margin, rect.width),
+        y: exact ? clientY - rect.top : clamp(clientY - rect.top, margin, rect.height),
         width: rect.width,
         height: rect.height,
       });
     },
-    [compassOf],
+    [compassOf, fingerRose],
   );
+
+  const fitRose = useCallback((dx: number, dy: number) => {
+    engine.current?.nudge(dx, dy);
+    setRose((open) => (open === null ? null : { ...open, x: open.x + dx, y: open.y + dy }));
+  }, []);
 
   const closeRose = useCallback(() => setRose(null), []);
 
@@ -378,6 +424,32 @@ export function WorldMap({
     [openRose, aiming, coastAt, landAt],
   );
 
+  /**
+   * **Où la colonne armée peut aller, lu par la rose qu'un toucher y ouvrirait** (lot mobile-3,
+   * A8) : une étiquette est une destination quand sa rose porte une marche, une expédition ou un
+   * ramassage — la même fonction que le geste, donc jamais un cercle sur ce que la rose refuse
+   * (ADR 0015). Le sol nu n'y est pas : il est partout.
+   */
+  const destinations = useMemo<ReadonlyMap<string, string>>(() => {
+    if (!aiming || !showDestinations) return NO_DESTINATIONS;
+    const named = new Map<string, string>();
+    for (const label of labels) {
+      const target = targetOfLabel(label, null, null, coastAt, landAt);
+      if (target === null || target.kind === 'country' || target.kind === 'point') continue;
+      const fan = compassOf(target);
+      if (
+        fan === null ||
+        !fan.actions.some(
+          (action) => action.key === 'aim' || action.key === 'plunder' || action.key === 'collect',
+        )
+      )
+        continue;
+      named.set(label.id, fan.name);
+    }
+    return named;
+  }, [aiming, showDestinations, labels, compassOf, coastAt, landAt]);
+  const destinationIds = useMemo(() => new Set(destinations.keys()), [destinations]);
+
   // **Effet immédiat, sans rechargement** : le moteur reçoit le mappage comme il reçoit une
   // bascule, et un glisser en cours garde le sien jusqu'au relâchement.
   useEffect(() => {
@@ -424,10 +496,33 @@ export function WorldMap({
     if (engine.current) engine.current.onRegionClick = onDesignateRegion ?? (() => {});
   }, [onDesignateRegion]);
 
+  /**
+   * **Sous le doigt, un voyage referme la rose** : le toucher qui l'a ouverte a aussi ouvert une
+   * surface qui recadre la carte — une garnison, un site, une dépêche —, et une rose posée sur
+   * une carte qui glisse ne désigne plus ce qu'elle nomme. Au bureau, la rose ne s'ouvre pas
+   * avec ces portes-là.
+   */
+  const finger = useRef(fingerRose !== null);
+  useEffect(() => {
+    finger.current = fingerRose !== null;
+  }, [fingerRose]);
   useEffect(() => {
     if (focus === null) return;
-    readyEngine?.journeyTo(focus.ids, focus.places ?? []);
+    if (finger.current) setRose(null);
+    readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
   }, [readyEngine, focus]);
+
+  useEffect(() => {
+    if (covered) setRose(null);
+  }, [covered]);
+
+  useEffect(() => {
+    const rect = container.current?.getBoundingClientRect();
+    if (reveal === null || rect === undefined) return;
+    const visible = rect.height - reveal.floor;
+    if (reveal.y <= visible - REVEAL_MARGIN) return;
+    readyEngine?.nudge(0, visible / 2 - reveal.y);
+  }, [readyEngine, reveal]);
 
   useEffect(() => {
     readyEngine?.showSearchArea(searchArea);
@@ -494,8 +589,14 @@ export function WorldMap({
         onAct={onLabelAct}
         mapping={mapping}
         muted={placing !== null}
+        destinations={destinationIds}
       />
-      <EdgeIndicators labels={labels} engine={readyEngine} toggles={indicators} />
+      <EdgeIndicators
+        labels={labels}
+        engine={readyEngine}
+        toggles={indicators}
+        destinations={destinations}
+      />
       {designatedArc && (
         <div className="absolute top-4 left-4 z-10">
           <RouteScale arc={designatedArc} />
@@ -505,12 +606,14 @@ export function WorldMap({
       {placing && <PlacingCard placing={placing} container={container} />}
       {rose && (
         <CompassRose
+          key={rose.opening}
           compass={rose.compass}
           x={rose.x}
           y={rose.y}
           width={rose.width}
           height={rose.height}
           onClose={closeRose}
+          finger={fingerRose === null ? null : { floor: fingerRose.floor, onFit: fitRose }}
           onAction={(action) => {
             closeRose();
             onCompassAction(action, { x: rose.x, y: rose.y });
@@ -521,7 +624,14 @@ export function WorldMap({
   );
 }
 
-type OpenRose = { compass: Compass; x: number; y: number; width: number; height: number };
+type OpenRose = {
+  opening: number;
+  compass: Compass;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 /**
  * The menu's footprint around its center. It opens on the clicked point, except flush with
@@ -529,6 +639,9 @@ type OpenRose = { compass: Compass; x: number; y: number; width: number; height:
  * margin follows the HUD scale, which zooms the whole menu.
  */
 const ROSE_MARGIN = 70;
+
+/** Ce qu'un point garde d'air au-dessus d'une feuille avant que la carte le remonte. */
+const REVEAL_MARGIN = 48;
 
 /** Enough to read the sentence twice, too short for it to become furniture. */
 const HINT_MS = 7000;

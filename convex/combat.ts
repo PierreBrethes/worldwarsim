@@ -11,7 +11,7 @@ import { landAtPoint } from './routes';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
 import { notifyPlayer } from './notifications';
-import { push, journalUrl } from '../src/domain/push';
+import { push, journalUrl, reportUrl } from '../src/domain/push';
 import { debit, economyOf } from './resources';
 import { claimVictory, isPlayerReduced } from './victory';
 import {
@@ -191,7 +191,7 @@ export async function resolveContact(
   await notifyPlayer(ctx, defender.playerId, {
     type: 'attack',
     phrase: push.attack,
-    url: journalUrl,
+    url: reportUrl(engagementId),
     at,
   });
 

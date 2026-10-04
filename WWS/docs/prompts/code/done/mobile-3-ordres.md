@@ -1,6 +1,6 @@
 ---
 type: prompt
-statut: validé
+statut: livré
 maj: 2026-10-04
 code: [src/map/CompassRose.tsx, src/routes/-plateau/GarrisonPanel.tsx, src/routes/-plateau/ConstructionPanel.tsx, src/routes/-plateau/GroundPanel.tsx, src/routes/-plateau/MovementPreview.tsx, src/routes/-plateau/TroopBadge.tsx, src/routes/-plateau/SiteModal.tsx, src/routes/-plateau/JournalWindow.tsx, src/domain/push.ts, convex/combat.ts, src/i18n/fr.ts]
 decisions: [mobile-1c-2026-10-03, mobile-piste-a-2026-10-03, mobile-regles-2026-10-03, 4a-2026-09-13]

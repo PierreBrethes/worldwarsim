@@ -21,6 +21,7 @@ import {
   type BoardWindow,
 } from './-plateau/board-search';
 import { Shell } from '@/shell/Shell';
+import { sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -55,10 +56,12 @@ import {
   PROJECTION_BY_DOMAIN,
   marchingTroopIds,
   representativeRole,
+  stationAtCombat,
   stationKeyOf,
   troopsAt,
   type MarchStation,
 } from '@/domain/troops';
+import { stationNames } from '@/domain/station-name';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
@@ -77,6 +80,7 @@ import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
 import {
+  AimingSheet,
   MovementPreview,
   wireOrigin,
   wireTarget,
@@ -84,6 +88,7 @@ import {
   type Previewed,
 } from './-plateau/MovementPreview';
 import { GroundPanel } from './-plateau/GroundPanel';
+import { DispatchSheet } from './-plateau/DispatchSheet';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
@@ -229,6 +234,7 @@ export const Route = createFileRoute('/plateau')({
     if (windows.length) search.windows = windows;
     if (typeof raw.building === 'string' && raw.building.length > 0) search.building = raw.building;
     if (typeof raw.season === 'string' && raw.season.length > 0) search.season = raw.season;
+    if (typeof raw.report === 'string' && raw.report.length > 0) search.report = raw.report;
     return search;
   },
   /** **La saison d'une notification se retient avant le chargement, puis quitte l'adresse** : la
@@ -323,7 +329,7 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
 }
 
 function BoardContent({ world, view, seat }: { world: World; view: PlayerView; seat: Seat }) {
-  const { country, windows = [], building: focused } = Route.useSearch();
+  const { country, windows = [], building: focused, report } = Route.useSearch();
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
    * est rendue entière, et une fenêtre qu'une autre recouvre se ferme d'elle-même (`Window.tsx`) —
@@ -372,6 +378,23 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
     readonly places?: ReadonlyArray<LonLat>;
+    readonly lift?: number;
+    readonly distance?: number;
+    readonly nonce: number;
+  } | null>(null);
+  /**
+   * **La dépêche ouverte depuis une notification d'attaque**, sous le seuil (lot mobile-3, §6),
+   * par l'identifiant de son engagement. Au-dessus du seuil c'est le journal qui la porte en
+   * manchette (`journalLead`) — une seule adresse, deux cadres.
+   */
+  const [openedReport, setOpenedReport] = useState<string | null>(null);
+  const [journalLead, setJournalLead] = useState<string | null>(null);
+  /** Une pose de rose en cours, cachée sous une feuille si l'on n'y prend garde : un point qu'une
+   *  surface basse va couvrir est remonté au-dessus d'elle (`WorldMap.reveal`). */
+  const [reveal, setReveal] = useState<{
+    readonly x: number;
+    readonly y: number;
+    readonly floor: number;
     readonly nonce: number;
   } | null>(null);
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
@@ -419,29 +442,39 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }, []);
 
+  /**
+   * **En visée, sous le seuil, un toucher choisit** : la fiche d'un camp, d'un objectif ou d'une
+   * caisse prendrait la place de la visée — une surface à la fois — et la désarmerait sous le
+   * doigt qui nomme sa destination. La rose s'ouvre seule, comme au clic droit.
+   */
+  const aimingOnPhone = narrow && column !== null;
+
   const openLoot = useCallback(
     (ids: ReadonlyArray<string>, clientX: number, clientY: number) => {
       const first = ids[0];
-      if (first === undefined) return;
+      if (first === undefined || aimingOnPhone) return;
       const at = boardPoint(clientX, clientY);
       setSelectedLoot((previous) => {
         const rank = previous === null ? -1 : ids.indexOf(previous.id);
         return { id: ids[(rank + 1) % ids.length] ?? first, ...at };
       });
     },
-    [boardPoint],
+    [boardPoint, aimingOnPhone],
   );
 
   const openCamp = useCallback(
-    (campId: string, clientX: number, clientY: number) =>
-      setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) }),
-    [boardPoint],
+    (campId: string, clientX: number, clientY: number) => {
+      if (!aimingOnPhone) setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) });
+    },
+    [boardPoint, aimingOnPhone],
   );
 
   const openObjective = useCallback(
-    (objectiveId: string, clientX: number, clientY: number) =>
-      setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) }),
-    [boardPoint],
+    (objectiveId: string, clientX: number, clientY: number) => {
+      if (!aimingOnPhone)
+        setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
+    },
+    [boardPoint, aimingOnPhone],
   );
 
   /** Un relevé que le délai a périmé emporte le cartouche qui le lisait : la carte ne garde pas
@@ -500,9 +533,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
        *  les siennes à regarder. */
       setGarrison({ station, preselect, ...at });
       const marker = markerOfStation(view, station);
-      if (marker !== null) setFocus({ ids: [marker], nonce: Date.now() });
+      /** **Sous le seuil la garnison est une feuille à mi-hauteur** (A7) : la carte remonte le
+       *  point au-dessus d'elle plutôt que de le cadrer dessous. */
+      if (marker !== null)
+        setFocus({ ids: [marker], lift: narrow ? sheetLift('half') : 0, nonce: Date.now() });
     },
-    [view],
+    [view, narrow],
   );
 
   /**
@@ -658,6 +694,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       switch (action.key) {
         case 'build':
           setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
+          /** La feuille de construction couvre la moitié basse : le point visé remonte. */
+          if (narrow) setReveal({ ...at, floor: sheetHeight('half'), nonce: Date.now() });
           return;
         /**
          * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
@@ -790,7 +828,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           );
       }
     },
-    [foundHere, startConstruction, raiseOutpost, respecialize, seat],
+    [foundHere, startConstruction, raiseOutpost, respecialize, seat, narrow],
   );
 
   /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
@@ -1403,14 +1441,63 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   useEffect(() => {
     if (editionServed.current) return;
     editionServed.current = true;
-    if (windows.length) return;
+    if (windows.length || report !== undefined) return;
     if (!view.journal.some((dispatch) => dispatch.unread && dispatch.severity === 'critical'))
       return;
     void navigate({
       search: (previous) => withWindow(previous, 'journal'),
       replace: true,
     });
-  }, [windows, view.journal, navigate]);
+  }, [windows, report, view.journal, navigate]);
+
+  /**
+   * **L'arrivée sur une dépêche de combat** (lot mobile-3, §6) : l'adresse d'une notification
+   * d'attaque seule porte l'engagement. La carte se centre sur le lieu, et la dépêche s'ouvre —
+   * en feuille à l'aperçu sous le seuil, en manchette du journal au-dessus. L'adresse la rend
+   * ensuite : c'est une arrivée, et recharger la page ne doit pas la rejouer. Une dépêche que la
+   * vue ne sert plus (au-delà des derniers comptes rendus) retombe sur le journal.
+   */
+  const reportServed = useRef<string | null>(null);
+  useEffect(() => {
+    if (report === undefined) {
+      reportServed.current = null;
+      return;
+    }
+    if (reportServed.current === report) return;
+    reportServed.current = report;
+    const combat = view.journal.find((dispatch) => dispatch.combat?.id === report)?.combat ?? null;
+    if (combat !== null) {
+      setFocus({
+        ids: [],
+        places: [[combat.point.lon, combat.point.lat]],
+        lift: narrow ? sheetLift('peek') : 0,
+        distance: COMBAT_VIEW_DISTANCE,
+        nonce: Date.now(),
+      });
+      if (narrow) setOpenedReport(report);
+      else setJournalLead(report);
+    }
+    void navigate({
+      search: (previous) => {
+        const { report: _served, ...rest } = previous;
+        return narrow && combat !== null ? rest : withWindow(rest, 'journal');
+      },
+      replace: true,
+    });
+  }, [report, view.journal, narrow, navigate]);
+
+  const openedDispatch =
+    openedReport === null
+      ? null
+      : (view.journal.find((dispatch) => dispatch.combat?.id === openedReport) ?? null);
+  const openedCombat = openedDispatch?.combat ?? null;
+  const combatStation = useMemo(
+    () =>
+      openedCombat === null
+        ? null
+        : stationAtCombat(view.me, openedCombat, marching, ARRIVAL_RADIUS_KM),
+    [openedCombat, view.me, marching],
+  );
 
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -1471,6 +1558,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.arcs, column, order, preview],
   );
 
+  /** La place que la feuille à l'aperçu prend au pied du plateau : la rose s'ouvre au-dessus. */
+  const fingerRose = useMemo(() => (narrow ? { floor: sheetHeight('peek') } : null), [narrow]);
+
   const nextActions = (frame: 'card' | 'sheet') => (
     <NextActions
       view={view}
@@ -1503,7 +1593,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           playerNation={view.me.nation}
           indicators={toggles}
           accentedMovement={hoveredMovement}
-          onSelect={select}
+          onSelect={aimingOnPhone ? keepSelection : select}
           onOpenBuilding={openBuilding}
           onOpenStack={openStack}
           onOpenLoot={openLoot}
@@ -1526,6 +1616,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           onDesignateRegion={placeFoundation}
           focus={focus}
           searchArea={searchArea}
+          fingerRose={fingerRose}
+          showDestinations={narrow}
+          covered={narrow && windows.length > 0}
+          reveal={reveal}
         />
         {selectedLoot !== null && selectedLootSighting !== null && (
           <LootCrateCard
@@ -1619,7 +1713,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onPrepare={prepareColumn}
           />
         )}
-        {posted && (
+        {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
+            une surface à la fois, et c'est la visée qui parle alors. */}
+        {posted && !(narrow && order !== null) && (
           <TroopBadge
             key={posted.labelId}
             nation={view.me.nation}
@@ -1642,12 +1738,40 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             at={order}
             preview={preview}
             mission={missionOf(order)}
-            freeSlots={view.me.slots.total - view.me.slots.used}
+            slots={view.me.slots}
+            originName={stationNames(view).place(column.station)}
             onClose={() => {
               setOrder(null);
               setColumn(null);
               setPosted(null);
             }}
+          />
+        )}
+        {narrow && column && order === null && posted === null && (
+          <AimingSheet
+            count={column.troopIds.length}
+            originName={stationNames(view).place(column.station)}
+            slots={view.me.slots}
+            onCancel={releasePosted}
+          />
+        )}
+        {openedDispatch !== null && openedCombat !== null && (
+          <DispatchSheet
+            dispatch={openedDispatch}
+            combat={openedCombat}
+            onOpenGarrison={
+              combatStation === null
+                ? null
+                : () => {
+                    setOpenedReport(null);
+                    openGarrison(combatStation, [], boardPoint());
+                  }
+            }
+            onOpenJournal={() => {
+              setOpenedReport(null);
+              openWindow('journal');
+            }}
+            onClose={() => setOpenedReport(null)}
           />
         )}
         {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
@@ -1667,19 +1791,25 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
         {!narrow && <div className="absolute bottom-4 left-4 z-10">{nextActions('card')}</div>}
         <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
-          <GroundPanel
-            selected={country ?? null}
-            hoveredCountry={hoveredCountry}
-            hoveredRegion={hoveredRegion}
-            holding={
-              hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
-            }
-            suspendedUntil={
-              hoveredRegion === null ? null : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
-            }
-            view={view}
-            onDeselect={() => select(null)}
-          />
+          {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
+              prendrait la place de la visée et la désarmerait. */}
+          {!aimingOnPhone && (
+            <GroundPanel
+              selected={country ?? null}
+              hoveredCountry={hoveredCountry}
+              hoveredRegion={hoveredRegion}
+              holding={
+                hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
+              }
+              suspendedUntil={
+                hoveredRegion === null
+                  ? null
+                  : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
+              }
+              view={view}
+              onDeselect={() => select(null)}
+            />
+          )}
           <ControlsCard />
         </div>
       </div>
@@ -1689,7 +1819,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             rank,
             inFront: rank === windows.length - 1,
             onBringForward: () => bringForward(name),
-            onClose: () => closeWindow(name),
+            onClose: () => {
+              /** La manchette d'une notification ne survit pas au journal qui la portait. */
+              if (name === 'journal') setJournalLead(null);
+              closeWindow(name);
+            },
           };
           switch (name) {
             case 'journal':
@@ -1698,6 +1832,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   key={name}
                   view={view}
                   seat={seat}
+                  leadReport={journalLead}
                   rumors={lootRumors}
                   selectedRumorId={selectedRumorId}
                   onSelectRumor={selectRumor}
@@ -1772,6 +1907,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     </Shell>
   );
 }
+
+/**
+ * **D'où l'on regarde un combat ouvert depuis sa dépêche** : assez près pour lire les régions et
+ * les mâts autour — la place d'une passe est un lieu, pas un continent.
+ */
+const COMBAT_VIEW_DISTANCE = 20;
+
+/** En visée sous le seuil, toucher nomme une destination : la sélection du pays n'en est pas
+ *  une, et la feuille du sol reviendrait sous le pouce une fois l'ordre parti. */
+const keepSelection = (): void => {};
 
 function Loading() {
   return (

@@ -305,3 +305,42 @@
   font-size: 11px;
   color: #8a7658;
 }
+
+/* **Sous le doigt** (lot mobile-3, A6) : médaillons de 48 px, le libellé en cartouche à côté de
+   chacun, et la branche qu'on prend le plus en encre pleine. Le reste de la plate ne change pas. */
+.rose--finger .rose-medallion {
+  width: 48px;
+  height: 48px;
+  border-width: 1.5px;
+}
+
+.rose-medallion--lead {
+  background: var(--radial-ink);
+  color: var(--bubble-paper);
+}
+
+.rose-caption {
+  position: absolute;
+  padding: 2px 6px;
+  border: 1px solid var(--radial-ink);
+  background: var(--bubble-paper);
+  color: #16323f;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.rose-caption--grave {
+  border-color: var(--lacking-ink);
+  color: var(--lacking-ink);
+}
+
+.rose-caption--held {
+  border-color: var(--held-ink);
+  color: var(--held-ink);
+}

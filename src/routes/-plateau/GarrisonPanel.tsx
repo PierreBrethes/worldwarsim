@@ -188,7 +188,7 @@ export function GarrisonPanel({
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            className="cursor-pointer border border-[var(--ink)] px-[7px] py-[2px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] max-md:hidden"
           >
             {fr.common.close}
           </button>

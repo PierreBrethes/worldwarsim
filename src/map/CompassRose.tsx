@@ -19,6 +19,13 @@ import { fr } from '@/i18n/fr';
  * mute pictogram would never show: the first clean touch on a medallion opens its tooltip, the
  * second on the same one acts. The mouse keeps its single click.
  *
+ * **Sous le seuil, la rose se lit sans toucher** (lot mobile-3, A6) : médaillons de 48 px, le
+ * libellé en cartouche à côté de chacun, et « marcher » en encre pleine parce que c'est la branche
+ * qu'on prend le plus. Le pictogramme n'est plus muet, donc le premier toucher agit — sauf sur une
+ * branche retenue, qui n'a que sa raison à donner. Et elle tient entière dans l'écran : mesurée à
+ * l'ouverture, elle demande à la carte de se recaler sous elle (`onFit`) plutôt que de quitter le
+ * point qu'elle désigne.
+ *
  * Classes are set here and styled in `src/styles/compass-rose.css`.
  */
 export function CompassRose({
@@ -29,6 +36,7 @@ export function CompassRose({
   height,
   onClose,
   onAction,
+  finger = null,
 }: {
   compass: Compass;
   x: number;
@@ -37,8 +45,15 @@ export function CompassRose({
   height: number;
   onClose: () => void;
   onAction: (action: CompassAction) => void;
+  /** Sous le seuil : la place que la feuille basse réserve au pied du plateau, et ce qui recale
+   *  la carte. `null` au bureau, où rien ne change. */
+  finger?: {
+    readonly floor: number;
+    readonly onFit: (dx: number, dy: number) => void;
+  } | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const radius = finger === null ? MEDALLION_RADIUS : FINGER_RADIUS;
   const bubble = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(-1);
   /** The medallion a finger has read, waiting for the touch that acts. */
@@ -66,6 +81,37 @@ export function CompassRose({
     };
   }, [onClose]);
 
+  /** Une fois, à l'ouverture : la rose ne se recale pas sous un doigt qui la lit. */
+  const fitted = useRef(false);
+  /** Le zoom de l'interface, lu sur la plate elle-même : la bulle du doigt se borne à l'écran en
+   *  pixels du plateau, et la plate est mesurée dans les siens. */
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const menu = root.current?.querySelector('.rose-menu');
+    if (!(menu instanceof HTMLElement) || menu.offsetWidth === 0) return;
+    const measured = menu.getBoundingClientRect().width / menu.offsetWidth;
+    if (Math.abs(measured - scale) > 0.01) setScale(measured);
+  }, [scale]);
+  useLayoutEffect(() => {
+    if (finger === null || fitted.current || root.current === null) return;
+    fitted.current = true;
+    const frame = root.current.closest('.compass-rose')?.getBoundingClientRect();
+    const box = boxOf(
+      root.current.querySelectorAll('.rose-medallion, .rose-caption, .rose-figure'),
+    );
+    if (frame === undefined || box === null) return;
+    /** La feuille déjà ouverte par le même toucher — une fiche qui épouse son contenu peut monter
+     *  plus haut que l'aperçu réservé. */
+    const sheet = document.querySelector('.board-sheet')?.getBoundingClientRect().top;
+    const shift = fitShift(box, {
+      left: frame.left,
+      top: frame.top,
+      right: frame.right,
+      bottom: Math.min(frame.bottom - finger.floor, sheet ?? Infinity),
+    });
+    if (shift.dx !== 0 || shift.dy !== 0) finger.onFit(shift.dx, shift.dy);
+  });
+
   // The tooltip aligns on its own height, which depends on its content: measure, then
   // re-place. Without this pass, a short bubble sits off-center from its medallion.
   useLayoutEffect(() => {
@@ -85,13 +131,23 @@ export function CompassRose({
   const placement =
     action === null && refusal === null
       ? null
-      : placeBubble(bubbleAngle, x, y, width, height, bubbleHeight);
+      : finger !== null
+        ? placeFingerBubble(x, y, width, height - finger.floor, bubbleHeight, radius, scale)
+        : placeBubble(
+            bubbleAngle,
+            x,
+            y,
+            width,
+            height,
+            bubbleHeight,
+            radius + MOORING_RADIUS - MEDALLION_RADIUS,
+          );
 
   return (
     <div className="compass-rose">
       <div
         ref={root}
-        className="rose"
+        className={finger === null ? 'rose' : 'rose rose--finger'}
         style={{ left: x, top: y }}
         onContextMenu={(event) => event.preventDefault()}
       >
@@ -100,7 +156,7 @@ export function CompassRose({
             {compass.actions.map((candidate, rank) => {
               const angle = angleOf(rank, compass.actions.length);
               const [x1, y1] = point(11, angle);
-              const [x2, y2] = point(MEDALLION_RADIUS - 14, angle);
+              const [x2, y2] = point(radius - (finger === null ? 14 : 24), angle);
               return (
                 <line
                   key={rank}
@@ -121,8 +177,10 @@ export function CompassRose({
 
           {compass.actions.map((candidate, rank) => {
             const angle = angleOf(rank, compass.actions.length);
-            const [left, top] = point(MEDALLION_RADIUS, angle);
+            const [left, top] = point(radius, angle);
             const held = isHeld(candidate);
+            /** La branche qu'on prend le plus, en encre pleine sous le doigt (A6). */
+            const lead = finger !== null && candidate.key === 'aim' && candidate.type === 'march';
             /** La seule encre rouge d'un médaillon : ce qui efface se distingue avant le survol,
              *  parce que la rose se lit au pictogramme et que celui-là ne se clique pas par
              *  inadvertance. */
@@ -142,7 +200,7 @@ export function CompassRose({
                   candidate.key === 'found') && (
                   <div
                     className={`rose-figure${held ? ' rose-figure--held' : ''}`}
-                    style={figureAt(angle)}
+                    style={figureAt(angle, radius + (finger === null ? FIGURE_OFFSET : 36))}
                   >
                     {candidate.figure}
                   </div>
@@ -152,7 +210,7 @@ export function CompassRose({
                   aria-label={candidate.label}
                   aria-disabled={held}
                   aria-pressed={candidate.key === 'specialize' ? candidate.current : undefined}
-                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${lead ? ' rose-medallion--lead' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
                   onPointerDown={(event) => {
                     pressedWith.current = event.pointerType;
@@ -170,9 +228,12 @@ export function CompassRose({
                    *  actif plutôt que `disabled` : un bouton désactivé n'émet plus de survol,
                    *  et la raison du grisé est précisément ce qu'il faut pouvoir lire. */
                   onClick={() => {
-                    const finger = pressedWith.current === 'touch';
+                    const touched = pressedWith.current === 'touch';
                     pressedWith.current = 'mouse';
-                    if (finger && read !== rank) {
+                    /** Le libellé est déjà écrit sous le doigt : seule une branche retenue a
+                     *  encore quelque chose à faire lire avant de ne pas partir. */
+                    const mustRead = finger === null || held;
+                    if (touched && mustRead && read !== rank) {
                       setRead(rank);
                       setHovered(rank);
                       return;
@@ -180,10 +241,24 @@ export function CompassRose({
                     if (!held) onAction(candidate);
                   }}
                 >
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden>
+                  <svg
+                    viewBox="0 0 20 20"
+                    width={finger === null ? 15 : 22}
+                    height={finger === null ? 15 : 22}
+                    aria-hidden
+                  >
                     {PICTOGRAM_PATHS[candidate.pictogram]}
                   </svg>
                 </button>
+                {finger !== null && (
+                  <div
+                    aria-hidden
+                    className={`rose-caption${grave ? ' rose-caption--grave' : ''}${held ? ' rose-caption--held' : ''}`}
+                    style={captionAt(angle, radius)}
+                  >
+                    {candidate.label}
+                  </div>
+                )}
               </Fragment>
             );
           })}
@@ -324,6 +399,10 @@ const isHeld = (action: CompassAction): boolean =>
 const FRAME = 240;
 const CENTER = 120;
 const MEDALLION_RADIUS = 36;
+/** Sous le doigt : cinq médaillons de 48 px sur ce rayon ne se touchent pas (corde de 99 px). */
+const FINGER_RADIUS = 84;
+/** Le demi-médaillon de 48 px, plus l'air entre lui et son cartouche. */
+const CAPTION_OFFSET = 30;
 /** The radius the tooltip moors to: the medallion plus its breathing margin. */
 const MOORING_RADIUS = 56;
 /** Ce qui sépare le chiffre à plat du bord du médaillon, sur le rayon. */
@@ -342,9 +421,68 @@ function point(radius: number, angle: number): readonly [number, number] {
 
 /** Le chiffre se pose sur le rayon, au-delà du médaillon : dans l'axe de la branche, il ne
  *  peut pas se confondre avec celui d'une voisine. */
-function figureAt(angle: number): { readonly left: number; readonly top: number } {
-  const [left, top] = point(MEDALLION_RADIUS + FIGURE_OFFSET, angle);
+function figureAt(angle: number, reach: number): { readonly left: number; readonly top: number } {
+  const [left, top] = point(reach, angle);
   return { left, top };
+}
+
+/** **Le cartouche du libellé, côté extérieur** : au-dessus d'un médaillon du haut, dessous pour
+ *  les autres — jamais vers le centre, où il couvrirait la cible qu'il désigne. */
+function captionAt(angle: number, radius: number): { readonly left: number; readonly top: number } {
+  const [left, top] = point(radius, angle);
+  const north = Math.cos((angle * Math.PI) / 180) > 0.6;
+  return { left, top: north ? top - CAPTION_OFFSET - 14 : top + CAPTION_OFFSET };
+}
+
+type Box = {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+};
+
+/** L'emprise de ce qui se touche et se lit — médaillons, cartouches, chiffres — en pixels
+ *  d'écran. Un élément sans boîte (masqué) ne compte pas. */
+function boxOf(elements: NodeListOf<Element>): Box | null {
+  let box: Box | null = null;
+  for (const element of elements) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) continue;
+    box =
+      box === null
+        ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+        : {
+            left: Math.min(box.left, rect.left),
+            top: Math.min(box.top, rect.top),
+            right: Math.max(box.right, rect.right),
+            bottom: Math.max(box.bottom, rect.bottom),
+          };
+  }
+  return box;
+}
+
+/** L'air laissé entre la rose et le bord, qui couvre aussi l'animation d'ouverture : la rose y
+ *  est mesurée à 94 % de sa taille. */
+const FIT_MARGIN = 10;
+
+/**
+ * **Ce dont la carte doit glisser pour que la rose tienne entière** (lot mobile-3, §1) : la
+ * plus petite poussée, sur chaque axe, qui ramène son emprise dans le cadre — moins la place que
+ * la feuille basse prend au pied. Une rose plus grande que le cadre se centre sur lui plutôt que
+ * de sacrifier un bord. Positif vers la droite et le bas, comme `MapEngine.nudge`.
+ */
+export function fitShift(box: Box, frame: Box, margin = FIT_MARGIN): { dx: number; dy: number } {
+  const axis = (low: number, high: number, min: number, max: number): number => {
+    const room = max - min - 2 * margin;
+    if (high - low > room) return Math.round((min + max) / 2 - (low + high) / 2);
+    if (low < min + margin) return Math.round(min + margin - low);
+    if (high > max - margin) return Math.round(max - margin - high);
+    return 0;
+  };
+  return {
+    dx: axis(box.left, box.right, frame.left, frame.right),
+    dy: axis(box.top, box.bottom, frame.top, frame.bottom),
+  };
 }
 
 const clamp = (value: number, low: number, high: number): number =>
@@ -362,9 +500,10 @@ function placeBubble(
   width: number,
   height: number,
   bubbleHeight: number,
+  mooring: number,
 ) {
-  const onRight = x + MOORING_RADIUS + BUBBLE_GAP + BUBBLE_WIDTH + 12 <= width;
-  const [, anchorY] = point(MOORING_RADIUS, angle);
+  const onRight = x + mooring + BUBBLE_GAP + BUBBLE_WIDTH + 12 <= width;
+  const [, anchorY] = point(mooring, angle);
   const top = clamp(
     anchorY - bubbleHeight / 2,
     8 - (y - CENTER),
@@ -372,15 +511,49 @@ function placeBubble(
   );
 
   return {
-    x: onRight
-      ? CENTER + MOORING_RADIUS + BUBBLE_GAP
-      : CENTER - MOORING_RADIUS - BUBBLE_GAP - BUBBLE_WIDTH,
+    x: onRight ? CENTER + mooring + BUBBLE_GAP : CENTER - mooring - BUBBLE_GAP - BUBBLE_WIDTH,
     y: top,
     tie: {
-      left: onRight ? CENTER + MOORING_RADIUS - 2 : CENTER - MOORING_RADIUS - BUBBLE_GAP,
+      left: onRight ? CENTER + mooring - 2 : CENTER - mooring - BUBBLE_GAP,
       top: clamp(anchorY, top + 10, top + bubbleHeight - 10),
       width: BUBBLE_GAP + 4,
     },
+  };
+}
+
+/**
+ * **La bulle du doigt, sous la rose ou au-dessus, jamais à côté** : sur un téléphone il n'y a pas
+ * la place d'un côté. Elle se centre sur le point, se borne aux deux bords de l'écran, et passe
+ * au-dessus des médaillons quand la feuille basse lui prend le dessous. Les coordonnées sont
+ * celles de la plate, que l'interface zoome de `scale`.
+ */
+function placeFingerBubble(
+  x: number,
+  y: number,
+  width: number,
+  floor: number,
+  bubbleHeight: number,
+  radius: number,
+  scale: number,
+) {
+  const reach = radius + CAPTION_OFFSET + 18;
+  const left = clamp(
+    CENTER - BUBBLE_WIDTH / 2,
+    CENTER + (8 - x) / scale,
+    CENTER + (width - 8 - x) / scale - BUBBLE_WIDTH,
+  );
+  const below = y + (reach + bubbleHeight + 8) * scale <= floor;
+  /** Ni dessous ni dessus : elle se borne au cadre et couvre un peu de la rose — une raison
+   *  coupée par le bandeau ne se lirait pas du tout. */
+  const top = clamp(
+    below ? CENTER + reach : CENTER - reach - bubbleHeight,
+    CENTER + (8 - y) / scale,
+    CENTER + (floor - 8 - y) / scale - bubbleHeight,
+  );
+  return {
+    x: left,
+    y: top,
+    tie: { left: CENTER, top: below ? CENTER + radius : top + bubbleHeight, width: 0 },
   };
 }
 

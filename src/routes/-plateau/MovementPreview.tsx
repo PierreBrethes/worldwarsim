@@ -6,9 +6,12 @@ import { fr } from '@/i18n/fr';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { MovementType } from '@/domain/ids';
 import type { MovementAim } from '@/domain/movement-orders';
+import { pathLengthKm, type LonLat } from '@/domain/geo';
 import { landPaceOf, routeMedium } from '@/domain/routing';
 import type { MarchStation } from '@/domain/troops';
 import { handleError } from '@/data/errors';
+import { BottomSheet } from '@/shell/BottomSheet';
+import { useNarrowScreen } from '@/shell/viewport';
 import type {
   LootCollectionPreviewed,
   MovementPreviewed,
@@ -88,7 +91,8 @@ export function MovementPreview({
   at,
   preview,
   mission,
-  freeSlots,
+  slots,
+  originName,
   onClose,
 }: {
   seat: Seat;
@@ -101,9 +105,13 @@ export function MovementPreview({
   /** `undefined` while the route is being computed, `null` when nothing gets there. */
   preview: Previewed | undefined;
   mission: PreviewMission;
-  freeSlots: number;
+  slots: { readonly used: number; readonly total: number };
+  /** Le lieu d'où la pile part, en toutes lettres — l'en-tête de la feuille de visée. */
+  originName: string;
   onClose: () => void;
 }) {
+  const narrow = useNarrowScreen();
+  const freeSlots = slots.total - slots.used;
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const marchTo = useMutation(api.movements.marchTo);
@@ -184,6 +192,154 @@ export function MovementPreview({
     });
   };
 
+  const details = (
+    <>
+      {preview === undefined ? (
+        <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+          {fr.aim.computing}
+        </p>
+      ) : preview === null ? (
+        <p className="text-[12.5px] leading-[1.45] text-[var(--critical)]">{fr.aim.noRoute}</p>
+      ) : (
+        <>
+          <div className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
+            {/* The medium is read off the **legs**, never off the route's mode: a pile with
+               a hull routes `combined` even when the road gets there dry, and the card
+               would then promise a crossing to the next region. */}
+            <div>
+              {fr.aim.duration(asDuration(preview.minutes), troopIds.length)} ·{' '}
+              {legOf(preview.route)}
+            </div>
+            <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
+            {/* La seule ligne de la carte qui explique une durée plutôt que de l'annoncer :
+               sans elle, le relais est un cadeau anonyme. */}
+            {'relayed' in preview && preview.relayed > 0 && (
+              <div className="text-[var(--valid)]">
+                {fr.aim.relayed(asDuration(preview.relayed))}
+              </div>
+            )}
+            {/* Ce que la pile peut ramener, et rien du stock d'en face : le relevé n'en
+               porte aucun, et l'aperçu n'en invente pas (ADR 0005). */}
+            {'cargo' in preview && (
+              <div>{fr.loot.freeCapacity(Math.round(preview.cargo.free))}</div>
+            )}
+            {'presenceHours' in preview && (
+              <div>{fr.aim.presence(asDuration(preview.presenceHours * 60))}</div>
+            )}
+          </div>
+          {preview.holdUntil !== null && (
+            <div className="mt-[7px] flex items-center gap-[7px]">
+              <span
+                className="h-[5px] w-[5px] shrink-0"
+                style={{ background: 'var(--critical)' }}
+              />
+              <span className="text-[10.5px] tracking-[.1em] text-[var(--critical)] uppercase">
+                {fr.aim.restBite(asLocalTime(preview.holdUntil))}
+              </span>
+            </div>
+          )}
+          {/* What the player does not know, said before he pays for it (ADR 0019 §6). It is
+             a statement about his own eyes, never about the ground — the note underneath is
+             there so it cannot be read as a guarantee the other way round. */}
+          {'estimatedLoot' in preview && (
+            <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
+              <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
+                {fr.aim.estimatedLoot}
+              </div>
+              <ResourceAmounts amounts={preview.estimatedLoot} />
+            </div>
+          )}
+          {'recognised' in preview && !preview.recognised && (
+            <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
+              <div className="text-[10.5px] tracking-[.1em] text-[var(--notable)] uppercase">
+                {fr.aim.unscouted}
+              </div>
+              <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                {fr.aim.unscoutedNote}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {error && (
+        <p className="mt-[9px] border border-[var(--critical)] px-2 py-[5px] text-[11.5px] text-[var(--ink)]">
+          {error}
+        </p>
+      )}
+    </>
+  );
+
+  /**
+   * **Sous le seuil, la visée est une feuille à l'aperçu** (lot mobile-3, A8 et A3 bis) : d'où
+   * l'on part et combien, les slots, la destination, la distance et l'heure, puis « annuler » et
+   * « envoyer » sous le pouce. Tirée vers le haut, elle montre tout ce que la carte du bureau
+   * montre — relais, présence, butin estimé, sol non reconnu — sans rien recalculer : la
+   * distance est la longueur de la route que le serveur vient de servir.
+   */
+  if (narrow) {
+    return (
+      <BottomSheet
+        title={fr.aimSheet.kicker(troopIds.length, originName)}
+        aside={
+          <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink-soft)]">
+            {fr.aimSheet.slots(slots.used, slots.total)}
+          </span>
+        }
+        onClose={onClose}
+        initial="peek"
+        kicker
+        hug
+      >
+        <div className="px-4 pt-[10px] text-[var(--ink)]">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-[2px]">
+            <h3 className="font-(family-name:--font-display) text-[22px] leading-[1.1] font-extrabold">
+              {destinationOf(aim, preview)}
+            </h3>
+            <span className="font-(family-name:--font-mono) text-[13px] text-[var(--ink-soft)]">
+              {preview
+                ? fr.aimSheet.reach(
+                    Math.round(
+                      pathLengthKm(
+                        preview.route.points.map((step): LonLat => [step.lon, step.lat]),
+                      ),
+                    ),
+                    asLocalTime(preview.arrivesAt),
+                  )
+                : preview === undefined
+                  ? fr.aim.computing
+                  : null}
+            </span>
+          </div>
+          {/* « Annuler » et « envoyer » tout de suite sous la destination : à l'aperçu, c'est ce
+              qui tient sous le pouce ; tirée, la feuille déroule le détail en dessous. */}
+          <div className="mt-[10px] flex gap-[8px]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] flex-1 cursor-pointer border border-[var(--ink)] px-[10px] text-[11px] tracking-[.18em] text-[var(--ink)] uppercase"
+            >
+              {fr.aim.cancel}
+            </button>
+            <button
+              type="button"
+              disabled={!preview || sending || freeSlots <= 0}
+              onClick={send}
+              className="min-h-[44px] flex-[2] cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[10px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {fr.aim.submit}
+            </button>
+          </div>
+          <p className="mt-[12px] text-[10.5px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+            {label} · {fr.aim.slot}
+          </p>
+          <div className="my-[8px] h-px bg-[var(--ink)] opacity-55" />
+          <div className="pb-[12px]">{details}</div>
+        </div>
+      </BottomSheet>
+    );
+  }
+
   const fromRight = at.x > window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
 
@@ -210,79 +366,7 @@ export function MovementPreview({
           </h3>
           <div className="my-[9px] h-px bg-[var(--ink)] opacity-55" />
 
-          {preview === undefined ? (
-            <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-              {fr.aim.computing}
-            </p>
-          ) : preview === null ? (
-            <p className="text-[12.5px] leading-[1.45] text-[var(--critical)]">{fr.aim.noRoute}</p>
-          ) : (
-            <>
-              <div className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
-                {/* The medium is read off the **legs**, never off the route's mode: a pile with
-                    a hull routes `combined` even when the road gets there dry, and the card
-                    would then promise a crossing to the next region. */}
-                <div>
-                  {fr.aim.duration(asDuration(preview.minutes), troopIds.length)} ·{' '}
-                  {legOf(preview.route)}
-                </div>
-                <div>{fr.aim.arrival(asLocalTime(preview.arrivesAt))}</div>
-                {/* La seule ligne de la carte qui explique une durée plutôt que de l'annoncer :
-                    sans elle, le relais est un cadeau anonyme. */}
-                {'relayed' in preview && preview.relayed > 0 && (
-                  <div className="text-[var(--valid)]">
-                    {fr.aim.relayed(asDuration(preview.relayed))}
-                  </div>
-                )}
-                {/* Ce que la pile peut ramener, et rien du stock d'en face : le relevé n'en
-                    porte aucun, et l'aperçu n'en invente pas (ADR 0005). */}
-                {'cargo' in preview && (
-                  <div>{fr.loot.freeCapacity(Math.round(preview.cargo.free))}</div>
-                )}
-                {'presenceHours' in preview && (
-                  <div>{fr.aim.presence(asDuration(preview.presenceHours * 60))}</div>
-                )}
-              </div>
-              {preview.holdUntil !== null && (
-                <div className="mt-[7px] flex items-center gap-[7px]">
-                  <span
-                    className="h-[5px] w-[5px] shrink-0"
-                    style={{ background: 'var(--critical)' }}
-                  />
-                  <span className="text-[10.5px] tracking-[.1em] text-[var(--critical)] uppercase">
-                    {fr.aim.restBite(asLocalTime(preview.holdUntil))}
-                  </span>
-                </div>
-              )}
-              {/* What the player does not know, said before he pays for it (ADR 0019 §6). It is
-                  a statement about his own eyes, never about the ground — the note underneath is
-                  there so it cannot be read as a guarantee the other way round. */}
-              {'estimatedLoot' in preview && (
-                <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
-                  <div className="text-[10.5px] tracking-[.1em] text-[var(--ink-soft)] uppercase">
-                    {fr.aim.estimatedLoot}
-                  </div>
-                  <ResourceAmounts amounts={preview.estimatedLoot} />
-                </div>
-              )}
-              {'recognised' in preview && !preview.recognised && (
-                <div className="mt-[7px] border-t border-(color:--ink)/40 pt-[6px]">
-                  <div className="text-[10.5px] tracking-[.1em] text-[var(--notable)] uppercase">
-                    {fr.aim.unscouted}
-                  </div>
-                  <p className="mt-[2px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-                    {fr.aim.unscoutedNote}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          {error && (
-            <p className="mt-[9px] border border-[var(--critical)] px-2 py-[5px] text-[11.5px] text-[var(--ink)]">
-              {error}
-            </p>
-          )}
+          {details}
 
           <button
             type="button"
@@ -329,4 +413,50 @@ function destinationOf(aim: MovementAim, preview: Previewed | undefined): string
     return region === undefined ? fr.buildings[aim.key] : `${fr.buildings[aim.key]} · ${region}`;
   }
   return preview?.destinationName ?? '—';
+}
+
+/**
+ * **La visée avant la destination, sous le seuil** (lot mobile-3, A8) : la pile est armée et
+ * rien n'est encore nommé. Au bureau la carte suffit — curseur de visée, Échap pour lâcher — mais
+ * un téléphone n'a ni l'un ni l'autre : la feuille dit ce qui est armé, d'où, ce qu'il reste à
+ * faire, et donne la sortie.
+ */
+export function AimingSheet({
+  count,
+  originName,
+  slots,
+  onCancel,
+}: {
+  count: number;
+  originName: string;
+  slots: { readonly used: number; readonly total: number };
+  onCancel: () => void;
+}) {
+  return (
+    <BottomSheet
+      title={fr.aimSheet.kicker(count, originName)}
+      aside={
+        <span className="font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--ink-soft)]">
+          {fr.aimSheet.slots(slots.used, slots.total)}
+        </span>
+      }
+      onClose={onCancel}
+      initial="peek"
+      kicker
+      hug
+    >
+      <p className="px-4 pt-[12px] text-[13px] leading-[1.45] text-[var(--ink)]">
+        {fr.aimSheet.pick}
+      </p>
+      <div className="px-4 pt-[8px] pb-[10px]">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="min-h-[44px] w-full cursor-pointer border border-[var(--ink)] px-[10px] text-[11px] tracking-[.18em] text-[var(--ink)] uppercase"
+        >
+          {fr.aim.cancel}
+        </button>
+      </div>
+    </BottomSheet>
+  );
 }

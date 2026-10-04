@@ -39,11 +39,15 @@ export function JournalWindow({
   rumors,
   selectedRumorId,
   onSelectRumor,
+  leadReport = null,
   onClose,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
   seat: Seat;
+  /** **La dépêche qu'une notification d'attaque a ouverte** (lot mobile-3, §6), par son
+   *  engagement : elle prend la manchette, quoi qu'il y ait de non lu à côté. */
+  leadReport?: string | null;
   rumors: ReadonlyArray<LootRumor> | undefined;
   selectedRumorId: string | null;
   onSelectRumor: (rumor: LootRumor) => void;
@@ -72,6 +76,9 @@ export function JournalWindow({
   /** La manchette est **la première non lue**, pas la première critique : le journal s'ouvre sur
    *  ce qui a changé depuis la dernière visite, ce qui est toute sa raison d'être. */
   const lead =
+    (leadReport === null
+      ? undefined
+      : dispatches.find((dispatch) => dispatch.combat?.id === leadReport)) ??
     unread.find((dispatch) => dispatch.severity === 'critical') ??
     unread[0] ??
     dispatches.find((dispatch) => dispatch.severity === 'critical') ??

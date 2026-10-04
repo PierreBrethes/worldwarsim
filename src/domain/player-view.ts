@@ -314,6 +314,10 @@ export type CombatReport = {
   readonly side: 'attacker' | 'defender';
   readonly won: boolean;
   readonly hostCountry: string;
+  /** Où la passe a eu lieu — le point que les deux camps ont tenu, jamais une position d'après. */
+  readonly point: { readonly lon: number; readonly lat: number };
+  /** L'avant-poste visé, quand c'en était un : la garnison qu'une dépêche ouvre est la sienne. */
+  readonly outpostId: string | null;
   readonly outpostDisabled: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
@@ -848,6 +852,9 @@ export type JournalDispatch = {
   readonly unread: boolean;
   readonly remaining: string | null;
   readonly resolutionAt: string | null;
+  /** **Le compte rendu d'où sort une dépêche de combat**, et `null` pour toute autre : c'est ce
+   *  qu'ouvre l'adresse d'une notification d'attaque (`report`), sans relire la phrase. */
+  readonly combat: CombatReport | null;
 };
 
 /**

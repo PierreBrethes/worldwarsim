@@ -24,6 +24,8 @@ const battle = (at: number): CombatReport => ({
   side: 'attacker',
   won: true,
   hostCountry: 'ROU',
+  point: { lon: 26, lat: 45 },
+  outpostId: null,
   outpostDisabled: false,
   mine: { troops: 2, lost: 4, routed: 0, destroyed: 0 },
   theirs: { troops: 1, lost: 30, routed: 1, destroyed: 0 },

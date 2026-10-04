@@ -5,6 +5,7 @@ import {
   representativeRole,
   stackRows,
   stationKeyOf,
+  stationAtCombat,
   stationGroups,
   troopsAt,
 } from './troops';
@@ -298,5 +299,35 @@ describe('the drop, against the tick box', () => {
     expect(dropped.map((row) => row.troop.id).sort()).toEqual(
       ticked.map((row) => row.troop.id).sort(),
     );
+  });
+});
+
+describe('stationAtCombat', () => {
+  const arabia = { lon: 46.7, lat: 24.6 };
+  const buildings = [{ id: 'BAT-01', point: [2.3, 48.9] }];
+  const mine = { ...me, buildings } as unknown as PlayerView['me'];
+
+  it('ouvre l’avant-poste visé quand il est à moi', () => {
+    expect(stationAtCombat(mine, { point: arabia, outpostId: 'AP-01' }, new Set(), 25)).toEqual({
+      kind: 'outpost',
+      outpostId: 'AP-01',
+    });
+  });
+
+  it('ouvre la pile qui tient encore le lieu, dans l’allonge', () => {
+    const near = { lon: 46.8, lat: 24.6 };
+    expect(stationAtCombat(mine, { point: near, outpostId: null }, new Set(), 25)).toMatchObject({
+      kind: 'point',
+      lonLat: [46.7, 24.6],
+    });
+  });
+
+  it('n’ouvre rien quand plus rien de moi ne s’y tient', () => {
+    expect(
+      stationAtCombat(mine, { point: arabia, outpostId: null }, new Set(['T-6']), 25),
+    ).toBeNull();
+    expect(
+      stationAtCombat(mine, { point: { lon: 60, lat: 10 }, outpostId: null }, new Set(), 25),
+    ).toBeNull();
   });
 });

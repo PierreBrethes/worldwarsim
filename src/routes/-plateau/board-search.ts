@@ -45,6 +45,13 @@ export type BoardSearch = {
    * consomme avant de se charger (`adoptSeason`) et la retire de l'adresse.
    */
   season?: string;
+  /**
+   * **La dépêche d'une attaque**, par l'identifiant de son engagement : l'adresse d'une
+   * notification d'attaque seule (`reportUrl`). Le plateau centre la carte sur le lieu et ouvre
+   * la dépêche — en feuille sous le seuil, dans le journal au-dessus —, puis la retire de
+   * l'adresse : c'est une arrivée, pas un état.
+   */
+  report?: string;
 };
 
 /** The two surfaces a focus can live in. Closing one of them lets it go — there is a single

@@ -1485,6 +1485,13 @@ export const fr = {
       string
     >,
     noColumn: 'pile : aucune troupe cochée',
+    /** La ligne au-dessus du bouton, sous le seuil (A7) : ce qui est coché, sans le slot — la
+     *  feuille de visée le dit au moment où il se paie. */
+    picked: (count: number) =>
+      count === 0
+        ? 'pile : aucune troupe cochée'
+        : `pile : ${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')}`,
+    lootShort: (capacity: number) => `butin : ${num(capacity)}`,
     prepare: 'préparer un mouvement',
     /** Founding is what a column does where it stands (ADR 0019 §1) — the terrain is under its
      *  feet when the specialisation is chosen, which is why the choice lives here. */
@@ -1520,6 +1527,57 @@ export const fr = {
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
+  },
+
+  /**
+   * **La visée sous le seuil** (lot mobile-3, A8 et A3 bis) : la feuille qui tient lieu de
+   * curseur de visée et de carte de confirmation sur un téléphone.
+   */
+  aimSheet: {
+    kicker: (count: number, from: string) =>
+      `visée · ${count} troupe${plural(count, '', 's')} depuis ${from}`,
+    slots: (used: number, total: number) => `mouv. ${used} / ${total}`,
+    reach: (km: number, time: string) => `${km} km · arrivée ${time}`,
+    pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées, celles hors champ s’annoncent au bord.',
+  },
+
+  /**
+   * **La dépêche d'un combat, ouverte depuis sa notification** (lot mobile-3, §6). Elle dit ce
+   * que le journal dit déjà, en lignes — et ne nomme pas l'assaillant : le compte rendu ne le
+   * nomme pas (ADR 0005).
+   */
+  dispatchSheet: {
+    kicker: (time: string) => `dépêche · ${time}`,
+    title: (attacking: boolean, intercepted: boolean, where: string) =>
+      intercepted
+        ? attacking
+          ? `Interception — ${where}`
+          : `Colonne interceptée — ${where}`
+        : attacking
+          ? `Engagement — ${where}`
+          : `Attaque subie — ${where}`,
+    engaged: 'engagées',
+    engagedValue: (mine: number, theirs: number) => `${mine} contre ${theirs}`,
+    losses: 'nos pertes',
+    lossesValue: (lost: number, destroyed: number, routed: number) =>
+      [
+        `${lost} homme${plural(lost, '', 's')}`,
+        destroyed > 0 ? `${destroyed} détruite${plural(destroyed, '', 's')}` : null,
+        routed > 0 ? `${routed} en déroute` : null,
+      ]
+        .filter((piece): piece is string => piece !== null)
+        .join(' · '),
+    theirs: 'en face',
+    theirsValue: (lost: number) =>
+      `${lost} homme${plural(lost, '', 's')} perdu${plural(lost, '', 's')}`,
+    ground: 'le terrain',
+    held: 'tenu',
+    lost: 'perdu',
+    outpost: 'avant-poste',
+    outpostDisabled: 'désactivé',
+    openGarrison: 'ouvrir la garnison',
+    openJournal: 'voir le journal',
+    later: 'plus tard',
   },
 
   /** La visée en carte : ce qui remplace la modale d’envoi. */

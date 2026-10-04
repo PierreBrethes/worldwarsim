@@ -555,7 +555,9 @@ function QueueRow({
   onCancel: (() => void) | null;
 }) {
   return (
-    <div className="flex items-center gap-[10px] border-b border-(color:--ink)/16 px-4 py-[8px]">
+    /* Une ligne de file est une cible sous le doigt, annulation comprise : 44 px au moins sous
+       le seuil (lot mobile-3, §4), la même mesure que le reste de la fenêtre. */
+    <div className="flex items-center gap-[10px] border-b border-(color:--ink)/16 px-4 py-[8px] max-md:min-h-[44px]">
       <UnitSprite
         nation={nation}
         role={batch.role}

@@ -17,6 +17,7 @@ import {
 import { liftOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { useNarrowScreen } from '@/shell/viewport';
 import { CargoReadout } from './CargoReadout';
 
 /**
@@ -49,6 +50,7 @@ export function GarrisonStack({
   observing: boolean;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
 }) {
+  const narrow = useNarrowScreen();
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
   /**
    * **Ce que le geste a dit, et rien de plus.** Purement client, jamais envoyé, jamais stocké :
@@ -120,7 +122,9 @@ export function GarrisonStack({
 
   return (
     <>
-      <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto">
+      {/* Sous le seuil la feuille défile d'un bloc : une seconde barre de défilement dans la
+          première ne se tient pas au doigt. */}
+      <div className={`flex flex-col gap-[6px] ${narrow ? '' : 'max-h-[46vh] overflow-auto'}`}>
         {rows.map(({ troop, carrier }) => {
           const on = picked.has(troop.id);
           const rides = (LIFT_COST[troop.role] ?? 0) > 0;
@@ -170,13 +174,13 @@ export function GarrisonStack({
                     : 'var(--critical)'
                   : undefined,
               }}
-              className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
+              className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left max-md:min-h-[44px] ${
                 composes ? 'cursor-pointer' : 'opacity-70'
               } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
             >
               {composes && (
                 <span
-                  className="flex h-[13px] w-[13px] shrink-0 items-center justify-center border border-[var(--ink)] text-[9px] leading-none"
+                  className="flex h-[13px] w-[13px] shrink-0 items-center justify-center border border-[var(--ink)] text-[9px] leading-none max-md:h-[22px] max-md:w-[22px] max-md:text-[14px]"
                   style={{
                     background: on ? 'var(--ink)' : undefined,
                     color: on ? 'var(--paper)' : 'transparent',
@@ -230,7 +234,7 @@ export function GarrisonStack({
         </div>
       )}
 
-      {composes && (
+      {composes && !narrow && (
         <div className="mt-[9px] font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           {fr.garrison.lootCapacity(carryCapacity)}
         </div>
@@ -252,7 +256,27 @@ export function GarrisonStack({
         </div>
       )}
 
-      {composes ? (
+      {/**
+       * **Sous le seuil, le bouton sous le pouce** (A7) : une ligne — ce qui est coché, ce que la
+       * pile peut ramener — puis « préparer un mouvement » sur toute la largeur, collé au pied
+       * de la feuille quand la liste défile.
+       */}
+      {composes && narrow ? (
+        <div className="paper-grain sticky bottom-0 mt-[11px] border-t border-(color:--ink)/32 pt-[8px] pb-[2px]">
+          <div className="flex items-baseline justify-between gap-3 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+            <span>{fr.garrison.picked(picked.size)}</span>
+            <span>{fr.garrison.lootShort(carryCapacity)}</span>
+          </div>
+          <button
+            type="button"
+            disabled={picked.size === 0}
+            onClick={() => onPrepare(station, [...picked])}
+            className="mt-[8px] min-h-[44px] w-full cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] text-[11px] tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {fr.garrison.prepare}
+          </button>
+        </div>
+      ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}

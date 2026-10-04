@@ -1,7 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { GarrisonStack } from './GarrisonStack';
+
+/** Au bureau : sous le seuil la capacité de butin se lit dans la ligne au-dessus du bouton. */
+vi.stubGlobal('matchMedia', (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+}));
 
 const station = { kind: 'home' } as const;
 const troop = (

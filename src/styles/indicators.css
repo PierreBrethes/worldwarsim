@@ -132,3 +132,32 @@
     animation: none;
   }
 }
+
+/* **Une destination hors champ, nommée au bord** (lot mobile-3, A8) : le nom et un chevron, en
+   cartouche, que le doigt touche pour y recentrer la carte. Le moteur pose le point du bord ; le
+   cartouche se tourne vers l'intérieur de l'écran. */
+.destination-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.destination-edge {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  zoom: var(--hud-scale);
+  pointer-events: auto;
+}

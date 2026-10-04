@@ -38,10 +38,17 @@ export function EdgeIndicators({
   labels,
   engine,
   toggles,
+  destinations,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
   toggles: IndicatorToggles;
+  /**
+   * **Les destinations de la colonne armée, nommées au bord quand elles sont hors champ** (lot
+   * mobile-3, A8). Elles ne se regroupent pas et ne suivent aucune bascule : chacune porte son
+   * nom, et un toucher y recentre la carte. Le même passage du moteur les pose.
+   */
+  destinations: ReadonlyMap<string, string>;
 }) {
   const kept = useMemo(
     () =>
@@ -60,6 +67,7 @@ export function EdgeIndicators({
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const latest = useRef<ReadonlyArray<LabelProjection>>([]);
+  const named = useRef(new Map<string, HTMLElement>());
 
   const compose = useCallback(() => {
     const raw = latest.current.flatMap<RawIndicator>((projection) => {
@@ -104,6 +112,27 @@ export function EdgeIndicators({
     if (!engine) return;
     engine.onEdges = (projections) => {
       latest.current = projections;
+      for (const projection of projections) {
+        const tag = named.current.get(projection.id);
+        if (tag === undefined) continue;
+        if (!projection.atEdge) {
+          tag.style.display = 'none';
+          continue;
+        }
+        tag.style.display = '';
+        /** Tourné vers l'intérieur : collé au bord droit, le cartouche part vers la gauche ; collé
+         *  en haut ou en bas, il se pose dans l'écran plutôt qu'à cheval sur le bord. */
+        const width = tag.parentElement?.clientWidth ?? 0;
+        const height = tag.parentElement?.clientHeight ?? 0;
+        const across = projection.edgeX > width / 2 ? '-100%' : '0';
+        const down =
+          projection.edgeY < height * 0.15
+            ? '0'
+            : projection.edgeY > height * 0.85
+              ? '-100%'
+              : '-50%';
+        tag.style.transform = `translate3d(${projection.edgeX}px, ${projection.edgeY}px, 0) translate(${across}, ${down})`;
+      }
       for (const sum of sums) {
         sum.x = sum.y = sum.count = 0;
       }
@@ -162,6 +191,27 @@ export function EdgeIndicators({
 
   return (
     <div className="edge-indicators">
+      {/* L'ancre porte la translation, le bouton le zoom de l'interface : réunis, le zoom
+          multiplierait aussi la position et le cartouche tomberait hors de l'écran. */}
+      {[...destinations].map(([id, name]) => (
+        <div
+          key={`destination-${id}`}
+          className="destination-anchor"
+          style={{ display: 'none' }}
+          ref={(node) => {
+            register(named.current, id, node);
+          }}
+        >
+          <button
+            type="button"
+            className="destination-edge"
+            onClick={() => engine?.journeyTo([id])}
+          >
+            {name}
+            <span aria-hidden>›</span>
+          </button>
+        </div>
+      ))}
       {groups.map((group) => (
         <div
           key={group.id}

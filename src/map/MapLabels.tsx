@@ -65,6 +65,7 @@ export function MapLabels({
   onAct,
   mapping,
   muted,
+  destinations,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
@@ -103,6 +104,8 @@ export function MapLabels({
   /** **Le mode de pose passe devant tout** : une étiquette qui répondrait au clic ferait deux
    *  réponses au geste qui n'en attend qu'une — le point de côte sous le curseur. */
   muted: boolean;
+  /** Les destinations de la colonne armée, cerclées au pied (lot mobile-3, A8). */
+  destinations: ReadonlySet<string>;
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
@@ -276,7 +279,11 @@ export function MapLabels({
             ref={(node) => {
               register(roots.current, label.id, node);
             }}
-            className={classesOf(label, label.id === selected || label.id === secondarySelected)}
+            className={classesOf(
+              label,
+              label.id === selected || label.id === secondarySelected,
+              destinations.has(label.id),
+            )}
             role={label.lootSightingId === null ? undefined : 'button'}
             tabIndex={label.lootSightingId === null ? undefined : 0}
             aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
@@ -459,9 +466,10 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
   else map.delete(id);
 }
 
-function classesOf(label: MapLabel, selected: boolean): string {
+function classesOf(label: MapLabel, selected: boolean, destination: boolean): string {
   return [
     'label',
+    destination ? 'label--destination' : '',
     'label--glyph',
     `label--${label.type}`,
     label.identified ? 'label--identified' : '',

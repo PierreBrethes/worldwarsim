@@ -115,6 +115,7 @@ export function journalDispatches(
       unread: readAt === null || entry.at > readAt,
       remaining: entry.remaining ?? null,
       resolutionAt: entry.resolutionAt ?? null,
+      combat: entry.combat ?? null,
     }));
 }
 
@@ -127,6 +128,7 @@ type Written = {
   readonly text: string;
   readonly remaining?: string | null;
   readonly resolutionAt?: string | null;
+  readonly combat?: CombatReport;
 };
 
 /**
@@ -548,6 +550,7 @@ const fromCombat = (report: CombatReport): Written => ({
     theirs: report.theirs,
     outpostDisabled: report.outpostDisabled,
   }),
+  combat: report,
 });
 
 const severityOf = (report: CombatReport): DispatchSeverity =>

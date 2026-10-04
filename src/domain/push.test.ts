@@ -8,15 +8,19 @@ import {
   journalUrl,
   pushPreferencesOf,
   readSeat,
+  reportUrl,
   telegraphUrl,
   type QueuedPush,
 } from './push';
 
+/** Une attaque porte l'adresse de sa dépêche, comme `convex/combat.ts` l'écrit ; le reste ouvre
+ *  le journal. */
 const row = (type: QueuedPush['type'], at: number, phrase = `phrase ${type}`): QueuedPush => ({
   type,
   at,
   phrase,
   label: phrase,
+  url: type === 'attack' ? reportUrl(`engagement-${at}`) : journalUrl,
 });
 
 describe('pushPreferencesOf', () => {
@@ -41,25 +45,30 @@ describe('groupAlarms', () => {
     expect(groupAlarms([row('telegraph', 1)], 's1')).toBeNull();
   });
 
-  it('envoie la phrase d’un événement seul, vers le journal', () => {
+  it('envoie la phrase d’une attaque seule, vers sa dépêche', () => {
     expect(groupAlarms([row('attack', 1, 'une passe')], 's1')).toEqual({
       body: 'une passe',
-      url: journalUrl,
+      url: '/plateau?report=engagement-1',
       tag: 's1:alarms',
     });
   });
 
-  it('résume plusieurs événements en une seule notification', () => {
+  it('envoie tout autre événement seul vers le journal', () => {
+    expect(groupAlarms([row('dryFire', 1)], 's1')?.url).toBe(journalUrl);
+  });
+
+  it('résume plusieurs événements, et mène à la seule attaque du lot', () => {
     const grouped = groupAlarms([row('sighting', 3), row('attack', 1), row('outpost', 2)], 's1');
     expect(grouped?.body).toBe(
       '3 alarmes : une passe de résolution, un avant-poste désactivé ou détruit, une colonne relevée.',
     );
-    expect(grouped?.url).toBe(journalUrl);
+    expect(grouped?.url).toBe(reportUrl('engagement-1'));
   });
 
-  it('compte les événements d’un même genre', () => {
+  it('compte les attaques groupées, et garde le journal', () => {
     const grouped = groupAlarms([row('attack', 1), row('attack', 2)], 's1');
     expect(grouped?.body).toBe('2 alarmes : 2 passes de résolution.');
+    expect(grouped?.url).toBe(journalUrl);
   });
 
   it('ne glisse pas le télégraphe dans le résumé', () => {

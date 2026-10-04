@@ -3,7 +3,7 @@ import { lootWords } from '@/domain/journal';
 import type { ObjectiveView } from '@/domain/player-view';
 import { objectiveArchetype } from '../../../convex/constants';
 import { ObjectivePlate } from '@/emblems/Plate';
-import { Draggable, DragHandle } from './Draggable';
+import { MapCard } from './MapCard';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Celle-ci lit ce qui est **public** —
@@ -27,59 +27,40 @@ export function ObjectiveBadge({
   at: { x: number; y: number };
   onClose: () => void;
 }) {
-  const fromRight = at.x > window.innerWidth / 2;
-  const fromBottom = at.y > window.innerHeight / 2;
   const name = fr.objectives.names[objective.key] ?? objective.key;
   const tier = fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '';
   const emptied = objective.status === 'taken';
 
   return (
-    <Draggable
-      className="absolute z-[var(--z-popin)]"
-      style={{
-        left: fromRight ? undefined : at.x + ANCHOR_GAP,
-        right: fromRight ? `calc(100% - ${at.x - ANCHOR_GAP}px)` : undefined,
-        top: fromBottom ? undefined : at.y + 14,
-        bottom: fromBottom ? `calc(100% - ${at.y - 14}px)` : undefined,
-      }}
+    <MapCard
+      kicker={fr.objectives.badgeKicker}
+      at={at}
+      gap={{ x: ANCHOR_GAP, y: 14 }}
+      width={228}
+      onClose={onClose}
     >
-      <div className="hud paper-grain w-[228px] border border-[var(--ink)] bg-[var(--paper)] px-[10px] py-[8px]">
-        <DragHandle className="flex items-baseline gap-2">
-          <span className="text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-            {fr.objectives.badgeKicker}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto cursor-pointer border border-[var(--ink)] px-[6px] py-[1px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
-
-        <div className="mt-[7px] flex items-center gap-[9px]">
-          {/* La planche de l'archétype, ou le cadre pointillé qui porte son nom : jamais une
+      <div className="mt-[7px] flex items-center gap-[9px]">
+        {/* La planche de l'archétype, ou le cadre pointillé qui porte son nom : jamais une
               image cassée pour un dessin qui n'existe pas encore. */}
-          <ObjectivePlate objective={objective.key} label={name} height={30} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold text-[var(--ink)]">{name}</span>
-            <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-              {tier}
-            </span>
+        <ObjectivePlate objective={objective.key} label={name} height={30} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-bold text-[var(--ink)] max-md:font-(family-name:--font-display) max-md:text-[20px] max-md:leading-[1.15] max-md:font-extrabold">
+            {name}
           </span>
-        </div>
-
-        <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-          {emptied
-            ? fr.objectives.emptied
-            : `${fr.objectives.depot} : ${lootWords(objective.depot)}`}
-        </p>
-
-        <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
-          {fr.objectives.unknownGarrison}
-        </p>
+          <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+            {tier}
+          </span>
+        </span>
       </div>
-    </Draggable>
+
+      <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+        {emptied ? fr.objectives.emptied : `${fr.objectives.depot} : ${lootWords(objective.depot)}`}
+      </p>
+
+      <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
+        {fr.objectives.unknownGarrison}
+      </p>
+    </MapCard>
   );
 }
 

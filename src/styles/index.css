@@ -152,7 +152,8 @@ body {
 }
 
 /* La feuille basse, à trois hauteurs (`shell/BottomSheet.tsx`). Le plein écran est tout ce qui
-   reste entre les deux bords — jamais par-dessus le bandeau ni la barre. */
+   reste entre les deux bords — jamais par-dessus le bandeau ni la barre. Les deux fractions sont
+   relues par `SHEET_SHARE` : la carte remonte ce qu'une feuille couvrira. */
 .board-sheet {
   --board-room: calc((100dvh - var(--board-top) - var(--board-bottom)) / var(--hud-scale));
   position: fixed;
@@ -172,6 +173,13 @@ body {
 
 .board-sheet[data-height='full'] {
   height: var(--board-room);
+}
+
+/* L'aperçu qui épouse son contenu (lot mobile-3) : une fiche, la visée, une dépêche. Jamais plus
+   haut que la moitié — au-delà, c'est au doigt de tirer la feuille. */
+.board-sheet[data-hug][data-height='peek'] {
+  height: auto;
+  max-height: min(var(--board-room), calc(50dvh / var(--hud-scale)));
 }
 
 /* La barre de pied descend sous la barre d'accueil de l'iPhone : le papier va jusqu'au bord et

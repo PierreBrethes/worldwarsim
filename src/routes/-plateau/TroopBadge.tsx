@@ -3,7 +3,8 @@ import { fr, roleLabel, stackLabel } from '@/i18n/fr';
 import { representativeRole, tierLabel } from '@/domain/troops';
 import type { CargoView, Stack, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
-import { Draggable, DragHandle } from './Draggable';
+import { useNarrowScreen } from '@/shell/viewport';
+import { MapCard } from './MapCard';
 import { GunneryButton } from './GunneryButton';
 import { CargoReadout } from './CargoReadout';
 
@@ -52,8 +53,7 @@ export function TroopBadge({
   onOpenGunnery: () => void;
   onClose: () => void;
 }) {
-  const fromRight = at.x > window.innerWidth / 2;
-  const fromBottom = at.y > window.innerHeight / 2;
+  const narrow = useNarrowScreen();
   const lead = leadOf(troops);
   if (lead === undefined) return null;
 
@@ -64,84 +64,69 @@ export function TroopBadge({
   const supplied = troops.every((troop) => troop.supplied);
 
   return (
-    /* Poussé à la main comme la garnison, et sans rien retenir : il est visé sur une pile, et
-       restituer la poussée d'hier l'arracherait à la troupe qu'il décrit (`Draggable`). */
-    <Draggable
-      className="absolute z-[var(--z-popin)]"
-      style={{
-        left: fromRight ? undefined : at.x + ANCHOR_GAP,
-        right: fromRight ? `calc(100% - ${at.x - ANCHOR_GAP}px)` : undefined,
-        top: fromBottom ? undefined : at.y + 14,
-        bottom: fromBottom ? `calc(100% - ${at.y - 14}px)` : undefined,
-      }}
+    <MapCard
+      kicker={fr.troops.badgeKicker}
+      aside={<GunneryButton onOpen={onOpenGunnery} />}
+      at={at}
+      gap={{ x: ANCHOR_GAP, y: 14 }}
+      width={228}
+      onClose={onClose}
     >
-      <div className="hud paper-grain w-[228px] border border-[var(--ink)] bg-[var(--paper)] px-[10px] py-[8px]">
-        <DragHandle className="flex items-baseline gap-2">
-          <span className="text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-            {fr.troops.badgeKicker}
+      <div className="mt-[7px] flex items-center gap-[9px]">
+        <UnitSprite nation={nation} role={lead.role} height={28} width={40} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-bold text-[var(--ink)] max-md:font-(family-name:--font-display) max-md:text-[20px] max-md:leading-[1.15] max-md:font-extrabold">
+            {troops.length > 1
+              ? stackLabel(stackOf(troops))
+              : `${roleLabel(lead.role, 1)} · ${tierLabel(lead.tier)}`}
           </span>
-          <GunneryButton onOpen={onOpenGunnery} />
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto cursor-pointer border border-[var(--ink)] px-[6px] py-[1px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
-
-        <div className="mt-[7px] flex items-center gap-[9px]">
-          <UnitSprite nation={nation} role={lead.role} height={28} width={40} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
-              {troops.length > 1
-                ? stackLabel(stackOf(troops))
-                : `${roleLabel(lead.role, 1)} · ${tierLabel(lead.tier)}`}
-            </span>
-            <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-              {fr.troops.strength(strength, nominal)}
-            </span>
+          <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+            {fr.troops.strength(strength, nominal)}
           </span>
-        </div>
+        </span>
+      </div>
 
-        {/* Ce que la fenêtre « visée armée » disait d'unique, rendu à la pile qu'il décrit. */}
-        {troops.length > 1 && (
-          <p className="mt-[6px] text-[10.5px] tracking-[.06em] text-[var(--ink-soft)] uppercase">
-            {fr.troops.badgePile(troops.length)}
-          </p>
-        )}
-
-        <p
-          className="mt-[6px] font-(family-name:--font-mono) text-[10.5px]"
-          style={{ color: supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
-        >
-          {supplied ? fr.troops.supplied : fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+      {/* Ce que la fenêtre « visée armée » disait d'unique, rendu à la pile qu'il décrit. */}
+      {troops.length > 1 && (
+        <p className="mt-[6px] text-[10.5px] tracking-[.06em] text-[var(--ink-soft)] uppercase">
+          {fr.troops.badgePile(troops.length)}
         </p>
+      )}
 
-        {/* Ce que le cercle tracé sur la carte veut dire, une fois, à côté de lui (ADR 0019 §5). */}
-        <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)))}
-        </p>
+      <p
+        className="mt-[6px] font-(family-name:--font-mono) text-[10.5px]"
+        style={{ color: supplied ? 'var(--ink-soft)' : 'var(--critical)' }}
+      >
+        {supplied ? fr.troops.supplied : fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+      </p>
 
-        {cargo.map((group) => (
-          <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
-        ))}
+      {/* Ce que le cercle tracé sur la carte veut dire, une fois, à côté de lui (ADR 0019 §5). */}
+      <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+        {fr.troops.badgeScouting(detectionRangeOf(troops.map((troop) => troop.role)))}
+      </p>
 
-        {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste
+      {cargo.map((group) => (
+        <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
+      ))}
+
+      {/* **Désigner arme**, donc le cartouche est en visée dès qu'il paraît : il nomme le geste
             qui reste et la sortie, et il ne porte aucun bouton d'ordre — la carte agit, la popin
             lit. Un observateur n'a plus d'ailleurs à viser : le pied se tait pour lui. */}
-        {aiming && (
-          <>
-            <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
-              {fr.troops.badgeAiming}
-            </p>
+      {/* Sous le seuil il n'y a ni clic droit ni Échap : la feuille dit le toucher, et c'est son
+          « fermer » qui désarme. */}
+      {aiming && (
+        <>
+          <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
+            {narrow ? fr.aimSheet.pick : fr.troops.badgeAiming}
+          </p>
+          {!narrow && (
             <p className="mt-[3px] text-[10px] leading-[1.35] text-[var(--ink-quiet)]">
               {fr.troops.badgeDisarm}
             </p>
-          </>
-        )}
-      </div>
-    </Draggable>
+          )}
+        </>
+      )}
+    </MapCard>
   );
 }
 
