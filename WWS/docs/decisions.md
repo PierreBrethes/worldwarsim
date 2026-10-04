@@ -1,7 +1,7 @@
 ---
 type: index
 statut: en cours
-maj: 2026-10-02
+maj: 2026-10-04
 code: []
 decisions: []
 voir: [adr/README.md, ../QUESTIONS.md, RESTE-A-CODER.md, ../INDEX.md]
@@ -15,7 +15,7 @@ voir: [adr/README.md, ../QUESTIONS.md, RESTE-A-CODER.md, ../INDEX.md]
 
 - Forme `<code>-<AAAA-MM-JJ>` : `85a-2026-09-10`, `1b-2026-09-13`. Le code est celui que les documents citent (« décision 72a », « 1b du 13/09 »), la date est celle de la décision, pas de la livraison.
 - Deux numérotations coexistent. La **série globale** monte avec le temps du 16/08 au 11/09 (12a… 91a). Les **numérotations de session** repartent à `1a` : on en trouve dès le 25/08, puis le 06/09, le 13/09, le 15/09 et le 16/09 ; seule la date distingue deux `1a`.
-- Préfixes de série : `D1`… (listes de décisions d'un brief), `registre-N` (items du Registre de [RESTE-A-CODER](RESTE-A-CODER.md)), `marque-` et `plan-` (note [marque-et-site](marque/marque-et-site.md)).
+- Préfixes de série : `D1`… (listes de décisions d'un brief), `registre-N` (items du Registre de [RESTE-A-CODER](RESTE-A-CODER.md)), `marque-` et `plan-` (note [marque-et-site](marque/marque-et-site.md)), `menage-` (ménage du dépôt, 04/10).
 - `pierre-AAAA-MM-JJ-mot-clé` : décision datée et nommée, sans numéro.
 - `ADR NNNN` : l'ADR entière ; une révision datée s'écrit `ADR NNNN rév. AAAA-MM-JJ`.
 
@@ -127,6 +127,9 @@ Les codes `1a` (terrain) et `2a` (retranchement) du 16/09 et le `2a` du 17/09 so
 | `plan-2a-2026-10-02` | 2026-10-02 | Le nom sera français (ADR 0016). | en vigueur | [marque-et-site](marque/marque-et-site.md) |
 | `plan-3b-2026-10-02` | 2026-10-02 | Deux films : 30 s avec son, boucle muette de 8 s. | en vigueur | [marque-et-site](marque/marque-et-site.md) |
 | `plan-4b-2026-10-02` | 2026-10-02 | Les vidéos vivent dans un dossier média du VPS, hors du dépôt. | en vigueur | [marque-et-site](marque/marque-et-site.md) |
+| `menage-1c-2026-10-04` | 2026-10-04 | Le ménage de la doc suit une seule voie, fusionnée : les prompts `menage-2` à `menage-6` remplacent les prompts outillage 21, 22, 24, 25, 27 à 33 et 72 et le temps 2 du coffre (24, 25 et 30 réutilisés, recalés) ; 23 et 26, corrections de fond, restent ; en-têtes YAML limités aux ADR, fiches et propositions, le statut des autres notes vit dans `WWS/INDEX.md`. | en vigueur | [état de la série outillage](rapports/2026-10-04-etat-outillage.md) |
+| `menage-2a-2026-10-04` | 2026-10-04 | Les binaires lourds (captures, vieux film, bruts de sprites) sortent de `HEAD` ; l'historique git n'est pas réécrit. | en vigueur | [menage-1-binaires-hors-du-depot](prompts/code/ready/menage-1-binaires-hors-du-depot.md) |
+| `menage-3a-2026-10-04` | 2026-10-04 | Le Project claude.ai ne garde que `FORMAT-REPONSE.md` ; handoffs, audits, état et teaser en sont retirés (copie dans `Claude outputs/project-claude-ai/`). | en vigueur | [LISEZ-MOI](../../Claude%20outputs/project-claude-ai/LISEZ-MOI.md) |
 
 `S2` à `S9` et leurs sous-lots (`S5b`, `S6a-2b.1`…) sont les lots d'exécution du pillage dans [RESTE-A-CODER](RESTE-A-CODER.md) : des tâches, pas des décisions. La seule qui a un effet de règle, `S5b`, est la révision `ADR 0019 rév. S5b 2026-09-09` plus bas.
 
