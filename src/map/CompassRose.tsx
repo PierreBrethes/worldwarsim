@@ -21,8 +21,8 @@ import { fr } from '@/i18n/fr';
  *
  * **Sous le seuil, la rose se lit sans toucher** (lot mobile-3, A6) : médaillons de 48 px, le
  * libellé en cartouche à côté de chacun, et « marcher » en encre pleine parce que c'est la branche
- * qu'on prend le plus. Le pictogramme n'est plus muet, donc le premier toucher agit — sauf sur une
- * branche retenue, qui n'a que sa raison à donner. Et elle tient entière dans l'écran : mesurée à
+ * qu'on prend le plus. Le pictogramme n'est plus muet, donc le premier toucher agit — sauf là où
+ * il ne faut pas (`readsFirst`). Et elle tient entière dans l'écran : mesurée à
  * l'ouverture, elle demande à la carte de se recaler sous elle (`onFit`) plutôt que de quitter le
  * point qu'elle désigne.
  *
@@ -230,10 +230,7 @@ export function CompassRose({
                   onClick={() => {
                     const touched = pressedWith.current === 'touch';
                     pressedWith.current = 'mouse';
-                    /** Le libellé est déjà écrit sous le doigt : seule une branche retenue a
-                     *  encore quelque chose à faire lire avant de ne pas partir. */
-                    const mustRead = finger === null || held;
-                    if (touched && mustRead && read !== rank) {
+                    if (touched && readsFirst(candidate, finger !== null) && read !== rank) {
                       setRead(rank);
                       setHovered(rank);
                       return;
@@ -390,6 +387,29 @@ function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> })
     </>
   );
 }
+
+/**
+ * **Les branches qui paient sans carte de confirmation se touchent deux fois** (sous le seuil).
+ * Élever, monter un point, fonder, changer de métier partent au serveur dès l'action, et la
+ * facture n'est écrite que dans la bulle : le premier toucher la montre — prix, refus éventuel —,
+ * le second agit, un toucher ailleurs annule (la rose se referme). Les autres gardent le toucher
+ * unique : viser, piller et ramasser ouvrent un aperçu qui confirme, bâtir ouvre un panneau, raser
+ * et démanteler ouvrent leur carte.
+ */
+const CONFIRMED_BY_SECOND_TOUCH: ReadonlyArray<CompassAction['key']> = [
+  'upgrade',
+  'raiseOutpost',
+  'found',
+  'specialize',
+];
+
+/**
+ * Ce qu'un toucher fait d'abord sur ce médaillon : lire (`true`) ou agir. Hors du seuil, le doigt
+ * lit toujours avant d'agir — le pictogramme y est muet (mobile-1c). Une branche retenue lit
+ * toujours : elle n'a que sa raison à donner. La souris, elle, n'entre jamais ici.
+ */
+export const readsFirst = (action: CompassAction, captioned: boolean): boolean =>
+  !captioned || isHeld(action) || CONFIRMED_BY_SECOND_TOUCH.includes(action.key);
 
 /** La seule branche que le jeu grise, et la règle tient en une ligne pour qu'aucune autre ne
  *  puisse le devenir par distraction (ADR 0015, exception 54a). */
