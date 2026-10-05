@@ -5,7 +5,7 @@ import { Masthead } from '@/shell/Masthead';
 import { ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet, fittedWordmark } from '@/shell/EntrySheet';
+import { EntrySheet } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
@@ -39,7 +39,7 @@ function Sheet({
   return (
     <EntrySheet width={WIDTH} turning={turning}>
       <div className="px-(--sheet-pad) pt-[18px] pb-[16px] text-center">
-        <Masthead date={fr.auth.dateline} wordmarkSize={fittedWordmark(54)} />
+        <Masthead date={fr.auth.dateline} wordmarkMax={54} />
         <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
           {tagline}
         </p>

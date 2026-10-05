@@ -68,11 +68,12 @@ export function Wordmark({ size = 34 }: { size?: number | string }) {
 export function Masthead({
   date,
   dateline = fr.masthead.dateline,
-  wordmarkSize = 54,
+  wordmarkMax = 54,
 }: {
   date: ReactNode;
   dateline?: ReactNode;
-  wordmarkSize?: number | string;
+  /** Le plafond de l'enseigne au bureau, en pixels de la feuille ; en deçà, elle suit la colonne. */
+  wordmarkMax?: number;
 }) {
   return (
     <div className="text-[var(--ink)]">
@@ -80,8 +81,10 @@ export function Masthead({
         <div className="h-[3px] bg-[var(--ink)]" />
         <div className="mt-[2px] h-px bg-[var(--ink)]" />
       </div>
-      <div className="flex justify-center py-[18px]">
-        <Wordmark size={wordmarkSize} />
+      <div className="py-[18px]">
+        <div className="@container text-center [zoom:calc(1/var(--hud-scale))]">
+          <Wordmark size={fittedWordmark(wordmarkMax)} />
+        </div>
       </div>
       <div aria-hidden className="h-px bg-[var(--ink)]" />
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pt-[6px] text-[10px] tracking-[.2em] text-[var(--ink-note)] uppercase">
@@ -91,3 +94,18 @@ export function Masthead({
     </div>
   );
 }
+
+/**
+ * **L'enseigne à la largeur de sa colonne**, plafonnée à `max` : la manchette fait un peu moins
+ * de huit fois sa taille de large (mesuré, « la » compris).
+ *
+ * **Son conteneur annule le zoom de la feuille**, comme celui du champ de code (`FrontPage`) :
+ * WebKit lit `cqi` sur la taille d'écran puis le zoome encore (voir `index.css`), et l'enseigne
+ * sortait de la feuille d'autant que l'échelle d'interface — 1,2 × par défaut, sur l'iPhone. À
+ * l'échelle 1 les deux moteurs s'accordent ; le plafond, écrit en pixels de la feuille, se
+ * remultiplie par l'échelle pour rester ce qu'il dit au bureau.
+ */
+const fittedWordmark = (max: number): string =>
+  `min(calc(${max}px * var(--hud-scale)), calc(100cqi / ${WORDMARK_WIDTH_PER_SIZE}))`;
+
+const WORDMARK_WIDTH_PER_SIZE = 7.4;

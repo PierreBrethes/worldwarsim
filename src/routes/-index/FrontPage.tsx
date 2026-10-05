@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { fr } from '@/i18n/fr';
 import boardBackdrop from '@/shell/board-backdrop.jpg';
-import { EntrySheet, fittedWordmark } from '@/shell/EntrySheet';
+import { EntrySheet } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Masthead } from '@/shell/Masthead';
 import { LOOP_POSTER_URL, LOOP_URL } from '@/shell/media';
@@ -49,7 +49,7 @@ export function FrontPage() {
       <EntrySheet width={1000} turning={turning} backdrop="map">
         <div className="px-(--sheet-pad) pt-[18px] pb-[22px]">
           <Masthead
-            wordmarkSize={fittedWordmark(64)}
+            wordmarkMax={64}
             dateline={
               <>
                 <span className="md:hidden">{fr.front.shortDateline}</span>

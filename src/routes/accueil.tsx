@@ -8,7 +8,6 @@ import type { PlayableRegion } from '@/domain/ids';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
-import { fittedWordmark } from '@/shell/EntrySheet';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
@@ -48,7 +47,7 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
         {/* La date a quitté l'oreille pour la ligne de date de la manchette, qui est sa place
             dans un quotidien — et il n'y en a qu'une sur la page. */}
         <div className="px-(--sheet-pad) pt-[6px] pb-[18px] text-center">
-          <Masthead date={romanDate(new Date())} wordmarkSize={fittedWordmark(54)} />
+          <Masthead date={romanDate(new Date())} wordmarkMax={54} />
           <p className="mt-[13px] text-[11.5px] tracking-[.2em] text-[var(--ink-note)] uppercase">
             {fr.home.tagline}
           </p>

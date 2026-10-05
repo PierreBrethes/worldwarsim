@@ -60,31 +60,38 @@ export function Newspaper({
       {backdrop === 'film' ? <FilmTable /> : <MapTable />}
       {/* `m-auto` on the sheet rather than `items-center` on the scroller: auto margins centre
           what fits and give up the moment it does not, where centred alignment would keep
-          eating the top of a page taller than the window and put it out of reach. */}
-      <div className="relative flex h-full justify-center overflow-auto px-[clamp(16px,4vw,72px)] py-[26px]">
-        <div className="hud relative m-auto max-w-full" style={{ width }}>
-          <div
-            aria-hidden
-            className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
-          />
-          <div
-            aria-hidden
-            className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-(color:--map-desk)/55 bg-[var(--paper-pile)] shadow-[0_9px_21px_rgba(0,0,0,.45)]"
-          />
-          <div
-            className="relative origin-left"
-            style={turning === null ? undefined : { animation: ANIMATION[turning] }}
-          >
-            {children}
+          eating the top of a page taller than the window and put it out of reach.
+          La feuille ne défile qu'en hauteur : les piles de papier débordent la feuille par
+          construction, leur rotation d'autant plus que la page est haute, et un débordement de
+          côté se lisait au doigt comme une page qui glisse. Le cadre intérieur les rogne sans
+          devenir un défileur (`clip`, pas `hidden`), donc rien ne compte dans la largeur
+          défilable ; le défileur redit `clip` pour ce qu'on y posera un jour. */}
+      <div className="relative h-full overflow-x-clip overflow-y-auto">
+        <div className="flex min-h-full justify-center overflow-x-clip px-[clamp(16px,4vw,72px)] py-[26px]">
+          <div className="hud relative m-auto max-w-full" style={{ width }}>
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-              style={{
-                opacity: turning === 'exit' ? 1 : 0,
-                background:
-                  'linear-gradient(90deg, color-mix(in srgb, var(--map-desk) 60%, transparent) 0%, color-mix(in srgb, var(--map-desk) 12%, transparent) 45%, color-mix(in srgb, var(--map-desk) 0%, transparent) 75%)',
-              }}
+              className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
             />
+            <div
+              aria-hidden
+              className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-(color:--map-desk)/55 bg-[var(--paper-pile)] shadow-[0_9px_21px_rgba(0,0,0,.45)]"
+            />
+            <div
+              className="relative origin-left"
+              style={turning === null ? undefined : { animation: ANIMATION[turning] }}
+            >
+              {children}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+                style={{
+                  opacity: turning === 'exit' ? 1 : 0,
+                  background:
+                    'linear-gradient(90deg, color-mix(in srgb, var(--map-desk) 60%, transparent) 0%, color-mix(in srgb, var(--map-desk) 12%, transparent) 45%, color-mix(in srgb, var(--map-desk) 0%, transparent) 75%)',
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

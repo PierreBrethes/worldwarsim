@@ -31,13 +31,3 @@ export function EntrySheet({
 
 /** Ce qu'il faut toucher, au doigt comme à la souris : le mot ne grossit pas, son creux si. */
 export const TOUCH_TARGET = 'inline-flex min-h-11 items-center';
-
-/**
- * **L'enseigne à la largeur de la feuille**, plafonnée à `max` : la manchette fait un peu moins
- * de huit fois sa taille de large (mesuré, « la » compris), et `cqi` est la feuille elle-même,
- * qui est le conteneur.
- */
-export const fittedWordmark = (max: number): string =>
-  `min(${max}px, calc((100cqi - 2 * var(--sheet-pad)) / ${WORDMARK_WIDTH_PER_SIZE}))`;
-
-const WORDMARK_WIDTH_PER_SIZE = 7.4;
