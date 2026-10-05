@@ -47,13 +47,21 @@ export function NationBanner({ view }: { view: PlayerView }) {
     >
       {/* **La manchette réduite, à la tête du seul en-tête du jeu.** Le pavé et sa suite, rien
           d'autre : la ligne de date et les filets appartiennent au papier, pas à une barre de
-          42 px. Il ne mène nulle part — le plateau *est* la destination.
+          42 px. **Elle ramène à l'accueil** (05/10) : elle ne menait nulle part, et le plateau
+          ne se quittait que par la déconnexion — un compte à deux parties ne passait de l'une
+          à l'autre qu'en se reconnectant. La place active reste gardée : le retour du
+          navigateur rend le plateau.
 
           L'encre de la barre est celle du papier (`.hud` sert `--ink`) : « SIM » prend la
           couleur courante et disparaissait sur le bureau sombre. Ici il tire du papier. */}
-      <div className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3 text-[var(--paper)]">
+      <Link
+        to="/accueil"
+        title={fr.banner.home}
+        aria-label={fr.banner.home}
+        className="flex h-full shrink-0 items-center border-r border-[var(--ink-quiet)] px-3 text-[var(--paper)] hover:bg-[var(--ink)]"
+      >
         <Wordmark size={15} />
-      </div>
+      </Link>
 
       <NationCartouche nation={me.nation} height={BANNER_HEIGHT} />
 

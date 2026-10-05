@@ -216,6 +216,24 @@ export function SettingsWindow({
             </button>
           </div>
 
+          {/* **La sortie du plateau qui n'est pas une déconnexion** : au téléphone le bandeau ne
+              porte pas la manchette, et c'est ici que le dossier de la nation mène. */}
+          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="min-w-[180px] flex-1">
+              <div className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.homeLabel}</div>
+              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+                {fr.settingsWindow.homeNote}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void navigate({ to: '/accueil' })}
+              className="shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            >
+              {fr.settingsWindow.home}
+            </button>
+          </div>
+
           {/* **Le seul pouvoir de fondateur du plateau**, et il est rangé ici parce qu'une saison
               sans horloge n'a pas d'autre fin. Deux clics, comme la suppression d'une partie :
               c'est la même famille de geste, sauf que rien n'est effacé. */}

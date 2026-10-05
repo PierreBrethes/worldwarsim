@@ -51,6 +51,13 @@ it('names each field by a real label', async () => {
   expect(screen.getByLabelText(fr.auth.passwordLabel)).toBeTruthy();
 });
 
+/** La une mène ici ; sans ce lien, seul le retour du navigateur ramenait à la une. */
+it('leads back to the front page', async () => {
+  mount();
+  const exit = await screen.findByRole('link', { name: fr.front.back });
+  expect(exit.getAttribute('href')).toBe('/');
+});
+
 it('announces a refusal and ties it to the fields it concerns', async () => {
   mount();
   const nickname = await screen.findByLabelText(fr.auth.nicknameLabel);

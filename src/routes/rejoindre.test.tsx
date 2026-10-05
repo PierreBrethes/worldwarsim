@@ -93,6 +93,26 @@ it('says who invites and what is left, and offers the account form to a stranger
   expect(screen.getByLabelText(fr.auth.nicknameLabel)).toBeTruthy();
 });
 
+/**
+ * **La feuille se quitte dans tous ses états, et vers la page d'où l'on vient** : la une pour un
+ * visiteur — l'accueil le renverrait à la connexion, pas au champ où retaper son code —,
+ * l'accueil pour un compte.
+ */
+it('leads a stranger back to the front page, even with nothing refused', async () => {
+  mount({ invitation: OPEN });
+
+  const exit = await screen.findByRole('link', { name: fr.front.back });
+  expect(exit.getAttribute('href')).toBe('/');
+});
+
+it('leads a signed-in account back home, even with nothing refused', async () => {
+  keepSession('jeton-connu');
+  mount({ invitation: OPEN, me: { nickname: 'Léa' } });
+
+  const exit = await screen.findByRole('link', { name: fr.invitation.toHome });
+  expect(exit.getAttribute('href')).toBe('/accueil');
+});
+
 it('joins and opens the lobby for an account that is already signed in', async () => {
   keepSession('jeton-connu');
   const { join } = mount({ invitation: OPEN, me: { nickname: 'Léa' } });
@@ -125,11 +145,11 @@ it.each([
   ['SEASON_CONCLUDED', fr.errors.SEASON_CONCLUDED()],
   ['NO_FREE_NATION', fr.errors.NO_FREE_NATION()],
   ['LOBBY_FULL', fr.errors.LOBBY_FULL({ maximum: 8 })],
-])('says a %s refusal in a sentence and leads home', async (refusal, sentence) => {
+])('says a %s refusal in a sentence and leads out', async (refusal, sentence) => {
   mount({ invitation: { ...OPEN, refusal } });
 
   expect(await screen.findByText(sentence)).toBeTruthy();
-  expect(screen.getByRole('link', { name: fr.invitation.toHome })).toBeTruthy();
+  expect(screen.getByRole('link', { name: fr.front.back })).toBeTruthy();
   expect(screen.queryByLabelText(fr.auth.nicknameLabel)).toBeNull();
 });
 

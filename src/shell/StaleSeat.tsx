@@ -13,5 +13,5 @@ import { forgetSeat } from '@/data/session';
  */
 export function StaleSeat({ to }: { to: '/accueil' | '/salon' }) {
   useEffect(forgetSeat, []);
-  return <Navigate to={to} />;
+  return <Navigate to={to} replace />;
 }

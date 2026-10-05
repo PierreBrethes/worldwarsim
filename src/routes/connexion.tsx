@@ -5,7 +5,7 @@ import { Masthead } from '@/shell/Masthead';
 import { ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet } from '@/shell/EntrySheet';
+import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
@@ -48,6 +48,7 @@ function Sheet({
       <ThickRuleInverse margin="var(--sheet-pad)" />
 
       {children}
+      <SheetExit />
     </EntrySheet>
   );
 }
@@ -62,9 +63,11 @@ export function ConnectedSignIn() {
     <Sheet turning={turning} tagline={registering ? fr.auth.registerTagline : fr.auth.loginTagline}>
       <AccountForm
         onModeChange={setRegistering}
-        onSignedIn={() => turn(() => void navigate({ to: '/accueil' }))}
+        /** L'accueil prend la place du formulaire : le retour du navigateur ne ramène pas un
+         *  joueur connecté devant ses deux champs. */
+        onSignedIn={() => turn(() => void navigate({ to: '/accueil', replace: true }))}
       />
-      <div className="mx-(--sheet-pad) pb-5 text-center">
+      <div className="mx-(--sheet-pad) text-center">
         <FilmTrailer />
       </div>
     </Sheet>

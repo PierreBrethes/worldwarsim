@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
+import { fr } from '@/i18n/fr';
+import { useSession } from '@/data/session';
 import { Newspaper, type Turning } from './Newspaper';
 
 /**
@@ -31,3 +34,22 @@ export function EntrySheet({
 
 /** Ce qu'il faut toucher, au doigt comme à la souris : le mot ne grossit pas, son creux si. */
 export const TOUCH_TARGET = 'inline-flex min-h-11 items-center';
+
+/**
+ * **La sortie d'une feuille d'entrée** : la une pour qui n'a pas de compte, l'accueil pour qui en
+ * a un. La connexion et l'invitation ne se quittaient que par le retour du navigateur — et un
+ * visiteur renvoyé à l'accueil y trouvait la porte du compte, pas la page d'où il venait.
+ */
+export function SheetExit() {
+  const signedIn = useSession() !== null;
+  return (
+    <div className="mx-(--sheet-pad) pb-2 text-center">
+      <Link
+        to={signedIn ? '/accueil' : '/'}
+        className={`text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
+      >
+        {signedIn ? fr.invitation.toHome : fr.front.back}
+      </Link>
+    </div>
+  );
+}

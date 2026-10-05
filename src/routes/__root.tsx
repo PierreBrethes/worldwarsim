@@ -60,7 +60,9 @@ function Root() {
 export function SignedIn() {
   const token = useSession();
   const me = useAccount(token);
-  if (token === null || me === null) return <Navigate to="/connexion" />;
+  /** `replace` : une garde qui empilerait son renvoi rendrait le retour du navigateur à la
+   *  feuille gardée, qui renverrait encore — on ne sortirait plus de la connexion. */
+  if (token === null || me === null) return <Navigate to="/connexion" replace />;
   /** Le temps d'un aller-retour, rien : un écran de chargement entre deux feuilles du même
    *  journal se verrait comme un clignotement. */
   if (me === undefined) return null;

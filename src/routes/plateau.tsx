@@ -278,7 +278,9 @@ export const Route = createFileRoute('/plateau')({
  */
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
-  if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') return <Navigate to="/salon" />;
+  if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') {
+    return <Navigate to="/salon" replace />;
+  }
   if (code === 'NO_SEAT' || code === 'SEASON_GONE') return <StaleSeat to="/accueil" />;
   return <ErrorScreen error={error} reset={reset} />;
 }

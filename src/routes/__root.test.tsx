@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from '@tanstack/react-router';
 import { ConvexProvider } from 'convex/react';
 import type { ConvexReactClient, Watch } from 'convex/react';
 import { afterEach, expect, it } from 'vitest';
@@ -56,6 +63,34 @@ it('ne rend la porte qu’un nombre borné de fois, session en main', () => {
   );
 
   expect(renders.count).toBeLessThanOrEqual(RENDER_CEILING);
+});
+
+/**
+ * **Le renvoi de la garde remplace, il n'empile pas.** Empilé, le retour du navigateur rendait
+ * la feuille gardée, qui renvoyait encore : on ne remontait jamais plus haut que la connexion.
+ */
+it('renvoie à la connexion sans laisser la feuille gardée dans l’historique', async () => {
+  const root = createRootRoute();
+  const page = (path: string, component: () => React.ReactNode) =>
+    createRoute({ getParentRoute: () => root, path, component });
+  const router = createRouter({
+    routeTree: root.addChildren([
+      page('/', () => null),
+      page('/accueil', () => <SignedIn />),
+      page('/connexion', () => null),
+    ]),
+    history: createMemoryHistory({ initialEntries: ['/', '/accueil'] }),
+  });
+  render(
+    <ConvexProvider client={pendingClient()}>
+      <RouterProvider router={router} />
+    </ConvexProvider>,
+  );
+  await waitFor(() => expect(router.state.location.pathname).toBe('/connexion'));
+
+  act(() => router.history.back());
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/'));
 });
 
 /**

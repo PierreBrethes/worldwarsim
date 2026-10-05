@@ -1,11 +1,11 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { fr, clockLabel } from '@/i18n/fr';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet, TOUCH_TARGET } from '@/shell/EntrySheet';
+import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 import { Wordmark } from '@/shell/Masthead';
 import { ThickRule, ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
@@ -46,6 +46,7 @@ function Sheet({ turning, children }: { turning: Turning; children: ReactNode })
       </div>
       <ThickRule margin="var(--sheet-pad)" />
       {children}
+      <SheetExit />
     </EntrySheet>
   );
 }
@@ -56,7 +57,8 @@ function Sheet({ turning, children }: { turning: Turning; children: ReactNode })
  * formulaire de compte si personne n'est connecté, un bouton sinon — et si la place existe déjà,
  * elle se reprend comme à l'accueil.
  *
- * Un refus est une phrase et une sortie (ADR 0015). **Le compte peut naître sans place** : si
+ * Un refus est une phrase et une sortie (ADR 0015) — la sortie est au pied de la feuille, dans
+ * tous ses états (`SheetExit`), pas seulement sous un refus. **Le compte peut naître sans place** : si
  * `join` refuse après l'inscription — le salon s'est rempli entre-temps —, la session reste, la
  * page le dit et mène à l'accueil.
  */
@@ -90,22 +92,12 @@ export function InvitationPage({ code: raw }: { code: string }) {
     }
   };
 
-  const home = (
-    <Link
-      to="/accueil"
-      className={`mt-4 text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
-    >
-      {fr.invitation.toHome}
-    </Link>
-  );
-
   const sentence = (message: string, extra?: string) => (
-    <div className="mx-(--sheet-pad) py-6">
+    <div className="mx-(--sheet-pad) pt-6 pb-4">
       <p role="alert" className="border border-[var(--critical)] px-3 py-2 text-[13px]">
         {message}
       </p>
       {extra !== undefined && <p className="mt-3 text-[12px] text-[var(--ink-note)]">{extra}</p>}
-      {home}
     </div>
   );
 

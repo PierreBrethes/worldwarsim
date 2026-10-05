@@ -38,7 +38,7 @@ const WIDTH = 760;
 
 function Lobby() {
   const seat = useSeat();
-  if (!convexClient || !seat) return <Navigate to="/accueil" />;
+  if (!convexClient || !seat) return <Navigate to="/accueil" replace />;
   return <ConnectedLobby seat={seat} />;
 }
 
@@ -56,7 +56,10 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const { run: runOnce } = useSingleFlight();
 
-  const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
+  /** **Le plateau prend la place du salon dans l'historique** : une saison lancée n'a plus de
+   *  salon à montrer à un belligérant, et y revenir par le retour du navigateur rejouait le
+   *  lancement puis ramenait au plateau — on ne remontait jamais jusqu'à l'accueil. */
+  const toBoard = useCallback(() => void navigate({ to: '/plateau', replace: true }), [navigate]);
 
   if (lobby === undefined) {
     return (

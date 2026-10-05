@@ -652,6 +652,8 @@ export const fr = {
     accountTitle: 'Déjà un compte ?',
     signIn: 'se connecter',
     haveCode: 'j’ai un code',
+    /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
+    back: 'retour à la une',
     briefs: [
       {
         kicker: 'la saison',
@@ -841,6 +843,7 @@ export const fr = {
   },
 
   banner: {
+    home: 'retour à l’accueil — vos parties',
     journalEmpty: 'journal — rien à signaler',
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
@@ -2335,6 +2338,11 @@ export const fr = {
     briefingLabel: 'Aide-mémoire du commandement',
     briefingNote: 'La feuille d’entrée en campagne — les commandes, le terrain, vos bureaux.',
     briefingReopen: 'relire',
+    /** Quitter le plateau n'est ni se déconnecter ni rendre sa place : la note le dit, sans
+     *  quoi le bouton se lirait comme un abandon à côté de « déposer les armes ». */
+    homeLabel: 'Vos parties',
+    homeNote: 'Quitter le plateau sans quitter la partie — elle vous attend à l’accueil.',
+    home: 'retour à l’accueil',
     /**
      * **Quel bouton fait quoi est une préférence de joueur**, pas une règle du jeu (retour de la
      * partie du 11/09). La grammaire, elle, ne se règle pas : un bouton oriente, un bouton
