@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { fr } from '@/i18n/fr';
 import { useSheetClose } from '@/shell/BottomSheet';
 import type { LonLat } from '@/domain/geo';
@@ -10,6 +10,46 @@ import {
   type NextActionTarget,
 } from '@/domain/next-actions';
 import { FoundationRows, type FoundationPlacement } from './FoundationRows';
+
+/**
+ * **Le rang d'une ligne vit au-dessus de la feuille** : sur téléphone la feuille « à faire » se
+ * referme au clic et se démonte, et le clic suivant doit mener à l'occurrence d'après, pas
+ * revenir à la première. Il est indexé par l'`id` de la ligne et se retient avec **l'identité**
+ * de ses cibles — une pile part, une autre arrive, et la longueur n'a pas bougé : on repart de
+ * la première.
+ */
+const cursors = new Map<string, { readonly signature: string; readonly next: number }>();
+let version = 0;
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+};
+
+const signatureOf = (targets: ReadonlyArray<NextActionTarget>): string => JSON.stringify(targets);
+
+const nextRankOf = (action: NextAction): number => {
+  const held = cursors.get(action.id);
+  return held?.signature === signatureOf(action.targets) ? held.next : 0;
+};
+
+function advance(action: NextAction): NextActionTarget {
+  const rank = nextRankOf(action);
+  cursors.set(action.id, {
+    signature: signatureOf(action.targets),
+    next: (rank + 1) % action.targets.length,
+  });
+  version += 1;
+  listeners.forEach((listener) => listener());
+  return action.targets[rank] ?? action.targets[0];
+}
+
+const useRanks = () =>
+  useSyncExternalStore(
+    subscribe,
+    () => version,
+    () => version,
+  );
 
 /**
  * **La carte « à faire maintenant »** (décision Pierre, 30/08). Elle a remplacé le widget de
@@ -59,6 +99,7 @@ export function NextActions({
   const [unfolded, setUnfolded] = useState(true);
   const closeSheet = useSheetClose();
   const actions = nextActionsOf(view);
+  useRanks();
 
   if (actions.length === 0) {
     return frame === 'sheet' ? (
@@ -69,7 +110,7 @@ export function NextActions({
   }
 
   const rows = actions.map((action) =>
-    action.target.kind === 'unfold' ? (
+    action.targets[0].kind === 'unfold' ? (
       <div key={action.id}>
         <Row
           action={action}
@@ -94,10 +135,10 @@ export function NextActions({
       <Row
         key={action.id}
         action={action}
-        destination={destinationWord(action.target)}
+        destination={destinationOf(action)}
         leads
         onPick={() => {
-          const target = action.target;
+          const target = advance(action);
           if (target.kind === 'map') onGoToMap(target.point);
           else if (target.kind === 'surface') onOpenSurface(target.surface);
           else if (target.kind === 'site') onOpenSite(target.buildingId);
@@ -129,6 +170,16 @@ export function NextActions({
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
   economy: fr.nextActions.toEconomy,
 };
+
+/** Plusieurs occurrences : le mot dit laquelle le clic va ouvrir, « carte 1 / 6 ». */
+const destinationOf = (action: NextAction): string =>
+  action.targets.length === 1
+    ? destinationWord(action.targets[0])
+    : fr.nextActions.rank(
+        destinationWord(action.targets[0]),
+        nextRankOf(action) + 1,
+        action.targets.length,
+      );
 
 /** Où la ligne mène, dit à droite et en petit : le joueur choisit de cliquer en sachant s'il
  *  quitte la carte des yeux. La fondation n'y passe jamais — elle se déplie sur place. */

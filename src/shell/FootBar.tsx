@@ -21,8 +21,8 @@ import { useClock } from './clock';
  * est parti : ce qu'on cherche à froid s'ouvre au drapeau du bandeau, et les chantiers, qu'on
  * ouvre souvent, sont sortis de son étage.
  *
- * **Rien n'y est recalculé** : le compte de « à faire » est la liste de la carte du bureau
- * (`nextActionsOf`), celui du journal le non-lu du bandeau, celui du télégraphe le badge du rail,
+ * **Rien n'y est recalculé** : le compte de « à faire » est celui des lignes de la carte du bureau
+ * (`nextActionsOf`, une par sorte d'attente), celui du journal le non-lu du bandeau, celui du télégraphe le badge du rail,
  * le rang celui de la dernière édition et l'heure du chantier celle de la vue.
  *
  * Ce qu'elle ouvre est **la seule surface ouverte** : une fenêtre recouverte se ferme d'elle-même

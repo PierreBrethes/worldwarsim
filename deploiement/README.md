@@ -235,7 +235,12 @@ scp "Claude outputs/film/la-manchette-boucle-8s.mp4" \
     "Claude outputs/film/la-manchette-boucle-poster.jpg" \
     "Claude outputs/film/la-manchette-film-30s-leger.mp4" \
     <vps>:/opt/worldwarsim-media/
+ssh <vps> 'chmod 755 /opt/worldwarsim-media && chmod 644 /opt/worldwarsim-media/*'
 ```
+
+**Le `chmod` n'est pas facultatif.** `scp` recopie les droits de la source, et les fichiers du Mac
+sont en 600 : le nginx du conteneur, qui lit sous son propre utilisateur, répond alors **403**
+(constaté le 05/10/2026).
 
 Absents, rien ne casse : le fond retombe sur la table de carte et la fenêtre du film dit qu'il
 n'est pas disponible. En local, les déposer dans `public/media/` (ignoré par git). La création du

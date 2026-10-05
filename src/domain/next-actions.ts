@@ -20,12 +20,11 @@ import { stationNames, type StationNames } from './station-name';
 export type NextActionKind =
   | 'foundation'
   | 'idleSite'
-  | 'idleBarracks'
+  | 'idleProjection'
   | 'unlinkedSites'
   | 'raiseOutpost'
   | 'troopWithoutOrder'
-  | 'unsupplied'
-  | 'freeSlot';
+  | 'unsupplied';
 
 /** Une seule surface reste une destination de rail : la fenêtre Production est morte avec son
  *  onglet (59a), et ce qui la remplaçait est une modale ancrée à un bâtiment de la carte. */
@@ -51,11 +50,23 @@ export type NextActionTarget =
   | { readonly kind: 'unfold' };
 
 export type NextAction = {
-  /** Stable d'un rendu à l'autre : c'est la clé de la ligne et ce sur quoi le dépli se retient. */
+  /** Stable d'un rendu à l'autre : c'est la clé de la ligne, ce sur quoi le dépli se retient et
+   *  ce sous quoi l'interface garde son rang. Une sorte d'attente, un seul `id`. */
   readonly id: string;
   readonly kind: NextActionKind;
   readonly label: string;
-  readonly target: NextActionTarget;
+  /** **Une ligne par sorte, une cible par occurrence** (décision Pierre, 05/10) : dans l'ordre
+   *  de la vue, jamais retriées. Le domaine les décrit, c'est l'interface qui les parcourt. */
+  readonly targets: readonly [NextActionTarget, ...NextActionTarget[]];
+};
+
+const lineOf = (
+  kind: NextActionKind,
+  label: string,
+  targets: ReadonlyArray<NextActionTarget>,
+): ReadonlyArray<NextAction> => {
+  const [first, ...rest] = targets;
+  return first === undefined ? [] : [{ id: kind, kind, label, targets: [first, ...rest] }];
 };
 
 const PROJECTION_KEYS: ReadonlySet<string> = new Set(Object.values(PROJECTION_BY_DOMAIN));
@@ -85,12 +96,11 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
   return [
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
-    ...raiseOutpostLines(view),
+    ...raiseOutpostLine(view),
     ...idleSiteLine(view),
-    ...idleProjectionLines(view),
+    ...idleProjectionLine(view),
     ...troopsWithoutOrder(view, standing, names),
     ...unsuppliedTroops(view, standing, names),
-    ...freeSlotLine(view, standing),
   ];
 }
 
@@ -102,7 +112,7 @@ const foundationLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'foundation',
           kind: 'foundation',
           label: fr.nextActions.foundation(view.me.foundation.length),
-          target: { kind: 'unfold' },
+          targets: [{ kind: 'unfold' }],
         },
       ];
 
@@ -113,21 +123,16 @@ const foundationLine = (view: PlayerView): ReadonlyArray<NextAction> =>
  * derrière la fondation : c'est le seul poste où le joueur perd sans avoir rien fait, et il ne
  * se répare pas sur le site mais sur la carte.
  *
- * Elle mène au premier, comme une caserne au repos mène à la sienne — même grammaire, même
- * geste : la carte recadre le mât et la modale s'ouvre.
+ * Elle parcourt les sites coupés, comme une caserne au repos mène à la sienne — même grammaire,
+ * même geste : la carte recadre le mât et la modale s'ouvre.
  */
 function unlinkedSitesLine(view: PlayerView): ReadonlyArray<NextAction> {
   const cut = unlinkedProducers(view);
-  const first = cut[0];
-  if (first === undefined) return [];
-  return [
-    {
-      id: 'unlinkedSites',
-      kind: 'unlinkedSites',
-      label: fr.nextActions.unlinkedSites(cut.length),
-      target: { kind: 'site', buildingId: first.id },
-    },
-  ];
+  return lineOf(
+    'unlinkedSites',
+    fr.nextActions.unlinkedSites(cut.length),
+    cut.map((building) => ({ kind: 'site', buildingId: building.id })),
+  );
 }
 
 /**
@@ -155,7 +160,7 @@ export function unlinkedProducers(
  * rien à ouvrir) et rien ne retient l'élévation — `outpostRaiseHold`, la même fonction que le
  * bouton et la mutation. Le prix vient de la vue, jamais d'un barème recopié ici.
  */
-function raiseOutpostLines(view: PlayerView): ReadonlyArray<NextAction> {
+function raiseOutpostLine(view: PlayerView): ReadonlyArray<NextAction> {
   const queued = pledgedOutposts(view);
   const stocks = Object.fromEntries(
     Object.entries(view.me.resources).map(([key, resource]) => [
@@ -164,35 +169,36 @@ function raiseOutpostLines(view: PlayerView): ReadonlyArray<NextAction> {
     ]),
   ) as Record<ResourceKey, number>;
 
-  return view.me.outposts
-    .filter((outpost) => {
-      /** **Attendre n'est pas un problème** : un chantier n'a rien à élever et rien à décider,
-       *  la carte se tait (révision du 15/09 de l'ADR 0020 §10). */
-      if (!outpost.isMine || outpost.atMaxLevel || outpost.standsAt !== null) return false;
-      const budget = slotsOn(view, { outpostId: outpost.id });
-      if (budget.taken < budget.total) return false;
-      return (
-        outpostRaiseHold(
-          {
-            level: outpost.level,
-            disabled: outpost.disabledMinutesLeft !== null,
-            queued: queued.has(outpost.id),
-            stocks,
-          },
-          outpost.nextLevelCost,
-          outpost.level + 1,
-        ) === null
-      );
-    })
-    .map((outpost) => ({
-      id: `raiseOutpost:${outpost.id}`,
-      kind: 'raiseOutpost' as const,
-      label: fr.nextActions.raiseOutpost(
-        view.me.regions.find((region) => region.id === outpost.regionId)?.name ??
-          outpost.hostCountry,
-      ),
-      target: { kind: 'outpost' as const, outpostId: outpost.id },
-    }));
+  const ready = view.me.outposts.filter((outpost) => {
+    /** **Attendre n'est pas un problème** : un chantier n'a rien à élever et rien à décider,
+     *  la carte se tait (révision du 15/09 de l'ADR 0020 §10). */
+    if (!outpost.isMine || outpost.atMaxLevel || outpost.standsAt !== null) return false;
+    const budget = slotsOn(view, { outpostId: outpost.id });
+    if (budget.taken < budget.total) return false;
+    return (
+      outpostRaiseHold(
+        {
+          level: outpost.level,
+          disabled: outpost.disabledMinutesLeft !== null,
+          queued: queued.has(outpost.id),
+          stocks,
+        },
+        outpost.nextLevelCost,
+        outpost.level + 1,
+      ) === null
+    );
+  });
+  const [only, ...others] = ready;
+  if (only === undefined) return [];
+  return lineOf(
+    'raiseOutpost',
+    others.length === 0
+      ? fr.nextActions.raiseOutpost(
+          view.me.regions.find((region) => region.id === only.regionId)?.name ?? only.hostCountry,
+        )
+      : fr.nextActions.raiseOutposts(ready.length),
+    ready.map((outpost) => ({ kind: 'outpost', outpostId: outpost.id })),
+  );
 }
 
 /** La tête de file est la seule entrée datée : sans elle, rien ne se bâtit, quelle que soit la
@@ -205,28 +211,31 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'idleSite',
           kind: 'idleSite',
           label: fr.nextActions.idleSite,
-          target: { kind: 'surface', surface: 'economy' },
+          targets: [{ kind: 'surface', surface: 'economy' }],
         },
       ];
 
-/** Chaque bâtiment de projection tient sa propre file (ADR 0015) : une caserne au repos pendant
- *  qu'une autre forme est une ligne, pas une nuance d'une ligne nationale. */
-function idleProjectionLines(view: PlayerView): ReadonlyArray<NextAction> {
+/** Chaque bâtiment de projection tient sa propre file (ADR 0015) : un par lieu à parcourir, mais
+ *  une seule ligne — ce sont des casernes, des aérodromes et des ports qui attendent la même
+ *  chose, un lot. */
+function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
   const regions = new Map(view.me.regions.map((region) => [region.id, region.name]));
+  const idle = view.me.buildings.filter(
+    (building) => PROJECTION_KEYS.has(building.key) && !view.me.recruiting.includes(building.id),
+  );
+  const [only] = idle;
+  if (only === undefined) return [];
 
-  return view.me.buildings
-    .filter(
-      (building) => PROJECTION_KEYS.has(building.key) && !view.me.recruiting.includes(building.id),
-    )
-    .map((building) => ({
-      id: `idleBarracks:${building.id}`,
-      kind: 'idleBarracks' as const,
-      label: fr.nextActions.idleProjection(
-        fr.buildings[building.key],
-        regions.get(building.regionId) ?? building.name,
-      ),
-      target: { kind: 'site' as const, buildingId: building.id },
-    }));
+  return lineOf(
+    'idleProjection',
+    idle.length === 1
+      ? fr.nextActions.idleProjection(
+          fr.buildings[only.key],
+          regions.get(only.regionId) ?? only.name,
+        )
+      : fr.nextActions.idleProjections(idle.length),
+    idle.map((building) => ({ kind: 'site', buildingId: building.id })),
+  );
 }
 
 /**
@@ -240,52 +249,51 @@ const troopsWithoutOrder = (
   standing: ReadonlyArray<TroopView>,
   names: StationNames,
 ): ReadonlyArray<NextAction> =>
-  byStation(
-    standing.filter((troop) => troop.stationedAt.kind === 'point'),
+  stationLine(
+    'troopWithoutOrder',
+    fr.nextActions.troopWithoutOrder,
+    names,
     view,
-  ).map(({ station, count, point }) => ({
-    id: `troopWithoutOrder:${stationKeyOf(station)}`,
-    kind: 'troopWithoutOrder' as const,
-    label: fr.nextActions.troopWithoutOrder(count, names.place(station)),
-    target: { kind: 'map' as const, point },
-  }));
+    standing,
+    (troop) => troop.stationedAt.kind === 'point',
+  );
 
 const unsuppliedTroops = (
   view: PlayerView,
   standing: ReadonlyArray<TroopView>,
   names: StationNames,
 ): ReadonlyArray<NextAction> =>
-  byStation(
-    standing.filter((troop) => !troop.supplied),
+  stationLine(
+    'unsupplied',
+    fr.nextActions.unsupplied,
+    names,
     view,
-  ).map(({ station, count, point }) => ({
-    id: `unsupplied:${stationKeyOf(station)}`,
-    kind: 'unsupplied' as const,
-    label: fr.nextActions.unsupplied(count, names.place(station)),
-    target: { kind: 'map' as const, point },
-  }));
+    standing,
+    (troop) => !troop.supplied,
+  );
 
 /**
- * Un slot libre n'est une attente que s'il y a de quoi le remplir : sans une troupe posée, la
- * ligne dirait au joueur d'ouvrir une porte qu'aucun geste ne franchit. `home` n'est pas une
- * adresse d'où l'on part (ADR 0019 §1).
+ * Le libellé compte les **troupes**, le rang les **adresses** : à une seule adresse la ligne
+ * garde son lieu en toutes lettres, à plusieurs elle ne donne que le total.
  */
-function freeSlotLine(
+function stationLine(
+  kind: 'troopWithoutOrder' | 'unsupplied',
+  label: (count: number, place: string | null) => string,
+  names: StationNames,
   view: PlayerView,
   standing: ReadonlyArray<TroopView>,
+  keep: (troop: TroopView) => boolean,
 ): ReadonlyArray<NextAction> {
-  const free = view.me.slots.total - view.me.slots.used;
-  const departing = standing.find((troop) => troop.stationedAt.kind !== 'home');
-  if (free <= 0 || departing === undefined) return [];
+  const stations = byStation(standing.filter(keep), view);
+  const [only] = stations;
+  if (only === undefined) return [];
+  const total = stations.reduce((sum, station) => sum + station.count, 0);
 
-  return [
-    {
-      id: 'freeSlot',
-      kind: 'freeSlot',
-      label: fr.nextActions.freeSlot(free),
-      target: { kind: 'map', point: pointOfStation(view, departing.stationedAt) },
-    },
-  ];
+  return lineOf(
+    kind,
+    label(total, stations.length === 1 ? names.place(only.station) : null),
+    stations.map(({ point }) => ({ kind: 'map', point })),
+  );
 }
 
 type StationCount = {

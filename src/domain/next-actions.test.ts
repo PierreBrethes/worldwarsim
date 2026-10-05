@@ -68,7 +68,7 @@ describe('what waits for the player', () => {
     )[0];
     expect(owed?.kind).toBe('foundation');
     expect(owed?.label).toBe('2 poses de fondation offertes');
-    expect(owed?.target).toEqual({ kind: 'unfold' });
+    expect(owed?.targets).toEqual([{ kind: 'unfold' }]);
 
     expect(kinds(board({ foundation: [] }))).not.toContain('foundation');
   });
@@ -96,7 +96,7 @@ describe('what waits for the player', () => {
    * région qui a changé de couleur — et une ligne par bâtiment ferait de la perte d'une frontière
    * six attentes distinctes. Elle mène au premier, comme une caserne au repos mène à la sienne.
    */
-  it('raises one line for every site the map has cut, and points at the first', () => {
+  it('raises one line for every site the map has cut, and walks through them', () => {
     const cut = board({
       buildings: [
         { id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 },
@@ -111,7 +111,10 @@ describe('what waits for the player', () => {
 
     const line = nextActionsOf(cut).find((action) => action.kind === 'unlinkedSites');
     expect(line?.label).toBe('2 sites hors réseau');
-    expect(line?.target).toEqual({ kind: 'site', buildingId: 'B-2' });
+    expect(line?.targets).toEqual([
+      { kind: 'site', buildingId: 'B-2' },
+      { kind: 'site', buildingId: 'B-3' },
+    ]);
 
     // La caserne est sur un sol relié, et de toute façon elle ne produit rien.
     expect(kinds(board())).not.toContain('unlinkedSites');
@@ -120,18 +123,18 @@ describe('what waits for the player', () => {
   it('names an idle site only while nothing heads the queue', () => {
     const idle = nextActionsOf(board({ construction: null }))[0];
     expect(idle?.kind).toBe('idleSite');
-    expect(idle?.target).toEqual({ kind: 'surface', surface: 'economy' });
+    expect(idle?.targets).toEqual([{ kind: 'surface', surface: 'economy' }]);
 
     expect(kinds(board())).not.toContain('idleSite');
   });
 
   it('names a projection building with no batch in hand, by its region', () => {
     const idle = nextActionsOf(board({ recruiting: [] }))[0];
-    expect(idle?.kind).toBe('idleBarracks');
+    expect(idle?.kind).toBe('idleProjection');
     expect(idle?.label).toBe('Caserne sans recrutement — Rhône');
-    expect(idle?.target).toMatchObject({ kind: 'site' });
+    expect(idle?.targets).toEqual([{ kind: 'site', buildingId: 'B-1' }]);
 
-    expect(kinds(board())).not.toContain('idleBarracks');
+    expect(kinds(board())).not.toContain('idleProjection');
   });
 
   /** A garrison holds something; a column left on open ground holds nothing and waits. */
@@ -147,7 +150,7 @@ describe('what waits for the player', () => {
     )[0];
     expect(left?.kind).toBe('troopWithoutOrder');
     expect(left?.label).toBe('2 troupes sans ordre — Italie');
-    expect(left?.target).toEqual({ kind: 'map', point: [7.7, 45] });
+    expect(left?.targets).toEqual([{ kind: 'map', point: [7.7, 45] }]);
 
     const held = board({
       slots: { total: 1, used: 1 },
@@ -169,29 +172,7 @@ describe('what waits for the player', () => {
     ).not.toContain('unsupplied');
   });
 
-  /** A free slot with nothing to send is not a thing to do — it is a fact about the empire. */
-  it('offers a free slot only when something can leave', () => {
-    const idle = board({
-      slots: { total: 2, used: 1 },
-      troops: [troop({ stationedAt: { kind: 'building', buildingId: 'B-1' } })],
-    });
-    const line = nextActionsOf(idle).find((action) => action.kind === 'freeSlot');
-    expect(line?.label).toBe('1 slot de mouvement libre');
-    expect(line?.target).toEqual({ kind: 'map', point: [4.8, 45.7] });
-
-    expect(kinds(board({ slots: { total: 2, used: 1 }, troops: [] }))).not.toContain('freeSlot');
-    expect(
-      kinds(
-        board({
-          slots: { total: 2, used: 2 },
-          troops: [troop({ stationedAt: { kind: 'building', buildingId: 'B-1' } })],
-        }),
-      ),
-    ).not.toContain('freeSlot');
-  });
-
-  /** A troop carried by a movement of mine is not standing anywhere: it owes no order, it fills
-   *  no slot, and it is the one exclusion both lines share. */
+  /** A troop carried by a movement of mine is not standing anywhere: it owes no order,  */
   it('forgets a troop that is already marching', () => {
     const marching = board(
       {
@@ -227,10 +208,67 @@ describe('what waits for the player', () => {
     expect(kinds(busy)).toEqual([
       'foundation',
       'idleSite',
-      'idleBarracks',
+      'idleProjection',
       'troopWithoutOrder',
       'unsupplied',
-      'freeSlot',
     ]);
+  });
+
+  /** Retour de Pierre (05/10) : sept piles posées sur six points, dont six hors ravitaillement,
+   *  deux bâtiments de projection au repos et un avant-poste plein faisaient seize lignes. */
+  describe('une ligne par sorte', () => {
+    const scattered = () =>
+      board({
+        recruiting: [],
+        buildings: [
+          { id: 'B-1', key: 'barracks', name: 'Caserne', regionId: 'FRA-1', level: 1 },
+          { id: 'B-2', key: 'airfield', name: 'Aérodrome', regionId: 'FRA-1', level: 1 },
+        ],
+        troops: [
+          troop({ id: 'T-1', stationedAt: posted('CAN', [-75, 45]) }),
+          troop({ id: 'T-2', stationedAt: posted('CAN', [-75, 45]), supplied: false }),
+          troop({ id: 'T-3', stationedAt: posted('CAN', [-80, 50]), supplied: false }),
+          troop({ id: 'T-4', stationedAt: posted('CAN', [-90, 52]), supplied: false }),
+          troop({ id: 'T-5', stationedAt: posted('CAN', [-100, 53]), supplied: false }),
+          troop({ id: 'T-6', stationedAt: posted('CAN', [-110, 54]), supplied: false }),
+          troop({ id: 'T-7', stationedAt: posted('CAN', [-120, 55]), supplied: false }),
+        ],
+      } as unknown as Partial<PlayerView['me']>);
+
+    it('never raises two lines of the same kind', () => {
+      const all = kinds(scattered());
+      expect(new Set(all).size).toBe(all.length);
+      expect(all).toEqual(['idleProjection', 'troopWithoutOrder', 'unsupplied']);
+    });
+
+    it('gives the total without a place when there are several, and a rank per address', () => {
+      const lines = nextActionsOf(scattered());
+      const unordered = lines.find((line) => line.kind === 'troopWithoutOrder');
+      expect(unordered?.label).toBe('7 troupes sans ordre');
+      expect(unordered?.targets).toHaveLength(6);
+      expect(lines.find((line) => line.kind === 'unsupplied')?.label).toBe(
+        '6 troupes hors ravitaillement',
+      );
+      expect(lines.find((line) => line.kind === 'idleProjection')?.label).toBe(
+        '2 bâtiments sans recrutement',
+      );
+    });
+
+    it('keeps a single address in full letters, with its troop count', () => {
+      const line = nextActionsOf(
+        board({
+          troops: [
+            troop({ id: 'T-1', stationedAt: posted('CAN', [-75, 45]) }),
+            troop({ id: 'T-2', stationedAt: posted('CAN', [-75, 45]) }),
+          ],
+        }),
+      ).find((action) => action.kind === 'troopWithoutOrder');
+      expect(line?.label).toBe('2 troupes sans ordre — Canada');
+      expect(line?.targets).toHaveLength(1);
+    });
+
+    it('orders the targets the same way from one render to the next', () => {
+      expect(nextActionsOf(scattered())).toEqual(nextActionsOf(scattered()));
+    });
   });
 });

@@ -1497,15 +1497,19 @@ export const fr = {
     idleSite: 'chantier libre — rien en file',
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
-    troopWithoutOrder: (count: number, place: string) =>
-      `${count} troupe${plural(count, '', 's')} sans ordre — ${place}`,
-    unsupplied: (count: number, place: string) =>
-      `${count} troupe${plural(count, '', 's')} hors ravitaillement — ${place}`,
-    freeSlot: (count: number) =>
-      `${count} slot${plural(count, '', 's')} de mouvement libre${plural(count, '', 's')}`,
+    idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
+    /** **Une ligne par sorte** (décision Pierre, 05/10) : le lieu n'est dit qu'à une seule
+     *  adresse, le total seul quand il y en a plusieurs. */
+    troopWithoutOrder: (count: number, place: string | null) =>
+      `${count} troupe${plural(count, '', 's')} sans ordre${place === null ? '' : ` — ${place}`}`,
+    unsupplied: (count: number, place: string | null) =>
+      `${count} troupe${plural(count, '', 's')} hors ravitaillement${place === null ? '' : ` — ${place}`}`,
+    /** Où le prochain clic mène, parmi les occurrences d'une même sorte. */
+    rank: (word: string, rank: number, total: number) => `${word} ${rank} / ${total}`,
     /** **Un avant-poste plein qu'on a de quoi monter** (précision du 15/09) : c'est la seule
      *  attente que la fiche promettait déjà sans porte pour y aller. */
     raiseOutpost: (place: string) => `avant-poste plein — montez-le · ${place}`,
+    raiseOutposts: (count: number) => `${count} avant-postes pleins à monter`,
     toOutpost: 'à l’avant-poste',
     unfold: 'déplier',
     fold: 'replier',
