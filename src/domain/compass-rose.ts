@@ -727,6 +727,15 @@ function collectFan(
 }
 
 /**
+ * **Au doigt, une pile à soi n'ouvre sa rose que si elle a une branche** (décision 2a du 05/10).
+ * Le toucher lit et agit d'un même geste : sans « fonder », la rose ne portait qu'un refus déjà
+ * à côté, dans la feuille de la troupe — qui reçoit ce même `refusal` pour le dire (ADR 0015).
+ * Le bureau n'est pas concerné : un clic d'action y demande la rose, et la rose répond.
+ */
+export const withheldUnderFinger = (target: CompassTarget, compass: Compass): boolean =>
+  target.kind === 'force' && compass.actions.length === 0;
+
+/**
  * A target's compass, or `null` when there is nothing to say — the right click then stays inert
  * rather than opening an empty fan.
  *

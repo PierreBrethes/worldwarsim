@@ -37,6 +37,11 @@
      éteint plutôt que gris — la plate est sur du papier, pas sur une interface. */
   --held-ink: #7d7259;
   --figure-ink: #7a3a1c;
+}
+
+/* Hors de la rose aussi : la feuille d'une troupe dit le refus que la rose ne s'ouvre plus pour
+   dire au doigt (`TroopBadge`), et dans la même encre. */
+:root {
   --lacking-ink: #8c2f16;
 }
 

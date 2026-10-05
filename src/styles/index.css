@@ -175,6 +175,12 @@ body {
   height: var(--board-room);
 }
 
+/* La feuille d'une sélection réduite à son en-tête (décision 3a du 05/10) : la carte se dégage,
+   la sélection reste. */
+.board-sheet[data-height='collapsed'] {
+  height: auto;
+}
+
 /* L'aperçu qui épouse son contenu (lot mobile-3) : une fiche, la visée, une dépêche. Jamais plus
    haut que la moitié — au-delà, c'est au doigt de tirer la feuille. */
 .board-sheet[data-hug][data-height='peek'] {
@@ -205,18 +211,22 @@ body {
 /* La barre de pied descend sous la barre d'accueil de l'iPhone, et ses tuiles avec elle : la
    tuile « à faire » et le fond de l'onglet ouvert touchent le bord de l'écran (retour de Pierre,
    iPhone 13 Pro, 04/10). Le creux passe dans chaque tuile, sous son pictogramme et son mot, qui
-   restent au-dessus de la barre d'accueil. */
+   restent au-dessus de la barre d'accueil.
+   Le creux sous le mot n'est plus toute la marge sûre mais seize points de moins (décision 1a du
+   05/10) : la barre d'accueil n'occupe que le bas de cette marge, et les trente-quatre points
+   entiers laissaient près de cinquante points de vide sous chaque libellé. */
 .board-foot {
   --foot-safe: calc(var(--safe-bottom) / var(--hud-scale));
+  --foot-reserve: calc(max(0px, var(--safe-bottom) - 16px) / var(--hud-scale));
   margin-bottom: calc(-1 * var(--foot-safe));
 }
 
 .board-foot > ul {
-  height: calc(56px + var(--foot-safe));
+  height: calc(50px + var(--foot-reserve));
 }
 
 .board-foot > ul > li > * {
-  padding-bottom: var(--foot-safe);
+  padding-bottom: var(--foot-reserve);
 }
 
 /* **Quarante-quatre pixels sous le doigt.** La fonte ne bouge pas — le style presse tient à ses

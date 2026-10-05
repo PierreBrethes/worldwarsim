@@ -14,6 +14,7 @@ import {
   type CompassAction,
   type CompassTarget,
   type Compass,
+  withheldUnderFinger,
 } from '@/domain/compass-rose';
 import type { ArcView, TroopStation } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
@@ -129,6 +130,13 @@ type Props = {
    */
   fingerRose?: { readonly floor: number } | null;
   /**
+   * **Au doigt, la rose d'une pile à soi qui n'a rien à proposer ne s'ouvre pas** (décision 2a
+   * du 05/10) : le toucher lit et agit d'un seul geste, et une rose de refus doublait la feuille
+   * de la troupe en se calant sur le bandeau. Son motif ne se tait pas (ADR 0015) — il remonte
+   * ici, mot pour mot, et la feuille le porte. `null` quand la rose s'ouvre.
+   */
+  onForceMotive?: (labelId: string, motive: string | null) => void;
+  /**
    * **Les destinations d'une colonne armée, cerclées sur la carte et nommées au bord** quand
    * elles sont hors champ (lot mobile-3, A8). Le plateau l'allume sous le seuil ; la carte
    * décide lesquelles, par la même rose que le geste ouvrirait.
@@ -225,6 +233,7 @@ export function WorldMap({
   focus = null,
   searchArea = null,
   fingerRose = null,
+  onForceMotive,
   showDestinations = false,
   aimOrigin = null,
   onDestinations,
@@ -308,6 +317,14 @@ export function WorldMap({
         setRose(null);
         return;
       }
+      if (target.kind === 'force') {
+        const withheld = fingerRose !== null && withheldUnderFinger(target, drawn);
+        onForceMotive?.(target.id, withheld ? drawn.refusal : null);
+        if (withheld) {
+          setRose(null);
+          return;
+        }
+      }
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
        *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
@@ -322,7 +339,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onOrderTarget],
+    [compassOf, fingerRose, aiming, onOrderTarget, onForceMotive],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {

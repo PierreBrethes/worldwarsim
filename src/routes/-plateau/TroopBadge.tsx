@@ -33,6 +33,7 @@ export function TroopBadge({
   where,
   at,
   aiming,
+  motive = null,
   cargo,
   onOpenGunnery,
   onClose,
@@ -47,6 +48,9 @@ export function TroopBadge({
    *  observateur, à qui il ne reste aucun ailleurs à nommer — et le pied se tait plutôt que de
    *  lui promettre un geste. */
   aiming: boolean;
+  /** **Ce que la rose aurait dit, au doigt, sans s'ouvrir** (décision 2a du 05/10) : la phrase
+   *  même de `compassOf`, remontée par la carte — une lecture, jamais un ordre. */
+  motive?: string | null;
   /** Server-grouped loads touching this selection; never divided between individual troops. */
   cargo: ReadonlyArray<{
     readonly id: string;
@@ -132,6 +136,11 @@ export function TroopBadge({
         {cargo.map((group) => (
           <CargoReadout key={group.id} cargo={group.cargo} carriers={group.carriers} />
         ))}
+        {motive !== null && (
+          <p className="pt-[10px] font-(family-name:--font-display) text-[13px] leading-[1.4] text-[var(--lacking-ink)] italic">
+            {motive}
+          </p>
+        )}
         {/* **La fiche lit, la carte agit** (décision du 30/08, retenue au 04/10 contre la planche
             1b) : les cibles sont cerclées sur la carte et celles hors champ s'annoncent au bord,
             donc la fiche dit seulement où toucher — elle ne porte pas de raccourci d'ordre. */}

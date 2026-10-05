@@ -40,6 +40,7 @@ export function AimingSheet({
       initial="peek"
       kicker
       hug
+      keepsSelection
     >
       <div className="px-4 pb-[12px]">
         <AimTargets destinations={destinations} onPick={onPick} />

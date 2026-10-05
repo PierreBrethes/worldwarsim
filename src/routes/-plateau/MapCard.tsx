@@ -35,7 +35,15 @@ export function MapCard({
   const narrow = useNarrowScreen();
   if (narrow) {
     return (
-      <BottomSheet title={kicker} aside={aside} onClose={onClose} initial="peek" kicker hug>
+      <BottomSheet
+        title={kicker}
+        aside={aside}
+        onClose={onClose}
+        initial="peek"
+        kicker
+        hug
+        keepsSelection
+      >
         <div className="px-4 py-[10px]">{children}</div>
       </BottomSheet>
     );

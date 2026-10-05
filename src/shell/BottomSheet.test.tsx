@@ -16,6 +16,15 @@ import { SoleSurfaceProvider } from './sole-surface';
  */
 afterEach(cleanup);
 
+/** Un toucher entier : l'appui, le relâché sur place, puis le clic que le navigateur en tire. */
+function tap(target: HTMLElement): void {
+  act(() => {
+    target.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }));
+    window.dispatchEvent(new MouseEvent('pointerup', { clientY: 300 }));
+    target.click();
+  });
+}
+
 const sheet = (): HTMLElement => screen.getByRole('dialog');
 
 function swipe(travel: number): void {
@@ -68,6 +77,56 @@ describe('the bottom sheet', () => {
     swipe(12);
     expect(onClose).not.toHaveBeenCalled();
     expect(sheet().dataset.height).toBe('peek');
+  });
+
+  /** **La feuille d'une sélection se réduit, elle ne se ferme pas au glisser** (décision 3a). */
+  describe('when it carries a selection', () => {
+    const mount = () => {
+      const onClose = vi.fn();
+      render(
+        <BottomSheet title="Infanterie" onClose={onClose} initial="peek" keepsSelection>
+          <p>la fiche</p>
+        </BottomSheet>,
+      );
+      return onClose;
+    };
+
+    it('collapses to its header from the peek, and goes no lower', () => {
+      const onClose = mount();
+      swipe(120);
+      expect(sheet().dataset.height).toBe('collapsed');
+      expect(screen.getByText('la fiche').parentElement!.hidden).toBe(true);
+
+      swipe(120);
+      expect(sheet().dataset.height).toBe('collapsed');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('comes back to the peek on a swipe up or a touch on its header', () => {
+      mount();
+      swipe(120);
+      swipe(-120);
+      expect(sheet().dataset.height).toBe('peek');
+
+      swipe(120);
+      tap(screen.getByRole('heading'));
+      expect(sheet().dataset.height).toBe('peek');
+      expect(screen.getByText('la fiche').parentElement!.hidden).toBe(false);
+    });
+
+    it('still closes on its button, collapsed or not', () => {
+      const onClose = mount();
+      swipe(120);
+      act(() => screen.getByRole('button', { name: fr.common.close }).click());
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(sheet().dataset.height).toBe('collapsed');
+    });
+
+    it('climbs past the peek as any sheet does', () => {
+      mount();
+      swipe(-120);
+      expect(sheet().dataset.height).toBe('half');
+    });
   });
 
   /** Ce que le joueur ouvre en dernier reste seul : la précédente se ferme par son propre geste. */

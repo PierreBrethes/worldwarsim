@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -13,6 +14,12 @@ import { useSoleSurface } from './sole-surface';
 export const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
 
 export type SheetHeight = (typeof SHEET_HEIGHTS)[number];
+
+/** **Le cran de la feuille qui porte une sélection** (décision 3a du 05/10) : sous l'aperçu, la
+ *  poignée et l'en-tête seuls — on dégage la carte sans perdre ce qu'on a désigné. */
+const KEEPING_HEIGHTS = ['collapsed', ...SHEET_HEIGHTS] as const;
+
+type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
 
 /**
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
@@ -34,6 +41,13 @@ const STEP_PX = 40;
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
 /**
+ * **Où se tient la feuille d'une sélection, mesurée** : sa hauteur en pixels d'écran à chaque cran,
+ * `null` quand elle part. Ce qui garde un point visible au-dessus d'elle — la rose au doigt — suit
+ * le cran courant au lieu d'une moitié figée : feuille réduite, la rose se pose plus bas.
+ */
+export const SelectionSheetReport = createContext<((height: number | null) => void) | null>(null);
+
+/**
  * **Ce qui mène ailleurs referme la feuille** : une ligne « carte › » qui laisserait la moitié de
  * l'écran couverte n'aurait pas tenu sa promesse. `null` hors d'une feuille, au bureau.
  */
@@ -44,7 +58,7 @@ export const useSheetClose = (): (() => void) | null => useContext(SheetCloseCon
  * calques, les panneaux du plateau — et au lot 3 la fiche. Elle se pose entre le bandeau et la
  * barre de pied, dont le cadre publie les bords (`--board-top`, `--board-bottom`), à trois
  * hauteurs : aperçu, moitié, plein écran. Glisser la poignée vers le bas descend d'un cran puis
- * ferme ; vers le haut, monte. « Fermer » reste toujours là, parce qu'un geste qu'on ne voit pas
+ * ferme — ou réduit, pour la feuille d'une sélection (`keepsSelection`) ; vers le haut, monte. « Fermer » reste toujours là, parce qu'un geste qu'on ne voit pas
  * n'est pas une sortie.
  *
  * Elle sort par un portail : ses appelants la posent parfois dans un `Draggable`, dont la
@@ -59,6 +73,7 @@ export function BottomSheet({
   initial = 'half',
   kicker = false,
   hug = false,
+  keepsSelection = false,
   children,
 }: {
   title: string;
@@ -76,26 +91,52 @@ export function BottomSheet({
    *  pas un blanc, une dépêche longue ne cache pas ses boutons sous la barre. Les autres crans
    *  gardent leur hauteur. */
   hug?: boolean;
+  /** **La feuille porte une sélection** (décision 3a du 05/10) — une troupe, une visée, un camp :
+   *  glisser vers le bas depuis l'aperçu la **réduit** à son en-tête au lieu de la fermer, et la
+   *  sélection survit. Seul « fermer », ou la carte touchée ailleurs, la défait. */
+  keepsSelection?: boolean;
   children: ReactNode;
 }) {
-  const [height, setHeight] = useState<SheetHeight>(initial);
+  const [height, setHeight] = useState<KeepingHeight>(initial);
   const [pull, setPull] = useState(0);
   const sheet = useRef<HTMLElement>(null);
+  /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
+   *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
+   *  toujours. */
+  const swiped = useRef(false);
   useSoleSurface(onClose ?? (() => {}), onClose !== undefined);
+  const report = useContext(SelectionSheetReport);
+  const reporting = keepsSelection ? report : null;
 
+  useLayoutEffect(() => {
+    const element = sheet.current;
+    if (reporting === null || element === null) return;
+    const publish = () => reporting(element.getBoundingClientRect().height);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      reporting(null);
+    };
+  }, [reporting]);
+
+  const steps: ReadonlyArray<KeepingHeight> = keepsSelection ? KEEPING_HEIGHTS : SHEET_HEIGHTS;
   const grip = useSwipe(
     (travel) => setPull(Math.max(0, travel)),
     (travel) => {
       setPull(0);
-      const rank = SHEET_HEIGHTS.indexOf(height);
+      swiped.current = Math.abs(travel) > STEP_PX;
+      const rank = steps.indexOf(height);
       if (travel > STEP_PX) {
-        if (rank > 0) setHeight(SHEET_HEIGHTS[rank - 1]!);
-        else onClose?.();
-      } else if (travel < -STEP_PX && rank < SHEET_HEIGHTS.length - 1) {
-        setHeight(SHEET_HEIGHTS[rank + 1]!);
+        if (rank > 0) setHeight(steps[rank - 1]!);
+        else if (!keepsSelection) onClose?.();
+      } else if (travel < -STEP_PX && rank < steps.length - 1) {
+        setHeight(steps[rank + 1]!);
       }
     },
   );
+  const collapsed = height === 'collapsed';
 
   return createPortal(
     <SheetCloseContext.Provider value={onClose ?? null}>
@@ -110,7 +151,19 @@ export function BottomSheet({
           pull > 0 ? { transform: `translateY(${pull / scaleOf(sheet.current)}px)` } : undefined
         }
       >
-        <div {...grip} className="shrink-0 cursor-grab" style={{ touchAction: 'none' }}>
+        <div
+          onPointerDown={(event) => {
+            swiped.current = false;
+            grip.onPointerDown(event);
+          }}
+          className="shrink-0 cursor-grab"
+          style={{ touchAction: 'none' }}
+          onClick={(event) => {
+            if (!collapsed || swiped.current) return;
+            if (event.target instanceof Element && event.target.closest('button') !== null) return;
+            setHeight('peek');
+          }}
+        >
           <span aria-hidden className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35" />
           <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
             <h2
@@ -135,7 +188,10 @@ export function BottomSheet({
             )}
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
+        <div className="min-h-0 flex-1 overflow-y-auto" hidden={collapsed}>
+          {children}
+        </div>
       </section>
     </SheetCloseContext.Provider>,
     document.body,
