@@ -262,6 +262,18 @@ traits intérieurs seulement, survol avec surbrillance teintée par type de terr
 nom + type, et accessoires 3D qui poussent sur la région (sapins, dunes, pyramides… —
 `src/map/engine/terrain.ts`, graine tirée du nom, taille et nombre suivant l'aire).
 
+**L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
+la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
+à seize sites chez elle. La Bavière, le Bade-Wurtemberg et la Hesse sont donc découpés en leurs
+**Regierungsbezirke** (VG2500 du BKG, `scripts/german-districts.mjs`, licence dl-de/by-2-0 —
+**attribution « © GeoBasis-DE / BKG » due, et le jeu n'a encore aucune page de crédits**) :
+27 régions, identifiants `DEU-` + code NUTS 2 (`DEU-DE21`, Oberbayern). Le découpage se fait
+**après** la simplification, dans le contour déjà tracé : tout le reste de `regions.json`, de
+la grille et de l'index sort à l'octet près. La Rhénanie-du-Nord-Westphalie et la Basse-Saxe
+restent entières parce qu'elles portent le Ruhr et Salzgitter. Le tirage blé/textile de
+l'Allemagne est **figé** (`FROZEN_DRAWS`, `generate-deposits.mjs`) : découper la carte ne
+redistribue pas la main d'une nation.
+
 **Le type de région** (`regionType`) compte six valeurs — plaine, forêt, jungle, montagne,
 désert, toundra — mais **reste un factice** : six régions témoins classées à la main (Oise,
 Landes, Amazonas, Valais, Tamanghasset, Chukchi), hachage du nom pour toutes les autres. La
