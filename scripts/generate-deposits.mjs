@@ -483,6 +483,32 @@ const CORRECTIONS = {
   remove: {},
 };
 
+/**
+ * A country whose draw is **frozen**: the hand it was dealt, written out, and the draw skips it.
+ *
+ * Germany was dealt on its sixteen Länder. Cutting Bavaria, Baden-Württemberg and Hesse into
+ * their districts (07/10/2026) changed the candidates and the shuffle with them, and the draw
+ * re-dealt all six food and textile deposits — a map edit is not a reason for a nation to wake
+ * up with other fields. Each deposit stays on its Land; the two that sat on a Land now cut
+ * move to the district that carries the trade.
+ */
+const FROZEN_DRAWS = {
+  DEU: {
+    'DEU-DE27': [
+      'textile',
+      'Augsburg, the Bavarian Manchester — the Land it was drawn on, Bayern, is cut',
+    ],
+    'DEU-DE14': [
+      'textile',
+      'Reutlingen and the Swabian Alb mills — the Land it was drawn on, Baden-Württemberg, is cut',
+    ],
+    'DEU-1601': ['textile', 'as drawn'],
+    'DEU-1577': ['food', 'as drawn'],
+    'DEU-1580': ['food', 'as drawn'],
+    'DEU-3488': ['food', 'as drawn'],
+  },
+};
+
 const projection = geoNaturalEarth1().fitExtent(
   [
     [0, 0],
@@ -561,6 +587,13 @@ for (const [id, [key]] of Object.entries(CORRECTIONS.add)) {
   else deposits.set(id, key);
 }
 
+for (const [country, hand] of Object.entries(FROZEN_DRAWS)) {
+  for (const [id, [key]] of Object.entries(hand)) {
+    if (byId.get(id)?.country !== country) unknown.push(`frozen draw ${country}: ${id}`);
+    else deposits.set(id, key);
+  }
+}
+
 const inZone = (region, zone) =>
   zone.countries.includes(region.country) &&
   region.latitude >= zone.latitudes[0] &&
@@ -603,6 +636,7 @@ function scatter(key, candidates, { spacing }) {
   }
 
   for (const [country, group] of byCandidateCountry) {
+    if (Object.hasOwn(FROZEN_DRAWS, country)) continue;
     const random = mulberry(SEED + hash(`${key}:${country}`));
     const shuffled = group
       .slice()

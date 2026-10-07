@@ -1204,13 +1204,13 @@ describe('the foundation the season owes', () => {
    * **The guard rail, executable, in its new form.** No game quantity is counted in regions
    * (ADR 0015), and the one-per-region rule is what would break it: let what a nation can put
    * on its own soil reach the region count of the smallest playable nation and Natural Earth's
-   * cutting starts balancing the season — Germany capped at 16 Länder where the United Kingdom
-   * has 232.
+   * cutting starts balancing the season — Germany capped at its regions where the United
+   * Kingdom has 232.
    *
    * La plus large fondation (6, quartier général compris depuis la décision 1b du 13/09) et
-   * `2 × MAX_HQ_LEVEL` (10) font **exactement** seize. It passes at zero margin: a `MAX_HQ_LEVEL`
-   * of 6, or a `PLACEMENTS_PER_HQ_LEVEL` of 3, would bring it down — and for Germany alone,
-   * which is the whole reason it is written.
+   * `2 × MAX_HQ_LEVEL` (10) font seize. Germany held exactly sixteen Länder and the rail passed
+   * at zero margin; since Bavaria, Baden-Württemberg and Hesse are cut into their districts
+   * (07/10/2026) it counts twenty-seven, still the smallest, and the margin is eleven.
    */
   it('keeps a full national ground inside the region count of the smallest nation', () => {
     const countries = Object.values(regionIndex.country);
@@ -1218,7 +1218,7 @@ describe('the foundation the season owes', () => {
       (nation) => countries.filter((country) => country === ADM0_BY_NATION[nation]).length,
     );
     const smallest = Math.min(...counts);
-    expect(smallest).toBe(16); // Germany, counted in Länder
+    expect(smallest).toBe(27); // Germany: thirteen Länder, and fourteen districts of three more
 
     const widest = Math.max(...NATIONS.map((nation) => foundationOwed(nation, []).length));
     expect(widest + homeSlots(MAX_HQ_LEVEL)).toBeLessThanOrEqual(smallest);
