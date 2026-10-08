@@ -1627,7 +1627,7 @@ export const fr = {
     kicker: (count: number, from: string) =>
       `visée · ${count} troupe${plural(count, '', 's')} depuis ${from}`,
     slots: (used: number, total: number) => `mouv. ${used} / ${total}`,
-    pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées, celles hors champ s’annoncent au bord.',
+    pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées.',
     /** **Les trois plus proches sous le pouce** (refonte mobile, 1b) : la carte reste la porte, la
      *  feuille en offre un raccourci. */
     pickShort: 'Touchez une cible cerclée, ou :',

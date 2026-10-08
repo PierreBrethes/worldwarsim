@@ -142,8 +142,7 @@ export function TroopBadge({
           </p>
         )}
         {/* **La fiche lit, la carte agit** (décision du 30/08, retenue au 04/10 contre la planche
-            1b) : les cibles sont cerclées sur la carte et celles hors champ s'annoncent au bord,
-            donc la fiche dit seulement où toucher — elle ne porte pas de raccourci d'ordre. */}
+            1b) : les cibles sont cerclées sur la carte, donc la fiche dit seulement où toucher — elle ne porte pas de raccourci d'ordre. */}
         {aiming && (
           <p className="pt-[10px] text-[13px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.aimSheet.pick}

@@ -58,8 +58,8 @@ export function AimingSheet({
 
 /**
  * **Les cibles de la colonne, les plus proches sous le pouce** (refonte mobile, 1b). La carte
- * reste la porte — les destinations y sont cerclées, celles hors champ s'annoncent au bord — et la
- * feuille en offre le raccourci : trois boutons, puis la liste entière d'un toucher. Chacun rejoue
+ * reste la porte — les destinations y sont cerclées — et la feuille en offre le raccourci, seule
+ * à nommer celles hors champ : trois boutons, puis la liste entière d'un toucher. Chacun rejoue
  * la rose de sa cible, donc n'offre que ce que le serveur prendrait (ADR 0015).
  */
 export function AimTargets({
