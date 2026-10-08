@@ -59,7 +59,7 @@ function HomeSheet({ turning, children }: { turning: Turning; children: ReactNod
 
         <div
           aria-hidden
-          className="pointer-events-none absolute right-[26px] bottom-[46px] rotate-[-9deg] border-2 border-[rgba(157,70,56,.55)] px-3 pt-[6px] pb-[5px] text-center text-[rgba(157,70,56,.62)]"
+          className="pointer-events-none absolute right-[26px] bottom-[46px] rotate-[-9deg] max-md:hidden border-2 border-[rgba(157,70,56,.55)] px-3 pt-[6px] pb-[5px] text-center text-[rgba(157,70,56,.62)]"
         >
           <div className="text-[10px] tracking-[.26em] uppercase">{fr.home.stampTitle}</div>
           <div className="mt-px font-(family-name:--font-mono) text-[9px] tracking-[.14em]">
@@ -243,8 +243,9 @@ function ConnectedHome() {
         )}
 
         {/** **La déconnexion vit aussi ici**, et pas seulement dans les Réglages du plateau :
-         *   un compte sans partie n'a pas de plateau, et il serait enfermé sur cette feuille. */}
-        <div className="mx-(--sheet-pad) mt-[22px] flex items-baseline justify-between gap-4">
+         *   un compte sans partie n'a pas de plateau, et il serait enfermé sur cette feuille.
+         *   Collée au pseudo, pas au bord droit : le tampon d'état-major tient ce coin-là. */}
+        <div className="mx-(--sheet-pad) mt-[22px] flex items-baseline gap-4">
           <span className="eyebrow">{fr.auth.signedIn(me?.nickname ?? '')}</span>
           <button
             type="button"

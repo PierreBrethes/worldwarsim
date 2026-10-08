@@ -896,6 +896,27 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', disarm);
   }, [column, posted, releasePosted]);
 
+  /**
+   * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord,
+   * la visée et la pose ensuite — chacune a sa propre sortie —, puis les cartes et panneaux ancrés
+   * à un point. La rose, en capture, arrête la touche avant tous.
+   */
+  useEffect(() => {
+    if (windows.length > 0 || column !== null || posted !== null || placing !== null) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setGarrison(null);
+      setBuildingSite(null);
+      setDemolition(null);
+      setDismantling(null);
+      setSelectedLoot(null);
+      setSelectedCamp(null);
+      setSelectedObjective(null);
+    };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [windows.length, column, posted, placing]);
+
   /** **Échap rend la carte intacte** : rien n'a été enfilé, il n'y a donc rien à défaire. */
   useEffect(() => {
     if (placing === null) return;
@@ -1977,12 +1998,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onClose={() => setOpenedReport(null)}
             />
           )}
-          {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
-            cartouche la porte (décision du 30/08). */}
+          {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
+            cartouche la porte (décision du 30/08). Pas en haut à gauche : l'échelle de route d'un
+            mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
           {orderError !== null && (
             <div
-              className={`hud absolute left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
-                narrow ? 'bottom-4' : 'top-4'
+              className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                narrow ? 'bottom-4 left-4' : 'top-4 right-4'
               }`}
             >
               {orderError}
@@ -1992,7 +2014,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
             **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
-          {!narrow && <div className="absolute bottom-4 left-4 z-10">{nextActions('card')}</div>}
+          {!narrow && (
+            <div className="absolute bottom-4 left-4 z-[var(--z-band)]">{nextActions('card')}</div>
+          )}
           {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
             la cible, et la colonne passerait sous le doigt qui la nomme. */}
           {narrow && column === null && (
