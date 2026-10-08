@@ -3,6 +3,8 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
+  boardingRefusalDetails,
+  boardingRefusalOf,
   foundingRefusal,
   landCostOf,
   plunderRefusalOf,
@@ -11,6 +13,8 @@ import {
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
+import { distanceKm } from '../src/domain/geo';
+import { PROJECTION_BY_DOMAIN } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
 import { playerBuildings } from './buildingReads';
 import {
@@ -25,10 +29,11 @@ import {
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
   buildCost,
+  detectionRangeOf,
   routeMinutes,
 } from './constants';
 import { foundationMinutes, scheduleStand } from './outposts';
-import { debit } from './resources';
+import { debit, settle } from './resources';
 import { fail } from './errors';
 import {
   attachHome,
@@ -54,7 +59,7 @@ import {
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
-import { surveyAlongRoute } from './surveys';
+import { surveyAlongRoute, surveyFromPoint } from './surveys';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
@@ -265,6 +270,91 @@ export const marchTo = mutation({
       troopIds,
       aim: await aimOf(ctx, player._id, { kind: 'point', point }),
     });
+  },
+});
+
+/**
+ * **Embarquer** (ADR 0025 §3) : des troupes terrestres posées prennent l'adresse d'un transport
+ * posé à moins de `BOARDING_RADIUS_KM`, sur-le-champ — aucun mouvement, aucun slot. La règle est
+ * `boardingRefusalOf`, celle que la rose a lue avant le clic. Ce qui suit les troupes les suit
+ * comme à une arrivée : l'entretien réglé à l'ancienne adresse, la charge de butin, les relevés.
+ */
+export const board = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    transport: MOVEMENT_ORIGIN,
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, transport }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
+
+    const from = await departureOf(ctx, player._id, origin);
+    const to = await departureOf(ctx, player._id, transport);
+    if (from === null || to === null) fail('UNKNOWN_BUILDING');
+
+    const marching = new Set(
+      (await movementsOf(ctx, player._id)).flatMap((movement) => movement.troopIds),
+    );
+    const passengers = [];
+    for (const troopId of troopIds) {
+      const troop = await ctx.db.get(troopId);
+      if (!troop || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
+      if (!sameStation(troop.stationedAt, from.stationId) || marching.has(troopId))
+        fail('TROOP_NOT_AT_ORIGIN', { troopId });
+      passengers.push(troop);
+    }
+    const aboard = (
+      await ctx.db
+        .query('troops')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).filter(
+      (troop) =>
+        sameStation(troop.stationedAt, to.stationId) &&
+        !marching.has(troop._id) &&
+        !troopIds.includes(troop._id),
+    );
+    const site = to.fromBuildingId === null ? null : await ctx.db.get(to.fromBuildingId);
+    const boarding = {
+      passengers: passengers.map((troop) => troop.role),
+      aboard: aboard.map((troop) => troop.role),
+      distanceKm: distanceKm(from.point, to.point),
+      atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
+      onQuay: site !== null,
+    };
+    const refusal = boardingRefusalOf(boarding);
+    if (refusal !== null) fail(refusal, boardingRefusalDetails(boarding));
+
+    /** What they ate until now, they ate where they stood (the same reason as `standAt`). */
+    await settle(ctx, player._id, Date.now());
+    const loads = await takeStationedCargo(ctx, {
+      seasonId: season._id,
+      playerId: player._id,
+      stationedAt: from.stationId,
+      troops: passengers,
+    });
+    for (const troop of passengers) await ctx.db.patch(troop._id, { stationedAt: to.stationId });
+    await stationCargoLoads(ctx, {
+      seasonId: season._id,
+      playerId: player._id,
+      troopIds,
+      stationedAt: to.stationId,
+      loads,
+    });
+    /** Une pose de troupe relève le sol autour d'elle, ici comme à une arrivée. */
+    await surveyFromPoint(
+      ctx,
+      player._id,
+      to.point,
+      Date.now(),
+      detectionRangeOf(passengers.map((troop) => troop.role)),
+    );
+    await reassessDetection(ctx, season._id);
+    return { boarded: passengers.length };
   },
 });
 

@@ -10,7 +10,7 @@ import type { LonLat } from '@/domain/geo';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
-  isOrder,
+  isDestinationAction,
   type CompassAction,
   type CompassTarget,
   type Compass,
@@ -505,7 +505,7 @@ export function WorldMap({
       const target = targetOfLabel(label, null, null, coastAt, landAt);
       if (target === null || target.kind === 'country' || target.kind === 'point') return [];
       const fan = compassOf(target);
-      if (fan === null || !fan.actions.some(isOrder)) return [];
+      if (fan === null || !fan.actions.some(isDestinationAction)) return [];
       return [{ labelId: label.id, name: fan.name, compass: fan }];
     });
     return found;

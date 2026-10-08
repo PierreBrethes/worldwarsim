@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   barredFrom,
+  boardingRefusalOf,
   foundingRefusal,
   landCostOf,
   legalMovementTypes,
@@ -17,6 +18,7 @@ import {
   type MovementAim,
 } from './movement-orders';
 import { COST_BY_MEDIUM } from './routing';
+import { BOARDING_RADIUS_KM } from './troops';
 
 const column = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}): Column => ({
   roles,
@@ -446,35 +448,46 @@ describe('where a landing column may put its boots down', () => {
 
 /**
  * Crossing is an investment, not a surcharge (design sheet 09): a land troop rides or it stays.
- * The numbers are `LIFT_CAPACITY` and `LIFT_COST`, and they are assumed, never simulated.
+ * The numbers are `LIFT_CAPACITY` and `LIFT_COST` (ADR 0025), assumed, never simulated — and a
+ * passenger sits in **one** transport, so capacities never add up from one hull to the next.
  */
 describe('the places aboard', () => {
   const quay = (roles: ReadonlyArray<UnitRole>) =>
     column(roles, { departureBuildings: new Set<BuildingKey>(['barracks', 'port', 'airfield']) });
+  const airfield: MovementAim = { kind: 'building', buildingId: 'B-air', key: 'airfield' };
 
-  it('takes six infantry aboard one cargo, and refuses the seventh', () => {
-    const six: ReadonlyArray<UnitRole> = Array<UnitRole>(6).fill('infantry');
-    expect(refusalOf('attack', shore, quay([...six, 'cargo']))).toBeNull();
-    expect(refusalOf('attack', region, quay([...six, 'infantry', 'cargo']))).toBe(
+  it('takes twelve infantry aboard one cargo, and refuses the thirteenth', () => {
+    const twelve: ReadonlyArray<UnitRole> = Array<UnitRole>(12).fill('infantry');
+    expect(refusalOf('attack', shore, quay([...twelve, 'cargo']))).toBeNull();
+    expect(refusalOf('attack', shore, quay([...twelve, 'infantry', 'cargo']))).toBe(
       'NOT_ENOUGH_LIFT',
     );
   });
 
-  it('charges an armour two places where an infantry costs one', () => {
-    expect(refusalOf('attack', shore, quay(['armor', 'armor', 'armor', 'cargo']))).toBeNull();
-    expect(
-      refusalOf('attack', region, quay(['armor', 'armor', 'armor', 'infantry', 'cargo'])),
-    ).toBe('NOT_ENOUGH_LIFT');
+  it('charges an armour three places: four ride a cargo, a fifth does not', () => {
+    const four: ReadonlyArray<UnitRole> = Array<UnitRole>(4).fill('armor');
+    expect(refusalOf('attack', shore, quay([...four, 'cargo']))).toBeNull();
+    expect(refusalOf('attack', shore, quay([...four, 'armor', 'cargo']))).toBe('NOT_ENOUGH_LIFT');
+  });
+
+  it('gives a carrier six places — two armour', () => {
+    expect(refusalOf('attack', shore, quay(['armor', 'armor', 'carrier']))).toBeNull();
+    expect(refusalOf('attack', shore, quay(['armor', 'armor', 'infantry', 'carrier']))).toBe(
+      'NOT_ENOUGH_LIFT',
+    );
   });
 
   it('counts an escort as no ferry at all', () => {
-    expect(refusalOf('attack', region, quay(['infantry', 'escort']))).toBe('NOT_ENOUGH_LIFT');
+    expect(refusalOf('attack', shore, quay(['infantry', 'escort']))).toBe('NOT_ENOUGH_LIFT');
   });
 
-  it('gives an air transport two places and no more', () => {
-    expect(refusalOf('attack', region, quay(['infantry', 'infantry', 'airTransport']))).toBeNull();
+  it('gives an air transport two places, and never flies an armour, however many wings', () => {
+    expect(refusalOf('march', airfield, quay(['infantry', 'infantry', 'airTransport']))).toBeNull();
     expect(
-      refusalOf('attack', region, quay(['infantry', 'infantry', 'infantry', 'airTransport'])),
+      refusalOf('march', airfield, quay(['infantry', 'infantry', 'infantry', 'airTransport'])),
+    ).toBe('NOT_ENOUGH_LIFT');
+    expect(
+      refusalOf('march', airfield, quay(['armor', 'airTransport', 'airTransport', 'airTransport'])),
     ).toBe('NOT_ENOUGH_LIFT');
   });
 
@@ -482,6 +495,32 @@ describe('the places aboard', () => {
     const many: ReadonlyArray<UnitRole> = Array<UnitRole>(9).fill('armor');
     expect(refusalOf('attack', region, quay(many))).toBeNull();
     expect(refusalOf('attack', sea, quay(['escort', 'escort', 'carrier']))).toBeNull();
+  });
+});
+
+/**
+ * **One flies down into an aerodrome of one's own, and nowhere else** (ADR 0025 §4). A wing
+ * alone still goes where it likes; it is the passengers that ask for a field under them.
+ */
+describe('where a column that flies its passengers may land', () => {
+  const field = column(['infantry', 'airTransport'], {
+    departureBuildings: new Set<BuildingKey>(['airfield']),
+  });
+  const airfield: MovementAim = { kind: 'building', buildingId: 'B-air', key: 'airfield' };
+
+  it('lands on an aerodrome of mine', () => {
+    expect(legalMovementTypes(airfield, field)).toEqual(['march']);
+  });
+
+  it('refuses any other ground, and says it needs an aerodrome', () => {
+    expect(legalMovementTypes(point, field)).toEqual([]);
+    expect(refusalOf('march', point, field)).toBe('AIRFIELD_TARGET_REQUIRED');
+    expect(refusalOf('march', shore, field)).toBe('AIRFIELD_TARGET_REQUIRED');
+  });
+
+  it('leaves a wing with no passenger free to fly anywhere', () => {
+    const wing = column(['bomber'], { departureBuildings: new Set<BuildingKey>(['airfield']) });
+    expect(refusalOf('march', point, wing)).toBeNull();
   });
 });
 
@@ -667,6 +706,11 @@ describe('a march aimed at a building of mine', () => {
     expect(refusalOf('march', barracks, column(['armor']))).toBeNull();
   });
 
+  it('opens the port and the aerodrome to every land troop (ADR 0025 §5)', () => {
+    expect(refusalOf('march', port, column(['armor', 'landTransport']))).toBeNull();
+    expect(refusalOf('march', airfield, column(['armor', 'landTransport']))).toBeNull();
+  });
+
   it('sends a cargo to a port and nowhere else, and a bomber to an aerodrome', () => {
     expect(refusalOf('march', barracks, column(['cargo'], quay))).toBe('NOT_A_GARRISON_FOR');
     expect(refusalOf('march', port, column(['cargo'], quay))).toBeNull();
@@ -696,11 +740,66 @@ describe('a march aimed at a building of mine', () => {
 
   it('carries the role and the building in the refusal details, the berths otherwise', () => {
     expect(refusalDetails(mine, column(['armor']))).toEqual({
-      needed: 2,
+      needed: 3,
       offered: 0,
       role: 'armor',
       building: 'mine',
     });
     expect(refusalDetails(point, column(['infantry']))).toEqual({ needed: 1, offered: 0 });
+  });
+});
+
+/**
+ * **On embarque par proximité, sur-le-champ** (ADR 0025 §3) : une troupe terrestre prend
+ * l'adresse d'un transport posé à moins de `BOARDING_RADIUS_KM`, par mer n'importe où, par air
+ * dans un aérodrome seulement — et elle doit y trouver un siège.
+ */
+describe('boarding a transport', () => {
+  const board = (held: Partial<Parameters<typeof boardingRefusalOf>[0]> = {}) =>
+    boardingRefusalOf({
+      passengers: ['armor', 'armor'],
+      aboard: ['cargo'],
+      distanceKm: 12,
+      atAirfield: false,
+      onQuay: false,
+      ...held,
+    });
+
+  it('seats two armour on a cargo a few kilometres off', () => {
+    expect(board()).toBeNull();
+  });
+
+  it('refuses beyond the boarding radius', () => {
+    expect(board({ distanceKm: BOARDING_RADIUS_KM + 1 })).toBe('TOO_FAR_TO_BOARD');
+  });
+
+  it('counts the passengers already aboard', () => {
+    expect(board({ aboard: ['cargo', 'armor', 'armor', 'armor'] })).toBe('NOT_ENOUGH_LIFT');
+    expect(board({ aboard: ['cargo', 'armor', 'armor', 'armor', 'carrier'] })).toBeNull();
+  });
+
+  it('boards an air transport only on an aerodrome, and never an armour', () => {
+    const infantry = {
+      passengers: ['infantry', 'infantry'] as const,
+      aboard: ['airTransport'] as const,
+    };
+    expect(board({ ...infantry, atAirfield: true })).toBeNull();
+    expect(board(infantry)).toBe('AIRFIELD_BOARDING_ONLY');
+    expect(board({ aboard: ['airTransport', 'airTransport'], atAirfield: true })).toBe(
+      'NOT_ENOUGH_LIFT',
+    );
+  });
+
+  it('leaves a garrison on the quay out of the count — it stands ashore', () => {
+    const field = { aboard: ['airTransport', 'infantry', 'infantry', 'infantry'] as const };
+    const two = { passengers: ['infantry', 'infantry'] as const, atAirfield: true };
+    expect(board({ ...field, ...two, onQuay: true })).toBeNull();
+    expect(board({ ...field, ...two })).toBe('NOT_ENOUGH_LIFT');
+  });
+
+  it('needs something that lifts, and only land troops board', () => {
+    expect(board({ aboard: ['escort'] })).toBe('NO_TRANSPORT_HERE');
+    expect(board({ passengers: ['fighter'] })).toBe('LAND_TROOPS_ONLY');
+    expect(board({ passengers: [] })).toBe('EMPTY_MOVEMENT');
   });
 });

@@ -604,6 +604,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     (buildingId: string, clientX?: number, clientY?: number) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
       if (standing === undefined) return;
+      /** **Sous le seuil, le toucher en visée agit et ne lit pas** : il lit *et* agit au repos, et
+       *  la modale fermait la visée qu'il venait de diriger sur ce mât — un port ne pouvait plus
+       *  être visé du doigt. */
+      if (narrow && column !== null) return;
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       if (PROJECTION_KEYS.includes(standing.key)) {
         setGarrison(null);
@@ -630,7 +634,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         }),
       });
     },
-    [navigate, openGarrison, boardPoint, view.me, marching],
+    [navigate, openGarrison, boardPoint, view.me, marching, narrow, column],
   );
 
   /**
@@ -720,6 +724,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const startConstruction = useMutation(api.constructions.start);
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
   const respecialize = useMutation(api.movements.respecialize);
+  const boardTransport = useMutation(api.movements.board);
 
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
@@ -789,6 +794,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           setOrderError(null);
           setDismantling({ outpostId: action.outpostId, x: at.x, y: at.y });
           return;
+        /** **Embarquer est immédiat** (ADR 0025 §3) : pas d'aperçu ni de slot, la pile armée
+         *  prend l'adresse du transport et la visée se referme. */
+        case 'board':
+          if (column === null || action.transport.kind === 'home') return;
+          setOrderError(null);
+          boardTransport({
+            ...seat,
+            origin: wireOrigin(column.station),
+            troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
+            transport: wireOrigin(action.transport),
+          }).then(
+            () => {
+              setPosted(null);
+              setColumn(null);
+            },
+            (problem: unknown) => handleError(problem, setOrderError),
+          );
+          return;
         case 'aim':
         case 'plunder':
         case 'collect': {
@@ -822,7 +845,16 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           );
       }
     },
-    [foundHere, startConstruction, raiseOutpost, respecialize, seat, narrow],
+    [
+      foundHere,
+      startConstruction,
+      raiseOutpost,
+      respecialize,
+      boardTransport,
+      column,
+      seat,
+      narrow,
+    ],
   );
 
   /**
@@ -832,6 +864,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * dire pourquoi.
    */
   const orderFrom = useCallback((compass: Compass, at: { x: number; y: number }): boolean => {
+    /** Embarquer n'est pas un ordre de la feuille (rien ne part) : la rose, qui le porte à côté
+     *  des marches, s'ouvre à sa place. */
+    if (compass.actions.some((action) => action.key === 'board')) return false;
     const choices = compass.actions.filter(isOrder).map(choiceOf);
     const first = choices[0];
     if (first === undefined) return false;
@@ -1768,7 +1803,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             searchArea={searchArea}
             fingerRose={fingerRose}
             onForceMotive={showForceMotive}
-            showDestinations={narrow}
+            showDestinations
             aimOrigin={aimOrigin}
             onDestinations={setDestinations}
             onOrderTarget={narrow ? orderFrom : undefined}

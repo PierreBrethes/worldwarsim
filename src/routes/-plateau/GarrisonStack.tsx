@@ -17,7 +17,7 @@ import {
   ROLE_ORDER,
   type StackRow,
 } from '@/domain/troops';
-import { liftOf, motorized } from '@/domain/movement-orders';
+import { liftOf, motorized, strandedIn } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -82,6 +82,8 @@ export function GarrisonStack({
   const selected = useMemo(() => held.filter((troop) => picked.has(troop.id)), [held, picked]);
   const roles = useMemo(() => selected.map((troop) => troop.role), [selected]);
   const lift = useMemo(() => liftOf(roles), [roles]);
+  /** Le refus du serveur, par transport et non par somme (ADR 0025 §2). */
+  const stranded = useMemo(() => lift.offered > 0 && strandedIn(roles), [lift, roles]);
   const carryCapacity = useMemo(
     () => carryCapacityOf(selected, CARRY_CAPACITY_BY_ROLE),
     [selected],
@@ -250,11 +252,11 @@ export function GarrisonStack({
         <div className="mt-[9px] border-t border-(color:--ink)/32 pt-[7px]">
           <span
             className="font-(family-name:--font-mono) text-[11.5px]"
-            style={{ color: lift.needed > lift.offered ? 'var(--critical)' : 'var(--ink-soft)' }}
+            style={{ color: stranded ? 'var(--critical)' : 'var(--ink-soft)' }}
           >
             {fr.garrison.seats(lift.needed, lift.offered)}
           </span>
-          {lift.needed > lift.offered && (
+          {stranded && (
             <p className="mt-[3px] text-[11px] leading-[1.4] text-[var(--critical)]">
               {fr.errors.NOT_ENOUGH_LIFT(lift)}
             </p>
@@ -273,7 +275,12 @@ export function GarrisonStack({
             <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
               {fr.garrison.picked(picked.size)}
             </span>
-            <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+            <span
+              className="font-(family-name:--font-mono) text-[11px]"
+              style={{ color: stranded ? 'var(--critical)' : 'var(--ink-soft)' }}
+            >
+              {/* Les places d'abord : c'est ce qui décide si la pile part (ADR 0025). */}
+              {lift.offered > 0 && `${fr.garrison.seatsShort(lift.needed, lift.offered)} · `}
               {onLand && `${fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']} · `}
               {fr.garrison.lootShort(carryCapacity)}
             </span>
@@ -432,12 +439,14 @@ function TroopCards({
                   {fr.garrison.aboard(roleLabel(carrier.role, 1))}
                 </span>
               )}
-            </span>
-            <span className="absolute right-[10px] bottom-[10px] left-[59px] flex flex-col gap-1">
-              <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
-                {fr.troops.strength(troop.strength, troop.nominalStrength)}
+              {/* Dans le flux et non posé au pied : un nom sur deux lignes poussait le texte
+                  sous la barre à 375 px. */}
+              <span className="mt-auto flex flex-col gap-1 pt-[4px]">
+                <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
+                  {fr.troops.strength(troop.strength, troop.nominalStrength)}
+                </span>
+                <StrengthBar strength={troop.strength} nominal={troop.nominalStrength} />
               </span>
-              <StrengthBar strength={troop.strength} nominal={troop.nominalStrength} />
             </span>
             {composes && (
               <span

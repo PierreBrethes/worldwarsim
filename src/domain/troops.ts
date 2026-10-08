@@ -50,8 +50,10 @@ export const projectionKeyOf = (role: UnitRole): BuildingKey =>
  */
 export const GARRISON_KEYS_BY_ROLE: Readonly<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
   infantry: BUILDINGS,
-  armor: ['barracks', 'hq'],
-  landTransport: ['barracks', 'hq'],
+  /** Le port et l'aérodrome s'y ajoutent (ADR 0025 §5) : une coque chargée de chars rentre à
+   *  quai, un avion débarque ses passagers sur son terrain. */
+  armor: ['barracks', 'hq', 'port', 'airfield'],
+  landTransport: ['barracks', 'hq', 'port', 'airfield'],
   fighter: ['airfield'],
   bomber: ['airfield'],
   airTransport: ['airfield'],
@@ -78,18 +80,23 @@ export const garrisons = (role: UnitRole, key: BuildingKey): boolean =>
  * A role absent from either table weighs nothing and lifts nothing: an escort is not a ferry,
  * and a fleet on its own has no passenger to answer for.
  *
- * @a-mesurer assumed against the troop ceiling alone — two cargos lift half an army
+ * **Révisé par l'ADR 0025** : la **capacité** d'un transport et l'**encombrement** d'une troupe,
+ * en places. Une troupe s'assoit dans **un seul** transport (`stackRows`) — les capacités ne
+ * s'additionnent pas, ce qui garde vraie la phrase « un blindé ne vole jamais ».
+ *
+ * @a-mesurer assumed against the troop ceiling alone — two cargos lift a whole infantry
  */
 export const LIFT_CAPACITY: Readonly<Partial<Record<UnitRole, number>>> = {
-  cargo: 6,
+  cargo: 12,
+  carrier: 6,
   airTransport: 2,
 };
 
 /** @a-mesurer the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing */
 export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
   infantry: 1,
-  armor: 2,
-  landTransport: 1,
+  armor: 3,
+  landTransport: 2,
 };
 
 /**
@@ -109,6 +116,14 @@ export const LIFT_COST: Readonly<Partial<Record<UnitRole, number>>> = {
  * @a-mesurer two seats, assumed; at four, motorizing an army would be nearly free
  */
 export const LAND_SEATS_PER_TRANSPORT = 2;
+
+/**
+ * **How far a land troop walks aboard without a movement** (ADR 0025 §3): within it, boarding is
+ * immediate and costs no slot. At 14 minutes per 1 000 km, the hop is under a minute of march.
+ *
+ * @a-mesurer 50 km, chosen so a barracks set at its region's centre still reaches the coast
+ */
+export const BOARDING_RADIUS_KM = 50;
 
 /**
  * How many equipment tiers a role knows. Two for those whose gear gets replaced mid-season,
@@ -316,14 +331,14 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
     (troop) => picked.has(troop.id) && (LIFT_CAPACITY[troop.role] ?? 0) > 0,
   );
   const free = carriers.map((carrier) => LIFT_CAPACITY[carrier.role] ?? 0);
-  const boarded = new Map<string, T[]>();
+  const carrierOf = new Map<string, T>();
 
   const seat = (troop: T, berth: number): boolean => {
     const carrier = carriers[berth];
     const cost = LIFT_COST[troop.role] ?? 0;
     if (carrier === undefined || (free[berth] ?? 0) < cost) return false;
     free[berth] = (free[berth] ?? 0) - cost;
-    boarded.set(carrier.id, [...(boarded.get(carrier.id) ?? []), troop]);
+    carrierOf.set(troop.id, carrier);
     return true;
   };
 
@@ -341,7 +356,10 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
     )
       placed.add(rider.id);
   }
-  for (const rider of riders) {
+  // Heaviest first: seated in list order, an infantry could take the last places of a hull
+  // an armour needed while another hull still had room for the infantry.
+  const byWeight = [...riders].sort((a, b) => (LIFT_COST[b.role] ?? 0) - (LIFT_COST[a.role] ?? 0));
+  for (const rider of byWeight) {
     if (placed.has(rider.id)) continue;
     seat(
       rider,
@@ -349,13 +367,15 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
     );
   }
 
-  const passengers = new Set([...boarded.values()].flat().map((troop) => troop.id));
+  // Passengers are listed under their transport in the pile's own order, not the seating's.
   return troops.flatMap((troop) =>
-    passengers.has(troop.id)
+    carrierOf.has(troop.id)
       ? []
       : [
           { troop, carrier: null },
-          ...(boarded.get(troop.id) ?? []).map((rider) => ({ troop: rider, carrier: troop })),
+          ...troops
+            .filter((rider) => carrierOf.get(rider.id) === troop)
+            .map((rider) => ({ troop: rider, carrier: troop })),
         ],
   );
 }
@@ -406,6 +426,16 @@ export function marchingTroopIds(arcs: ReadonlyArray<ArcView>): ReadonlySet<stri
   return new Set(arcs.flatMap((arc) => (arc.state === 'mine' ? [...arc.troopIds] : [])));
 }
 
+/** Where an address stands on the map, as my view knows it; `null` for `home`. */
+export function stationPointOf(me: PlayerView['me'], station: TroopStation): LonLat | null {
+  if (station.kind === 'point') return station.lonLat;
+  if (station.kind === 'outpost')
+    return me.outposts.find((outpost) => outpost.id === station.outpostId)?.lonLat ?? null;
+  if (station.kind === 'building')
+    return me.buildings.find((building) => building.id === station.buildingId)?.point ?? null;
+  return null;
+}
+
 /**
  * **La garnison qu'une dépêche de combat ouvre** (lot mobile-3, §6) : l'avant-poste visé quand
  * c'en était un des miens, sinon la plus proche de mes adresses debout qui tient encore quelqu'un
@@ -423,18 +453,10 @@ export function stationAtCombat(
   if (combat.outpostId !== null && me.outposts.some((outpost) => outpost.id === combat.outpostId))
     return { kind: 'outpost', outpostId: combat.outpostId };
   const where: LonLat = [combat.point.lon, combat.point.lat];
-  const placeOf = (station: TroopStation): LonLat | null => {
-    if (station.kind === 'point') return station.lonLat;
-    if (station.kind === 'outpost')
-      return me.outposts.find((outpost) => outpost.id === station.outpostId)?.lonLat ?? null;
-    if (station.kind === 'building')
-      return me.buildings.find((building) => building.id === station.buildingId)?.point ?? null;
-    return null;
-  };
   let nearest: { readonly station: TroopStation; readonly km: number } | null = null;
   for (const troop of me.troops) {
     if (marching.has(troop.id)) continue;
-    const place = placeOf(troop.stationedAt);
+    const place = stationPointOf(me, troop.stationedAt);
     if (place === null) continue;
     const km = distanceKm(place, where);
     if (km <= reachKm && (nearest === null || km < nearest.km))

@@ -18,7 +18,7 @@ import {
   type Band,
   type GunneryShot,
 } from '@/domain/gunnery';
-import { DOMAIN_BY_ROLE, tierLabel } from '@/domain/troops';
+import { DOMAIN_BY_ROLE, LIFT_CAPACITY, LIFT_COST, tierLabel } from '@/domain/troops';
 import type { UnitTier } from '@/domain/troops';
 import type { UnitRole } from '@/domain/ids';
 import { asDuration } from '@/domain/duration';
@@ -241,6 +241,10 @@ export function GunnerySheet({
 
         <div className="flex flex-wrap gap-x-[24px] gap-y-1 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
           <span>{fr.gunnery.nominalLootCapacity(CARRY_CAPACITY_BY_ROLE[role])}</span>
+          {LIFT_CAPACITY[role] !== undefined && (
+            <span>{fr.gunnery.liftCapacity(LIFT_CAPACITY[role])}</span>
+          )}
+          {LIFT_COST[role] !== undefined && <span>{fr.gunnery.liftCost(LIFT_COST[role])}</span>}
           <span>{fr.gunnery.movementRule(movement)}</span>
         </div>
 

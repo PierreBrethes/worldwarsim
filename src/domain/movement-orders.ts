@@ -4,12 +4,14 @@ import type { RouteMode } from './routing';
 import { COST_BY_MEDIUM } from './routing';
 import type { UnitDomain } from './troops';
 import {
+  BOARDING_RADIUS_KM,
   DOMAIN_BY_ROLE,
   garrisons,
   LAND_SEATS_PER_TRANSPORT,
   LIFT_CAPACITY,
   LIFT_COST,
   PROJECTION_BY_DOMAIN,
+  stackRows,
 } from './troops';
 
 /**
@@ -172,6 +174,8 @@ export type OrderRefusal =
    *  possède, donc il passait la seule condition que la fondation posait. */
   | 'NO_FOUNDING_AT_SEA'
   | 'NOT_ENOUGH_LIFT'
+  /** **On ne descend d'un avion que dans un de ses aérodromes** (ADR 0025 §4). */
+  | 'AIRFIELD_TARGET_REQUIRED'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
   | 'NOTHING_TO_ATTACK'
@@ -506,6 +510,12 @@ const embarking = (column: Column, domains: ReadonlySet<UnitDomain>): boolean =>
  */
 const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | null => {
   const mode = routeModeOf(column.roles);
+  if (
+    mode === 'air' &&
+    column.roles.some((role) => DOMAIN_BY_ROLE[role] === 'land') &&
+    !(aim.kind === 'building' && aim.key === PROJECTION_BY_DOMAIN.air)
+  )
+    return 'AIRFIELD_TARGET_REQUIRED';
   if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
   if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
   return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
@@ -556,9 +566,74 @@ export function liftOf(roles: ReadonlyArray<UnitRole>): {
 const overloaded = (column: Column): OrderRefusal | null => {
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (!domains.has('land') || (!domains.has('sea') && !domains.has('air'))) return null;
-  const { needed, offered } = liftOf(column.roles);
-  return needed > offered ? 'NOT_ENOUGH_LIFT' : null;
+  return strandedIn(column.roles) ? 'NOT_ENOUGH_LIFT' : null;
 };
+
+/**
+ * **A passenger that no single transport seats** (ADR 0025 §2) — read off the very assignment
+ * that draws the pile and decides who drowns, never off a sum: two air transports offer four
+ * places and still no seat for a three-place armour.
+ */
+export function strandedIn(roles: ReadonlyArray<UnitRole>): boolean {
+  const pile = roles.map((role, rank) => ({ id: String(rank), role }));
+  return stackRows(pile, new Set(pile.map((troop) => troop.id))).some(
+    (row) => row.carrier === null && (LIFT_COST[row.troop.role] ?? 0) > 0,
+  );
+}
+
+export type BoardingRefusal =
+  | 'EMPTY_MOVEMENT'
+  | 'LAND_TROOPS_ONLY'
+  | 'NO_TRANSPORT_HERE'
+  | 'AIRFIELD_BOARDING_ONLY'
+  | 'TOO_FAR_TO_BOARD'
+  | 'NOT_ENOUGH_LIFT';
+
+/** Un embarquement tel que la rose et `movements.board` le lisent, chacun de son côté. */
+export type Boarding = {
+  readonly passengers: ReadonlyArray<UnitRole>;
+  /** Ce qui se tient déjà, posé, à l'adresse du transport. */
+  readonly aboard: ReadonlyArray<UnitRole>;
+  readonly distanceKm: number;
+  readonly atAirfield: boolean;
+  /** L'adresse est un bâtiment : sa garnison se tient à quai, elle n'occupe aucun siège. */
+  readonly onQuay: boolean;
+};
+
+/**
+ * **Ce qui se dispute les sièges** : les transports utilisables ici — un avion n'emporte personne
+ * hors d'un aérodrome —, les passagers déjà posés sur eux, et la colonne. Au large ou sur une
+ * plage, ceux qui sont là sont à bord ; à quai, une garnison au repos mangerait les places d'un
+ * avion vide.
+ */
+export const boardingPile = ({ passengers, aboard, atAirfield, onQuay }: Boarding) => [
+  ...aboard.filter((role) =>
+    DOMAIN_BY_ROLE[role] === 'land' ? !onQuay : atAirfield || role !== 'airTransport',
+  ),
+  ...passengers,
+];
+
+/**
+ * **Embarquer, la règle entière** (ADR 0025 §3) — lue par la rose avant le clic et par la
+ * mutation après lui.
+ */
+export function boardingRefusalOf(boarding: Boarding): BoardingRefusal | null {
+  const { passengers, aboard, distanceKm } = boarding;
+  if (passengers.length === 0) return 'EMPTY_MOVEMENT';
+  if (passengers.some((role) => DOMAIN_BY_ROLE[role] !== 'land')) return 'LAND_TROOPS_ONLY';
+  const pile = boardingPile(boarding);
+  if (!pile.some((role) => (LIFT_CAPACITY[role] ?? 0) > 0))
+    return aboard.includes('airTransport') ? 'AIRFIELD_BOARDING_ONLY' : 'NO_TRANSPORT_HERE';
+  if (distanceKm > BOARDING_RADIUS_KM) return 'TOO_FAR_TO_BOARD';
+  return strandedIn(pile) ? 'NOT_ENOUGH_LIFT' : null;
+}
+
+/** Ce que la phrase du refus nomme — places, distance, rayon —, la même des deux côtés. */
+export const boardingRefusalDetails = (boarding: Boarding) => ({
+  ...liftOf(boardingPile(boarding)),
+  km: Math.round(boarding.distanceKm),
+  maximum: BOARDING_RADIUS_KM,
+});
 
 /**
  * **The terrain is read off the domains present, and the mix is the point.** A pile of pure land

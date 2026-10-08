@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7ad8581 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ab99a6b -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-33 valeurs marquées dans `convex/` et `src/domain/`.
+34 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `CHAINS` et leurs voisines : leur instrument existe déjà, c'est le
@@ -48,6 +48,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1038` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `REGISTRATION_WINDOW_HOURS` | `2` | `src/domain/off-season.ts:6` | before treating it as a campaign balance rule. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
-| `LIFT_CAPACITY` | `{ cargo: 6, airTransport: 2 }` | `src/domain/troops.ts:83` | assumed against the troop ceiling alone — two cargos lift half an army |
-| `LIFT_COST` | `{ infantry: 1, armor: 2, landTransport: 1 }` | `src/domain/troops.ts:89` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
-| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:111` | two seats, assumed; at four, motorizing an army would be nearly free |
+| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:89` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
+| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2 }` | `src/domain/troops.ts:96` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
+| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:118` | two seats, assumed; at four, motorizing an army would be nearly free |
+| `BOARDING_RADIUS_KM` | `50` | `src/domain/troops.ts:126` | 50 km, chosen so a barracks set at its region's centre still reaches the coast |

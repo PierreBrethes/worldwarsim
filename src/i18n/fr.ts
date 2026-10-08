@@ -10,7 +10,7 @@ import countryNames from '../../public/country-names.json';
 import type { ErrorCode } from '../../convex/errors';
 import { LISTENING_STATION_RADIUS_KM, OUTPOST_REACH_KM_BY_LEVEL } from '../../convex/constants';
 import { NATION_BY_ADM0 } from '../domain/nations';
-import { tierLabel } from '../domain/troops';
+import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import type { OutpostRaiseHold, UpgradeHold } from '../domain/construction';
 import type { DispatchKind, HomeSlotRelief } from '../domain/player-view';
 import type { CombatProfile } from '../domain/combat';
@@ -500,11 +500,23 @@ export const fr = {
       'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
     SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
     /** The stack's footer prints this **before** the aim, not after the refusal: it says how
-     *  many berths are short, because "il manque du transport" leaves the player counting. */
+     *  many berths are short, because "il manque du transport" leaves the player counting — or,
+     *  berths enough but scattered, that a troop sits in one transport only (ADR 0025 §2). */
     NOT_ENOUGH_LIFT: (d) =>
       `${num(d.needed)} place${plural(Number(d.needed), '', 's')} à embarquer pour ${num(
         d.offered,
-      )} à bord — il en manque ${num(Number(d.needed) - Number(d.offered))}`,
+      )} à bord — ${
+        Number(d.needed) > Number(d.offered)
+          ? `il en manque ${num(Number(d.needed) - Number(d.offered))}`
+          : 'une troupe ne tient dans aucun transport'
+      }`,
+    AIRFIELD_TARGET_REQUIRED: () =>
+      'un avion chargé de troupes ne descend que dans un de vos aérodromes',
+    LAND_TROOPS_ONLY: () => 'seules les troupes terrestres embarquent',
+    NO_TRANSPORT_HERE: () => 'aucun cargo ni porte-avions ici pour vous prendre à bord',
+    AIRFIELD_BOARDING_ONLY: () => 'un avion n’embarque personne hors d’un aérodrome',
+    TOO_FAR_TO_BOARD: (d) =>
+      `trop loin pour embarquer : ${num(d.km)} km, ${num(d.maximum)} au plus — approchez-vous`,
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
@@ -1578,6 +1590,7 @@ export const fr = {
         ? 'pile : aucune troupe cochée'
         : `pile : ${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')}`,
     lootShort: (capacity: number) => `butin : ${num(capacity)}`,
+    seatsShort: (needed: number, offered: number) => `places ${needed}/${offered}`,
     /** Les raccourcis de la composition sous le seuil (refonte mobile, 1e). */
     pickAll: 'tout',
     pickNone: 'aucune',
@@ -1831,6 +1844,9 @@ export const fr = {
     contactRange: (km: number) =>
       `Portée de contact : ${num(km)} km — ce qu’un ordre trouve debout là où il arrive, quel que soit le rôle.`,
     nominalLootCapacity: (capacity: number) => `capacité nominale de butin : ${num(capacity)}`,
+    /** ADR 0025 : ce qu'un transport emporte, ce qu'une troupe terrestre occupe — en places. */
+    liftCapacity: (places: number) => `emporte ${places} places de troupes`,
+    liftCost: (places: number) => `occupe ${places} place${plural(places, '', 's')} à bord`,
     movementRule: ({ mode, pace, costs }: MovementSheet) => {
       const route = {
         land: 'par terre',
@@ -2636,9 +2652,25 @@ export const fr = {
     /** La branche de la visée sur un mât à soi (décisions 64b, 69a) : une marche qui finit dans
      *  le bâtiment plutôt qu'en campagne devant lui. En minuscules comme les autres marches. */
     garrison: 'entrer en garnison',
-    transportFull: 'ces troupes ne tiennent pas dans les transports disponibles ici',
+    transportFull: 'ces troupes ne tiennent pas dans le camion disponible ici',
     joinTransport:
-      'rejoindre sa position actuelle pour composer une pile — le transport doit vous y attendre',
+      'rejoindre sa position actuelle pour composer une pile — le camion doit vous y attendre',
+    /** **Embarquer** (ADR 0025 §3) : sur-le-champ et sans slot — la bulle le dit avant le prix,
+     *  parce que c'est ce qui sépare ce geste d'une marche. */
+    board: 'embarquer',
+    boardOnto: (transports: string) => `embarquer · ${transports}`,
+    boardCost: (km: number) => `immédiat · sans slot · ${km} km`,
+    boardPlaces: (used: number, capacity: number) =>
+      `à bord ensuite : ${used} place${plural(used, '', 's')} sur ${capacity}`,
+    /** « Cargo ×2 · porte-avions » : ce qui emporte, jamais l'abréviation de la pile. */
+    transports: (roles: ReadonlyArray<UnitRole>) =>
+      [...new Set(roles)]
+        .map((role) => {
+          const count = roles.filter((other) => other === role).length;
+          return count > 1 ? `${roleLabel(role, 1)} ×${count}` : roleLabel(role, 1);
+        })
+        .join(' · ')
+        .replace(/^./, (first) => first.toUpperCase()),
     region: (country: string) => `région · ${country}`,
     /**
      * **La cible est l'instance, et sa qualification décisionnelle est son niveau** (tranché le
@@ -2868,7 +2900,7 @@ export const fr = {
     },
     landTransport: {
       kind: 'support',
-      contribution: 'Ajoute de la capacité de pile : projette l’infanterie plus loin.',
+      contribution: 'Motorise deux fantassins : projette l’infanterie plus loin.',
     },
     fighter: {
       kind: 'combat',
@@ -2882,7 +2914,7 @@ export const fr = {
     },
     airTransport: {
       kind: 'support',
-      contribution: 'Vitesse maximale, capacité minimale.',
+      contribution: `Vitesse maximale, capacité minimale : ${LIFT_CAPACITY.airTransport} places, jamais un blindé. Embarque et débarque dans un aérodrome.`,
     },
     escort: {
       kind: 'combat',
@@ -2891,11 +2923,11 @@ export const fr = {
     },
     cargo: {
       kind: 'support',
-      contribution: 'Commerce avec les pays neutres et logistique lourde.',
+      contribution: `Fait traverser la mer aux troupes terrestres : ${LIFT_CAPACITY.cargo} places, un blindé en prend ${LIFT_COST.armor}.`,
     },
     carrier: {
       kind: 'support',
-      contribution: 'Infrastructure mobile : déplace le point de lancement aérien.',
+      contribution: `Infrastructure mobile : déplace le point de lancement aérien, et emporte ${LIFT_CAPACITY.carrier} places de troupes terrestres.`,
     },
   },
 } as const;

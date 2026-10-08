@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fr } from '@/i18n/fr';
-import { isOrder } from '@/domain/compass-rose';
+import { isDestinationAction } from '@/domain/compass-rose';
 import type { Destination } from '@/map/WorldMap';
 import { BottomSheet } from '@/shell/BottomSheet';
 
@@ -101,7 +101,7 @@ export function AimTargets({
             </span>
             <span className="line-clamp-2 font-(family-name:--font-mono) text-[10.5px] leading-[1.25] text-[var(--ink-soft)]">
               {destination.compass.actions
-                .filter(isOrder)
+                .filter(isDestinationAction)
                 .map((action) => action.label)
                 .join(' · ')}
             </span>
