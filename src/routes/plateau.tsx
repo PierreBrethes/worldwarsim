@@ -1942,12 +1942,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onClose={() => setOpenedReport(null)}
             />
           )}
-          {/* Haut-gauche : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
-            cartouche la porte (décision du 30/08). */}
+          {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
+            cartouche la porte (décision du 30/08). Pas en haut à gauche : l'échelle de route d'un
+            mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
           {orderError !== null && (
             <div
-              className={`hud absolute left-4 z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
-                narrow ? 'bottom-4' : 'top-4'
+              className={`hud absolute z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                narrow ? 'bottom-4 left-4' : 'top-4 right-4'
               }`}
             >
               {orderError}
