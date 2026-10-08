@@ -862,9 +862,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   }, [column, posted, releasePosted]);
 
   /**
-   * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord
-   * (elles ont leur propre Échap), la visée et la pose ensuite (ci-dessus et ci-dessous), puis les
-   * cartes et panneaux ancrés à un point. La rose, en capture, arrête la touche avant tous.
+   * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord,
+   * la visée et la pose ensuite — chacune a sa propre sortie —, puis les cartes et panneaux ancrés
+   * à un point. La rose, en capture, arrête la touche avant tous.
    */
   useEffect(() => {
     if (windows.length > 0 || column !== null || posted !== null || placing !== null) return;
@@ -1968,7 +1968,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
           {orderError !== null && (
             <div
-              className={`hud absolute z-10 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+              className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
                 narrow ? 'bottom-4 left-4' : 'top-4 right-4'
               }`}
             >
@@ -1980,9 +1980,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
           {!narrow && (
-            <div className="absolute bottom-4 left-4 z-[var(--z-indicator)]">
-              {nextActions('card')}
-            </div>
+            <div className="absolute bottom-4 left-4 z-[var(--z-band)]">{nextActions('card')}</div>
           )}
           {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
             la cible, et la colonne passerait sous le doigt qui la nomme. */}
