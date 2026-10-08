@@ -1957,7 +1957,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
             **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
-          {!narrow && <div className="absolute bottom-4 left-4 z-10">{nextActions('card')}</div>}
+          {!narrow && (
+            <div className="absolute bottom-4 left-4 z-[var(--z-indicator)]">
+              {nextActions('card')}
+            </div>
+          )}
           {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
             la cible, et la colonne passerait sous le doigt qui la nomme. */}
           {narrow && column === null && (
