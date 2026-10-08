@@ -861,6 +861,27 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return () => document.removeEventListener('keydown', disarm);
   }, [column, posted, releasePosted]);
 
+  /**
+   * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord
+   * (elles ont leur propre Échap), la visée et la pose ensuite (ci-dessus et ci-dessous), puis les
+   * cartes et panneaux ancrés à un point. La rose, en capture, arrête la touche avant tous.
+   */
+  useEffect(() => {
+    if (windows.length > 0 || column !== null || posted !== null || placing !== null) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setGarrison(null);
+      setBuildingSite(null);
+      setDemolition(null);
+      setDismantling(null);
+      setSelectedLoot(null);
+      setSelectedCamp(null);
+      setSelectedObjective(null);
+    };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [windows.length, column, posted, placing]);
+
   /** **Échap rend la carte intacte** : rien n'a été enfilé, il n'y a donc rien à défaire. */
   useEffect(() => {
     if (placing === null) return;
