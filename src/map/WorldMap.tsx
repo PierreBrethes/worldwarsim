@@ -433,7 +433,6 @@ export function WorldMap({
   const onLabelOpen = useCallback(
     (label: MapLabel, clientX: number, clientY: number) => {
       if (label.station === null) return;
-      if (onOpenStack?.(label.station, clientX, clientY) !== true) return;
       const map = engine.current;
       const target = targetOfLabel(
         label,
@@ -442,10 +441,23 @@ export function WorldMap({
         coastAt,
         landAt,
       );
-      if (target === null) return;
+      /** **Sous le doigt, en visée, une destination ne se désigne pas** : le même toucher agit
+       *  juste après (`onAct`), et désigner aurait réarmé la colonne sous la rose qui l'emmène —
+       *  « embarquer » partait avec le cargo pour seul passager. */
+      if (
+        aiming &&
+        fingerRose !== null &&
+        target !== null &&
+        compassOf(target)?.actions.some(isDestinationAction) === true
+      )
+        return;
+      if (onOpenStack?.(label.station, clientX, clientY) !== true) return;
+      /** **Une autre pile désignée en visée n'ouvre pas de rose** : `compassOf` la lirait encore
+       *  avec la colonne que ce clic vient de remplacer. */
+      if (target === null || (aiming && label.id !== aimOrigin)) return;
       openRose(target, clientX, clientY);
     },
-    [onOpenStack, openRose, coastAt, landAt],
+    [onOpenStack, openRose, compassOf, aiming, aimOrigin, fingerRose, coastAt, landAt],
   );
 
   const onLabelAct = useCallback(
