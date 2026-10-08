@@ -866,8 +866,10 @@ function OutputBox({ column }: { column: Column }) {
           <ResourcePlate resource={column.output.resource} height={17} />
           <span className="min-w-0 leading-[1.25]">{fr.resources[column.output.resource]}</span>
         </span>
+        {/* A rate never breaks; the sentence that replaces it must, or it spills into the
+            next column — a column is narrower than « ne produit rien » set in mono. */}
         <span
-          className="shrink-0 font-(family-name:--font-mono) text-[11.5px]"
+          className={`${dry ? 'min-w-0' : 'shrink-0'} font-(family-name:--font-mono) text-[11.5px]`}
           style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
         >
           {dry ? fr.economy.noRate : fr.economy.perHour(column.output.perHour)}
