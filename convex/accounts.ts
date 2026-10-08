@@ -4,7 +4,8 @@ import type { QueryCtx } from './_generated/server';
 import { fail } from './errors';
 import { dropSubscription } from './notifications';
 import { LOGIN_MIN_INTERVAL_MS } from '../src/domain/account';
-import { accountOf, previewOf } from './seasons';
+import { previewOf } from './seasons';
+import { accountOf } from './seats';
 import { openSession, sessionOf, tokenDigest } from './sessions';
 
 const digestArgs = {

@@ -6,12 +6,12 @@ import { carryCapacityOf } from '../src/domain/loot';
 import { cargoTotal, movementCargoLoads, takeMovementCargo, type CargoLoad } from './cargo';
 import { CARRY_CAPACITY_BY_ROLE } from './constants';
 import { fail } from './errors';
-import { takeLootFromCrate } from './lootCrates';
+import { takeLootFromCrate } from './crateStock';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { pointOf, troopsCarriedBy } from './movement/forces';
 import { aimOf, march, type MarchOrigin } from './movement/orders';
 import { restHold } from './movement/rest';
-import { requirePlayable, seasonStillPlays } from './seasons';
+import { requirePlayable, seasonStillPlays } from './seats';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint } from './routes';
 

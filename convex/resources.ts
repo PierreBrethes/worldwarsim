@@ -13,7 +13,7 @@ import {
   type ChainReport,
   type Conversion,
 } from '../src/domain/economy';
-import { playerBuildings, totalLevelOf } from './buildings';
+import { playerBuildings, totalLevelOf } from './buildingReads';
 import {
   BASE_CAP,
   CHAINS,

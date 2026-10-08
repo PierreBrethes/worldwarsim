@@ -25,7 +25,7 @@ import { NATIONS, RESOURCES } from '../src/domain/ids';
 import { ADM0_BY_NATION, isNation } from '../src/domain/nations';
 import { planObjectives, type ObjectiveCandidate } from '../src/domain/objective-placement';
 import { KM_PER_UNIT } from '../src/domain/routing';
-import { playerBuildings } from './buildings';
+import { playerBuildings } from './buildingReads';
 import {
   DEFAULT_REST_WINDOW,
   nominalStrength,
@@ -41,7 +41,7 @@ import {
 } from './constants';
 import { allRegions, capitalRegionOf, pointOfBuilding, regionFacts } from './regions';
 import { routeBetween, routeKmFrom } from './routes';
-import { seatsOf } from './seasons';
+import { seatsOf } from './seats';
 
 export const seasonObjectives = (
   ctx: QueryCtx,

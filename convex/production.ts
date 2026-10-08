@@ -5,7 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { regionFacts } from './regions';
 import { settle } from './resources';
-import { isAtWar, seatsOf } from './seasons';
+import { isAtWar, seatsOf } from './seats';
 import { reassessDetection } from './movement/detection';
 
 /**

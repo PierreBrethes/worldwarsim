@@ -3,7 +3,8 @@ import { mutation } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
-import { concludeSeason, isAtWar, playerOf, requirePlayable, seatsOf } from './seasons';
+import { concludeSeason } from './seasons';
+import { isAtWar, playerOf, requirePlayable, seatsOf } from './seats';
 import { refreshSession } from './sessions';
 
 /**

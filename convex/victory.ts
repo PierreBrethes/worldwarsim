@@ -2,7 +2,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { isReduced, playersToReduce } from '../src/domain/victory';
 import { REDUCTION_FACTOR } from './constants';
-import { concludeSeason, isAtWar, seatsOf } from './seasons';
+import { concludeSeason } from './seasons';
+import { isAtWar, seatsOf } from './seats';
 
 /**
  * **The wiring of the test victory.** The rule itself is in `src/domain/victory.ts` — pure and

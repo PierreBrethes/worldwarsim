@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
 import { stampReadMark } from './readMarks';
-import { playerOf, requireStarted } from './seasons';
+import { playerOf, requireStarted } from './seats';
 
 /**
  * **Lu, c'est ce qu'on a eu le temps de voir.** The hour is stamped when the window is *closed*,

@@ -201,7 +201,7 @@ la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 **Le compte possède ses places** (ADR 0022, livré le 11/09/2026). Un pseudo unique et un mot de
 passe, sans e-mail : `/connexion` ouvre un dossier ou en reprend un, et l'accueil liste les
 parties du **compte** — le même joueur les retrouve depuis un second appareil, ce que le jeton de
-partie interdisait. Une seule porte côté serveur (`playerOf`, `convex/seasons.ts`) : un jeton de
+partie interdisait. Une seule porte côté serveur (`playerOf`, `convex/seats.ts`) : un jeton de
 session, une saison, et la place que le compte y tient ; chaque fonction de jeu prend
 `{ token, seasonId }` et trois refus distincts disent trois choses — `UNKNOWN_SESSION` (on se
 reconnecte), `NO_SEAT` (on rentre à l'accueil), `SEASON_GONE`. **Au plus une place par compte et
@@ -680,9 +680,3 @@ spécifié. L'oublier coûte une réécriture.
 
 Les tâches de développement travaillent directement dans le dépôt monté sous WSL. Ne crée pas de
 worktree séparé sauf demande explicite de Pierre (préférence du 08/09/2026).
-
-Git : 
-Ne commit pas
-Ne push pas
-
-Utilise git seulement pour de l'exploration si besoin

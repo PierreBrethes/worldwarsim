@@ -26,7 +26,7 @@ import { seenSegment } from '../../src/domain/sighting-segment';
 import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import { isStanding } from '../../src/domain/outposts';
-import { seasonBuildings } from '../buildings';
+import { seasonBuildings } from '../buildingReads';
 import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,

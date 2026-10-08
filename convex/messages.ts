@@ -11,7 +11,7 @@ import { fail } from './errors';
 import { notifyPlayer } from './notifications';
 import { telegraphUrl, push } from '../src/domain/push';
 import { readMarksOf, stampReadMark } from './readMarks';
-import { playerOf, seatsOf } from './seasons';
+import { playerOf, seatsOf } from './seats';
 
 /**
  * **On se chambre aussi en attendant le lancement.** The channel opens with the lobby and closes

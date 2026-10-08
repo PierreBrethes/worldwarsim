@@ -7,7 +7,7 @@ import { isStanding } from '../src/domain/outposts';
 import { soleHoldOf } from './holding';
 import { outpostsOf } from './movement/forces';
 import { allRegions, homeCountryOf, regionsOf } from './regions';
-import { playerOf, seatsOf } from './seasons';
+import { playerOf, seatsOf } from './seats';
 import { regionsCoveredBy } from './regionGeometry';
 import { standingObserversOf } from './surveys';
 

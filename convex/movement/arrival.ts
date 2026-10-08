@@ -14,7 +14,7 @@ import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
-import { buildingAt, playerBuildings } from '../buildings';
+import { buildingAt, playerBuildings } from '../buildingReads';
 import {
   cargoTotal,
   movementCargoFields,
@@ -48,10 +48,10 @@ import {
   type TroopAddress,
 } from './forces';
 import { surveyFromPoint } from '../surveys';
-import { seatsOf } from '../seasons';
+import { seatsOf } from '../seats';
 import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
-import { pacedMinutes } from './orders';
+import { pacedMinutes } from './pace';
 import { creditToStorage, settle } from '../resources';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 

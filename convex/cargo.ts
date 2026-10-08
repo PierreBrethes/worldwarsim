@@ -3,7 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import { carryCapacityOf, trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from './constants';
-import { materializeRecoveryRemainder } from './lootCrates';
+import { materializeRecoveryRemainder } from './crateStock';
 import type { TroopAddress } from './movement/forces';
 import { creditToStorage } from './resources';
 import { planCargoReturn, startCargoReturn } from './movement/cargoReturn';

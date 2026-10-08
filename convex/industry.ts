@@ -1,10 +1,10 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
-import { playerBuildings, totalLevelOf } from './buildings';
+import { playerBuildings, totalLevelOf } from './buildingReads';
 import { isCommanded } from './constants';
 import { fail } from './errors';
 import { maxOrderOf, settle } from './resources';
-import { playerOf, requirePlayable } from './seasons';
+import { playerOf, requirePlayable } from './seats';
 import { BUILDING_KEY } from './validators';
 
 /**

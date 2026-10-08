@@ -364,14 +364,3 @@ export async function engagementsOf(
     .take(REPORTS_SERVED);
   return [...mine, ...against].sort((a, b) => b.at - a.at).slice(0, REPORTS_SERVED);
 }
-
-/** Every troop hanging from a point or a building, whoever it belongs to. */
-export async function troopsStationedAt(
-  ctx: QueryCtx,
-  stationId: Id<'buildings'> | Id<'outposts'>,
-): Promise<Array<Doc<'troops'>>> {
-  return ctx.db
-    .query('troops')
-    .withIndex('byStation', (q) => q.eq('stationedAt', stationId))
-    .collect();
-}
