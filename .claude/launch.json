@@ -10,8 +10,8 @@
     },
     {
       "name": "dev-nvm",
-      "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "PATH=\"$HOME/.nvm/versions/node/v24.19.0/bin:$PATH\" npm run dev"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", ". \"$HOME/.nvm/nvm.sh\" && nvm use --silent 24 && npm run dev"],
       "port": 5173,
       "autoPort": true
     }
