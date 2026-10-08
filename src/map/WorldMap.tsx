@@ -10,7 +10,7 @@ import type { LonLat } from '@/domain/geo';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
-  isOrder,
+  isDestinationAction,
   type CompassAction,
   type CompassTarget,
   type Compass,
@@ -505,7 +505,7 @@ export function WorldMap({
       const target = targetOfLabel(label, null, null, coastAt, landAt);
       if (target === null || target.kind === 'country' || target.kind === 'point') return [];
       const fan = compassOf(target);
-      if (fan === null || !fan.actions.some(isOrder)) return [];
+      if (fan === null || !fan.actions.some(isDestinationAction)) return [];
       return [{ labelId: label.id, name: fan.name, compass: fan }];
     });
     return found;
@@ -529,20 +529,19 @@ export function WorldMap({
     [destinations],
   );
   /**
-   * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord comme une destination**
-   * (carte-lisible, 03/10) — le même cartouche nommé, le même toucher qui y recentre. Il ne
-   * rejoint pas les cercles au pied : un drapeau dit où va ce qui est parti, pas où l'on peut
-   * aller.
+   * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
+   * 03/10) — un toucher y recentre. Les destinations de la colonne armée ne s'y nomment plus
+   * (retour de Pierre, 08/10) : en visée, une rangée de cartouches au bord de l'écran gênait et ne
+   * disait rien que les cercles et la feuille ne disent déjà.
    */
   const edgeNames = useMemo<ReadonlyMap<string, string>>(
     () =>
-      new Map([
-        ...destinations.map((destination) => [destination.labelId, destination.name] as const),
-        ...labels
+      new Map(
+        labels
           .filter((label) => label.type === 'arrival')
           .map((label) => [label.id, lineText(label, 'nature') ?? ''] as const),
-      ]),
-    [labels, destinations],
+      ),
+    [labels],
   );
 
   // **Effet immédiat, sans rechargement** : le moteur reçoit le mappage comme il reçoit une

@@ -44,9 +44,9 @@ export function EdgeIndicators({
   engine: MapEngine | null;
   toggles: IndicatorToggles;
   /**
-   * **Les destinations de la colonne armée, nommées au bord quand elles sont hors champ** (lot
-   * mobile-3, A8). Elles ne se regroupent pas et ne suivent aucune bascule : chacune porte son
-   * nom, et un toucher y recentre la carte. Le même passage du moteur les pose.
+   * **Les drapeaux d'arrivée de mes mouvements, nommés au bord quand ils sont hors champ**
+   * (carte-lisible, 03/10). Ils ne se regroupent pas et ne suivent aucune bascule : chacun porte
+   * son nom, et un toucher y recentre la carte. Le même passage du moteur les pose.
    */
   destinations: ReadonlyMap<string, string>;
 }) {

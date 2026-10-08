@@ -3,7 +3,7 @@
 **Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
 le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
 objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par
-l'[ADR 0021](0021-portee-de-detection-et-postures.md). §3 et §6 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md). §2 révisé le 04/09/2026 puis le 18/09/2026 — voir les deux bannières en fin de fiche.**
+l'[ADR 0021](0021-portee-de-detection-et-postures.md). §3 et §6 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md). §2 révisé le 04/09/2026 puis le 18/09/2026 — voir les deux bannières en fin de fiche —, et le 08/10/2026 par l'[ADR 0025](0025-capacite-encombrement-et-embarquement-de-proximite.md) : le port n'est plus la porte de l'embarquement.**
 
 > **Révision S5b (09/09/2026).** Une expédition de pillage arrivée et victorieuse devient une
 > présence durable de 2 h au point du site. Elle reste un mouvement : ses troupes et son slot

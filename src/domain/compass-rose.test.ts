@@ -651,7 +651,7 @@ describe('aiming at a point', () => {
  * garnison, qui sert à composer une pile et non à donner un ordre. La branche vit sur la pile
  * elle-même, parce qu'on fonde où l'on se tient (ADR 0019 §1).
  */
-describe('joining a transport from the map', () => {
+describe('boarding a transport from the map (ADR 0025 §3)', () => {
   const beach = {
     kind: 'point',
     lonLat: [142.1, 47],
@@ -694,27 +694,43 @@ describe('joining a transport from the map', () => {
       },
     }) as unknown as PlayerView;
 
-  it('offers a garrison march to the exact address of a friendly cargo', () => {
+  it('offers to board a friendly cargo a few kilometres off, at once', () => {
     const compass = compassOf(target, withTransport(), column, origin);
+    expect(compass?.name).toBe('Cargo');
     expect(compass?.actions).toHaveLength(1);
     expect(compass?.actions[0]).toMatchObject({
-      key: 'aim',
-      type: 'march',
-      label: 'entrer en garnison',
-      pictogram: 'doorway',
-      aim: { kind: 'point', lon: 142.1, lat: 47, onLand: true, coastal: true },
+      key: 'board',
+      pictogram: 'anchor',
+      label: 'embarquer',
+      transport: beach,
     });
   });
 
-  it('does not offer an infantry march to an offshore cargo', () => {
+  it('boards a cargo moored offshore as well — the littoral, not the quay', () => {
     const compass = compassOf({ ...target, onLand: false }, withTransport(), column, origin);
-    expect(compass?.actions).toEqual([]);
-    expect(compass?.refusal).toContain('une troupe terrestre doit viser la terre');
+    expect(compass?.actions[0]).toMatchObject({ key: 'board' });
   });
 
-  it('offers no boarding when the cargo has no remaining places', () => {
-    const compass = compassOf(target, withTransport('cargo', 6), column, origin);
+  it('says how many places are missing when the cargo is full', () => {
+    const compass = compassOf(target, withTransport('cargo', 12), column, origin);
     expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toContain('il en manque 1');
+  });
+
+  it('says it is too far beyond the boarding radius', () => {
+    const far = { ...origin, lonLat: [144, 47] } as const;
+    const compass = compassOf(target, withTransport(), column, far);
+    expect(compass?.actions).toEqual([]);
+    expect(compass?.refusal).toContain('trop loin pour embarquer');
+  });
+
+  it('lists the transports in reach on the pile one holds, so a crowd is no obstacle', () => {
+    const own = { ...target, id: 'own-stack', station: origin };
+    const compass = compassOf(own, withTransport(), column, origin);
+    expect(compass?.actions.find((action) => action.key === 'board')).toMatchObject({
+      label: 'embarquer · Cargo',
+      transport: beach,
+    });
   });
 
   it('offers infantry a truck with a free seat, but never puts armour in it', () => {

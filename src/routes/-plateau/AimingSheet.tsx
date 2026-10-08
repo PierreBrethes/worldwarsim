@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fr } from '@/i18n/fr';
-import { isOrder } from '@/domain/compass-rose';
+import { isDestinationAction } from '@/domain/compass-rose';
 import type { Destination } from '@/map/WorldMap';
 import { BottomSheet } from '@/shell/BottomSheet';
 
@@ -58,8 +58,8 @@ export function AimingSheet({
 
 /**
  * **Les cibles de la colonne, les plus proches sous le pouce** (refonte mobile, 1b). La carte
- * reste la porte — les destinations y sont cerclées, celles hors champ s'annoncent au bord — et la
- * feuille en offre le raccourci : trois boutons, puis la liste entière d'un toucher. Chacun rejoue
+ * reste la porte — les destinations y sont cerclées — et la feuille en offre le raccourci, seule
+ * à nommer celles hors champ : trois boutons, puis la liste entière d'un toucher. Chacun rejoue
  * la rose de sa cible, donc n'offre que ce que le serveur prendrait (ADR 0015).
  */
 export function AimTargets({
@@ -101,7 +101,7 @@ export function AimTargets({
             </span>
             <span className="line-clamp-2 font-(family-name:--font-mono) text-[10.5px] leading-[1.25] text-[var(--ink-soft)]">
               {destination.compass.actions
-                .filter(isOrder)
+                .filter(isDestinationAction)
                 .map((action) => action.label)
                 .join(' · ')}
             </span>

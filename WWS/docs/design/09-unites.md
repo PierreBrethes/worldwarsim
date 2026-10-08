@@ -46,6 +46,13 @@ Les valeurs exactes vivent dans
 
 ## Les transports sont des troupes
 
+> **Révisé le 08/10/2026 par l'[ADR 0025](../adr/0025-capacite-encombrement-et-embarquement-de-proximite.md).**
+> Les cinq nombres ci-dessous sont remplacés : capacité cargo 12, porte-avions 6, transport
+> aérien 2 ; encombrement infanterie 1, transport terrestre 2, blindé 3 — une troupe tient dans
+> un seul transport, donc un blindé ne vole jamais. On n'embarque plus au port : une troupe
+> terrestre **embarque** sur un transport posé à moins de 50 km, sur-le-champ et sans slot ; par
+> air, dans un aérodrome seulement, et on débarque dans un de ses aérodromes.
+
 **Ceci renverse la décision précédente de cette fiche**, qui retenait le modèle Ogame : la capacité
 de transport comme propriété de la pile envoyée. L'ADR 0014 ayant supprimé les piles au profit de
 troupes discrètes, il n'y a plus de pile dont la capacité pourrait être une propriété.

@@ -76,6 +76,18 @@ du noyé n'avait aucune passe où s'appliquer. Ce que la carte en dit est une si
 rien de la cargaison (ADR 0024 §1) — **un cargo vide et un cargo plein sont indiscernables du
 dehors**, le gain de leurre que l'ADR 0014 annonçait et que ce lot rend réel.
 
+**Et l'on embarque par proximité — 08/10/2026** (ADR 0025). Un transport a une **capacité**
+(cargo 12, porte-avions 6, transport aérien 2), une troupe terrestre un **encombrement**
+(infanterie 1, camion 2, blindé 3), en places ; une troupe s'assoit dans **un seul** transport
+(`strandedIn`, lu sur `stackRows`), donc un blindé ne vole jamais. **Embarquer n'est pas un
+mouvement** : la troupe prend l'adresse d'un transport posé à moins de `BOARDING_RADIUS_KM` (50),
+sur-le-champ et sans slot (`movements.board`) — par air dans un aérodrome seulement, et une colonne
+qui vole des passagers ne descend que dans un de ses aérodromes (`AIRFIELD_TARGET_REQUIRED`). La
+rose et la mutation lisent `boardingRefusalOf`. La branche « embarquer » (l'ancre) s'ouvre sur le
+transport, sur son mât, et sur la pile qu'on tient : ce dernier chemin sert quand les étiquettes
+se serrent. Le port et l'aérodrome s'ouvrent à toute troupe terrestre ; le camion garde son
+rendez-vous en marche (`joinTransport`), parce qu'il motorise et ne fait rien traverser.
+
 **Et la table se lit** : l'**abaque de tir** (`src/routes/-plateau/GunneryWindow.tsx`, rangement
 dans `src/domain/gunnery.ts`) affiche `DAMAGE_TABLE` **importée, jamais recopiée** — soixante-quinze
 couples, une ligne par profil, l'encre dit la bande avant que le chiffre soit lu, le survol donne la

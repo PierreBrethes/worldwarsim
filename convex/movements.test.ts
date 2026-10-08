@@ -2317,20 +2317,61 @@ describe('the door of the sea, read on the pile', () => {
     await expect(embark(t, seat, ['infantry', 'infantry'])).rejects.toThrow('NO_LAND_ROUTE');
   });
 
-  it('refuses a seventh passenger for six places, and says how many of each', async () => {
+  it('refuses a thirteenth passenger for twelve places, and says how many of each', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    const seven: ReadonlyArray<UnitRole> = Array<UnitRole>(7).fill('infantry');
+    const thirteen: ReadonlyArray<UnitRole> = Array<UnitRole>(13).fill('infantry');
 
-    const refused = await embark(t, seat, [...seven, 'cargo']).catch((problem: unknown) => problem);
+    const refused = await embark(t, seat, [...thirteen, 'cargo']).catch(
+      (problem: unknown) => problem,
+    );
     expect(refused).toBeInstanceOf(ConvexError);
     expect(
       (refused as ConvexError<{ code: string; needed: number; offered: number }>).data,
     ).toMatchObject({
       code: 'NOT_ENOUGH_LIFT',
-      needed: 7,
-      offered: 6,
+      needed: 13,
+      offered: 12,
     });
+  });
+
+  /** ADR 0025 §3 : à moins de `BOARDING_RADIUS_KM`, on monte à bord sur-le-champ, sans slot. */
+  it('boards two armour from the barracks onto the cargo at the quay, at once', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', NORD);
+    const quay = await raise(t, seat, 'port', NORD);
+    const armour = [await form(t, seat, 'armor', barracks), await form(t, seat, 'armor', barracks)];
+    await form(t, seat, 'cargo', quay);
+
+    await t.mutation(api.movements.board, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: armour,
+      transport: { kind: 'building', buildingId: quay },
+    });
+
+    const aboard = await t.run(async (ctx) => Promise.all(armour.map((id) => ctx.db.get(id))));
+    expect(aboard.map((troop) => troop!.stationedAt)).toEqual([quay, quay]);
+    expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
+  });
+
+  it('refuses a cargo beyond the boarding radius', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const quay = await raise(t, seat, 'port', NORD);
+    const armour = await form(t, seat, 'armor', barracks);
+    await form(t, seat, 'cargo', quay);
+
+    await expect(
+      t.mutation(api.movements.board, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [armour],
+        transport: { kind: 'building', buildingId: quay },
+      }),
+    ).rejects.toThrow('TOO_FAR_TO_BOARD');
   });
 
   /**
@@ -3849,16 +3890,16 @@ describe('rester en mer', () => {
 
   /**
    * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli, à sa
-   * capacité**, et l'excédent coule. Six bancs pour sept fantassins : un reste à l'eau.
+   * capacité**, et l'excédent coule. Douze bancs pour treize fantassins : un reste à l'eau.
    */
-  it('takes six aboard the routed hull and drowns the seventh', async () => {
+  it('takes twelve aboard the routed hull and drowns the thirteenth', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const water = { lon: DOGGER[0], lat: DOGGER[1] };
     /** À 7 sur 8, une seule salve d'escorte la met sous le quart : elle rompt le contact. */
     const cargo = await postAt(t, guest, 'cargo', water, 7 / 8);
     const riders: Array<Id<'troops'>> = [];
-    for (let rank = 0; rank < 7; rank += 1) riders.push(await postAt(t, guest, 'infantry', water));
+    for (let rank = 0; rank < 13; rank += 1) riders.push(await postAt(t, guest, 'infantry', water));
 
     const quay = await raise(t, seat, 'port', NORD);
     const campId = await surveyCamp(t, seat, water);
@@ -3875,8 +3916,8 @@ describe('rester en mer', () => {
     const left = await t.run(async (ctx) =>
       (await Promise.all(riders.map((id) => ctx.db.get(id)))).filter((troop) => troop !== null),
     );
-    expect(left).toHaveLength(6);
-    /** **Les six suivent la coque**, et pas un pas de plus : ils sont sur son repli, à la même
+    expect(left).toHaveLength(12);
+    /** **Les douze suivent la coque**, et pas un pas de plus : ils sont sur son repli, à la même
      *  adresse qu'elle — c'est la déroute ordinaire de l'ADR 0019 §3, sans une ligne de plus. */
     const withTheHull = await t.run(async (ctx) => (await ctx.db.get(cargo))!.stationedAt);
     for (const rider of left) expect(rider!.stationedAt).toEqual(withTheHull);

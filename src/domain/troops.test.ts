@@ -227,7 +227,7 @@ describe('stackRows', () => {
   });
 
   it('fills greedily and leaves what does not fit at its own level', () => {
-    // Six berths: two infantry (2), one armor (2) and the truck (1) ride, and the truck is
+    // Twelve berths: two infantry (2), one armor (3) and the truck (2) ride, and the truck is
     // itself a passenger — nothing is left standing here.
     expect(shape(['I-1', 'I-2', 'A-1', 'L-1', 'C-1'])).toEqual([
       'C-1',

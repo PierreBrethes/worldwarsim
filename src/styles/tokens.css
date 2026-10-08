@@ -102,8 +102,10 @@
   --z-indicator: 11;
   --z-band: 20;
   --z-window: 30;
-  --z-rose: 40;
   --z-popin: 50;
+  /* La rose au-dessus des cartes ancrées (08/10) : elle s'ouvre *sur* une pile désignée, et le
+     cartouche de cette pile en couvrait le motif de refus. */
+  --z-rose: 52;
   --z-hovercard: 55;
   --z-veil: 60;
   --z-grain: 70;
