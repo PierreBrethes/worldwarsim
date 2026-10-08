@@ -680,9 +680,3 @@ spécifié. L'oublier coûte une réécriture.
 
 Les tâches de développement travaillent directement dans le dépôt monté sous WSL. Ne crée pas de
 worktree séparé sauf demande explicite de Pierre (préférence du 08/09/2026).
-
-Git : 
-Ne commit pas
-Ne push pas
-
-Utilise git seulement pour de l'exploration si besoin
