@@ -19,7 +19,7 @@ import {
 } from '../src/domain/push';
 import { fail } from './errors';
 import { readMarksOf, stampReadMark } from './readMarks';
-import { accountOf, playerOf } from './seasons';
+import { accountOf, playerOf } from './seats';
 import { PUSH_TYPE } from './validators';
 
 const PRESENCE_BEAT_MIN_MS = 30_000;

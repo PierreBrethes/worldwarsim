@@ -1,15 +1,14 @@
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import type { UnitRole } from '../../src/domain/ids';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
-import type { movementCargoFields } from '../cargo';
 import { heldOver } from '../holding';
 import { allRegions, regionFacts } from '../regions';
 import { routeToRegions } from '../routes';
 import { asPoint } from './forces';
-import { pacedMinutes } from './orders';
+import { pacedMinutes } from './pace';
 
 export type CargoReturnPlan =
   | {
@@ -103,7 +102,7 @@ export async function startCargoReturn(
     from: LonLat;
     troopIds: ReadonlyArray<Id<'troops'>>;
     plan: Extract<CargoReturnPlan, { kind: 'route' }>;
-    cargoFields: ReturnType<typeof movementCargoFields>;
+    cargoFields: Partial<Pick<Doc<'movements'>, 'loot' | 'lootLoads' | 'plunderReportId'>>;
     now: number;
   },
 ): Promise<Id<'movements'>> {

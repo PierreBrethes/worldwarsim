@@ -22,17 +22,8 @@ import {
   type MovementAim,
 } from '../../src/domain/movement-orders';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
-import { isStanding } from '../../src/domain/outposts';
-import { relayedCostUnits } from '../../src/domain/route-timing';
-import type { ComputedRoute } from '../../src/domain/routing';
-import { buildingLevel } from '../buildings';
-import {
-  MAX_HQ_LEVEL,
-  RELAY_SPEED_MULTIPLIER,
-  detectionRangeOf,
-  outpostReachKm,
-  routeMinutes,
-} from '../constants';
+import { buildingLevel } from '../buildingReads';
+import { MAX_HQ_LEVEL, detectionRangeOf } from '../constants';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtRoutePoint } from '../regionGeometry';
@@ -42,6 +33,7 @@ import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes'
 import { surveyFromPoint } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
+import { pacedMinutes } from './pace';
 import { asPoint, movementsOf, outpostsOf, pointOf, type TroopAddress } from './forces';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
@@ -625,33 +617,4 @@ export async function march(
    *  maintenant : le couloir se relève à l'arrivée, quand il aura été marché. */
   await surveyFromPoint(ctx, playerId, departure.point, now, detectionRangeOf(column.roles));
   return { movementId, minutes, arrivesAt };
-}
-
-/**
- * Design sheet 03, and the one road to a duration in the game: the departure and the preview both
- * come through here, so the hour on the card is the hour the movement will be dated at. ADR 0018
- * §3: the relays are read at departure, and a column that has left is not re-examined.
- */
-export async function pacedMinutes(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  route: ComputedRoute,
-  at: number,
-): Promise<number> {
-  const relays = (
-    await ctx.db
-      .query('outposts')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  )
-    .filter((outpost) => outpost.specialization === 'relay')
-    /** Un chantier ne relaie pas : le point n'existe pas encore (révision du 15/09). */
-    .filter((outpost) => isStanding(outpost, at))
-    .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
-    .map((outpost) => ({
-      point: pointOf(outpost.point),
-      reachKm: outpostReachKm(outpost.level),
-    }));
-
-  return routeMinutes(relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER }));
 }

@@ -12,7 +12,7 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import type { ComputedRoute } from '../src/domain/routing';
-import { playerBuildings } from './buildings';
+import { playerBuildings } from './buildingReads';
 import {
   cargoTotal,
   selectedStationedCargo,
@@ -46,17 +46,17 @@ import {
   departureOf,
   march,
   namesATroopTwice,
-  pacedMinutes,
   sameStation,
   plunderAimOf,
   surveyedPlunderTarget,
   troopsAmong,
 } from './movement/orders';
+import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
-import { playerOf, requirePlayable, seasonStillPlays } from './seasons';
+import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';

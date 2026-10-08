@@ -1095,7 +1095,7 @@ describe('scrapping a season', () => {
           recovered: empty,
           remainder: { ...empty, food: 1 },
         });
-        const { materializeRecoveryRemainder } = await import('./lootCrates');
+        const { materializeRecoveryRemainder } = await import('./crateStock');
         const crateId = await materializeRecoveryRemainder(ctx, recoveryId);
         if (crateId === null) throw new Error('loot crate not materialized');
         const crate = (await ctx.db.get(crateId))!;

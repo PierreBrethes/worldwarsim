@@ -17,7 +17,7 @@ import type { LonLat } from '../src/domain/geo';
 import type { UnitRole } from '../src/domain/ids';
 import { isNation } from '../src/domain/nations';
 import { isStanding } from '../src/domain/outposts';
-import { playerBuildings, seasonBuildings } from './buildings';
+import { playerBuildings, seasonBuildings } from './buildingReads';
 import {
   LISTENING_STATION_RADIUS_KM,
   DETECTION_RANGE_KM,
@@ -28,7 +28,7 @@ import {
 import { heldOver } from './holding';
 import { regionsCoveredBy, regionsWithinReach } from './regionGeometry';
 import { movementsOf, outpostsOf, pointOf } from './movement/forces';
-import { seatsOf } from './seasons';
+import { seatsOf } from './seats';
 import {
   allRegions,
   capitalRegionOf,

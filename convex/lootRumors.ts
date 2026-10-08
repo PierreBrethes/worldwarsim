@@ -5,7 +5,7 @@ import type { MutationCtx } from './_generated/server';
 import { internalMutation, query } from './_generated/server';
 import { destinationPoint, type LonLat } from '../src/domain/geo';
 import { LOOT_CRATE_HOURS, LOOT_RUMOR_DELAY_MINUTES, LOOT_RUMOR_RADIUS_KM } from './constants';
-import { playerOf } from './seasons';
+import { playerOf } from './seats';
 
 export function approximateLootCenter(
   point: LonLat,

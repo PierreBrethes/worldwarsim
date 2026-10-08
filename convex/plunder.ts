@@ -19,7 +19,7 @@ import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
-import { seasonStillPlays } from './seasons';
+import { seasonStillPlays } from './seats';
 import {
   canFollowCargoReturnPlan,
   planCargoReturn,

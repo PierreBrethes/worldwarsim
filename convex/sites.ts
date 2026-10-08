@@ -4,7 +4,7 @@ import type { BuildingKey, DepositKey } from '../src/domain/ids';
 import { depositOfRegion } from '../src/domain/world';
 import { isStanding } from '../src/domain/outposts';
 import { homeSlots, outpostReachKm, settlesDebt, type FoundationDebt } from './constants';
-import { levelOf, playerBuildings } from './buildings';
+import { levelOf, playerBuildings } from './buildingReads';
 import { outpostsOf, pointOf } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { foundationOf, homeCountryOf, regionFacts, type RegionFacts } from './regions';

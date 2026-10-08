@@ -201,7 +201,7 @@ la dernière fermeture (`telegraphReadAt`, jumeau distinct de `journalReadAt`).
 **Le compte possède ses places** (ADR 0022, livré le 11/09/2026). Un pseudo unique et un mot de
 passe, sans e-mail : `/connexion` ouvre un dossier ou en reprend un, et l'accueil liste les
 parties du **compte** — le même joueur les retrouve depuis un second appareil, ce que le jeton de
-partie interdisait. Une seule porte côté serveur (`playerOf`, `convex/seasons.ts`) : un jeton de
+partie interdisait. Une seule porte côté serveur (`playerOf`, `convex/seats.ts`) : un jeton de
 session, une saison, et la place que le compte y tient ; chaque fonction de jeu prend
 `{ token, seasonId }` et trois refus distincts disent trois choses — `UNKNOWN_SESSION` (on se
 reconnecte), `NO_SEAT` (on rentre à l'accueil), `SEASON_GONE`. **Au plus une place par compte et

@@ -1,5 +1,5 @@
 /**
- * Who and what stands on the board, and where. The four season/player sweeps every movement
+ * Who and what stands on the board, and where. The season/player sweeps every movement
  * reads, the two point conversions, and the one question an arrival or a contact ever asks —
  * who answers here. One arrival is one engagement (ADR 0014), a posted force defends the ground
  * it stands on and orders nothing (ADR 0019 §3), and nothing here ever scans a whole table.
@@ -10,8 +10,6 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { homeCountryOf, pointOfBuilding } from '../regions';
 import { ARRIVAL_RADIUS_KM, outpostReachKm } from '../constants';
-import { troopsStationedAt } from '../combat';
-import { seasonTroops } from '../troops';
 import { anchorOf, isAnchored } from '../upkeep';
 
 export async function movementsOf(
@@ -53,6 +51,33 @@ export async function seasonOutposts(
 ): Promise<Array<Doc<'outposts'>>> {
   return ctx.db
     .query('outposts')
+    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+    .collect();
+}
+
+/** Every troop hanging from a point or a building, whoever it belongs to. */
+export async function troopsStationedAt(
+  ctx: QueryCtx,
+  stationId: Id<'buildings'> | Id<'outposts'>,
+): Promise<Array<Doc<'troops'>>> {
+  return ctx.db
+    .query('troops')
+    .withIndex('byStation', (q) => q.eq('stationedAt', stationId))
+    .collect();
+}
+
+/**
+ * **Every troop of one season, and of no other.** What a contact sweeps when the question is
+ * "who stands here" rather than "what is mine": the camps a departing column can walk into, the
+ * defence that answers a point. The season filter lives here alone — a sweep without it lets a
+ * garrison of a test game defend ground on the board.
+ */
+export async function seasonTroops(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Array<Doc<'troops'>>> {
+  return ctx.db
+    .query('troops')
     .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
 }

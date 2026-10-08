@@ -31,13 +31,12 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { rankedByTerritory, scoresOf, type AlloyPrices } from '../src/domain/standings';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { buildingCostKey, seasonBuildings } from './buildings';
+import { buildingCostKey, seasonBuildings } from './buildingReads';
 import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './constants';
 import { heldOver } from './holding';
-import { seasonOutposts } from './movement/forces';
+import { seasonOutposts, seasonTroops } from './movement/forces';
 import { allRegions } from './regions';
-import { isAtWar, playingSeason, seatsOf } from './seasons';
-import { seasonTroops } from './troops';
+import { isAtWar, playingSeason, seatsOf } from './seats';
 
 /**
  * **Les prix, lus dans les tables du jeu et jamais recopiés.** C'est le garde-fou du barème : une

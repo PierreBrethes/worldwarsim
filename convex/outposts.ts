@@ -4,7 +4,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
 import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
-import { playerBuildings, razeBuilding } from './buildings';
+import { razeBuilding } from './buildings';
+import { playerBuildings } from './buildingReads';
 import { buildCost, buildMinutes, outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, soleHoldOf } from './holding';
@@ -15,7 +16,7 @@ import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { credit } from './resources';
-import { playerOf, requirePlayable } from './seasons';
+import { playerOf, requirePlayable } from './seats';
 import { surveyFoundation } from './surveys';
 
 /**

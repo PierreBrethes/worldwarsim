@@ -8,7 +8,7 @@ import { internal } from './_generated/api';
 import { EXPLOITED_DEPOSITS, placementRefusal } from '../src/domain/economy';
 import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
 import { depositOfRegion } from '../src/domain/world';
-import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildings';
+import { buildingAt, buildingCostKey, cappedByHq, playerBuildings } from './buildingReads';
 import {
   HQ_LEVEL_AT_LAUNCH,
   LISTENING_STATION_RADIUS_KM,
@@ -28,7 +28,7 @@ import { foundationOwedBy, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, sameSite, sitesOf, type Site, type Sites } from './sites';
 import { credit, debit, economyOf, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
-import { playerOf, playingSeason, requirePlayable } from './seasons';
+import { playerOf, playingSeason, requirePlayable } from './seats';
 import { BUILDING_KEY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';

@@ -6,7 +6,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { PROJECTION_BY_DOMAIN, TIERS_BY_ROLE, projectionKeyOf } from '../src/domain/troops';
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { levelOf, playerBuildings, totalLevelOf } from './buildings';
+import { levelOf, playerBuildings, totalLevelOf } from './buildingReads';
 import {
   COST_BY_ROLE,
   MAX_QUEUED_BATCHES,
@@ -27,7 +27,7 @@ import {
   requirePlayable,
   requireStarted,
   seasonStillPlays,
-} from './seasons';
+} from './seats';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 import { reassessDetection } from './movement/detection';
 
@@ -275,22 +275,6 @@ export async function troopsOf(
   return ctx.db
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-}
-
-/**
- * **Every troop of one season, and of no other.** What a contact sweeps when the question is
- * "who stands here" rather than "what is mine": the camps a departing column can walk into, the
- * defence that answers a point. The season filter lives here alone — a sweep without it lets a
- * garrison of a test game defend ground on the board.
- */
-export async function seasonTroops(
-  ctx: QueryCtx,
-  seasonId: Id<'seasons'>,
-): Promise<Array<Doc<'troops'>>> {
-  return ctx.db
-    .query('troops')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
     .collect();
 }
 
