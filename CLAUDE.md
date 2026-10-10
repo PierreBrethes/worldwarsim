@@ -146,9 +146,10 @@ maintenant »** (`src/routes/-plateau/NextActions.tsx`, règle pure dans
 `src/domain/next-actions.ts`). Une ligne par chose qui attend le joueur — poses de fondation
 offertes, chantier sans tête de file, bâtiment de projection sans lot, troupe posée sans ordre,
 troupe hors ravitaillement, slot de mouvement libre — et chaque ligne recentre la carte ou ouvre
-la surface. **Vide, la carte n'existe pas** ; pleine, elle se replie sur son titre et tient à demi
-échelle au bureau (décision Pierre, 10/10/2026 — elle prenait l'écran). L'ordre de mobilisation en est devenu la première ligne, dépliable
-(`FoundationRows.tsx`) ; la liste complète des troupes est passée dans la fenêtre Nation, où
+la surface. **Vide, la carte n'existe pas** ; pleine, elle se replie sur son
+titre et tient aux trois quarts de l'échelle au bureau (décision Pierre, 10/10/2026 — elle
+prenait l'écran). L'ordre de mobilisation en est devenu la première ligne (`FoundationRows.tsx`),
+dépliable au téléphone seulement ; la liste complète des troupes est passée dans la fenêtre Nation, où
 chaque ligne recentre.
 
 **La détection est passive et suit le rôle** (ADR 0021, révisée le 08/09/2026) : posée ou en

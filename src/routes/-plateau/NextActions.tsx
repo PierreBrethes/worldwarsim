@@ -114,16 +114,24 @@ export function NextActions({
   const rows = actions.map((action) =>
     action.targets[0].kind === 'unfold' ? (
       <div key={action.id}>
-        <Row
-          action={action}
-          destination={unfolded ? fr.nextActions.fold : fr.nextActions.unfold}
-          leads={false}
-          onPick={() => {
-            onArm(null);
-            setUnfolded((previous) => !previous);
-          }}
-        />
-        {unfolded && (
+        {/* At the desk the card's own fold is the only one (Pierre, 10/10): two "replier" one
+            above the other fought over the same gesture. */}
+        {frame === 'card' ? (
+          <p className="border-b border-(color:--ink)/18 px-[13px] py-[8px] text-[12.5px] leading-[1.35]">
+            {action.label}
+          </p>
+        ) : (
+          <Row
+            action={action}
+            destination={unfolded ? fr.nextActions.fold : fr.nextActions.unfold}
+            leads={false}
+            onPick={() => {
+              onArm(null);
+              setUnfolded((previous) => !previous);
+            }}
+          />
+        )}
+        {(frame === 'card' || unfolded) && (
           <FoundationRows
             view={view}
             placements={placements}
@@ -187,8 +195,9 @@ export function NextActions({
   );
 }
 
-/** Half the HUD's scale on the desk (Pierre, 10/10): the full-size card covered the board. */
-const CARD_ZOOM = 0.5;
+/** Three quarters of the HUD's scale on the desk (Pierre, 10/10): full size covered the board,
+ *  half was too small to read. */
+const CARD_ZOOM = 0.75;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
   economy: fr.nextActions.toEconomy,
