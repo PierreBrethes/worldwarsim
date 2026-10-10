@@ -10,3 +10,5 @@ Claude outputs
 public
 package-lock.json
 *.md
+.claude
+brag-output

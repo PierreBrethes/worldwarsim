@@ -17,6 +17,8 @@ export default tseslint.config(
       '.design-sync',
       '.ds-sync',
       'ds-bundle',
+      '.claude',
+      'brag-output',
     ],
   },
   js.configs.recommended,

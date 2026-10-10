@@ -42,7 +42,10 @@ export default defineConfig({
       },
       {
         extends: true,
-        test: { name: 'front', exclude: ['convex/**', 'node_modules/**'] },
+        test: {
+          name: 'front',
+          exclude: ['convex/**', 'node_modules/**', '.claude/**', 'brag-output/**'],
+        },
       },
     ],
   },
