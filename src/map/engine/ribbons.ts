@@ -12,30 +12,60 @@ import {
   type Scene,
   type WebGLRenderer,
 } from 'three';
-import type { MapMotion } from '@/domain/map-motion';
-import { windAt } from '@/domain/weather';
+import type { Fx, MapMotion } from '@/domain/map-motion';
+import { windAt, type Wind } from '@/domain/weather';
 import type { AmbientLayer } from './ambience';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 
-const WIND_HZ = 30;
-/** Below the threads (rank 10-12): a ribbon of wind must never be read as a movement. */
-const RIBBON_RANK = 9;
+const RIBBON_HZ = 30;
 const RIBBON_ALTITUDE = COUNTRY_THICKNESS + 0.004;
-const PAPER = '#f4ecd8';
-/** Ribbons per 1280 × 800 screen, scaled by area: the sky is as sparse at every window size. */
-const RIBBONS_PER_SCREEN = 50;
 const REFERENCE_AREA = 1280 * 800;
 const MAX_RIBBONS = 200;
-const HISTORY = 70;
-const SPEED_PX_S = [70, 170] as const;
-const WIDTH_PX = [2.5, 5.5] as const;
-const GROWTH_S = [1.2, 2.3] as const;
-const FADE_IN_S = 0.4;
-/** Points the tail eats per step once growth is over, while the head keeps going. */
-const TAIL_PER_STEP = 2;
 const BIRTHS_PER_STEP = 2;
-/** Force read by the ink: the field runs 0 to 2, a ribbon's weight 0 to 1. */
-const forceOf = (u: number, v: number) => Math.min(1, Math.hypot(u, v) / 2);
+
+type Range = readonly [low: number, high: number];
+
+export type RibbonStyle = {
+  readonly fx: Fx;
+  readonly field: (lon: number, lat: number, epochMs: number) => Wind;
+  /** The field's speed at which a ribbon reaches its full weight. */
+  readonly fullForce: number;
+  readonly ink: string;
+  /** Below the threads (rank 10-12): a ribbon must never be read as a movement. */
+  readonly rank: number;
+  /** Ribbons per 1280 × 800 screen, scaled by area: as sparse at every window size. */
+  readonly perScreen: number;
+  readonly history: number;
+  readonly speedPx: Range;
+  /** Width in pixels: `base + random(widthPx) · (low + high · force) · taper`. */
+  readonly widthBase: number;
+  readonly widthPx: Range;
+  readonly widthByForce: Range;
+  /** Opacity: `(low + high · force) · taper · life`. */
+  readonly alphaByForce: Range;
+  readonly growthS: Range;
+  readonly fadeInS: number;
+  /** Points the tail eats per step once growth is over, while the head keeps going. */
+  readonly tailPerStep: number;
+};
+
+export const WIND_RIBBONS: RibbonStyle = {
+  fx: 'wind',
+  field: windAt,
+  fullForce: 2,
+  ink: '#f4ecd8',
+  rank: 9,
+  perScreen: 50,
+  history: 70,
+  speedPx: [70, 170],
+  widthBase: 0.6,
+  widthPx: [2.5, 5.5],
+  widthByForce: [0.6, 0.4],
+  alphaByForce: [0.35, 0.5],
+  growthS: [1.2, 2.3],
+  fadeInS: 0.4,
+  tailPerStep: 2,
+};
 
 /**
  * `?weather=fast`: the sky runs twenty times faster from the page's opening, so a system lives
@@ -86,16 +116,16 @@ type Ribbon = {
   peak: number;
 };
 
-const between = ([low, high]: readonly [number, number]) => low + Math.random() * (high - low);
+const between = ([low, high]: Range) => low + Math.random() * (high - low);
 
 /**
- * **La météo de vent** (décision de Pierre, 10/10) : des rubans qui suivent `windAt`, ancrés au
+ * **La météo de vent** (décision de Pierre, 10/10) : des rubans qui suivent un champ, ancrés au
  * monde mais pesés en pixels d'écran. Quand un ruban entre dans une dépression, c'est le champ qui
  * fait la volute — rien ici ne la dessine.
  */
-export class WindLayer implements AmbientLayer {
-  readonly fx = 'wind' as const;
-  readonly hz = WIND_HZ;
+export class RibbonLayer implements AmbientLayer {
+  readonly fx: Fx;
+  readonly hz = RIBBON_HZ;
   private readonly openedAt = Date.now();
   private readonly pace = weatherPace(location.search);
   private readonly ribbons: Ribbon[] = [];
@@ -118,8 +148,10 @@ export class WindLayer implements AmbientLayer {
     private readonly camera: PerspectiveCamera,
     private readonly renderer: WebGLRenderer,
     private readonly board: WorldFrame,
+    private readonly style: RibbonStyle,
   ) {
-    const vertices = MAX_RIBBONS * HISTORY * 2;
+    this.fx = style.fx;
+    const vertices = MAX_RIBBONS * style.history * 2;
     const geometry = new BufferGeometry();
     const attribute = (size: number) =>
       new BufferAttribute(new Float32Array(vertices * size), size);
@@ -129,7 +161,7 @@ export class WindLayer implements AmbientLayer {
     this.alpha = attribute(1);
     const side = attribute(1);
     for (let i = 0; i < vertices; i++) side.setX(i, i % 2 === 0 ? 1 : -1);
-    this.index = new BufferAttribute(new Uint16Array(MAX_RIBBONS * (HISTORY - 1) * 6), 1);
+    this.index = new BufferAttribute(new Uint16Array(MAX_RIBBONS * (style.history - 1) * 6), 1);
     geometry.setAttribute('position', this.positions);
     geometry.setAttribute('toward', this.toward);
     geometry.setAttribute('side', side);
@@ -148,12 +180,12 @@ export class WindLayer implements AmbientLayer {
         depthWrite: false,
         uniforms: {
           resolution: { value: this.resolution },
-          ink: { value: new Color(PAPER) },
+          ink: { value: new Color(style.ink) },
         },
       }),
     );
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = RIBBON_RANK;
+    this.mesh.renderOrder = style.rank;
     scene.add(this.mesh);
   }
 
@@ -175,9 +207,10 @@ export class WindLayer implements AmbientLayer {
   }
 
   private step(epochMs: number): void {
+    const { history, tailPerStep } = this.style;
     const target = Math.min(
       MAX_RIBBONS,
-      Math.round((RIBBONS_PER_SCREEN * this.resolution.x * this.resolution.y) / REFERENCE_AREA),
+      Math.round((this.style.perScreen * this.resolution.x * this.resolution.y) / REFERENCE_AREA),
     );
     for (let births = 0; this.ribbons.length < target && births < BIRTHS_PER_STEP; births++) {
       const ribbon = this.spawn();
@@ -186,13 +219,13 @@ export class WindLayer implements AmbientLayer {
 
     for (let i = this.ribbons.length - 1; i >= 0; i--) {
       const ribbon = this.ribbons[i]!;
-      ribbon.age += 1 / WIND_HZ;
+      ribbon.age += 1 / RIBBON_HZ;
       const alive = this.advance(ribbon, epochMs);
       if (ribbon.age > ribbon.growth) {
-        ribbon.x.splice(0, TAIL_PER_STEP);
-        ribbon.z.splice(0, TAIL_PER_STEP);
-        ribbon.force.splice(0, TAIL_PER_STEP);
-      } else if (ribbon.x.length > HISTORY) {
+        ribbon.x.splice(0, tailPerStep);
+        ribbon.z.splice(0, tailPerStep);
+        ribbon.force.splice(0, tailPerStep);
+      } else if (ribbon.x.length > history) {
         ribbon.x.shift();
         ribbon.z.shift();
         ribbon.force.shift();
@@ -212,8 +245,8 @@ export class WindLayer implements AmbientLayer {
       x: [hit.x],
       z: [hit.z],
       force: [0],
-      width: between(WIDTH_PX),
-      growth: between(GROWTH_S),
+      width: between(this.style.widthPx),
+      growth: between(this.style.growthS),
       age: 0,
       peak: 1,
     };
@@ -233,8 +266,8 @@ export class WindLayer implements AmbientLayer {
     const x = ribbon.x[last]!;
     const z = ribbon.z[last]!;
     const lonLat = this.board.lonLatAt(x + this.board.centerX, z + this.board.centerY);
-    const { u, v } = windAt(lonLat[0], lonLat[1], epochMs);
-    const force = forceOf(u, v);
+    const { u, v } = this.style.field(lonLat[0], lonLat[1], epochMs);
+    const force = Math.min(1, Math.hypot(u, v) / this.style.fullForce);
     ribbon.force[last] = force;
 
     const here = this.board.projectLonLat(lonLat, 0);
@@ -250,7 +283,8 @@ export class WindLayer implements AmbientLayer {
       this.screenPx(x + (dx / run) * probe, z + (dz / run) * probe, this.b),
     );
     if (onScreen < 1e-6) return true;
-    const pixels = (SPEED_PX_S[0] + (SPEED_PX_S[1] - SPEED_PX_S[0]) * force) / WIND_HZ;
+    const [slow, fast] = this.style.speedPx;
+    const pixels = (slow + (fast - slow) * force) / RIBBON_HZ;
     const stride = pixels * (probe / onScreen);
     const nx = x + (dx / run) * stride;
     const nz = z + (dz / run) * stride;
@@ -270,11 +304,12 @@ export class WindLayer implements AmbientLayer {
     let vertex = 0;
     let index = 0;
     const indices = this.index.array as Uint16Array;
+    const { widthBase, widthByForce, alphaByForce } = this.style;
     for (const ribbon of this.ribbons) {
-      const count = Math.min(ribbon.x.length, HISTORY);
+      const count = Math.min(ribbon.x.length, this.style.history);
       if (count < 2) continue;
       const life =
-        Math.min(1, ribbon.age / FADE_IN_S) *
+        Math.min(1, ribbon.age / this.style.fadeInS) *
         (ribbon.age > ribbon.growth ? count / ribbon.peak : 1);
       for (let k = 0; k < count; k++) {
         const x = ribbon.x[k]!;
@@ -285,8 +320,9 @@ export class WindLayer implements AmbientLayer {
         const tz = z + sign * (ribbon.z[next]! - z);
         const force = ribbon.force[k]!;
         const taper = Math.sin((Math.PI * k) / (count - 1)) ** 0.8;
-        const width = 0.6 + ribbon.width * (0.6 + 0.4 * force) * taper;
-        const alpha = Math.min(1, (0.35 + 0.5 * force) * taper * life);
+        const width =
+          widthBase + ribbon.width * (widthByForce[0] + widthByForce[1] * force) * taper;
+        const alpha = Math.min(1, (alphaByForce[0] + alphaByForce[1] * force) * taper * life);
         for (let s = 0; s < 2; s++) {
           this.positions.setXYZ(vertex, x, RIBBON_ALTITUDE + this.board.drop(x, z), z);
           this.toward.setXYZ(vertex, tx, RIBBON_ALTITUDE + this.board.drop(tx, tz), tz);
