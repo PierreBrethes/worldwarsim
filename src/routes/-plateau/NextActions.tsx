@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
+import { keepNextActionsFolded, readNextActionsFolded } from '@/data/settings';
 import { fr } from '@/i18n/fr';
 import { useSheetClose } from '@/shell/BottomSheet';
 import type { LonLat } from '@/domain/geo';
@@ -56,9 +57,9 @@ const useRanks = () =>
  * troupes, qui était l'inventaire de ce que la carte montre déjà ; celle-ci ne liste rien qu'on
  * possède — seulement ce qui attend, et chaque ligne mène au geste qui la lève.
  *
- * **Vide, elle n'existe pas.** Il n'y a pas d'état replié : son absence *est* l'état replié, et
- * c'est ce qui interdit à un joueur en ordre de payer un cadre pour lire « rien à faire ». Le
- * seul dépli est celui de la fondation, parce que son geste se fait dans la ligne.
+ * **Vide, elle n'existe pas** : c'est ce qui interdit à un joueur en ordre de payer un cadre pour
+ * lire « rien à faire ». **Pleine, elle se replie sur son titre** (décision Pierre, 10/10) : au
+ * bureau elle prenait l'écran, et le repli tient d'une session à l'autre, comme le bandeau.
  */
 export function NextActions({
   view,
@@ -97,6 +98,7 @@ export function NextActions({
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
    *  sans plus rien à l'écran pour dire pourquoi. */
   const [unfolded, setUnfolded] = useState(true);
+  const [folded, setFolded] = useState(readNextActionsFolded);
   const closeSheet = useSheetClose();
   const actions = nextActionsOf(view);
   useRanks();
@@ -152,8 +154,13 @@ export function NextActions({
   if (frame === 'sheet') return <div>{rows}</div>;
 
   return (
-    <section className="hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]">
-      <div className="flex items-baseline gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
+    <section
+      className="hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
+      style={{ zoom: `calc(var(--hud-scale) * ${CARD_ZOOM})` }}
+    >
+      <div
+        className={`flex items-baseline gap-2 px-[13px] pt-[9px] pb-2 ${folded ? '' : 'border-b-2 border-[var(--ink)]'}`}
+      >
         <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
           {fr.nextActions.header}
         </h2>
@@ -161,11 +168,27 @@ export function NextActions({
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
           {fr.nextActions.count(actions.length)}
         </span>
+        <button
+          type="button"
+          aria-expanded={!folded}
+          onClick={() => {
+            // Folding hides an armed key's rows: it disarms, like the foundation's own fold.
+            onArm(null);
+            setFolded(!folded);
+            keepNextActionsFolded(!folded);
+          }}
+          className="cursor-pointer font-(family-name:--font-mono) text-[11px] tracking-[.12em] text-[var(--ink)] uppercase underline-offset-2 hover:underline"
+        >
+          {folded ? fr.nextActions.unfold : fr.nextActions.fold}
+        </button>
       </div>
-      {rows}
+      {!folded && rows}
     </section>
   );
 }
+
+/** Half the HUD's scale on the desk (Pierre, 10/10): the full-size card covered the board. */
+const CARD_ZOOM = 0.5;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
   economy: fr.nextActions.toEconomy,
