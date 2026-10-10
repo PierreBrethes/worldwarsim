@@ -7,10 +7,13 @@ import {
   MeshBasicMaterial,
   NotEqualStencilFunc,
   ReplaceStencilOp,
+  ShaderMaterial,
   Uint32BufferAttribute,
 } from 'three';
 import type { World } from '@/domain/world';
+import type { AmbientLayer } from './ambience';
 import type { Curvature } from './curvature';
+import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
 import { PALETTE } from './palette';
 import { SEA_LEVEL, type WorldFrame } from './frame';
 
@@ -236,4 +239,92 @@ function outwardNormal(a: Point, b: Point, winding: number): Point {
   const length = Math.hypot(dx, dz);
   if (length < 1e-9) return [0, 0];
   return [(dz / length) * winding, (-dx / length) * winding];
+}
+
+const FOAM_HZ = 12;
+const FOAM_PERIOD_S = 3.5;
+const FOAM_RINGS = 3;
+const FOAM_RING_OPACITY = 0.25;
+const FOAM_RING_WIDTH = 0.07;
+const FOAM_EDGE_OPACITY = 0.32;
+const FOAM_EDGE_WIDTH = 0.08;
+const PAPER = '#f4ecd8';
+
+const FOAM_VERTEX = `
+varying float vOffshore;
+void main() {
+  // The wash's own ink fades linearly seaward: its alpha is already the distance to the coast.
+  vOffshore = 1.0 - color.a / ${SHORE_OPACITY.toFixed(4)};
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const FOAM_FRAGMENT = `
+uniform vec3 paper;
+uniform float time;
+uniform float share;
+varying float vOffshore;
+void main() {
+  float foam = ${FOAM_EDGE_OPACITY.toFixed(4)} * (1.0 - smoothstep(0.0, ${FOAM_EDGE_WIDTH.toFixed(4)}, vOffshore));
+  for (int i = 0; i < ${FOAM_RINGS}; i++) {
+    float reach = fract(time / ${FOAM_PERIOD_S.toFixed(4)} + float(i) / ${FOAM_RINGS}.0);
+    float ring = exp(-pow((vOffshore - reach) / ${FOAM_RING_WIDTH.toFixed(4)}, 2.0));
+    foam = max(foam, ${FOAM_RING_OPACITY.toFixed(4)} * (1.0 - reach) * ring);
+  }
+  gl_FragColor = vec4(paper, foam * share);
+  #include <colorspace_fragment>
+}`;
+
+/**
+ * **L'écume** (décision de Pierre, 10/10) : un ressac qui respire le long des côtes, au rapproché
+ * seulement — au loin, le lavis suffit. Elle borde le lavis sur sa propre géométrie, donc suit
+ * la courbure sans rien recalculer.
+ */
+export class CoastalFoam implements AmbientLayer {
+  readonly fx = 'sea' as const;
+  readonly hz = FOAM_HZ;
+  readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
+  private readonly uniforms = {
+    paper: { value: new Color(PAPER) },
+    time: { value: 0 },
+    share: { value: 0 },
+  };
+
+  constructor(wash: Mesh<BufferGeometry, MeshBasicMaterial>) {
+    this.mesh = new Mesh(
+      wash.geometry,
+      new ShaderMaterial({
+        vertexShader: FOAM_VERTEX,
+        fragmentShader: FOAM_FRAGMENT,
+        uniforms: this.uniforms,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        side: DoubleSide,
+        // Its own stencil value: the wash has already marked these pixels with 1.
+        stencilWrite: true,
+        stencilRef: 2,
+        stencilFunc: NotEqualStencilFunc,
+        stencilZPass: ReplaceStencilOp,
+      }),
+    );
+    this.mesh.renderOrder = wash.renderOrder + 1;
+    this.mesh.visible = false;
+  }
+
+  /** The regions' fade, threshold for threshold: the foam belongs to the close view. */
+  fade(cameraDistance: number): void {
+    const share = Math.min(
+      1,
+      Math.max(
+        0,
+        (REGIONS_GONE_DISTANCE - cameraDistance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+      ),
+    );
+    this.uniforms.share.value = share;
+    this.mesh.visible = share > 0.01;
+  }
+
+  frame(time: number): void {
+    this.uniforms.time.value = time;
+  }
 }

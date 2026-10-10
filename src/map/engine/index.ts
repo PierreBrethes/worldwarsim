@@ -45,7 +45,7 @@ import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
-import { buildCoastalWash } from './coastal-wash';
+import { buildCoastalWash, CoastalFoam } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
@@ -162,6 +162,7 @@ export class MapEngine {
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
+  private readonly foam: CoastalFoam | null;
   private readonly arcs: ArcLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
@@ -321,7 +322,13 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.scene.add(buildCoastalWash(world, this.frame, this.curvature));
+    const wash = buildCoastalWash(world, this.frame, this.curvature);
+    this.scene.add(wash);
+    this.foam = this.ambience.enabled('sea') ? new CoastalFoam(wash) : null;
+    if (this.foam) {
+      this.scene.add(this.foam.mesh);
+      this.ambience.add(this.foam);
+    }
 
     const { meshes, borders } = buildCountries(world, this.frame, this.curvature);
     this.countries = meshes;
@@ -1218,6 +1225,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.regions.animate(distance);
+    this.foam?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
