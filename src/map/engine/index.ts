@@ -332,7 +332,7 @@ export class MapEngine {
     this.aimable = [...this.countries, this.surface];
 
     if (this.ambience.enabled('wind')) {
-      this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer));
+      this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer, this.frame));
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
     this.arcs = new ArcLayer(this.frame, this.ink);
