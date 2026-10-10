@@ -36,7 +36,7 @@ import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from
 import type { ArcView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
-import { RibbonLayer, WIND_RIBBONS } from './ribbons';
+import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { InkLayer } from './ink';
@@ -331,6 +331,14 @@ export class MapEngine {
 
     this.aimable = [...this.countries, this.surface];
 
+    if (this.ambience.enabled('sea')) {
+      this.ambience.add(
+        new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, {
+          ...CURRENT_RIBBONS,
+          afloat: (lonLat) => !this.landAt(lonLat),
+        }),
+      );
+    }
     if (this.ambience.enabled('wind')) {
       this.ambience.add(
         new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, WIND_RIBBONS),

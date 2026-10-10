@@ -23,7 +23,8 @@ describe('currentAt', () => {
 
   it('runs the Antarctic circumpolar current eastward at 55° S', () => {
     for (const at of HOURS) {
-      for (let lon = -180; lon < 180; lon += 30) expect(currentAt(lon, -55, at).u).toBeGreaterThan(0.2);
+      for (let lon = -180; lon < 180; lon += 30)
+        expect(currentAt(lon, -55, at).u).toBeGreaterThan(0.2);
     }
   });
 

@@ -13,15 +13,19 @@ import {
   type WebGLRenderer,
 } from 'three';
 import type { Fx, MapMotion } from '@/domain/map-motion';
+import { currentAt } from '@/domain/currents';
+import type { LonLat } from '@/domain/geo';
 import { windAt, type Wind } from '@/domain/weather';
 import type { AmbientLayer } from './ambience';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { PALETTE } from './palette';
 
 const RIBBON_HZ = 30;
 const RIBBON_ALTITUDE = COUNTRY_THICKNESS + 0.004;
 const REFERENCE_AREA = 1280 * 800;
 const MAX_RIBBONS = 200;
 const BIRTHS_PER_STEP = 2;
+const STILL_SHARE = 0.05;
 
 type Range = readonly [low: number, high: number];
 
@@ -47,6 +51,8 @@ export type RibbonStyle = {
   readonly fadeInS: number;
   /** Points the tail eats per step once growth is over, while the head keeps going. */
   readonly tailPerStep: number;
+  /** Where a ribbon may be born and go on; touching anywhere else, it stops and fades. */
+  readonly afloat?: (lonLat: LonLat) => boolean;
 };
 
 export const WIND_RIBBONS: RibbonStyle = {
@@ -64,6 +70,30 @@ export const WIND_RIBBONS: RibbonStyle = {
   alphaByForce: [0.35, 0.5],
   growthS: [1.2, 2.3],
   fadeInS: 0.4,
+  tailPerStep: 2,
+};
+
+/**
+ * **Les courants** (décision de Pierre, 10/10) : un filigrane d'encre de mer, peu de rubans, longs
+ * et lents, sous le vent. Réglage validé sur une démo canvas : 17 rubans sur 1280 × 720.
+ */
+export const CURRENT_RIBBONS: RibbonStyle = {
+  fx: 'sea',
+  field: currentAt,
+  fullForce: 1,
+  ink: PALETTE.seaInk,
+  rank: WIND_RIBBONS.rank - 1,
+  perScreen: Math.round((17 * 800) / 720),
+  history: 100,
+  speedPx: [40, 85],
+  widthBase: 0.8,
+  widthPx: [6, 6],
+  widthByForce: [0.5, 0.5],
+  // Twice the demo's 0.12-0.15: lit by the scene, the sea darkens toward the ink, and at the
+  // demo's value the ribbons vanished on screen.
+  alphaByForce: [0.22, 0.08],
+  growthS: [8, 12],
+  fadeInS: 1.5,
   tailPerStep: 2,
 };
 
@@ -111,7 +141,8 @@ type Ribbon = {
   readonly z: number[];
   readonly force: number[];
   readonly width: number;
-  readonly growth: number;
+  growth: number;
+  stalled: boolean;
   age: number;
   peak: number;
 };
@@ -213,7 +244,7 @@ export class RibbonLayer implements AmbientLayer {
       Math.round((this.style.perScreen * this.resolution.x * this.resolution.y) / REFERENCE_AREA),
     );
     for (let births = 0; this.ribbons.length < target && births < BIRTHS_PER_STEP; births++) {
-      const ribbon = this.spawn();
+      const ribbon = this.spawn(epochMs);
       if (ribbon !== null) this.ribbons.push(ribbon);
     }
 
@@ -236,20 +267,30 @@ export class RibbonLayer implements AmbientLayer {
   }
 
   /** A ribbon is born where the player looks: a random screen point, cast onto the board. */
-  private spawn(): Ribbon | null {
+  private spawn(epochMs: number): Ribbon | null {
     this.aim.set(Math.random() * 2 - 1, Math.random() * 2 - 1);
     this.ray.setFromCamera(this.aim, this.camera);
     const hit = this.ray.ray.intersectPlane(this.ground, this.a);
     if (hit === null || !this.onBoard(hit.x, hit.z)) return null;
+    const lonLat = this.lonLatOf(hit.x, hit.z);
+    if (this.style.afloat && !this.style.afloat(lonLat)) return null;
+    // Where the field is still, a ribbon would only drift at its slowest pace and say nothing.
+    const { u, v } = this.style.field(lonLat[0], lonLat[1], epochMs);
+    if (Math.hypot(u, v) < STILL_SHARE * this.style.fullForce) return null;
     return {
       x: [hit.x],
       z: [hit.z],
       force: [0],
       width: between(this.style.widthPx),
       growth: between(this.style.growthS),
+      stalled: false,
       age: 0,
       peak: 1,
     };
+  }
+
+  private lonLatOf(x: number, z: number): LonLat {
+    return this.board.lonLatAt(x + this.board.centerX, z + this.board.centerY);
   }
 
   private onBoard(x: number, z: number): boolean {
@@ -262,10 +303,11 @@ export class RibbonLayer implements AmbientLayer {
 
   /** The head takes one step along the field, as long on screen whatever the zoom. */
   private advance(ribbon: Ribbon, epochMs: number): boolean {
+    if (ribbon.stalled) return true;
     const last = ribbon.x.length - 1;
     const x = ribbon.x[last]!;
     const z = ribbon.z[last]!;
-    const lonLat = this.board.lonLatAt(x + this.board.centerX, z + this.board.centerY);
+    const lonLat = this.lonLatOf(x, z);
     const { u, v } = this.style.field(lonLat[0], lonLat[1], epochMs);
     const force = Math.min(1, Math.hypot(u, v) / this.style.fullForce);
     ribbon.force[last] = force;
@@ -289,6 +331,11 @@ export class RibbonLayer implements AmbientLayer {
     const nx = x + (dx / run) * stride;
     const nz = z + (dz / run) * stride;
     if (!this.onBoard(nx, nz)) return false;
+    if (this.style.afloat && !this.style.afloat(this.lonLatOf(nx, nz))) {
+      ribbon.stalled = true;
+      ribbon.growth = Math.min(ribbon.growth, ribbon.age);
+      return true;
+    }
     ribbon.x.push(nx);
     ribbon.z.push(nz);
     ribbon.force.push(force);
