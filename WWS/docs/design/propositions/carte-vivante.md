@@ -19,6 +19,21 @@ voient pas la même rafale, et c'est voulu. Ce qui sort d'un événement du joue
 combat) vient de ce qu'il reçoit déjà en dépêche : aucune information nouvelle, donc aucune
 fuite (ADR 0005, brouillard).
 
+## Ce que ce lot révise — 10/10/2026
+
+**Le pilier « rien ne bouge sans raison » admet une deuxième exception : l'ambiance.** La
+[recherche 3D du 08/09](../recherches/3d-2026-09-08.md) en faisait un pilier, la dérive des tirets
+étant « l'unique exception », et écartait les particules continues ; le refus du 26/08 écartait la
+météo visuelle. Décision de Pierre : la houle et les rafales entrent, sous deux garde-fous.
+
+- **Contraste faible.** Le budget de contraste appartient à la couche de jeu (`WWS/CLAUDE.md`) :
+  l'ambiance reste dans les encres sourdes du plateau, sous les fils, les pions et les mâts.
+- **Rien qui ressemble à une information.** Un trait de vent ne doit pas pouvoir passer pour un
+  fil, ni une silhouette pour un mouvement : les mouettes restent écartées.
+
+L'encre des trajets, elle, ne révise rien : elle marque un moment, ce que la recherche du 08/09
+recommandait. Le réglage « réduites » rend à qui le veut la carte du pilier d'origine.
+
 ## Cadence
 
 - **L'ambiance (mer, vent) tourne à 12 images par seconde**, le temps passé aux shaders étant
