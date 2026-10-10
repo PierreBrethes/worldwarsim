@@ -107,14 +107,23 @@ export class ArcLayer {
 
   display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
     this.clear();
-    // Only mine are inked: nothing is added to what a sighting already says (fog).
+    // Only mine are inked: nothing is added to what a sighting already says (fog). And only what
+    // the player sent: a return is created by the resolution, nobody put a pen to it.
+    const known = this.known;
     const appeared =
-      carried !== undefined || this.known === null
+      carried !== undefined || known === null
         ? []
         : arcs.filter(
-            (arc) => arc.state === 'mine' && arc.id !== PREVIEW_ARC_ID && !this.known!.has(arc.id),
+            (arc) =>
+              arc.state === 'mine' &&
+              arc.id !== PREVIEW_ARC_ID &&
+              arc.type !== 'return' &&
+              !known.has(arc.id),
           );
     if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
+    for (const id of this.inking.keys()) {
+      if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
+    }
     const now = performance.now();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';

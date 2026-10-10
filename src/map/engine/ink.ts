@@ -11,7 +11,6 @@ import {
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import type { LonLat } from '@/domain/geo';
 import type { InkBurst } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
@@ -103,8 +102,13 @@ export class InkLayer {
   motion: MapMotion = 'full';
   private traces: Trace[] = [];
   private stamps: Stamp[] = [];
-  private width = 1;
-  private height = 1;
+  /** One material for every stroke: disposing it each frame dropped its program, which three
+   *  then recompiled on the next one — a stutter per pen stroke on a phone. */
+  private readonly material = new LineMaterial({
+    color: ARC_COLORS.mine.progress,
+    linewidth: TRACE_PX,
+    depthTest: false,
+  });
   private readonly geometries = {
     arrival: new ShapeGeometry(stampShapes()),
     combat: new ShapeGeometry(splashShapes()),
@@ -120,8 +124,7 @@ export class InkLayer {
   }
 
   resize(width: number, height: number): void {
-    this.width = width;
-    this.height = height;
+    this.material.resolution.set(width, height);
   }
 
   /** Returns how long the pen takes, `0` when the thread should simply be there. */
@@ -147,7 +150,7 @@ export class InkLayer {
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.renderOrder = BURST_RANK;
-    mesh.position.copy(this.frame.projectLonLat(at as LonLat));
+    mesh.position.copy(this.frame.projectLonLat(at));
     this.group.add(mesh);
     this.stamps.push({ mesh, start: now });
   }
@@ -160,6 +163,7 @@ export class InkLayer {
   dispose(): void {
     for (const trace of this.traces) this.wipe(trace);
     for (const stamp of this.stamps) stamp.mesh.material.dispose();
+    this.material.dispose();
     this.traces = [];
     this.stamps = [];
     this.geometries.arrival.dispose();
@@ -174,13 +178,7 @@ export class InkLayer {
     trace.lines = inkedStrands(trace.strands, penEase(Math.max(0, elapsed))).map((strand) => {
       const geometry = new LineGeometry();
       geometry.setPositions(strand.flatMap((point) => [point.x, point.y, point.z]));
-      const material = new LineMaterial({
-        color: ARC_COLORS.mine.progress,
-        linewidth: TRACE_PX,
-        depthTest: false,
-      });
-      material.resolution.set(this.width, this.height);
-      const line = new Line2(geometry, material);
+      const line = new Line2(geometry, this.material);
       line.renderOrder = TRACE_RANK;
       this.group.add(line);
       return line;
@@ -192,7 +190,6 @@ export class InkLayer {
     for (const line of trace.lines) {
       line.removeFromParent();
       line.geometry.dispose();
-      line.material.dispose();
     }
     trace.lines = [];
   }
