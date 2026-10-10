@@ -102,7 +102,7 @@ export const landPaceOf = (route: { readonly landCost: number }): LandPace =>
 export const TRANSFER_COST = 8;
 
 const EMPTY = 0;
-const LAND = 1;
+export const LAND = 1;
 const SEA = 2;
 /**
  * **De l'eau et un gué à la fois.** Une cellule n'a qu'un type, et graver Panama ou Suez en

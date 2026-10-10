@@ -45,7 +45,7 @@ import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
-import { buildCoastalWash, CoastalFoam } from './coastal-wash';
+import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
@@ -162,7 +162,7 @@ export class MapEngine {
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
-  private readonly foam: CoastalFoam | null;
+  private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
@@ -309,26 +309,23 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
-    const sea = new SeaLayer();
+    this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
     const board = buildBoard(
       world,
       this.frame,
       this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
-      this.ambience.enabled('sea') ? sea : null,
+      this.sea,
     );
-    this.ambience.add(sea);
+    if (this.sea) {
+      this.ambience.add(this.sea);
+      void this.sea.shore(this.frame).then(() => this.invalidate());
+    }
     this.surface = board.surface;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    const wash = buildCoastalWash(world, this.frame, this.curvature);
-    this.scene.add(wash);
-    this.foam = this.ambience.enabled('sea') ? new CoastalFoam(wash) : null;
-    if (this.foam) {
-      this.scene.add(this.foam.mesh);
-      this.ambience.add(this.foam);
-    }
+    this.scene.add(buildCoastalWash(world, this.frame, this.curvature));
 
     const { meshes, borders } = buildCountries(world, this.frame, this.curvature);
     this.countries = meshes;
@@ -758,6 +755,7 @@ export class MapEngine {
     this.arcs.dispose();
     this.ink.dispose();
     this.regions.dispose();
+    this.sea?.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -1225,7 +1223,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.regions.animate(distance);
-    this.foam?.fade(distance);
+    this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
