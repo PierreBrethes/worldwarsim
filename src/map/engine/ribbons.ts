@@ -19,6 +19,7 @@ import { windAt, type Wind } from '@/domain/weather';
 import type { AmbientLayer } from './ambience';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
+import { REGIONS_GONE_DISTANCE } from './regions';
 
 const RIBBON_HZ = 30;
 const RIBBON_ALTITUDE = COUNTRY_THICKNESS + 0.004;
@@ -26,6 +27,9 @@ const REFERENCE_AREA = 1280 * 800;
 const MAX_RIBBONS = 200;
 const BIRTHS_PER_STEP = 2;
 const STILL_SHARE = 0.05;
+/** Above this camera distance a layer is born at its full density; below the regions' fade it
+ *  keeps its `closeShare`, and in between it eases from one to the other. */
+const WORLD_VIEW_DISTANCE = 150;
 
 type Range = readonly [low: number, high: number];
 
@@ -39,6 +43,9 @@ export type RibbonStyle = {
   readonly rank: number;
   /** Ribbons per 1280 × 800 screen, scaled by area: as sparse at every window size. */
   readonly perScreen: number;
+  /** The share of `perScreen` kept at the country view: a single country fills the screen,
+   *  and the world's density over it reads as a storm. */
+  readonly closeShare?: number;
   readonly history: number;
   readonly speedPx: Range;
   /** Width in pixels: `base + random(widthPx) · (low + high · force) · taper`. */
@@ -62,6 +69,7 @@ export const WIND_RIBBONS: RibbonStyle = {
   ink: '#f4ecd8',
   rank: 9,
   perScreen: 50,
+  closeShare: 1 / 3,
   history: 70,
   speedPx: [70, 170],
   widthBase: 0.6,
@@ -241,7 +249,10 @@ export class RibbonLayer implements AmbientLayer {
     const { history, tailPerStep } = this.style;
     const target = Math.min(
       MAX_RIBBONS,
-      Math.round((this.style.perScreen * this.resolution.x * this.resolution.y) / REFERENCE_AREA),
+      Math.round(
+        (this.style.perScreen * this.zoomShare() * this.resolution.x * this.resolution.y) /
+          REFERENCE_AREA,
+      ),
     );
     for (let births = 0; this.ribbons.length < target && births < BIRTHS_PER_STEP; births++) {
       const ribbon = this.spawn(epochMs);
@@ -264,6 +275,23 @@ export class RibbonLayer implements AmbientLayer {
       ribbon.peak = Math.max(ribbon.peak, ribbon.x.length);
       if (!alive || ribbon.x.length < 2) this.ribbons.splice(i, 1);
     }
+  }
+
+  /** Only births follow the zoom: a ribbon already drawn lives out its life after a zoom in. */
+  private zoomShare(): number {
+    const close = this.style.closeShare ?? 1;
+    if (close === 1) return 1;
+    this.aim.set(0, 0);
+    this.ray.setFromCamera(this.aim, this.camera);
+    const distance = this.ray.ray.distanceToPlane(this.ground) ?? WORLD_VIEW_DISTANCE;
+    const t = Math.min(
+      1,
+      Math.max(
+        0,
+        (distance - REGIONS_GONE_DISTANCE) / (WORLD_VIEW_DISTANCE - REGIONS_GONE_DISTANCE),
+      ),
+    );
+    return close + (1 - close) * t * t * (3 - 2 * t);
   }
 
   /** A ribbon is born where the player looks: a random screen point, cast onto the board. */
