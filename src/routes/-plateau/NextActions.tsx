@@ -132,13 +132,7 @@ export function NextActions({
           />
         )}
         {(frame === 'card' || unfolded) && (
-          <FoundationRows
-            view={view}
-            placements={placements}
-            armed={armed}
-            error={error}
-            onArm={onArm}
-          />
+          <FoundationRows placements={placements} armed={armed} error={error} onArm={onArm} />
         )}
       </div>
     ) : (

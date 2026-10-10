@@ -2,7 +2,6 @@ import { fr } from '@/i18n/fr';
 import type { DepositKey } from '@/domain/ids';
 import type { FoundationDebt } from '@/domain/economy';
 import type { Placement, PlacementCondition } from '@/domain/construction';
-import type { PlayerView } from '@/domain/player-view';
 import { BuildingPlate } from '@/emblems/Plate';
 
 /**
@@ -34,13 +33,11 @@ export type FoundationPlacement = Placement & { readonly deposit: DepositKey | n
 export const debtKey = (due: FoundationDebt): string => `${due.key}:${due.deposit ?? ''}`;
 
 export function FoundationRows({
-  view,
   placements,
   armed,
   error,
   onArm,
 }: {
-  view: PlayerView;
   /** One entry per owed couple, in the order the foundation owes them. */
   placements: ReadonlyArray<FoundationPlacement>;
   armed: string | null;
@@ -67,7 +64,7 @@ export function FoundationRows({
           {fr.mobilization.pick}
         </p>
       ) : (
-        <Aimed view={view} placement={chosen} onCancel={() => onArm(null)} />
+        <Aimed placement={chosen} onCancel={() => onArm(null)} />
       )}
 
       {error !== null && (
@@ -136,24 +133,12 @@ const offerText = (placement: FoundationPlacement): string =>
     : fr.mobilization.eligible(placement.regionIds.length);
 
 /**
- * The foot of the body once a key is armed: what the board is now waiting for, the regions it
- * lit, and the way out. **A mode one cannot leave is a trap** — the same rule the aim banner
- * follows.
+ * The foot of the body once a key is armed: what the board is now waiting for, where it lit
+ * the ground, and the way out. **A mode one cannot leave is a trap** — the same rule the aim
+ * banner follows. The lit regions are not listed: the board shows them, and a list of dozens of
+ * names is read by nobody (Pierre, 11/10).
  */
-function Aimed({
-  view,
-  placement,
-  onCancel,
-}: {
-  view: PlayerView;
-  placement: FoundationPlacement;
-  onCancel: () => void;
-}) {
-  const names = placement.regionIds.flatMap((regionId) => {
-    const region = view.me.regions.find((candidate) => candidate.id === regionId);
-    return region === undefined ? [] : [region.name];
-  });
-
+function Aimed({ placement, onCancel }: { placement: FoundationPlacement; onCancel: () => void }) {
   return (
     <>
       <div className="border-t border-[var(--ink)] bg-[rgba(176,116,52,.16)] px-[13px] py-[9px]">
@@ -163,7 +148,7 @@ function Aimed({
               {fr.mobilization.chooseRegion(wantsText(placement))}
             </p>
             <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-soft)]">
-              {fr.mobilization.highlighted(names)}
+              {fr.mobilization.highlighted}
             </p>
             <p className="mt-[2px] text-[11px] leading-[1.4] text-[var(--ink-quiet)] italic">
               {fr.mobilization.zoomIn}
