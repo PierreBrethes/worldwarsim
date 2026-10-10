@@ -83,10 +83,15 @@ seuls les traits ; au rapproché, traits et accessoires.
 
 ## Prototype 3 — Encre des trajets
 
-- **À l'envoi d'un mouvement** : la route se trace à l'encre, de la source à la cible.
-  Comment : `Line2` au tirets, longueur du tiret animée de 0 à la longueur totale, intervalle
-  plus long que la route. Réf. : [LineMaterial, doc three.js](https://threejs.org/docs/pages/LineMaterial.html).
-- **À l'arrivée** : un tampon ou un éclat d'encre sur la cible.
+- **À l'envoi d'un mouvement** : la route se trace à l'encre, de la source à la cible, en
+  800 ms d'un geste de plume. **Ce que le joueur a envoyé, et rien d'autre** : un retour, créé
+  par la résolution, apparaît sans trait, comme l'aperçu de la visée. Comment : la polyligne
+  recoupée à chaque image sous **un seul** `LineMaterial`, que le calque garde — en libérer un
+  par image faisait recompiler son programme.
+- **À l'arrivée** : un tampon rond sur la cible ; un combat, une éclaboussure dentelée au point
+  de la passe. Une dépêche d'arrivée ne nomme pas son mouvement : le tampon se pose au bout du fil
+  qui vient de disparaître, **et seulement si chaque fil disparu a sa dépêche** — sinon une
+  attaque résolue dans le même instant volerait le tampon de la marche. Dans le doute, rien.
 - **L'effet d'arrivée joue en direct seulement**, pour deux familles d'événements : l'arrivée
   de **ses propres mouvements**, et **les combats où le joueur est partie** (attaque ou
   défense). C'est exactement ce qu'il reçoit déjà en dépêche : aucune fuite.
@@ -100,14 +105,18 @@ seuls les traits ; au rapproché, traits et accessoires.
 
 Quatre valeurs : **auto** (suit `prefers-reduced-motion`), **actives**, **réduites**, **coupées**.
 
-| Valeur | Mer gravée | Rafales | Tracé | Tirets, effet d'arrivée |
-| --- | --- | --- | --- | --- |
-| actives | houle, 12 i/s | oui | progressif | oui |
-| réduites | figée | non | instantané | gardés : ils informent |
-| coupées | figée | non | instantané | tirets figés, pas d'éclat |
+| Valeur | Mer gravée | Rafales | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
+| --- | --- | --- | --- | --- | --- |
+| actives | houle, 12 i/s | oui | progressif | oui | animées |
+| réduites | figée | non | instantané | gardés : ils informent | sautent à leur état final |
+| coupées | figée | non | instantané | tirets figés, pas d'éclat | sautent à leur état final |
 
-**Coupées : plus rien ne bouge, sauf la position du pion.** La carte revient au rendu à la
-demande pur (`frame-demand.ts`). C'est aussi le **mode batterie**.
+La caméra et la pousse suivent le réglage, et non plus la seule requête système : choisir
+« réduites » est une demande de moins de mouvement, et un vol de caméra en est un.
+
+**Coupées : plus rien ne bouge, sauf la position du pion**, qui avance au battement de secours
+— deux pas par seconde, c'est le prix d'une carte qui ne rend plus en continu. La carte revient
+au rendu à la demande pur (`frame-demand.ts`). C'est aussi le **mode batterie**.
 
 Le réglage est d'abord une préférence d'appareil comme les autres ; il passera au compte avec le
 lot « Réglages au compte » ci-dessous.
