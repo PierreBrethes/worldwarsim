@@ -356,20 +356,32 @@ géométrie plate et le clic tombe à côté sur les bords de la carte.
 dessinait soixante images par seconde même posée et immobile. La boucle tourne toujours, mais
 l'image n'est due que si quelque chose a remué la carte dans les 1,5 s (`SETTLE_MS`, qui couvre
 l'inertie de la caméra et la pousse des accessoires), si un fil est affiché — ses tirets coulent,
-donc **un mouvement à l'écran garde le rendu continu** —, ou au battement de secours, deux fois
-par seconde. **Trois règles quand on touche au moteur**, et la première est vérifiée par un test
+donc **un mouvement à l'écran garde le rendu continu** (sauf animations « coupées ») —, ou au
+battement de secours, deux fois par seconde. **Quatre règles quand on touche au moteur**, et la première est vérifiée par un test
 qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 
 - toute méthode publique de `MapEngine` qui change ce qu'on voit **commence par
   `this.invalidate()`** ; une méthode qui ne fait que lire s'inscrit dans `READ_ONLY` du test ;
 - une animation nouvelle qui dure plus que `SETTLE_MS`, ou qui tourne sans fin, se déclare dans
   la boucle comme `arcs.isFlowing` — sinon elle saccade à deux images par seconde ;
+- une **ambiance** qui tourne sans fin (mer, vent) est une couche d'`Ambience` (`ambience.ts`) :
+  elle reçoit un temps quantifié à 12 Hz, figé hors `full`, et le socle demande **une** image par
+  pas (`FrameDemand.request`) — jamais `invalidate()`, qui tiendrait la carte à 60 i/s ;
 - un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
   `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
   `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
 
 Le battement est un filet, pas une excuse : un oubli se lit comme une demi-seconde de retard au
 lieu d'une carte gelée, et il se corrige.
+
+**Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : la mer est
+gravée d'une trame de points qui respire (`sea.ts`), une rafale passe de temps en temps (traits
+d'encre, accessoires qui ploient — `gusts.ts`, `wind.ts`), un mouvement envoyé se trace à
+l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
+lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
+réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
+aussi la caméra et la pousse des accessoires. C'est la deuxième exception, décidée, au pilier
+« rien ne bouge sans raison ».
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
