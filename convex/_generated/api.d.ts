@@ -10,12 +10,14 @@
 
 import type * as accounts from "../accounts.js";
 import type * as auth from "../auth.js";
+import type * as buildingReads from "../buildingReads.js";
 import type * as buildings from "../buildings.js";
 import type * as cargo from "../cargo.js";
 import type * as combat from "../combat.js";
 import type * as constants from "../constants.js";
 import type * as constructions from "../constructions.js";
 import type * as control from "../control.js";
+import type * as crateStock from "../crateStock.js";
 import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as holding from "../holding.js";
@@ -30,6 +32,7 @@ import type * as movement_cargoReturn from "../movement/cargoReturn.js";
 import type * as movement_detection from "../movement/detection.js";
 import type * as movement_forces from "../movement/forces.js";
 import type * as movement_orders from "../movement/orders.js";
+import type * as movement_pace from "../movement/pace.js";
 import type * as movement_rest from "../movement/rest.js";
 import type * as movements from "../movements.js";
 import type * as notifications from "../notifications.js";
@@ -48,6 +51,7 @@ import type * as regions from "../regions.js";
 import type * as resources from "../resources.js";
 import type * as routes from "../routes.js";
 import type * as seasons from "../seasons.js";
+import type * as seats from "../seats.js";
 import type * as sessions from "../sessions.js";
 import type * as sites from "../sites.js";
 import type * as surveys from "../surveys.js";
@@ -66,12 +70,14 @@ import type {
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
   auth: typeof auth;
+  buildingReads: typeof buildingReads;
   buildings: typeof buildings;
   cargo: typeof cargo;
   combat: typeof combat;
   constants: typeof constants;
   constructions: typeof constructions;
   control: typeof control;
+  crateStock: typeof crateStock;
   dev: typeof dev;
   errors: typeof errors;
   holding: typeof holding;
@@ -86,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   "movement/detection": typeof movement_detection;
   "movement/forces": typeof movement_forces;
   "movement/orders": typeof movement_orders;
+  "movement/pace": typeof movement_pace;
   "movement/rest": typeof movement_rest;
   movements: typeof movements;
   notifications: typeof notifications;
@@ -104,6 +111,7 @@ declare const fullApi: ApiFromModules<{
   resources: typeof resources;
   routes: typeof routes;
   seasons: typeof seasons;
+  seats: typeof seats;
   sessions: typeof sessions;
   sites: typeof sites;
   surveys: typeof surveys;

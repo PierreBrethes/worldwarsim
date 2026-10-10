@@ -35,7 +35,12 @@ import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
+import { Ambience } from './ambience';
+import { WindLayer } from './wind';
+import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
+import { InkLayer } from './ink';
+import type { InkBurst } from '@/domain/ink-bursts';
 import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
@@ -48,6 +53,7 @@ import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
+import { SeaLayer } from './sea';
 
 export type { SearchArea } from './search-area';
 
@@ -157,6 +163,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
   private readonly arcs: ArcLayer;
+  private readonly ink: InkLayer;
   private readonly reach: ReachRing;
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
@@ -204,6 +211,7 @@ export class MapEngine {
   private hoverDirty = true;
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
+  private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -300,12 +308,15 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
+    const sea = new SeaLayer();
     const board = buildBoard(
       world,
       this.frame,
       this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
+      this.ambience.enabled('sea') ? sea : null,
     );
+    this.ambience.add(sea);
     this.surface = board.surface;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -320,11 +331,16 @@ export class MapEngine {
 
     this.aimable = [...this.countries, this.surface];
 
-    this.arcs = new ArcLayer(this.frame);
+    if (this.ambience.enabled('wind')) {
+      this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer, this.frame));
+    }
+    this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
+    this.arcs = new ArcLayer(this.frame, this.ink);
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
     this.scene.add(this.arcs.group);
+    this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
@@ -361,6 +377,11 @@ export class MapEngine {
    */
   invalidate(): void {
     this.demand.stir(performance.now());
+  }
+
+  inkBurst(burst: InkBurst): void {
+    this.invalidate();
+    this.ink.burst(burst, performance.now());
   }
 
   displayArcs(arcs: ReadonlyArray<ArcView>): void {
@@ -540,7 +561,7 @@ export class MapEngine {
     // journey and restored once the zone is dismissed or a local zone is selected.
     this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, currentDistance, arrivalDistance);
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
-    if (prefersReducedMotion()) {
+    if (this.ambience.motion !== 'full') {
       this.controls.target.copy(center);
       this.camera.position.copy(center).addScaledVector(orientation, arrivalDistance);
       this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, arrivalDistance);
@@ -693,6 +714,7 @@ export class MapEngine {
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
+    this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
@@ -717,6 +739,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.arcs.dispose();
+    this.ink.dispose();
     this.regions.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
@@ -897,6 +920,14 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
+  setMapMotion(motion: MapMotion): void {
+    this.invalidate();
+    this.ambience.motion = motion;
+    this.arcs.motion = motion;
+    this.ink.motion = motion;
+    this.regions.instantGrowth = motion !== 'full';
+  }
+
   /**
    * Le mappage s'applique aussitôt, sans rechargement. Un glisser en cours garde le sien
    * jusqu'au relâchement (règle de controles-camera) : changer de rôle sous les doigts du
@@ -1064,7 +1095,7 @@ export class MapEngine {
       this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
       return;
     }
-    if (prefersReducedMotion()) {
+    if (this.ambience.motion !== 'full') {
       const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
       this.camera.position
         .copy(this.controls.target)
@@ -1160,14 +1191,18 @@ export class MapEngine {
       this.updateHover();
     }
     // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image.
-    if (this.arcs.isFlowing) this.invalidate();
-    if (!this.demand.due(performance.now())) return;
+    if (this.arcs.isFlowing || this.ink.active) this.invalidate();
+    const now = performance.now();
+    if (this.ambience.advance(now)) this.demand.request();
+    if (!this.demand.due(now)) return;
+    this.ambience.frame();
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    this.ink.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
@@ -1220,5 +1255,3 @@ function disposeNode(node: Object3D): void {
     single.dispose();
   }
 }
-
-const prefersReducedMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;

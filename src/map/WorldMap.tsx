@@ -16,8 +16,15 @@ import {
   type Compass,
   withheldUnderFinger,
 } from '@/domain/compass-rose';
-import type { ArcView, TroopStation } from '@/domain/player-view';
+import {
+  PREVIEW_ARC_ID,
+  type ArcView,
+  type JournalDispatch,
+  type TroopStation,
+} from '@/domain/player-view';
+import { inkBursts } from '@/domain/ink-bursts';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
@@ -29,6 +36,8 @@ import { MapEngine, type BuiltRegions, type HeldClaim, type SearchArea } from '.
 type Props = {
   world: World;
   arcs: ReadonlyArray<ArcView>;
+  /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
+  journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
   inkByCountry: ReadonlyMap<string, string>;
   /**
@@ -199,6 +208,7 @@ const NO_DESTINATIONS: ReadonlyArray<Destination> = [];
 export function WorldMap({
   world,
   arcs,
+  journal,
   labels,
   inkByCountry,
   held,
@@ -255,6 +265,7 @@ export function WorldMap({
   const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
+  const motion = useMapMotion();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -563,6 +574,10 @@ export function WorldMap({
   }, [readyEngine, mapping]);
 
   useEffect(() => {
+    readyEngine?.setMapMotion(motion);
+  }, [readyEngine, motion]);
+
+  useEffect(() => {
     readyEngine?.freezeOrbit(rose !== null);
   }, [readyEngine, rose]);
 
@@ -645,6 +660,23 @@ export function WorldMap({
   useEffect(() => {
     engine.current?.displayArcs(arcs);
   }, [arcs]);
+
+  const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
+  useEffect(() => {
+    const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
+    const before = inked.current;
+    inked.current = { arcs, seenAt: latest };
+    if (before === null) return;
+    const vanished = before.arcs.flatMap((arc) =>
+      arc.state === 'mine' &&
+      arc.id !== PREVIEW_ARC_ID &&
+      !arcs.some((still) => still.id === arc.id)
+        ? [arc.to]
+        : [],
+    );
+    for (const burst of inkBursts(journal, before.seenAt, vanished))
+      engine.current?.inkBurst(burst);
+  }, [arcs, journal]);
 
   useEffect(() => {
     engine.current?.colorNations(inkByCountry);

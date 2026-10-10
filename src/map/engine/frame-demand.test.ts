@@ -17,6 +17,15 @@ describe('FrameDemand', () => {
     expect(demand.due(2 * SETTLE_MS + 48)).toBe(false);
   });
 
+  it('renders one frame for a single request without opening the window', () => {
+    const demand = new FrameDemand(0);
+    expect(demand.due(SETTLE_MS + 100)).toBe(true);
+    expect(demand.due(SETTLE_MS + 116)).toBe(false);
+    demand.request();
+    expect(demand.due(SETTLE_MS + 132)).toBe(true);
+    expect(demand.due(SETTLE_MS + 148)).toBe(false);
+  });
+
   it('never stays frozen: a heartbeat frame is due even when nothing stirred', () => {
     const demand = new FrameDemand(0);
     const lastStirred = SETTLE_MS;

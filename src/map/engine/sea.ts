@@ -1,5 +1,6 @@
 import { Color, DataTexture, MeshStandardMaterial, SRGBColorSpace } from 'three';
 import type { World } from '@/domain/world';
+import type { AmbientLayer } from './ambience';
 import { PALETTE } from './palette';
 
 const TEXTURE_WIDTH = 2400;
@@ -58,6 +59,67 @@ export function seaMaterial(world: World, anisotropy: number): MeshStandardMater
   // a blanket "dispose every map you find".
   material.userData.ownsMap = true;
   return material;
+}
+
+/** How far the swell lightens and darkens the sea: the marbling's own range, no more — the
+ *  contrast budget belongs to the game layer. */
+const SWELL_AMPLITUDE = 0.06;
+/** World units per swell wave (the board is 400 wide) and noise cells drifted per second. */
+const SWELL_WAVELENGTH = 45;
+const SWELL_DRIFT = 0.006;
+
+const glsl = (value: number) => value.toFixed(4);
+
+/**
+ * **La houle** (carte-vivante.md, prototype 1). A dot screen was tried first and dropped: a fine
+ * regular pattern over the whole sea tires the eye. What is left is the paper's marbling, swelled
+ * by broad waves of tone anchored to the board, so they do not slide under a pan.
+ */
+export class SeaLayer implements AmbientLayer {
+  readonly fx = 'sea';
+  private readonly time = { value: 0 };
+
+  swell(material: MeshStandardMaterial): MeshStandardMaterial {
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.seaTime = this.time;
+      shader.vertexShader = shader.vertexShader
+        .replace('void main() {', 'varying vec2 vSeaBoard;\nvoid main() {')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaBoard = position.xz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          'void main() {',
+          `uniform float seaTime;
+          varying vec2 vSeaBoard;
+          float seaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float seaNoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(
+              mix(seaHash(i), seaHash(i + vec2(1.0, 0.0)), u.x),
+              mix(seaHash(i + vec2(0.0, 1.0)), seaHash(i + vec2(1.0, 1.0)), u.x),
+              u.y
+            );
+          }
+          void main() {`,
+        )
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          vec2 seaWave = vSeaBoard / ${glsl(SWELL_WAVELENGTH)};
+          float seaDrift = seaTime * ${glsl(SWELL_DRIFT)};
+          // Two layers drifting apart, so the swell breathes in place instead of only sliding.
+          float seaSwell = 0.6 * seaNoise(seaWave + vec2(seaDrift, seaDrift * 0.4))
+            + 0.4 * seaNoise(seaWave * 1.9 - vec2(seaDrift * 0.7, -seaDrift));
+          diffuseColor.rgb *= 1.0 + ${glsl(SWELL_AMPLITUDE * 2)} * (seaSwell - 0.5);`,
+        );
+    };
+    return material;
+  }
+
+  frame(time: number): void {
+    this.time.value = time;
+  }
 }
 
 /**

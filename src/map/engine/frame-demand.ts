@@ -19,6 +19,7 @@ export const HEARTBEAT_MS = 500;
 export class FrameDemand {
   private stirredAt: number;
   private renderedAt = Number.NEGATIVE_INFINITY;
+  private requested = false;
 
   constructor(now: number) {
     this.stirredAt = now;
@@ -29,9 +30,16 @@ export class FrameDemand {
     this.stirredAt = now;
   }
 
+  /** Une image seule, sans ouvrir la fenêtre : l'ambiance la demande à chaque pas. */
+  request(): void {
+    this.requested = true;
+  }
+
   /** Cette image est-elle due ? Répondre oui la compte comme rendue. */
   due(now: number): boolean {
-    const due = now - this.stirredAt <= SETTLE_MS || now - this.renderedAt >= HEARTBEAT_MS;
+    const due =
+      this.requested || now - this.stirredAt <= SETTLE_MS || now - this.renderedAt >= HEARTBEAT_MS;
+    this.requested = false;
     if (due) this.renderedAt = now;
     return due;
   }

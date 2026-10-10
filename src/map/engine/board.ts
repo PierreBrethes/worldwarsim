@@ -13,7 +13,7 @@ import {
 } from 'three';
 import type { World } from '@/domain/world';
 import type { Curvature } from './curvature';
-import { seaMaterial } from './sea';
+import { seaMaterial, type SeaLayer } from './sea';
 import { PALETTE } from './palette';
 import { PLINTH_HEIGHT, SEA_LEVEL, type WorldFrame } from './frame';
 
@@ -190,10 +190,11 @@ export function buildBoard(
   frame: WorldFrame,
   curvature: Curvature,
   anisotropy: number,
+  swell: SeaLayer | null,
 ): { surface: Mesh; decor: Object3D[] } {
   const surface = new Mesh(
     curvature.register(buildSurface(world, frame)),
-    seaMaterial(world, anisotropy),
+    swell ? swell.swell(seaMaterial(world, anisotropy)) : seaMaterial(world, anisotropy),
   );
 
   const plinth = new Mesh(

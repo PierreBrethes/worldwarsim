@@ -6,12 +6,14 @@ import {
   unrollRoute,
   type UnrolledSegment,
 } from '@/domain/route-timing';
-import type { ArcView } from '@/domain/player-view';
+import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
 import { movementSprites } from '@/emblems/units/manifest';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
+import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
+import type { InkLayer } from './ink';
 
 type RenderedArc = {
   arc: ArcView;
@@ -73,8 +75,18 @@ export class ArcLayer {
   private unitsPerPixel = 1;
   /** The dash drift's clock: it lives in the loop, never in React state. */
   private lastFrameMs = 0;
+  /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
+  motion: MapMotion = 'full';
 
-  constructor(private readonly frame: WorldFrame) {}
+  /** Ids on screen at the last real display; `null` until the first, which is no appearance. */
+  private known: ReadonlySet<string> | null = null;
+  /** Threads whose pen stroke is still being laid: hidden until this instant, whatever rebuilds. */
+  private readonly inking = new Map<string, number>();
+
+  constructor(
+    private readonly frame: WorldFrame,
+    private readonly ink: InkLayer,
+  ) {}
 
   setPlayerNation(nation: string | null): void {
     if (nation === this.playerNation) return;
@@ -95,6 +107,24 @@ export class ArcLayer {
 
   display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
     this.clear();
+    // Only mine are inked: nothing is added to what a sighting already says (fog). And only what
+    // the player sent: a return is created by the resolution, nobody put a pen to it.
+    const known = this.known;
+    const appeared =
+      carried !== undefined || known === null
+        ? []
+        : arcs.filter(
+            (arc) =>
+              arc.state === 'mine' &&
+              arc.id !== PREVIEW_ARC_ID &&
+              arc.type !== 'return' &&
+              !known.has(arc.id),
+          );
+    if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
+    for (const id of this.inking.keys()) {
+      if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
+    }
+    const now = performance.now();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
       const thread = buildThread(
@@ -122,6 +152,15 @@ export class ArcLayer {
       pawn.visible = !stale;
       this.group.add(pawn.object);
 
+      if (appeared.includes(arc)) {
+        const duration = this.ink.trace(thread.legs, now);
+        if (duration > 0) this.inking.set(arc.id, now + duration);
+      }
+      if ((this.inking.get(arc.id) ?? 0) > now) {
+        thread.object.visible = false;
+        pawn.visible = false;
+      }
+
       const headPosition = new Vector3();
       this.headPositions.set(arc.id, headPosition);
 
@@ -145,7 +184,7 @@ export class ArcLayer {
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
    *  marche. Tant qu'il y en a un, chaque image est due (`frame-demand.ts`). */
   get isFlowing(): boolean {
-    return this.rendered.length > 0;
+    return this.motion !== 'off' && this.rendered.length > 0;
   }
 
   /**
@@ -179,8 +218,14 @@ export class ArcLayer {
     this.lastFrameMs = now;
 
     for (const rendered of this.rendered) {
+      const inkedUntil = this.inking.get(rendered.arc.id);
+      if (inkedUntil !== undefined && now >= inkedUntil) {
+        this.inking.delete(rendered.arc.id);
+        rendered.thread.object.visible = true;
+        rendered.pawn.visible = true;
+      }
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
-      rendered.thread.drift(elapsed);
+      if (this.motion !== 'off') rendered.thread.drift(elapsed);
 
       rendered.progress = Math.min(1, rendered.progress + sinceLastFrame * rendered.pace);
       const position = temporalPosition(rendered.unrolled, rendered.progress);
