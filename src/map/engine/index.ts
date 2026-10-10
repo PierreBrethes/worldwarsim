@@ -53,6 +53,7 @@ import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
+import { SeaLayer } from './sea';
 
 export type { SearchArea } from './search-area';
 
@@ -308,12 +309,15 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
+    const sea = new SeaLayer();
     const board = buildBoard(
       world,
       this.frame,
       this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
+      this.ambience.enabled('sea') ? sea : null,
     );
+    this.ambience.add(sea);
     this.surface = board.surface;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
