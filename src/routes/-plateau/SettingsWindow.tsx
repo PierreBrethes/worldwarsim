@@ -14,6 +14,8 @@ import {
   readHudScale,
   telegraphSoundOn,
 } from '@/data/settings';
+import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
+import { MAP_MOTION_SETTINGS } from '@/domain/map-motion';
 import { setMouseMapping, useMouseMapping } from '@/data/mouseMapping';
 import {
   MOUSE_BUTTONS,
@@ -45,6 +47,7 @@ export function SettingsWindow({
   const [scale, setScale] = useState(readHudScale);
   const [sound, setSound] = useState(telegraphSoundOn);
   const mapping = useMouseMapping();
+  const mapMotion = useMapMotionSetting();
   const coarse = useCoarsePointer();
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
@@ -192,6 +195,27 @@ export function SettingsWindow({
             >
               {fr.settingsWindow.soundState(sound)}
             </button>
+          </div>
+
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.motionLabel}
+              </span>
+              <div className="flex gap-[6px]">
+                {MAP_MOTION_SETTINGS.map((setting) => (
+                  <Chip
+                    key={setting}
+                    label={fr.settingsWindow.motion[setting]}
+                    marked={mapMotion === setting}
+                    onClick={() => setMapMotionSetting(setting)}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.settingsWindow.motionNote}
+            </p>
           </div>
 
           <NotificationsSection seat={seat} />

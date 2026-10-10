@@ -638,10 +638,12 @@ export class RegionLayer {
     this.birth = performance.now();
   }
 
+  instantGrowth = false;
+
   /** The growth: scale 0 → size with a slight overshoot, staggered prop by prop. */
   private growProps(): void {
     if (this.props.children.length === 0) return;
-    const age = performance.now() - this.birth;
+    const age = this.instantGrowth ? Infinity : performance.now() - this.birth;
     for (const child of this.props.children) {
       const t = Math.min(1, Math.max(0, (age - (child.userData.delay as number)) / 320));
       const overshoot = 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;

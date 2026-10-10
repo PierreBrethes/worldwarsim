@@ -35,6 +35,8 @@ import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
+import { Ambience } from './ambience';
+import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
@@ -204,6 +206,8 @@ export class MapEngine {
   private hoverDirty = true;
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
+  /** The seam for the decorative effects: `engine.ambience.add(new SomeLayer(...))`. */
+  readonly ambience = new Ambience(parseFx(location.search));
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -540,7 +544,7 @@ export class MapEngine {
     // journey and restored once the zone is dismissed or a local zone is selected.
     this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, currentDistance, arrivalDistance);
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
-    if (prefersReducedMotion()) {
+    if (this.ambience.motion !== 'full') {
       this.controls.target.copy(center);
       this.camera.position.copy(center).addScaledVector(orientation, arrivalDistance);
       this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, arrivalDistance);
@@ -902,6 +906,13 @@ export class MapEngine {
    * jusqu'au relâchement (règle de controles-camera) : changer de rôle sous les doigts du
    * joueur ferait d'un geste commencé un autre geste.
    */
+  setMapMotion(motion: MapMotion): void {
+    this.invalidate();
+    this.ambience.motion = motion;
+    this.arcs.motion = motion;
+    this.regions.instantGrowth = motion !== 'full';
+  }
+
   setMouseMapping(mapping: MouseMapping): void {
     this.invalidate();
     this.mapping = mapping;
@@ -1064,7 +1075,7 @@ export class MapEngine {
       this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
       return;
     }
-    if (prefersReducedMotion()) {
+    if (this.ambience.motion !== 'full') {
       const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
       this.camera.position
         .copy(this.controls.target)
@@ -1161,7 +1172,10 @@ export class MapEngine {
     }
     // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image.
     if (this.arcs.isFlowing) this.invalidate();
-    if (!this.demand.due(performance.now())) return;
+    const now = performance.now();
+    if (this.ambience.advance(now)) this.demand.request();
+    if (!this.demand.due(now)) return;
+    this.ambience.frame();
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
@@ -1220,5 +1234,3 @@ function disposeNode(node: Object3D): void {
     single.dispose();
   }
 }
-
-const prefersReducedMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;

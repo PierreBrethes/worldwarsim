@@ -11,6 +11,7 @@ import { movementSprites } from '@/emblems/units/manifest';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
+import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 
 type RenderedArc = {
@@ -73,6 +74,8 @@ export class ArcLayer {
   private unitsPerPixel = 1;
   /** The dash drift's clock: it lives in the loop, never in React state. */
   private lastFrameMs = 0;
+  /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
+  motion: MapMotion = 'full';
 
   constructor(private readonly frame: WorldFrame) {}
 
@@ -145,7 +148,7 @@ export class ArcLayer {
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
    *  marche. Tant qu'il y en a un, chaque image est due (`frame-demand.ts`). */
   get isFlowing(): boolean {
-    return this.rendered.length > 0;
+    return this.motion !== 'off' && this.rendered.length > 0;
   }
 
   /**
@@ -180,7 +183,7 @@ export class ArcLayer {
 
     for (const rendered of this.rendered) {
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
-      rendered.thread.drift(elapsed);
+      if (this.motion !== 'off') rendered.thread.drift(elapsed);
 
       rendered.progress = Math.min(1, rendered.progress + sinceLastFrame * rendered.pace);
       const position = temporalPosition(rendered.unrolled, rendered.progress);

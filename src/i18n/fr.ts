@@ -2371,6 +2371,10 @@ export const fr = {
     mousePreset: { classic: 'classique', wheelActs: 'molette agit' },
     fingerLabel: 'Le doigt',
     fingerNote: 'Le doigt ne se règle pas. Une souris branchée garde son propre réglage.',
+    motionLabel: 'Animations de la carte',
+    motion: { auto: 'auto', full: 'actives', reduced: 'réduites', off: 'coupées' },
+    motionNote:
+      'Auto suit le réglage du système. Coupées, les fils ne coulent plus et la carte se redessine au plus juste : le mode batterie.',
     soundLabel: 'Son du télégraphe',
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',

@@ -1,4 +1,9 @@
 import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
+import {
+  DEFAULT_MAP_MOTION_SETTING,
+  isMapMotionSetting,
+  type MapMotionSetting,
+} from '@/domain/map-motion';
 import { DEFAULT_MOUSE_MAPPING, isMouseMapping, type MouseMapping } from '@/domain/mouse-mapping';
 
 const HUD_SCALE_KEY = 'wws-hud-scale';
@@ -99,6 +104,17 @@ export function readMouseMapping(): MouseMapping {
 export function keepMouseMapping(mapping: MouseMapping): void {
   localStorage.setItem(MOUSE_MAPPING_KEY, JSON.stringify(mapping));
 }
+
+const MAP_MOTION_KEY = 'wws-map-motion';
+
+export function readMapMotion(): MapMotionSetting {
+  const kept = localStorage.getItem(MAP_MOTION_KEY);
+  return isMapMotionSetting(kept) ? kept : DEFAULT_MAP_MOTION_SETTING;
+}
+
+export const keepMapMotion = (setting: MapMotionSetting): void => {
+  localStorage.setItem(MAP_MOTION_KEY, setting);
+};
 
 const INDICATORS_KEY = 'wws-edge-indicators';
 

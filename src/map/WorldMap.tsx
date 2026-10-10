@@ -18,6 +18,7 @@ import {
 } from '@/domain/compass-rose';
 import type { ArcView, TroopStation } from '@/domain/player-view';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
@@ -255,6 +256,7 @@ export function WorldMap({
   const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
+  const motion = useMapMotion();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -561,6 +563,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setMouseMapping(mapping);
   }, [readyEngine, mapping]);
+
+  useEffect(() => {
+    readyEngine?.setMapMotion(motion);
+  }, [readyEngine, motion]);
 
   useEffect(() => {
     readyEngine?.freezeOrbit(rose !== null);
