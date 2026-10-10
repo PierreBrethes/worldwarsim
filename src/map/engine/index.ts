@@ -38,6 +38,8 @@ import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
+import { InkLayer } from './ink';
+import type { InkBurst } from '@/domain/ink-bursts';
 import { ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
@@ -159,6 +161,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
   private readonly arcs: ArcLayer;
+  private readonly ink: InkLayer;
   private readonly reach: ReachRing;
   private readonly searchArea: SearchAreaLayer;
   private readonly labels: LabelLayer;
@@ -324,11 +327,13 @@ export class MapEngine {
 
     this.aimable = [...this.countries, this.surface];
 
-    this.arcs = new ArcLayer(this.frame);
+    this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
+    this.arcs = new ArcLayer(this.frame, this.ink);
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
     this.scene.add(this.arcs.group);
+    this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
@@ -365,6 +370,11 @@ export class MapEngine {
    */
   invalidate(): void {
     this.demand.stir(performance.now());
+  }
+
+  inkBurst(burst: InkBurst): void {
+    this.invalidate();
+    this.ink.burst(burst, performance.now());
   }
 
   displayArcs(arcs: ReadonlyArray<ArcView>): void {
@@ -697,6 +707,7 @@ export class MapEngine {
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
+    this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
@@ -721,6 +732,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.arcs.dispose();
+    this.ink.dispose();
     this.regions.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
@@ -910,6 +922,7 @@ export class MapEngine {
     this.invalidate();
     this.ambience.motion = motion;
     this.arcs.motion = motion;
+    this.ink.motion = motion;
     this.regions.instantGrowth = motion !== 'full';
   }
 
@@ -1171,7 +1184,7 @@ export class MapEngine {
       this.updateHover();
     }
     // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image.
-    if (this.arcs.isFlowing) this.invalidate();
+    if (this.arcs.isFlowing || this.ink.active) this.invalidate();
     const now = performance.now();
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
@@ -1182,6 +1195,7 @@ export class MapEngine {
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    this.ink.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));

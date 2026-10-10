@@ -13,6 +13,7 @@ import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
+import type { InkLayer } from './ink';
 
 type RenderedArc = {
   arc: ArcView;
@@ -77,7 +78,15 @@ export class ArcLayer {
   /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
   motion: MapMotion = 'full';
 
-  constructor(private readonly frame: WorldFrame) {}
+  /** Ids on screen at the last real display; `null` until the first, which is no appearance. */
+  private known: ReadonlySet<string> | null = null;
+  /** Threads whose pen stroke is still being laid: hidden until this instant, whatever rebuilds. */
+  private readonly inking = new Map<string, number>();
+
+  constructor(
+    private readonly frame: WorldFrame,
+    private readonly ink: InkLayer,
+  ) {}
 
   setPlayerNation(nation: string | null): void {
     if (nation === this.playerNation) return;
@@ -98,6 +107,13 @@ export class ArcLayer {
 
   display(arcs: ReadonlyArray<ArcView>, carried?: ReadonlyMap<string, number>): void {
     this.clear();
+    // Only mine are inked: nothing is added to what a sighting already says (fog).
+    const appeared =
+      carried !== undefined || this.known === null
+        ? []
+        : arcs.filter((arc) => arc.state === 'mine' && !this.known!.has(arc.id));
+    if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
+    const now = performance.now();
     for (const arc of arcs) {
       const stale = arc.state === 'lastKnown';
       const thread = buildThread(
@@ -124,6 +140,15 @@ export class ArcLayer {
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
+
+      if (appeared.includes(arc)) {
+        const duration = this.ink.trace(thread.legs, now);
+        if (duration > 0) this.inking.set(arc.id, now + duration);
+      }
+      if ((this.inking.get(arc.id) ?? 0) > now) {
+        thread.object.visible = false;
+        pawn.visible = false;
+      }
 
       const headPosition = new Vector3();
       this.headPositions.set(arc.id, headPosition);
@@ -182,6 +207,12 @@ export class ArcLayer {
     this.lastFrameMs = now;
 
     for (const rendered of this.rendered) {
+      const inkedUntil = this.inking.get(rendered.arc.id);
+      if (inkedUntil !== undefined && now >= inkedUntil) {
+        this.inking.delete(rendered.arc.id);
+        rendered.thread.object.visible = true;
+        rendered.pawn.visible = true;
+      }
       if (unitsPerPixel !== undefined) rendered.thread.setScale(unitsPerPixel);
       if (this.motion !== 'off') rendered.thread.drift(elapsed);
 

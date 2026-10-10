@@ -1796,6 +1796,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           <WorldMap
             world={world}
             arcs={arcs}
+            journal={view.journal}
             labels={labels}
             inkByCountry={inkByCountry}
             held={held}
