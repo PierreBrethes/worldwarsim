@@ -211,8 +211,7 @@ export class MapEngine {
   private hoverDirty = true;
   /** Ce qui décide si l'image de ce tour de boucle est due — voir `frame-demand.ts`. */
   private readonly demand = new FrameDemand(performance.now());
-  /** The seam for the decorative effects: `engine.ambience.add(new SomeLayer(...))`. */
-  readonly ambience = new Ambience(parseFx(location.search));
+  private readonly ambience = new Ambience(parseFx(location.search));
 
   /**
    * The country under the pointer, by `adm0_a3`. It is a second announcement rather than a
@@ -309,7 +308,7 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
-    const sea = new SeaLayer();
+    const sea = new SeaLayer(this.renderer.getPixelRatio());
     const board = buildBoard(
       world,
       this.frame,
@@ -332,7 +331,9 @@ export class MapEngine {
 
     this.aimable = [...this.countries, this.surface];
 
-    this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer));
+    if (this.ambience.enabled('wind')) {
+      this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer));
+    }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
     this.arcs = new ArcLayer(this.frame, this.ink);
     this.reach = new ReachRing(this.frame);
@@ -919,11 +920,6 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
-  /**
-   * Le mappage s'applique aussitôt, sans rechargement. Un glisser en cours garde le sien
-   * jusqu'au relâchement (règle de controles-camera) : changer de rôle sous les doigts du
-   * joueur ferait d'un geste commencé un autre geste.
-   */
   setMapMotion(motion: MapMotion): void {
     this.invalidate();
     this.ambience.motion = motion;
@@ -932,6 +928,11 @@ export class MapEngine {
     this.regions.instantGrowth = motion !== 'full';
   }
 
+  /**
+   * Le mappage s'applique aussitôt, sans rechargement. Un glisser en cours garde le sien
+   * jusqu'au relâchement (règle de controles-camera) : changer de rôle sous les doigts du
+   * joueur ferait d'un geste commencé un autre geste.
+   */
   setMouseMapping(mapping: MouseMapping): void {
     this.invalidate();
     this.mapping = mapping;

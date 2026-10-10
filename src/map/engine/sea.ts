@@ -84,11 +84,14 @@ export class SeaLayer implements AmbientLayer {
   readonly fx = 'sea';
   private readonly time = { value: 0 };
 
+  /** The renderer's ratio, not the screen's: it is capped at 2, and the pitch follows what is drawn. */
+  constructor(private readonly pixelRatio: number) {}
+
   material(): MeshStandardMaterial {
     const material = new MeshStandardMaterial({ roughness: 0.98, metalness: 0 });
     material.onBeforeCompile = (shader) => {
       shader.uniforms.seaTime = this.time;
-      shader.uniforms.seaPixelRatio = { value: window.devicePixelRatio || 1 };
+      shader.uniforms.seaPixelRatio = { value: this.pixelRatio };
       shader.uniforms.seaPaper = { value: new Color(PALETTE.sea) };
       shader.uniforms.seaInk = { value: new Color(PALETTE.seaInk) };
       shader.vertexShader = shader.vertexShader

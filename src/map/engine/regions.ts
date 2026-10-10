@@ -176,6 +176,7 @@ export class RegionLayer {
   readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
   readonly props = new Group();
+  instantGrowth = false;
   private readonly lineMaterial: LineBasicMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
   private readonly designatedMaterial: MeshStandardMaterial;
@@ -637,8 +638,6 @@ export class RegionLayer {
     }
     this.birth = performance.now();
   }
-
-  instantGrowth = false;
 
   /** The growth: scale 0 → size with a slight overshoot, staggered prop by prop. */
   private growProps(): void {
