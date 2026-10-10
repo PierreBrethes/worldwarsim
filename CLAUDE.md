@@ -365,8 +365,9 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 - une animation nouvelle qui dure plus que `SETTLE_MS`, ou qui tourne sans fin, se déclare dans
   la boucle comme `arcs.isFlowing` — sinon elle saccade à deux images par seconde ;
 - une **ambiance** qui tourne sans fin (mer, vent) est une couche d'`Ambience` (`ambience.ts`) :
-  elle reçoit un temps quantifié à 12 Hz, figé hors `full`, et le socle demande **une** image par
-  pas (`FrameDemand.request`) — jamais `invalidate()`, qui tiendrait la carte à 60 i/s ;
+  elle déclare sa cadence (`hz`, 12 par défaut), reçoit un temps quantifié à ce pas, figé hors
+  `full`, et le socle demande **une** image par pas (`FrameDemand.request`) — jamais
+  `invalidate()`, qui tiendrait la carte à 60 i/s ;
 - un composant React qui pose ses propres nœuds sur la carte et les place depuis `onLabels` ou
   `onEdges` appelle `engine.invalidate()` après chaque rendu (`MapLabels.tsx`,
   `EdgeIndicators.tsx`) : ses nœuds naissent cachés, c'est l'image suivante qui les place.
@@ -376,8 +377,8 @@ lieu d'une carte gelée, et il se corrige.
 
 **Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : une houle
 lente passe sur la marbrure de la mer (`sea.ts` — une trame de points, essayée, fatiguait
-l'œil), une rafale passe de temps en temps (traits d'encre, accessoires qui ploient —
-`gusts.ts`, `wind.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
+l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonction pure de l'heure
+(`weather.ts`, `wind.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
 aussi la caméra et la pousse des accessoires. C'est la deuxième exception, décidée, au pilier

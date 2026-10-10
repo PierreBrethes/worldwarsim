@@ -13,9 +13,9 @@ gravée et le grain ; il reste à les faire bouger.
 
 ## Règle : décor pur
 
-**Ces effets sont calculés côté client, tirés au hasard, et ne lisent jamais l'état de la
-partie.** Aucun ne dépend d'une position, d'un mouvement adverse, d'une saison. Deux joueurs ne
-voient pas la même rafale, et c'est voulu. Ce qui sort d'un événement du joueur (envoi, arrivée,
+**Ces effets sont calculés côté client et ne lisent jamais l'état de la partie.** Aucun ne dépend
+d'une position, d'un mouvement adverse, d'une saison. Le vent, lui, est le même pour tous : une
+fonction de l'heure réelle et d'une graine fixe, jamais du joueur. Ce qui sort d'un événement du joueur (envoi, arrivée,
 combat) vient de ce qu'il reçoit déjà en dépêche : aucune information nouvelle, donc aucune
 fuite (ADR 0005, brouillard).
 
@@ -24,7 +24,7 @@ fuite (ADR 0005, brouillard).
 **Le pilier « rien ne bouge sans raison » admet une deuxième exception : l'ambiance.** La
 [recherche 3D du 08/09](../recherches/3d-2026-09-08.md) en faisait un pilier, la dérive des tirets
 étant « l'unique exception », et écartait les particules continues ; le refus du 26/08 écartait la
-météo visuelle. Décision de Pierre : la houle et les rafales entrent, sous deux garde-fous.
+météo visuelle. Décision de Pierre : la houle et le vent entrent, sous deux garde-fous.
 
 - **Contraste faible.** Le budget de contraste appartient à la couche de jeu (`WWS/CLAUDE.md`) :
   l'ambiance reste dans les encres sourdes du plateau, sous les fils, les pions et les mâts.
@@ -36,17 +36,17 @@ recommandait. Le réglage « réduites » rend à qui le veut la carte du pilier
 
 ## Cadence
 
-- **L'ambiance (mer, vent) tourne à 12 images par seconde**, le temps passé aux shaders étant
-  **quantifié** — même quand la carte rend à 60 pendant un geste. Saccade assumée comme un style
-  (animer « à deux » : une pose toutes les deux images d'un film à 24). À confirmer à l'essai ;
-  si la mer saccade pendant un pan, on la fige le temps du geste.
+- **Chaque couche d'ambiance a sa cadence**, son temps **quantifié** à son pas même quand la
+  carte rend à 60 pendant un geste : la houle à **12 images par seconde** (saccade de bobine,
+  invisible sur une onde si lente), les rubans de vent à **30** — à 12 ils saccadaient, et le
+  style moderne voulu par Pierre demande qu'ils coulent.
 - **Trajets et caméra restent fluides.** Tirets qui coulent, tracé d'encre, inertie : plein débit.
 - **Rendu à la demande** (`frame-demand.ts`, 05/10). L'ambiance demande **une image par pas de
-  1/12 s**, pas une fenêtre d'activité de `SETTLE_MS`. Posée et sans effet actif, la carte
+  la couche la plus rapide**, pas une fenêtre d'activité de `SETTLE_MS`. Posée et sans effet actif, la carte
   retombe au battement. Elle ne casse l'économie de batterie que de ce pas-là, rien de plus.
 - **Chiffrage réel au prototype**, mesure sur téléphone. Pas de budget annoncé d'avance.
-- Comment : le temps est arrondi côté JS avant d'aller dans l'uniform (`floor(t × 12) / 12`),
-  un seul endroit, partagé par la mer et le vent. Réf. : [temps quantifié, Remotion](https://www.remotion.dev/docs/posterization).
+- Comment : le temps est arrondi côté JS avant d'aller dans l'uniform (`floor(t × hz) / hz`),
+  dans `ambience.ts`, au pas que chaque couche déclare (`hz`).
 
 ## Prototype 1 — Houle
 
@@ -59,20 +59,28 @@ ondes de bruit l'éclaircissent et l'assombrissent dans l'amplitude même de la 
 (`SWELL_AMPLITUDE`), ancrées au plateau pour ne pas glisser pendant un pan, dérivant lentement
 sur l'horloge d'ambiance. Aucun motif fin, donc rien qui scintille ni qui moire.
 
-## Prototype 2 — Rafales
+## Prototype 2 — Météo de vent
 
-**Toutes les 1 à 3 minutes, au hasard, pendant ~4 s** : des traits d'encre — les traits de
-vitesse de l'illustrateur — balaient l'écran sur une bande. **Au rapproché, les accessoires de
-région (sapins, dunes…) ploient** au passage. **Visible à toutes les distances** : au lointain,
-seuls les traits ; au rapproché, traits et accessoires.
+**Essai 1, les rafales à traits d'encre — rejeté le 10/10 par Pierre** : « ça fait un peu
+cheap ». Il voulait plus moderne, « avec de belles courbes ». Deux démos (rubans enroulés, lignes
+de flux d'une carte météo) ont mené au mélange retenu.
 
-- Direction et bande tirées au hasard à chaque rafale. L'écran, non la carte, porte les traits :
-  ils ne dépendent pas du monde.
-- Comment : un uniform de rafale (phase, direction), un décalage de sommet appliqué aux
-  accessoires par `onBeforeCompile`, pondéré par la hauteur du sommet. Réf. :
-  [balancement au vertex shader, forum three.js](https://discourse.threejs.org/t/generate-realistic-procedural-trees/65341).
-- Risque : les accessoires sont instanciés dans `terrain.ts` ; le décalage doit rester dans le
-  vertex shader, sans toucher aux matrices (pas de réécriture d'instances par image).
+**Essai 2, la météo de vent** : des **rubans effilés** couleur papier — épais au milieu, bouts
+ronds — qui suivent un **champ de vent continu** et s'enroulent d'eux-mêmes dans les dépressions.
+
+- **Le même ciel pour tous** (`src/domain/weather.ts`, `windAt`) : une fonction pure de l'heure
+  réelle et d'une graine fixe, sans aléa ni état de partie. C'est la base toute prête de la
+  [météo jouable](#hors-lot--météo-jouable) : elle passera côté serveur telle quelle.
+- **Le champ** : un fond par bandes climatiques (alizés d'est, vents d'ouest aux latitudes
+  moyennes, retombée polaire), et six systèmes de pression nés et éteints de façon déterministe,
+  qui **vivent ~45 min**, dérivent avec le fond et tournent selon l'hémisphère. Le ciel change
+  pendant une session, sans frénésie.
+- **Les rubans** sont ancrés au monde mais comptés en **pixels d'écran** (épaisseur, vitesse) et
+  à **densité constante à l'écran** ; sous les fils et les pions. Leur naissance est tirée au
+  hasard : seul le champ est déterministe.
+- **Les accessoires de région ne ploient pas** : Pierre les juge à revoir (« un peu moches, là
+  pour le fun ») ; leur flexion au vent attendra leur refonte.
+- **Prototype** : `?weather=fast` accélère le ciel ×20, retiré avant la fusion.
 
 ## Prototype 3 — Encre des trajets
 
@@ -98,11 +106,11 @@ seuls les traits ; au rapproché, traits et accessoires.
 
 Quatre valeurs : **auto** (suit `prefers-reduced-motion`), **actives**, **réduites**, **coupées**.
 
-| Valeur | Houle | Rafales | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
+| Valeur | Houle | Vent | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
 | --- | --- | --- | --- | --- | --- |
-| actives | 12 i/s | oui | progressif | oui | animées |
-| réduites | figée | non | instantané | gardés : ils informent | sautent à leur état final |
-| coupées | figée | non | instantané | tirets figés, pas d'éclat | sautent à leur état final |
+| actives | 12 i/s | rubans, 30 i/s | progressif | oui | animées |
+| réduites | figée | pas de rubans | instantané | gardés : ils informent | sautent à leur état final |
+| coupées | figée | pas de rubans | instantané | tirets figés, pas d'éclat | sautent à leur état final |
 
 La caméra et la pousse suivent le réglage, et non plus la seule requête système : choisir
 « réduites » est une demande de moins de mouvement, et un vol de caméra en est un.
@@ -162,11 +170,14 @@ Toutes en décor pur. Une ligne de quoi, une ligne de coût.
   *Coût : un masque de bruit de plus ; risque de salir la lecture des régions.*
 - **Fumée de bataille.** Panache d'encre au lieu d'un éclat, sur un combat où le joueur est
   partie. *Coût : particules ; même règle de direct seulement que l'arrivée.*
+- **Accessoires qui ploient au vent local.** Sapins et dunes inclinés selon `windAt` là où ils
+  sont, plus fort sous une dépression. *Coût : faible (vertex shader) ; attend la refonte des
+  accessoires.*
 - **Drapeau qui flotte sur le QG.** Le sprite ondule en lacet. *Coût : peu ; un mât de plus à
   animer en permanence, donc rendu continu si visible.*
 - **Terminateur jour/nuit en temps réel.** Ligne d'ombre qui suit l'heure réelle. *Coût :
-  ambigu avec un jeu asynchrone sans horloge de partie ; il lirait l'heure, donc l'exclut du
-  strict décor.* À garder pour la fin.
+  faible ; il lit l'heure comme le vent, la même pour tous, mais dans un jeu sans horloge de
+  partie une nuit sur la carte pourrait se lire comme un rythme de jeu.* À garder pour la fin.
 
 Deux idées ajoutées, tenant le 1940 et le décor pur :
 
@@ -178,7 +189,7 @@ Deux idées ajoutées, tenant le 1940 et le décor pur :
 
 ## À décider à l'essai
 
-- Les 12 images par seconde donnent-elles un style ou une panne ? Sinon 15, ou mer figée
-  pendant les gestes.
-- La houle seule suffit-elle, ou la profondeur entre-t-elle ?
-- Le coût sur téléphone tient-il sans le mode « réduites » ?
+- La houle à 12 images par seconde se voit-elle saccader pendant un pan ?
+- Le nombre, l'épaisseur et l'opacité des rubans (`wind.ts`) : présents sans voler la lecture
+  des fils et des frontières ?
+- Le coût des rubans à 30 images par seconde tient-il sur téléphone sans le mode « réduites » ?
