@@ -32,7 +32,7 @@ describe('gusts', () => {
     expect([b.angle, b.band]).toEqual([a.angle, a.band]);
     expect(a.angle).toBeCloseTo(Math.PI * 0.5);
     expect(a.band).toBeCloseTo(0.75);
-    const next = gusts.at(start + GUST_LENGTH_S + GUST_GAP_S[1] + 1)!;
+    const next = gusts.at(start + GUST_LENGTH_S + GUST_GAP_S[0] + 1)!;
     expect(next).not.toBeNull();
     expect(next.angle).not.toBeCloseTo(a.angle);
   });

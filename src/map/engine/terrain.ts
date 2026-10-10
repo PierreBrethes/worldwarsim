@@ -7,6 +7,7 @@ import {
   OctahedronGeometry,
   SphereGeometry,
   type BufferGeometry,
+  Vector2,
   type Material,
 } from 'three';
 import type { RegionType } from '@/domain/ids';
@@ -23,6 +24,47 @@ export const TYPE_TINTS: Record<RegionType, string> = {
   desert: '#c99f56',
   tundra: '#9fbfc4',
 };
+
+/** Shared by every prop material: a still board has `force` at 0 and the shader moves nothing. */
+export const gustUniforms = {
+  force: { value: 0 },
+  /** Ground-plane direction (x, z), unit length. */
+  direction: { value: new Vector2(1, 0) },
+  time: { value: 0 },
+};
+const LEAN = 0.38;
+const SWAY_RAD_PER_S = 9;
+
+/**
+ * Props bend in the vertex shader, never through their matrices, and only when the wind layer
+ * asks: with `?fx=` lacking `wind` the materials keep three's stock program.
+ */
+export function enableGusts(): void {
+  for (const m of materials) {
+    m.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, {
+        gustForce: gustUniforms.force,
+        gustDirection: gustUniforms.direction,
+        gustTime: gustUniforms.time,
+      });
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float gustForce;\nuniform vec2 gustDirection;\nuniform float gustTime;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          float bend = max(position.y, 0.0);
+          bend *= bend * gustForce * ${LEAN.toFixed(2)} * (1.0 + 0.25 * sin(gustTime * ${SWAY_RAD_PER_S.toFixed(1)} + modelMatrix[3].x + modelMatrix[3].z));
+          float modelScale = length(modelMatrix[0].xyz);
+          transformed += transpose(mat3(modelMatrix)) * vec3(gustDirection.x, 0.0, gustDirection.y) * bend / modelScale;`,
+        );
+    };
+    m.customProgramCacheKey = () => 'gusts';
+    m.needsUpdate = true;
+  }
+}
 
 const geometries: BufferGeometry[] = [];
 const materials: Material[] = [];
