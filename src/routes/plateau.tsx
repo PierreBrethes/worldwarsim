@@ -50,14 +50,15 @@ import {
 import { placementOf } from '@/domain/construction';
 import { asDuration } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
-import type {
-  ArcView,
-  CombatReport,
-  Cost,
-  PlayerView,
-  Stack,
-  TroopStation,
-  TroopView,
+import {
+  PREVIEW_ARC_ID,
+  type ArcView,
+  type CombatReport,
+  type Cost,
+  type PlayerView,
+  type Stack,
+  type TroopStation,
+  type TroopView,
 } from '@/domain/player-view';
 import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underway';
 import {
@@ -2330,7 +2331,7 @@ function previewArc(column: ArmedColumn, order: Order, preview: NonNullable<Prev
   const points = preview.route.points.map((point) => [point.lon, point.lat] as LonLat);
   return {
     state: 'mine',
-    id: PREVIEW_ARC,
+    id: PREVIEW_ARC_ID,
     from: points[0] ?? [0, 0],
     to: points[points.length - 1] ?? [0, 0],
     route: {
@@ -2373,8 +2374,6 @@ function previewArc(column: ArmedColumn, order: Order, preview: NonNullable<Prev
     progress: 0,
   };
 }
-
-const PREVIEW_ARC = 'preview';
 
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds

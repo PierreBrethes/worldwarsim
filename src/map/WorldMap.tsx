@@ -16,7 +16,12 @@ import {
   type Compass,
   withheldUnderFinger,
 } from '@/domain/compass-rose';
-import type { ArcView, JournalDispatch, TroopStation } from '@/domain/player-view';
+import {
+  PREVIEW_ARC_ID,
+  type ArcView,
+  type JournalDispatch,
+  type TroopStation,
+} from '@/domain/player-view';
 import { inkBursts } from '@/domain/ink-bursts';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useMapMotion } from '@/data/mapMotion';
@@ -663,7 +668,11 @@ export function WorldMap({
     inked.current = { arcs, seenAt: latest };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
-      arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
+      arc.state === 'mine' &&
+      arc.id !== PREVIEW_ARC_ID &&
+      !arcs.some((still) => still.id === arc.id)
+        ? [arc.to]
+        : [],
     );
     for (const burst of inkBursts(journal, before.seenAt, vanished))
       engine.current?.inkBurst(burst);

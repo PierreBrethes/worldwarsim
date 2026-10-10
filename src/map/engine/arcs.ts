@@ -6,7 +6,7 @@ import {
   unrollRoute,
   type UnrolledSegment,
 } from '@/domain/route-timing';
-import type { ArcView } from '@/domain/player-view';
+import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
 import { movementSprites } from '@/emblems/units/manifest';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
@@ -111,7 +111,9 @@ export class ArcLayer {
     const appeared =
       carried !== undefined || this.known === null
         ? []
-        : arcs.filter((arc) => arc.state === 'mine' && !this.known!.has(arc.id));
+        : arcs.filter(
+            (arc) => arc.state === 'mine' && arc.id !== PREVIEW_ARC_ID && !this.known!.has(arc.id),
+          );
     if (carried === undefined) this.known = new Set(arcs.map((arc) => arc.id));
     const now = performance.now();
     for (const arc of arcs) {
