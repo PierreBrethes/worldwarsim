@@ -19,20 +19,25 @@ type Planned = { start: number; angle: number; band: number };
  * Gusts are drawn lazily, one at a time, from the ambient clock: `time` only ever grows, so a
  * gust is forgotten once it is over and nothing is precomputed.
  */
-export function createGusts(random: () => number = Math.random) {
-  const between = ([low, high]: readonly [number, number], from: number): number =>
+type Range = readonly [number, number];
+
+export function createGusts(
+  random: () => number = Math.random,
+  pace: { readonly first: Range; readonly gap: Range } = { first: GUST_FIRST_S, gap: GUST_GAP_S },
+) {
+  const between = ([low, high]: Range, from: number): number =>
     from + low + random() * (high - low);
   const plan = (start: number): Planned => ({
     start,
     angle: random() * Math.PI * 2,
     band: random(),
   });
-  let next = plan(between(GUST_FIRST_S, 0));
+  let next = plan(between(pace.first, 0));
 
   return {
     at(time: number): Gust | null {
       while (time >= next.start + GUST_LENGTH_S) {
-        next = plan(between(GUST_GAP_S, next.start + GUST_LENGTH_S));
+        next = plan(between(pace.gap, next.start + GUST_LENGTH_S));
       }
       if (time < next.start) return null;
       const progress = (time - next.start) / GUST_LENGTH_S;

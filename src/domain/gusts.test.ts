@@ -14,6 +14,14 @@ describe('gusts', () => {
     expect(gusts.at(GUST_FIRST_S[0] - 0.1)).toBeNull();
   });
 
+  it('keeps the pace it is given', () => {
+    const gusts = createGusts(sequence(0, 0.5, 0.5), { first: [1, 1], gap: [5, 5] });
+    expect(gusts.at(0.5)).toBeNull();
+    expect(gusts.at(1.5)).not.toBeNull();
+    expect(gusts.at(1 + GUST_LENGTH_S + 1)).toBeNull();
+    expect(gusts.at(1 + GUST_LENGTH_S + 5.5)).not.toBeNull();
+  });
+
   it('rises, peaks and falls back to nothing over its length', () => {
     const gusts = createGusts(sequence(0, 0.25, 0.75));
     const start = GUST_FIRST_S[0];

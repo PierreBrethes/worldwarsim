@@ -9,7 +9,7 @@ import {
   type Scene,
   type WebGLRenderer,
 } from 'three';
-import { createGusts, GUST_FIRST_S } from '@/domain/gusts';
+import { createGusts } from '@/domain/gusts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { AmbientLayer } from './ambience';
 import { PALETTE } from './palette';
@@ -17,9 +17,9 @@ import { enableGusts, gustUniforms } from './terrain';
 
 /** Below the threads (rank 10-12): a stroke of wind must never be read as a movement. */
 const STREAK_RANK = 9;
-const STREAK_PEAK_OPACITY = 0.22;
-const STREAK_SPACING_PX = 22;
-const STREAK_HALF_WIDTH_PX = 0.9;
+const STREAK_PEAK_OPACITY = 0.5;
+const STREAK_SPACING_PX = 11;
+const STREAK_HALF_WIDTH_PX = 1.1;
 
 const VERTEX = 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -31,7 +31,6 @@ const VERTEX = 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }';
 const FRAGMENT = `
 uniform vec2 resolution;
 uniform float pixelRatio;
-uniform float force;
 uniform float progress;
 uniform float band;
 uniform vec2 direction;
@@ -47,25 +46,28 @@ void main() {
   float cell = floor(across / ${STREAK_SPACING_PX.toFixed(1)});
   float centre = (0.2 + 0.6 * hash(cell)) * ${STREAK_SPACING_PX.toFixed(1)};
   float offset = abs(across - cell * ${STREAK_SPACING_PX.toFixed(1)} - centre);
-  float extent = 90.0 + 220.0 * hash(cell + 31.7);
+  float extent = 30.0 + 90.0 * hash(cell + 31.7);
   float s = clamp((progress - 0.35 * hash(cell + 77.3)) / 0.6, 0.0, 1.0);
   float t = (mix(-reach - extent, reach + extent, s) - along) / extent;
   float width = ${STREAK_HALF_WIDTH_PX.toFixed(2)} * (1.0 - 0.7 * clamp(t, 0.0, 1.0));
-  float line = (1.0 - smoothstep(width - 0.5, width + 0.5, offset)) * step(0.0, t) * step(t, 1.0) * (1.0 - t);
-  float present = step(0.55, hash(cell + 11.1));
-  gl_FragColor = vec4(ink, line * present * inBand * sin(3.14159 * s) * force * ${STREAK_PEAK_OPACITY.toFixed(2)});
+  float line = (1.0 - smoothstep(width - 0.5, width + 0.5, offset)) * step(0.0, t) * step(t, 1.0) * (1.0 - 0.6 * t);
+  float present = step(0.5, hash(cell + 11.1));
+  // Each line fades in and out on its own run; the gust's force would dim it a second time.
+  float life = smoothstep(0.0, 0.15, s) * (1.0 - smoothstep(0.85, 1.0, s));
+  gl_FragColor = vec4(ink, line * present * inBand * life * ${STREAK_PEAK_OPACITY.toFixed(2)});
   #include <colorspace_fragment>
 }`;
 
-/** `?gust=now` brings the first gust to the opening, to see it without waiting. */
+/** `?gust=now`: a gust within a second, then one every five, to judge the wind without waiting. */
 // ponytail: prototype switch for trying the wind; removed before the merge.
-const gustOffset = (search: string): number =>
-  new URLSearchParams(search).get('gust') === 'now' ? GUST_FIRST_S[0] : 0;
+const trialPace = (search: string) =>
+  new URLSearchParams(search).get('gust') === 'now'
+    ? ({ first: [1, 1], gap: [5, 5] } as const)
+    : undefined;
 
 export class WindLayer implements AmbientLayer {
   readonly fx = 'wind' as const;
-  private readonly gusts = createGusts();
-  private readonly offset = gustOffset(location.search);
+  private readonly gusts = createGusts(Math.random, trialPace(location.search));
   private readonly mesh: Mesh<PlaneGeometry, ShaderMaterial>;
   private readonly resolution = new Vector2();
   private readonly onScreen = new Vector3();
@@ -87,7 +89,6 @@ export class WindLayer implements AmbientLayer {
         uniforms: {
           resolution: { value: this.resolution },
           pixelRatio: { value: 1 },
-          force: { value: 0 },
           progress: { value: 0 },
           band: { value: 0.5 },
           direction: { value: new Vector2(1, 0) },
@@ -102,7 +103,7 @@ export class WindLayer implements AmbientLayer {
   }
 
   frame(time: number, motion: MapMotion): void {
-    const gust = motion === 'full' ? this.gusts.at(time + this.offset) : null;
+    const gust = motion === 'full' ? this.gusts.at(time) : null;
     gustUniforms.force.value = gust?.force ?? 0;
     this.mesh.visible = gust !== null;
     if (gust === null) return;
@@ -119,7 +120,6 @@ export class WindLayer implements AmbientLayer {
       flat > 0.05 ? ground.x / flat : 1,
       flat > 0.05 ? ground.y / flat : 0,
     );
-    uniforms.force!.value = gust.force;
     uniforms.progress!.value = gust.progress;
     uniforms.band!.value = gust.band;
     uniforms.pixelRatio!.value = this.renderer.getPixelRatio();
