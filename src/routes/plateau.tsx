@@ -1753,8 +1753,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   }, [sent]);
 
   const pickDestination = useCallback(
-    (destination: Destination) => orderFrom(destination.compass, boardPoint()),
-    [orderFrom, boardPoint],
+    (destination: Destination) => {
+      const at = boardPoint();
+      if (orderFrom(destination.compass, at)) return;
+      /** **La feuille n'a pas de rose à rendre** — elle nomme aussi les cibles hors champ —, et sa
+       *  case dit déjà « embarquer » : le toucher embarque. */
+      const board = destination.compass.actions.find((action) => action.key === 'board');
+      if (board !== undefined) actOnCompass(board, at);
+    },
+    [orderFrom, actOnCompass, boardPoint],
   );
 
   const showBriefing = useCallback(() => setBriefing(true), []);
