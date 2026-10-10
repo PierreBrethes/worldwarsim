@@ -374,10 +374,10 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 Le battement est un filet, pas une excuse : un oubli se lit comme une demi-seconde de retard au
 lieu d'une carte gelée, et il se corrige.
 
-**Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : la mer est
-gravée d'une trame de points qui respire (`sea.ts`), une rafale passe de temps en temps (traits
-d'encre, accessoires qui ploient — `gusts.ts`, `wind.ts`), un mouvement envoyé se trace à
-l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
+**Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : une houle
+lente passe sur la marbrure de la mer (`sea.ts` — une trame de points, essayée, fatiguait
+l'œil), une rafale passe de temps en temps (traits d'encre, accessoires qui ploient —
+`gusts.ts`, `wind.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
 aussi la caméra et la pousse des accessoires. C'est la deuxième exception, décidée, au pilier

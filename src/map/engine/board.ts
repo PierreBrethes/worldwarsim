@@ -190,11 +190,11 @@ export function buildBoard(
   frame: WorldFrame,
   curvature: Curvature,
   anisotropy: number,
-  engraved: SeaLayer | null,
+  swell: SeaLayer | null,
 ): { surface: Mesh; decor: Object3D[] } {
   const surface = new Mesh(
     curvature.register(buildSurface(world, frame)),
-    engraved ? engraved.material() : seaMaterial(world, anisotropy),
+    swell ? swell.swell(seaMaterial(world, anisotropy)) : seaMaterial(world, anisotropy),
   );
 
   const plinth = new Mesh(

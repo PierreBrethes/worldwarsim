@@ -308,7 +308,7 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
-    const sea = new SeaLayer(this.renderer.getPixelRatio());
+    const sea = new SeaLayer();
     const board = buildBoard(
       world,
       this.frame,

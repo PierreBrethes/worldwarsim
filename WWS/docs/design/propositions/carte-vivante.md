@@ -48,23 +48,16 @@ recommandait. Le réglage « réduites » rend à qui le veut la carte du pilier
 - Comment : le temps est arrondi côté JS avant d'aller dans l'uniform (`floor(t × 12) / 12`),
   un seul endroit, partagé par la mer et le vent. Réf. : [temps quantifié, Remotion](https://www.remotion.dev/docs/posterization).
 
-## Prototype 1 — Mer gravée
+## Prototype 1 — Houle
 
-**Une trame de points à 45°** (celle de la doc 10), calculée **au fragment**, **au pas de
-l'écran** : même procédé que les hachures de région (`regions.ts`, `hatchScale`), donc nette à
-toute distance et jamais pixellisée en texels. **Densité uniforme**, modulée par **une houle
-lente** : la trame respire, les points gonflent et se resserrent par ondes larges.
+**Essai 1, la trame de points à 45° — rejeté le 10/10 par Pierre** : « perturbant, ça fait mal
+aux yeux ». Une trame fine et régulière sur toute la mer fatigue l'œil, quel que soit son
+réglage ; la similigravure reste réservée aux images posées (la photo de presse du 08/09).
 
-La profondeur (densité qui fonce vers le large) n'entre **que si la mer paraît plate** à l'essai.
-`sea.ts` garde sa règle : la texture ne porte que la marbrure du papier, rien qui suive la côte.
-
-- Comment : repère d'écran tourné de 45°, `fract` sur la cellule, distance au centre contre un
-  rayon, `smoothstep` d'un pixel pour l'anticrénelage. Réf. :
-  [tutoriel halftone WebGL, Stegu](https://itn-web.it.liu.se/~stegu76/webglshadertutorial/shadertutorial.html).
-- Coût : un fragment de plus sur toute la mer, donc le poste à mesurer en premier sur téléphone.
-- Risque : le moiré. La [recherche 3D du 08/09](../recherches/3d-2026-09-08.md) écartait une trame
-  sur tout le rendu pour son moiré avec la marbrure et le grain ; la trame de mer remplace donc la
-  marbrure sous elle, elle ne s'y superpose pas.
+**Essai 2, la houle de teinte** : la mer garde sa marbrure de papier (`sea.ts`), et de larges
+ondes de bruit l'éclaircissent et l'assombrissent dans l'amplitude même de la marbrure
+(`SWELL_AMPLITUDE`), ancrées au plateau pour ne pas glisser pendant un pan, dérivant lentement
+sur l'horloge d'ambiance. Aucun motif fin, donc rien qui scintille ni qui moire.
 
 ## Prototype 2 — Rafales
 
@@ -105,9 +98,9 @@ seuls les traits ; au rapproché, traits et accessoires.
 
 Quatre valeurs : **auto** (suit `prefers-reduced-motion`), **actives**, **réduites**, **coupées**.
 
-| Valeur | Mer gravée | Rafales | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
+| Valeur | Houle | Rafales | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
 | --- | --- | --- | --- | --- | --- |
-| actives | houle, 12 i/s | oui | progressif | oui | animées |
+| actives | 12 i/s | oui | progressif | oui | animées |
 | réduites | figée | non | instantané | gardés : ils informent | sautent à leur état final |
 | coupées | figée | non | instantané | tirets figés, pas d'éclat | sautent à leur état final |
 

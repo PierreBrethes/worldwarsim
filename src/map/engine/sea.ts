@@ -61,13 +61,9 @@ export function seaMaterial(world: World, anisotropy: number): MeshStandardMater
   return material;
 }
 
-/** Screen pixels between two dots, measured along the 45° grid. */
-const DOT_CELL_PX = 6;
-/** Ink coverage of a cell at the swell's trough and crest — the Journal 1947 range, held lower:
- *  the contrast budget belongs to the game layer. */
-const DOT_TONE_MIN = 0.12;
-const DOT_TONE_MAX = 0.3;
-const DOT_INK = 0.4;
+/** How far the swell lightens and darkens the sea: the marbling's own range, no more — the
+ *  contrast budget belongs to the game layer. */
+const SWELL_AMPLITUDE = 0.06;
 /** World units per swell wave (the board is 400 wide) and noise cells drifted per second. */
 const SWELL_WAVELENGTH = 45;
 const SWELL_DRIFT = 0.006;
@@ -75,25 +71,17 @@ const SWELL_DRIFT = 0.006;
 const glsl = (value: number) => value.toFixed(4);
 
 /**
- * **La mer gravée** (carte-vivante.md, prototype 1). The dot screen is laid at the fragment in
- * screen pixels, like the region hatching, so it stays sharp from orbit to region; the swell
- * that swells the dots is anchored to the board, so it does not slide under a pan. It replaces
- * the marbling instead of covering it — two fine patterns over each other moiré.
+ * **La houle** (carte-vivante.md, prototype 1). A dot screen was tried first and dropped: a fine
+ * regular pattern over the whole sea tires the eye. What is left is the paper's marbling, swelled
+ * by broad waves of tone anchored to the board, so they do not slide under a pan.
  */
 export class SeaLayer implements AmbientLayer {
   readonly fx = 'sea';
   private readonly time = { value: 0 };
 
-  /** The renderer's ratio, not the screen's: it is capped at 2, and the pitch follows what is drawn. */
-  constructor(private readonly pixelRatio: number) {}
-
-  material(): MeshStandardMaterial {
-    const material = new MeshStandardMaterial({ roughness: 0.98, metalness: 0 });
+  swell(material: MeshStandardMaterial): MeshStandardMaterial {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.seaTime = this.time;
-      shader.uniforms.seaPixelRatio = { value: this.pixelRatio };
-      shader.uniforms.seaPaper = { value: new Color(PALETTE.sea) };
-      shader.uniforms.seaInk = { value: new Color(PALETTE.seaInk) };
       shader.vertexShader = shader.vertexShader
         .replace('void main() {', 'varying vec2 vSeaBoard;\nvoid main() {')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaBoard = position.xz;');
@@ -101,9 +89,6 @@ export class SeaLayer implements AmbientLayer {
         .replace(
           'void main() {',
           `uniform float seaTime;
-          uniform float seaPixelRatio;
-          uniform vec3 seaPaper;
-          uniform vec3 seaInk;
           varying vec2 vSeaBoard;
           float seaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
           float seaNoise(vec2 p) {
@@ -120,19 +105,13 @@ export class SeaLayer implements AmbientLayer {
         )
         .replace(
           '#include <map_fragment>',
-          `vec2 seaWave = vSeaBoard / ${glsl(SWELL_WAVELENGTH)};
+          `#include <map_fragment>
+          vec2 seaWave = vSeaBoard / ${glsl(SWELL_WAVELENGTH)};
           float seaDrift = seaTime * ${glsl(SWELL_DRIFT)};
           // Two layers drifting apart, so the swell breathes in place instead of only sliding.
           float seaSwell = 0.6 * seaNoise(seaWave + vec2(seaDrift, seaDrift * 0.4))
             + 0.4 * seaNoise(seaWave * 1.9 - vec2(seaDrift * 0.7, -seaDrift));
-          float seaTone = mix(${glsl(DOT_TONE_MIN)}, ${glsl(DOT_TONE_MAX)}, smoothstep(0.2, 0.8, seaSwell));
-          vec2 seaPx = gl_FragCoord.xy / seaPixelRatio;
-          vec2 seaGrid = vec2(seaPx.x + seaPx.y, seaPx.y - seaPx.x) * 0.70710678 / ${glsl(DOT_CELL_PX)};
-          float seaDistance = length(fract(seaGrid) - 0.5) * ${glsl(DOT_CELL_PX)};
-          // Radius by the square root so the tone is the inked area, as in the 1947 plate.
-          float seaRadius = ${glsl(DOT_CELL_PX * 0.46)} * sqrt(seaTone);
-          float seaCover = 1.0 - smoothstep(seaRadius - 0.5, seaRadius + 0.5, seaDistance);
-          diffuseColor.rgb *= mix(seaPaper, seaInk, seaCover * ${glsl(DOT_INK)});`,
+          diffuseColor.rgb *= 1.0 + ${glsl(SWELL_AMPLITUDE * 2)} * (seaSwell - 0.5);`,
         );
     };
     return material;
