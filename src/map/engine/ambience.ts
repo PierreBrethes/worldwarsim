@@ -2,20 +2,23 @@ import type { Fx, MapMotion } from '@/domain/map-motion';
 
 export const AMBIENT_HZ = 12;
 
-/** Ambient time is quantised so every effect steps together, even when the map renders at 60. */
-export const ambientStep = (nowMs: number): number => Math.floor((nowMs / 1000) * AMBIENT_HZ);
-export const ambientTime = (step: number): number => step / AMBIENT_HZ;
+/** Ambient time is quantised so every effect steps on its own beat, even when the map renders at 60. */
+export const ambientStep = (nowMs: number, hz = AMBIENT_HZ): number =>
+  Math.floor((nowMs / 1000) * hz);
+export const ambientTime = (step: number, hz = AMBIENT_HZ): number => step / hz;
 
 export type AmbientLayer = {
   readonly fx: Fx;
+  /** Steps per second, `AMBIENT_HZ` when absent: the sea swells at 12, the wind flows at 30. */
+  readonly hz?: number;
   frame(time: number, motion: MapMotion): void;
 };
 
+type Paced = { readonly layer: AmbientLayer; step: number; time: number };
+
 export class Ambience {
   motion: MapMotion = 'full';
-  private readonly layers: AmbientLayer[] = [];
-  private step = Number.NEGATIVE_INFINITY;
-  private time = 0;
+  private readonly layers: Paced[] = [];
 
   constructor(private readonly active: ReadonlySet<Fx>) {}
 
@@ -24,19 +27,26 @@ export class Ambience {
   }
 
   add(layer: AmbientLayer): void {
-    if (this.enabled(layer.fx)) this.layers.push(layer);
+    if (this.enabled(layer.fx)) {
+      this.layers.push({ layer, step: Number.NEGATIVE_INFINITY, time: 0 });
+    }
   }
 
-  /** True when a new step fell and a layer will want it: ask for one frame, not a window. */
+  /** True when a layer's new step fell: ask for one frame, not a window. */
   advance(nowMs: number): boolean {
-    const step = ambientStep(nowMs);
-    if (this.motion !== 'full' || step === this.step) return false;
-    this.step = step;
-    this.time = ambientTime(step);
-    return this.layers.length > 0;
+    if (this.motion !== 'full') return false;
+    let stepped = false;
+    for (const paced of this.layers) {
+      const step = ambientStep(nowMs, paced.layer.hz);
+      if (step === paced.step) continue;
+      paced.step = step;
+      paced.time = ambientTime(step, paced.layer.hz);
+      stepped = true;
+    }
+    return stepped;
   }
 
   frame(): void {
-    for (const layer of this.layers) layer.frame(this.time, this.motion);
+    for (const { layer, time } of this.layers) layer.frame(time, this.motion);
   }
 }

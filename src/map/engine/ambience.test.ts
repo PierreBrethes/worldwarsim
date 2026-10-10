@@ -29,6 +29,19 @@ describe('Ambience', () => {
     expect(ambience.advance(5000)).toBe(false);
   });
 
+  it('steps each layer at its own pace and asks at the fastest', () => {
+    const times: Record<string, number[]> = { sea: [], wind: [] };
+    const ambience = new Ambience(new Set(['sea', 'wind']));
+    ambience.add({ fx: 'sea', frame: (time) => times.sea!.push(time) });
+    ambience.add({ fx: 'wind', hz: 30, frame: (time) => times.wind!.push(time) });
+    expect(ambience.advance(1000)).toBe(true);
+    ambience.frame();
+    expect(ambience.advance(1040)).toBe(true);
+    ambience.frame();
+    expect(ambience.advance(1045)).toBe(false);
+    expect(times).toEqual({ sea: [1, 1], wind: [1, 31 / 30] });
+  });
+
   it('drops layers whose effect is switched off', () => {
     const ambience = new Ambience(new Set());
     ambience.add(layer);
