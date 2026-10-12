@@ -50,3 +50,18 @@ point produit une Russie qui traverse toute la carte).
 Point représentatif de chaque pays calculé par pôle d'inaccessibilité approché, **pas** par centroïde
 arithmétique : le centroïde place la France en Espagne (la Guyane tire la moyenne) et le Japon en
 pleine mer. Environ 10 % des pays sont concernés.
+
+## table-etat-major.html
+
+Prototype de direction visuelle du 12/10/2026, autonome (three.js depuis jsDelivr). Carte
+inventée, aucune donnée de partie. Décisions et pistes :
+[propositions/table-etat-major.md](../docs/design/propositions/table-etat-major.md).
+
+**Ce qu'il montre :** carte gravée sur une table sous une lampe ; R35, soldat 1940 et D.520
+sculptés en code d'après leurs planches ; un kit de fantassin habillé par nation (revue
+France / Allemagne / Royaume-Uni) ; les piles (un groupe par rôle, jeton « ×N », figurines qui
+disent la force, MK présents seulement) ; la fiche au survol avec vie sur 100 et charge par
+ressource, chargement en direct ; l'adversaire en bloc de wargame vu de dos.
+
+Le fichier est la page brute publiée en artifact : sans `<!doctype>` ni `<body>`, il s'ouvre
+quand même dans Chrome.
