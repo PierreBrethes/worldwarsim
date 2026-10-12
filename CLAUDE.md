@@ -268,20 +268,27 @@ sur son pied** : elle se couche sur le plateau quand la caméra passe à la vert
 disparaître par la tranche, et sa taille est une **aire** constante — à hauteur égale, un
 fantassin (planche haute et étroite) devenait un fil quand un bombardier tenait la mer.
 
-**Et au rapproché, mes mouvements portent des figurines** (ADR 0026, lot 1 — 12/10/2026). Sous
-30 unités de distance, la planche du pion rétrécit et une figurine 3D pousse à sa place, posée
-sur le fil et tournée vers sa route ; au-delà de 65, la planche seule (`nearWeight`, les seuils
-des régions admin-1). **Une seule entrée** : `figurineFor(nation, rôle, marque)`
-(`src/map/engine/figurines/figurine.ts`) rend un GLB du manifeste `src/emblems/figurines/` ou,
-à défaut, de la géométrie codée, ou `null` — et le pion garde sa planche. Les GLB sortent de
-Claude Design sur un gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la
-planche, pièces nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de
-triangles et aux noms de son rôle. L'infanterie française MK1 est un soldat **codé provisoire**,
-trois par troupe, posé par les mêmes articulations nommées que le modèle sculpté ; un MK2 n'a
-pas de figurine plutôt que la mauvaise. Les arcs adverses n'en ont jamais : les rôles se lisent
-dans `movementRoles`, qui rend `null` hors `mine`. La page `/figurines.html`, servie en
-développement seulement, montre chaque figurine à côté de sa planche. Les troupes posées, les
-blocs adverses et le lever-poser sont les lots suivants.
+**Et au rapproché, mes pièces sont des figurines** (ADR 0026, lots 1 et 2 — 12-13/10/2026).
+Sous 30 unités de distance, la planche rétrécit et une figurine 3D pousse à sa place ; au-delà
+de 65, la planche seule (`nearWeight`, les seuils des régions admin-1). **Une seule entrée** :
+`figurineFor(nation, rôle, marques)` (`src/map/engine/figurines/figurine.ts`) rend les GLB du
+manifeste `src/emblems/figurines/` — un homme par marque pour l'infanterie, posé par ses
+articulations nommées (`squadOf`), un modèle pour le reste — ou `null` dès qu'une marque n'a pas
+de fichier : rien plutôt que la mauvaise figurine. Les GLB sortent de Claude Design sur un
+gabarit commun (y en haut, avant vers +z, origine au sol, longueur de la planche, pièces
+nommées, repères `fx_*`) ; `glb.test.ts` tient chaque fichier listé au plafond de triangles et
+aux noms de son rôle. Huit françaises existent ; le R35 (blindé MK1) et le bazooka (infanterie
+MK2) manquent. Le **pion d'un mouvement `mien`** porte sa figurine sur le fil, tournée vers sa
+route ; les arcs adverses n'en ont jamais (`movementRoles` rend `null` hors `mine`). Une **pile
+posée** à un point se lit en groupes (`pilePieces`, `src/domain/pile-pieces.ts` : un groupe par
+rôle, trois au plus et un jeton « +N », jeton « ×N », 3/2/1 hommes par tiers de force, seules
+les marques présentes), dessinés par `src/map/engine/standing.ts` ; elle n'est **habillée que si
+tous ses groupes ont leur figurine et qu'elles sont chargées** — sinon elle garde sa planche
+entière. Habillée, son étiquette DOM efface sa planche et reste l'emprise du clic et du survol ;
+le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). Le cartouche
+`TroopBadge` reste jusqu'au lever-poser (lot 4), parce qu'il porte l'état armé. La page
+`/figurines.html`, servie en développement seulement, montre chaque figurine à côté de sa
+planche. Les blocs adverses, le lever-poser et les garnisons de bâtiment sont les lots suivants.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
