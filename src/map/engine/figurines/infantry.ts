@@ -57,10 +57,14 @@ const SLOTS = [
   [0.55, -0.6],
 ] as const;
 
-/** Three men to a troop (ADR 0026 §5): a squad has the footprint of a tank. */
-export function squadOf(soldier: () => Object3D): Group {
+/**
+ * Up to three men to a troop (ADR 0026 §5), one per figure, the first in front: a whole squad
+ * has the footprint of a tank, a worn one stands fewer in the same slots.
+ */
+export function squadOf(soldiers: ReadonlyArray<() => Object3D>): Group {
   const squad = new Group();
-  SLOTS.forEach(([x, z], k) => {
+  soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
+    const [x, z] = SLOTS[k]!;
     const man = soldier();
     pose(man, marching(k * 1.8 + 0.6));
     man.position.set(x, 0, z);
@@ -149,7 +153,7 @@ function arm(side: 'left' | 'right'): Group {
   );
 }
 
-function frenchSoldier(): Group {
+export function frenchSoldier(): Group {
   const coat = new Mesh(new CylinderGeometry(0.19, 0.21, 0.95, 12), paint(KHAKI));
   coat.scale.set(1.15, 1, 0.86);
   const belt = at(cylinder(0.172, 0.172, 0.05, LEATHER, 10), 0, 0.95, 0);
@@ -208,5 +212,3 @@ function frenchSoldier(): Group {
   at(rifle, 0.25, 0.94, 0.3);
   return named('soldier', leg('left'), leg('right'), arm('left'), arm('right'), body, head, rifle);
 }
-
-export const frenchSquad = (): Group => squadOf(frenchSoldier);

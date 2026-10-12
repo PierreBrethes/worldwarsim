@@ -30,7 +30,7 @@ for (const role of ROLES) {
     const plate = spriteUrl('france', role, tier);
     card.innerHTML = `${plate ? `<img src="${plate}" alt="">` : '<div></div>'}<figcaption>${role} MK${tier}</figcaption>`;
     root.append(card);
-    const figurine = figurineFor('france', role, tier);
+    const figurine = figurineFor('france', role, [tier, tier, tier]);
     if (figurine === null) {
       card.querySelector('figcaption')!.textContent += ' — pas de figurine, la planche reste';
       continue;

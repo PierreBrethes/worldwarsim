@@ -24,14 +24,27 @@ describe('nearWeight', () => {
 
 describe('figurineFor', () => {
   it('answers null where nothing is sculpted nor coded, so the plate stays', () => {
-    expect(figurineFor(null, 'infantry', 1)).toBeNull();
-    expect(figurineFor('atlantis', 'infantry', 1)).toBeNull();
-    expect(figurineFor('france', 'cargo', 1)).toBeNull();
-    expect(figurineFor('france', 'infantry', 2)).toBeNull();
+    expect(figurineFor(null, 'infantry', [1])).toBeNull();
+    expect(figurineFor('atlantis', 'infantry', [1])).toBeNull();
+    expect(figurineFor('france', 'cargo', [1])).toBeNull();
+    expect(figurineFor('france', 'infantry', [2])).toBeNull();
+    expect(figurineFor('france', 'infantry', [])).toBeNull();
+  });
+
+  it('answers null as soon as one mark has no figurine, never a squad of the wrong kit', () => {
+    expect(figurineFor('france', 'infantry', [2, 1, 1])).toBeNull();
+  });
+
+  it('stands one man per figure', () => {
+    const men: Object3D[] = [];
+    figurineFor('france', 'infantry', [1, 1])!.object.traverse(
+      (part) => part.name === 'soldier' && men.push(part),
+    );
+    expect(men).toHaveLength(2);
   });
 
   it('stands three posable men to a French troop, within the brief’s budget', () => {
-    const figurine = figurineFor('france', 'infantry', 1);
+    const figurine = figurineFor('france', 'infantry', [1, 1, 1]);
     expect(figurine).not.toBeNull();
     const men: Object3D[] = [];
     figurine!.object.traverse((part) => part.name === 'soldier' && men.push(part));

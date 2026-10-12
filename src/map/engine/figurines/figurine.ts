@@ -5,7 +5,7 @@ import { isNation } from '@/domain/nations';
 import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
-import { frenchSquad, squadOf } from './infantry';
+import { frenchSoldier, squadOf } from './infantry';
 
 /**
  * Model units to board units. The brief sizes a tank at 2.6, so it stands about two thirds of
@@ -28,13 +28,17 @@ export function nearWeight(distance: number): number {
 export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */
   readonly object: Group;
+  /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
+   *  for its frame then, where a flowing pawn would just show it. */
+  readonly ready: Promise<void>;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
 };
 
-/** What the engine codes itself while a role has no sculpted file. */
+/** What the engine codes itself while a role has no sculpted file: one model — a soldier, for
+ *  infantry, which `squadOf` stands as many times as there are figures. */
 const CODED: Readonly<Partial<Record<string, Partial<Record<UnitRole, () => Object3D>>>>> = {
-  france: { infantry: frenchSquad },
+  france: { infantry: frenchSoldier },
 };
 
 const loader = new GLTFLoader();
@@ -54,23 +58,35 @@ function fileOf(nation: Nation, role: UnitRole, tier: UnitTier): string | null {
   return typeof entry === 'string' ? entry : (entry[tier - 1] ?? null);
 }
 
+type Maker = () => Object3D;
+
+/** One mark's model: the sculpted file, loading, or the coded stand-in, or `null`. */
+function makerOf(nation: Nation, role: UnitRole, tier: UnitTier): Maker | Promise<Maker> | null {
+  const file = fileOf(nation, role, tier);
+  if (file !== null) return sceneOf(file).then((scene) => () => scene.clone(true));
+  // The coded geometry is a mark-1 stand-in: a mark 2 shown in mark-1 kit would show a mark the pile does not hold.
+  return (tier === 1 ? CODED[nation]?.[role] : undefined) ?? null;
+}
+
 /**
- * **A role's figurine for a nation, or `null` when there is none** — the caller keeps its plate
- * or silhouette, as it does for a missing plate. A sculpted file wins over coded geometry; it
- * loads in the background, and the figurine fills itself in when it lands (a pawn on the board
- * is always flowing, so the next frame shows it). Geometry and materials are shared between
- * figurines of the same file: nothing here is the caller's to dispose.
+ * **A group's figurine for a nation, or `null` when there is none** — the caller keeps its plate
+ * or silhouette, as it does for a missing plate. `marks` are the figures that stand, front first
+ * (`pilePieces`): one man each for infantry, the first mark's model for any other role. One
+ * mark with neither file nor code and the whole answer is `null` — no figurine rather than the
+ * wrong one. A sculpted file wins over coded geometry and loads in the background; `ready`
+ * says when it has landed. Geometry and materials are shared between figurines of the same
+ * file: nothing here is the caller's to dispose.
  */
 export function figurineFor(
   nation: string | null,
   role: UnitRole,
-  tier: UnitTier,
+  marks: ReadonlyArray<UnitTier>,
 ): Figurine | null {
-  if (nation === null || !isNation(nation)) return null;
-  const file = fileOf(nation, role, tier);
-  // The coded geometry is a mark-1 stand-in: a mark 2 shown in mark-1 kit would show a mark the pile does not hold.
-  const coded = tier === 1 ? CODED[nation]?.[role] : undefined;
-  if (file === null && coded === undefined) return null;
+  if (nation === null || !isNation(nation) || marks.length === 0) return null;
+  const makers = (role === 'infantry' ? marks : marks.slice(0, 1)).map((tier) =>
+    makerOf(nation, role, tier),
+  );
+  if (makers.some((maker) => maker === null)) return null;
 
   const object = new Group();
   const model = new Group();
@@ -78,19 +94,21 @@ export function figurineFor(
   object.add(model);
   if (DOMAIN_BY_ROLE[role] !== 'air') object.add(contactShadow());
 
-  if (file !== null) {
-    sceneOf(file).then(
-      (scene) =>
-        model.add(role === 'infantry' ? squadOf(() => scene.clone(true)) : scene.clone(true)),
-      (error: unknown) => console.error(`figurine ${file}`, error),
+  const stand = (ready: ReadonlyArray<Maker>) =>
+    model.add(role === 'infantry' ? squadOf(ready) : ready[0]!());
+  const coded = makers.filter((maker): maker is Maker => typeof maker === 'function');
+  let ready = Promise.resolve();
+  if (coded.length === makers.length) stand(coded);
+  else
+    ready = Promise.all(makers).then(
+      (loaded) => void stand(loaded as Maker[]),
+      (error: unknown) => console.error(`figurine ${nation}/${role}`, error),
     );
-  } else if (coded) {
-    model.add(coded());
-  }
 
   const spinning: Object3D[] = [];
   return {
     object,
+    ready,
     spin(elapsedSeconds) {
       if (spinning.length === 0)
         model.traverse((part) => part.name.startsWith('prop') && spinning.push(part));
