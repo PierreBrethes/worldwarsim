@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Mesh, Object3D } from 'three';
-import { figurineFor, nearWeight } from './index';
+import { figurineFor, nearWeight } from './figurine';
 
 const triangles = (object: Object3D): number => {
   let count = 0;

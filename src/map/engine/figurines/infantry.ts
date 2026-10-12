@@ -69,7 +69,8 @@ export function squadOf(soldier: () => Object3D): Group {
   return squad;
 }
 
-// ---- the provisional coded soldier (decision of 12/10: until the sculpted one is validated) ----
+// Coded, not sculpted: French infantry has to march in lot 1 before its Claude Design model is
+// validated (decision of 12/10). The same named joints let the sculpted one take its place.
 
 const paints = new Map<string, MeshStandardMaterial>();
 const paint = (color: string): MeshStandardMaterial => {

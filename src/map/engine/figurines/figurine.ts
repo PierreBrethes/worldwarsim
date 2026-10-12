@@ -1,6 +1,6 @@
 import { CircleGeometry, Group, Mesh, MeshBasicMaterial, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { UnitRole } from '@/domain/ids';
+import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
 import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
@@ -48,8 +48,8 @@ function sceneOf(url: string): Promise<Object3D> {
   return scene;
 }
 
-function fileOf(nation: string, role: UnitRole, tier: UnitTier): string | null {
-  const entry = FIGURINE_FILES[nation as keyof typeof FIGURINE_FILES]?.[role];
+function fileOf(nation: Nation, role: UnitRole, tier: UnitTier): string | null {
+  const entry = FIGURINE_FILES[nation]?.[role];
   if (entry === undefined) return null;
   return typeof entry === 'string' ? entry : (entry[tier - 1] ?? null);
 }

@@ -9,7 +9,7 @@ import {
 import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
-import { figurineFor } from './figurines';
+import { figurineFor } from './figurines/figurine';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -256,7 +256,7 @@ export class ArcLayer {
           : leg.medium,
       );
       rendered.pawn.place(this.pawnPoint, this.aheadPoint);
-      if (this.motion !== 'off') rendered.pawn.step(elapsed);
+      if (this.motion === 'full') rendered.pawn.step(elapsed);
       rendered.pawn.orient(this.cameraPosition);
       rendered.headPosition.copy(this.pawnPoint);
 

@@ -11,7 +11,7 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { nearWeight, type Figurine } from './figurines';
+import { nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 
 /**
@@ -108,7 +108,10 @@ export class Pawn {
   place(position: Vector3, pointAhead: Vector3): void {
     this.object.position.copy(position);
     this.westward = pointAhead.x < position.x;
-    this.heading = Math.atan2(pointAhead.x - position.x, pointAhead.z - position.z);
+    const dx = pointAhead.x - position.x;
+    const dz = pointAhead.z - position.z;
+    // At the end of its thread the point ahead is the point itself: the piece keeps the road it came by.
+    if (dx !== 0 || dz !== 0) this.heading = Math.atan2(dx, dz);
   }
 
   /** What spins on the worn figurine — its propellers — and nothing else. */

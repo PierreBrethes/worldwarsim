@@ -13,7 +13,7 @@ import {
 import type { UnitRole } from '@/domain/ids';
 import { TIERS_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
-import { figurineFor } from './index';
+import { figurineFor } from './figurine';
 
 /**
  * **The dev review page** (`/figurines.html`): every French role beside its plate, under the
