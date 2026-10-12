@@ -11,6 +11,7 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
+import { yawToward } from './blocks';
 import { nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 
@@ -130,7 +131,10 @@ export class Pawn {
     const near = figurine === undefined ? 0 : nearWeight(distance);
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
-      figurine.object.rotation.set(0, this.heading, 0);
+      const yaw = figurine.facesEye
+        ? yawToward(this.object.position, cameraPosition)
+        : this.heading;
+      figurine.object.rotation.set(0, yaw, 0);
       figurine.object.scale.setScalar(near);
     }
     const costume = this.costumes.get(this.medium);

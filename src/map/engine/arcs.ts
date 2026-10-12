@@ -10,6 +10,7 @@ import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
+import { blockFigurine } from './blocks';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -153,11 +154,14 @@ export class ArcLayer {
       const pawn = new Pawn(
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
-        roles && {
-          land: figurineOf(roles.land),
-          sea: figurineOf(roles.sea),
-          air: figurineOf(roles.air),
-        },
+        /** The fog serves an enemy no roles: its pieces are blocks, back to the eye (ADR 0026 §4). */
+        arc.state === 'enemyDetected'
+          ? { land: blockFigurine('land'), sea: blockFigurine('sea'), air: blockFigurine('air') }
+          : roles && {
+              land: figurineOf(roles.land),
+              sea: figurineOf(roles.sea),
+              air: figurineOf(roles.air),
+            },
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
