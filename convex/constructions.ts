@@ -425,6 +425,7 @@ async function finishRaise(
     at,
     kind: 'outpostRaised',
     hostCountry: outpost.hostCountry,
+    point: outpost.point,
     regionId: ground,
     level: construction.level,
   });

@@ -816,6 +816,7 @@ export async function recoverDestroyedCombatCargo(
           at,
           kind: 'lootRecovered',
           hostCountry: hostAtPoint([point.lon, point.lat]),
+          point,
           loot: recovered,
         });
       }

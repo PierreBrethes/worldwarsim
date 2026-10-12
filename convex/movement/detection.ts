@@ -156,15 +156,21 @@ export async function revealSighting(
   const season = await ctx.db.get(movement.seasonId);
   if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
 
+  const seen = seenSegment(marchingForce(movement), sighting.from, sighting.to);
   await ctx.db.insert('notices', {
     playerId: sighting.playerId,
     at: sighting.from,
     kind: 'movementSighted',
     hostCountry: sighting.detectorHostCountry ?? hostAtPoint(pointOf(movement.from)),
+    /** The first point of the stretch the observer is served, never the departure or the
+     *  destination: the button must not point past the fog. */
+    ...(seen.points[0] === undefined
+      ? {}
+      : { point: { lon: seen.points[0][0], lat: seen.points[0][1] } }),
     /** The heading the column held **on leaving the radius**, the same one the arc serves: a
      *  bearing from departure to destination would word a dispatch on the one thing the sighting
      *  no longer grants (design sheet 04, decision 4a of 13/09/2026). */
-    headingDegrees: seenSegment(marchingForce(movement), sighting.from, sighting.to).headingDegrees,
+    headingDegrees: seen.headingDegrees,
     detector: sighting.detector,
     detectorRegion: sighting.detectorRegion ?? null,
   });
@@ -492,6 +498,7 @@ async function syncCampSightings(
         at: now,
         kind: 'campSighted',
         hostCountry: caught.detectorHostCountry,
+        point: seen.point,
         detector: caught.detector,
         detectorRegion: caught.detectorRegion,
       });

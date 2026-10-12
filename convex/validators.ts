@@ -254,6 +254,8 @@ export const NOTICE = v.union(
     kind: v.literal('columnArrived'),
     movementType: v.union(v.literal('march'), v.literal('recall'), v.literal('return')),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     troops: v.number(),
   }),
   /** **A march that ended inside one of the player's buildings** (decision 64b): the address is
@@ -272,18 +274,24 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('movementStalled'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     resolvesAt: v.number(),
   }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('outpostFounded'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     specialization: SPECIALIZATION,
   }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('outpostDisabled'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     specialization: SPECIALIZATION,
   }),
   /**
@@ -313,6 +321,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('movementSighted'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     headingDegrees: v.number(),
     detector: DETECTOR,
     /** The region a station listens from, and nothing else: it is the one detector the player
@@ -328,6 +338,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('campSighted'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     detector: DETECTOR,
     detectorRegion: v.union(v.string(), v.null()),
   }),
@@ -337,6 +349,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('firedDry'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
   }),
   /**
    * **Legacy — plus jamais écrites.** Les trois dépêches du leurre, retiré du jeu le 29/08/2026.
@@ -371,6 +385,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('outpostRaised'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     regionId: v.union(v.string(), v.null()),
     level: v.number(),
   }),
@@ -386,6 +402,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('outpostDismantled'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     level: v.number(),
     buildings: v.number(),
   }),
@@ -398,6 +416,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('outpostStands'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     specialization: SPECIALIZATION,
   }),
   /**
@@ -409,6 +429,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('foundationLost'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     specialization: SPECIALIZATION,
   }),
   /**
@@ -542,12 +564,16 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('lootRecovered'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     loot: RESOURCE_AMOUNTS,
   }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('lootCollected'),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     loot: RESOURCE_AMOUNTS,
   }),
   v.object({
@@ -567,6 +593,8 @@ export const NOTICE = v.union(
     kind: v.literal('columnFoundNothing'),
     movementType: v.union(v.literal('attack'), v.literal('raid')),
     hostCountry: v.string(),
+    /** Where it happened, for the journal's locate button; absent on rows written before. */
+    point: v.optional(LON_LAT),
     troops: v.number(),
     /**
      * **Ce que la colonne a trouvé debout, quand personne ne le gardait** (retours du 11/09,
