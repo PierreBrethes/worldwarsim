@@ -1,8 +1,9 @@
 # Classification des régions — le vrai type de terrain (proposition, 12/10/2026)
 
-**Statut : proposition, phase 1.** Sources choisies, règle écrite, architecture posée. Aucun
-raster téléchargé, aucun script écrit : les trois téléchargements de la fin attendent l'accord de
-Pierre. **Décor pur** — aucune règle de jeu ne lit le type (fiche 08 figée, ADR obligatoire le
+**Statut : phase 2, 13/10/2026.** Rasters téléchargés (empreintes plus bas), classificateur écrit
+et réglé sur les six témoins (`scripts/region-terrain.mjs`, testé), résultat **pas encore cuit** :
+où le type se range — champ `t` de `regions.json` ou fichier à part — attend la réponse de Pierre.
+Le premier passage a demandé trois retouches de la règle, marquées *(phase 2)* ci-dessous. **Décor pur** — aucune règle de jeu ne lit le type (fiche 08 figée, ADR obligatoire le
 jour où ce serait le cas).
 
 ## Ce qui existe
@@ -50,9 +51,14 @@ Faits d'un échantillon :
 
 - **montagneux** si le dénivelé local (max − min d'ETOPO sur sa fenêtre 3 × 3) atteint **600 m**,
   ou **300 m** au-dessus de **1 500 m** d'altitude. L'altitude seule ne suffit jamais : la calotte
-  du Groenland culmine à 3 200 m et elle est plate — elle sera toundra (EF), pas montagne ;
-- **climat** : aride (BWh, BWk — codes 4, 5), polaire (ET, EF — 29, 30), tropical (Af, Am, Aw —
-  1 à 3), ou autre. La steppe (BS) est « autre » : c'est une plaine sèche, pas un désert ;
+  du Groenland culmine à 3 200 m et elle est plate — elle sera toundra (EF), pas montagne.
+  *(Phase 2)* **La mer compte zéro** dans la fenêtre : ETOPO est bathymétrique au large, et sans ce
+  plancher chaque côte abrupte — Chili, Norvège — lirait un kilomètre de dénivelé ;
+- **climat** : aride (BWh, BWk — codes 4, 5), **froid**, tropical (Af, Am, Aw — 1 à 3), ou autre.
+  La steppe (BS) est « autre » : c'est une plaine sèche, pas un désert. *(Phase 2)* Le froid est
+  le polaire (ET, EF — 29, 30) **et le subarctique** (Dsc, Dsd, Dwc, Dwd, Dfc, Dfd — 19, 20, 23,
+  24, 27, 28) : l'intérieur de la Tchoukotka est en Dfc et sans arbres, et compté à part il
+  sortait plaine (ET 30 %, « autre » 70 %) ;
 - **forêt** : la part de forêt de la maille Hansen 0,25° qui le contient (0 au nord de 80° N, où
   le jeu Hansen s'arrête).
 
@@ -60,19 +66,34 @@ Décision de la région, dans cet ordre :
 
 1. **montagne** si la part montagneuse atteint **0,5** — majorité absolue, parce que la montagne
    l'emporte sur le climat (le Valais a sa toundra d'altitude) ;
-2. sinon le **climat dominant** (pluralité des quatre) : aride → **désert**, polaire →
-   **toundra** ;
+2. sinon le **climat dominant** (pluralité des quatre) : aride → **désert** ; froid →
+   **toundra**, ou **forêt** si la forêt moyenne atteint **0,3** — la taïga *(phase 2)* ;
 3. tropical → **jungle** si la forêt moyenne de la région atteint **0,4**, **plaine** sinon (la
    savane) ; autre → **forêt** si la forêt moyenne atteint 0,4, **plaine** sinon.
 
-Une région qui ne contient aucun échantillon — près d'un millier sont plus petites qu'une cellule
-de 28 km (ADR 0023) — se lit **au point** : son pôle d'inaccessibilité, déprojeté, échantillonné
-dans chaque raster à la valeur la plus proche, avec les mêmes seuils. Le dénivelé y garde sa
-fenêtre 3 × 3.
+**Le seuil de taïga est plus bas que celui de forêt** *(phase 2)* parce que la canopée boréale
+est claire : la Iakoutie, trois millions de km² de mélèzes, moyenne 0,38 dans Hansen, et elle
+sortait toundra au seuil de 0,4. La toundra est l'absence d'arbres, pas leur éclaircie. Les
+Territoires du Nord-Ouest (0,29) restent toundra, la Tchoukotka est à 0,06.
 
-Les quatre seuils (600 m, 300 m au-dessus de 1 500 m, 0,5, 0,4) sont des constantes nommées en
-tête du script, et le premier passage imprime les parts mesurées des six témoins : c'est sur elles
-qu'on règle, pas à l'œil.
+Une région qui ne contient aucun échantillon — **641** à 0,1° — se lit **au point** : son pôle
+d'inaccessibilité (`region-index.json`), échantillonné dans chaque raster à la valeur la plus
+proche, avec les mêmes seuils. Le dénivelé y garde sa fenêtre 3 × 3. *(Phase 2)* Cent quatre de
+ces points tombent sur une cellule que Köppen dit en mer (îlots, Gaza, Zeeland) : le climat est
+pris à la terre la plus proche, à trois cellules au plus (≈ 33 km).
+
+Les seuils sont des constantes nommées en tête de `scripts/region-terrain.mjs` :
+
+| Constante | Valeur |
+|---|---|
+| `MOUNTAIN_RELIEF_M` | 600 m |
+| `HIGHLAND_ALTITUDE_M` / `HIGHLAND_RELIEF_M` | 1 500 m / 300 m |
+| `MOUNTAIN_SHARE` | 0,5 |
+| `FOREST_SHARE` | 0,4 |
+| `TAIGA_SHARE` | 0,3 *(phase 2)* |
+
+Aucune des quatre valeurs de départ n'a bougé : les témoins sont sortis justes sans y toucher, et
+ce sont les deux classes de climat qui ont été corrigées, pas les seuils.
 
 ### Les six témoins
 
@@ -90,16 +111,46 @@ quatre pays, et seul le brésilien est un témoin sûr. Celui du **Pérou** (`PE
 200 m à plus de 4 000 m — il peut sortir montagne, et ce serait juste. Ceux de Colombie et du
 Venezuela devraient sortir jungle, sans être des témoins.
 
-**Le risque est la Tchoukotka.** Ses hautes terres (Anadyr, monts de Tchoukotka, 1 000 à 1 800 m)
-peuvent approcher la moitié de la surface au seuil de 600 m, et ses vallées intérieures sont en
-Dfc, pas en ET. Si le premier passage la donne montagne ou plaine, le réglage prévu est de
-**rattacher au froid l'échantillon polaire de moins de 1 000 m** (un relief polaire bas reste de la
-toundra) plutôt que de relever le seuil de montagne pour tout le monde.
+**Le risque était la Tchoukotka**, et il s'est réalisé par le climat, pas par le relief : 7 %
+seulement de montagne, mais 70 % de Dfc. Le réglage prévu (rattacher au froid le polaire bas)
+n'y aurait rien fait ; c'est le subarctique compté comme froid qui la rend toundra.
+
+### Résultats du premier passage (13/10/2026)
+
+Parts mesurées des témoins, pondérées par l'aire — tous justes :
+
+| Témoin | Sort | Montagne | Aride | Froid | Tropical | Autre | Forêt |
+|---|---|---|---|---|---|---|---|
+| Oise | plaine | 0 % | 0 % | 0 % | 0 % | 100 % | 0,22 |
+| Landes | forêt | 0 % | 0 % | 0 % | 0 % | 100 % | 0,55 |
+| Amazonas (BRA) | jungle | 1 % | 0 % | 0 % | 100 % | 0 % | 0,96 |
+| Valais | montagne | 100 % | 0 % | 80 % | 0 % | 20 % | 0,28 |
+| Tamanghasset | désert | 4 % | 100 % | 0 % | 0 % | 0 % | 0,00 |
+| Chukchi | toundra | 7 % | 0 % | 100 % | 0 % | 0 % | 0,06 |
+
+Les homonymes : Amazonas du Pérou sort **montagne**, ceux de Colombie et du Venezuela **jungle**,
+comme annoncé.
+
+**Répartition mondiale, 4 600 régions** : plaine 2 194 · montagne 1 091 · forêt 559 · jungle 465 ·
+désert 262 · toundra 29. La montagne pèse lourd par le **nombre**, pas par la surface : la
+Macédoine du Nord (70 municipalités), la Slovénie (61), la Turquie (52), l'Italie (51), les
+Philippines (42) et l'Azerbaïdjan (41) découpent finement des pays montagneux. La toundra est rare
+pour la raison inverse : elle tient dans quelques régions immenses (Nunavut, Territoires du
+Nord-Ouest, Alaska, Groenland, Tchoukotka, Iamalie, Nénétsie).
+
+**Temps** : 1,2 s de lecture des rasters (dont 1 s pour les 64 Mo de texte d'ETOPO), 17 à 21 s de
+classification (2,2 M échantillons terrestres, une recherche de région chacun), sur le Mac.
+
+**Cas discutables relevés** (aucun n'appelle de seuil) : l'Arizona sort plaine (46 % de
+montagne, la steppe domine le désert), la Haute-Bavière forêt (les Alpes n'en couvrent pas la
+moitié), le Mizoram forêt et non jungle (il est en Cwa, donc tempéré au sens de Köppen), le
+Yukon forêt (45 % de montagne, taïga à 0,51), le Kamtchatka et la Magadan forêt (taïga à 0,36 et
+0,31), l'Alberta forêt (la prairie du sud pèse moins que la forêt boréale du nord).
 
 ## L'architecture
 
 **Le type est cuit par `generate-regions.mjs`, et par lui seul.** Une fonction
-`classifyRegions(regions, terrainDir)` vit à côté, dans `scripts/region-terrain.mjs` — même
+`classifyRegions(regions, rasters, plane)` vit à côté (régions `{ id, rings, point }`, rasters lus par les lecteurs du même module, `plane` la projection et la largeur d'enroulement), dans `scripts/region-terrain.mjs` — même
 découpe que `german-districts.mjs` —, et s'appelle juste avant l'écriture, **après** le découpage
 allemand, sur la liste finale. Elle ajoute à chaque région un champ **`t`, dernier de l'objet**,
 qui porte le littéral de `RegionType` (`"plain"`, `"forest"`…) : pas de table de codes à une
@@ -117,7 +168,9 @@ node scripts/generate-regions.mjs <ne_10m_admin_1.geojson> <VG2500_RBZ.shp> <dos
 chacun (relevée au premier téléchargement et gravée en tête du script) : deux postes qui cuisent
 avec deux sources différentes ne doivent pas se le découvrir à la revue.
 
-**Les trois lecteurs, sans dépendance :**
+**Les trois lecteurs, sans dépendance** — écrits et testés sur des fichiers fabriqués dans le
+test (`scripts/region-terrain.test.mjs`) ; le décodeur LZW maison a suffi, `geotiff` n'est pas
+entré :
 
 - **ETOPO** : en-tête de six lignes, puis des nombres séparés par des espaces, rangs du nord au
   sud. Deux fichiers, l'est (0 → 180°) et l'ouest (180 → 360°, qu'ERDDAP réécrit en −180 → 0) :
@@ -162,7 +215,24 @@ Le jeu n'a **toujours pas de page de crédits**, et la dette s'alourdit : BKG (d
 al. et Hansen (CC BY 4.0, attribution obligatoire), NOAA NCEI (demandée). Les trois s'écrivent en
 tête du script le jour où il existe ; la page de crédits reste un lot à part.
 
-## Les téléchargements à autoriser
+## Les téléchargements (faits le 13/10/2026)
+
+Rangés hors dépôt, sous ces noms, et vérifiés par leur empreinte par
+`scripts/classify-regions.mjs` (`SOURCES`) :
+
+| Fichier | Taille | SHA-256 |
+|---|---|---|
+| `etopo-east.asc` | 31 531 533 o | `11cce27e1a677dda513077a573612b60c1566bda96f9f627aea85933cfc3ef30` |
+| `etopo-west.asc` | 32 104 256 o | `a6dd4ab319cb028abde4785868783a78a5dd0f34a71fce5c474da23054eee710` |
+| `koppen-0p1.zipmember` | 185 868 o | `fd3d45d40a66951dab26268b945a7eff45374983a72be0e8fa12de01415ff9c2` |
+| `hansen_2000_forestcover_025deg.nc` | 8 313 208 o | `e6b983efa9818b8bf1db10986a7dd07af10c64670a92559298c6342825e34434` |
+
+La requête de plage de figshare a suffi : le zip de 130 Mo n'a pas été descendu. En attendant la
+cuisson, `node scripts/classify-regions.mjs <dossier-terrain> <sortie.json>` relit
+`public/regions.json` et les pôles de `region-index.json` — les sources Natural Earth et VG2500 ne
+sont pas nécessaires — et imprime les témoins, la répartition et le temps.
+
+Les URL :
 
 1. **ETOPO 2022, moitié est** (≈ 32 Mo, texte) :
    `https://oceanwatch.pifsc.noaa.gov/erddap/griddap/ETOPO_2022_v1_60s.esriAscii?z%5B(-89.99166666666666):6:(89.99166666666667)%5D%5B(0.008333333333325754):6:(179.99166666666667)%5D`
