@@ -217,9 +217,8 @@ Avis de Pierre du 12/10 entre crochets.
   hachures et les accessoires 3D jugés « moches » le 10/10). Au survol, des pictogrammes gravés
   de cartographe se dessinent dans la région — sapins pour la forêt, monts hachurés pour la
   montagne, dunes, palmiers, touffes de toundra —, tracés à la plume, puis s'effacent en
-  quittant. **Prérequis : la vraie classification** (ETOPO, Köppen-Geiger, landcover dans
-  `scripts/generer-regions.mjs`, décidée mais pas écrite) : `regionType` est aujourd'hui un
-  hachage du nom, et le dessiner en grand rendrait le faux visible. Décor seulement — la fiche 08
+  quittant. **Prérequis : la vraie classification**, livrée (`region-types.json`, voir
+  `classification-regions.md`). Décor seulement — la fiche 08
   reste « ni grille, ni terrain ».
   **Prototypé le 12/10** sur la carte inventée : six jeux de pictogrammes tracés à la plume
   (≈ 0,6 s, décalés du centre vers les bords), fondu de sortie, lavis léger de la région, infobulle

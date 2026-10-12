@@ -40,3 +40,14 @@ it('reads a region missing from the file as a plain', async () => {
   const data = await loadRegions('/r', '/t');
   expect(data.regions.map((r) => r.type)).toEqual(['mountain', 'plain']);
 });
+
+it('reads every region as a plain when the types file is a 404', async () => {
+  const regions = { lines: [], regions: [{ id: 'A', country: 'X', n: 'a', p: [] }] };
+  vi.stubGlobal('fetch', async (url: string) =>
+    url === '/t' ? { ok: false, json: async () => ({}) } : { ok: true, json: async () => regions },
+  );
+  vi.resetModules();
+  const { loadRegions: fresh } = await import('./world');
+  const data = await fresh('/r', '/t');
+  expect(data.regions.map((r) => r.type)).toEqual(['plain']);
+});

@@ -316,7 +316,7 @@ de `regions.json` : `{ type: [ids] }`, une région absente se lit plaine. Détai
 `WWS/docs/design/propositions/classification-regions.md`. Aucune
 règle de jeu ne doit lire le type — s'il doit un jour toucher vitesse ou combat, ADR
 obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif est libre).
-`monde.json`, `regions.json` et `region-types.json` sont produits par `scripts/generate-world.mjs`,
+`world.json`, `regions.json` et `region-types.json` sont produits par `scripts/generate-world.mjs`,
 `scripts/generate-regions.mjs` et `scripts/generate-region-types.mjs` — ne jamais les retoucher à la main.
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**

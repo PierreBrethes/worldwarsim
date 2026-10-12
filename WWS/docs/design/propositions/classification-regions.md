@@ -210,9 +210,7 @@ générateur ne se relance qu'à la main.
 
 ## Attribution
 
-Le jeu n'a **toujours pas de page de crédits**, et la dette s'alourdit : BKG (déjà due), Beck et
-al. et Hansen (CC BY 4.0, attribution obligatoire), NOAA NCEI (demandée). Les trois s'écrivent en
-tête du script le jour où il existe ; la page de crédits reste un lot à part.
+La page `/credits` existe et crédite le BKG, NOAA, Beck et Hansen.
 
 ## Les téléchargements (faits le 13/10/2026)
 
