@@ -176,6 +176,39 @@ describe('what the jobs file for the journal', () => {
     ).toEqual(['march', 'return']);
   });
 
+  /** « Localiser » needs a point on every dispatch that happened somewhere: the row's own point
+   *  when it stored one, else the point of the region it names. */
+  it('serves each notice its place', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const destination = pointOf(PRAHOVA);
+    const sent = await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [await form(t, seat, 'infantry', barracks)],
+      point: asPoint(destination),
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) =>
+      ctx.db.insert('notices', {
+        playerId,
+        at: Date.now(),
+        kind: 'constructionFinished',
+        building: 'barracks',
+        regionId: MARNE,
+        level: 1,
+      }),
+    );
+    const { notices } = await t.query(api.view.playerView, seat);
+    const place = (kind: string) => notices.find((notice) => notice.kind === kind)?.place;
+    expect(place('columnArrived')).toEqual({ lon: destination[0], lat: destination[1] });
+    expect(place('constructionFinished')).toEqual({ lon: 4.22, lat: 48.97 });
+  });
+
   /**
    * **Le seul événement du jeu qui ne laissait aucune trace.** Une attaque qui arrive sur un sol
    * vide n'ouvre pas de passe, donc ne dépose pas de compte rendu — et sans cette ligne le
@@ -399,7 +432,14 @@ describe('what the jobs file for the journal', () => {
         'hostCountry',
         'kind',
         'playerId',
+        'point',
       ].sort(),
+    );
+    /** The button may only point where the arc already starts: never the departure, never the
+     *  destination. */
+    expect(sighted!.kind === 'movementSighted' ? sighted!.point?.lon : null).toBeCloseTo(
+      (detected as unknown as { from: { lon: number } }).from.lon,
+      3,
     );
     expect(sighted).toMatchObject({ detector: 'troop', detectorRegion: null });
     expect(await noticesOf(t, seat, 'movementSighted')).toEqual([]);

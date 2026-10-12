@@ -610,7 +610,7 @@ export type DispatchKind =
  * structurally no building and a delivery no heading, so the fog cannot leak through a field
  * somebody forgot to leave empty (convention §8).
  */
-export type Notice =
+type NoticeBody =
   | {
       readonly kind: 'constructionCancelled';
       readonly at: number;
@@ -852,6 +852,11 @@ export type Notice =
     }
   | { readonly kind: 'objectiveGap'; readonly at: number; readonly nations: ReadonlyArray<string> };
 
+/** The server serves `place` on every notice; fixtures may leave it out. */
+export type Notice = NoticeBody & { readonly place?: MapPlace | null };
+
+export type MapPlace = { readonly lon: number; readonly lat: number };
+
 export type JournalDispatch = {
   /** The hour it happened, kept beside its French form: the banner counts against
    *  `journalReadAt` and the merge orders by it, and neither can read a formatted string. */
@@ -868,6 +873,8 @@ export type JournalDispatch = {
   /** **Le compte rendu d'où sort une dépêche de combat**, et `null` pour toute autre : c'est ce
    *  qu'ouvre l'adresse d'une notification d'attaque (`report`), sans relire la phrase. */
   readonly combat: CombatReport | null;
+  /** Where it happened, for « Localiser »; `null` for what happened nowhere. */
+  readonly place: MapPlace | null;
 };
 
 /**

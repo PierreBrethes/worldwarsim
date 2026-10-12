@@ -10,6 +10,7 @@ import type {
   DispatchKind,
   DispatchSeverity,
   JournalDispatch,
+  MapPlace,
   Notice,
   ReductionBoard,
   WarEntry,
@@ -100,7 +101,10 @@ export function journalDispatches(
     text: fr.journal.warEntry(entry.nickname, nationName(entry.nation)),
   }));
 
-  const filed: ReadonlyArray<Written> = notices.map(written);
+  const filed: ReadonlyArray<Written> = notices.map((notice) => ({
+    ...written(notice),
+    place: notice.place ?? null,
+  }));
 
   const all = [...concluded, ...reductions, ...arrivals, ...filed, ...reports.map(fromCombat)];
 
@@ -116,6 +120,7 @@ export function journalDispatches(
       remaining: entry.remaining ?? null,
       resolutionAt: entry.resolutionAt ?? null,
       combat: entry.combat ?? null,
+      place: entry.place ?? null,
     }));
 }
 
@@ -129,6 +134,7 @@ type Written = {
   readonly remaining?: string | null;
   readonly resolutionAt?: string | null;
   readonly combat?: CombatReport;
+  readonly place?: MapPlace | null;
 };
 
 /**
@@ -565,6 +571,7 @@ const fromCombat = (report: CombatReport): Written => ({
     outpostDisabled: report.outpostDisabled,
   }),
   combat: report,
+  place: report.point,
 });
 
 const severityOf = (report: CombatReport): DispatchSeverity =>
