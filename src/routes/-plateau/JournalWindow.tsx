@@ -3,6 +3,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isAlarm } from '@/domain/journal';
+import { journalSections } from '@/domain/journal-sections';
 import { asDayAndTime } from '@/domain/duration';
 import { Stamp } from '@/shell/Stamp';
 import {
@@ -20,15 +21,13 @@ import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import type { Seat } from '@/data/session';
 
-/** L'ordre des colonnes est celui de la gravité, jamais celui des dépêches : ce qui range la
- *  page est la sorte, et le journal sert déjà chaque liste dans son ordre d'heure. */
-const COLUMNS: ReadonlyArray<DispatchSeverity> = ['critical', 'notable', 'routine'];
-
 const SEVERITY_INK: Readonly<Record<DispatchSeverity, string>> = {
   critical: 'var(--critical)',
   notable: 'var(--notable-paper)',
   routine: 'var(--routine)',
 };
+
+type Place = NonNullable<JournalDispatch['place']>;
 
 export type LootRumor = {
   readonly id: string;
@@ -47,6 +46,7 @@ export function JournalWindow({
   leadReport = null,
   garrisonAt,
   onShowCombat,
+  onLocate,
   onOpenGarrison,
   onClose,
   ...windowProps
@@ -62,6 +62,7 @@ export function JournalWindow({
   /** Ce qui se tient encore à soi au lieu d'un combat — `null` quand il n'y a rien à ouvrir. */
   garrisonAt: (combat: CombatReport) => TroopStation | null;
   onShowCombat: (combat: CombatReport) => void;
+  onLocate: (place: Place) => void;
   onOpenGarrison: (station: TroopStation) => void;
 }) {
   const narrow = useNarrowScreen();
@@ -137,186 +138,220 @@ export function JournalWindow({
   }
 
   return (
-    <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="top" width={1040}>
-      <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] px-[30px] pt-[26px] pb-5">
-        <DragHandle className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-          <span>{fr.journal.editionOf(time)}</span>
-          <span>{seasonDay}</span>
-          <button
-            type="button"
-            onClick={close}
-            className="cursor-pointer border border-[var(--ink)] px-[9px] py-1 text-[9px] tracking-[.18em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.common.close}
-          </button>
-        </DragHandle>
-
-        {/* **Le compte de non-lues est un chiffre, pas une phrase.** C'est la seule chose que le
-            joueur cherche en ouvrant : posé en gros, à l'encre rouge, il se lit avant le titre.
-            Les deux joues de la grille tiennent la manchette centrée même quand l'une est vide —
-            le cachet à gauche, le compte à droite, là où l'œil retombe après le titre. */}
-        <div className="mt-[10px] shrink-0 border-t-2 border-b border-[var(--ink)] pt-[14px] pb-[10px]">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-x-[18px] max-md:gap-x-[8px]">
-            {/* **Le seul tampon de l'en-tête**, et il ne paraît qu'une fois : une saison prise se
-                relit, elle ne se joue plus. À l'encre — il ne demande plus rien à personne. */}
-            <div className="justify-self-start">
-              {view.season.reduction.concludedAt !== null && (
-                <Stamp label={fr.stamps.seasonClosed} />
-              )}
-            </div>
-            <h2 className="font-(family-name:--font-display) text-[clamp(24px,5cqi,54px)] leading-[.98] font-extrabold tracking-[.06em] text-[var(--ink)]">
-              {fr.journal.masthead}
-            </h2>
-            <div className="flex items-end justify-end gap-[8px]">
-              {unread.length > 0 && (
-                <>
-                  <span className="font-(family-name:--font-display) text-[clamp(28px,4.6cqi,46px)] leading-[.8] font-extrabold text-[var(--critical)]">
-                    {unread.length}
-                  </span>
-                  <span className="max-w-[52px] pb-[3px] text-[9px] leading-[1.25] tracking-[.18em] text-[var(--critical)] uppercase">
-                    {fr.journal.unreadLabel(unread.length)}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-[9px] flex shrink-0 flex-wrap items-center justify-center gap-x-[14px] gap-y-1 text-[11px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
-          <span>{nationLabel(view.me.nation)}</span>
-          <span className="text-[#9d8f78]">·</span>
-          <span>{fr.journal.dispatches(dispatches.length)}</span>
-          {unread.length === 0 && (
-            <>
-              <span className="text-[#9d8f78]">·</span>
-              <span>{fr.journal.allRead}</span>
-            </>
-          )}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto">
-          {lead && (
-            <div className="flex flex-col gap-4 border-b border-[var(--ink)] pt-4 pb-[18px] @3xl:flex-row @3xl:items-stretch @3xl:gap-[22px]">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-[9px]">
-                  <span
-                    className="h-[9px] w-[9px] shrink-0"
-                    style={{ background: SEVERITY_INK[lead.severity] }}
-                  />
-                  <span
-                    className="text-[10px] font-bold tracking-[.22em] uppercase"
-                    style={{ color: SEVERITY_INK[lead.severity] }}
-                  >
-                    {fr.journal.severities[lead.severity]} — {lead.t}
-                  </span>
-                  <span className="flex-1" />
-                  <Stamp
-                    label={fr.stamps.dispatches[lead.kind]}
-                    tone={isAlarm(lead.kind) ? 'critical' : 'ink'}
-                    size="small"
-                  />
-                </div>
-                {/* **La manchette ne porte que sa phrase.** Une heure de résolution sous le titre
-                    la redirait deux fois : si la manchette est immobilisée, l'encart du réveil
-                    la reprend juste à côté, avec son heure. */}
-                <h3 className="mt-2 font-(family-name:--font-display) text-[clamp(21px,3.4cqi,34px)] leading-[1.15] font-bold text-pretty break-words text-[var(--ink)]">
-                  {lead.text}
-                </h3>
-              </div>
-
-              {/* **L'encart du réveil, à droite de la manchette** : ce qui se résoudra sans qu'on
-                  y touche, et le seul compteur qui décide de la visite — les slots engagés. */}
-              <aside className="w-full border-t border-(color:--ink)/35 pt-3 @3xl:w-[232px] @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l @3xl:border-[var(--ink)] @3xl:pt-0 @3xl:pl-5">
-                <h4 className="border-b border-[var(--ink)] pb-[6px] text-[10px] font-bold tracking-[.2em] text-[var(--ink)] uppercase">
-                  {fr.journal.atWaking}
-                </h4>
-                {stalled.length > 0 ? (
-                  <div className="mt-[9px] flex flex-col gap-[7px]">
-                    {stalled.map((entry) => (
-                      <p
-                        key={`${entry.t}-${entry.text}`}
-                        className="font-(family-name:--font-text) text-[14px] leading-[1.5] break-words text-[var(--ink)]"
-                      >
-                        {entry.text}
-                        {fr.journal.stalledResolution}
-                        <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>
-                        .
-                      </p>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-[9px] font-(family-name:--font-text) text-[14px] leading-[1.5] text-[var(--ink-soft)]">
-                    {fr.journal.noneStalled}
-                  </p>
-                )}
-                <div className="mt-3 flex justify-between text-[12.5px]">
-                  <span className="text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
-                  <span className="font-(family-name:--font-mono) text-[var(--ink)]">
-                    {view.me.slots.used} / {view.me.slots.total}
-                  </span>
-                </div>
-              </aside>
-            </div>
-          )}
-
-          {/* Trois colonnes sans cadre : le filet vertical suffit à les tenir, et une boîte teintée
-              autour d'elles ferait du corps du journal un encart de plus. */}
-          <div className="flex flex-col pt-[14px] @3xl:flex-row @3xl:items-stretch">
-            {COLUMNS.map((severity) => {
-              const entries = dispatches.filter(
-                (dispatch) => dispatch.severity === severity && dispatch !== lead,
-              );
-              const holdsLead = lead !== null && lead.severity === severity;
-              return (
-                <section
-                  key={severity}
-                  className="min-w-0 flex-1 border-t border-(color:--ink)/30 pt-3 first:border-t-0 first:pt-0 @3xl:border-t-0 @3xl:border-l @3xl:border-l-(color:--ink)/30 @3xl:px-[18px] @3xl:pt-0 @3xl:first:border-l-0 @3xl:first:pl-0 @3xl:last:pr-0"
-                >
-                  <div className="flex items-center gap-2 border-b border-[var(--ink)] pb-[6px]">
-                    <span
-                      className="h-2 w-2 shrink-0"
-                      style={{ background: SEVERITY_INK[severity] }}
-                    />
-                    <span className="text-[10px] font-bold tracking-[.22em] text-[var(--ink)] uppercase">
-                      {fr.journal.severities[severity]}
-                    </span>
-                    <span className="flex-1" />
-                    <span className="text-[11px] whitespace-nowrap text-[var(--ink-soft)]">
-                      {holdsLead
-                        ? fr.journal.others(entries.length)
-                        : fr.journal.dispatches(entries.length)}
-                    </span>
-                  </div>
-                  {entries.map((entry) => (
-                    <Dispatch key={`${entry.t}-${entry.text}`} entry={entry} />
-                  ))}
-                </section>
-              );
-            })}
-          </div>
-
+    <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="right" width={440}>
+      <DeskJournal
+        view={view}
+        edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
+        selected={leadReport === null ? null : lead}
+        stalled={stalled}
+        onLocate={onLocate}
+        onClose={close}
+      >
+        <div className="px-5 pb-5">
           <WorldEvents rumors={rumors} selectedRumorId={selectedRumorId} onSelect={revealRumor} />
-
           <ReductionLine board={view.season.reduction} />
         </div>
+      </DeskJournal>
+    </FloatingWindow>
+  );
+}
 
-        <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-[var(--ink)] pt-[10px]">
-          <span className="text-[10px] tracking-[.2em] text-[var(--ink-soft)] uppercase">
-            {fr.journal.historyLabel}
+/**
+ * **Le journal du bureau tient en marge, et la carte reste à côté** (piste 1c du 12/10). Il
+ * répondait à « qu'est-ce qui a changé ? » par une manchette, trois colonnes et une modale qui
+ * couvrait la carte ; or presque tout ce qu'il dit a eu lieu *quelque part*. En marge, « localiser »
+ * recentre la carte sans refermer la liste, et on lit trois dépêches à la suite sans perdre le fil.
+ *
+ * **Une ligne par dépêche, les rubriques empilées, la routine repliée** (piste 1a) : une rubrique
+ * vide n'a pas de titre, et une dépêche lue passe à l'encre douce au lieu de s'estomper jusqu'à
+ * l'illisible.
+ */
+function DeskJournal({
+  view,
+  edition,
+  selected,
+  stalled,
+  onLocate,
+  onClose,
+  children,
+}: {
+  view: PlayerView;
+  edition: string;
+  selected: JournalDispatch | null;
+  stalled: ReadonlyArray<JournalDispatch>;
+  onLocate: (place: Place) => void;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const [picked, setPicked] = useState<JournalDispatch | null>(selected);
+  const unread = view.journal.filter((dispatch) => dispatch.unread).length;
+  const locate = (dispatch: JournalDispatch, place: Place) => {
+    setPicked(dispatch);
+    onLocate(place);
+  };
+
+  return (
+    <article className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] text-[var(--ink)]">
+      <DragHandle className="flex shrink-0 items-start gap-3 border-b-2 border-[var(--ink)] px-5 pt-[14px] pb-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
+          <h2 className="font-(family-name:--font-display) text-[22px] leading-none font-extrabold tracking-[.04em]">
+            {fr.journal.masthead}
+          </h2>
+          <span className="font-(family-name:--font-mono) text-[11px] tracking-[.08em] text-[var(--ink-soft)] uppercase">
+            {edition} ·{' '}
+            {unread > 0 ? (
+              <span className="text-[var(--critical)]">
+                {unread} {fr.journal.unreadLabel(unread)}
+              </span>
+            ) : (
+              fr.journal.allRead
+            )}
           </span>
-          <span className="font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic">
-            {fr.journal.keepNote}
+        </div>
+        {view.season.reduction.concludedAt !== null && (
+          <Stamp label={fr.stamps.seasonClosed} size="small" />
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] py-[5px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          {fr.common.close}
+        </button>
+      </DragHandle>
+
+      {/* **Le réveil reste en tête** : c'est le seul compteur qui décide de la visite. */}
+      <div className="flex shrink-0 flex-col gap-1 border-b border-(color:--ink)/30 px-5 py-[9px]">
+        <div className="flex items-baseline gap-3">
+          <span className="text-[10px] font-bold tracking-[.18em] uppercase">
+            {fr.journal.atWaking}
           </span>
+          <span className="flex-1" />
+          <span className="text-[12px] text-[var(--ink-soft)]">{fr.journal.slotsEngaged}</span>
+          <span className="font-(family-name:--font-mono) text-[13px]">
+            {view.me.slots.used} / {view.me.slots.total}
+          </span>
+        </div>
+        {stalled.length > 0 ? (
+          stalled.map((entry) => (
+            <p
+              key={`${entry.at}-${entry.text}`}
+              className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] break-words"
+            >
+              {entry.text}
+              {fr.journal.stalledResolution}
+              <span className="font-(family-name:--font-mono)">{entry.resolutionAt}</span>.
+            </p>
+          ))
+        ) : (
+          <p className="font-(family-name:--font-text) text-[13.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.journal.noneStalled}
+          </p>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {journalSections(view.journal).map(({ severity, lines }) => {
+          const folds = severity === 'routine';
+          const open = !folds || routineOpen;
+          return (
+            <section key={severity}>
+              <button
+                type="button"
+                disabled={!folds}
+                aria-expanded={folds ? open : undefined}
+                onClick={() => setRoutineOpen(!routineOpen)}
+                className="flex w-full items-center gap-[10px] border-b border-[var(--ink)] px-5 pt-[14px] pb-[6px] text-left enabled:cursor-pointer"
+              >
+                <span
+                  className="h-[9px] w-[9px] shrink-0"
+                  style={{ background: SEVERITY_INK[severity] }}
+                />
+                <span className="text-[11px] font-bold tracking-[.2em] uppercase">
+                  {fr.journal.severities[severity]}
+                </span>
+                <span className="flex-1" />
+                <span className="text-[12px] text-[var(--ink-soft)]">
+                  {fr.journal.dispatches(lines.length)}
+                  {folds && ` · ${open ? fr.journal.fold.hide : fr.journal.fold.show}`}
+                </span>
+              </button>
+              {open &&
+                lines.map(({ dispatch, earlier }) => (
+                  <DeskLine
+                    key={`${dispatch.at}-${dispatch.text}`}
+                    dispatch={dispatch}
+                    earlier={earlier}
+                    picked={dispatch === picked}
+                    onLocate={(place) => locate(dispatch, place)}
+                  />
+                ))}
+            </section>
+          );
+        })}
+        {children}
+      </div>
+    </article>
+  );
+}
+
+function DeskLine({
+  dispatch,
+  earlier,
+  picked,
+  onLocate,
+}: {
+  dispatch: JournalDispatch;
+  earlier: number;
+  picked: boolean;
+  onLocate: (place: Place) => void;
+}) {
+  const { place } = dispatch;
+  return (
+    <div
+      className="flex flex-col gap-[3px] border-b border-(color:--ink)/16 px-5 py-[9px]"
+      style={picked ? { background: 'color-mix(in srgb, var(--paper-pile) 85%, transparent)' } : {}}
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+          {dispatch.t}
+        </span>
+        <span className="flex-1" />
+        <Stamp
+          label={fr.stamps.dispatches[dispatch.kind]}
+          tone={isAlarm(dispatch.kind) ? 'critical' : 'ink'}
+          size="small"
+        />
+        {place !== null && (
           <button
             type="button"
-            onClick={close}
-            className="cursor-pointer bg-[var(--ink)] px-4 py-[9px] text-[10px] tracking-[.2em] text-[var(--paper)] uppercase hover:bg-[var(--interaction)]"
+            onClick={() => onLocate(place)}
+            className="cursor-pointer text-[10.5px] tracking-[.14em] uppercase underline underline-offset-[3px] hover:text-[var(--critical)]"
           >
-            {fr.journal.backToBoard}
+            {fr.journal.locate}
           </button>
-        </div>
-      </article>
-    </FloatingWindow>
+        )}
+      </div>
+      <span
+        className="font-(family-name:--font-text) text-[15px] leading-[1.3] text-pretty break-words"
+        style={
+          dispatch.unread ? { fontWeight: 600, color: 'var(--ink)' } : { color: 'var(--ink-soft)' }
+        }
+      >
+        {dispatch.text}
+      </span>
+      {dispatch.resolutionAt && (
+        <span className="font-(family-name:--font-text) text-[12px] text-[var(--ink-soft)]">
+          {fr.journal.resolutionAt(dispatch.resolutionAt)}
+        </span>
+      )}
+      {earlier > 0 && (
+        <span className="font-(family-name:--font-text) text-[12px] text-[var(--ink-soft)] italic">
+          {fr.journal.earlierEditions(earlier)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -358,7 +393,10 @@ function NarrowJournal({
   children: ReactNode;
 }) {
   const [filter, setFilter] = useState<JournalFilter>('all');
-  const dispatches = view.journal;
+  const listed = new Set(
+    journalSections(view.journal).flatMap(({ lines }) => lines.map((line) => line.dispatch)),
+  );
+  const dispatches = view.journal.filter((dispatch) => listed.has(dispatch));
   const unread = dispatches.filter((dispatch) => dispatch.unread);
   const shown = dispatches.filter((dispatch) => dispatch !== lead && passes(dispatch, filter));
   const fresh = shown.filter((dispatch) => dispatch.unread);
@@ -743,44 +781,5 @@ function ReductionLine({ board }: { board: ReductionBoard }) {
         ))}
       </div>
     </section>
-  );
-}
-
-/** **Une dépêche lue s'efface, elle ne disparaît pas** : l'historique de la saison est ce qu'on
- *  relit, et une pile qui se vide en se lisant ne raconte plus rien (fiche 11 §4.1). */
-function Dispatch({ entry }: { entry: JournalDispatch }) {
-  return (
-    <div
-      className="border-b border-(color:--ink)/16 py-[10px] last:border-b-0"
-      style={{ opacity: entry.unread ? 1 : 0.5 }}
-    >
-      {/* **La sorte dans la marge, la manchette en vedette.** Un cachet en petit corps à côté de
-          l'heure dit *de quoi il s'agit* avant qu'on ait lu la phrase — c'est ce qu'on cherche en
-          parcourant une colonne. Un seul par dépêche : deux cachets sur trois lignes de texte
-          feraient de la colonne un formulaire. */}
-      <div className="flex items-center gap-3">
-        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-          {entry.t}
-        </span>
-        <span className="flex-1" />
-        <Stamp
-          label={fr.stamps.dispatches[entry.kind]}
-          tone={isAlarm(entry.kind) ? 'critical' : 'ink'}
-          size="small"
-        />
-      </div>
-      <div className="mt-[3px] font-(family-name:--font-display) text-[16.5px] leading-[1.35] font-semibold text-pretty break-words text-[var(--ink)]">
-        {entry.text}
-      </div>
-      {/* **Le titre est en didone, son corps ne l'est pas** (retour de Pierre, 04/09). Deux
-          dessins, sinon la ligne sous le titre se lit comme un second titre plus petit — et
-          l'`Archivo Narrow` qu'elle portait est une condensée de titraille, faite pour les
-          capitales espacées et non pour une phrase. */}
-      {entry.resolutionAt && (
-        <div className="mt-[3px] font-(family-name:--font-text) text-[12px] leading-[1.4] break-words text-[var(--ink-soft)]">
-          {fr.journal.resolutionAt(entry.resolutionAt)}
-        </div>
-      )}
-    </div>
   );
 }

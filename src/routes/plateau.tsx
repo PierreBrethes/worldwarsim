@@ -1565,7 +1565,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         ids: [],
         places: [[combat.point.lon, combat.point.lat]],
         lift: narrow ? sheetLift('peek') : 0,
-        distance: COMBAT_VIEW_DISTANCE,
+        distance: DISPATCH_VIEW_DISTANCE,
         nonce: Date.now(),
       });
       if (narrow) setOpenedReport(report);
@@ -1591,14 +1591,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [view.me, marching],
   );
   const combatStation = openedCombat === null ? null : garrisonAtCombat(openedCombat);
-  const showCombat = useCallback((combat: CombatReport) => {
+  const locate = useCallback((place: { readonly lon: number; readonly lat: number }) => {
     setFocus({
       ids: [],
-      places: [[combat.point.lon, combat.point.lat]],
-      distance: COMBAT_VIEW_DISTANCE,
+      places: [[place.lon, place.lat]],
+      distance: DISPATCH_VIEW_DISTANCE,
       nonce: Date.now(),
     });
   }, []);
+  const showCombat = useCallback((combat: CombatReport) => locate(combat.point), [locate]);
 
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -2107,6 +2108,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                     onSelectRumor={selectRumor}
                     garrisonAt={garrisonAtCombat}
                     onShowCombat={showCombat}
+                    onLocate={locate}
                     onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
                     {...windowProps}
                   />
@@ -2182,10 +2184,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 }
 
 /**
- * **D'où l'on regarde un combat ouvert depuis sa dépêche** : assez près pour lire les régions et
- * les mâts autour — la place d'une passe est un lieu, pas un continent.
+ * **D'où l'on regarde le lieu d'une dépêche** : assez près pour lire les régions et les mâts
+ * autour — la place d'une passe est un lieu, pas un continent.
  */
-const COMBAT_VIEW_DISTANCE = 20;
+const DISPATCH_VIEW_DISTANCE = 20;
 
 /** Le temps de lire « transmis » et de voir la ligne neuve sortir de « En cours ». */
 const SENT_NOTICE_MS = 6000;
