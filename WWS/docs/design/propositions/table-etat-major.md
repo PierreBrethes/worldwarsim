@@ -146,6 +146,11 @@ rendu physique, pas un nouveau registre.
 - **Le réglage `actives / réduites / coupées` commande les figurines** : réduites, ni balancement
   ni main animée, poses et tampons immédiats ; coupées, le rejeu saute au compte rendu.
 
+**Après le grilling, même jour.** Claude Design produit les figurines en GLB sur un gabarit commun
+(premier essai : un M5 Stuart, puis le fantassin français à 2 380 triangles) ; il remplace les
+agents en primitives et la piste du corps CC0, qu'aucun candidat ne tenait au budget. L'ADR 0026
+§2 est précisée en ce sens.
+
 **Faits relevés pour la suite** : seuls les mouvements sont aujourd'hui en 3D (un `Pawn` par arc,
 six mouvements au plus par joueur) ; les troupes posées et les bâtiments sont des étiquettes DOM
 (`MapLabels.tsx`) — jusqu'à 24 troupes, soit environ 70 figurines à instancier ; les régions
