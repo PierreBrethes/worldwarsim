@@ -105,21 +105,55 @@ rendu physique, pas un nouveau registre.
 
 ### Décor pur — aucune règle touchée
 
-- **La carte se grave à mesure qu'on la relève.** Les trois états de l'ADR 0020 §5 deviennent
-  trois stades de gravure : *vierge* au crayon, sans encre ; *relevée* gravée et délavée avec
-  l'âge ; *à jour* à l'encre fraîche. C'est la lecture existante, rendue matière.
+Avis de Pierre du 12/10 entre crochets.
+
+- **La carte se grave à mesure qu'on la relève.** [*Aime l'idée, à juger au rendu.*] Les trois
+  états de l'ADR 0020 §5 deviennent trois stades de gravure : *vierge* au crayon, sans encre ;
+  *relevée* gravée et délavée avec l'âge ; *à jour* à l'encre fraîche. C'est la lecture
+  existante, rendue matière.
 - **Jour et nuit décoratifs** : voir ci-dessous.
 - **La presse tombe sur la table** à chaque édition (toutes les 3 h), et les dépêches
-  s'empilent en feuilles au bord de la carte : le journal devient un objet de la table.
-- **Prendre la pièce** : la sélection soulève la figurine (l'ombre s'élargit), l'envoi la fait
-  glisser.
-- **Le chantier monte** : échafaudage, puis le bâtiment qui pousse dans un nuage de plâtre ; un
-  recrutement fini fait sortir les figurines de la caserne.
-- **Le premier relevé pose le bloc adverse** d'un geste, comme une main sur la table.
+  s'empilent en feuilles au bord de la carte. [*Parqué : Pierre ne sait pas s'il veut sortir de
+  la carte pour le jeu.*]
 - **Le rejeu de combat** (surface 4.7) joué par les figurines, sur le compte rendu, sans
-  re-résoudre : elles se font face, éclairs de bouche, celles perdues tombent.
-- **Le relief en hachures de gravure** (cuites hors ligne depuis ETOPO), décor seulement — la
-  fiche 08 reste « ni grille, ni terrain ».
+  re-résoudre : elles se font face, éclairs de bouche, celles perdues tombent. [*Oui.*]
+- **Le chantier monte** : échafaudage, puis le bâtiment qui pousse dans un nuage de plâtre ; un
+  recrutement fini fait sortir les figurines de la caserne. [*Oui.*]
+- **Ce qu'on relève se pose sur la table.** [*D'accord, précisé.*] Quand un relevé adverse
+  apparaît **sous les yeux du joueur** — bloc d'une force, mât d'une installation relevée —, il
+  descend sur la carte avec un petit choc et un balancement, comme posé par une main. En direct
+  seulement, comme l'encre d'arrivée : au chargement de la carte, tout est déjà posé.
+- **Les dessins de terrain au survol d'une région** (idée de Pierre, qui remplace le relief en
+  hachures et les accessoires 3D jugés « moches » le 10/10). Au survol, des pictogrammes gravés
+  de cartographe se dessinent dans la région — sapins pour la forêt, monts hachurés pour la
+  montagne, dunes, palmiers, touffes de toundra —, tracés à la plume, puis s'effacent en
+  quittant. **Prérequis : la vraie classification** (ETOPO, Köppen-Geiger, landcover dans
+  `scripts/generer-regions.mjs`, décidée mais pas écrite) : `regionType` est aujourd'hui un
+  hachage du nom, et le dessiner en grand rendrait le faux visible. Décor seulement — la fiche 08
+  reste « ni grille, ni terrain ».
+
+### Lever la pièce et la poser ailleurs — proposé par Pierre
+
+Comme aux échecs : un clic gauche **lève** la figurine, qui suit la souris tenue par une main ;
+un clic ailleurs la **pose** ; la pose ouvre la confirmation du trajet, et l'envoi lance le
+mouvement. La pièce d'origine reste en place, délavée, tant que l'ordre n'est pas parti.
+
+À trancher, parce que la grammaire de la souris est réglée
+(`src/domain/mouse-mapping.ts`, décision du 30/08 et retour du 11/09) :
+
+- **La pose remplace-t-elle le clic « agir » ?** Aujourd'hui le clic gauche sur une troupe
+  ouvre le cartouche et arme déjà la visée ; la destination se nomme au clic « agir », ailleurs.
+  Lever-poser fait du clic gauche suivant une pose, et non plus une lecture : il faut dire ce que
+  devient le clic gauche sur la carte pendant que la pièce est levée.
+- **La rose survit à la pose** : une destination offre plusieurs ordres (marcher, attaquer,
+  piller, fonder, embarquer…). Poser = ouvrir la rose au point de pose, puis l'aperçu d'arc et
+  « envoyer — irréversible » comme aujourd'hui.
+- **Que lève-t-on dans une pile ?** Toute la pile, un groupe de rôle, ou ce que le panneau de
+  garnison a composé.
+- **L'aperçu suit-il la main ?** `movements.preview` est un Dijkstra serveur (13 à 125 ms) :
+  au survol il faut le brider (quelques par seconde) ou ne le demander qu'à la pose.
+- **Le curseur « main »** rejoint les cinq curseurs dessinés et jamais branchés
+  (`public/cursors/`, fiche 10).
 
 ### Jour et nuit — proposé par Pierre
 
