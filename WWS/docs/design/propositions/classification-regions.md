@@ -1,10 +1,14 @@
 # Classification des régions — le vrai type de terrain (proposition, 12/10/2026)
 
-**Statut : phase 2, 13/10/2026.** Rasters téléchargés (empreintes plus bas), classificateur écrit
-et réglé sur les six témoins (`scripts/region-terrain.mjs`, testé), résultat **pas encore cuit** :
-où le type se range — champ `t` de `regions.json` ou fichier à part — attend la réponse de Pierre.
-Le premier passage a demandé trois retouches de la règle, marquées *(phase 2)* ci-dessous. **Décor pur** — aucune règle de jeu ne lit le type (fiche 08 figée, ADR obligatoire le
-jour où ce serait le cas).
+**Statut : livré, 13/10/2026.** Classificateur réglé sur les six témoins
+(`scripts/region-terrain.mjs`, testé) et cuit dans **`public/region-types.json`**, asset à part
+(décision de Pierre) : `regions.json` ne porte pas le type. Le premier passage a demandé trois
+retouches de la règle, marquées *(phase 2)* ci-dessous. **Décor pur** — aucune règle de jeu ne lit
+le type (fiche 08 figée, ADR obligatoire le jour où ce serait le cas).
+
+**À savoir.** ERDDAP a **décimé** ETOPO (un point tous les 6′, non moyenné) : l'altitude sous-estime
+les sommets (le Mont Blanc se lit 2 309 m). Les seuils ont été réglés sur ces données-là ; changer
+de source de relief oblige à les régler de nouveau.
 
 ## Ce qui existe
 
@@ -149,24 +153,26 @@ Yukon forêt (45 % de montagne, taïga à 0,51), le Kamtchatka et la Magadan for
 
 ## L'architecture
 
-**Le type est cuit par `generate-regions.mjs`, et par lui seul.** Une fonction
-`classifyRegions(regions, rasters, plane)` vit à côté (régions `{ id, rings, point }`, rasters lus par les lecteurs du même module, `plane` la projection et la largeur d'enroulement), dans `scripts/region-terrain.mjs` — même
-découpe que `german-districts.mjs` —, et s'appelle juste avant l'écriture, **après** le découpage
-allemand, sur la liste finale. Elle ajoute à chaque région un champ **`t`, dernier de l'objet**,
-qui porte le littéral de `RegionType` (`"plain"`, `"forest"`…) : pas de table de codes à une
-lettre, et 78 Ko de plus sur 2,6 Mo. Un seul écrivain pour l'actif : un second script qui
-relirait et réécrirait `regions.json` serait une retouche, même automatisée.
-
-Le générateur prend un troisième argument, le dossier des rasters :
+**Le type est cuit dans un asset à part, `public/region-types.json`** : `{ type: [ids] }`, plaines
+comprises, une cinquantaine de Ko. Il est écrit par `scripts/generate-region-types.mjs`, qui relit
+`public/regions.json` (contours) et `public/region-index.json` (pôles d'inaccessibilité) et les
+rasters hors dépôt ; `regions.json` n'est donc ni lu ni réécrit par un second écrivain. La règle et
+les lecteurs vivent à côté dans `scripts/region-terrain.mjs` (`classifyRegions`, même découpe que
+`german-districts.mjs`). Le générateur est chaîné à la fin de `generate-world.mjs` quand on lui
+donne `--terrain <dossier-terrain>`, ou se lance seul :
 
 ```
-node scripts/generate-regions.mjs <ne_10m_admin_1.geojson> <VG2500_RBZ.shp> <dossier-terrain>
+node scripts/generate-region-types.mjs <dossier-terrain>
 ```
 
-**Les rasters vivent hors du dépôt**, passés en argument comme les deux sources actuelles — rien
-à ignorer dans git, et chaque poste les range où il veut. Le script vérifie l'empreinte SHA-256 de
-chacun (relevée au premier téléchargement et gravée en tête du script) : deux postes qui cuisent
-avec deux sources différentes ne doivent pas se le découvrir à la revue.
+**Les rasters vivent hors du dépôt**, passés en argument — rien à ignorer dans git, et chaque poste
+les range où il veut. Le script vérifie l'empreinte SHA-256 de chacun (gravée en tête du script) :
+deux postes qui cuisent avec deux sources différentes ne doivent pas se le découvrir à la revue. Un
+fichier absent s'annonce par son nom et renvoie à la section « Les téléchargements » ci-dessous.
+
+**Au client**, `loadRegions` charge `region-types.json` en parallèle de `regions.json` ; une région
+absente du fichier se lit `'plain'`. `DisplayedRegion` porte `type`, et `regions.ts` le lit au
+survol.
 
 **Les trois lecteurs, sans dépendance** — écrits et testés sur des fichiers fabriqués dans le
 test (`scripts/region-terrain.test.mjs`) ; le décodeur LZW maison a suffi, `geotiff` n'est pas
@@ -192,22 +198,15 @@ dans le script) et cherche sa région avec `regionAtPlanePoint` sur des paniers 
 englobantes — la fonction et le procédé de `generate-region-grid.mjs`. Le raster de régions n'est
 pas réutilisé : il est cuit **après** `regions.json`, et l'ordre de la chaîne ne bouge pas.
 
-**Au client**, `fetchRegions` lit `t` et `regionType(name)` disparaît avec ses témoins et son
-hachage : `DisplayedRegion` porte `type`, et `regions.ts` le lit au survol.
-
 ## Ce qui doit sortir à l'octet près
 
-- `regions.json` **privé de `t`** est identique au fichier de `main` : la vérification se fait en
-  sérialisant `{ lines, regions }` sans le champ et en comparant les octets — c'est le contrôle de
-  la PR, pas un test permanent ;
-- `region-index.json`, `region-grid.json`, `projection.json`, `grid.json` et `deposits.json` ne
-  lisent pas `t` : recuits, ils doivent sortir identiques, ce que `git diff --stat` dit ;
-- le découpage allemand ne bouge pas : la classification ne touche ni un anneau ni une ligne.
+- `regions.json`, `region-index.json`, `region-grid.json`, `projection.json`, `grid.json` et
+  `deposits.json` ne lisent pas le type : recuits, ils sortent identiques (`git diff --stat`) ;
+- le découpage allemand ne bouge pas : la classification ne touche ni un anneau ni une ligne ;
+- relancé sur les mêmes rasters, `region-types.json` ressort identique.
 
-**Le temps de génération** : la cuisson complète du raster de régions (1,33 M cellules, deux
-recherches par cellule) prend quinze secondes ; l'échantillonnage en fait 2,2 M avec une seule
-recherche, et la lecture des 64 Mo de texte d'ETOPO en ajoute quelques-unes. Ordre attendu : vingt
-à quarante secondes de plus sur `generate-regions.mjs`, qu'on ne relance qu'à la main.
+**Le temps de génération** : environ 20 s (1 s de lecture des rasters, 17 s de classification) ; le
+générateur ne se relance qu'à la main.
 
 ## Attribution
 
@@ -218,7 +217,7 @@ tête du script le jour où il existe ; la page de crédits reste un lot à part
 ## Les téléchargements (faits le 13/10/2026)
 
 Rangés hors dépôt, sous ces noms, et vérifiés par leur empreinte par
-`scripts/classify-regions.mjs` (`SOURCES`) :
+`scripts/generate-region-types.mjs` (`SOURCES`) :
 
 | Fichier | Taille | SHA-256 |
 |---|---|---|
@@ -227,10 +226,9 @@ Rangés hors dépôt, sous ces noms, et vérifiés par leur empreinte par
 | `koppen-0p1.zipmember` | 185 868 o | `fd3d45d40a66951dab26268b945a7eff45374983a72be0e8fa12de01415ff9c2` |
 | `hansen_2000_forestcover_025deg.nc` | 8 313 208 o | `e6b983efa9818b8bf1db10986a7dd07af10c64670a92559298c6342825e34434` |
 
-La requête de plage de figshare a suffi : le zip de 130 Mo n'a pas été descendu. En attendant la
-cuisson, `node scripts/classify-regions.mjs <dossier-terrain> <sortie.json>` relit
-`public/regions.json` et les pôles de `region-index.json` — les sources Natural Earth et VG2500 ne
-sont pas nécessaires — et imprime les témoins, la répartition et le temps.
+La requête de plage de figshare a suffi : le zip de 130 Mo n'a pas été descendu. `node scripts/generate-region-types.mjs <dossier-terrain>` relit `public/regions.json` et les
+pôles de `region-index.json` — les sources Natural Earth et VG2500 ne sont pas nécessaires — et
+imprime la répartition et le temps ; les six témoins sont tenus par `src/domain/region-types.test.ts`.
 
 Les URL :
 
