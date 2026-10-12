@@ -159,6 +159,7 @@ async function resolveOne(
         at: current.arrivesAt,
         kind: 'lootCollected',
         hostCountry: hostAtPoint([current.to.lon, current.to.lat]),
+        point: current.to,
         loot: taken.loot,
       });
       loads.push({ loot: taken.loot, collectionId });
@@ -221,6 +222,7 @@ export async function resolveDueLootCollectionMissions(
         at: now,
         kind: 'movementStalled',
         hostCountry: movement.hostCountry,
+        point: movement.to,
         resolvesAt: held,
       });
       continue;

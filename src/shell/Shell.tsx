@@ -52,8 +52,10 @@ export function Shell({
 
   return (
     <div className="board-frame flex h-full flex-col overflow-hidden">
-      <NationBanner view={view} />
-      <ResourceBand view={view} />
+      <div ref={top} className="shrink-0">
+        <NationBanner view={view} />
+        <ResourceBand view={view} />
+      </div>
       <div className="flex min-h-0 flex-1">
         <SurfaceRail
           season={view.season}
@@ -80,7 +82,6 @@ function usePublishedEdges(
 ): void {
   useEffect(() => {
     const root = document.documentElement.style;
-    if (!narrow) return;
     const publish = () => {
       const band = top.current?.getBoundingClientRect();
       const bar = foot.current?.getBoundingClientRect();

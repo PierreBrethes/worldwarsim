@@ -10,7 +10,7 @@ import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-win
 import { arcTiming } from '@/domain/arc-timing';
 import { placeLabel } from '@/domain/station-name';
 import type { LonLat } from '@/domain/geo';
-import type { ArcView, Notice, PlayerView, Stack } from '@/domain/player-view';
+import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
 
@@ -169,7 +169,7 @@ export function adaptServerView(world: World, server: ServerView): PlayerView {
       server.season.reduction ?? null,
       // A deployment one version behind knows nothing of a latecomer: no entry, no headline.
       server.warEntries ?? [],
-      (server.notices ?? []) as ReadonlyArray<Notice>,
+      server.notices ?? [],
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
     ),
