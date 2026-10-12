@@ -1,7 +1,7 @@
 # Table d'état-major — figurines, piles, fiche
 
-**Date : 12/10/2026. Statut : convenu à l'œil sur prototype, à griller avant toute ligne dans
-`src/`.** Décisions de Pierre au fil de six versions du prototype
+**Date : 12/10/2026. Statut : convenu sur prototype et grillé le 12/10 ; ADR 0026 à écrire
+avant toute ligne dans `src/`.** Décisions de Pierre au fil de six versions du prototype
 [`prototypes/table-etat-major.html`](../../../prototypes/table-etat-major.html) (aussi publié en
 artifact). La carte du prototype est inventée et rien n'y lit une partie.
 
@@ -151,24 +151,27 @@ six mouvements au plus par joueur) ; les troupes posées et les bâtiments sont 
 (`MapLabels.tsx`) — jusqu'à 24 troupes, soit environ 70 figurines à instancier ; les régions
 admin-1 apparaissent entre 65 et 30 unités de distance.
 
-## Ouvert — pour le grilling
+**Tour 4.**
 
-- **Humain sculpté ou soldat de plomb.** Les primitives plafonnent sur l'humain (Pierre : « pas
-  encore assez détaillés »). Piste : un seul corps sculpté une fois (GLB), habillé par nation en
-  code. Sinon on assume le soldat de plomb.
-- **Jeton de bois ou chiffre imprimé** sur la carte au pied du groupe.
-- **La force cumulée masque une troupe faible** dans une pile : seul le panneau de garnison la
-  montre.
-- **La santé d'un véhicule** (fumée, coque noircie) n'est pas prototypée.
-- **Les caisses près d'une pile** montrent sur la carte la charge de ses propres troupes : sans
-  risque pour le brouillard, à écrire dans la spec.
+- **Une troupe faible dans une pile ne fait tomber aucune figurine** : la carte suit la force
+  cumulée ; la fiche marque d'un cran rouge le rôle qui contient une troupe sous un tiers, et le
+  panneau de garnison garde le détail.
+- **La santé d'un véhicule** : fumée fine sous deux tiers, fumée épaisse et coque noircie sous un
+  tiers ; sur ses propres pièces seulement.
+- **Les caisses d'une pile qui charge restent** : c'est sa propre information, l'adversaire ne
+  voit qu'un bloc ; la spec le dit.
+
+## Pour le développement
+
 - **Le moteur** : instanciation (24 troupes au plafond, trois figurines chacune), les règles de
   `frame-demand` (une fumée continue est une couche d'`Ambience` ou se déclare comme
-  `arcs.isFlowing`), et le réglage `actives / réduites / coupées`.
-- **Ce que deviennent les planches 2D** : abaque, modale de site, dépêches.
-- **Autour du plateau** : la table, la lampe, le vignettage ; le vent à ramener en encre sourde.
+  `arcs.isFlowing`), chaque méthode publique qui change l'image commence par `invalidate()`.
 - **CSS** : la classe `loading` de la fiche entrait en collision avec l'écran de chargement du
-  prototype ; à scoper dans `src/`.
+  prototype, et `display: grid` écrasait `hidden` ; à scoper dans `src/`.
+- **Le prototype pose la pièce levée sur un plan relevé**, pas sur la carte : en jeu, viser la carte
+  et compenser la hauteur de la pièce.
+- **Le vent** : l'audit du 12/10 le trouvait plus contrasté que la couche de jeu ; à reprendre
+  avec les figurines.
 
 ## Pistes proposées le 12/10, non décidées
 
