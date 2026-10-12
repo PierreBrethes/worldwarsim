@@ -1,0 +1,100 @@
+import type { UnitRole, UnitTier } from './ids';
+import type { TroopView } from './player-view';
+import { ROLE_ORDER } from './troops';
+
+/**
+ * Une pile posée se lit en groupes de figurines (ADR 0026 §5). La règle vit ici, pure, pour que
+ * le moteur et la feuille de lecture partagent un seul avis sur ce qui se montre et ce qui s'use.
+ */
+
+type PileTroop = Pick<TroopView, 'role' | 'tier' | 'strength' | 'nominalStrength'>;
+
+export type Wear = 'whole' | 'smoking' | 'burning';
+
+export type PieceGroup = {
+  readonly role: UnitRole;
+  /** Troops of this role in the pile — the ×N counter shows when > 1. */
+  readonly troops: number;
+  /** Marks of the figures that stand, front first. */
+  readonly figures: ReadonlyArray<UnitTier>;
+  readonly wear: Wear;
+};
+
+export type PilePieces = {
+  readonly groups: ReadonlyArray<PieceGroup>;
+  /** Roles present beyond the three shown — the "+N" counter, 0 when none. */
+  readonly more: number;
+};
+
+export type SheetLine = {
+  readonly role: UnitRole;
+  readonly troops: number;
+  /** 0..100, the group's strength against its nominal, rounded. */
+  readonly health: number;
+  /** Ten notches, how many are inked: Math.round(health / 10). */
+  readonly notches: number;
+  readonly ink: 'ink' | 'ochre' | 'red';
+};
+
+const SHOWN_GROUPS = 3;
+
+type Bucket = { role: UnitRole; troops: PileTroop[]; ratio: number };
+
+function bucketsOf(troops: ReadonlyArray<PileTroop>): Bucket[] {
+  const byRole = new Map<UnitRole, PileTroop[]>();
+  for (const troop of troops) byRole.set(troop.role, [...(byRole.get(troop.role) ?? []), troop]);
+  return [...byRole]
+    .map(([role, members]) => {
+      const nominal = members.reduce((sum, t) => sum + t.nominalStrength, 0);
+      const strength = members.reduce((sum, t) => sum + t.strength, 0);
+      // A zero nominal is no wound: reading it as 1 keeps NaN out of the notches.
+      return { role, troops: members, ratio: nominal === 0 ? 1 : strength / nominal };
+    })
+    .sort(
+      (a, b) =>
+        b.troops.length - a.troops.length ||
+        ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
+    );
+}
+
+function wearOf(ratio: number): Wear {
+  return ratio > 2 / 3 ? 'whole' : ratio > 1 / 3 ? 'smoking' : 'burning';
+}
+
+function figuresOf({ role, troops, ratio }: Bucket): UnitTier[] {
+  const count = role === 'infantry' ? (ratio > 2 / 3 ? 3 : ratio > 1 / 3 ? 2 : 1) : 1;
+  const mk2 = troops.filter((t) => t.tier === 2).length;
+  const mk1 = troops.length - mk2;
+  if (mk2 === 0) return Array<UnitTier>(count).fill(1);
+  if (mk1 === 0) return Array<UnitTier>(count).fill(2);
+  if (count === 1) return [mk2 > mk1 ? 2 : 1];
+  const front = Math.min(count - 1, Math.max(1, Math.round((count * mk2) / troops.length)));
+  // MK2 stands in front: the French MK2 is a kneeling bazooka carrier.
+  return [...Array<UnitTier>(front).fill(2), ...Array<UnitTier>(count - front).fill(1)];
+}
+
+export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
+  const buckets = bucketsOf(troops);
+  return {
+    groups: buckets.slice(0, SHOWN_GROUPS).map((bucket) => ({
+      role: bucket.role,
+      troops: bucket.troops.length,
+      figures: figuresOf(bucket),
+      wear: wearOf(bucket.ratio),
+    })),
+    more: Math.max(0, buckets.length - SHOWN_GROUPS),
+  };
+}
+
+export function pileSheet(troops: ReadonlyArray<PileTroop>): ReadonlyArray<SheetLine> {
+  return bucketsOf(troops).map(({ role, troops: members, ratio }) => {
+    const health = Math.round(100 * ratio);
+    return {
+      role,
+      troops: members.length,
+      health,
+      notches: Math.round(health / 10),
+      ink: health <= 33 ? 'red' : health < 67 ? 'ochre' : 'ink',
+    };
+  });
+}
