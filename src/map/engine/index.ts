@@ -319,7 +319,10 @@ export class MapEngine {
     );
     if (this.sea) {
       this.ambience.add(this.sea);
-      void this.sea.shore(this.frame).then(() => this.invalidate());
+      void this.sea.shore(this.frame, this.world).then((grid) => {
+        if (grid) this.routeGrid ??= grid;
+        this.invalidate();
+      });
     }
     this.surface = board.surface;
     this.scene.add(board.surface);
@@ -339,7 +342,9 @@ export class MapEngine {
       this.ambience.add(
         new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, {
           ...CURRENT_RIBBONS,
-          afloat: (lonLat) => !this.landAt(lonLat),
+          // Until the surf's grid lands, no current is born: building it here would cost a
+          // second copy of the same raster on the first ambient step.
+          afloat: (lonLat) => this.routeGrid !== null && !this.landAt(lonLat),
         }),
       );
     }

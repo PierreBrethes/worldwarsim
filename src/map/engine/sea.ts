@@ -6,7 +6,7 @@ import {
   RedFormat,
   SRGBColorSpace,
 } from 'three';
-import { LAND, type GridAsset } from '@/domain/routing';
+import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain/routing';
 import type { World } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
 import { distanceToLand } from './coast-distance';
@@ -90,7 +90,6 @@ const SURF_RING_OPACITY = 0.12;
 const SURF_RING_WIDTH = 0.06;
 const SURF_EDGE_OPACITY = 0.32;
 const SURF_EDGE_WIDTH = 0.07;
-const PAPER = '#f4ecd8';
 
 /**
  * **La houle** (carte-vivante.md, prototype 1). A dot screen was tried first and dropped: a fine
@@ -106,27 +105,24 @@ export class SeaLayer implements AmbientLayer {
   readonly fx = 'sea';
   private readonly time = { value: 0 };
   // Until the field lands, every texel says "far": no surf rather than surf everywhere.
-  private readonly coast = { value: coastTexture(new Float32Array([COAST_CAP_CELLS]), 1, 1) };
+  private readonly coast = { value: coastTexture(new Uint8Array([255]), 1, 1) };
   private readonly surf = { value: 0 };
   private readonly coastOrigin = { value: [0, 0] };
   private readonly coastScale = { value: [1, 1] };
   private readonly coastStep = { value: 1 };
+  private disposed = false;
 
-  /** Rasterised once from the baked routing grid — the client's own copy of the same coasts. */
-  async shore(frame: WorldFrame, url = '/grid.json'): Promise<void> {
-    const asset = (await (await fetch(url)).json()) as GridAsset;
-    const land = new Uint8Array(asset.width * asset.height);
-    let at = 0;
-    for (let run = 0; run < asset.cells.length; run += 2) {
-      if (asset.cells[run] === LAND) land.fill(1, at, at + asset.cells[run + 1]!);
-      at += asset.cells[run + 1]!;
-    }
-    const distance = distanceToLand(land, asset.width, asset.height);
+  /** Hands back the routing grid it decoded, so the engine does not build it a second time. */
+  async shore(frame: WorldFrame, world: World): Promise<RouteGrid | null> {
+    const shore = await loadShore(world);
+    if (shore === null || this.disposed) return null;
+    const { grid } = shore;
     this.coast.value.dispose();
-    this.coast.value = coastTexture(distance, asset.width, asset.height);
+    this.coast.value = coastTexture(shore.bytes, grid.width, grid.height);
     this.coastOrigin.value = [-frame.width / 2, -frame.height / 2];
-    this.coastScale.value = [1 / (asset.width * asset.step), 1 / (asset.height * asset.step)];
-    this.coastStep.value = asset.step;
+    this.coastScale.value = [1 / (grid.width * grid.step), 1 / (grid.height * grid.step)];
+    this.coastStep.value = grid.step;
+    return grid;
   }
 
   /** The regions' fade, threshold for threshold: the surf belongs to the close view. */
@@ -141,6 +137,7 @@ export class SeaLayer implements AmbientLayer {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.coast.value.dispose();
   }
 
@@ -152,7 +149,7 @@ export class SeaLayer implements AmbientLayer {
       shader.uniforms.seaCoastOrigin = this.coastOrigin;
       shader.uniforms.seaCoastScale = this.coastScale;
       shader.uniforms.seaCoastStep = this.coastStep;
-      shader.uniforms.seaPaper = { value: new Color(PAPER) };
+      shader.uniforms.seaPaper = { value: new Color(PALETTE.foam) };
       shader.vertexShader = shader.vertexShader
         .replace('void main() {', 'varying vec2 vSeaBoard;\nvoid main() {')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaBoard = position.xz;');
@@ -201,7 +198,9 @@ export class SeaLayer implements AmbientLayer {
               * (1.0 - smoothstep(0.0, ${glsl(SURF_EDGE_WIDTH)}, offshore));
             for (int i = 0; i < ${SURF_RINGS}; i++) {
               float reach = fract(seaTime / ${glsl(SURF_PERIOD_S)} + float(i) / ${glsl(SURF_RINGS)});
-              float ring = exp(-pow((offshore - reach * ${glsl(SURF_REACH)}) / ${glsl(SURF_RING_WIDTH)}, 2.0));
+              // A square written out: pow() is undefined for a negative base, NaN under ANGLE.
+              float apart = (offshore - reach * ${glsl(SURF_REACH)}) / ${glsl(SURF_RING_WIDTH)};
+              float ring = exp(-apart * apart);
               foam = max(foam, ${glsl(SURF_RING_OPACITY)} * (1.0 - reach) * ring);
             }
             gl_FragColor.rgb = mix(gl_FragColor.rgb, seaPaper, foam * seaSurf);
@@ -217,13 +216,40 @@ export class SeaLayer implements AmbientLayer {
   }
 }
 
+type Shore = { readonly grid: RouteGrid; readonly bytes: Uint8Array<ArrayBuffer> };
+let shoreField: Promise<Shore | null> | null = null;
+
+/** One download and one transform per page, whatever the engines: a remounted board reuses them.
+ *  Without the grid there is simply no surf — the sea is not worth an error. */
+function loadShore(world: World, url = '/grid.json'): Promise<Shore | null> {
+  shoreField ??= fetch(url)
+    .then((response) => {
+      if (!response.ok) throw new Error(`grid not found: ${url}`);
+      return response.json() as Promise<GridAsset>;
+    })
+    .then((asset): Shore => {
+      const grid = decodeGrid(asset, world);
+      const distance = distanceToLand(landMaskOf(grid), grid.width, grid.height);
+      return { grid, bytes: coastBytes(distance, grid.width) };
+    })
+    .catch((): null => {
+      shoreField = null;
+      return null;
+    });
+  return shoreField;
+}
+
 /** One byte per cell is a sixteenth of a cell at the cap: bilinear filtering does the rest. */
-function coastTexture(distance: Float32Array, width: number, height: number): DataTexture {
+function coastBytes(distance: Float32Array, width: number): Uint8Array<ArrayBuffer> {
   const capped = new Float32Array(distance.length);
   for (let i = 0; i < distance.length; i++) capped[i] = Math.min(distance[i]!, COAST_CAP_CELLS);
   const smooth = softenColumns(softenRows(capped, width), width);
   const bytes = new Uint8Array(smooth.length);
   for (let i = 0; i < smooth.length; i++) bytes[i] = (smooth[i]! / COAST_CAP_CELLS) * 255 + 0.5;
+  return bytes;
+}
+
+function coastTexture(bytes: Uint8Array<ArrayBuffer>, width: number, height: number): DataTexture {
   const texture = new DataTexture(bytes, width, height, RedFormat);
   texture.magFilter = LinearFilter;
   texture.minFilter = LinearFilter;

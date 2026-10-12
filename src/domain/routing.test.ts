@@ -9,7 +9,9 @@ import {
   computeRoute,
   countryAt,
   isCoastCell,
+  isLandCell,
   landComponentCount,
+  landMaskOf,
   routeMedium,
 } from './routing';
 
@@ -58,6 +60,24 @@ const toLonLat = (x: number, y: number): [number, number] => [
 ];
 
 const grid = buildGrid(toyWorld(), 1);
+
+describe('landMaskOf', () => {
+  it('marks every land cell 1 and every other cell 0', () => {
+    const mask = landMaskOf(grid);
+    const cell = (x: number, y: number) => mask[y * grid.width + x];
+    for (let y = 0; y < grid.height; y += 7) {
+      for (let x = 0; x < grid.width; x += 7) {
+        const lonLat = [
+          (((x + 0.5) * grid.step) / 100) * 360 - 180,
+          90 - (((y + 0.5) * grid.step) / 50) * 180,
+        ] as const;
+        expect(cell(x, y)).toBe(isLandCell(grid, lonLat) ? 1 : 0);
+      }
+    }
+    expect(mask.includes(1)).toBe(true);
+    expect(mask.includes(0)).toBe(true);
+  });
+});
 
 /** Le monde cuit, tel que le serveur le lit : ce que le jouet ne peut pas dire — un isthme. */
 const realWorld = async (): Promise<World> => {
