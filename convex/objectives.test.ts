@@ -383,6 +383,21 @@ describe('the neutral objectives', () => {
       expect(await noticesOf(t, seats[0]!, 'objectiveGap')).toHaveLength(0);
     }, 60_000);
 
+    /** La base garde `regionId` ; le nom se calcule à la lecture, dans la vue servie. */
+    it('serves the revealed objective with the name of its region', async () => {
+      const t = boot();
+      const seats = await launchedSeason(t, ['france', 'ussr']);
+      await t.mutation(internal.objectives.commit, {
+        seasonId: seats[0]!.seasonId,
+        placements: [{ key: 'abandonedStores', regionId: HAINAUT }],
+        gaps: [],
+      });
+      const view = await t.query(api.view.playerView, seats[0]!);
+      const revealed = view.notices.filter((notice) => notice.kind === 'objectiveRevealed');
+      expect(revealed).toHaveLength(1);
+      expect(revealed[0]).toMatchObject({ regionName: regionFacts(HAINAUT)!.name });
+    }, 60_000);
+
     it('purges them with the season it belongs to', async () => {
       const t = boot();
       const seats = await launchedSeason(t, ['france', 'ussr']);
@@ -530,6 +545,10 @@ describe('the neutral objectives', () => {
       for (const seat of seats) {
         expect(await noticesOf(t, seat, 'objectiveTaken')).toHaveLength(1);
       }
+      const view = await t.query(api.view.playerView, seats[0]!);
+      expect(view.notices.find((notice) => notice.kind === 'objectiveTaken')).toMatchObject({
+        regionName: regionFacts(HAINAUT)!.name,
+      });
     }, 60_000);
 
     /**

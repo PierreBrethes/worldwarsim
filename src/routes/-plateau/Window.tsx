@@ -47,7 +47,7 @@ export type WindowProps = {
 
 type FrameProps = WindowProps & {
   name: string;
-  alignment?: 'top' | 'center';
+  alignment?: 'top' | 'center' | 'right';
   width: number;
   children: ReactNode;
 };
@@ -232,8 +232,12 @@ function DeskWindow({
   // placement and lets clicks through.
   return (
     <div
-      className={`pointer-events-none fixed inset-0 flex justify-center ${
-        alignment === 'top' ? 'items-start px-6 py-[34px]' : 'items-center p-8'
+      className={`pointer-events-none fixed inset-0 flex ${
+        alignment === 'right'
+          ? 'items-start justify-end px-4 pt-[calc(var(--board-top)_+_10px)] pb-4'
+          : alignment === 'top'
+            ? 'items-start justify-center px-6 py-[34px]'
+            : 'items-center justify-center p-8'
       }`}
       /** **Le plan des fenêtres vient de l'échelle, pas d'ici** (`--z-window`, `tokens.css`) : un
        *  40 écrit à la main ne se comparait à rien, et le bandeau des ressources est passé

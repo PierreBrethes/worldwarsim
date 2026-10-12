@@ -41,6 +41,25 @@ const finished = (at: number): Notice => ({
 });
 
 describe('the journal', () => {
+  /** « Localiser » recentres the map on `place`: a fight is where it was held, a notice is where
+   *  the server said, and what happened nowhere points nowhere. */
+  it('places each dispatch where it happened', () => {
+    const placed = { ...finished(NOON - HOUR), place: { lon: 2.5, lat: 49.1 } };
+    const dispatches = journalDispatches(
+      [battle(NOON)],
+      { target: 1, concludedAt: NOON - 3 * HOUR, winnerNation: 'france', standings: [] },
+      [],
+      [placed, finished(NOON - 2 * HOUR)],
+    );
+
+    expect(dispatches.map((dispatch) => dispatch.place)).toEqual([
+      { lon: 26, lat: 45 },
+      { lon: 2.5, lat: 49.1 },
+      null,
+      null,
+    ]);
+  });
+
   it('merges the two streams by hour, newest first', () => {
     const dispatches = journalDispatches(
       [battle(NOON - 2 * HOUR), battle(NOON)],
@@ -68,6 +87,17 @@ describe('the journal', () => {
 
     const caughtUp = journalDispatches([battle(NOON)], null, [], stream, NOON);
     expect(caughtUp.some((dispatch) => dispatch.unread)).toBe(false);
+  });
+
+  it('words a cancelled outpost raise without throwing', () => {
+    const [cancelled] = journalDispatches(
+      [],
+      null,
+      [],
+      [{ kind: 'constructionCancelled', at: NOON, building: 'outpost', regionName: 'Marne' }],
+    );
+    expect(cancelled!.text).toContain(fr.garrison.raiseWork);
+    expect(cancelled!.text).not.toContain('undefined');
   });
 
   /** L'heure de passage à la frontière est la seule qui regarde vers l'avant : c'est ce que la

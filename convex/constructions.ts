@@ -425,6 +425,7 @@ async function finishRaise(
     at,
     kind: 'outpostRaised',
     hostCountry: outpost.hostCountry,
+    point: outpost.point,
     regionId: ground,
     level: construction.level,
   });
@@ -507,7 +508,7 @@ async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number
 }
 
 /** L'entrée dont le droit a disparu : remboursée entière, dite au journal, effacée. La dépêche
- *  nomme la clé telle qu'elle a été payée — `outpost` comprise, que le journal sait lire. */
+ *  nomme la clé telle qu'elle a été payée — `outpost` comprise, que le journal nomme par `raiseWork`. */
 async function refundHead(
   ctx: MutationCtx,
   playerId: Id<'players'>,

@@ -203,6 +203,7 @@ export const foundOutpostHere = mutation({
       at: founded,
       kind: 'outpostFounded',
       hostCountry,
+      point,
       specialization,
     });
     await scheduleStand(ctx, outpostId, standsAt);
@@ -751,6 +752,7 @@ export const arrive = internalMutation({
         at: now,
         kind: 'movementStalled',
         hostCountry: movement.hostCountry,
+        point: movement.to,
         resolvesAt: held,
       });
       await reassessDetection(ctx, movement.seasonId, now);
@@ -827,6 +829,7 @@ export const arrive = internalMutation({
         kind: 'columnArrived',
         movementType: movement.type,
         hostCountry: movement.hostCountry,
+        point: movement.to,
         troops: movement.troopIds.length,
       });
     }

@@ -72,6 +72,7 @@ export const standOutpost = internalMutation({
       at,
       kind: 'outpostStands',
       hostCountry: outpost.hostCountry,
+      point: outpost.point,
       specialization: outpost.specialization,
     });
     await reassessDetection(ctx, outpost.seasonId, at);
@@ -115,6 +116,7 @@ export async function collapseIfAbandoned(
     at: now,
     kind: 'foundationLost',
     hostCountry: outpost.hostCountry,
+    point: outpost.point,
     specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
@@ -193,6 +195,7 @@ export const dismantle = mutation({
       at: now,
       kind: 'outpostDismantled',
       hostCountry: outpost.hostCountry,
+      point: outpost.point,
       level: outpost.level,
       buildings: anchored.length,
     });

@@ -942,7 +942,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .take(NOTICES_SERVED)
     )
       .filter(notDecoyNotice)
-      .map(named),
+      .map(placed),
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
     journalReadAt: (await readMarksOf(ctx, player)).journalReadAt,
@@ -1067,16 +1067,17 @@ const notDecoyMovement = <T extends { readonly type: string }>(
 
 const notDecoyNotice = <T extends { readonly kind: string }>(
   notice: T,
-): notice is T & { readonly kind: Exclude<T['kind'], `decoy${string}`> } =>
-  !notice.kind.startsWith('decoy');
+): notice is Exclude<T, { readonly kind: `decoy${string}` }> => !notice.kind.startsWith('decoy');
 
 /**
  * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
  * region table, so an id would reach the headline raw. Everything else travels untouched — the
  * shape is the union the schema stores, member for member, so a kind added there breaks the
- * compilation here rather than reaching the journal as a row nobody words.
+ * compilation in `src/data/serverView.ts` (the served notices are handed to the journal without a
+ * cast) rather than reaching the journal as a row nobody words.
  */
-function named(notice: Doc<'notices'>) {
+type PlayableNotice = Exclude<Doc<'notices'>, { readonly kind: `decoy${string}` }>;
+function named(notice: PlayableNotice) {
   const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
   switch (notice.kind) {
     case 'buildingDemolished':
@@ -1087,6 +1088,8 @@ function named(notice: Doc<'notices'>) {
     case 'sitePlundered':
     case 'siteSabotaged':
     case 'expeditionFoundNothing':
+    case 'objectiveRevealed':
+    case 'objectiveTaken':
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'lootDelivered':
       return { ...notice, regionName: nameOf(notice.regionId) };
@@ -1108,6 +1111,23 @@ function named(notice: Doc<'notices'>) {
     default:
       return notice;
   }
+}
+
+/** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
+ *  point of the region it names. One computation for every kind — a kind added to the schema with
+ *  either field is located without a line here. */
+function placed(notice: PlayableNotice) {
+  const regionId =
+    'regionId' in notice
+      ? notice.regionId
+      : 'site' in notice && notice.site !== null
+        ? notice.site.regionId
+        : null;
+  const centre = regionId === null ? undefined : regionFacts(regionId)?.point;
+  const place =
+    ('point' in notice ? notice.point : undefined) ??
+    (centre === undefined ? null : { lon: centre[0], lat: centre[1] });
+  return { ...named(notice), place };
 }
 
 /**

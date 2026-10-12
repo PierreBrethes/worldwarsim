@@ -187,6 +187,7 @@ export async function engageAt(
         kind: 'columnFoundNothing',
         movementType: type,
         hostCountry: movement.hostCountry,
+        point: movement.to,
         troops: marching.length,
         ...(installation === undefined ? {} : { installation }),
       });
@@ -422,6 +423,7 @@ async function deactivate(
     at: now,
     kind: 'outpostDisabled',
     hostCountry: outpost.hostCountry,
+    point: outpost.point,
     specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {

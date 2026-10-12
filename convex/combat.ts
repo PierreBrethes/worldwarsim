@@ -115,6 +115,7 @@ export async function resolveContact(
         at,
         kind: 'firedDry',
         hostCountry,
+        point,
       });
       await notifyPlayer(ctx, who, { type: 'dryFire', phrase: push.dryFire, url: journalUrl, at });
     }

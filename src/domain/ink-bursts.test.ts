@@ -9,6 +9,7 @@ const dispatch = (
   report: CombatReport | null = null,
 ): JournalDispatch => ({
   at,
+  place: null,
   t: '',
   severity: 'notable',
   kind,
