@@ -15,6 +15,182 @@
  * a flat array, and the one real piece of code is the LZW decoder.
  */
 import { inflateRawSync } from 'node:zlib';
+import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing.ts';
+
+/** Local relief (max − min over a 3 × 3 window of 0.1° samples, ≈ 33 km) that makes a mountain. */
+export const MOUNTAIN_RELIEF_M = 600;
+/** Above this altitude, a lower relief is enough: a high plateau cut by valleys is a mountain. */
+export const HIGHLAND_ALTITUDE_M = 1500;
+export const HIGHLAND_RELIEF_M = 300;
+/** Share of the region's area that must be mountainous: the mountain wins over the climate. */
+export const MOUNTAIN_SHARE = 0.5;
+/** Mean forest fraction that turns a temperate region into forest and a tropical one into jungle. */
+export const FOREST_SHARE = 0.4;
+/**
+ * The same line for a cold region, lower: the boreal canopy is sparse — Sakha, larch taiga over
+ * three million km², averages 0.38 in Hansen — and tundra is the absence of trees, not their
+ * thinning. Chukotka stands at 0.06, the Northwest Territories at 0.29.
+ */
+export const TAIGA_SHARE = 0.3;
+
+const ARID = new Set([4, 5]);
+/**
+ * **Cold is polar and subarctic** — ET, EF, and the D climates whose summer is short (Dsc, Dsd,
+ * Dwc, Dwd, Dfc, Dfd). The interior of Chukotka is Dfc, not ET, and treeless: counted apart, it
+ * came out plain. Cold then splits on the forest like the other climates — the taiga is forest.
+ */
+const COLD_CODES = new Set([19, 20, 23, 24, 27, 28, 29, 30]);
+const TROPICAL = new Set([1, 2, 3]);
+
+/** Area-weighted tallies of one region, in the order `decide` reads them. */
+const MOUNTAIN = 0;
+const DRY = 1;
+const COLD = 2;
+const HOT = 3;
+const OTHER = 4;
+const FOREST = 5;
+const WEIGHT = 6;
+const TALLIES = 7;
+
+/**
+ * **The sea is not relief.** ETOPO is bathymetry offshore: without the floor at zero, every steep
+ * coast — Chile, Norway — would read a kilometre of drop and turn mountain.
+ */
+function reliefAround(relief, lon, lat) {
+  const row = Math.round((relief.north - lat) / relief.step);
+  const column = Math.round((lon - relief.west) / relief.step);
+  let low = Infinity;
+  let high = -Infinity;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    const y = Math.min(relief.height - 1, Math.max(0, row + dy));
+    for (let dx = -1; dx <= 1; dx += 1) {
+      const x = (((column + dx) % relief.width) + relief.width) % relief.width;
+      const z = Math.max(0, relief.values[y * relief.width + x]);
+      low = Math.min(low, z);
+      high = Math.max(high, z);
+    }
+  }
+  return { altitude: valueAt(relief, lon, lat), drop: high - low };
+}
+
+function tally(tallies, at, rasters, lon, lat, code, weight) {
+  const { altitude, drop } = reliefAround(rasters.relief, lon, lat);
+  const mountainous =
+    drop >= MOUNTAIN_RELIEF_M || (altitude >= HIGHLAND_ALTITUDE_M && drop >= HIGHLAND_RELIEF_M);
+  if (mountainous) tallies[at + MOUNTAIN] += weight;
+  const climate = ARID.has(code)
+    ? DRY
+    : COLD_CODES.has(code)
+      ? COLD
+      : TROPICAL.has(code)
+        ? HOT
+        : OTHER;
+  tallies[at + climate] += weight;
+  tallies[at + FOREST] += weight * valueAt(rasters.forest, lon, lat);
+  tallies[at + WEIGHT] += weight;
+}
+
+/**
+ * An islet's interior point often falls on a 0.1° cell Köppen calls sea — a hundred and four of
+ * them. The climate is taken from the nearest land cell, up to three cells out (≈ 33 km).
+ */
+function landCodeNear(climate, lon, lat) {
+  for (let radius = 0; radius <= 3; radius += 1) {
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const code = valueAt(climate, lon + dx * climate.step, lat + dy * climate.step);
+        if (code > 0) return code;
+      }
+    }
+  }
+  return 0;
+}
+
+/** The decision, on shares of the region's area (forest: its mean fraction). */
+export function terrainOf({ mountain, dry, cold, hot, other, forest }) {
+  if (mountain >= MOUNTAIN_SHARE) return 'mountain';
+  const dominant = Math.max(dry, cold, hot, other);
+  if (dry === dominant && dry > other) return 'desert';
+  if (cold === dominant && cold > other) return forest >= TAIGA_SHARE ? 'forest' : 'tundra';
+  const wooded = forest >= FOREST_SHARE;
+  if (hot === dominant && hot > other) return wooded ? 'jungle' : 'plain';
+  return wooded ? 'forest' : 'plain';
+}
+
+/**
+ * Every land sample of the climate grid (Köppen ≠ 0) is projected by the contours' own projection
+ * and found in its region; the region then decides on its area-weighted shares (`cos(lat)`). A
+ * region no sample falls in — about a thousand are smaller than a 0.1° cell — is read at its
+ * interior point, a single sample with the same thresholds.
+ *
+ * `regions`: `{ id, rings, point }`, rings in plane coordinates, `point` lon/lat.
+ * `plane`: `{ project(lon, lat) → [x, y], width }`, the width being the wrap of the plane.
+ */
+export function measureRegions(regions, rasters, plane) {
+  const outlines = prepareRegionOutlines(regions);
+  const rankOf = new Map(regions.map((region, rank) => [region.id, rank]));
+  const BUCKET = 1;
+  const buckets = new Map();
+  for (const outline of outlines) {
+    const [minX, minY, maxX, maxY] = outline.box;
+    for (let y = Math.floor(minY / BUCKET); y <= Math.floor(maxY / BUCKET); y += 1) {
+      for (let x = Math.floor(minX / BUCKET); x <= Math.floor(maxX / BUCKET); x += 1) {
+        const key = `${x}:${y}`;
+        const found = buckets.get(key);
+        if (found === undefined) buckets.set(key, [outline]);
+        else found.push(outline);
+      }
+    }
+  }
+
+  const tallies = new Float64Array(regions.length * TALLIES);
+  const { climate } = rasters;
+  for (let row = 0; row < climate.height; row += 1) {
+    const lat = climate.north - row * climate.step;
+    const weight = Math.cos((lat * Math.PI) / 180);
+    for (let column = 0; column < climate.width; column += 1) {
+      const code = climate.values[row * climate.width + column];
+      if (code === 0) continue;
+      const lon = climate.west + column * climate.step;
+      const [x, y] = plane.project(lon, lat);
+      const nearby = buckets.get(`${Math.floor(x / BUCKET)}:${Math.floor(y / BUCKET)}`);
+      if (nearby === undefined) continue;
+      const id = regionAtPlanePoint(nearby, [x, y], plane.width);
+      if (id === null) continue;
+      tally(tallies, rankOf.get(id) * TALLIES, rasters, lon, lat, code, weight);
+    }
+  }
+
+  const shares = new Map();
+  regions.forEach((region, rank) => {
+    const at = rank * TALLIES;
+    const sampled = tallies[at + WEIGHT] > 0;
+    if (!sampled) {
+      const [lon, lat] = region.point;
+      tally(tallies, at, rasters, lon, lat, landCodeNear(climate, lon, lat), 1);
+    }
+    const share = (field) => tallies[at + field] / tallies[at + WEIGHT];
+    shares.set(region.id, {
+      mountain: share(MOUNTAIN),
+      dry: share(DRY),
+      cold: share(COLD),
+      hot: share(HOT),
+      other: share(OTHER),
+      forest: share(FOREST),
+      sampled,
+    });
+  });
+  return shares;
+}
+
+export function classifyRegions(regions, rasters, plane) {
+  const types = new Map();
+  for (const [id, shares] of measureRegions(regions, rasters, plane)) {
+    types.set(id, terrainOf(shares));
+  }
+  return types;
+}
 
 export function valueAt(raster, lon, lat) {
   const row = Math.round((raster.north - lat) / raster.step);

@@ -1,6 +1,7 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
+  classifyRegions,
   readEsriAscii,
   readKoppenZipMember,
   readNetcdf3,
@@ -196,5 +197,127 @@ describe('lecteur netCDF-3 (Hansen)', () => {
     expect(raster).toMatchObject({ width: 3, height: 2, west: 10.5, north: 0.5, step: 1 });
     expect(valueAt(raster, 10.5, 0.5)).toBeCloseTo(0.4);
     expect(valueAt(raster, 12.5, -0.5)).toBe(0);
+  });
+});
+
+/**
+ * Un monde de 6 × 6 cellules de 1°, une région carrée qui le couvre — la projection est
+ * l'identité retournée. Chaque fait se fabrique par une fonction de (colonne, rang), rang 0 au
+ * nord.
+ */
+function classifyWorld({ elevation = () => 100, climate = () => 15, forest = () => 0.1 }) {
+  const raster = (valueOf) => ({
+    width: 6,
+    height: 6,
+    west: 0.5,
+    north: 5.5,
+    step: 1,
+    values: Float32Array.from({ length: 36 }, (_, i) => valueOf(i % 6, Math.floor(i / 6))),
+  });
+  const square = [
+    [0, 4],
+    [6, 4],
+    [6, 10],
+    [0, 10],
+    [0, 4],
+  ];
+  const types = classifyRegions(
+    [{ id: 'R', rings: [square], point: [3, 3] }],
+    { relief: raster(elevation), climate: raster(climate), forest: raster(forest) },
+    { project: (lon, lat) => [lon, 10 - lat], width: 360 },
+  );
+  return types.get('R');
+}
+
+describe('la règle de classification', () => {
+  it('fait une montagne du dénivelé, jamais de la seule altitude', () => {
+    expect(classifyWorld({ elevation: (column) => (column % 2) * 800 })).toBe('mountain');
+    expect(classifyWorld({ elevation: () => 3000, climate: () => 30 })).toBe('tundra');
+    expect(classifyWorld({ elevation: () => 2000 })).toBe('plain');
+  });
+
+  it("abaisse le seuil de dénivelé au-dessus de l'altitude des hauts plateaux", () => {
+    expect(classifyWorld({ elevation: (column) => 1600 + (column % 2) * 400 })).toBe('mountain');
+    expect(classifyWorld({ elevation: (column) => 200 + (column % 2) * 400 })).toBe('plain');
+  });
+
+  it("ne compte pas la profondeur de la mer dans le dénivelé d'une côte", () => {
+    expect(
+      classifyWorld({
+        elevation: (column) => (column === 0 ? -3000 : 50),
+        climate: (column) => (column === 0 ? 0 : 15),
+      }),
+    ).toBe('plain');
+  });
+
+  it('veut une majorité absolue de montagne, pas une pluralité', () => {
+    const half = (column, row) => (row < 1 && column % 2 ? 900 : 0);
+    expect(classifyWorld({ elevation: half, climate: () => 4 })).toBe('desert');
+  });
+
+  it("lit le désert et la toundra au climat dominant, la steppe n'est pas un désert", () => {
+    expect(classifyWorld({ climate: (column) => (column < 4 ? 4 : 15) })).toBe('desert');
+    expect(classifyWorld({ climate: () => 29 })).toBe('tundra');
+    expect(classifyWorld({ climate: () => 7 })).toBe('plain');
+  });
+
+  it("range le subarctique avec le froid : toundra s'il est nu, forêt s'il porte la taïga", () => {
+    expect(classifyWorld({ climate: (column) => (column < 2 ? 29 : 27) })).toBe('tundra');
+    expect(classifyWorld({ climate: () => 27, forest: () => 0.35 })).toBe('forest');
+    expect(classifyWorld({ climate: () => 27, forest: () => 0.25 })).toBe('tundra');
+    expect(classifyWorld({ climate: () => 26 })).toBe('plain');
+  });
+
+  it('sépare la jungle de la savane, et la forêt de la plaine, par la part de forêt', () => {
+    expect(classifyWorld({ climate: () => 1, forest: () => 0.8 })).toBe('jungle');
+    expect(classifyWorld({ climate: () => 3, forest: () => 0.1 })).toBe('plain');
+    expect(classifyWorld({ climate: () => 15, forest: () => 0.6 })).toBe('forest');
+    expect(classifyWorld({ climate: () => 15, forest: () => 0.2 })).toBe('plain');
+  });
+
+  const islet = (climate) =>
+    classifyRegions(
+      [
+        {
+          id: 'islet',
+          rings: [
+            [
+              [2.1, 9.6],
+              [2.3, 9.6],
+              [2.3, 9.8],
+              [2.1, 9.6],
+            ],
+          ],
+          point: [2.2, 0.3],
+        },
+      ],
+      {
+        relief: {
+          width: 4,
+          height: 1,
+          west: 0.5,
+          north: 0.5,
+          step: 1,
+          values: new Float32Array(4),
+        },
+        climate: { width: 4, height: 1, west: 0.5, north: 0.5, step: 1, values: climate },
+        forest: {
+          width: 4,
+          height: 1,
+          west: 0.5,
+          north: 0.5,
+          step: 1,
+          values: new Float32Array(4),
+        },
+      },
+      { project: (lon, lat) => [lon, 10 - lat], width: 360 },
+    ).get('islet');
+
+  it("lit au point intérieur la région qu'aucun échantillon ne touche", () => {
+    expect(islet(Uint8Array.of(15, 15, 4, 15))).toBe('desert');
+  });
+
+  it('prend le climat de la terre la plus proche quand le point tombe en mer à 0,1°', () => {
+    expect(islet(Uint8Array.of(15, 0, 0, 4))).toBe('desert');
   });
 });
