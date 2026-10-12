@@ -233,12 +233,22 @@ export type MediumSprites = Readonly<Record<UnitDomain, string | null>>;
  * Tier MK1 by default: a movement's stack does not carry the tier yet.
  */
 export function movementSprites(arc: ArcView, playerNation: string | null): MediumSprites | null {
+  const roles = movementRoles(arc);
+  if (roles === null) return null;
+  const faceOf = (role: UnitRole | null): string | null =>
+    role === null ? null : spriteUrl(playerNation, role, 1);
+  return { land: faceOf(roles.land), sea: faceOf(roles.sea), air: faceOf(roles.air) };
+}
+
+/**
+ * **The one place a movement's roles are read for display**, per medium: the plate and the
+ * figurine both dress from it, so the fog is checked once — an enemy arc answers `null`.
+ */
+export function movementRoles(arc: ArcView): Readonly<Record<UnitDomain, UnitRole | null>> | null {
   if (arc.state !== 'mine') return null;
-  const faceOf = (domain: UnitDomain): string | null => {
-    const role = representativeRole(stackInDomain(arc.stack, domain));
-    return role === null ? null : spriteUrl(playerNation, role, 1);
-  };
-  return { land: faceOf('land'), sea: faceOf('sea'), air: faceOf('air') };
+  const roleOf = (domain: UnitDomain): UnitRole | null =>
+    representativeRole(stackInDomain(arc.stack, domain));
+  return { land: roleOf('land'), sea: roleOf('sea'), air: roleOf('air') };
 }
 
 export function spriteUrl(nation: string | null, role: UnitRole, tier: UnitTier): string | null {

@@ -26,13 +26,21 @@ Une **figurine** est un modèle peint, posé sur la carte sans socle, avec son o
 ailleurs : abaque, modale de site, dépêches — elles sont le catalogue et la référence. Les
 bâtiments suivent : des **maquettes** fidèles à leurs planches, les mêmes pour toutes les nations.
 
-### 2. Les figurines sont écrites en code, d'après les planches
+### 2. Les figurines sont faites d'après les planches, sur un gabarit commun
 
-Un kit par rôle (caisse, chenilles, tourelle, ailes, coque…) et une fiche de réglages par nation :
-le style ne peut pas dériver, puisque tout sort du même kit. Peinture militaire réelle ; la nation
+**Précisé le 12/10, au premier essai** : les figurines sortent de **Claude Design**, une
+conversation par rôle et par nation, sur un **gabarit de prompt commun** — y en haut, avant vers
++z, origine au sol, la longueur fixée par rôle, un plafond de triangles, des pièces nommées à
+leur pivot et des repères `fx_*` pour les effets — et entrent dans le dépôt en GLB, à côté de leur
+planche. Le gabarit est ce qui empêche le style de dériver ; un test tient chaque fichier à son
+plafond et à ses noms. Le code reste la seconde source, quand un rôle n'a pas encore de modèle
+(le soldat provisoire du lot 1). Le premier essai, un M5 Stuart, a convaincu : plus fidèle que les
+primitives du prototype. Peinture militaire réelle ; la nation
 se lit aux détails (cocardes, gouvernail), et sous le brouillard on ne voit de figurines que les
-siennes. **L'infanterie fait exception pour le corps** : un modèle humain libre de droits (CC0),
-avec squelette, posé en code par ses os et habillé par nation en code (casque, tenue, cuirs, arme).
+siennes. **L'infanterie suit le même chemin** : le soldat de Claude Design exporte une hiérarchie de
+groupes nommés à leurs articulations, que le code pose (trois par troupe, en marche, à genou…).
+La piste d'un corps humain libre de droits (CC0) est abandonnée : aucun candidat ne tenait le
+budget, et le premier soldat de Claude Design tient en 2 380 triangles.
 Un rôle sans figurine retombe sur la silhouette de domaine, comme une planche manquante
 aujourd'hui.
 
@@ -101,9 +109,9 @@ attend le chantier jour et nuit.
   rapproché, où chaque rôle a son groupe.
 - **Le cartouche d'une troupe à soi** et l'armement de la visée par la lecture suivie d'un clic
   « agir » ailleurs : la pièce levée porte désormais l'état armé.
-- **Un catalogue d'images pour habiller la carte** : chaque rôle et chaque nation deviennent du
-  code à écrire et à tenir — environ neuf rôles et huit nations de réglages, et l'infanterie liée à
-  un modèle humain tiers dont la licence se vérifie.
+- **Un catalogue d'images pour habiller la carte** : chaque rôle et chaque nation deviennent un
+  modèle à produire et à tenir — environ neuf rôles et huit nations, sur un gabarit qui ne vaut que
+  s'il est suivi.
 - **La table autour du plateau** (bois, lampe, vignettage), essayée dans le prototype et refusée.
 
 ## Conséquences

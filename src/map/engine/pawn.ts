@@ -11,6 +11,7 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
+import { nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 
 /**
@@ -47,16 +48,26 @@ type SpriteCostume = {
  * A medium with no plate keeps the anonymous silhouette, and so does every enemy arc: the
  * manifest hands back `null` throughout for one (the fog leaves it no stack to read), so no
  * display `if` here can leak a role.
+ *
+ * **Close to the board a medium wears its figurine instead** (ADR 0026 §3), when it has one:
+ * the plate shrinks away as the figurine grows from the ground, both by `nearWeight`. The
+ * plate turns to face the eye; the figurine stands on the board and faces its road.
  */
 export class Pawn {
   readonly object = new Group();
   private readonly costumes = new Map<Medium, Group>();
   private readonly sprites = new Map<Medium, SpriteCostume>();
+  private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
   private medium: Medium = 'land';
   private westward = false;
+  private heading = 0;
 
-  constructor(sprites: MediumSprites | null, color: string) {
+  constructor(
+    sprites: MediumSprites | null,
+    color: string,
+    figurines: Readonly<Record<Medium, Figurine | null>> | null = null,
+  ) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
       const url = sprites?.[medium] ?? null;
@@ -64,6 +75,12 @@ export class Pawn {
       costume.visible = medium === this.medium;
       this.costumes.set(medium, costume);
       this.object.add(costume);
+      const figurine = figurines?.[medium] ?? null;
+      if (figurine !== null) {
+        figurine.object.visible = false;
+        this.figurines.set(medium, figurine);
+        this.object.add(figurine.object);
+      }
     }
   }
 
@@ -81,6 +98,8 @@ export class Pawn {
     if (medium === this.medium) return;
     const leaving = this.costumes.get(this.medium);
     if (leaving) leaving.visible = false;
+    const leavingFigurine = this.figurines.get(this.medium);
+    if (leavingFigurine) leavingFigurine.object.visible = false;
     this.medium = medium;
     const entering = this.costumes.get(medium);
     if (entering) entering.visible = true;
@@ -89,6 +108,15 @@ export class Pawn {
   place(position: Vector3, pointAhead: Vector3): void {
     this.object.position.copy(position);
     this.westward = pointAhead.x < position.x;
+    const dx = pointAhead.x - position.x;
+    const dz = pointAhead.z - position.z;
+    // At the end of its thread the point ahead is the point itself: the piece keeps the road it came by.
+    if (dx !== 0 || dz !== 0) this.heading = Math.atan2(dx, dz);
+  }
+
+  /** What spins on the worn figurine — its propellers — and nothing else. */
+  step(elapsedSeconds: number): void {
+    this.figurines.get(this.medium)?.spin(elapsedSeconds);
   }
 
   /**
@@ -98,21 +126,30 @@ export class Pawn {
    */
   orient(cameraPosition: Vector3): void {
     const distance = this.object.position.distanceTo(cameraPosition);
-    faceCamera(this.object, cameraPosition);
+    const figurine = this.figurines.get(this.medium);
+    const near = figurine === undefined ? 0 : nearWeight(distance);
+    if (figurine !== undefined) {
+      figurine.object.visible = near > 0;
+      figurine.object.rotation.set(0, this.heading, 0);
+      figurine.object.scale.setScalar(near);
+    }
+    const costume = this.costumes.get(this.medium);
+    if (costume === undefined) return;
+    costume.visible = near < 1;
+    faceCamera(costume, cameraPosition, this.object.position);
     const sign = this.westward ? -1 : 1;
+    const far = 1 - near;
     const worn = this.sprites.get(this.medium);
     if (worn !== undefined) {
       measureAspect(worn);
       /** Equal area rather than equal height: the side of the square the plate is worth,
        *  stretched into its own ratio. A wide plate keeps its span, a tall one its stature. */
-      const side = distance * PAWN_SHARE;
+      const side = distance * PAWN_SHARE * far;
       const height = side / Math.sqrt(worn.aspect);
       worn.mesh.scale.set(worn.aspect * height * sign, height, 1);
       return;
     }
-    const costume = this.costumes.get(this.medium);
-    if (costume === undefined) return;
-    const size = distance * PAWN_SILHOUETTE_SHARE;
+    const size = distance * PAWN_SILHOUETTE_SHARE * far;
     costume.scale.set(size * sign, size, size);
   }
 
