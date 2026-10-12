@@ -8,11 +8,11 @@ import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { frenchSquad, squadOf } from './infantry';
 
 /**
- * Model units to board units. The brief sizes a tank at 2.6, so it stands about one board
- * unit long — a tenth of France at the closest zoom, the diorama the prototype was judged on.
- * `@a-mesurer` on the real board.
+ * Model units to board units. The brief sizes a tank at 2.6, so it stands about two thirds of
+ * a board unit long: a piece among the regions and the masts, not a monument over them — at
+ * 0.4 a squad stood taller than a département at the closest zoom. `@a-mesurer` on the board.
  */
-export const FIGURINE_SCALE = 0.4;
+export const FIGURINE_SCALE = 0.26;
 
 /**
  * **How much figurine, rather than plate, a pawn wears at this camera distance**: 1 at the
