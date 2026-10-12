@@ -29,6 +29,11 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **Embarquer** | Prendre l'adresse d'un transport posé à moins de 50 km, sur-le-champ, sans mouvement ni slot — l'ordre se donne en désignant le transport. Par mer n'importe où sur le littoral ; par air **dans un aérodrome** seulement, et l'on n'en descend que dans un de ses aérodromes. Distinct de *entrer en garnison*, qui est une marche vers un bâtiment. *(ADR 0025)* |
 | **Noyé** | Une troupe terrestre qu'aucun banc de coque **debout** ne porte plus après une passe de résolution en mer : **détruite**, jamais déroutée — il n'y a rien où se replier. Une coque déroutée emporte ses passagers à sa capacité ; l'excédent coule. C'est le prix de rester au large, et la première raison mécanique d'une escorte. *(règle 4 du 18/09)* |
 | **Arc** | La représentation visuelle d'un mouvement. Visible seulement si détecté. |
+| **Figurine** | Ce qu'est une de ses troupes sur la carte au rapproché : un modèle peint d'après sa planche, posé sans socle. Trois par troupe d'infanterie, un par véhicule ; elles disent la force qui reste. Au loin, la silhouette de domaine. Jamais « modèle 3D » ni « sprite » sur la carte. *(ADR 0026)* |
+| **Planche** | L'illustration 2D d'un rôle pour une nation, ou d'un bâtiment. Le catalogue et la référence des figurines ; **hors de la carte** depuis l'ADR 0026 (abaque, modale de site, dépêches). |
+| **Bloc** | Ce qu'est toute force adverse relevée, posée ou en mouvement : un bloc vu de dos, un pictogramme de domaine sur l'envers. Il ne dit rien de plus que le relevé — ni type, ni composition, ni nation. Délavé, c'est une dernière position connue. *(ADR 0026)* |
+| **Jeton** | Le disque « ×N » au pied d'un groupe de figurines quand ce rôle compte plus d'une troupe à cette adresse. Pas de jeton : troupe seule. *(ADR 0026)* |
+| **Fiche au survol** | Ce que dit une de ses pièces quand on la survole : une ligne par rôle, la vie sur 100, la charge. Remplace le cartouche d'une troupe à soi. Dire « fiche au survol », jamais « fiche » seule, qui désigne une fiche de design. *(ADR 0026)* |
 | **Relié** | Un bâtiment dont la région porte la couleur de son propriétaire. **Seul un bâtiment relié produit** (ADR 0020 §6) : le sol national l'est toujours, une région d'avant-poste l'est tant que le point la tient, et un point désactivé décolore donc **coupe** (§7). Ce qui n'est pas relié est **hors réseau** — un état, jamais une panne : rien ne se répare sur le site, la région se reprend sur la carte. Ne concerne que ce qui produit, les quatre extracteurs et les trois chaînes. |
 | **La Manchette** | Le nom du jeu depuis le 02/10/2026 (décision `marque-nom-2026-10-02`) : le titre d'un quotidien et sa bande. Affiché par `fr.masthead` seulement ; **`worldwarsim`** reste le nom de code — dépôt, paquet, projet Convex, domaine, clés `localStorage`. |
 | **Journal d'événements** | L'écran « qu'est-ce qui a changé depuis ma dernière visite ». |
@@ -46,10 +51,11 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | Terme | Définition |
 |---|---|
 | **Raid** | Désactive temporairement un avant-poste. Ne le capture jamais. |
+| **Lever / poser** | Lever une pile, c'est la prendre en main au clic qui lit ; la poser, c'est nommer sa destination au clic « agir », ce qui ouvre la rose. Rien ne part avant « envoyer — irréversible » ; Échap repose. *(ADR 0026 §6)* |
 | **Pillage** | Expédition dirigée contre une installation adverse **déjà relevée** : elle combat la défense, tient une présence, prélève le surplus disponible au-dessus de la réserve de base, désactive temporairement le site, puis rentre. Sur un entrepôt elle rapporte ; sur un producteur c'est un **sabotage**, le même ordre sans butin. La charge se crédite au premier franchissement d'une région tenue ; ce qui tombe en route devient une **caisse**, ramassable par qui l'a relevée. |
 | **Interception** | Combat déclenché en route par un mouvement **offensif** — `attack` ou `raid` — qui rencontre un mouvement adverse dans le même milieu. Une force **posée** voit sans intercepter : détecter et engager sont deux choses depuis la révision de l'ADR 0021 (08/09/2026). |
 | **Cap d'arrivée** | Direction depuis laquelle une force atteint sa cible. Modificateur de combat. |
-| **Rejeu** | Vue rapprochée d'un combat déjà résolu. Spectacle, jamais interaction. |
+| **Rejeu** | Vue rapprochée d'un combat déjà résolu. Spectacle, jamais interaction. Se lance depuis la dépêche du combat ; en face, des blocs et des totaux — le brouillard ne se lève pas parce qu'on a tiré. *(ADR 0026 §7)* |
 | **Plage de repos** | 7 h par 24 h, déclarées et publiques. Aucun mouvement ne peut y arriver. |
 
 ## Retiré du vocabulaire

@@ -33,3 +33,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
 | [0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) | L'engagement est intentionnel, et une force posée se voit dans la portée | acceptée — révise 0008, 0019 §3/§6, 0021 §2/§3 |
 | [0025](0025-capacite-encombrement-et-embarquement-de-proximite.md) | Capacité, encombrement, et l'embarquement de proximité | acceptée — révise 0019 §2, fiche 09, décision 70b |
+| [0026](0026-la-carte-en-figurines.md) | La carte en figurines | acceptée — révise la décision du 30/08 (cartouche, visée) et la fiche 10 (unités) |

@@ -1,7 +1,7 @@
 # Table d'état-major — figurines, piles, fiche
 
-**Date : 12/10/2026. Statut : convenu sur prototype et grillé le 12/10 ; ADR 0026 à écrire
-avant toute ligne dans `src/`.** Décisions de Pierre au fil de six versions du prototype
+**Date : 12/10/2026. Statut : convenu sur prototype, grillé le 12/10, gravé dans
+l'[ADR 0026](../../adr/0026-la-carte-en-figurines.md).** Décisions de Pierre au fil de huit versions du prototype
 [`prototypes/table-etat-major.html`](../../../prototypes/table-etat-major.html) (aussi publié en
 artifact). La carte du prototype est inventée et rien n'y lit une partie.
 

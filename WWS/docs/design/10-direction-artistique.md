@@ -70,8 +70,10 @@ n'entrent pas en concurrence avec les encres de nation, mais c'est une extension
 - **Les écrans qui comptent.** Fiche de nation, file de production, journal d'événements, fiche
   d'unité. Ils n'existent pas encore — c'est pour ça qu'il est trop tôt pour une passe de design
   complète.
-- **Les unités.** Silhouettes à plat, encre unique, dans l'esprit des planches de reconnaissance
-  d'aéronefs de l'époque.
+- ~~**Les unités.** Silhouettes à plat, encre unique, dans l'esprit des planches de reconnaissance
+  d'aéronefs de l'époque.~~ Révisé le 12/10/2026 : sur la carte, les unités sont des **figurines**
+  peintes d'après leurs planches, et l'adversaire un bloc vu de dos — [ADR 0026](../adr/0026-la-carte-en-figurines.md).
+  Les planches restent hors de la carte.
 - **Les cinq curseurs de souris** (`public/cursors/`, 32×32, références dans
   `maquettes/pictos/references/`) sont **dessinés mais non branchés** — aucun code ne les a
   jamais chargés. Ils attendent les surfaces qui les nomment : *cible* le ciblage d'un
