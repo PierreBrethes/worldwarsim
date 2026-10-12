@@ -105,6 +105,23 @@ rendu physique, pas un nouveau registre.
 - **Les planches 2D restent hors de la carte** : abaque, modale de site, dépêches. La carte seule
   passe aux figurines.
 
+**Tour 2.**
+
+- **Lumière douce, teintée comme la lampe** (légèrement jaune), avec les ombres portées des
+  figurines. Le vrai système de lumière se cherchera avec le chantier jour et nuit.
+- **Les bâtiments deviennent des maquettes en code**, fidèles à leurs planches, d'autant que ce
+  sont les mêmes bâtiments pour toutes les nations ; lot après les troupes.
+- **Le corps humain vient d'un modèle libre de droits (CC0) avec squelette**, posé en code par ses
+  os et retouché pour nos proportions ; candidats et licences à présenter.
+- **Le seuil des figurines suit les régions admin-1** (pleines sous 30, absentes au-delà de 65), à
+  tester.
+- **Lever prend toute la pile** ; si le panneau de garnison est ouvert avec une composition, lever
+  prend cette composition.
+- **Pièce en main : une courbe locale indicative**, puis la vraie route et l'heure de
+  `movements.preview` à la pose, avant « envoyer — irréversible ».
+- **Le rejeu sert le détail de mon seul camp** par rôle (champ réservé au camp du joueur dans
+  `CombatReport`) ; l'adversaire reste en totaux.
+
 **Faits relevés pour la suite** : seuls les mouvements sont aujourd'hui en 3D (un `Pawn` par arc,
 six mouvements au plus par joueur) ; les troupes posées et les bâtiments sont des étiquettes DOM
 (`MapLabels.tsx`) — jusqu'à 24 troupes, soit environ 70 figurines à instancier ; les régions
