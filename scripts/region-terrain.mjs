@@ -18,20 +18,20 @@ import { inflateRawSync } from 'node:zlib';
 import { prepareRegionOutlines, regionAtPlanePoint } from '../src/domain/region-crossing.ts';
 
 /** Local relief (max − min over a 3 × 3 window of 0.1° samples, ≈ 33 km) that makes a mountain. */
-export const MOUNTAIN_RELIEF_M = 600;
+const MOUNTAIN_RELIEF_M = 600;
 /** Above this altitude, a lower relief is enough: a high plateau cut by valleys is a mountain. */
-export const HIGHLAND_ALTITUDE_M = 1500;
-export const HIGHLAND_RELIEF_M = 300;
+const HIGHLAND_ALTITUDE_M = 1500;
+const HIGHLAND_RELIEF_M = 300;
 /** Share of the region's area that must be mountainous: the mountain wins over the climate. */
-export const MOUNTAIN_SHARE = 0.5;
+const MOUNTAIN_SHARE = 0.5;
 /** Mean forest fraction that turns a temperate region into forest and a tropical one into jungle. */
-export const FOREST_SHARE = 0.4;
+const FOREST_SHARE = 0.4;
 /**
  * The same line for a cold region, lower: the boreal canopy is sparse — Sakha, larch taiga over
  * three million km², averages 0.38 in Hansen — and tundra is the absence of trees, not their
  * thinning. Chukotka stands at 0.06, the Northwest Territories at 0.29.
  */
-export const TAIGA_SHARE = 0.3;
+const TAIGA_SHARE = 0.3;
 
 const ARID = new Set([4, 5]);
 /**
@@ -42,7 +42,7 @@ const ARID = new Set([4, 5]);
 const COLD_CODES = new Set([19, 20, 23, 24, 27, 28, 29, 30]);
 const TROPICAL = new Set([1, 2, 3]);
 
-/** Area-weighted tallies of one region, in the order `decide` reads them. */
+/** Area-weighted tallies of one region, in the order `terrainOf` reads them. */
 const MOUNTAIN = 0;
 const DRY = 1;
 const COLD = 2;
@@ -57,15 +57,13 @@ const TALLIES = 7;
  * coast — Chile, Norway — would read a kilometre of drop and turn mountain.
  */
 function reliefAround(relief, lon, lat) {
-  const row = Math.round((relief.north - lat) / relief.step);
-  const column = Math.round((lon - relief.west) / relief.step);
   let low = Infinity;
   let high = -Infinity;
   for (let dy = -1; dy <= 1; dy += 1) {
-    const y = Math.min(relief.height - 1, Math.max(0, row + dy));
     for (let dx = -1; dx <= 1; dx += 1) {
-      const x = (((column + dx) % relief.width) + relief.width) % relief.width;
-      const z = Math.max(0, relief.values[y * relief.width + x]);
+      const raw = valueAt(relief, lon + dx * relief.step, lat - dy * relief.step);
+      if (Number.isNaN(raw)) continue;
+      const z = Math.max(0, raw);
       low = Math.min(low, z);
       high = Math.max(high, z);
     }
@@ -104,11 +102,12 @@ function landCodeNear(climate, lon, lat) {
       }
     }
   }
+  // Six regions have no Köppen land within three cells: code 0 is in no climate set, so they read OTHER.
   return 0;
 }
 
 /** The decision, on shares of the region's area (forest: its mean fraction). */
-export function terrainOf({ mountain, dry, cold, hot, other, forest }) {
+function terrainOf({ mountain, dry, cold, hot, other, forest }) {
   if (mountain >= MOUNTAIN_SHARE) return 'mountain';
   const dominant = Math.max(dry, cold, hot, other);
   if (dry === dominant && dry > other) return 'desert';
@@ -121,7 +120,7 @@ export function terrainOf({ mountain, dry, cold, hot, other, forest }) {
 /**
  * Every land sample of the climate grid (Köppen ≠ 0) is projected by the contours' own projection
  * and found in its region; the region then decides on its area-weighted shares (`cos(lat)`). A
- * region no sample falls in — about a thousand are smaller than a 0.1° cell — is read at its
+ * region no sample falls in — 641 are smaller than a 0.1° cell — is read at its
  * interior point, a single sample with the same thresholds.
  *
  * `regions`: `{ id, rings, point }`, rings in plane coordinates, `point` lon/lat.

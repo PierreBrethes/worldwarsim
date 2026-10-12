@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { loadRegions } from './world';
 
 const baked = (name: string) => JSON.parse(readFileSync(`public/${name}`, 'utf8'));
+
+afterEach(() => vi.unstubAllGlobals());
 
 it('classes the six hand-checked witnesses', () => {
   const byType = baked('region-types.json') as Record<string, string[]>;
@@ -37,5 +39,4 @@ it('reads a region missing from the file as a plain', async () => {
   }));
   const data = await loadRegions('/r', '/t');
   expect(data.regions.map((r) => r.type)).toEqual(['mountain', 'plain']);
-  vi.unstubAllGlobals();
 });
