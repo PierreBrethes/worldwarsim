@@ -5,7 +5,7 @@ import { Masthead } from '@/shell/Masthead';
 import { ThickRuleInverse, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
-import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
+import { EntrySheet, SheetExit, TOUCH_TARGET } from '@/shell/EntrySheet';
 import { FilmTrailer } from '@/shell/FilmTrailer';
 
 export const Route = createFileRoute('/connexion')({ component: SignIn });
@@ -52,7 +52,7 @@ function Sheet({
       <div className="mx-(--sheet-pad) pb-3 text-center">
         <Link
           to="/credits"
-          className="text-[10.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+          className={`text-[10.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
         >
           {fr.credits.open}
         </Link>

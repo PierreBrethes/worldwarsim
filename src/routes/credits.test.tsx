@@ -27,4 +27,6 @@ it('names the BKG, whose attribution the licence requires', async () => {
     />,
   );
   expect((await screen.findAllByText(/GeoBasis-DE \/ BKG/)).length).toBeGreaterThan(0);
+  expect(screen.getByText(/données modifiées/)).toBeTruthy();
+  expect(document.querySelector('a[href="https://www.govdata.de/dl-de/by-2-0"]')).not.toBeNull();
 });

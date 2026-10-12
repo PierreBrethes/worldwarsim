@@ -598,16 +598,16 @@ export const fr = {
   },
 
   /** **Les crédits** (`/credits`) : chaque ligne est justifiée par un fichier du dépôt — les
-   *  générateurs de `scripts/`, `index.html`, `package.json`. */
+   *  générateurs de `scripts/`, `index.html`, `package.json`. Les liens de licence et de source
+   *  sont ceux que les licences exigent quand elles en exigent. */
   credits: {
     title: 'Crédits',
     tagline: 'sources et licences',
     open: 'crédits',
-    back: 'retour',
     sources: [
       {
         name: 'Natural Earth',
-        use: 'Littoraux, frontières et régions admin-1 de la carte.',
+        use: 'Littoraux (via le paquet world-atlas, ISC), frontières et régions admin-1 de la carte.',
         licence: 'Domaine public.',
         attribution:
           'Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.',
@@ -616,21 +616,37 @@ export const fr = {
         name: 'GeoBasis-DE / BKG',
         use: 'Découpage de la Bavière, du Bade-Wurtemberg et de la Hesse en Regierungsbezirke (VG2500).',
         licence: 'Licence de données Allemagne – attribution – version 2.0 (dl-de/by-2-0).',
-        attribution: '© GeoBasis-DE / BKG',
+        attribution: '© GeoBasis-DE / BKG (2025), données modifiées',
+        licenceUrl: 'https://www.govdata.de/dl-de/by-2-0',
+        sourceUrl: 'https://daten.gdz.bkg.bund.de/produkte/vg/vg2500/',
       },
       {
         name: 'Archivo Narrow, Bodoni Moda, IBM Plex Mono, Source Serif 4',
         use: 'Les caractères du journal, servis par Google Fonts.',
         licence: 'SIL Open Font License 1.1.',
-        attribution: '',
       },
       {
         name: 'country-flag-icons',
         use: 'Les drapeaux des nations.',
         licence: 'MIT.',
-        attribution: '',
+        attribution: '© 2020 catamphetamine',
+        licenceUrl: 'https://gitlab.com/catamphetamine/country-flag-icons/-/blob/master/LICENSE',
       },
-    ],
+      {
+        name: 'i18n-iso-countries',
+        use: 'Les noms des pays.',
+        licence: 'MIT.',
+        attribution: '© 2016 widdix GmbH',
+        licenceUrl: 'https://github.com/michaelwittig/node-i18n-iso-countries/blob/master/LICENSE',
+      },
+    ] as {
+      name: string;
+      use: string;
+      licence: string;
+      attribution?: string;
+      licenceUrl?: string;
+      sourceUrl?: string;
+    }[],
     software:
       'Le jeu repose sur des logiciels libres, dont three.js, React, TanStack Router et Convex.',
   },

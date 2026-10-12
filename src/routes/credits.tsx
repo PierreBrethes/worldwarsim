@@ -1,10 +1,16 @@
-import { Link, createFileRoute } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { fr } from '@/i18n/fr';
 import { Masthead } from '@/shell/Masthead';
 import { ThickRuleInverse, usePageTurn } from '@/shell/Newspaper';
-import { EntrySheet, TOUCH_TARGET } from '@/shell/EntrySheet';
+import { EntrySheet, SheetExit } from '@/shell/EntrySheet';
 
 export const Route = createFileRoute('/credits')({ component: Credits });
+
+const ExternalLink = ({ href, children }: { href: string; children: string }) => (
+  <a href={href} rel="noreferrer" className="underline underline-offset-4">
+    {children}
+  </a>
+);
 
 export function Credits() {
   const { turning } = usePageTurn();
@@ -28,20 +34,18 @@ export function Credits() {
             {source.attribution && (
               <p className="font-(family-name:--font-mono) text-[12px]">{source.attribution}</p>
             )}
+            <p className="text-[12px]">
+              {source.licenceUrl && <ExternalLink href={source.licenceUrl}>licence</ExternalLink>}
+              {source.licenceUrl && source.sourceUrl && ' · '}
+              {source.sourceUrl && <ExternalLink href={source.sourceUrl}>source</ExternalLink>}
+            </p>
           </li>
         ))}
       </ul>
       <p className="mx-(--sheet-pad) pb-3 text-[12px] text-[var(--ink-note)]">
         {fr.credits.software}
       </p>
-      <div className="mx-(--sheet-pad) pb-2 text-center">
-        <Link
-          to="/"
-          className={`text-[11.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
-        >
-          {fr.credits.back}
-        </Link>
-      </div>
+      <SheetExit />
     </EntrySheet>
   );
 }

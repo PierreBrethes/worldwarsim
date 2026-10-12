@@ -8,6 +8,7 @@ import type { PlayableRegion } from '@/domain/ids';
 import { REGISTRATION_WINDOW_HOURS } from '@/domain/off-season';
 import { ThickRuleInverse, Newspaper, usePageTurn, type Turning } from '@/shell/Newspaper';
 import { Masthead } from '@/shell/Masthead';
+import { TOUCH_TARGET } from '@/shell/EntrySheet';
 import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { FlagWatermark } from '@/emblems/Flag';
@@ -265,7 +266,10 @@ function ConnectedHome() {
 
         <div className="mx-(--sheet-pad) mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
           <span>{fr.home.footerLeft}</span>
-          <Link to="/credits" className="underline underline-offset-4 hover:text-[var(--ink)]">
+          <Link
+            to="/credits"
+            className={`underline underline-offset-4 hover:text-[var(--ink)] ${TOUCH_TARGET}`}
+          >
             {fr.credits.open}
           </Link>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
