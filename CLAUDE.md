@@ -379,7 +379,10 @@ lieu d'une carte gelée, et il se corrige.
 **Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : une houle
 lente passe sur la marbrure de la mer (`sea.ts` — une trame de points, essayée, fatiguait
 l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonction pure de l'heure
-(`weather.ts`, `wind.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
+(`weather.ts`, `ribbons.ts`), les courants marins y passent en filigrane (`currents.ts`), une
+écume respire le long des côtes au rapproché, lue sur un seul champ de distance à la côte
+(`coast-distance.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat
+s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
 aussi la caméra et la pousse des accessoires. C'est la deuxième exception, décidée, au pilier
