@@ -374,6 +374,7 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
+      (id) => this.standing.isDressed(id),
     );
 
     this.scene.add(this.regions.lines);

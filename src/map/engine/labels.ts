@@ -2,6 +2,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import type { LabelAnchor } from '@/domain/labels';
 import { clampToEdge } from '@/domain/indicators';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { nearWeight } from './figurines/figurine';
 
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
@@ -49,6 +50,11 @@ export type LabelProjection = {
    */
   fade: number;
   /**
+   * How much figurine stands under the label (ADR 0026 §3): its plate gives way by as much,
+   * and the label stays where it is to take the pointer. `0` for anything not dressed.
+   */
+  dressed: number;
+  /**
    * Off-frame but in front of the horizon: the anchor parks at the screen edge. An anchor
    * gone behind the curvature has no right to it — we do not point at what cannot be seen.
    */
@@ -95,6 +101,8 @@ export class LabelLayer {
     private readonly groundOfRegion: (regionId: string) => Vector3 | null,
     /** How much of the admin-1 layer is on screen, `0` when it is not — one source, no twin. */
     private readonly regionShare: () => number,
+    /** Whether my figurines stand at this label's point, rather than its plate. */
+    private readonly isDressed: (id: string) => boolean,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -119,6 +127,7 @@ export class LabelLayer {
         y: 0,
         lod: 'glyph',
         fade: withRegionLayer ? 0 : 1,
+        dressed: 0,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -177,6 +186,7 @@ export class LabelLayer {
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
+      projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
 
       projection.atEdge = !occluded && !projection.visible;
       if (projection.atEdge) {

@@ -316,6 +316,7 @@ export function MapLabels({
           grouped: false,
           stagger: 0,
           fade: 1,
+          dressed: 0,
           x: 0,
           y: 0,
         },
@@ -369,6 +370,12 @@ export function MapLabels({
         if (fade !== state.fade) {
           state.fade = fade;
           anchor.style.opacity = fade === 1 ? '' : String(fade);
+        }
+        // The plate gives way to the figurines standing under it; the label stays to take the pointer.
+        const dressed = Math.round(projection.dressed * 20) / 20;
+        if (dressed !== state.dressed) {
+          state.dressed = dressed;
+          anchor.style.setProperty('--dressed', String(dressed));
         }
 
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
@@ -735,6 +742,7 @@ type RenderState = {
   /** De combien son cartouche monte dans l'éventail d'un groupe au plancher du zoom, en pixels. */
   stagger: number;
   fade: number;
+  dressed: number;
   x: number;
   y: number;
 };
