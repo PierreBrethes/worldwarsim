@@ -1,10 +1,12 @@
 /**
- * Temporary entry point: classifies the regions of `public/regions.json` against the terrain
- * rasters and writes `{ id: type }` to the given file — not into `public/`, until it is settled
- * where the type is baked. The Natural Earth and VG2500 sources are not needed: the contours are
- * read back from the asset, the interior points from `region-index.json`.
+ * Classifies the regions of `public/regions.json` against the terrain rasters (ETOPO relief,
+ * Köppen-Geiger climate, Hansen forest cover) and bakes `public/region-types.json`:
+ * `{ [type]: regionId[] }`, the plain regions included. Decoration only — no rule reads it.
+ * The rasters live outside the repository; their SHA-256 are checked below. The contours are read
+ * back from the asset, the interior points from `region-index.json`.
  *
- * Usage: node scripts/classify-regions.mjs <terrain-dir> <out.json>
+ * Usage: node scripts/generate-region-types.mjs <terrain-dir> — also chained at the end of
+ * generate-world.mjs when given `--terrain <terrain-dir>`.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -37,9 +39,10 @@ const WITNESSES = {
 };
 
 const WIDTH = 400;
-const [terrainDir, outPath] = process.argv.slice(2);
-if (outPath === undefined) {
-  console.error('usage: node scripts/classify-regions.mjs <terrain-dir> <out.json>');
+const flag = process.argv.indexOf('--terrain');
+const terrainDir = flag >= 0 ? process.argv[flag + 1] : process.argv[2];
+if (terrainDir === undefined) {
+  console.error('usage: node scripts/generate-region-types.mjs <terrain-dir>');
   process.exit(1);
 }
 
@@ -85,7 +88,9 @@ const shares = measureRegions(regions, rasters, {
   width: WIDTH,
 });
 const types = Object.fromEntries([...shares].map(([id, share]) => [id, terrainOf(share)]));
-writeFileSync(outPath, JSON.stringify(types));
+const byType = {};
+for (const [id, type] of Object.entries(types)) (byType[type] ??= []).push(id);
+writeFileSync('public/region-types.json', JSON.stringify(byType));
 
 const percent = (value) => `${(value * 100).toFixed(0)}%`.padStart(4);
 for (const [id, expected] of Object.entries(WITNESSES)) {
