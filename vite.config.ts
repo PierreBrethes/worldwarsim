@@ -23,6 +23,8 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwind(),
   ],
+  // Les figurines sculptées dans Claude Design arrivent en GLB, importées comme les planches.
+  assetsInclude: ['**/*.glb'],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

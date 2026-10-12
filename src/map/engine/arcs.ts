@@ -7,7 +7,9 @@ import {
   type UnrolledSegment,
 } from '@/domain/route-timing';
 import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
-import { movementSprites } from '@/emblems/units/manifest';
+import type { UnitRole } from '@/domain/ids';
+import { movementRoles, movementSprites } from '@/emblems/units/manifest';
+import { figurineFor } from './figurines';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -145,9 +147,17 @@ export class ArcLayer {
         this.targets.push(target);
       }
 
+      const roles = movementRoles(arc);
+      const figurineOf = (role: UnitRole | null) =>
+        role === null ? null : figurineFor(this.playerNation, role, 1);
       const pawn = new Pawn(
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
+        roles && {
+          land: figurineOf(roles.land),
+          sea: figurineOf(roles.sea),
+          air: figurineOf(roles.air),
+        },
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
@@ -246,6 +256,7 @@ export class ArcLayer {
           : leg.medium,
       );
       rendered.pawn.place(this.pawnPoint, this.aheadPoint);
+      if (this.motion !== 'off') rendered.pawn.step(elapsed);
       rendered.pawn.orient(this.cameraPosition);
       rendered.headPosition.copy(this.pawnPoint);
 

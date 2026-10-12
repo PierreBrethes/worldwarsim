@@ -34,9 +34,9 @@ export function textureOf(url: string): Texture {
  * the turned frame**. In the default `XYZ` the pitch would be read on the world axis and the
  * drawing would lean sideways as soon as the camera left the meridian.
  */
-export function faceCamera(object: Object3D, cameraPosition: Vector3): void {
-  const east = cameraPosition.x - object.position.x;
-  const south = cameraPosition.z - object.position.z;
-  const up = cameraPosition.y - object.position.y;
+export function faceCamera(object: Object3D, cameraPosition: Vector3, from = object.position): void {
+  const east = cameraPosition.x - from.x;
+  const south = cameraPosition.z - from.z;
+  const up = cameraPosition.y - from.y;
   object.rotation.set(-Math.atan2(up, Math.hypot(east, south)), Math.atan2(east, south), 0, 'YXZ');
 }

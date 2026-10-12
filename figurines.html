@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Figurines — revue</title>
+    <!-- Page de développement seulement : `vite build` ne connaît que index.html. -->
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #171208;
+        color: #e4d8bd;
+        font:
+          13px/1.3 system-ui,
+          sans-serif;
+      }
+      h1 {
+        font:
+          700 22px Georgia,
+          serif;
+        margin: 0 0 12px;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      figure {
+        margin: 0;
+        background: #e4d8bd;
+        color: #2a2118;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      figure img {
+        width: 100%;
+        height: 200px;
+        object-fit: contain;
+      }
+      figure canvas {
+        width: 100%;
+        height: 200px;
+        display: block;
+      }
+      figcaption {
+        grid-column: 1 / -1;
+        padding: 6px 8px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-size: 11px;
+        border-top: 1px solid #2a2118;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Figurines françaises — planche et figurine</h1>
+    <main id="review"></main>
+    <script type="module" src="/src/map/engine/figurines/review.ts"></script>
+  </body>
+</html>
