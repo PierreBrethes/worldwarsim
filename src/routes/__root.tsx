@@ -14,12 +14,15 @@ export const Route = createRootRoute({
   errorComponent: ({ error, reset }) => <ErrorScreen error={error} reset={reset} />,
 });
 
-/** **Les feuilles qui s'ouvrent sans compte** : celles qui en donnent un. La une (`/`), qui mène
- *  aux deux autres ; la connexion ; et l'invitation (`/rejoindre/CODE`), qui en donne un puis une
- *  place. Une seule condition, ici — une seconde garde dans une page serait la prochaine à être
- *  oubliée. */
+/** **Les feuilles qui s'ouvrent sans compte** : la une (`/`), qui mène aux deux suivantes, la
+ *  connexion et l'invitation (`/rejoindre/CODE`), qui donnent un compte, puis place — et les
+ *  crédits, que les licences veulent lisibles de tous, y compris de qui n'a pas de compte. Une
+ *  seule condition, ici — une seconde garde dans une page serait la prochaine à être oubliée. */
 export const opensWithoutAccount = (pathname: string): boolean =>
-  pathname === '/' || pathname === '/connexion' || pathname.startsWith('/rejoindre/');
+  pathname === '/' ||
+  pathname === '/connexion' ||
+  pathname === '/credits' ||
+  pathname.startsWith('/rejoindre/');
 
 function Root() {
   // The last-row net: an orphan promise (mutation without `.catch`, timer…) becomes a
