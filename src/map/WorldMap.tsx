@@ -214,6 +214,8 @@ export type Destination = {
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_DESTINATIONS: ReadonlyArray<Destination> = [];
 
+const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+
 export function WorldMap({
   world,
   arcs,
@@ -673,7 +675,7 @@ export function WorldMap({
   }, [arcs]);
 
   useEffect(() => {
-    readyEngine?.displayStanding(standing);
+    readyEngine?.displayStanding(standing, COUNTER_TEXTS);
   }, [readyEngine, standing]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);

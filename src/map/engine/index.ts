@@ -54,10 +54,10 @@ import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
-import { StandingLayer, type StandingPile } from './standing';
+import { StandingLayer, type CounterTexts, type StandingPile } from './standing';
 
 export type { SearchArea } from './search-area';
-export type { StandingPile } from './standing';
+export type { CounterTexts, StandingPile } from './standing';
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -418,9 +418,9 @@ export class MapEngine {
   }
 
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
-  displayStanding(piles: ReadonlyArray<StandingPile>): void {
+  displayStanding(piles: ReadonlyArray<StandingPile>, texts: CounterTexts): void {
     this.invalidate();
-    this.standing.display(piles);
+    this.standing.display(piles, texts);
   }
 
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {

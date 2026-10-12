@@ -56,35 +56,51 @@ export function dressedGroups(nation: string | null, pieces: PilePieces): Figuri
   return figurines.length === 0 ? null : figurines;
 }
 
-const counterTexts = (pieces: PilePieces): string[] => [
-  ...pieces.groups.filter((group) => group.troops > 1).map((group) => `×${group.troops}`),
-  ...(pieces.more > 0 ? [`+${pieces.more}`] : []),
-];
+/** The counters' words come from the caller: the engine holds no i18n table. */
+export type CounterTexts = {
+  readonly count: (troops: number) => string;
+  readonly more: (roles: number) => string;
+};
+
+/** The one source of a pile's counter words: a ×N per group of several, then the +N. */
+export function counterTexts(
+  pieces: PilePieces,
+  texts: CounterTexts,
+): { groups: ReadonlyArray<string | null>; more: string | null } {
+  return {
+    groups: pieces.groups.map((group) => (group.troops > 1 ? texts.count(group.troops) : null)),
+    more: pieces.more > 0 ? texts.more(pieces.more) : null,
+  };
+}
 
 /** The whole pile as one object at board scale, `null` when it is not dressed. */
 export function pileObject(
   nation: string | null,
   pieces: PilePieces,
+  texts: CounterTexts,
+  faces: Faces,
 ): { object: Group; ready: Promise<unknown> } | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
   const layout = pileLayout(figurines.length, pieces.more > 0);
+  const words = counterTexts(pieces, texts);
   const object = new Group();
   figurines.forEach((figurine, k) => {
     const x = layout.groups[k]!;
     figurine.object.position.x = x;
     object.add(figurine.object);
-    const troops = pieces.groups[k]!.troops;
-    if (troops > 1) object.add(counter(`×${troops}`, x + COUNTER_AT[0], COUNTER_AT[1]));
+    const text = words.groups[k];
+    if (text) object.add(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
   });
-  if (layout.more !== null) object.add(counter(`+${pieces.more}`, layout.more, 0));
+  if (layout.more !== null && words.more !== null)
+    object.add(counter(faces.of(words.more), layout.more, 0));
   return { object, ready: Promise.all(figurines.map((figurine) => figurine.ready)) };
 }
 
 /**
  * **A painted wooden counter**, the prototype's (`table-etat-major.html`, `counter`): a disc of
  * wood, its top a paper face inked in Bodoni. The face is a canvas, drawn once per text and
- * shared; the layer frees the faces no pile shows any more.
+ * shared by the layer's piles; the layer frees the faces no pile shows any more.
  */
 const WOOD = new MeshStandardMaterial({ color: '#6b4a24', roughness: 0.55 });
 const DISC = new CylinderGeometry(0.5, 0.53, 0.14, 32);
@@ -93,56 +109,73 @@ const FACE = new CircleGeometry(0.47, 32);
 FACE.rotateX(-Math.PI / 2);
 FACE.translate(0, 0.142, 0);
 
-const faces = new Map<string, MeshStandardMaterial>();
-/** Called when a face is redrawn after Bodoni has landed — it was inked in Georgia until then. */
-let onFaceRedrawn: () => void = () => {};
+export class Faces {
+  private readonly faces = new Map<string, MeshStandardMaterial>();
+  /** `redrawn` is called when a face is inked again after Bodoni has landed — it was Georgia until then. */
+  constructor(private readonly redrawn: () => void) {}
 
-function faceOf(text: string): MeshStandardMaterial {
-  let face = faces.get(text);
-  if (face) return face;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  const draw = () => {
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.fillStyle = '#e4d8bd';
-    ctx.beginPath();
-    ctx.arc(64, 64, 63, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#2a2118';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(64, 64, 53, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#2a2118';
-    ctx.font = `700 ${text.length > 2 ? 46 : 58}px "Bodoni Moda", Georgia, serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, 64, 68);
-  };
-  draw();
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  face = new MeshStandardMaterial({ map: texture, roughness: 0.8 });
-  faces.set(text, face);
-  void document.fonts?.load('700 58px "Bodoni Moda"').then(() => {
-    if (faces.get(text) !== face) return;
+  of(text: string): MeshStandardMaterial {
+    let face = this.faces.get(text);
+    if (face) return face;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    const draw = () => {
+      const ctx = canvas.getContext('2d')!;
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.fillStyle = '#e4d8bd';
+      ctx.beginPath();
+      ctx.arc(64, 64, 63, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#2a2118';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(64, 64, 53, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#2a2118';
+      ctx.font = `700 ${text.length > 2 ? 46 : 58}px "Bodoni Moda", Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 68);
+    };
     draw();
-    texture.needsUpdate = true;
-    onFaceRedrawn();
-  });
-  return face;
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    face = new MeshStandardMaterial({ map: texture, roughness: 0.8 });
+    this.faces.set(text, face);
+    void document.fonts?.load('700 58px "Bodoni Moda"').then(() => {
+      if (this.faces.get(text) !== face) return;
+      draw();
+      texture.needsUpdate = true;
+      this.redrawn();
+    });
+    return face;
+  }
+
+  /** Frees every face whose text is not in `shown`. */
+  keepOnly(shown: ReadonlySet<string>): void {
+    for (const [text, face] of this.faces) {
+      if (shown.has(text)) continue;
+      face.map?.dispose();
+      face.dispose();
+      this.faces.delete(text);
+    }
+  }
 }
 
-function counter(text: string, x: number, z: number): Group {
+function counter(face: MeshStandardMaterial, x: number, z: number): Group {
   const piece = new Group();
-  piece.add(new Mesh(DISC, WOOD), new Mesh(FACE, faceOf(text)));
+  piece.add(new Mesh(DISC, WOOD), new Mesh(FACE, face));
   piece.scale.setScalar(FIGURINE_SCALE);
   piece.position.set(x, 0, z);
   return piece;
 }
 
-type Dressed = { readonly key: string; lonLat: LonLat; readonly object: Group };
+/** `ready` flips once every figurine is in: until then the pile is not on the layer and its plate stays. */
+type Dressed = { readonly key: string; lonLat: LonLat; readonly object: Group; ready: boolean };
+
+/** What a pile draws: its nation, and per group the role, the figures and the troop count, plus `more` — not the wear. */
+const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
+  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.troops]), more]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
@@ -156,12 +189,15 @@ export class StandingLayer {
   private nation: string | null = null;
   private piles: ReadonlyArray<StandingPile> = [];
   private dressed = new Map<string, Dressed>();
+  private readonly faces: Faces;
+  /** Set by the first `display`; no pile exists before it. */
+  private texts: CounterTexts = { count: String, more: String };
 
   constructor(
     private readonly frame: WorldFrame,
     private readonly changed: () => void,
   ) {
-    onFaceRedrawn = changed;
+    this.faces = new Faces(changed);
   }
 
   setNation(nation: string | null): void {
@@ -171,11 +207,12 @@ export class StandingLayer {
 
   /** A pile whose pieces did not change keeps its objects: the view is re-served at every step
    *  of any column, and rebuilding three squads each time would be work for nothing. */
-  display(piles: ReadonlyArray<StandingPile>): void {
+  display(piles: ReadonlyArray<StandingPile>, texts: CounterTexts = this.texts): void {
     this.piles = piles;
+    this.texts = texts;
     const next = new Map<string, Dressed>();
     for (const pile of piles) {
-      const key = JSON.stringify([this.nation, pile.pieces]);
+      const key = drawnKey(this.nation, pile.pieces);
       const kept = this.dressed.get(pile.id);
       if (kept?.key === key) {
         kept.lonLat = pile.lonLat;
@@ -183,29 +220,36 @@ export class StandingLayer {
         next.set(pile.id, kept);
         continue;
       }
-      const built = pileObject(this.nation, pile.pieces);
+      const built = pileObject(this.nation, pile.pieces, this.texts, this.faces);
       if (built === null) continue;
-      void built.ready.then(this.changed);
-      this.group.add(built.object);
-      next.set(pile.id, { key, lonLat: pile.lonLat, object: built.object });
+      const entry: Dressed = { key, lonLat: pile.lonLat, object: built.object, ready: false };
+      next.set(pile.id, entry);
+      // A model that fails to load leaves the pile in its plate.
+      built.ready.then(
+        () => {
+          if (this.dressed.get(pile.id) !== entry) return;
+          entry.ready = true;
+          this.group.add(entry.object);
+          this.changed();
+        },
+        () => {},
+      );
     }
     for (const gone of this.dressed.values()) gone.object.removeFromParent();
     this.dressed = next;
     this.rebuild();
 
-    const shown = new Set(
-      piles.filter((pile) => next.has(pile.id)).flatMap((pile) => counterTexts(pile.pieces)),
-    );
-    for (const [text, face] of faces) {
-      if (shown.has(text)) continue;
-      face.map?.dispose();
-      face.dispose();
-      faces.delete(text);
+    const shown = new Set<string>();
+    for (const pile of piles) {
+      if (!next.has(pile.id)) continue;
+      const words = counterTexts(pile.pieces, this.texts);
+      for (const text of [...words.groups, words.more]) if (text) shown.add(text);
     }
+    this.faces.keepOnly(shown);
   }
 
   isDressed(id: string): boolean {
-    return this.dressed.has(id);
+    return this.dressed.get(id)?.ready === true;
   }
 
   /** The ground moved under the piles — curvature: set them back on it. */
@@ -226,10 +270,6 @@ export class StandingLayer {
    *  counter faces are this layer's to free. */
   dispose(): void {
     this.group.removeFromParent();
-    for (const face of faces.values()) {
-      face.map?.dispose();
-      face.dispose();
-    }
-    faces.clear();
+    this.faces.keepOnly(new Set());
   }
 }

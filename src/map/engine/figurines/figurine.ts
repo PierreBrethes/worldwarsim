@@ -29,7 +29,7 @@ export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */
   readonly object: Group;
   /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
-   *  for its frame then, where a flowing pawn would just show it. */
+   *  for its frame then, where a flowing pawn would just show it. Rejects when a file fails. */
   readonly ready: Promise<void>;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
@@ -102,7 +102,10 @@ export function figurineFor(
   else
     ready = Promise.all(makers).then(
       (loaded) => void stand(loaded as Maker[]),
-      (error: unknown) => console.error(`figurine ${nation}/${role}`, error),
+      (error: unknown) => {
+        console.error(`figurine ${nation}/${role}`, error);
+        throw error;
+      },
     );
 
   const spinning: Object3D[] = [];
@@ -133,13 +136,16 @@ const SHADOW_OUTER = new MeshBasicMaterial({
   opacity: 0.12,
   depthWrite: false,
 });
-function contactShadow(): Group {
-  const shadow = new Group();
-  for (const [radius, material] of [
+const SHADOW_DISCS = (
+  [
     [0.32, SHADOW_INNER],
     [0.48, SHADOW_OUTER],
-  ] as const) {
-    const disc = new Mesh(new CircleGeometry(radius, 24), material);
+  ] as const
+).map(([radius, material]) => [new CircleGeometry(radius, 24), material] as const);
+function contactShadow(): Group {
+  const shadow = new Group();
+  for (const [geometry, material] of SHADOW_DISCS) {
+    const disc = new Mesh(geometry, material);
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.004;
     shadow.add(disc);

@@ -1469,6 +1469,7 @@ export const fr = {
     sheetKicker: 'fiche de pile',
     sheetHealth: (health: number) => `${health} / 100`,
     sheetCount: (troops: number) => `×${troops}`,
+    moreRoles: (roles: number) => `+${roles}`,
     /** Sous le seuil la feuille n'a pas de point d'ancrage à côté du sprite : son surtitre dit
      *  où se tient ce qu'elle décrit (refonte mobile, 1b). */
     badgeKickerAt: (where: string) => `troupe · ${where}`,

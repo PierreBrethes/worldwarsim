@@ -15,7 +15,8 @@ import type { UnitRole } from '@/domain/ids';
 import { TIERS_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { pilePieces } from '@/domain/pile-pieces';
-import { pileObject } from '../standing';
+import { fr } from '@/i18n/fr';
+import { Faces, pileObject } from '../standing';
 import { figurineFor } from './figurine';
 
 /**
@@ -75,6 +76,8 @@ const troop = (role: UnitRole, strength = 100) => ({
   strength,
   nominalStrength: 100,
 });
+const faces = new Faces(() => {});
+const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
 for (const [caption, troops] of [
   ['pile · 1 infanterie', [troop('infantry')]],
   ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
@@ -83,7 +86,7 @@ for (const [caption, troops] of [
   card(
     spriteUrl('france', 'infantry', 1),
     caption,
-    pileObject('france', pilePieces(troops))?.object ?? null,
+    pileObject('france', pilePieces(troops), texts, faces)?.object ?? null,
   );
 }
 

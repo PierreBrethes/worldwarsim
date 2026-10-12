@@ -1,4 +1,5 @@
 import {
+  type BufferGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -89,20 +90,50 @@ const at = <T extends Object3D>(object: T, x: number, y: number, z: number): T =
   object.position.set(x, y, z);
   return object;
 };
-const box = (w: number, h: number, d: number, color: string) =>
-  new Mesh(new BoxGeometry(w, h, d), paint(color));
-const rounded = (w: number, h: number, d: number, r: number, color: string) =>
-  new Mesh(new RoundedBoxGeometry(w, h, d, 1, r), paint(color));
-const cylinder = (top: number, bottom: number, h: number, color: string, segments = 7) =>
-  new Mesh(new CylinderGeometry(top, bottom, h, segments), paint(color));
-const ball = (r: number, color: string, segments = 6) =>
-  new Mesh(new SphereGeometry(r, segments, Math.ceil(segments * 0.7)), paint(color));
-/** A limb hangs from its pivot, so posing it is one rotation at the joint. */
-const limb = (length: number, top: number, bottom: number, color: string) => {
-  const mesh = cylinder(top, bottom, length, color);
-  mesh.geometry.translate(0, -length / 2, 0);
-  return mesh;
+/** Every soldier shares its geometries as it shares its paints: nothing a pile frees. */
+const shapes = new Map<string, BufferGeometry>();
+const shape = (key: string, make: () => BufferGeometry): BufferGeometry => {
+  let geometry = shapes.get(key);
+  if (!geometry) {
+    geometry = make();
+    shapes.set(key, geometry);
+  }
+  return geometry;
 };
+const box = (w: number, h: number, d: number, color: string) =>
+  new Mesh(
+    shape(`box ${w} ${h} ${d}`, () => new BoxGeometry(w, h, d)),
+    paint(color),
+  );
+const rounded = (w: number, h: number, d: number, r: number, color: string) =>
+  new Mesh(
+    shape(`rounded ${w} ${h} ${d} ${r}`, () => new RoundedBoxGeometry(w, h, d, 1, r)),
+    paint(color),
+  );
+const cylinder = (top: number, bottom: number, h: number, color: string, segments = 7) =>
+  new Mesh(
+    shape(
+      `cylinder ${top} ${bottom} ${h} ${segments}`,
+      () => new CylinderGeometry(top, bottom, h, segments),
+    ),
+    paint(color),
+  );
+const ball = (r: number, color: string, segments = 6) =>
+  new Mesh(
+    shape(
+      `ball ${r} ${segments}`,
+      () => new SphereGeometry(r, segments, Math.ceil(segments * 0.7)),
+    ),
+    paint(color),
+  );
+/** A limb hangs from its pivot, so posing it is one rotation at the joint. */
+const limb = (length: number, top: number, bottom: number, color: string) =>
+  new Mesh(
+    shape(`limb ${length} ${top} ${bottom}`, () =>
+      new CylinderGeometry(top, bottom, length, 7).translate(0, -length / 2, 0),
+    ),
+    paint(color),
+  );
 const named = (name: string, ...children: Object3D[]) => {
   const group = new Group();
   group.name = name;
@@ -154,7 +185,7 @@ function arm(side: 'left' | 'right'): Group {
 }
 
 export function frenchSoldier(): Group {
-  const coat = new Mesh(new CylinderGeometry(0.19, 0.21, 0.95, 12), paint(KHAKI));
+  const coat = cylinder(0.19, 0.21, 0.95, KHAKI, 12);
   coat.scale.set(1.15, 1, 0.86);
   const belt = at(cylinder(0.172, 0.172, 0.05, LEATHER, 10), 0, 0.95, 0);
   belt.scale.set(1.15, 1, 0.88);
@@ -187,7 +218,7 @@ export function frenchSoldier(): Group {
     at(cylinder(0.075, 0.095, 0.075, KHAKI, 12), 0, 1.47, 0),
   );
   const dome = new Mesh(
-    new SphereGeometry(0.118, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2),
+    shape('dome', () => new SphereGeometry(0.118, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2)),
     paint(HELMET),
   );
   dome.scale.set(0.95, 0.88, 1.08);
