@@ -149,7 +149,7 @@ export class ArcLayer {
 
       const roles = movementRoles(arc);
       const figurineOf = (role: UnitRole | null) =>
-        role === null ? null : figurineFor(this.playerNation, role, 1);
+        role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
       const pawn = new Pawn(
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,

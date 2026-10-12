@@ -424,6 +424,16 @@
   height: 30px;
 }
 
+/* Up close my figurines stand where the plate hung (ADR 0026 §3): the plate fades by as much,
+   its box stays to take the hover and the click. The callout and its pool go with it — the
+   figurines stand on the point and cast their own shadow; the words stay, they name the pile.
+   A selected pile keeps its glow: it is what says, under the figurines, which one is held. */
+.label--stack .label-plate,
+.label--stack .label-bar,
+.label--stack:not(.label--selected)::before {
+  opacity: calc(1 - var(--dressed, 0));
+}
+
 .label--stack.label--glyph .label-block {
   opacity: 1;
   pointer-events: auto;

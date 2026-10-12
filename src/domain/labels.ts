@@ -1,6 +1,7 @@
 import { asDuration, asLocalTime } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
+import type { PilePieces } from './pile-pieces';
 import {
   RESOURCES,
   type BuildingKey,
@@ -124,6 +125,8 @@ export type MapMarker =
        * then, and nothing else changes.
        */
       readonly plate: string | null;
+      /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
+      readonly pieces: PilePieces;
       readonly ink: string;
     }
   | {

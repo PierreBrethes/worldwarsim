@@ -28,10 +28,16 @@ import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
-import { MapLabels } from './MapLabels';
+import { MapLabels, type StackHover } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type BuiltRegions, type HeldClaim, type SearchArea } from './engine';
+import {
+  MapEngine,
+  type BuiltRegions,
+  type HeldClaim,
+  type SearchArea,
+  type StandingPile,
+} from './engine';
 
 type Props = {
   world: World;
@@ -39,6 +45,8 @@ type Props = {
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
+  /** My piles standing at a point, which the board dresses in figurines up close. */
+  standing: ReadonlyArray<StandingPile>;
   inkByCountry: ReadonlyMap<string, string>;
   /**
    * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
@@ -94,6 +102,7 @@ type Props = {
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
+  onStackHover?: (hover: StackHover | null) => void;
   /** What the target allows. The map asks the question; it does not know the view. */
   compassOf: (target: CompassTarget) => Compass | null;
   /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
@@ -205,11 +214,14 @@ export type Destination = {
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_DESTINATIONS: ReadonlyArray<Destination> = [];
 
+const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+
 export function WorldMap({
   world,
   arcs,
   journal,
   labels,
+  standing,
   inkByCountry,
   held,
   built,
@@ -232,6 +244,7 @@ export function WorldMap({
   onRegionsLoaded,
   onArcHover,
   onLabelHover,
+  onStackHover,
   compassOf,
   onCompassAction,
   building = false,
@@ -661,6 +674,10 @@ export function WorldMap({
     engine.current?.displayArcs(arcs);
   }, [arcs]);
 
+  useEffect(() => {
+    readyEngine?.displayStanding(standing, COUNTER_TEXTS);
+  }, [readyEngine, standing]);
+
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {
     const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
@@ -719,6 +736,7 @@ export function WorldMap({
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
+        onStackHover={onStackHover ?? (() => {})}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}

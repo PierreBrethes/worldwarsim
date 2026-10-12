@@ -23,6 +23,7 @@ import {
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
+import type { StackHover } from '@/map/MapLabels';
 import { WorldMap, type Destination, type PlacingBuilding } from '@/map/WorldMap';
 import {
   readWindows,
@@ -37,7 +38,8 @@ import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
-import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
+import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
+import { pilePieces, pileSheet } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -119,6 +121,7 @@ import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
+import { PileSheet } from './-plateau/PileSheet';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
 import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
@@ -288,6 +291,46 @@ export const Route = createFileRoute('/plateau')({
  * player back to the lobby, and a seat the server does not know gets dropped. Everything else
  * is a genuine failure and says so.
  */
+/** Owns the hover so a pointer crossing piles does not re-render the whole board. */
+function StackHoverSheet({
+  register,
+  me,
+  marching,
+  postedLabelId,
+  labels,
+}: {
+  register: { current: (hover: StackHover | null) => void };
+  me: PlayerView['me'];
+  marching: ReturnType<typeof marchingTroopIds>;
+  postedLabelId: string | undefined;
+  labels: ReadonlyArray<MapLabel>;
+}) {
+  const [hover, setHover] = useState<StackHover | null>(null);
+  useEffect(() => {
+    register.current = setHover;
+    return () => {
+      register.current = () => {};
+    };
+  }, [register]);
+  // A pile that leaves takes its label away without a pointerleave.
+  useEffect(() => {
+    if (hover !== null && !labels.some((label) => label.id === hover.labelId)) setHover(null);
+  }, [hover, labels]);
+  const sheet = useMemo(() => {
+    if (hover === null || hover.labelId === postedLabelId) return null;
+    const held = troopsAt(me, stationKeyOf(hover.station), marching);
+    if (held.length === 0) return null;
+    const ids = new Set(held.map((troop) => troop.id));
+    return {
+      lines: pileSheet(held),
+      cargo: me.stationedCargo
+        .filter((group) => group.troopIds.some((id) => ids.has(id)))
+        .map((group) => group.cargo),
+    };
+  }, [hover, postedLabelId, me, marching]);
+  return sheet !== null && hover !== null ? <PileSheet {...sheet} at={hover} /> : null;
+}
+
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
   if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') {
@@ -1340,6 +1383,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   ]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+  const standing = useMemo(
+    () =>
+      markers.flatMap((marker) =>
+        marker.kind === 'stack'
+          ? [{ id: marker.id, lonLat: marker.lonLat, pieces: marker.pieces }]
+          : [],
+      ),
+    [markers],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -1431,6 +1483,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       : (view.lootSightings.find(
           (sighting) => sighting.id === selectedLoot.id && sighting.present,
         ) ?? null);
+  const setStackHover = useRef<(hover: StackHover | null) => void>(() => {});
+  const onStackHover = useCallback((hover: StackHover | null) => setStackHover.current(hover), []);
   const postedCargo = useMemo(
     () =>
       posted === null
@@ -1812,6 +1866,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             arcs={arcs}
             journal={view.journal}
             labels={labels}
+            standing={standing}
             inkByCountry={inkByCountry}
             held={held}
             built={built}
@@ -1834,6 +1889,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onRegionsLoaded={keepRegionAt}
             onArcHover={setHoveredArc}
             onLabelHover={setHoveredLabel}
+            onStackHover={onStackHover}
             compassOf={compassOfTarget}
             onCompassAction={actOnCompass}
             building={buildingSite !== null}
@@ -1948,6 +2004,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           )}
           {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
+          <StackHoverSheet
+            register={setStackHover}
+            me={view.me}
+            marching={marching}
+            postedLabelId={posted?.labelId}
+            labels={labels}
+          />
           {posted && !(narrow && order !== null) && (
             <TroopBadge
               key={posted.labelId}
@@ -2480,6 +2543,7 @@ function postedStacks(
       stack,
       place: pilePlace(at, names, regionAt),
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
+      pieces: pilePieces(held),
       ink: me.ink,
     };
   });

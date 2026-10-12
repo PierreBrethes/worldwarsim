@@ -54,8 +54,10 @@ import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
+import { StandingLayer, type CounterTexts, type StandingPile } from './standing';
 
 export type { SearchArea } from './search-area';
+export type { CounterTexts, StandingPile } from './standing';
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -164,6 +166,7 @@ export class MapEngine {
   private readonly curvature: Curvature;
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
+  private readonly standing: StandingLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
   private readonly searchArea: SearchAreaLayer;
@@ -358,7 +361,9 @@ export class MapEngine {
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
+    this.standing = new StandingLayer(this.frame, () => this.invalidate());
     this.scene.add(this.arcs.group);
+    this.scene.add(this.standing.group);
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.searchArea.object);
@@ -369,6 +374,7 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
+      (id) => this.standing.isDressed(id),
     );
 
     this.scene.add(this.regions.lines);
@@ -411,6 +417,12 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
+  /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
+  displayStanding(piles: ReadonlyArray<StandingPile>, texts: CounterTexts): void {
+    this.invalidate();
+    this.standing.display(piles, texts);
+  }
+
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
     this.invalidate();
     this.labels.setAnchors(anchors);
@@ -434,6 +446,7 @@ export class MapEngine {
   setPlayerNation(nation: string | null): void {
     this.invalidate();
     this.arcs.setPlayerNation(nation);
+    this.standing.setNation(nation);
     this.hoverDirty = true;
   }
 
@@ -716,6 +729,7 @@ export class MapEngine {
     this.reach.rebuild();
     this.searchArea.rebuild();
     this.ghost.rebuild();
+    this.standing.rebuild();
     this.arcs.rebuild();
     this.labels.rebuild();
     this.regions.rebuild();
@@ -757,6 +771,7 @@ export class MapEngine {
     this.reach.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
+    this.standing.dispose();
     this.arcs.dispose();
     this.ink.dispose();
     this.regions.dispose();
@@ -1227,6 +1242,7 @@ export class MapEngine {
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
+    this.standing.orient(this.camera.position);
     this.regions.animate(distance);
     this.sea?.fade(distance);
     this.borders.material.opacity =

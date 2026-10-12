@@ -5,7 +5,7 @@ import { isNation } from '@/domain/nations';
 import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
-import { frenchSquad, squadOf } from './infantry';
+import { squadOf } from './infantry';
 
 /**
  * Model units to board units. The brief sizes a tank at 2.6, so it stands about two thirds of
@@ -28,13 +28,11 @@ export function nearWeight(distance: number): number {
 export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */
   readonly object: Group;
+  /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
+   *  for its frame then, where a flowing pawn would just show it. Rejects when a file fails. */
+  readonly ready: Promise<void>;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
-};
-
-/** What the engine codes itself while a role has no sculpted file. */
-const CODED: Readonly<Partial<Record<string, Partial<Record<UnitRole, () => Object3D>>>>> = {
-  france: { infantry: frenchSquad },
 };
 
 const loader = new GLTFLoader();
@@ -55,22 +53,23 @@ function fileOf(nation: Nation, role: UnitRole, tier: UnitTier): string | null {
 }
 
 /**
- * **A role's figurine for a nation, or `null` when there is none** — the caller keeps its plate
- * or silhouette, as it does for a missing plate. A sculpted file wins over coded geometry; it
- * loads in the background, and the figurine fills itself in when it lands (a pawn on the board
- * is always flowing, so the next frame shows it). Geometry and materials are shared between
- * figurines of the same file: nothing here is the caller's to dispose.
+ * **A group's figurine for a nation, or `null` when there is none** — the caller keeps its plate
+ * or silhouette, as it does for a missing plate. `marks` are the figures that stand, front first
+ * (`pilePieces`): one man each for infantry, the first mark's model for any other role. One
+ * mark without a file and the whole answer is `null` — no figurine rather than the wrong one.
+ * Files load in the background; `ready` says when they have landed. Geometry and materials are shared between figurines of the same
+ * file: nothing here is the caller's to dispose.
  */
 export function figurineFor(
   nation: string | null,
   role: UnitRole,
-  tier: UnitTier,
+  marks: ReadonlyArray<UnitTier>,
 ): Figurine | null {
-  if (nation === null || !isNation(nation)) return null;
-  const file = fileOf(nation, role, tier);
-  // The coded geometry is a mark-1 stand-in: a mark 2 shown in mark-1 kit would show a mark the pile does not hold.
-  const coded = tier === 1 ? CODED[nation]?.[role] : undefined;
-  if (file === null && coded === undefined) return null;
+  if (nation === null || !isNation(nation) || marks.length === 0) return null;
+  const files = (role === 'infantry' ? marks : marks.slice(0, 1)).map((tier) =>
+    fileOf(nation, role, tier),
+  );
+  if (files.some((file) => file === null)) return null;
 
   const object = new Group();
   const model = new Group();
@@ -78,22 +77,33 @@ export function figurineFor(
   object.add(model);
   if (DOMAIN_BY_ROLE[role] !== 'air') object.add(contactShadow());
 
-  if (file !== null) {
-    sceneOf(file).then(
-      (scene) =>
-        model.add(role === 'infantry' ? squadOf(() => scene.clone(true)) : scene.clone(true)),
-      (error: unknown) => console.error(`figurine ${file}`, error),
-    );
-  } else if (coded) {
-    model.add(coded());
-  }
+  const ready = Promise.all(files.map((file) => sceneOf(file!))).then(
+    (scenes) => {
+      const makers = scenes.map((scene) => () => scene.clone(true));
+      model.add(role === 'infantry' ? squadOf(makers) : makers[0]!());
+    },
+    (error: unknown) => {
+      console.error(`figurine ${nation}/${role}`, error);
+      throw error;
+    },
+  );
+  // A moving pawn never waits on `ready`: its failure is logged above, not left unhandled.
+  ready.catch(() => undefined);
 
   const spinning: Object3D[] = [];
   return {
     object,
+    ready,
     spin(elapsedSeconds) {
+      // Only the hub turns: its blades and cone ride along, and turning them too would twist
+      // each on its own axis.
       if (spinning.length === 0)
-        model.traverse((part) => part.name.startsWith('prop') && spinning.push(part));
+        model.traverse(
+          (part) =>
+            part.name.startsWith('prop') &&
+            !part.parent?.name.startsWith('prop') &&
+            spinning.push(part),
+        );
       for (const part of spinning) part.rotation.z += elapsedSeconds * 40;
     },
   };
@@ -115,13 +125,16 @@ const SHADOW_OUTER = new MeshBasicMaterial({
   opacity: 0.12,
   depthWrite: false,
 });
-function contactShadow(): Group {
-  const shadow = new Group();
-  for (const [radius, material] of [
+const SHADOW_DISCS = (
+  [
     [0.32, SHADOW_INNER],
     [0.48, SHADOW_OUTER],
-  ] as const) {
-    const disc = new Mesh(new CircleGeometry(radius, 24), material);
+  ] as const
+).map(([radius, material]) => [new CircleGeometry(radius, 24), material] as const);
+function contactShadow(): Group {
+  const shadow = new Group();
+  for (const [geometry, material] of SHADOW_DISCS) {
+    const disc = new Mesh(geometry, material);
     disc.rotation.x = -Math.PI / 2;
     disc.position.y = 0.004;
     shadow.add(disc);
