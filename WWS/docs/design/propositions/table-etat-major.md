@@ -122,6 +122,30 @@ rendu physique, pas un nouveau registre.
 - **Le rejeu sert le détail de mon seul camp** par rôle (champ réservé au camp du joueur dans
   `CombatReport`) ; l'adversaire reste en totaux.
 
+**Tour 3.**
+
+- **Les lots, dans l'ordre**, chacun livrable et jouable seul :
+  1. **fondation** — module figurines du moteur (kit, instanciation, ombre de contact, lumière,
+     fondu au seuil), qui habille d'abord ses propres mouvements, France complète, les autres
+     nations sur la silhouette de domaine ;
+  2. **troupes posées** — figurines à la place des étiquettes DOM, piles (groupe par rôle, jeton,
+     force, MK présents), fiche au survol à la place du cartouche ;
+  3. **l'adversaire en blocs** — forces posées et mouvements relevés, pose animée par la main ;
+  4. **lever-poser**, à la place du flux de visée ;
+  5. **les autres nations**, rôle par rôle, et l'infanterie sur le corps CC0 (en parallèle de 2 à 4) ;
+  6. **bâtiments en maquettes** ;
+  7. **rejeu 4.7** ;
+  8. **décor** — gravure par relevé, chantier qui monte, terrain au survol (après la vraie
+     classification), puis jour et nuit.
+- **Une ADR 0026 « La carte en figurines »**, avec ce qu'on abandonne ; elle porte la révision du
+  30/08 (lever-poser, fiche au survol). La fiche 10 y renvoie.
+- **Au toucher** : un tap sur sa troupe la lève et ouvre sa fiche, un tap sur la carte pose et
+  ouvre la rose, un tap sur la pièce levée la repose ; la main ne se montre qu'à la souris.
+- **Le rejeu se lance depuis la dépêche du combat** (« rejouer »), jamais seul ; la dépêche toast
+  le porte aussi si l'on est sur la carte au moment du combat.
+- **Le réglage `actives / réduites / coupées` commande les figurines** : réduites, ni balancement
+  ni main animée, poses et tampons immédiats ; coupées, le rejeu saute au compte rendu.
+
 **Faits relevés pour la suite** : seuls les mouvements sont aujourd'hui en 3D (un `Pawn` par arc,
 six mouvements au plus par joueur) ; les troupes posées et les bâtiments sont des étiquettes DOM
 (`MapLabels.tsx`) — jusqu'à 24 troupes, soit environ 70 figurines à instancier ; les régions
