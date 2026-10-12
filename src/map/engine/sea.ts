@@ -84,7 +84,7 @@ const glsl = (value: number) => value.toFixed(4);
 /** Cells of distance the surf texture holds: past the rings' reach, the sea is just far. */
 const COAST_CAP_CELLS = 16;
 const SURF_REACH = 1.25;
-const SURF_PERIOD_S = 6;
+const SURF_PERIOD_S = 12;
 const SURF_RINGS = 2;
 const SURF_RING_OPACITY = 0.12;
 const SURF_RING_WIDTH = 0.06;
