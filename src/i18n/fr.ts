@@ -2238,8 +2238,7 @@ export const fr = {
       `${count} région${plural(count, '', 's')} éligible${plural(count, '', 's')}`,
     noneEligible: 'aucune région éligible',
     chooseRegion: (condition: string) => `Choisissez la région — ${condition}`,
-    highlighted: (regions: ReadonlyArray<string>) =>
-      `${andList(regions)} surlignée${plural(regions.length, '', 's')} sur le plateau.`,
+    highlighted: 'Cliquez l’une des régions surlignées sur le plateau.',
     zoomIn: 'Rapprochez-vous : les régions n’apparaissent qu’au zoom rapproché.',
     cancel: 'annuler la sélection de clé',
     /** **Une dette de socle est un couple** : deux mines dues se liraient sinon comme deux fois

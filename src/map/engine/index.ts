@@ -36,7 +36,7 @@ import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from
 import type { ArcView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
-import { WindLayer } from './wind';
+import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { InkLayer } from './ink';
@@ -162,6 +162,7 @@ export class MapEngine {
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
   private readonly curvature: Curvature;
+  private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
@@ -308,15 +309,21 @@ export class MapEngine {
     sun.position.set(-180, 320, 160);
     this.scene.add(sun);
 
-    const sea = new SeaLayer();
+    this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
     const board = buildBoard(
       world,
       this.frame,
       this.curvature,
       this.renderer.capabilities.getMaxAnisotropy(),
-      this.ambience.enabled('sea') ? sea : null,
+      this.sea,
     );
-    this.ambience.add(sea);
+    if (this.sea) {
+      this.ambience.add(this.sea);
+      void this.sea.shore(this.frame, this.world).then((grid) => {
+        if (grid) this.routeGrid ??= grid;
+        this.invalidate();
+      });
+    }
     this.surface = board.surface;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -331,8 +338,20 @@ export class MapEngine {
 
     this.aimable = [...this.countries, this.surface];
 
+    if (this.ambience.enabled('sea')) {
+      this.ambience.add(
+        new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, {
+          ...CURRENT_RIBBONS,
+          // Until the surf's grid lands, no current is born: building it here would cost a
+          // second copy of the same raster on the first ambient step.
+          afloat: (lonLat) => this.routeGrid !== null && !this.landAt(lonLat),
+        }),
+      );
+    }
     if (this.ambience.enabled('wind')) {
-      this.ambience.add(new WindLayer(this.scene, this.camera, this.renderer, this.frame));
+      this.ambience.add(
+        new RibbonLayer(this.scene, this.camera, this.renderer, this.frame, WIND_RIBBONS),
+      );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
     this.arcs = new ArcLayer(this.frame, this.ink);
@@ -741,6 +760,7 @@ export class MapEngine {
     this.arcs.dispose();
     this.ink.dispose();
     this.regions.dispose();
+    this.sea?.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -1208,6 +1228,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.regions.animate(distance);
+    this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)

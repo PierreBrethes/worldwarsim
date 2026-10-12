@@ -102,15 +102,37 @@ ronds — qui suivent un **champ de vent continu** et s'enroulent d'eux-mêmes d
   adverses. Un arc adverse ne s'orne jamais, le brouillard l'interdit déjà structurellement.
 - Vocabulaire : un *mouvement*, jamais un convoi ; la *passe de résolution*, jamais un tour.
 
+## Prototype 4 — Courants et écume — 11/10/2026
+
+Après le vent, la houle seule jurait. Pierre a proposé « une écume côtière + des courants qui
+tracent les routes maritimes connues ». **Les courants, oui ; les routes, non** : une voie
+maritime tracée ressemble à un fil de mouvement et se lirait comme un conseil de route, que le
+routage du jeu ne suit pas. Un courant est de la nature, comme le vent.
+
+- **Les courants** (`src/domain/currents.ts`, `currentAt`) : une climatologie fixe — cinq gyres
+  à intensification ouest (Gulf Stream, Kuroshio, Brésil, Est-australien, Agulhas), courants
+  équatoriaux et contre-courant, circumpolaire — animée de lents méandres, **même mer pour tous**
+  (fonction de l'heure). Rubans du moteur du vent (`ribbons.ts`, style `CURRENT_RIBBONS`) : encre
+  de mer, **filigrane** (validé à l'œil par Pierre : peu nombreux, longs, très pâles), sur l'eau
+  seulement, sous le vent. Ni dérive nord-atlantique ni courant de Norvège pour l'instant : la
+  mer du Nord n'a pas de courant.
+- **L'écume** : un ressac de deux anneaux qui partent de la côte en pâlissant, boucle de 6 s,
+  **au rapproché seulement** (fondu au seuil des régions). Une bande géométrique par pays laissait
+  une couture là où deux côtes se croisent et des anneaux anguleux aux caps : l'écume lit
+  désormais **un seul champ de distance à la côte** pour toute la mer (`coast-distance.ts`,
+  transformée exacte sur la grille de routage, ~60 ms au chargement, lissée, en texture
+  bilinéaire), et les côtes voisines se fondent d'elles-mêmes.
+- **Le vent s'éclaircit au rapproché** : un tiers des rubans en vue pays, plein en vue monde.
+
 ## Réglage « animations de la carte »
 
 Quatre valeurs : **auto** (suit `prefers-reduced-motion`), **actives**, **réduites**, **coupées**.
 
-| Valeur | Houle | Vent | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
+| Valeur | Mer (houle, écume ; courants) | Vent | Tracé | Tirets, effet d'arrivée | Caméra, pousse des accessoires |
 | --- | --- | --- | --- | --- | --- |
-| actives | 12 i/s | rubans, 30 i/s | progressif | oui | animées |
-| réduites | figée | pas de rubans | instantané | gardés : ils informent | sautent à leur état final |
-| coupées | figée | pas de rubans | instantané | tirets figés, pas d'éclat | sautent à leur état final |
+| actives | 12 i/s ; courants 30 i/s | rubans, 30 i/s | progressif | oui | animées |
+| réduites | figée, sans courants | pas de rubans | instantané | gardés : ils informent | sautent à leur état final |
+| coupées | figée, sans courants | pas de rubans | instantané | tirets figés, pas d'éclat | sautent à leur état final |
 
 La caméra et la pousse suivent le réglage, et non plus la seule requête système : choisir
 « réduites » est une demande de moins de mouvement, et un vol de caméra en est un.

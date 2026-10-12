@@ -366,6 +366,10 @@ export function encodeGrid(grid: RouteGrid): GridAsset {
  * The sphere and the outline come from the world rather than from the asset: they are already in
  * the bundle for the country containment, and two copies of the same frame could disagree.
  */
+/** The land cells as 1, the rest as 0: what the surf measures its distance from. */
+export const landMaskOf = (grid: RouteGrid): Uint8Array =>
+  grid.cells.map((cell) => (cell === LAND ? 1 : 0));
+
 export function decodeGrid(asset: GridAsset, world: World): RouteGrid {
   const cells = new Uint8Array(asset.width * asset.height);
   let at = 0;
