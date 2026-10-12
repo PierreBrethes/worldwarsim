@@ -61,7 +61,7 @@ inventée, aucune donnée de partie. Décisions et pistes :
 sculptés en code d'après leurs planches ; un kit de fantassin habillé par nation (revue
 France / Allemagne / Royaume-Uni) ; les piles (un groupe par rôle, jeton « ×N », figurines qui
 disent la force, MK présents seulement) ; la fiche au survol avec vie sur 100 et charge par
-ressource, chargement en direct ; l’adversaire en bloc de wargame vu de dos ; lever une troupe et la poser ailleurs pour lui donner un ordre ; les dessins de terrain au survol d’une région.
+ressource, chargement en direct ; l’adversaire en bloc de wargame vu de dos ; lever une troupe et la poser ailleurs pour lui donner un ordre ; les dessins de terrain au survol d’une région ; le rejeu d’un engagement.
 
 Le fichier est la page brute publiée en artifact : sans `<!doctype>` ni `<body>`, il s'ouvre
 quand même dans Chrome.

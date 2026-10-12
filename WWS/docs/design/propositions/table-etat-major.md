@@ -117,6 +117,18 @@ Avis de Pierre du 12/10 entre crochets.
   la carte pour le jeu.*]
 - **Le rejeu de combat** (surface 4.7) joué par les figurines, sur le compte rendu, sans
   re-résoudre : elles se font face, éclairs de bouche, celles perdues tombent. [*Oui.*]
+  **Prototypé le 12/10** (version 8), en quatre temps : mise en place — ma ligne entre, et le bloc
+  relevé se dédouble en autant de blocs que le compte rendu compte de troupes adverses ; salves
+  simultanées — éclairs et tirs d'encre partent **ensemble** des deux lignes, les pertes tombent
+  ensemble (une figurine couchée, le char qui fume, un bloc renversé) ; déroute — lue une fois
+  après, les blocs déroutés reculent et pâlissent ; compte rendu — tampon « terrain tenu », la
+  phrase même de la dépêche, le tableau chez moi / en face. **Le brouillard tient** : en face,
+  rien que ce que `CombatReport` sert (troupes, pertes, déroutes, détruites), jamais un rôle ;
+  chez moi, le détail par rôle. Le brief 4.7 (« trois à quatre passes », « pertes par rôle »,
+  « piles des deux camps ») est antérieur à la révision du 16/09 et à ce cloisonnement : une seule
+  passe aujourd'hui, et la composition adverse reste à décider — le rejeu ne peut pas la montrer
+  tant que rien ne l'autorise. Les tirs de `strikes` (rôles des deux camps) ne sont servis à
+  personne : un rejeu qui les lirait devra les filtrer par camp.
 - **Le chantier monte** : échafaudage, puis le bâtiment qui pousse dans un nuage de plâtre ; un
   recrutement fini fait sortir les figurines de la caserne. [*Oui.*]
 - **Ce qu'on relève se pose sur la table.** [*D'accord, précisé.*] Quand un relevé adverse
