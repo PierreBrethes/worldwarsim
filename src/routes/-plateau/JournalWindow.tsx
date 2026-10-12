@@ -138,7 +138,15 @@ export function JournalWindow({
   }
 
   return (
-    <FloatingWindow name="journal" onClose={close} {...windowProps} alignment="right" width={440}>
+    /** Une clé de géométrie neuve : celle de l'ancienne modale centrée de 1040 px, relue ici,
+     *  posait le panneau à sa taille et poussait son décalage hors de l'écran. */
+    <FloatingWindow
+      name="journal-dock"
+      onClose={close}
+      {...windowProps}
+      alignment="right"
+      width={440}
+    >
       <DeskJournal
         view={view}
         edition={`${fr.journal.editionOf(time)} · ${seasonDay}`}
@@ -184,10 +192,15 @@ function DeskJournal({
   children: ReactNode;
 }) {
   const [routineOpen, setRoutineOpen] = useState(false);
-  const [picked, setPicked] = useState<JournalDispatch | null>(selected);
-  const unread = view.journal.filter((dispatch) => dispatch.unread).length;
+  /** Par sa clé et non par l'objet : la vue se reconstruit à chaque écriture du serveur, et la
+   *  ligne localisée perdait sa surbrillance au premier pas d'une colonne. */
+  const [picked, setPicked] = useState(selected === null ? null : keyOf(selected));
+  const sections = journalSections(view.journal);
+  const unread = sections
+    .flatMap(({ lines }) => lines)
+    .filter(({ dispatch }) => dispatch.unread).length;
   const locate = (dispatch: JournalDispatch, place: Place) => {
-    setPicked(dispatch);
+    setPicked(keyOf(dispatch));
     onLocate(place);
   };
 
@@ -252,7 +265,7 @@ function DeskJournal({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {journalSections(view.journal).map(({ severity, lines }) => {
+        {sections.map(({ severity, lines }) => {
           const folds = severity === 'routine';
           const open = !folds || routineOpen;
           return (
@@ -280,10 +293,10 @@ function DeskJournal({
               {open &&
                 lines.map(({ dispatch, earlier }) => (
                   <DeskLine
-                    key={`${dispatch.at}-${dispatch.text}`}
+                    key={keyOf(dispatch)}
                     dispatch={dispatch}
                     earlier={earlier}
-                    picked={dispatch === picked}
+                    picked={keyOf(dispatch) === picked}
                     onLocate={(place) => locate(dispatch, place)}
                   />
                 ))}
@@ -295,6 +308,8 @@ function DeskJournal({
     </article>
   );
 }
+
+const keyOf = (dispatch: JournalDispatch): string => `${dispatch.at}-${dispatch.text}`;
 
 function DeskLine({
   dispatch,

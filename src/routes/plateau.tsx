@@ -2014,7 +2014,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           {orderError !== null && (
             <div
               className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
-                narrow ? 'bottom-4 left-4' : 'top-4 right-4'
+                narrow
+                  ? 'bottom-4 left-4'
+                  : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
+                    windows.includes('journal')
+                    ? 'top-4 left-1/2 -translate-x-1/2'
+                    : 'top-4 right-4'
               }`}
             >
               {orderError}
