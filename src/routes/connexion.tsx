@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import { Masthead } from '@/shell/Masthead';
@@ -49,6 +49,14 @@ function Sheet({
 
       {children}
       <SheetExit />
+      <div className="mx-(--sheet-pad) pb-3 text-center">
+        <Link
+          to="/credits"
+          className="text-[10.5px] text-[var(--ink-note)] underline underline-offset-4 hover:text-[var(--ink)]"
+        >
+          {fr.credits.open}
+        </Link>
+      </div>
     </EntrySheet>
   );
 }

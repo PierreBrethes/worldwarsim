@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
@@ -265,6 +265,9 @@ function ConnectedHome() {
 
         <div className="mx-(--sheet-pad) mt-[16px] flex items-center justify-between border-t border-(color:--ink)/35 pt-[9px] pb-[14px] text-[10px] tracking-[.16em] text-[var(--ink-note)] uppercase">
           <span>{fr.home.footerLeft}</span>
+          <Link to="/credits" className="underline underline-offset-4 hover:text-[var(--ink)]">
+            {fr.credits.open}
+          </Link>
           <span className="font-(family-name:--font-mono) tracking-[.12em]">
             {fr.home.footerRight}
           </span>

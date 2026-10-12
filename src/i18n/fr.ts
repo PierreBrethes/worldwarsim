@@ -597,6 +597,43 @@ export const fr = {
     title: 'La Manchette',
   },
 
+  /** **Les crédits** (`/credits`) : chaque ligne est justifiée par un fichier du dépôt — les
+   *  générateurs de `scripts/`, `index.html`, `package.json`. */
+  credits: {
+    title: 'Crédits',
+    tagline: 'sources et licences',
+    open: 'crédits',
+    back: 'retour',
+    sources: [
+      {
+        name: 'Natural Earth',
+        use: 'Littoraux, frontières et régions admin-1 de la carte.',
+        licence: 'Domaine public.',
+        attribution: 'Made with Natural Earth (naturalearthdata.com).',
+      },
+      {
+        name: 'GeoBasis-DE / BKG',
+        use: 'Découpage de la Bavière, du Bade-Wurtemberg et de la Hesse en Regierungsbezirke (VG2500).',
+        licence: 'Licence de données Allemagne – attribution – version 2.0 (dl-de/by-2-0).',
+        attribution: '© GeoBasis-DE / BKG',
+      },
+      {
+        name: 'Archivo Narrow, Bodoni Moda, IBM Plex Mono, Source Serif 4',
+        use: 'Les caractères du journal, servis par Google Fonts.',
+        licence: 'SIL Open Font License 1.1.',
+        attribution: '',
+      },
+      {
+        name: 'country-flag-icons',
+        use: 'Les drapeaux des nations.',
+        licence: 'MIT.',
+        attribution: '',
+      },
+    ],
+    software:
+      'Le jeu repose sur des logiciels libres, dont three.js, React, TanStack Router et Convex.',
+  },
+
   auth: {
     dateline: 'bureau des engagements',
     loginTagline: 'reprendre ses parties',

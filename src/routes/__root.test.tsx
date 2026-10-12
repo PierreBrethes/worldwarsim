@@ -101,9 +101,17 @@ it('renvoie à la connexion sans laisser la feuille gardée dans l’historique'
 it('ouvre la une, la connexion et les invitations, et rien d’autre, sans compte', () => {
   expect(opensWithoutAccount('/')).toBe(true);
   expect(opensWithoutAccount('/connexion')).toBe(true);
+  expect(opensWithoutAccount('/credits')).toBe(true);
   expect(opensWithoutAccount('/rejoindre/K7Q2PX')).toBe(true);
 
-  for (const closed of ['/accueil', '/salon', '/plateau', '/rejoindre', '/connexion/autre']) {
+  for (const closed of [
+    '/accueil',
+    '/salon',
+    '/plateau',
+    '/rejoindre',
+    '/connexion/autre',
+    '/credits/autre',
+  ]) {
     expect(opensWithoutAccount(closed), closed).toBe(false);
   }
 });
