@@ -309,16 +309,15 @@ restent entières parce qu'elles portent le Ruhr et Salzgitter. Le tirage blé/t
 l'Allemagne est **figé** (`FROZEN_DRAWS`, `generate-deposits.mjs`) : découper la carte ne
 redistribue pas la main d'une nation.
 
-**Le type de région** (`regionType`) compte six valeurs — plaine, forêt, jungle, montagne,
-désert, toundra — mais **reste un factice** : six régions témoins classées à la main (Oise,
-Landes, Amazonas, Valais, Tamanghasset, Chukchi), hachage du nom pour toutes les autres. La
-passe réelle est décidée mais pas écrite : classification hors ligne dans
-`scripts/generer-regions.mjs` (ETOPO pour le relief, Köppen-Geiger pour aride/polaire/tropical,
-landcover grossier pour forêt vs plaine), cuite dans `regions.json` en asset statique. Aucune
+**Le type de région** (`RegionType`) compte six valeurs — plaine, forêt, jungle, montagne,
+désert, toundra — classées hors ligne par `scripts/generate-region-types.mjs` (relief ETOPO, Köppen-Geiger, forêt
+Hansen ; rasters hors dépôt, SHA-256 vérifiés) et servies par `public/region-types.json`, à part
+de `regions.json` : `{ type: [ids] }`, une région absente se lit plaine. Détail et seuils dans
+`WWS/docs/design/propositions/classification-regions.md`. Aucune
 règle de jeu ne doit lire le type — s'il doit un jour toucher vitesse ou combat, ADR
 obligatoire (la fiche 08 est figée « ni grille, ni terrain » ; le décoratif est libre).
-`monde.json` et `regions.json` sont produits par `scripts/generer-monde.mjs` et
-`scripts/generer-regions.mjs` — ne jamais les retoucher à la main.
+`monde.json`, `regions.json` et `region-types.json` sont produits par `scripts/generer-monde.mjs`,
+`scripts/generer-regions.mjs` et `scripts/generate-region-types.mjs` — ne jamais les retoucher à la main.
 
 **Le calcul de trajets terrestre/naval/aérien/combiné existe dans `src/domain/routing.ts`**
 (ADR 0012) : grille raster, Dijkstra, enroulement est-ouest dans l'adjacence, détroits et
