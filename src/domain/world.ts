@@ -111,13 +111,23 @@ export function loadRegions(
 
 /** The type is baked offline into its own asset (`generate-region-types.mjs`). A missing file or
  *  region reads as a plain: decoration only, no rule may read it. */
+const REGION_TYPES: ReadonlyArray<RegionType> = [
+  'plain',
+  'forest',
+  'jungle',
+  'mountain',
+  'desert',
+  'tundra',
+];
+
 async function fetchRegionTypes(url: string): Promise<ReadonlyMap<string, RegionType>> {
   try {
     const response = await fetch(url);
     if (!response.ok) return new Map();
-    const byType = (await response.json()) as Record<RegionType, string[]>;
+    const byType = (await response.json()) as Partial<Record<RegionType, string[]>>;
+    // A key the client does not know would tint and sow with `undefined`: it falls back to plain.
     return new Map(
-      Object.entries(byType).flatMap(([type, ids]) => ids.map((id) => [id, type as RegionType])),
+      REGION_TYPES.flatMap((type) => (byType[type] ?? []).map((id) => [id, type] as const)),
     );
   } catch {
     return new Map();
