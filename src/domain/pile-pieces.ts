@@ -42,7 +42,11 @@ type Bucket = { role: UnitRole; troops: PileTroop[]; ratio: number };
 
 function bucketsOf(troops: ReadonlyArray<PileTroop>): Bucket[] {
   const byRole = new Map<UnitRole, PileTroop[]>();
-  for (const troop of troops) byRole.set(troop.role, [...(byRole.get(troop.role) ?? []), troop]);
+  for (const troop of troops) {
+    const members = byRole.get(troop.role);
+    if (members) members.push(troop);
+    else byRole.set(troop.role, [troop]);
+  }
   return [...byRole]
     .map(([role, members]) => {
       const nominal = members.reduce((sum, t) => sum + t.nominalStrength, 0);
@@ -94,7 +98,7 @@ export function pileSheet(troops: ReadonlyArray<PileTroop>): ReadonlyArray<Sheet
       troops: members.length,
       health,
       notches: Math.round(health / 10),
-      ink: health <= 33 ? 'red' : health < 67 ? 'ochre' : 'ink',
+      ink: ratio > 2 / 3 ? 'ink' : ratio > 1 / 3 ? 'ochre' : 'red',
     };
   });
 }

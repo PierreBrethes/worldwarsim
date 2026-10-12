@@ -102,9 +102,9 @@ describe('pileSheet', () => {
     const line = (strength: number) => pileSheet([troop('armor', 1, strength)])[0];
     expect(line(100)).toMatchObject({ health: 100, notches: 10, ink: 'ink' });
     expect(line(67)).toMatchObject({ health: 67, notches: 7, ink: 'ink' });
-    expect(line(66)).toMatchObject({ health: 66, notches: 7, ink: 'ochre' });
+    expect(line(66.6)).toMatchObject({ health: 67, notches: 7, ink: 'ochre' });
     expect(line(34)).toMatchObject({ health: 34, notches: 3, ink: 'ochre' });
-    expect(line(33)).toMatchObject({ health: 33, notches: 3, ink: 'red' });
+    expect(line(33.3)).toMatchObject({ health: 33, notches: 3, ink: 'red' });
   });
 
   it('counts troops and cumulates strength per role', () => {
