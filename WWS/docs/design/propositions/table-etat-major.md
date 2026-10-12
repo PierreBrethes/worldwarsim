@@ -131,8 +131,19 @@ Avis de Pierre du 12/10 entre crochets.
   `scripts/generer-regions.mjs`, décidée mais pas écrite) : `regionType` est aujourd'hui un
   hachage du nom, et le dessiner en grand rendrait le faux visible. Décor seulement — la fiche 08
   reste « ni grille, ni terrain ».
+  **Prototypé le 12/10** sur la carte inventée : six jeux de pictogrammes tracés à la plume
+  (≈ 0,6 s, décalés du centre vers les bords), fondu de sortie, lavis léger de la région, infobulle
+  nom et terrain ; le calque n'est redessiné que pendant l'animation.
 
 ### Lever la pièce et la poser ailleurs — proposé par Pierre
+
+**Prototypé le 12/10** (version 7 du prototype) : clic net sur une de ses troupes, une main la
+pince et la porte, l'original reste délavé ; l'aperçu d'arc suit, ocre sur terre et rouge en mer ;
+la pose ouvre la rose — « marcher » et « fonder un avant-poste » sur terre, « attaquer » seul
+près d'une force relevée, et en mer aucune branche mais la phrase « une troupe à pied ne prend
+pas la mer » ; « envoyer — irréversible » lance le mouvement ; Échap, clic droit ou clic hors de
+la rose reposent la pièce chez elle. **Les deux idées se renforcent** : pièce en main, le terrain
+survolé se dessine sous elle.
 
 Comme aux échecs : un clic gauche **lève** la figurine, qui suit la souris tenue par une main ;
 un clic ailleurs la **pose** ; la pose ouvre la confirmation du trajet, et l'envoi lance le

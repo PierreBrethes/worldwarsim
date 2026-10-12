@@ -103,6 +103,35 @@
     .ref { width: 96px; }
     .ref img { height: 64px; }
   }
+  /* ---------- lift and place ---------- */
+  .lp-help { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 6;
+    font: 12px/1 var(--num); letter-spacing: .02em; color: var(--paper); background: rgba(23,18,8,.72); padding: 7px 12px; border: 1px solid rgba(228,216,189,.35); pointer-events: none; }
+  .fiche[hidden] { display: none; }
+  .lp-help[hidden], .lp-rose[hidden], .lp-note[hidden], .lp-ring[hidden], .lp-confirm[hidden] { display: none; }
+  .lp-rose { position: fixed; left: 0; top: 0; z-index: 7; width: 0; height: 0; will-change: transform; }
+  .lp-dot { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--paper); }
+  .lp-ring { position: absolute; left: -100px; top: -100px; width: 200px; height: 200px; border-radius: 50%; border: 1px dashed rgba(42,33,24,.65); pointer-events: none; }
+  .lp-branch { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink);
+    background: var(--paper); border: 1px solid var(--ink); padding: 9px 12px; cursor: pointer; box-shadow: 0 8px 18px rgba(0,0,0,.4);
+    transform: translate(-50%, -50%) translate(var(--dx), var(--dy)); animation: lp-pop .18s ease-out backwards; }
+  .lp-branch:hover { background: var(--ink); color: var(--paper); }
+  .lp-branch.foe { color: var(--alarm); border-color: var(--alarm); }
+  .lp-confirm, .lp-note { position: absolute; left: 0; top: 18px; transform: translateX(-50%); width: 210px; background: var(--paper); color: var(--ink);
+    border: 1px solid var(--ink); padding: 9px 11px 10px; display: grid; gap: 6px; box-shadow: 0 12px 26px rgba(0,0,0,.42); font: 13px/1.25 var(--ui); }
+  .lp-confirm h3 { margin: 0; font: 700 18px/1.05 var(--display); }
+  .lp-confirm .eyebrow { font: 600 10px/1 var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+  .lp-confirm .num { font: 500 12px/1 var(--num); }
+  .lp-confirm button { font: 600 12px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--paper); background: var(--alarm); border: 1px solid var(--ink); padding: 9px; cursor: pointer; }
+  .lp-note { position: fixed; z-index: 7; font: italic 500 15px/1.25 var(--display); }
+  @keyframes lp-pop { from { opacity: 0; transform: translate(-50%, -50%) scale(.6); } }
+  @media (prefers-reduced-motion: reduce) { .lp-branch { animation: none; } }
+  /* ---------- end lift and place ---------- */
+  /* ---------- terrain on hover ---------- */
+  .terrain-tip { position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 6px 10px 7px; box-shadow: 2px 3px 0 rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 3px; }
+  .terrain-tip[hidden] { display: none; }
+  .terrain-tip b { font: 700 16px/1 var(--display); }
+  .terrain-tip span { font: 600 10px/1 var(--ui); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-soft); }
+  /* ---------- end terrain on hover ---------- */
 </style>
 
 <canvas id="scene" aria-label="Table d'état-major en trois dimensions"></canvas>
@@ -112,7 +141,7 @@
 <section class="panel" aria-label="Réglages de la démonstration">
   <div class="kicker">La Manchette · preuve de concept</div>
   <h1>Table d'état-major</h1>
-  <p>Essai : le R35, le soldat et le D.520 sculptés d'après leurs planches actuelles, posées à côté pour comparer. « Revue des fantassins » aligne trois nations ; « Lecture des piles » montre une pile en chargement, une troupe seule et une troupe entamée — survolez une pièce pour sa fiche. Carte inventée, aucune donnée de partie.</p>
+  <p>Essai : le R35, le soldat et le D.520 sculptés d'après leurs planches actuelles, posées à côté pour comparer. Cliquez une de vos troupes pour la lever et la poser ailleurs ; survolez une région pour son terrain, une pièce pour sa fiche. « Revue » et « Lecture des piles » cadrent les essais. Carte inventée, aucune donnée de partie.</p>
   <div class="toggles">
     <button id="t-lamp" aria-pressed="true">Lampe</button>
     <button id="t-tilt" aria-pressed="true">Flou de bascule</button>
@@ -336,7 +365,7 @@ function engrave() {
     const k = (y * (W / 2) + x) * 4; bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = g; bi.data[k + 3] = 255;
   }
   bctx.putImageData(bi, 0, 0);
-  return { sheet: cv, bump, path };
+  return { sheet: cv, bump, path, R, seeds };
 }
 
 // The channel's deepest line, for the cargo to sail.
@@ -379,14 +408,14 @@ const puffTex = canvasTex(64, 64, (ctx) => {
 });
 const dashTex = canvasTex(64, 16, (ctx) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 3, 40, 10); });
 dashTex.wrapS = THREE.RepeatWrapping;
-function stampTex(text, color) {
+function stampTex(text, color, time = '14:32') {
   return canvasTex(512, 512, (ctx) => {
     ctx.translate(256, 256); ctx.strokeStyle = color; ctx.fillStyle = color;
     ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(0, 0, 220, 0, Math.PI * 2); ctx.stroke();
     ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 192, 0, Math.PI * 2); ctx.stroke();
     ctx.font = '700 64px "Bodoni Moda", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(text, 0, 0);
-    ctx.font = '500 26px "IBM Plex Mono", monospace'; ctx.fillText('★  14:32  ★', 0, 80);
+    ctx.font = '500 26px "IBM Plex Mono", monospace'; ctx.fillText(`★  ${time}  ★`, 0, 80);
     ctx.globalCompositeOperation = 'destination-out';
     for (let k = 0; k < 900; k++) { ctx.globalAlpha = rand() * 0.8; ctx.fillRect(rand() * 512 - 256, rand() * 512 - 256, rand() * 6, rand() * 3); }
   });
@@ -884,7 +913,7 @@ await Promise.race([
   new Promise((r) => setTimeout(r, 2500)),
 ]);
 await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
-const { sheet, bump, path } = engrave();
+const { sheet, bump, path, R, seeds } = engrave();
 const sheetTex = new THREE.CanvasTexture(sheet); sheetTex.colorSpace = THREE.SRGBColorSpace; sheetTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 const bumpTex = new THREE.CanvasTexture(bump);
 const plate = new THREE.Mesh(new THREE.BoxGeometry(MW, 1.4, MD), new THREE.MeshStandardMaterial({ map: edgeTex, roughness: 0.9 }));
@@ -1030,6 +1059,7 @@ const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 canvas.addEventListener('pointermove', (e) => { ptr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); wantPick = true; });
 canvas.addEventListener('pointerleave', () => { hovered = null; fiche.hidden = true; });
 function pick() {
+  if (lpBusy()) { hovered = null; fiche.hidden = true; return; }
   ray.setFromCamera(ptr, camera);
   const hit = ray.intersectObjects([...FICHES.keys()], true).find((h) => !h.object.userData.decal);
   let o = hit?.object; while (o && !FICHES.has(o)) o = o.parent;
@@ -1085,6 +1115,403 @@ function stampAnim(mesh, since, holdFor) {
   mesh.scale.set(s, s, s);
   mesh.material.opacity = since < 0.14 ? (since / 0.14) * 0.88 : holdFor && since > holdFor ? Math.max(0, 0.88 - (since - holdFor) * 1.5) : 0.88;
 }
+
+// ---------- lift and place ----------
+// Lift a piece like a chess piece, carry it over the sheet, set it down, pick an order from the rose, send it.
+const LIFT_Y = 1.5, AIM_Y = 3, ARRIVAL = '15:10';
+const liftables = [inf, solo, worn, pile];
+const lp = { state: 'idle', piece: null, holder: null, hand: null, blob: null, saved: [], origin: new THREE.Vector3(), aim: new THREE.Vector3(), drop: new THREE.Vector3(),
+  vel: new THREE.Vector3(), h: 0, t: 0, from: new THREE.Vector3(), arc: null, arcAt: 0, radius: 2.2, order: null };
+const lpRay = new THREE.Raycaster(), lpPtr = new THREE.Vector2(), lpPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -AIM_Y), lpDown = { x: 0, y: 0, busy: false };
+const lpMissions = [];
+const lpOnLand = (v) => isLand(v.x / MW + 0.5, v.z / MD + 0.5);
+function lpBusy() { return lp.state !== 'idle'; }
+
+const lpEl = document.createElement('div');
+lpEl.innerHTML = `<div class="lp-help" hidden>cliquez pour poser · Échap pour reposer</div>
+  <div class="lp-rose" hidden><i class="lp-ring"></i><i class="lp-dot"></i><div class="lp-branches"></div>
+    <div class="lp-confirm" hidden><div class="eyebrow"></div><h3></h3><button>envoyer — irréversible</button></div></div>
+  <div class="lp-note" hidden>une troupe à pied ne prend pas la mer</div>`;
+document.body.append(...lpEl.children);
+const lpHelp = document.querySelector('.lp-help'), lpRose = document.querySelector('.lp-rose'), lpNote = document.querySelector('.lp-note');
+const lpBranches = lpRose.querySelector('.lp-branches'), lpConfirm = lpRose.querySelector('.lp-confirm'), lpRing = lpRose.querySelector('.lp-ring');
+let lpNoteTimer = 0;
+
+// A rounded hand pinching the piece from above, cuffed in a shirt sleeve: jointed fingers bent
+// round the piece, the thumb opposite.
+function lpHand() {
+  const skin = new THREE.MeshStandardMaterial({ color: '#d6ae88', roughness: 0.7 }), cuff = new THREE.MeshStandardMaterial({ color: '#efe7d3', roughness: 0.85 });
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new RoundedBoxGeometry(1.5, 0.5, 1.6, 4, 0.24), skin));
+  const segment = (len, r) => { const f = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 12), skin); f.geometry.translate(0, -len / 2, 0); return f; };
+  [[-0.54, 1.0], [-0.18, 1.15], [0.18, 1.1], [0.52, 0.9]].forEach(([x, len]) => {
+    const knuckle = new THREE.Group(); knuckle.position.set(x, -0.05, 0.62); knuckle.rotation.x = -0.35;
+    knuckle.add(segment(len * 0.55, 0.16));
+    const joint = new THREE.Group(); joint.position.y = -len * 0.55; joint.rotation.x = 0.55; joint.add(segment(len * 0.45, 0.145));
+    knuckle.add(joint); g.add(knuckle);
+  });
+  const thumb = new THREE.Group(); thumb.position.set(0.7, -0.05, -0.3); thumb.rotation.set(0.35, 0, -0.75); thumb.add(segment(0.75, 0.18)); g.add(thumb);
+  const arm = new THREE.Group(); arm.position.set(0, 0.25, -0.85); arm.rotation.x = 0.55;
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 2.2, 18), skin); wrist.rotation.x = Math.PI / 2; wrist.position.z = -1.1;
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.7, 1.0, 18), cuff); sleeve.rotation.x = Math.PI / 2; sleeve.position.z = -2.5;
+  arm.add(wrist, sleeve); g.add(arm);
+  g.scale.setScalar(0.8); return shadowed(g);
+}
+
+function lpAimAt() {
+  lpRay.setFromCamera(lpPtr, camera);
+  if (lpRay.ray.intersectPlane(lpPlane, lpPt)) { lp.aim.set(Math.max(-49, Math.min(49, lpPt.x)), 0, Math.max(-29, Math.min(29, lpPt.z))); return true; }
+  return false;
+}
+const lpPt = new THREE.Vector3();
+
+function lpArcTo(to, color) {
+  if (lp.arc) { scene.remove(lp.arc.mesh); lp.arc.mesh.geometry.dispose(); lp.arc.mesh.material.dispose(); lp.arc = null; }
+  const a = lp.origin, d = Math.hypot(to.x - a.x, to.z - a.z); if (d < 1) return;
+  const c = new THREE.QuadraticBezierCurve3(new THREE.Vector3(a.x, 0.3, a.z), lpControl(a, to, Math.min(7, d * 0.28)), new THREE.Vector3(to.x, 0.3, to.z));
+  lp.arc = ribbon(c.getSpacedPoints(48), 0.34, color, 0.95); lp.arcCurve = c;
+}
+// a gentle sideways bow keeps the ground path and the lifted arc one family
+function lpControl(a, b, lift, y0 = 0) {
+  const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
+  return new THREE.Vector3(mx - dz / l * l * 0.1, y0 + lift, mz + dx / l * l * 0.1);
+}
+
+function lpLift(piece) {
+  Object.assign(lp, { state: 'lifted', piece, t: 0, h: 0, order: null });
+  lp.origin.copy(piece.position); lp.radius = piece === pile ? 4.6 : 2.2;
+  lp.saved = [];
+  piece.traverse((o) => {
+    if (!o.isMesh || o.material === hitMat) return;
+    lp.saved.push([o, o.material, o.castShadow]);
+    const fade = (m) => { m = m.clone(); m.transparent = true; m.opacity = 0.35; m.depthWrite = false; return m; };
+    o.material = Array.isArray(o.material) ? o.material.map(fade) : fade(o.material); o.castShadow = false;
+  });
+  const ghost = piece.clone(true); ghost.position.set(0, 0, 0);
+  lp.holder = new THREE.Group(); lp.holder.position.copy(piece.position); lp.holder.add(ghost);
+  lp.hand = lpHand(); lp.hand.position.set(0, 4.2, 0); lp.holder.add(lp.hand);
+  lp.blob = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ map: puffTex, color: '#000', transparent: true, opacity: 0.4, depthWrite: false }));
+  lp.blob.rotation.x = -Math.PI / 2; lp.blob.renderOrder = 2;
+  scene.add(lp.holder, lp.blob);
+  lp.aim.copy(piece.position); hovered = null; fiche.hidden = true; lpHelp.hidden = false; lpNote.hidden = true; canvas.style.cursor = 'grabbing';
+}
+
+function lpRestore() {
+  for (const [o, m, cs] of lp.saved) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((x) => x.dispose()); o.material = m; o.castShadow = cs; }
+  lp.saved = [];
+}
+function lpClear() {
+  if (lp.arc) { scene.remove(lp.arc.mesh); lp.arc.mesh.geometry.dispose(); lp.arc = null; }
+  if (lp.holder) { scene.remove(lp.holder, lp.blob); lp.holder = lp.blob = null; }
+  lpRose.hidden = true; lpHelp.hidden = true;
+}
+function lpFinish() { lpClear(); lpRestore(); lp.state = 'idle'; lp.piece = null; canvas.style.cursor = ''; }
+
+function lpCancel() {
+  if (lp.state !== 'lifted' && lp.state !== 'placed') return;
+  if (lp.arc) { scene.remove(lp.arc.mesh); lp.arc = null; }
+  lpRose.hidden = true; lpHelp.hidden = true; lp.hand.visible = false;
+  lp.from.copy(lp.holder.position); lp.from.y = lp.h; lp.t = 0; lp.state = 'returning';
+}
+
+function lpDrop() {
+  if (!lpAimAt()) return;
+  lp.drop.copy(lp.aim); lp.t = 0; lp.state = 'landing'; lpHelp.hidden = true; canvas.style.cursor = '';
+  if (lp.arc) lpArcTo(lp.drop, lpOnLand(lp.drop) ? C.ochre : C.red);
+}
+
+function lpOpenRose() {
+  lp.state = 'placed';
+  if (!lpOnLand(lp.drop)) {
+    const v = new THREE.Vector3(lp.drop.x, 1, lp.drop.z).project(camera);
+    lpNote.style.left = `${(v.x + 1) / 2 * innerWidth}px`; lpNote.style.top = `${(1 - v.y) / 2 * innerHeight - 90}px`; lpNote.style.transform = 'translateX(-50%)';
+    lpNote.hidden = false; clearTimeout(lpNoteTimer); lpNoteTimer = setTimeout(() => { lpNote.hidden = true; }, 2800);
+    return lpCancel();
+  }
+  const near = Math.hypot(lp.drop.x - foe.position.x, lp.drop.z - foe.position.z) < 5;
+  const orders = near ? [['attack', 'attaquer']] : [['march', 'marcher'], ['found', 'fonder un avant-poste']];
+  const angles = orders.length === 1 ? [-90] : [-160, -20], R = orders.length === 1 ? 70 : 100;
+  lpBranches.innerHTML = orders.map(([k, label], i) => {
+    const a = angles[i] * Math.PI / 180;
+    return `<button class="lp-branch ${near ? 'foe' : ''}" data-k="${k}" style="--dx:${Math.cos(a) * R}px;--dy:${Math.sin(a) * R}px">${label}</button>`;
+  }).join('');
+  lpBranches.hidden = false; lpConfirm.hidden = true; lpRing.hidden = orders.length === 1; lpRose.hidden = false;
+}
+lpBranches.addEventListener('click', (e) => {
+  const k = e.target.closest('[data-k]')?.dataset.k; if (!k) return;
+  lp.order = k; lpBranches.hidden = true; lpRing.hidden = true; lpConfirm.hidden = false;
+  lpConfirm.querySelector('.eyebrow').textContent = 'ordre · ' + { march: 'marcher', found: 'fonder un avant-poste', attack: 'attaquer' }[k];
+  lpConfirm.querySelector('h3').textContent = 'arrivée ' + ARRIVAL;
+});
+lpConfirm.querySelector('button').addEventListener('click', () => lpSend());
+
+function lpSend() {
+  if (lp.state !== 'placed' || !lp.order) return;
+  const piece = lp.piece, kind = lp.order, a = lp.origin, b = lp.drop.clone();
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(a.x, 0, a.z), lpControl(a, b, 0), new THREE.Vector3(b.x, 0, b.z));
+  const pts = curve.getSpacedPoints(120).map((p) => p.setY(0.04));
+  const faint = ribbon(pts, 0.34, C.ochre, 0.28), trail = ribbon(pts, 0.34, C.ochre, 1); trail.reveal(0);
+  lpFinish();
+  piece.userData.moving = true;
+  lpMissions.push({ piece, curve, faint, trail, kind, t: 0, dur: Math.max(3, Math.min(6, curve.getLength() / 6)), dust: 0, stamp: null, done: -1 });
+}
+
+function lpMissionTick(dt) {
+  for (let i = lpMissions.length - 1; i >= 0; i--) {
+    const m = lpMissions[i];
+    if (m.done < 0) {
+      m.t += dt; const p = Math.min(1, m.t / m.dur), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      m.curve.getPointAt(e, m.piece.position); m.piece.position.y = p < 1 ? Math.abs(Math.sin(clockT * 12)) * 0.06 : 0;
+      m.curve.getPointAt(Math.min(1, e + 0.01), tmp); const dx = tmp.x - m.piece.position.x, dz = tmp.z - m.piece.position.z; if (Math.hypot(dx, dz) > 1e-3) m.piece.rotation.set(0, Math.atan2(dx, dz), 0);
+      m.trail.reveal(e);
+      if (p < 1 && (m.dust += dt) > 0.09) { m.dust = 0; dust.emit(m.piece.position.clone().setY(0.3), { life: 1, vel: new THREE.Vector3((rand() - 0.5) * 0.6, 0.5, (rand() - 0.5) * 0.6), s0: 0.4, s1: 1.3, a0: 0.5 }); }
+      if (p >= 1) {
+        m.done = 0; m.piece.userData.moving = false;
+        const at = m.piece.position, fight = m.kind === 'attack';
+        m.stamp = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ map: stampTex(fight ? 'ENGAGÉ' : 'ARRIVÉ', C.red, ARRIVAL), transparent: true, opacity: 0, depthWrite: false }));
+        m.stamp.rotation.x = -Math.PI / 2; m.stamp.renderOrder = 4; m.stamp.position.set(at.x + 3.5, 0.06, at.z + 2.5); scene.add(m.stamp);
+        if (m.kind === 'found') {
+          const f = new THREE.Group(); f.add(cyl(0.05, 0.05, 3, mat(C.woodDark), 6).translateY(1.5), box(1.2, 0.7, 0.05, mat(C.fr), 0.6, 2.6, 0));
+          f.position.set(at.x - 2.6, 0, at.z - 1.2); scene.add(shadowed(f));
+        }
+        if (fight) for (let k = 0; k < 8; k++) smoke.emit(foe.position.clone().add(new THREE.Vector3((rand() - 0.5) * 3, 1, (rand() - 0.5) * 3)), { life: 3, vel: new THREE.Vector3(0.3, 0.9, 0), s0: 0.6, s1: 2.6, a0: 0.55 });
+      }
+    } else {
+      m.done += dt; stampAnim(m.stamp, m.done, 3);
+      if (m.done > 5) { for (const r of [m.faint, m.trail]) { scene.remove(r.mesh); r.mesh.geometry.dispose(); } scene.remove(m.stamp); lpMissions.splice(i, 1); }
+    }
+  }
+}
+
+function liftTick(dt) {
+  lpMissionTick(dt);
+  if (lp.state === 'idle') return;
+  const RM = reduceMotion, hd = lp.holder;
+  lp.t += dt;
+  if (lp.state === 'lifted') {
+    if (lpAimAt()) { const k = RM ? 1 : Math.min(1, dt * 14); lp.vel.set(lp.aim.x - hd.position.x, 0, lp.aim.z - hd.position.z); hd.position.x += lp.vel.x * k; hd.position.z += lp.vel.z * k; }
+    lp.h += (LIFT_Y - lp.h) * (RM ? 1 : Math.min(1, dt * 12));
+    hd.rotation.z = RM ? 0 : Math.sin(lp.t * 3.1) * 0.05 - lp.vel.x * 0.012;
+    hd.rotation.x = RM ? 0 : Math.sin(lp.t * 2.3) * 0.04 + lp.vel.z * 0.012;
+    if (lp.t - lp.arcAt > 0.1 && Math.hypot(hd.position.x - lp.origin.x, hd.position.z - lp.origin.z) > 1) { lp.arcAt = lp.t; lpArcTo(hd.position, lpOnLand(hd.position) ? C.ochre : C.red); }
+  } else if (lp.state === 'landing') {
+    const d = RM ? 1 : lp.t;
+    hd.position.x += (lp.drop.x - hd.position.x) * Math.min(1, dt * 20); hd.position.z += (lp.drop.z - hd.position.z) * Math.min(1, dt * 20);
+    lp.h = d < 0.14 ? LIFT_Y * (1 - d / 0.14) ** 2 : d < 0.26 ? Math.sin((d - 0.14) / 0.12 * Math.PI) * 0.15 : 0;
+    lp.hand.position.y = 4.2 + d * 18; lp.hand.visible = d < 0.4;
+    hd.rotation.set(0, 0, 0);
+    if (d >= 0.26) { hd.position.x = lp.drop.x; hd.position.z = lp.drop.z; lp.hand.visible = false; lpOpenRose(); }
+  } else if (lp.state === 'returning') {
+    const k = RM ? 1 : Math.min(1, lp.t / 0.4), e = k * k * (3 - 2 * k);
+    hd.position.lerpVectors(lp.from, lp.origin, e); lp.h = lp.from.y * (1 - e) + Math.sin(k * Math.PI) * 1.0;
+    hd.rotation.set(0, 0, 0);
+    if (k >= 1) return lpFinish();
+  }
+  hd.position.y = lp.h;
+  lp.blob.position.set(hd.position.x, 0.05, hd.position.z);
+  lp.blob.scale.setScalar(lp.radius * (0.8 + lp.h * 0.3)); lp.blob.material.opacity = 0.42 - lp.h * 0.1;
+  if (lp.state === 'placed') {
+    v3.set(lp.drop.x, 0.5, lp.drop.z).project(camera);
+    lpRose.style.transform = `translate(${(v3.x + 1) / 2 * innerWidth}px, ${(1 - v3.y) / 2 * innerHeight}px)`;
+  }
+}
+
+// a clean left click (under 5 px) lifts, drops or dismisses; a drag stays with OrbitControls
+canvas.addEventListener('pointerdown', (e) => { Object.assign(lpDown, { x: e.clientX, y: e.clientY, busy: lpBusy() }); });
+canvas.addEventListener('pointermove', (e) => {
+  lpPtr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  if (lp.state === 'idle') { lpRay.setFromCamera(lpPtr, camera); canvas.style.cursor = lpHit() ? 'grab' : ''; }
+});
+function lpHit() { return lpRay.intersectObjects(liftables.filter((o) => !o.userData.moving), true).find((h) => !h.object.userData.decal); }
+canvas.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || Math.hypot(e.clientX - lpDown.x, e.clientY - lpDown.y) >= 5) return;
+  lpPtr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  if (lp.state === 'lifted') return lpDrop();
+  if (lp.state === 'placed' && lpDown.busy) return lpCancel();
+  if (lp.state !== 'idle') return;
+  lpRay.setFromCamera(lpPtr, camera);
+  let o = lpHit()?.object; while (o && !liftables.includes(o)) o = o.parent;
+  if (o) lpLift(o);
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape') lpCancel(); });
+addEventListener('contextmenu', (e) => { if (lp.state === 'lifted' || lp.state === 'placed') { e.preventDefault(); lpCancel(); } });
+window.__poc = { controls, isLand, camera, inf, solo, worn, pile, foe, lp, MW, MD }; // test handle for the capture script
+// ---------- end lift and place ----------
+// ---------- terrain on hover ----------
+// Engraved terrain pictograms drawn on a transparent overlay while a region is hovered.
+const TERRAIN_LABEL = { plain: 'Plaine', forest: 'Forêt', jungle: 'Jungle', mountain: 'Montagne', desert: 'Désert', tundra: 'Toundra' };
+const REGION_NAMES = {
+  fr: ["Haut-Vaux", "Beaumesnil", "Val d'Orne", "Saint-Aubrac", "Roche-Marne", "Lormont-Val", "Champagnac", "Verdelais", "Pont-d'Oise", "Monterrand", "Sauvelande", "Bois-Clair", "Marche-Haute", "Artoigne", "Clairvaux", "Lisieuvre", "Montfaucon", "Sainte-Aurelle"],
+  de: ["Hohenwald", "Weissenau", "Nordmark", "Steinfurt", "Altbruch", "Rotenberg", "Elbaue", "Grünhain", "Kaltenmoor", "Ostrheim", "Schwarzgau", "Lindenfeld", "Hartwald", "Bergstadt", "Brauneck", "Sandheide", "Waldmark", "Eisenau"],
+  uk: ["Northdale", "Ashmoor", "Kingsfell", "Westmere", "Highcombe", "Redwick", "Stonemarch", "Harrowdene", "Brackenfield", "Thornley", "Wolds End", "Craigmere", "Fenwick", "Longmoor", "Hollin Heath", "Saltcoats", "Marlowe", "Dunmere"],
+};
+const INK = '#2a2118', DRAW_S = 0.6, STAGGER_S = 0.45, FADE_S = 0.4, MAX_AGE = DRAW_S + STAGGER_S;
+
+const mulberry = (a) => () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+// --- one pass over R: bbox, centroid, area per region
+const regionInfo = seeds.map(() => ({ x0: W, y0: H, x1: 0, y1: 0, sx: 0, sy: 0, n: 0 }));
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const r = R[y * W + x]; if (r < 0) continue;
+  const b = regionInfo[r];
+  if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y;
+  b.sx += x; b.sy += y; b.n++;
+}
+regionInfo.forEach((b, id) => { b.id = id; b.cx = b.sx / (b.n || 1); b.cy = b.sy / (b.n || 1); });
+
+// --- terrain + names, fixed: latitude bands, then make sure all six types show up
+{
+  const rng = mulberry(1940), live = regionInfo.filter((b) => b.n > 0);
+  const bands = [['tundra', 'forest', 'mountain'], ['plain', 'forest', 'plain', 'mountain'], ['plain', 'forest', 'plain', 'desert'], ['desert', 'jungle', 'jungle', 'plain']];
+  for (const b of live) b.type = bands[Math.min(3, Math.floor((b.cy / H) * 4))][Math.floor(rng() * 4) % bands[Math.min(3, Math.floor((b.cy / H) * 4))].length];
+  const want = { tundra: (a, b) => a.cy - b.cy, jungle: (a, b) => b.cy - a.cy, desert: (a, b) => b.cy - a.cy, mountain: (a, b) => b.n - a.n, forest: (a, b) => a.cx - b.cx, plain: (a, b) => b.n - a.n };
+  const taken = new Set();
+  for (const [t, cmp] of Object.entries(want)) {
+    if (live.filter((b) => b.type === t).length >= 2) continue;
+    const pool = live.filter((b) => !taken.has(b) && b.type !== t && b.n > 6000).sort(cmp);
+    for (const b of pool.slice(0, 2)) { b.type = t; taken.add(b); }
+  }
+  const used = { fr: 0, de: 0, uk: 0 };
+  const shuffled = Object.fromEntries(Object.entries(REGION_NAMES).map(([k, v]) => [k, v.map((n) => [rng(), n]).sort((a, b) => a[0] - b[0]).map((e) => e[1])]));
+  for (const b of regionInfo) { const nat = seeds[b.id].nat, k = used[nat]++, l = shuffled[nat]; b.name = l[k % l.length] + (k >= l.length ? ' II' : ''); }
+}
+
+// --- pictograms: each is a list of polylines (pen strokes)
+const quad = (p0, c, p1, n = 8) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n, u = 1 - t; return [u * u * p0[0] + 2 * u * t * c[0] + t * t * p1[0], u * u * p0[1] + 2 * u * t * c[1] + t * t * p1[1]]; });
+const SYMBOLS = {
+  conifer: (x, y, r, h = 17) => { const w = h * 0.42; return [
+    [[x, y - h], [x + w * 0.55, y - h * 0.5], [x + w * 0.2, y - h * 0.5], [x + w, y - h * 0.12], [x + w * 0.25, y - h * 0.12], [x + w * 0.25, y]],
+    [[x, y - h], [x - w * 0.55, y - h * 0.5], [x - w * 0.2, y - h * 0.5], [x - w, y - h * 0.12], [x - w * 0.25, y - h * 0.12], [x - w * 0.25, y]]]; },
+  broadleaf: (x, y, r, h = 15) => { const cy = y - h * 0.62, rx = h * 0.34, ry = h * 0.3;
+    const blob = Array.from({ length: 11 }, (_, i) => { const a = (i / 10) * Math.PI * 2 + 3.6, k = 0.85 + r() * 0.3; return [x + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]; });
+    return [[[x, y], [x, y - h * 0.34]], blob, [[x - rx * 0.5, cy + 1], [x - rx * 0.1, cy - ry * 0.3], [x + rx * 0.4, cy]]]; },
+  mountain: (x, y, r, h = 18 + r() * 8) => { const w = h * 1.1, ax = x, ay = y - h, hatches = [];
+    for (let k = 0; k < 4; k++) { const t = (k + 1.2) / 5.4, px = ax + (x + w - ax) * t, py = ay + (y - ay) * t; hatches.push([[px, py], [px - 2 - r() * 2, py + (y - py) * (0.55 + r() * 0.35)]]); }
+    return [[[x - w, y], [x - w * 0.55, y - h * 0.55], [x - w * 0.3, y - h * 0.42], [ax, ay], [x + w * 0.3, y - h * 0.5], [x + w * 0.55, y - h * 0.6], [x + w, y]], ...hatches]; },
+  dune: (x, y, r, h = 8) => { const w = 15 + r() * 6;
+    return [quad([x - w, y], [x - w * 0.45, y - h * 2], [x + w, y + 1], 12), quad([x - w * 0.7, y + h * 0.7], [x - w * 0.2, y - h * 0.5], [x + w * 0.8, y + h * 0.9], 10),
+      [[x - 4, y + h * 1.6], [x - 3.4, y + h * 1.6]], [[x + 2, y + h * 1.9], [x + 2.6, y + h * 1.9]], [[x + 8, y + h * 1.5], [x + 8.6, y + h * 1.5]]]; },
+  palm: (x, y, r, h = 21) => { const T = [x + 3 + r() * 3, y - h], L = h * 0.55;
+    return [quad([x, y], [x - 3, y - h * 0.5], T, 8), ...[-2.7, -2.15, -1.6, -1.0, -0.45].map((a) => quad(T, [T[0] + Math.cos(a) * L * 0.5, T[1] + Math.sin(a) * L * 0.9], [T[0] + Math.cos(a) * L, T[1] + Math.sin(a) * L * 0.3 + L * 0.5], 6))]; },
+  fern: (x, y, r, h = 14) => [-0.9, -0.45, 0, 0.45, 0.9].map((a) => quad([x, y], [x + a * h * 0.4, y - h * 0.7], [x + a * h * 0.95, y - h * (1 - Math.abs(a) * 0.35)], 5)),
+  grass: (x, y, r, h = 9) => [-2, -0.7, 0.7, 2].map((k) => quad([x + k * 1.2, y], [x + k * 1.3, y - h * 0.6], [x + k * 3 + (r() - 0.5) * 2, y - h * (1 - Math.abs(k) * 0.12)], 4)),
+  wind: (x, y, r) => { const L = 16 + r() * 6; return [quad([x - L, y + 1], [x, y - 3], [x + L, y], 8), [[x + L - 5, y - 4], [x + L, y], [x + L - 5, y + 3]], [[x - L + 2, y + 1], [x - L - 2, y - 3]], [[x - L + 7, y - 0.5], [x - L + 3, y - 4.5]]]; },
+  wheat: (x, y, r, h = 14) => [[[x, y], [x + 1, y - h]], ...[0.3, 0.5, 0.7, 0.9].flatMap((t) => [[[x + t, y - h * t], [x - 3.5, y - h * t - 4]], [[x + t, y - h * t], [x + 3.5, y - h * t - 4]]])],
+  hedge: (x, y, r) => { const n = 3, w = 7; const pts = []; for (let i = 0; i < n; i++) for (let s = 0; s <= 4; s++) { const t = s / 4; pts.push([x - n * w + i * 2 * w + t * 2 * w, y - Math.sin(t * Math.PI) * 5]); }
+    return [pts, [[x - n * w, y + 2], [x + n * w, y + 2.5]]]; },
+  field: (x, y, r) => { const f = (u, v) => [x + u * 24 - 12 + v * 2, y + v * 12 - u * 3]; return [[f(0, 0), f(1, 0), f(1, 1), f(0, 1), f(0, 0)], ...[0.25, 0.5, 0.75].map((v) => [f(0.04, v), f(0.96, v)])]; },
+};
+const TERRAIN_SYMBOLS = {
+  forest: (r) => (r() < 0.55 ? ['conifer', 'conifer', 'broadleaf'] : ['broadleaf', 'conifer']),
+  jungle: (r) => (r() < 0.6 ? ['palm', 'fern'] : ['fern', 'palm', 'fern']),
+  mountain: () => ['mountain'],
+  desert: () => ['dune'],
+  tundra: (r) => (r() < 0.65 ? ['grass', 'grass'] : ['wind']),
+  plain: (r) => [['wheat', 'wheat'], ['wheat', 'wheat'], ['field'], ['hedge']][Math.floor(r() * 4)],
+};
+const CLUSTER_OFFSETS = [[0, 0], [14, 2], [-13, 3]];
+const SPACING = { forest: 36, jungle: 36, mountain: 40, desert: 38, tundra: 30, plain: 40 };
+
+const regionDraw = new Map(); // id -> built lazily on first hover
+function buildRegion(id) {
+  const b = regionInfo[id], r = mulberry(id * 7919 + 13), gap = SPACING[b.type], m = 16, pts = [];
+  const inside = (x, y) => { for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, xx = Math.round(x + Math.cos(a) * m), yy = Math.round(y + Math.sin(a) * m); if (xx < 0 || yy < 0 || xx >= W || yy >= H || R[yy * W + xx] !== id) return false; } return R[Math.round(y) * W + Math.round(x)] === id; };
+  const target = Math.max(5, Math.min(34, Math.round(b.n / 1000)));
+  for (let tries = 0; tries < 900 && pts.length < target; tries++) {
+    const x = b.x0 + r() * (b.x1 - b.x0), y = b.y0 + r() * (b.y1 - b.y0);
+    if (inside(x, y) && pts.every((p) => (p[0] - x) ** 2 + (p[1] - y) ** 2 > gap * gap)) pts.push([x, y]);
+  }
+  pts.sort((p, q) => (p[0] - b.cx) ** 2 + (p[1] - b.cy) ** 2 - (q[0] - b.cx) ** 2 - (q[1] - b.cy) ** 2);
+  const syms = pts.map(([x, y], i) => {
+    const kinds = TERRAIN_SYMBOLS[b.type](r), pls = [];
+    kinds.forEach((kind, k) => { const [ox, oy] = kinds.length > 1 ? CLUSTER_OFFSETS[k] : [0, 0]; for (const pl of SYMBOLS[kind](x + ox, y + oy, r)) pls.push(pl.map(([px, py]) => [px + (r() - 0.5) * 1.3, py + (r() - 0.5) * 1.3])); });
+    let len = 0; for (const pl of pls) for (let i2 = 1; i2 < pl.length; i2++) len += Math.hypot(pl[i2][0] - pl[i2 - 1][0], pl[i2][1] - pl[i2 - 1][1]);
+    return { pls, len, delay: (i / Math.max(1, pts.length - 1)) * STAGGER_S, w: 1 + r() * 0.4 };
+  });
+  const mw = b.x1 - b.x0 + 1, mh = b.y1 - b.y0 + 1, mask = document.createElement('canvas'); mask.width = mw; mask.height = mh;
+  const mctx = mask.getContext('2d'), md = mctx.createImageData(mw, mh), [ir, ig, ib] = hex(INK);
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (R[(y + b.y0) * W + x + b.x0] === id) { const o = (y * mw + x) * 4; md.data[o] = ir; md.data[o + 1] = ig; md.data[o + 2] = ib; md.data[o + 3] = 255; }
+  mctx.putImageData(md, 0, 0);
+  const built = { syms, mask }; regionDraw.set(id, built); return built;
+}
+
+const overlay = document.createElement('canvas'); overlay.width = W; overlay.height = H;
+const octx = overlay.getContext('2d'); octx.lineCap = octx.lineJoin = 'round';
+const overlayTex = new THREE.CanvasTexture(overlay); overlayTex.colorSpace = THREE.SRGBColorSpace;
+const overlayMesh = new THREE.Mesh(new THREE.PlaneGeometry(MW, MD), new THREE.MeshStandardMaterial({ map: overlayTex, transparent: true, depthWrite: false, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+overlayMesh.rotation.x = -Math.PI / 2; overlayMesh.position.y = 0.004; overlayMesh.receiveShadow = true; scene.add(overlayMesh);
+
+function strokeSymbol(s, p) {
+  let left = p * s.len; octx.lineWidth = s.w;
+  for (const pl of s.pls) {
+    if (left <= 0) return;
+    octx.beginPath(); octx.moveTo(pl[0][0], pl[0][1]);
+    for (let i = 1; i < pl.length; i++) {
+      const d = Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]);
+      if (d <= left) { octx.lineTo(pl[i][0], pl[i][1]); left -= d; }
+      else { const t = left / d; octx.lineTo(pl[i - 1][0] + (pl[i][0] - pl[i - 1][0]) * t, pl[i - 1][1] + (pl[i][1] - pl[i - 1][1]) * t); left = 0; octx.stroke(); return; }
+    }
+    octx.stroke();
+  }
+}
+
+const tip = document.createElement('div'); tip.className = 'terrain-tip'; tip.hidden = true; document.body.appendChild(tip);
+const states = new Map(); // id -> { age, alpha, fading }
+let current = -1, pointerIn = false, pointerX = 0, pointerY = 0, wasBusy = false, dirty = false, lastT = performance.now();
+canvas.addEventListener('pointermove', (e) => { pointerIn = true; pointerX = e.clientX; pointerY = e.clientY; });
+canvas.addEventListener('pointerleave', () => { pointerIn = false; });
+const terrainRay = new THREE.Raycaster(), terrainPtr = new THREE.Vector2();
+
+function updateTerrain() {
+  const now = performance.now(), dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  let id = -1;
+  if (pointerIn && !hovered) {
+    terrainPtr.set((pointerX / innerWidth) * 2 - 1, -(pointerY / innerHeight) * 2 + 1);
+    terrainRay.setFromCamera(terrainPtr, camera);
+    const hit = terrainRay.intersectObject(map)[0];
+    if (hit) id = R[Math.min(H - 1, Math.floor((1 - hit.uv.y) * H)) * W + Math.min(W - 1, Math.floor(hit.uv.x * W))];
+  }
+  if (id !== current) {
+    if (current >= 0 && states.has(current)) states.get(current).fading = true;
+    if (id >= 0) { regionDraw.has(id) || buildRegion(id); dirty = true; const s = states.get(id); if (s) s.fading = false; else states.set(id, { age: reduceMotion ? MAX_AGE : 0, alpha: 1, fading: false }); }
+    current = id;
+  }
+  if (current >= 0) {
+    const b = regionInfo[current]; tip.hidden = false;
+    tip.innerHTML = `<b>${b.name}</b><span>${TERRAIN_LABEL[b.type]}</span>`;
+    tip.style.transform = `translate(${Math.min(pointerX + 16, innerWidth - tip.offsetWidth - 8)}px, ${Math.min(pointerY + 18, innerHeight - tip.offsetHeight - 8)}px)`;
+  } else tip.hidden = true;
+
+  let busy = false; const gone = [];
+  for (const [rid, s] of states) {
+    s.age = Math.min(MAX_AGE, s.age + dt);
+    if (s.fading) { s.alpha = Math.max(0, s.alpha - dt / FADE_S); if (s.alpha === 0) { gone.push(rid); continue; } }
+    if (s.fading || s.age < MAX_AGE) busy = true;
+  }
+  if (!busy && !wasBusy && !dirty && !gone.length) return;
+  dirty = false;
+  const box = { x0: W, y0: H, x1: 0, y1: 0 };
+  for (const rid of [...states.keys()]) { const b = regionInfo[rid]; box.x0 = Math.min(box.x0, b.x0 - 30); box.y0 = Math.min(box.y0, b.y0 - 30); box.x1 = Math.max(box.x1, b.x1 + 30); box.y1 = Math.max(box.y1, b.y1 + 30); }
+  octx.clearRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+  for (const rid of gone) states.delete(rid);
+  octx.strokeStyle = INK;
+  for (const [rid, s] of states) {
+    const b = regionInfo[rid], { syms, mask } = regionDraw.get(rid);
+    octx.globalAlpha = 0.08 * s.alpha * Math.min(1, s.age / 0.25); octx.drawImage(mask, b.x0, b.y0);
+    octx.globalAlpha = 0.88 * s.alpha;
+    for (const sym of syms) { const q = Math.min(1, Math.max(0, (s.age - sym.delay) / DRAW_S)); if (q > 0) strokeSymbol(sym, 1 - (1 - q) * (1 - q)); }
+  }
+  octx.globalAlpha = 1; overlayTex.needsUpdate = true;
+  wasBusy = busy || gone.length > 0;
+}
+
+// debug handles for the capture script
+window.__terrain = {
+  regions: regionInfo.filter((b) => b.n > 0),
+  screenOf(id) { const b = regionInfo[id], v = new THREE.Vector3((b.cx / W - 0.5) * MW, 0, (b.cy / H - 0.5) * MD).project(camera); return [((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight]; },
+  focus(id, dist = 22) { const b = regionInfo[id], t = new THREE.Vector3((b.cx / W - 0.5) * MW, 0, (b.cy / H - 0.5) * MD); controls.target.copy(t); camera.position.copy(t).add(new THREE.Vector3(0, dist, dist * 0.55)); controls.update(); },
+};
+// ---------- end terrain on hover ----------
 
 function step(dt) {
   clockT += dt;
@@ -1164,9 +1591,11 @@ if (!anim) { step(0.016); tankT = MOVE * 0.55; ring.reveal(1); pileLoad = 0.6; }
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (anim) step(dt);
+  liftTick(dt);
   controls.update();
   renderer.render(scene, camera);
   placeCards();
   updateFiche();
+  updateTerrain();
 });
 </script>
