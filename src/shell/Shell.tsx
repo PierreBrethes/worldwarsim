@@ -60,7 +60,6 @@ export function Shell({
         <SurfaceRail
           season={view.season}
           loadedAt={view.loadedAt}
-          playerInk={view.me.ink}
           telegraphUnread={telegraphUnread}
         />
         <main className="relative flex min-h-0 min-w-0 flex-1">{children}</main>

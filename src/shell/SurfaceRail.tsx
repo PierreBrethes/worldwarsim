@@ -2,8 +2,6 @@ import { Link, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
-import { CATEGORIES, type IndicatorCategory } from '@/domain/indicators';
-import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
 import {
   toggleWindow,
   windowOpen,
@@ -12,18 +10,16 @@ import {
 } from '@/routes/-plateau/board-search';
 import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { PressGlyph, SettingsGlyph, TelegraphGlyph } from './Glyph';
-import { IndicatorGlyph, IndustryGlyph, Pictogram } from './IndicatorGlyph';
+import { IndustryGlyph, Pictogram } from './IndicatorGlyph';
 import { useClock } from './clock';
 
 export function SurfaceRail({
   season,
   loadedAt,
-  playerInk,
   telegraphUnread,
 }: {
   season: PlayerView['season'];
   loadedAt: number;
-  playerInk: string;
   telegraphUnread: number;
 }) {
   const search = useSearch({ strict: false }) as BoardSearch;
@@ -102,7 +98,6 @@ export function SurfaceRail({
             </li>
           ))}
         </ul>
-        <EdgeToggles playerInk={playerInk} />
       </div>
       <div className="flex flex-col items-center gap-2">
         {/* Le télégraphe descend au pied du rail, contre les réglages — mais il reste une
@@ -174,60 +169,3 @@ function SurfaceLink({ surface }: { surface: Surface }) {
     </Link>
   );
 }
-
-/**
- * The screen edge is not a surface: it is not opened, it is lit. Hence the rule separating
- * this group from the three surfaces, and the absence of a label under the pictograms — six
- * more lines of text would make the rail a list, and the rail is not a list.
- */
-function EdgeToggles({ playerInk }: { playerInk: string }) {
-  const toggles = useIndicatorToggles();
-  return (
-    <ul className="mt-2 flex flex-col items-center gap-[1px] border-t border-[var(--ink-quiet)] pt-2">
-      {CATEGORIES.map((category) => {
-        const on = toggles[category];
-        return (
-          <li key={category}>
-            <button
-              type="button"
-              aria-pressed={on}
-              title={
-                category === 'buildings'
-                  ? fr.rail.toggleBuildingsTitle(on)
-                  : category === 'deposits'
-                    ? fr.rail.toggleDepositsTitle(on)
-                    : fr.rail.toggleTitle(fr.indicatorCategories[category], on)
-              }
-              onClick={() => toggleIndicator(category)}
-              style={on ? { color: LIT_INK[category] ?? playerInk } : undefined}
-              className={`flex h-[26px] w-[36px] shrink-0 cursor-pointer items-center justify-center border ${
-                on
-                  ? 'border-[var(--ink-quiet)] bg-[rgba(228,216,189,.12)]'
-                  : 'border-transparent text-[var(--paper-dim)] opacity-45 hover:opacity-80'
-              }`}
-            >
-              <IndicatorGlyph category={category} size={16} />
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/**
- * The last three categories carry the timeline's inks — mine, the critical of a heading
- * coming at me, the muted grey of what brews elsewhere. `undefined` falls back to my
- * nation's ink, which is not hard-coded: it travels with the view.
- */
-const LIT_INK: Readonly<Record<IndicatorCategory, string | undefined>> = {
-  buildings: undefined,
-  // The ground's, not a nation's: a deposit is there before anyone claims it.
-  deposits: 'var(--paper)',
-  outposts: 'var(--paper)',
-  constructions: 'var(--paper)',
-  forces: 'var(--paper)',
-  'my-movements': undefined,
-  inbound: 'var(--critical)',
-  intel: 'var(--routine)',
-};

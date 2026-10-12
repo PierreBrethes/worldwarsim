@@ -1,6 +1,16 @@
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import {
@@ -11,7 +21,8 @@ import {
   SURVEY_FADED_HOURS,
 } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
-import { ControlsCard } from '@/map/ControlsCard';
+import { ControlsCard, CornerCard } from '@/map/ControlsCard';
+import { isTyping } from '@/map/typing';
 import { WorldMap, type Destination, type PlacingBuilding } from '@/map/WorldMap';
 import {
   readWindows,
@@ -100,7 +111,7 @@ import {
 import { AimingSheet } from './-plateau/AimingSheet';
 import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
-import { LayersSheet } from '@/shell/LayersSheet';
+import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { LayersGlyph, Glyph } from '@/shell/Glyph';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { DispatchSheet } from './-plateau/DispatchSheet';
@@ -383,7 +394,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** Les destinations de la colonne armée, telles que la carte les cercle : la feuille du
    *  téléphone en offre les plus proches (refonte mobile, 1b). */
   const [destinations, setDestinations] = useState<ReadonlyArray<Destination>>([]);
-  const [layersOpen, setLayersOpen] = useState(false);
+  /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
+  const [corner, setCorner] = useState<Corner | null>(null);
   /**
    * **Une troupe seule est désignée, pas ouverte** (décision Pierre, 29/08). La fenêtre de
    * garnison sert à composer une pile ; un point qui n'en porte qu'une n'a rien à composer, et
@@ -2078,15 +2090,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
               coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place
               au cartouche « transmis » le temps qu'il se lit. */}
-            {!narrow ? (
-              <ControlsCard />
-            ) : (
-              sent === null && (
-                <MapButtons onRecenter={recenterOnHome} onLayers={() => setLayersOpen(true)} />
-              )
+            {!narrow && corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
+            {!narrow && corner === 'layers' && (
+              <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
+                <LayersGrid />
+              </CornerCard>
+            )}
+            {(!narrow || sent === null) && (
+              <MapButtons narrow={narrow} onRecenter={recenterOnHome} onCorner={setCorner} />
             )}
           </div>
-          {layersOpen && <LayersSheet onClose={() => setLayersOpen(false)} />}
+          {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
         </div>
         <Suspense fallback={null}>
           {windows.map((name, rank) => {
@@ -2201,22 +2215,54 @@ const SENT_NOTICE_MS = 6000;
  *  une, et la feuille du sol reviendrait sous le pouce une fois l'ordre parti. */
 const keepSelection = (): void => {};
 
+type Corner = 'layers' | 'controls';
+
 /**
- * **Les deux boutons de la carte, sous le seuil** (refonte mobile, 1a) : revenir chez soi, et les
- * calques — ceux-ci gardent aussi leur ligne au dossier de la nation. Quarante-quatre pixels de
- * papier, au-dessus de la barre de pied, sous le pouce.
+ * **Les boutons du coin de la carte** (refonte mobile, 1a ; bureau aligné le 12/10) : revenir chez
+ * soi, les calques, et au bureau l'aide-mémoire — du même papier, 44 px sous le pouce, 36 à la
+ * souris. Sous le seuil, les calques gardent aussi leur ligne au dossier de la nation et les gestes
+ * vivent dans son aide-mémoire. `H` recentre et `?` ouvre les gestes, jamais pendant une saisie.
  */
-function MapButtons({ onRecenter, onLayers }: { onRecenter: () => void; onLayers: () => void }) {
+function MapButtons({
+  narrow,
+  onRecenter,
+  onCorner,
+}: {
+  narrow: boolean;
+  onRecenter: () => void;
+  onCorner: Dispatch<SetStateAction<Corner | null>>;
+}) {
+  const toggle = (card: Corner) => onCorner((open) => (open === card ? null : card));
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') return onCorner(null);
+      if (isTyping() || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === '?' && !narrow) {
+        event.preventDefault();
+        onCorner((open) => (open === 'controls' ? null : 'controls'));
+      } else if (event.key === 'h' || event.key === 'H') {
+        event.preventDefault();
+        onRecenter();
+      }
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, [narrow, onRecenter, onCorner]);
+
+  const size = narrow ? 'h-[44px] w-[44px]' : 'h-[36px] w-[36px]';
+  const glyph = narrow ? 22 : 18;
   return (
     <div className="hud flex flex-col gap-2">
       <button
         type="button"
-        title={fr.mapUi.recenter}
+        title={fr.mapUi.recenterTitle}
         aria-label={fr.mapUi.recenter}
+        aria-keyshortcuts="H"
         onClick={onRecenter}
-        className={MAP_BUTTON}
+        className={`${MAP_BUTTON} ${size}`}
       >
-        <Glyph size={22}>
+        <Glyph size={glyph}>
           <circle cx="10" cy="10" r="5.2" />
           <path d="M10 1.5v4.2M10 14.3v4.2M1.5 10h4.2M14.3 10h4.2" />
         </Glyph>
@@ -2225,17 +2271,29 @@ function MapButtons({ onRecenter, onLayers }: { onRecenter: () => void; onLayers
         type="button"
         title={fr.foot.layersTitle}
         aria-label={fr.foot.layersTitle}
-        onClick={onLayers}
-        className={MAP_BUTTON}
+        onClick={() => toggle('layers')}
+        className={`${MAP_BUTTON} ${size}`}
       >
-        <LayersGlyph size={22} />
+        <LayersGlyph size={glyph} />
       </button>
+      {!narrow && (
+        <button
+          type="button"
+          title={fr.mapUi.controlsLabel}
+          aria-label={fr.mapUi.controlsLabel}
+          aria-keyshortcuts="?"
+          onClick={() => toggle('controls')}
+          className={`${MAP_BUTTON} ${size} font-(family-name:--font-body) text-[16px] leading-none`}
+        >
+          ?
+        </button>
+      )}
     </div>
   );
 }
 
 const MAP_BUTTON =
-  'paper-grain flex h-[44px] w-[44px] cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] shadow-[0_2px_0_rgba(15,10,4,.55)]';
+  'paper-grain flex cursor-pointer items-center justify-center border border-[var(--ink)] text-[var(--ink)] shadow-[0_2px_0_rgba(15,10,4,.55)]';
 
 function Loading() {
   return (

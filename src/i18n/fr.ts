@@ -988,14 +988,6 @@ export const fr = {
     seasonShort: (season: number) => `S.${season}`,
     telegraphUnread: (count: number) =>
       `${count} message${plural(count, '', 's')} non lu${plural(count, '', 's')} au télégraphe`,
-    toggleTitle: (label: string, on: boolean) =>
-      `${label} au bord de l’écran — ${on ? 'allumé' : 'éteint'}`,
-    // The buildings bascule governs the board itself, not only its edge: saying otherwise
-    // would promise a border setting and hide the plates.
-    toggleBuildingsTitle: (on: boolean) =>
-      `bâtiments sur la carte — ${on ? 'affichés' : 'masqués'}`,
-    // Same reading as the buildings bascule, same reason: it governs the board, not the edge.
-    toggleDepositsTitle: (on: boolean) => `gisements sur la carte — ${on ? 'affichés' : 'masqués'}`,
   },
 
   /**
@@ -2579,6 +2571,7 @@ export const fr = {
   mapUi: {
     /** Le bouton qui ramène la carte chez soi, sous le seuil (refonte mobile, 1a). */
     recenter: 'recentrer sur le quartier général',
+    recenterTitle: 'recentrer sur le quartier général (H)',
     /**
      * **Aucune phrase de la carte ne nomme un bouton en dur** : quel bouton oriente, déplace ou
      * agit est une préférence (`mouseMapping`), et une notice qui répondrait « clic droit » à un
