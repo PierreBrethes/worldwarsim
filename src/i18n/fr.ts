@@ -1466,6 +1466,9 @@ export const fr = {
      * l'état — et la carte trace son cercle de détection. La fenêtre reste pour composer une pile.
      */
     badgeKicker: 'troupe',
+    sheetKicker: 'fiche de pile',
+    sheetHealth: (health: number) => `${health} / 100`,
+    sheetCount: (troops: number) => `×${troops}`,
     /** Sous le seuil la feuille n'a pas de point d'ancrage à côté du sprite : son surtitre dit
      *  où se tient ce qu'elle décrit (refonte mobile, 1b). */
     badgeKickerAt: (where: string) => `troupe · ${where}`,

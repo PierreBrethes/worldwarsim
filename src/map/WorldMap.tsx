@@ -28,7 +28,7 @@ import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { RouteScale } from './RouteScale';
-import { MapLabels } from './MapLabels';
+import { MapLabels, type StackHover } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
 import {
@@ -102,6 +102,7 @@ type Props = {
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
+  onStackHover?: (hover: StackHover | null) => void;
   /** What the target allows. The map asks the question; it does not know the view. */
   compassOf: (target: CompassTarget) => Compass | null;
   /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
@@ -241,6 +242,7 @@ export function WorldMap({
   onRegionsLoaded,
   onArcHover,
   onLabelHover,
+  onStackHover,
   compassOf,
   onCompassAction,
   building = false,
@@ -732,6 +734,7 @@ export function WorldMap({
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
+        onStackHover={onStackHover ?? (() => {})}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
         onOpenStack={onLabelOpen}

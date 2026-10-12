@@ -20,6 +20,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
+import type { TroopStation } from '@/domain/player-view';
 import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
 import {
   GROUP_MARGIN_PX,
@@ -37,6 +38,13 @@ import { silhouettePaths } from './engine/silhouettes';
 import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
+
+export type StackHover = {
+  readonly station: TroopStation;
+  readonly labelId: string;
+  readonly x: number;
+  readonly y: number;
+};
 
 /**
  * The board's label layer. One DOM node per label, moved by `transform` from the engine's
@@ -74,6 +82,7 @@ export function MapLabels({
   secondarySelected,
   onMovementHover,
   onReachHover,
+  onStackHover,
   onSelect,
   onOpenBuilding,
   onOpenStack,
@@ -98,6 +107,8 @@ export function MapLabels({
   onMovementHover: (id: string | null) => void;
   /** What the label covers on the ground, while the pointer is on it and no longer. */
   onReachHover: (reach: Reach | null) => void;
+  /** A posted pile under the pointer, for its read-only sheet; `null` when it leaves. */
+  onStackHover: (hover: StackHover | null) => void;
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
@@ -469,11 +480,19 @@ export function MapLabels({
               if (event.pointerType === 'touch') return;
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
               onReachHover(label.reach);
+              if (label.type === 'stack' && label.station !== null && event.buttons === 0)
+                onStackHover({
+                  station: label.station,
+                  labelId: label.id,
+                  x: event.clientX,
+                  y: event.clientY,
+                });
             }}
             onPointerLeave={(event) => {
               if (event.pointerType === 'touch') return;
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
               onReachHover(null);
+              onStackHover(null);
             }}
             onClick={(event) => {
               // A building's mast opens its surface and nothing else: opening a window *and*

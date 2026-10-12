@@ -23,6 +23,7 @@ import {
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
+import type { StackHover } from '@/map/MapLabels';
 import { WorldMap, type Destination, type PlacingBuilding } from '@/map/WorldMap';
 import {
   readWindows,
@@ -38,7 +39,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
-import { pilePieces } from '@/domain/pile-pieces';
+import { pilePieces, pileSheet } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -120,6 +121,7 @@ import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { TroopBadge } from './-plateau/TroopBadge';
+import { PileSheet } from './-plateau/PileSheet';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
 import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
@@ -1441,6 +1443,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       : (view.lootSightings.find(
           (sighting) => sighting.id === selectedLoot.id && sighting.present,
         ) ?? null);
+  const [stackHover, setStackHover] = useState<StackHover | null>(null);
+  const hoverSheet = useMemo(() => {
+    if (stackHover === null || stackHover.labelId === posted?.labelId) return null;
+    const held = troopsAt(view.me, stationKeyOf(stackHover.station), marching);
+    if (held.length === 0) return null;
+    const ids = new Set(held.map((troop) => troop.id));
+    return {
+      lines: pileSheet(held),
+      cargo: view.me.stationedCargo
+        .filter((group) => group.troopIds.some((id) => ids.has(id)))
+        .map((group) => group.cargo),
+    };
+  }, [stackHover, posted, view.me, marching]);
   const postedCargo = useMemo(
     () =>
       posted === null
@@ -1845,6 +1860,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onRegionsLoaded={keepRegionAt}
             onArcHover={setHoveredArc}
             onLabelHover={setHoveredLabel}
+            onStackHover={setStackHover}
             compassOf={compassOfTarget}
             onCompassAction={actOnCompass}
             building={buildingSite !== null}
@@ -1959,6 +1975,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           )}
           {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
+          {hoverSheet !== null && stackHover !== null && (
+            <PileSheet {...hoverSheet} at={stackHover} />
+          )}
           {posted && !(narrow && order !== null) && (
             <TroopBadge
               key={posted.labelId}
