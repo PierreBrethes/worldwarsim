@@ -82,6 +82,34 @@ rendu physique, pas un nouveau registre.
 16. **Les cartouches presse s'ancrent à leur pièce**, avec une tige, plutôt que des étiquettes
     posées sur le sol.
 
+## Grilling du 12/10 — tranché
+
+**Tour 1.**
+
+- **Le rejeu commence par un voyage** : la caméra glisse jusqu'au lieu de l'engagement, en
+  accélération et décélération douces ; puis une main **place** les pièces des deux camps à leur
+  position du combat, comme pour la pose des relevés — elles ont pu bouger depuis. Le combat
+  lui-même se jugera au développement.
+- **L'humain est un corps sculpté une fois** (GLB, posable), habillé par nation en code.
+- **Figurines au rapproché, silhouettes de domaine au loin**, avec un fondu au seuil.
+- **Tout ce qui est adverse est un bloc vu de dos**, posé ou en mouvement : un mouvement adverse
+  relevé est un bloc qui glisse sur son tronçon, un pictogramme de domaine gravé sur le dos.
+- **Lever-poser remplace le flux actuel.** Lever = le clic net qui lit (le gauche, invariant) ;
+  poser = le clic « agir » (droit par défaut, réglable) puis la rose ; Échap repose. Révise la
+  décision du 30/08.
+- **La fiche au survol remplace le cartouche** des troupes à soi ; le bloc adverse garde un
+  cartouche au clic.
+- **Le jeton de bois « ×N »** est retenu, son dessin est à reprendre.
+- **Pas de table autour du plateau** (Pierre : « pas fan ») : ni bois, ni lampe, ni vignettage.
+- **Le jour et la nuit sont un lot à part**, après les figurines.
+- **Les planches 2D restent hors de la carte** : abaque, modale de site, dépêches. La carte seule
+  passe aux figurines.
+
+**Faits relevés pour la suite** : seuls les mouvements sont aujourd'hui en 3D (un `Pawn` par arc,
+six mouvements au plus par joueur) ; les troupes posées et les bâtiments sont des étiquettes DOM
+(`MapLabels.tsx`) — jusqu'à 24 troupes, soit environ 70 figurines à instancier ; les régions
+admin-1 apparaissent entre 65 et 30 unités de distance.
+
 ## Ouvert — pour le grilling
 
 - **Humain sculpté ou soldat de plomb.** Les primitives plafonnent sur l'humain (Pierre : « pas
