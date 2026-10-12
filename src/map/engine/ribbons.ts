@@ -26,7 +26,6 @@ const RIBBON_ALTITUDE = COUNTRY_THICKNESS + 0.004;
 const REFERENCE_AREA = 1280 * 800;
 const MAX_RIBBONS = 200;
 const BIRTHS_PER_STEP = 2;
-const STILL_SHARE = 0.05;
 /** Above this camera distance a layer is born at its full density; below the regions' fade it
  *  keeps its `closeShare`, and in between it eases from one to the other. */
 const WORLD_VIEW_DISTANCE = 150;
@@ -60,13 +59,16 @@ export type RibbonStyle = {
   readonly tailPerStep: number;
   /** Where a ribbon may be born and go on; touching anywhere else, it stops and fades. */
   readonly afloat?: (lonLat: LonLat) => boolean;
+  /** Below this share of `fullForce` nothing is born: a ribbon in still water would only drift
+   *  at its slowest pace and say nothing. Calm air, though, is weather worth drawing. */
+  readonly stillShare?: number;
 };
 
 export const WIND_RIBBONS: RibbonStyle = {
   fx: 'wind',
   field: windAt,
   fullForce: 2,
-  ink: '#f4ecd8',
+  ink: PALETTE.foam,
   rank: 9,
   perScreen: 50,
   closeShare: 1 / 3,
@@ -93,6 +95,7 @@ export const CURRENT_RIBBONS: RibbonStyle = {
   rank: WIND_RIBBONS.rank - 1,
   perScreen: Math.round((17 * 800) / 720),
   history: 100,
+  stillShare: 0.05,
   speedPx: [40, 85],
   widthBase: 0.8,
   widthPx: [6, 6],
@@ -165,6 +168,7 @@ const between = ([low, high]: Range) => low + Math.random() * (high - low);
 export class RibbonLayer implements AmbientLayer {
   readonly fx: Fx;
   readonly hz = RIBBON_HZ;
+  private readonly cap: number;
   private readonly openedAt = Date.now();
   private readonly pace = weatherPace(location.search);
   private readonly ribbons: Ribbon[] = [];
@@ -190,7 +194,9 @@ export class RibbonLayer implements AmbientLayer {
     private readonly style: RibbonStyle,
   ) {
     this.fx = style.fx;
-    const vertices = MAX_RIBBONS * style.history * 2;
+    // Room for four screens' worth: a few dozen currents need not hold the wind's two hundred.
+    this.cap = Math.min(MAX_RIBBONS, style.perScreen * 4);
+    const vertices = this.cap * style.history * 2;
     const geometry = new BufferGeometry();
     const attribute = (size: number) =>
       new BufferAttribute(new Float32Array(vertices * size), size);
@@ -200,7 +206,7 @@ export class RibbonLayer implements AmbientLayer {
     this.alpha = attribute(1);
     const side = attribute(1);
     for (let i = 0; i < vertices; i++) side.setX(i, i % 2 === 0 ? 1 : -1);
-    this.index = new BufferAttribute(new Uint16Array(MAX_RIBBONS * (style.history - 1) * 6), 1);
+    this.index = new BufferAttribute(new Uint16Array(this.cap * (style.history - 1) * 6), 1);
     geometry.setAttribute('position', this.positions);
     geometry.setAttribute('toward', this.toward);
     geometry.setAttribute('side', side);
@@ -248,7 +254,7 @@ export class RibbonLayer implements AmbientLayer {
   private step(epochMs: number): void {
     const { history, tailPerStep } = this.style;
     const target = Math.min(
-      MAX_RIBBONS,
+      this.cap,
       Math.round(
         (this.style.perScreen * this.zoomShare() * this.resolution.x * this.resolution.y) /
           REFERENCE_AREA,
@@ -302,9 +308,8 @@ export class RibbonLayer implements AmbientLayer {
     if (hit === null || !this.onBoard(hit.x, hit.z)) return null;
     const lonLat = this.lonLatOf(hit.x, hit.z);
     if (this.style.afloat && !this.style.afloat(lonLat)) return null;
-    // Where the field is still, a ribbon would only drift at its slowest pace and say nothing.
     const { u, v } = this.style.field(lonLat[0], lonLat[1], epochMs);
-    if (Math.hypot(u, v) < STILL_SHARE * this.style.fullForce) return null;
+    if (Math.hypot(u, v) < (this.style.stillShare ?? 0) * this.style.fullForce) return null;
     return {
       x: [hit.x],
       z: [hit.z],

@@ -16,6 +16,8 @@ export const PALETTE = {
   /** A concluded public report: retained on the map, but no longer presented as live. */
   searchEnded: '#777166',
   rimStroke: '#3a2a18',
+  /** The light of moving air and breaking water, paler than the sheet so it reads on both seas. */
+  foam: '#f4ecd8',
 } as const;
 
 /**
