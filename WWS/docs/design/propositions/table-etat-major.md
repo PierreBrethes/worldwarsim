@@ -133,7 +133,8 @@ Avis de Pierre du 12/10 entre crochets.
   reste « ni grille, ni terrain ».
   **Prototypé le 12/10** sur la carte inventée : six jeux de pictogrammes tracés à la plume
   (≈ 0,6 s, décalés du centre vers les bords), fondu de sortie, lavis léger de la région, infobulle
-  nom et terrain ; le calque n'est redessiné que pendant l'animation.
+  nom et terrain ; le calque n'est redessiné que pendant l'animation. [*Pierre adore l'idée ; certains
+  dessins seront retravaillés.*]
 
 ### Lever la pièce et la poser ailleurs — proposé par Pierre
 
