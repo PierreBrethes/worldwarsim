@@ -16,6 +16,7 @@ import { TIERS_BY_ROLE, type UnitTier } from '@/domain/troops';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { pilePieces } from '@/domain/pile-pieces';
 import { fr } from '@/i18n/fr';
+import { blockFigurine, washedBlock } from '../blocks';
 import { Faces, pileObject } from '../standing';
 import { figurineFor } from './figurine';
 
@@ -89,6 +90,11 @@ for (const [caption, troops] of [
     pileObject('france', pilePieces(troops), texts, faces)?.object ?? null,
   );
 }
+
+/** The enemy as the board stands it: a block per medium, and a last known position. */
+for (const medium of ['land', 'sea', 'air'] as const)
+  card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object);
+card(null, 'bloc adverse · dernière position connue', washedBlock('land'));
 
 const frame = () => {
   for (const view of views) view();
