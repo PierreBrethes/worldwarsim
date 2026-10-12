@@ -31,7 +31,13 @@ import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
-import { MapEngine, type BuiltRegions, type HeldClaim, type SearchArea } from './engine';
+import {
+  MapEngine,
+  type BuiltRegions,
+  type HeldClaim,
+  type SearchArea,
+  type StandingPile,
+} from './engine';
 
 type Props = {
   world: World;
@@ -39,6 +45,8 @@ type Props = {
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
+  /** My piles standing at a point, which the board dresses in figurines up close. */
+  standing: ReadonlyArray<StandingPile>;
   inkByCountry: ReadonlyMap<string, string>;
   /**
    * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
@@ -210,6 +218,7 @@ export function WorldMap({
   arcs,
   journal,
   labels,
+  standing,
   inkByCountry,
   held,
   built,
@@ -660,6 +669,10 @@ export function WorldMap({
   useEffect(() => {
     engine.current?.displayArcs(arcs);
   }, [arcs]);
+
+  useEffect(() => {
+    readyEngine?.displayStanding(standing);
+  }, [readyEngine, standing]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {

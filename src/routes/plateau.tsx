@@ -38,6 +38,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
+import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -1340,6 +1341,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   ]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+  const standing = useMemo(
+    () =>
+      markers.flatMap((marker) =>
+        marker.kind === 'stack'
+          ? [{ id: marker.id, lonLat: marker.lonLat, pieces: marker.pieces }]
+          : [],
+      ),
+    [markers],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -1812,6 +1822,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             arcs={arcs}
             journal={view.journal}
             labels={labels}
+            standing={standing}
             inkByCountry={inkByCountry}
             held={held}
             built={built}
@@ -2480,6 +2491,7 @@ function postedStacks(
       stack,
       place: pilePlace(at, names, regionAt),
       plate: face === null ? null : spriteUrl(me.nation, face, tier),
+      pieces: pilePieces(held),
       ink: me.ink,
     };
   });
