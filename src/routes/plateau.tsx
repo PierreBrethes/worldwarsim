@@ -38,7 +38,7 @@ import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
-import { buildLabels, type MapMarker, type Reach } from '@/domain/labels';
+import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces, pileSheet } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
@@ -291,6 +291,46 @@ export const Route = createFileRoute('/plateau')({
  * player back to the lobby, and a seat the server does not know gets dropped. Everything else
  * is a genuine failure and says so.
  */
+/** Owns the hover so a pointer crossing piles does not re-render the whole board. */
+function StackHoverSheet({
+  register,
+  me,
+  marching,
+  postedLabelId,
+  labels,
+}: {
+  register: { current: (hover: StackHover | null) => void };
+  me: PlayerView['me'];
+  marching: ReturnType<typeof marchingTroopIds>;
+  postedLabelId: string | undefined;
+  labels: ReadonlyArray<MapLabel>;
+}) {
+  const [hover, setHover] = useState<StackHover | null>(null);
+  useEffect(() => {
+    register.current = setHover;
+    return () => {
+      register.current = () => {};
+    };
+  }, [register]);
+  // A pile that leaves takes its label away without a pointerleave.
+  useEffect(() => {
+    if (hover !== null && !labels.some((label) => label.id === hover.labelId)) setHover(null);
+  }, [hover, labels]);
+  const sheet = useMemo(() => {
+    if (hover === null || hover.labelId === postedLabelId) return null;
+    const held = troopsAt(me, stationKeyOf(hover.station), marching);
+    if (held.length === 0) return null;
+    const ids = new Set(held.map((troop) => troop.id));
+    return {
+      lines: pileSheet(held),
+      cargo: me.stationedCargo
+        .filter((group) => group.troopIds.some((id) => ids.has(id)))
+        .map((group) => group.cargo),
+    };
+  }, [hover, postedLabelId, me, marching]);
+  return sheet !== null && hover !== null ? <PileSheet {...sheet} at={hover} /> : null;
+}
+
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
   if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') {
@@ -1443,19 +1483,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       : (view.lootSightings.find(
           (sighting) => sighting.id === selectedLoot.id && sighting.present,
         ) ?? null);
-  const [stackHover, setStackHover] = useState<StackHover | null>(null);
-  const hoverSheet = useMemo(() => {
-    if (stackHover === null || stackHover.labelId === posted?.labelId) return null;
-    const held = troopsAt(view.me, stationKeyOf(stackHover.station), marching);
-    if (held.length === 0) return null;
-    const ids = new Set(held.map((troop) => troop.id));
-    return {
-      lines: pileSheet(held),
-      cargo: view.me.stationedCargo
-        .filter((group) => group.troopIds.some((id) => ids.has(id)))
-        .map((group) => group.cargo),
-    };
-  }, [stackHover, posted, view.me, marching]);
+  const setStackHover = useRef<(hover: StackHover | null) => void>(() => {});
+  const onStackHover = useCallback((hover: StackHover | null) => setStackHover.current(hover), []);
   const postedCargo = useMemo(
     () =>
       posted === null
@@ -1860,7 +1889,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onRegionsLoaded={keepRegionAt}
             onArcHover={setHoveredArc}
             onLabelHover={setHoveredLabel}
-            onStackHover={setStackHover}
+            onStackHover={onStackHover}
             compassOf={compassOfTarget}
             onCompassAction={actOnCompass}
             building={buildingSite !== null}
@@ -1975,9 +2004,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           )}
           {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
-          {hoverSheet !== null && stackHover !== null && (
-            <PileSheet {...hoverSheet} at={stackHover} />
-          )}
+          <StackHoverSheet
+            register={setStackHover}
+            me={view.me}
+            marching={marching}
+            postedLabelId={posted?.labelId}
+            labels={labels}
+          />
           {posted && !(narrow && order !== null) && (
             <TroopBadge
               key={posted.labelId}
