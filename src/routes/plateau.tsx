@@ -1392,6 +1392,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ),
     [markers],
   );
+  const camps = useMemo(
+    () =>
+      markers.flatMap((marker) =>
+        marker.kind === 'camp'
+          ? [
+              {
+                id: marker.id,
+                lonLat: marker.lonLat,
+                medium: marker.medium,
+                washed: marker.lastKnown,
+              },
+            ]
+          : [],
+      ),
+    [markers],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -1867,6 +1883,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             journal={view.journal}
             labels={labels}
             standing={standing}
+            camps={camps}
             inkByCountry={inkByCountry}
             held={held}
             built={built}
