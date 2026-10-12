@@ -70,6 +70,17 @@ describe('the journal', () => {
     expect(caughtUp.some((dispatch) => dispatch.unread)).toBe(false);
   });
 
+  it('words a cancelled outpost raise without throwing', () => {
+    const [cancelled] = journalDispatches(
+      [],
+      null,
+      [],
+      [{ kind: 'constructionCancelled', at: NOON, building: 'outpost', regionName: 'Marne' }],
+    );
+    expect(cancelled!.text).toContain(fr.garrison.raiseWork);
+    expect(cancelled!.text).not.toContain('undefined');
+  });
+
   /** L'heure de passage à la frontière est la seule qui regarde vers l'avant : c'est ce que la
    *  colonne « au réveil » lit, et elle lit `resolutionAt`, jamais le texte. */
   it('carries the hour a held column goes through, and only for that kind', () => {

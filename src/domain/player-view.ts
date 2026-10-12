@@ -614,7 +614,7 @@ export type Notice =
   | {
       readonly kind: 'constructionCancelled';
       readonly at: number;
-      readonly building: BuildingKey;
+      readonly building: BuildCostKey;
       readonly regionName: string;
     }
   | {

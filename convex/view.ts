@@ -1067,16 +1067,17 @@ const notDecoyMovement = <T extends { readonly type: string }>(
 
 const notDecoyNotice = <T extends { readonly kind: string }>(
   notice: T,
-): notice is T & { readonly kind: Exclude<T['kind'], `decoy${string}`> } =>
-  !notice.kind.startsWith('decoy');
+): notice is Exclude<T, { readonly kind: `decoy${string}` }> => !notice.kind.startsWith('decoy');
 
 /**
  * The one thing a notice cannot carry across the wire: a region **name**. The client holds no
  * region table, so an id would reach the headline raw. Everything else travels untouched — the
  * shape is the union the schema stores, member for member, so a kind added there breaks the
- * compilation here rather than reaching the journal as a row nobody words.
+ * compilation in `src/data/serverView.ts` (the served notices are handed to the journal without a
+ * cast) rather than reaching the journal as a row nobody words.
  */
-function named(notice: Doc<'notices'>) {
+type PlayableNotice = Exclude<Doc<'notices'>, { readonly kind: `decoy${string}` }>;
+function named(notice: PlayableNotice) {
   const nameOf = (regionId: string) => regionFacts(regionId)?.name ?? regionId;
   switch (notice.kind) {
     case 'buildingDemolished':
@@ -1087,6 +1088,8 @@ function named(notice: Doc<'notices'>) {
     case 'sitePlundered':
     case 'siteSabotaged':
     case 'expeditionFoundNothing':
+    case 'objectiveRevealed':
+    case 'objectiveTaken':
       return { ...notice, regionName: nameOf(notice.regionId) };
     case 'lootDelivered':
       return { ...notice, regionName: nameOf(notice.regionId) };

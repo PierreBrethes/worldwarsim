@@ -1,7 +1,7 @@
 import { asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr } from '../i18n/fr';
 import { isNation } from './nations';
-import { canonicalBuildingKey, RESOURCES } from './ids';
+import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
@@ -147,7 +147,10 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'construction',
-        text: fr.journal.constructionCancelled(fr.buildings[notice.building], notice.regionName),
+        text: fr.journal.constructionCancelled(
+          isOutpostWork(notice.building) ? fr.garrison.raiseWork : fr.buildings[notice.building],
+          notice.regionName,
+        ),
       };
     case 'constructionFinished':
       return {
