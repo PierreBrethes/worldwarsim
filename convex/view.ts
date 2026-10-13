@@ -340,7 +340,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
   //   `journal`        — the dispatches are built on the client from `reports` below.
-  //   `lastIntel`      — intelligence is surface 4.9.
   // `travelMinutesPer1000km: 14` is different: it is a measured value (simulation report),
   // hard-coded here until the seasons table carries its own pace.
   return {
@@ -954,7 +953,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       nation: other.nation ?? other.nickname,
       ink: nationInk(other.nation),
       restWindow: other.restWindow,
-      lastIntel: '—',
     })),
   };
 }
