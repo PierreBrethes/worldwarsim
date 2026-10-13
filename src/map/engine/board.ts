@@ -26,14 +26,16 @@ const SURFACE_COLUMNS = 96;
 function buildSurface(world: World, frame: WorldFrame): BufferGeometry {
   const positions: number[] = [];
   const uv: number[] = [];
+  const lonLat: number[] = [];
   const indices: number[] = [];
   const rows = world.outline.length;
 
-  for (const [, westX, eastX, y] of world.outline) {
+  for (const [latitude, westX, eastX, y] of world.outline) {
     for (let column = 0; column <= SURFACE_COLUMNS; column++) {
       const x = westX + (eastX - westX) * (column / SURFACE_COLUMNS);
       positions.push(x - frame.centerX, SEA_LEVEL, y - frame.centerY);
       uv.push((x - world.sphere.minX) / frame.width, 1 - (y - world.sphere.minY) / frame.height);
+      lonLat.push(-180 + (360 * column) / SURFACE_COLUMNS, latitude);
     }
   }
   for (let row = 0; row < rows - 1; row++) {
@@ -49,6 +51,9 @@ function buildSurface(world: World, frame: WorldFrame): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
   geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  // The sea engraves its graticule from these: Natural Earth is linear in longitude along a
+  // row, so the interpolation is exact across, and a degree of latitude per row along.
+  geometry.setAttribute('lonLat', new Float32BufferAttribute(lonLat, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -106,41 +111,6 @@ function buildPlinth(world: World, frame: WorldFrame): BufferGeometry {
   return geometry;
 }
 
-/**
- * Natural Earth 1 is linear in longitude: x(lon, lat) = center + (lon/180)·(eastEdge(lat) − center).
- * Meridians are therefore exact without reprojecting anything, and those at ±180° fall
- * exactly on the world's rim.
- */
-function buildGraticule(world: World, frame: WorldFrame): BufferGeometry {
-  const xFor = (longitude: number, index: number) =>
-    (longitude / 180) * (world.outline[index]![2] - frame.centerX);
-  const points: number[] = [];
-
-  for (let longitude = -180; longitude <= 180; longitude += 30) {
-    for (let i = 0; i < world.outline.length - 1; i++) {
-      points.push(
-        xFor(longitude, i),
-        0.3,
-        world.outline[i]![3] - frame.centerY,
-        xFor(longitude, i + 1),
-        0.3,
-        world.outline[i + 1]![3] - frame.centerY,
-      );
-    }
-  }
-  for (const latitude of [-60, -30, 0, 30, 60]) {
-    const index = latitude + 90;
-    const z = world.outline[index]![3] - frame.centerY;
-    for (let longitude = -180; longitude < 180; longitude += 6) {
-      points.push(xFor(longitude, index), 0.3, z, xFor(longitude + 6, index), 0.3, z);
-    }
-  }
-
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-  return geometry;
-}
-
 function buildRim(
   world: World,
   frame: WorldFrame,
@@ -181,8 +151,8 @@ function buildRim(
 
 /**
  * The sea comes back apart from the rest because it is the only piece of the board a pointer
- * needs to hit: a right click on open water still names a place, and the plinth, the graticule
- * and the rim are decoration a ray must go straight through.
+ * needs to hit: a right click on open water still names a place, and the plinth and the rim
+ * are decoration a ray must go straight through.
  */
 export function buildBoard(
   world: World,
@@ -205,11 +175,6 @@ export function buildBoard(
     }),
   );
 
-  const graticule = new LineSegments(
-    buildGraticule(world, frame),
-    new LineBasicMaterial({ color: PALETTE.graticule, transparent: true, opacity: 0.22 }),
-  );
-
   const { band, stroke } = buildRim(world, frame);
   const rim = new Mesh(
     band,
@@ -227,5 +192,5 @@ export function buildBoard(
     new LineBasicMaterial({ color: PALETTE.rimStroke, transparent: true, opacity: 0.85 }),
   );
 
-  return { surface, decor: [plinth, graticule, rim, sharpOutline] };
+  return { surface, decor: [plinth, rim, sharpOutline] };
 }

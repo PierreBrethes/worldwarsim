@@ -6,6 +6,7 @@ import {
   RedFormat,
   SRGBColorSpace,
 } from 'three';
+import type { LonLat } from '@/domain/geo';
 import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain/routing';
 import type { World } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
@@ -31,8 +32,9 @@ function seaTexture(world: World, anisotropy: number): DataTexture {
   const image = new Uint8Array(width * height * 4);
   const marblingScale = (90 * width) / 1400;
 
-  const sea = new Color(PALETTE.sea);
+  const sea = new Color(PALETTE.seaSheet);
   const color = new Color();
+  const rgb = { r: 0, g: 0, b: 0 };
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -44,9 +46,12 @@ function seaTexture(world: World, anisotropy: number): DataTexture {
       const marbling = valueNoise(x / marblingScale, y / marblingScale) - 0.5;
       color.offsetHSL(0, 0, marbling * MARBLING_AMPLITUDE);
 
-      image[offset] = color.r * 255;
-      image[offset + 1] = color.g * 255;
-      image[offset + 2] = color.b * 255;
+      // The texture is decoded as sRGB, so it must be written as sRGB: the linear channels
+      // written raw darkened the sea twice over, to a teal no swatch ever said.
+      color.getRGB(rgb, SRGBColorSpace);
+      image[offset] = rgb.r * 255;
+      image[offset + 1] = rgb.g * 255;
+      image[offset + 2] = rgb.b * 255;
       image[offset + 3] = 255;
     }
   }
@@ -74,15 +79,35 @@ export function seaMaterial(world: World, anisotropy: number): MeshStandardMater
 
 /** How far the swell lightens and darkens the sea: the marbling's own range, no more — the
  *  contrast budget belongs to the game layer. */
-const SWELL_AMPLITUDE = 0.06;
+const SWELL_AMPLITUDE = 0.04;
 /** World units per swell wave (the board is 400 wide) and noise cells drifted per second. */
 const SWELL_WAVELENGTH = 45;
 const SWELL_DRIFT = 0.006;
 
 const glsl = (value: number) => value.toFixed(4);
 
-/** Cells of distance the surf texture holds: past the rings' reach, the sea is just far. */
-const COAST_CAP_CELLS = 16;
+/** Cells of distance the coast texture holds: past the last isobath, the sea is just far. */
+const COAST_CAP_CELLS = 24;
+/** Isobaths, in board units off the coast (a unit is about a hundred kilometres): closer
+ *  together inshore, paler and wider apart out at sea, like a chart's soundings. */
+const ISOBATHS = [
+  [0.3, 0.42],
+  [0.75, 0.32],
+  [1.4, 0.24],
+  [2.4, 0.17],
+  [3.8, 0.12],
+] as const;
+/** How much the open water deepens toward `seaInk`, reached at the last isobath. */
+const DEEP_TINT = 0.1;
+/** The sheet's own light. The lamp is warm and the sky warmer still: lit alone, a pale water
+ *  tint came out the colour of the land, and the sea stopped reading as sea. */
+const SHEET_GLOW = 0.2;
+const GRATICULE_DEGREES = 10;
+const GRATICULE_OPACITY = 0.22;
+/** A rose engraved in the North Atlantic, where the Europe view always shows open water. */
+const ROSE_AT: LonLat = [-33, 44];
+const ROSE_RADIUS = 3.2;
+const ROSE_OPACITY = 0.55;
 const SURF_REACH = 1.25;
 const SURF_PERIOD_S = 12;
 const SURF_RINGS = 2;
@@ -110,6 +135,8 @@ export class SeaLayer implements AmbientLayer {
   private readonly coastOrigin = { value: [0, 0] };
   private readonly coastScale = { value: [1, 1] };
   private readonly coastStep = { value: 1 };
+  // Radius zero until the frame is known: no rose rather than a rose at the origin.
+  private readonly rose = { value: [0, 0, 0] };
   private disposed = false;
 
   /** Hands back the routing grid it decoded, so the engine does not build it a second time. */
@@ -122,6 +149,8 @@ export class SeaLayer implements AmbientLayer {
     this.coastOrigin.value = [-frame.width / 2, -frame.height / 2];
     this.coastScale.value = [1 / (grid.width * grid.step), 1 / (grid.height * grid.step)];
     this.coastStep.value = grid.step;
+    const rose = frame.projectLonLat(ROSE_AT);
+    this.rose.value = [rose.x, rose.z, ROSE_RADIUS];
     return grid;
   }
 
@@ -150,9 +179,17 @@ export class SeaLayer implements AmbientLayer {
       shader.uniforms.seaCoastScale = this.coastScale;
       shader.uniforms.seaCoastStep = this.coastStep;
       shader.uniforms.seaPaper = { value: new Color(PALETTE.foam) };
+      shader.uniforms.seaInk = { value: new Color(PALETTE.seaInk) };
+      shader.uniforms.seaRose = this.rose;
       shader.vertexShader = shader.vertexShader
-        .replace('void main() {', 'varying vec2 vSeaBoard;\nvoid main() {')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSeaBoard = position.xz;');
+        .replace(
+          'void main() {',
+          'attribute vec2 lonLat;\nvarying vec2 vSeaBoard;\nvarying vec2 vSeaLonLat;\nvoid main() {',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvSeaBoard = position.xz;\nvSeaLonLat = lonLat;',
+        );
       shader.fragmentShader = shader.fragmentShader
         .replace(
           'void main() {',
@@ -163,7 +200,23 @@ export class SeaLayer implements AmbientLayer {
           uniform vec2 seaCoastScale;
           uniform float seaCoastStep;
           uniform vec3 seaPaper;
+          uniform vec3 seaInk;
+          uniform vec3 seaRose;
           varying vec2 vSeaBoard;
+          varying vec2 vSeaLonLat;
+          // A line a pixel wide wherever value crosses at, whatever the zoom.
+          float seaLine(float value, float at, float perPixel) {
+            return 1.0 - smoothstep(0.5, 1.5, abs(value - at) / max(perPixel, 1e-5));
+          }
+          // One point of the rose: a kite along +y, filled on one side, lighter on the other.
+          float seaRosePoint(vec2 p, float turn, float len, float half_, float aa) {
+            vec2 axis = vec2(sin(turn), -cos(turn));
+            float along = dot(p, axis);
+            float across = p.x * axis.y - p.y * axis.x;
+            float edge = half_ * (1.0 - along / len) - abs(across);
+            float inside = smoothstep(-aa, aa, edge) * step(0.0, along);
+            return inside * (across > 0.0 ? 1.0 : 0.4);
+          }
           float seaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
           float seaNoise(vec2 p) {
             vec2 i = floor(p);
@@ -185,15 +238,50 @@ export class SeaLayer implements AmbientLayer {
           // Two layers drifting apart, so the swell breathes in place instead of only sliding.
           float seaSwell = 0.6 * seaNoise(seaWave + vec2(seaDrift, seaDrift * 0.4))
             + 0.4 * seaNoise(seaWave * 1.9 - vec2(seaDrift * 0.7, -seaDrift));
-          diffuseColor.rgb *= 1.0 + ${glsl(SWELL_AMPLITUDE * 2)} * (seaSwell - 0.5);`,
+          diffuseColor.rgb *= 1.0 + ${glsl(SWELL_AMPLITUDE * 2)} * (seaSwell - 0.5);
+
+          // The chart's engraving: ink laid on the paper before the lamp lights it. Land cells
+          // hold 0 and their sea neighbours 1: the coast runs halfway between.
+          float seaOff = max(0.0,
+            texture2D(seaCoast, (vSeaBoard - seaCoastOrigin) * seaCoastScale).r
+              * ${glsl(COAST_CAP_CELLS)} - 0.5) * seaCoastStep;
+          float seaPerPixel = fwidth(seaOff);
+          float seaEngraving = ${glsl(DEEP_TINT)} * smoothstep(0.0, ${glsl(ISOBATHS.at(-1)![0])}, seaOff);
+          ${ISOBATHS.map(
+            ([at, opacity], i) => `
+          // Out of sight when the next one would sit closer than a few pixels: no grey felt.
+          seaEngraving = max(seaEngraving, ${glsl(opacity)} * seaLine(seaOff, ${glsl(at)}, seaPerPixel)
+            * (1.0 - smoothstep(0.12, 0.3, seaPerPixel / ${glsl(at - (ISOBATHS[i - 1]?.[0] ?? 0))})));`,
+          ).join('')}
+          vec2 seaDegrees = vSeaLonLat / ${glsl(GRATICULE_DEGREES)};
+          vec2 seaDegreesPerPixel = fwidth(seaDegrees);
+          vec2 seaGrid = abs(fract(seaDegrees - 0.5) - 0.5) / max(seaDegreesPerPixel, vec2(1e-5));
+          float seaGraticule = 1.0 - smoothstep(0.5, 1.5, min(seaGrid.x, seaGrid.y));
+          seaGraticule *= 1.0 - smoothstep(0.15, 0.4, max(seaDegreesPerPixel.x, seaDegreesPerPixel.y));
+          seaEngraving = max(seaEngraving, ${glsl(GRATICULE_OPACITY)} * seaGraticule);
+          if (seaRose.z > 0.0) {
+            vec2 roseAt = (vSeaBoard - seaRose.xy) / seaRose.z;
+            float roseR = length(roseAt);
+            float rosePx = fwidth(roseR);
+            float rose = max(seaLine(roseR, 0.84, rosePx), seaLine(roseR, 0.76, rosePx));
+            for (int k = 0; k < 4; k++) {
+              float turn = float(k) * 1.5708;
+              rose = max(rose, seaRosePoint(roseAt, turn, k == 0 ? 1.15 : 1.0, 0.13, rosePx));
+              rose = max(rose, seaRosePoint(roseAt, turn + 0.7854, 0.55, 0.08, rosePx));
+            }
+            seaEngraving = max(seaEngraving, ${glsl(ROSE_OPACITY)} * rose);
+          }
+          diffuseColor.rgb = mix(diffuseColor.rgb, seaInk, seaEngraving);`,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          totalEmissiveRadiance += ${glsl(SHEET_GLOW)} * diffuseColor.rgb;`,
         )
         .replace(
           '#include <colorspace_fragment>',
           `if (seaSurf > 0.0) {
-            float seaCells = texture2D(seaCoast, (vSeaBoard - seaCoastOrigin) * seaCoastScale).r
-              * ${glsl(COAST_CAP_CELLS)};
-            // Land cells hold 0 and their sea neighbours 1: the coast runs halfway between.
-            float offshore = max(0.0, seaCells - 0.5) * seaCoastStep;
+            float offshore = seaOff;
             float foam = ${glsl(SURF_EDGE_OPACITY)}
               * (1.0 - smoothstep(0.0, ${glsl(SURF_EDGE_WIDTH)}, offshore));
             for (int i = 0; i < ${SURF_RINGS}; i++) {

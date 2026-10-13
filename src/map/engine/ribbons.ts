@@ -100,9 +100,8 @@ export const CURRENT_RIBBONS: RibbonStyle = {
   widthBase: 0.8,
   widthPx: [6, 6],
   widthByForce: [0.5, 0.5],
-  // Twice the demo's 0.12-0.15: lit by the scene, the sea darkens toward the ink, and at the
-  // demo's value the ribbons vanished on screen.
-  alphaByForce: [0.22, 0.08],
+  // The demo's own range: on the pale sheet, the ink of the sea reads at a touch.
+  alphaByForce: [0.12, 0.05],
   growthS: [8, 12],
   fadeInS: 1.5,
   tailPerStep: 2,
