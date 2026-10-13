@@ -114,6 +114,18 @@ l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au
 « envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
 la rose et l'aperçu refermés la reposent.
 
+**Et la pile levée se déploie — 13/10/2026** (ADR 0026 §6). Lever prend toute la pile ; levée,
+une pile de plusieurs troupes s'ouvre au sol, **une figurine par troupe** avec ses dix crans de
+vie (`pilePieces(...).spread`, rangées de quatre centrées sur le point et tournées vers l'œil —
+`spreadLayout`, `standing.ts`). Un clic ou un tap sur une troupe déployée l'ajoute à la main ou
+l'en retire (`clickPile`, variante `troop`) ; hors main, elle se délave ; la dernière retirée
+repose la pièce. **Maj + clic a disparu** : il n'avait plus rien à ajouter, et les cases de la
+fiche restent la voie clavier. La main reste la seule source — la fiche se remonte sur elle à
+chaque clic. Reposer, Échap ou un ordre envoyé referment le déploiement sur ce qui reste.
+L'animation dure 250 ms, déclarée à la boucle (`isSpreading`) ; réduite, les troupes poussent
+sur place en 120 ms ; coupée, elles sont posées d'un coup. Ni garnison de bâtiment ni pile
+adverse ne se déploient, et une pile sans figurine pour chacune de ses troupes non plus.
+
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la
 main sans la lâcher ; elle ne porte qu'un ordre, **« fonder un avant-poste ici »**, la branche
