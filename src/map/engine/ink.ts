@@ -31,7 +31,7 @@ const SPLASH_PX = 14;
 /** The prototype's stamp is 6 units beside a piece of 1.35: on screen, about a hand's breadth. */
 const WORDED_PX = 170;
 /** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
-const WORDED_ASIDE = [0.58, 0.42] as const;
+const WORDED_ASIDE = [0.95, 0.7] as const;
 const STAMP_RED = '#9d4638';
 
 const REACH_HOLD_MS = 600;
@@ -107,8 +107,11 @@ function wordedTexture({ word, hour }: StampWords): CanvasTexture {
   ctx.font = '700 64px "Bodoni Moda", Georgia, serif';
   const fit = Math.min(64, (64 * 320) / ctx.measureText(text).width);
   ctx.font = `700 ${fit}px "Bodoni Moda", Georgia, serif`;
+  // Stroked as well as filled: a didone's hairlines vanish once the sheet is seen at a slant.
+  ctx.lineWidth = 3;
   ctx.fillText(text, 0, 0);
-  ctx.font = '500 26px "IBM Plex Mono", monospace';
+  ctx.strokeText(text, 0, 0);
+  ctx.font = '600 30px "IBM Plex Mono", monospace';
   ctx.fillText(`★  ${hour}  ★`, 0, 80);
   ctx.globalCompositeOperation = 'destination-out';
   for (let k = 0; k < 900; k++) {
@@ -235,6 +238,8 @@ export class InkLayer {
         opacity: 0,
         depthTest: false,
         depthWrite: false,
+        // Ink is ink: the lamp's tone curve would wash the stamp's red into the sheet.
+        toneMapped: false,
         side: DoubleSide,
       }),
     );
