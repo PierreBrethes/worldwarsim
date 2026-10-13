@@ -10,12 +10,17 @@ export type Hand =
       readonly troopIds: ReadonlyArray<string>;
     };
 
-/** A left click on one of my own piles: a group of figurines, or the whole pile (label, counter). */
-export type PileClick = {
-  readonly station: MarchStation;
-  readonly troopIds: ReadonlyArray<string>;
-  readonly shift: boolean;
-};
+/**
+ * A left click on one of my own piles: the pile itself (a group, its label, a counter), or one
+ * troop of the pile **deployed** at the foot of the piece in hand (ADR 0026 §6, 13/10).
+ */
+export type PileClick =
+  | {
+      readonly kind: 'pile';
+      readonly station: MarchStation;
+      readonly troopIds: ReadonlyArray<string>;
+    }
+  | { readonly kind: 'troop'; readonly station: MarchStation; readonly troopId: string };
 
 export type HandMove =
   | { readonly kind: 'lift'; readonly hand: Hand }
@@ -25,22 +30,20 @@ export type HandMove =
 const unchanged = (hand: Hand): HandMove =>
   hand.kind === 'held' ? { kind: 'lift', hand } : { kind: 'drop' };
 
+/** Lifting takes the whole pile; held, the pile deploys and each of its troops goes into the
+ *  hand or out of it — the last one out puts the piece back. */
 export function clickPile(hand: Hand, click: PileClick): HandMove {
-  if (click.troopIds.length === 0) return unchanged(hand);
-  if (hand.kind === 'empty') {
-    return {
-      kind: 'lift',
-      hand: { kind: 'held', station: click.station, troopIds: click.troopIds },
-    };
-  }
+  const troopIds = click.kind === 'pile' ? click.troopIds : [click.troopId];
+  if (troopIds.length === 0) return unchanged(hand);
+  if (hand.kind === 'empty')
+    return { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds } };
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
-  const inHand = new Set(hand.troopIds);
-  if (click.shift) {
-    const troopIds = [...new Set([...hand.troopIds, ...click.troopIds])];
-    return { kind: 'lift', hand: { ...hand, troopIds } };
-  }
-  if (click.troopIds.every((id) => inHand.has(id))) return { kind: 'drop' };
-  return { kind: 'lift', hand: { kind: 'held', station: click.station, troopIds: click.troopIds } };
+  if (click.kind === 'pile') return { kind: 'drop' };
+  const rest = hand.troopIds.filter((id) => id !== click.troopId);
+  return composeHand(
+    hand,
+    rest.length === hand.troopIds.length ? [...hand.troopIds, click.troopId] : rest,
+  );
 }
 
 export function composeHand(hand: Hand, troopIds: ReadonlyArray<string>): HandMove {

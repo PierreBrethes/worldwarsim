@@ -14,7 +14,8 @@ import {
   type Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
-import type { PilePieces } from '@/domain/pile-pieces';
+import type { MapMotion } from '@/domain/map-motion';
+import type { PilePieces, SpreadPiece } from '@/domain/pile-pieces';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
@@ -56,6 +57,26 @@ export function pileLayout(
     groups: Array.from({ length: groups }, (_, k) => at(k)),
     more: more ? at(groups) : null,
   };
+}
+
+/** Troops in a row before the next one starts behind it: four is about a pile's own width. */
+const SPREAD_ROW = 4;
+const SPREAD_DEPTH = 0.7;
+
+/**
+ * **Where each troop of a deployed pile stands** (ADR 0026 §6, 13/10): side by side, centred on
+ * the point, rows of four going back from the eye — about the footprint of the grouped pile, so
+ * a deployed pile does not walk over the maquettes standing by it. Board units, front at z = 0.
+ */
+export function spreadLayout(troops: number): ReadonlyArray<{ x: number; z: number }> {
+  return Array.from({ length: troops }, (_, k) => {
+    const row = Math.floor(k / SPREAD_ROW);
+    const inRow = Math.min(SPREAD_ROW, troops - row * SPREAD_ROW);
+    return {
+      x: ((k % SPREAD_ROW) - (inRow - 1) / 2) * GROUP_SPACING,
+      z: row > 0 ? -row * SPREAD_DEPTH : 0,
+    };
+  });
 }
 
 /**
@@ -339,8 +360,89 @@ function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePi
     groups,
     more: troopIds.some((id) => !shown.has(id)) ? pieces.more : 0,
     troopIds,
+    spread: pieces.spread.filter((piece) => held.has(piece.troopId)),
   };
 }
+
+/** Ten notches under a deployed troop, inked as the sheet inks them (`PileSheet`). */
+const NOTCH = new BoxGeometry(0.03, 0.02, 0.05);
+NOTCH.translate(0, 0.01, 0);
+const NOTCH_INK = {
+  ink: new MeshStandardMaterial({ color: '#2a2118', roughness: 0.7 }),
+  ochre: new MeshStandardMaterial({ color: '#b07434', roughness: 0.7 }),
+  red: new MeshStandardMaterial({ color: '#9d4638', roughness: 0.7 }),
+} as const;
+const NOTCH_BLANK = new MeshStandardMaterial({ color: '#d9ccab', roughness: 0.8 });
+/** In front of the figure, towards the eye. */
+const LIFE_AT = 0.32;
+
+function lifeBar({ notches, ink }: SpreadPiece): Group {
+  const bar = new Group();
+  for (let k = 0; k < 10; k++) {
+    const notch = new Mesh(NOTCH, k < notches ? NOTCH_INK[ink] : NOTCH_BLANK);
+    notch.position.x = (k - 4.5) * 0.04;
+    bar.add(notch);
+  }
+  bar.position.z = LIFE_AT;
+  return bar;
+}
+
+/** One deployed troop: its figurine, its life, and the footprint a click is cast at. */
+type SpreadPart = { readonly object: Group; readonly to: { x: number; z: number } };
+
+/** The pile deployed, `null` when a troop has no figurine — the sheet alone composes then. */
+function spreadObject(
+  nation: string | null,
+  pieces: PilePieces,
+  pileId: string,
+): { object: Group; parts: Map<string, SpreadPart>; ready: Promise<unknown> } | null {
+  const figurines: Figurine[] = [];
+  for (const piece of pieces.spread) {
+    const figurine = figurineFor(nation, piece.role, piece.figures);
+    if (figurine === null) return null;
+    figurines.push(figurine);
+  }
+  const layout = spreadLayout(figurines.length);
+  const object = new Group();
+  const parts = new Map<string, SpreadPart>();
+  figurines.forEach((figurine, k) => {
+    const piece = pieces.spread[k]!;
+    const part = new Group();
+    const target = footprint(0, 'pile');
+    target.userData.pileId = pileId;
+    target.userData.troopId = piece.troopId;
+    part.add(figurine.object, target, lifeBar(piece));
+    if (piece.wear === 'burning')
+      void figurine.ready.then(
+        () => blacken(figurine.object),
+        () => {},
+      );
+    object.add(part);
+    parts.set(piece.troopId, { object: part, to: layout[k]! });
+  });
+  return { object, parts, ready: Promise.all(figurines.map((figurine) => figurine.ready)) };
+}
+
+/** How long the pile takes to deploy or close, by the map's motion setting. */
+const SPREAD_MS: Readonly<Record<MapMotion, number>> = { full: 250, reduced: 120, off: 0 };
+
+/**
+ * **A pile deployed at the foot of the piece in hand.** Its progress is a function of the clock,
+ * not a counter stepped by frames: `from` at `since`, going up while it opens, down while it
+ * closes — a frame that comes late still shows the right instant.
+ */
+type Spread = {
+  readonly pileId: string;
+  readonly object: Group;
+  readonly parts: Map<string, SpreadPart>;
+  ready: boolean;
+  opening: boolean;
+  from: number;
+  since: number;
+};
+
+/** What a pick found: a troop of the deployed pile, or the pile itself. */
+export type PiecePick = PieceHold & { readonly spread: boolean };
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
 export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
@@ -362,6 +464,8 @@ export class StandingLayer {
   private dressed = new Map<string, Dressed>();
   private readonly faces: Faces;
   private held: PieceHold | null = null;
+  private spread: Spread | null = null;
+  motion: MapMotion = 'full';
   /** The copy of what is in hand; `null` when the pile is not dressed. */
   private carried: { readonly object: Group; at: boolean } | null = null;
   /** Set by the first `display`; no pile exists before it. */
@@ -425,6 +529,17 @@ export class StandingLayer {
     }
     for (const gone of this.dressed.values()) gone.object.removeFromParent();
     this.dressed = next;
+    // The troops that marched off left the deployed pile; it closes on what remains.
+    const spread = this.spread;
+    if (spread !== null) {
+      const staying = new Set(next.get(spread.pileId)?.pieces.troopIds);
+      for (const [troopId, part] of spread.parts)
+        if (!staying.has(troopId)) {
+          part.object.removeFromParent();
+          spread.parts.delete(troopId);
+        }
+      if (spread.parts.size === 0) this.fold();
+    }
     this.rebuild();
 
     const shown = new Set<string>();
@@ -453,17 +568,29 @@ export class StandingLayer {
     return this.dressed.get(id)?.ready === true;
   }
 
-  /** The troops of the piece under `ray`, among the piles standing in sight. */
-  pick(ray: Raycaster): PieceHold | null {
+  /** The troops of the piece under `ray`, among the piles standing in sight — a troop of the
+   *  deployed pile first: the pile it stands for has shrunk away under it. */
+  pick(ray: Raycaster): PiecePick | null {
+    const spread = this.spread;
+    if (spread !== null && spread.opening && spread.ready && spread.object.visible) {
+      const hit = ray.intersectObject(spread.object, true).find((h) => h.object.userData.troopId);
+      if (hit)
+        return {
+          pileId: spread.pileId,
+          troopIds: [hit.object.userData.troopId as string],
+          spread: true,
+        };
+    }
     let best: { distance: number; pick: PieceHold } | null = null;
     for (const [pileId, entry] of this.dressed) {
       if (!entry.ready || !entry.object.visible || 'beside' in entry.at) continue;
+      if (spread?.pileId === pileId && spread.opening && spread.ready) continue;
       const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
       if (distance === undefined || (best !== null && best.distance <= distance)) continue;
       const troopIds = pickedIn(ray, entry.targets, entry.pieces);
       if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
     }
-    return best?.pick ?? null;
+    return best === null ? null : { ...best.pick, spread: false };
   }
 
   /**
@@ -482,6 +609,7 @@ export class StandingLayer {
     this.carried?.object.removeFromParent();
     this.carried = null;
     this.held = held;
+    this.deploy(held);
     if (held === null) return;
     const entry = this.dressed.get(held.pileId);
     if (entry === undefined) return;
@@ -508,6 +636,81 @@ export class StandingLayer {
       },
       () => {},
     );
+  }
+
+  /** 0 folded, 1 deployed, at `now`. */
+  private progressOf(spread: Spread, now: number): number {
+    const duration = SPREAD_MS[this.motion];
+    const step = duration === 0 ? 1 : (now - spread.since) / duration;
+    return Math.min(1, Math.max(0, spread.from + (spread.opening ? step : -step)));
+  }
+
+  private turn(spread: Spread, opening: boolean): void {
+    if (spread.opening === opening) return;
+    const now = performance.now();
+    spread.from = this.progressOf(spread, now);
+    spread.since = now;
+    spread.opening = opening;
+  }
+
+  private fold(): void {
+    this.spread?.object.removeFromParent();
+    this.spread = null;
+  }
+
+  /**
+   * **Deploys the pile in hand, one figurine per troop** (ADR 0026 §6, 13/10), the troops out of
+   * hand washed; any other hand folds it back. A pile of one troop has nothing to deploy, and a
+   * garrison is never lifted from the board.
+   */
+  private deploy(held: PieceHold | null): void {
+    let spread = this.spread;
+    if (spread !== null && spread.pileId !== held?.pileId) {
+      if (held === null) this.turn(spread, false);
+      else this.fold();
+      spread = this.spread;
+    }
+    if (held === null) return;
+    if (spread === null) {
+      const entry = this.dressed.get(held.pileId);
+      if (!entry?.ready || 'beside' in entry.at || entry.pieces.spread.length < 2) return;
+      const built = spreadObject(this.nation, entry.pieces, held.pileId);
+      if (built === null) return;
+      const fresh: Spread = {
+        pileId: held.pileId,
+        object: built.object,
+        parts: built.parts,
+        ready: false,
+        opening: true,
+        from: 0,
+        since: performance.now(),
+      };
+      spread = this.spread = fresh;
+      built.object.visible = false;
+      this.group.add(built.object);
+      built.ready.then(
+        () => {
+          if (this.spread !== fresh) return;
+          fresh.ready = true;
+          // The models landed after the click: the opening starts now, not behind their back.
+          fresh.from = 0;
+          fresh.since = performance.now();
+          this.changed();
+        },
+        () => {},
+      );
+    }
+    this.turn(spread, true);
+    const inHand = new Set(held.troopIds);
+    for (const [troopId, part] of spread.parts) wash(part.object, !inHand.has(troopId));
+  }
+
+  /** A deployment opening or closing wants every frame until it is done (`frame-demand.ts`). */
+  get isSpreading(): boolean {
+    const spread = this.spread;
+    if (spread === null || !spread.ready) return false;
+    // Closing runs until the frame that folds it, at 0: one frame short would leave a speck.
+    return !spread.opening || this.progressOf(spread, performance.now()) < 1;
   }
 
   /** The ground under the pointer, `null` off the board or under a finger. */
@@ -544,6 +747,7 @@ export class StandingLayer {
       object.visible = near > 0;
       object.scale.setScalar(near);
     }
+    this.orientSpread(cameraPosition);
     if (this.carried === null) return;
     const { object, at } = this.carried;
     const near = nearWeight(object.position.distanceTo(cameraPosition));
@@ -551,9 +755,41 @@ export class StandingLayer {
     object.scale.setScalar(near);
   }
 
+  /** The deployed troops slide out of the pile's point as its groups shrink into it, the whole
+   *  turned to the eye; reduced motion grows them in place, cut motion shows the end. */
+  private orientSpread(cameraPosition: Vector3): void {
+    const spread = this.spread;
+    if (spread === null) return;
+    const entry = this.dressed.get(spread.pileId);
+    if (entry === undefined || !spread.ready) {
+      spread.object.visible = false;
+      if (entry === undefined) this.fold();
+      return;
+    }
+    const t = this.progressOf(spread, performance.now());
+    if (t === 0 && !spread.opening) {
+      this.fold();
+      return;
+    }
+    const eased = t * t * (3 - 2 * t);
+    const point = entry.object.position;
+    const near = nearWeight(point.distanceTo(cameraPosition));
+    entry.object.scale.setScalar(near * (1 - eased));
+    spread.object.visible = near > 0;
+    spread.object.position.copy(point);
+    spread.object.scale.setScalar(near);
+    spread.object.rotation.y = Math.atan2(cameraPosition.x - point.x, cameraPosition.z - point.z);
+    const travel = this.motion === 'full' ? eased : 1;
+    for (const { object, to } of spread.parts.values()) {
+      object.position.set(to.x * travel, 0, to.z * travel);
+      object.scale.setScalar(Math.max(eased, 1e-3));
+    }
+  }
+
   /** Model geometry is shared with the pawns and the counter disc with every pile: only the
    *  counter faces are this layer's to free. */
   dispose(): void {
+    this.fold();
     this.group.removeFromParent();
     this.faces.keepOnly(new Set());
   }

@@ -64,7 +64,13 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
-import { StandingLayer, type CounterTexts, type PieceHold, type StandingPile } from './standing';
+import {
+  StandingLayer,
+  type CounterTexts,
+  type PieceHold,
+  type PiecePick,
+  type StandingPile,
+} from './standing';
 import { PointerRest } from './pointer-rest';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { ReplayScene, replayReach } from './replay';
@@ -79,7 +85,7 @@ import {
 import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
-export type { CounterTexts, PieceHold, StandingPile } from './standing';
+export type { CounterTexts, PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './blocks';
 
@@ -110,10 +116,9 @@ export type MapActClick = {
   clientY: number;
 };
 
-/** A clean press that took one of my pieces (`MapEngine.onPieceClick`). */
-export type PieceClick = PieceHold & {
-  /** Maj + clic adds a group of the same pile (ADR 0026 §6). */
-  shift: boolean;
+/** A clean press that took one of my pieces, or a troop of the deployed one
+ *  (`MapEngine.onPieceClick`). */
+export type PieceClick = PiecePick & {
   clientX: number;
   clientY: number;
 };
@@ -1205,7 +1210,6 @@ export class MapEngine {
     if (piece === null) return false;
     onPieceClick({
       ...piece,
-      shift: event.shiftKey,
       clientX: event.clientX,
       clientY: event.clientY,
     });
@@ -1304,6 +1308,7 @@ export class MapEngine {
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.camps.motion = motion;
+    this.standing.motion = motion;
     this.ink.motion = motion;
     this.regions.terrain.motion = motion;
   }
@@ -1684,7 +1689,13 @@ export class MapEngine {
     }
     // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image — et la plume
     // trace le terrain survolé tant qu'elle n'a pas fini.
-    if (this.arcs.isFlowing || this.ink.active || this.regions.terrain.active) this.invalidate();
+    if (
+      this.arcs.isFlowing ||
+      this.ink.active ||
+      this.regions.terrain.active ||
+      this.standing.isSpreading
+    )
+      this.invalidate();
     const now = performance.now();
     this.advanceReplay(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
