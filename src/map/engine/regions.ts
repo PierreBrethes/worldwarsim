@@ -89,15 +89,17 @@ export type HeldClaim = {
     readonly id: string;
     readonly wash: number;
     /**
-     * **Le souvenir d'une couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste
-     * hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
+     * Les trois états que sert `control.held`, tels quels. `suspended` est **le souvenir d'une
+     * couleur, jamais une couleur** (ADR 0020 §7). La zone d'un avant-poste hors service n'est pas tenue — elle ne compte ni au classement ni à la production — et elle
      * disparaissait pourtant de la carte : son propriétaire n'avait plus rien à lire là où il
      * tenait la veille. Hachurée, elle dit la suspension sans jamais se faire passer pour une
      * possession, ce qu'un aplat pâle aurait fait.
      */
-    readonly suspended: boolean;
+    readonly state: 'current' | 'surveyed' | 'suspended';
   }>;
 };
+
+type HeldState = HeldClaim['regions'][number]['state'];
 
 /**
  * **La hachure se mesure en pixels d'écran, pas en kilomètres** (ADR 0020 §1 : « une couleur qui
@@ -205,7 +207,7 @@ export class RegionLayer {
    *  à sa couleur plutôt qu'à celle de son terrain. */
   private heldByRegion = new Map<
     string,
-    { readonly ink: string; readonly wash: number; readonly suspended: boolean }
+    { readonly ink: string; readonly wash: number; readonly state: HeldState }
   >();
   /** A big region costs 100+ ms to sketch (the Nunavut), and the pointer crosses it again and
    *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
@@ -304,9 +306,7 @@ export class RegionLayer {
     this.claims = claims;
     this.heldByRegion = new Map(
       claims.flatMap((claim) =>
-        claim.regions.map(
-          ({ id, wash, suspended }) => [id, { ink: claim.ink, wash, suspended }] as const,
-        ),
+        claim.regions.map(({ id, wash, state }) => [id, { ink: claim.ink, wash, state }] as const),
       ),
     );
     this.forgetSketches();
@@ -368,18 +368,19 @@ export class RegionLayer {
     for (const claim of this.claims) {
       /** La clef porte la franchise **et** la trame : deux régions de même encre ne partagent un
        *  maillage que si elles se peignent de la même façon. */
-      const byWash = new Map<string, { wash: number; suspended: boolean; ids: Set<string> }>();
+      const byWash = new Map<string, { wash: number; state: HeldState; ids: Set<string> }>();
       for (const region of claim.regions) {
-        const key = `${region.wash}/${region.suspended}`;
+        const key = `${region.wash}/${region.state}`;
         const kept = byWash.get(key) ?? {
           wash: region.wash,
-          suspended: region.suspended,
+          state: region.state,
           ids: new Set<string>(),
         };
         kept.ids.add(region.id);
         byWash.set(key, kept);
       }
-      for (const { wash, suspended, ids } of byWash.values()) {
+      for (const { wash, state, ids } of byWash.values()) {
+        const suspended = state === 'suspended';
         const lift = suspended ? SUSPENDED_LIFT : HELD_LIFT;
         const parts = this.prepared
           .filter(({ region }) => ids.has(region.id))
@@ -552,7 +553,7 @@ export class RegionLayer {
     this.hoverOutline.geometry.dispose();
     const held = region === null ? undefined : this.heldByRegion.get(region.id);
     /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
-    const painted = held === undefined || held.suspended ? null : held;
+    const painted = held === undefined || held.state === 'suspended' ? null : held;
     this.terrain.show(
       region?.id ?? null,
       () => (prepared ? this.penStrandsOf(prepared) : []),

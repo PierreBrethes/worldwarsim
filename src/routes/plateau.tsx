@@ -1139,7 +1139,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               : region.state === 'suspended'
                 ? FADED_WASH
                 : surveyWash(surveyClock - region.seenAt, SURVEY_FADED_HOURS * 3_600_000),
-          suspended: region.state === 'suspended',
+          state: region.state,
         })),
       })),
     [heldRaw, surveyClock],
