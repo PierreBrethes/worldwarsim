@@ -182,8 +182,8 @@ est la réserve à sec** (`drynessOf`, `src/domain/resource-band.ts`) : vide, ou
 l'encre, le diagnostic à la carte de la réserve. **Le chiffre ne suit pas l'horloge, il s'annonce** (compteur du
 13/10, `src/domain/reserve-counter.ts`) : chaque réserve tire son instant entre 30 et 60 s, roule
 comme un compteur jusqu'au stock et montre « +N » ; un gain que le débit n'explique pas — la vue
-neuve comparée à ce que l'ancienne prédisait — s'annonce sur-le-champ, une dépense roule sans
-étiquette ; animations « coupées » ou mouvement réduit du système, il suit l'horloge comme
+neuve comparée à ce que l'ancienne prédisait — s'annonce sur-le-champ, une dépense
+aussi, « −N » à l'encre douce et jamais en rouge ; animations « coupées » ou mouvement réduit du système, il suit l'horloge comme
 avant. Jauge, alerte et libellé accessible lisent le stock réel. À gauche, la
 **colonne des surfaces** (`SurfaceColumn.tsx`) : en tête le carré d'encre « N à faire », qui
 déplie la carte `NextActions` à sa droite (repli retenu), puis Nation, Écon., Abaque, Journal
