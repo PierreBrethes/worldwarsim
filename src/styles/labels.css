@@ -1,7 +1,7 @@
-/* Map labels — paper reserve.
-   Values taken verbatim from WWS/maquettes/Étiquettes de carte - réserve blanche.dc.html:
-   no cartouche, no shadow, no translucent background. The only relief allowed is the paper
-   reserve around the letters (`-webkit-text-stroke` + `paint-order`). */
+/* Map labels — press cartouches (table d'état-major, point 16, 13/10/2026).
+   The words sit on a slip of paper held above their piece by a stem, instead of lying on the
+   ground: the paper reserve around bare letters bled into the relief (audit of 12/10). This
+   revises the "no cartouche, no shadow" of the réserve blanche mockup, knowingly. */
 
 .map-labels {
   position: absolute;
@@ -55,6 +55,8 @@
 .label-bar {
   position: relative;
   width: 2px;
+  /* Flush against the cartouche: the national stroke is its edge, not a second line beside it. */
+  margin-right: -6px;
   background: var(--label-ink);
 }
 
@@ -64,10 +66,26 @@
   content: '';
   position: absolute;
   top: 100%;
-  left: 0;
-  width: 2px;
+  left: calc(50% - 0.75px);
+  width: 1.5px;
   height: var(--label-callout);
   background: var(--label-ink);
+  /* The stem is a thin wire over a busy ground: a hairline of paper keeps it off the relief. */
+  box-shadow: 0 0 0 0.75px rgb(232 223 200 / 70%);
+  pointer-events: none;
+}
+
+/* The cartouche: paper, an ink rule, a dry offset shadow — printed, never glassy. The words no
+   longer need a paper stroke of their own. */
+.label-lines {
+  padding: 2px 6px 3px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 2px 2px 0 rgb(38 30 20 / 38%);
+}
+
+.label-lines:empty {
+  display: none;
 }
 
 /* An assumed exception to the mockup's "no shadow", requested knowingly: without this pool,
@@ -286,16 +304,12 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink);
-  -webkit-text-stroke: 2.5px var(--paper);
-  paint-order: stroke fill;
 }
 
 .label-line--figures {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--figures-ink);
-  -webkit-text-stroke: 2.5px var(--paper);
-  paint-order: stroke fill;
 }
 
 .label-line--headcount {
@@ -303,8 +317,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
-  -webkit-text-stroke: 3px var(--paper);
-  paint-order: stroke fill;
 }
 
 .label-line--countdown {
@@ -314,8 +326,6 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--ink);
-  -webkit-text-stroke: 3px var(--paper);
-  paint-order: stroke fill;
 }
 
 .label-line--mention {
@@ -323,8 +333,6 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  -webkit-text-stroke: 2.5px var(--paper);
-  paint-order: stroke fill;
 }
 
 /* An enemy estimate: intelligence ink, never a nation's ink. */
