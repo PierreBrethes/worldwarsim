@@ -12,15 +12,17 @@ import { ReplayLaunch } from './ReplayDeck';
  * un rejeu, et il porte la phrase de la dépêche, « rejouer », « voir » et sa croix. Le système
  * y demande moins de mouvement : l'encart part sans attendre une animation que jsdom ne joue pas.
  */
+let narrow = true;
 beforeAll(() => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: true,
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: narrow || !query.includes('max-width'),
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
   }));
 });
 afterEach(() => {
   cleanup();
+  narrow = true;
   vi.useRealTimers();
 });
 
@@ -84,16 +86,27 @@ it('ne dit rien pendant un rejeu, ni après de ce qui est arrivé pendant', () =
   expect(screen.queryByRole('status')).toBeNull();
 });
 
-it('en garde trois, le plus récent en tête', () => {
-  const four = journalDispatches(
-    [battle('old', NOON), ...[1, 2, 3, 4].map((n) => battle(`b${n}`, NOON + n * 60_000))],
-    null,
-    [],
-  );
+const four = journalDispatches(
+  [battle('old', NOON), ...[1, 2, 3, 4].map((n) => battle(`b${n}`, NOON + n * 60_000))],
+  null,
+  [],
+);
+const timeOf = (id: string) => four.find((dispatch) => dispatch.combat?.id === id)!.t;
+
+it('en garde trois au bureau, le plus récent en tête', () => {
+  narrow = false;
   const { rerender } = render(board(opened));
   rerender(board(four));
   const shown = screen.getAllByRole('status').map((toast) => toast.textContent);
-  const timeOf = (id: string) => four.find((dispatch) => dispatch.combat?.id === id)!.t;
   expect(shown).toHaveLength(3);
   ['b4', 'b3', 'b2'].forEach((id, rank) => expect(shown[rank]).toContain(timeOf(id)));
+});
+
+it('au téléphone, un seul à la fois : le plus récent, puis le suivant', () => {
+  const { rerender } = render(board(opened));
+  rerender(board(four));
+  expect(screen.getAllByRole('status')).toHaveLength(1);
+  screen.getByText(timeOf('b4'));
+  act(() => screen.getByRole('button', { name: fr.combatToast.close }).click());
+  screen.getByText(timeOf('b3'));
 });

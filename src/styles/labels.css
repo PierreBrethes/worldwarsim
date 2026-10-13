@@ -630,6 +630,16 @@
   cursor: pointer;
 }
 
+/* Au doigt, le cartouche fait 26 px de haut : sa prise déborde d'un liseré invisible jusqu'aux
+   44 px d'une cible tactile, sans grossir l'encre. */
+@media (pointer: coarse) {
+  .label--clickable .label-block::after {
+    content: '';
+    position: absolute;
+    inset: -9px -4px;
+  }
+}
+
 /* **Une destination de la colonne armée** (lot mobile-3, A8) : un cercle au pied du mât, là où
    l'ordre arrivera. Il n'existe que sous le seuil et en visée — le plateau le décide. */
 .label--destination::after {

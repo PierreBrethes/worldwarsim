@@ -19,6 +19,7 @@ export function MapCard({
   at,
   gap,
   width,
+  hug = true,
   onClose,
   children,
 }: {
@@ -29,6 +30,8 @@ export function MapCard({
   /** L'écart horizontal au point, et le vertical qui en découle : la place de la rose. */
   gap: { readonly x: number; readonly y: number };
   width: number;
+  /** Au doigt, l'aperçu épouse la fiche (`BottomSheet.hug`) ; sans, il garde son tiers. */
+  hug?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -41,7 +44,7 @@ export function MapCard({
         onClose={onClose}
         initial="peek"
         kicker
-        hug
+        hug={hug}
         keepsSelection
       >
         <div className="px-4 py-[10px]">{children}</div>
