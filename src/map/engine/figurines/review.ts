@@ -27,7 +27,13 @@ import { figurineFor } from './figurine';
  */
 const ROLES = Object.keys(TIERS_BY_ROLE) as ReadonlyArray<UnitRole>;
 const root = document.getElementById('review')!;
+/** `?nation=germany` reviews another nation's figurines. */
+const nation = new URLSearchParams(location.search).get('nation') ?? 'france';
 const views: Array<() => void> = [];
+// One renderer for every card, copied into each: a browser keeps about sixteen WebGL contexts
+// alive, and a nation's whole catalogue holds more figurines than that.
+const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(devicePixelRatio);
 
 function card(
   plate: string | null,
@@ -44,8 +50,7 @@ function card(
   }
   const canvas = document.createElement('canvas');
   figure.insertBefore(canvas, figure.querySelector('figcaption'));
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(devicePixelRatio);
+  const context = canvas.getContext('2d')!;
   const scene = new Scene();
   scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 1.35));
   const sun = new DirectionalLight('#fffaf0', 0.5);
@@ -57,7 +62,11 @@ function card(
   const camera = new PerspectiveCamera(30, 1, 0.01, 50);
   views.push(() => {
     const { clientWidth: w, clientHeight: h } = canvas;
-    if (canvas.width !== w * devicePixelRatio) renderer.setSize(w, h, false);
+    if (canvas.width !== w * devicePixelRatio) {
+      canvas.width = w * devicePixelRatio;
+      canvas.height = h * devicePixelRatio;
+    }
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     const size =
       still?.size ?? (new Box3().setFromObject(object).getSize(new Vector3()).length() || 1);
@@ -66,13 +75,15 @@ function card(
     camera.lookAt(0, size * 0.2, 0);
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(renderer.domElement, 0, 0);
   });
 }
 
 for (const role of ROLES) {
   for (let tier = 1 as UnitTier; tier <= TIERS_BY_ROLE[role]; tier = (tier + 1) as UnitTier) {
-    const figurine = figurineFor('france', role, [tier, tier, tier]);
-    card(spriteUrl('france', role, tier), `${role} MK${tier}`, figurine?.object ?? null);
+    const figurine = figurineFor(nation, role, [tier, tier, tier]);
+    card(spriteUrl(nation, role, tier), `${role} MK${tier}`, figurine?.object ?? null);
   }
 }
 
@@ -91,9 +102,9 @@ for (const [caption, troops] of [
   ['pile · 4 rôles', [troop('infantry'), troop('armor'), troop('landTransport'), troop('fighter')]],
 ] as const) {
   card(
-    spriteUrl('france', 'infantry', 1),
+    spriteUrl(nation, 'infantry', 1),
     caption,
-    pileObject('france', pilePieces(troops), texts, faces)?.object ?? null,
+    pileObject(nation, pilePieces(troops), texts, faces)?.object ?? null,
   );
 }
 

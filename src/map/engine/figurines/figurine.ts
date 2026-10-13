@@ -81,8 +81,11 @@ export function figurineFor(
 
   const ready = Promise.all(files.map((file) => sceneOf(file!))).then(
     (scenes) => {
-      const makers = scenes.map((scene) => () => scene.clone(true));
-      model.add(role === 'infantry' ? squadOf(makers) : makers[0]!());
+      const makers = scenes.map((scene, k) => ({
+        make: () => scene.clone(true),
+        marches: marks[k] === 1,
+      }));
+      model.add(role === 'infantry' ? squadOf(makers) : makers[0]!.make());
     },
     (error: unknown) => {
       console.error(`figurine ${nation}/${role}`, error);
