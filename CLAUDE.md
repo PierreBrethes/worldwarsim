@@ -351,7 +351,7 @@ entière. Habillée, son étiquette DOM efface sa planche et reste l'emprise du 
 le survol ouvre la **fiche** (`PileSheet.tsx`, vie sur 100 en dix crans, charge). **Et toute
 pièce se lit au survol en affiche** (13/10/2026, gabarit `.card`/`.fiche` du prototype
 `table-etat-major.html`) : ma pile (la fiche), mon mouvement (trajet, heure, barre ocre), mon
-bâtiment (production, « relié »/« hors réseau », chantier ou lot), un relevé adverse (délavé, une
+bâtiment (production, « relié »/« hors réseau », lot, et son chantier : en file, reste, élévation), un relevé adverse (délavé, une
 heure, « composition inconnue, nation inconnue » — rien que ce que l'arc sert) et un objectif
 (palier, dépôt). Ce qu'elle dit sort d'**une** fonction pure, `posterOf`
 (`src/domain/map-poster.ts`) ; le dessin est une seule pièce (`MapPoster.tsx`) que la couche des
@@ -381,12 +381,33 @@ mes bâtiments debout, les installations relevées et les objectifs neutres pous
 en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
 instance par exemplaire, une géométrie par matière, toutes ramenées à `MAQUETTE_SPAN`) ; une
-mine sur charbon prend son chevalement (`buildingMaquette`), un premier niveau sous la grue
-**monte avec son chantier** — coupé au plan où le travail est arrivé, ombre comprise, un
-échafaudage d'encre au niveau de coupe, la part lue sur les minutes restantes et la durée du
-barème (`riseOf`, `buildMinutes(clé, 1)`, rien d'inventé), au battement et sans image demandée,
-et l'encre d'arrivée s'imprime quand il se tient sous les yeux ; une élévation reste entière à
-côté de sa grue —, un relevé daté se délave. **Et les maquettes se dégagent sur le plateau, pas à
+mine sur charbon prend son chevalement (`buildingMaquette`), un relevé daté se délave. **Et un
+chantier se lit en mode chantier** (13/10/2026, maquette validée par Pierre) : plus de grue ni de
+cartouche fixe. L'état sort d'**une** règle pure, `workSitesOf` (`src/domain/construction.ts`) :
+**en file** — payé, pas en tête —, l'**empreinte** de la maquette tracée en pointillés d'encre
+sur le sol avec deux traits de cote **sans chiffre** (une maquette n'est pas à l'échelle), sans
+volume ; **en construction** — le premier niveau en tête de file — la maquette **monte**, coupée
+au plan où le travail est arrivé (ombre comprise), la coupe **hachurée**, un échafaudage **en
+traits d'encre** qui monte avec elle et, au pied, un **piquet de chantier** à fanion ocre ;
+**élévation** — la maquette entière, l'échafaudage jusqu'en haut de sa boîte, cheminées
+comprises, le fanion portant « niv. N » ; **achevé** — l'échafaudage tombe, un petit rebond
+(animations « actives » seulement, `bounceAt`, `MaquetteLayer.settling` tient le rendu) et le
+tampon « achevé » à l'heure de fin, chez le seul propriétaire, s'il se tenait sous les yeux.
+L'empreinte est la **silhouette réelle**, pas une enveloppe convexe : les triangles qui touchent
+le quart bas du modèle, rastérisés vus de dessus — leurs arêtes aussi, un mur n'a pas d'aire —,
+l'intérieur rempli par ce que le dehors n'atteint pas, le bord suivi et redressé
+(`footprintOf`, `src/map/engine/footprint.ts`, une fois par modèle) ; un bâtiment en L reste en
+L. Le dessin est une pièce (`WorksDressing`, `works.ts`) que la couche des maquettes pose comme
+sa maquette ; le plan se survole et se clique sur toute sa feuille. La part monte au battement,
+sans image demandée (`riseOf`, durée du catalogue pour un premier niveau, `nextLevelMinutes` pour
+une élévation — rien d'inventé). Au loin, la planche porte un **petit fanion ocre** (seul sur le
+mât d'un plan en file), qui s'efface avec elle au rapproché. Le nom, le niveau, le reste et la
+barre ne se lisent **qu'à l'affiche au survol** (`posterOf`, rafraîchie à la seconde par
+`LivePoster`) : « en file » dit son rang et jamais une heure, la file n'en sert pas. Un port en
+file pend à sa région, la file ne sert pas son quai. Une élévation en file ne dessine rien — le
+bâtiment est debout. **Les avant-postes gardent leur rendu** : ils n'ont pas de maquette, leur
+mât dit déjà « en chantier », et `workSitesOf` leur laisse leurs travaux. L'adversaire n'en voit
+rien : `surveyedInstallations` ne sert aucun chantier, et il n'y a donc rien à dessiner. **Et les maquettes se dégagent sur le plateau, pas à
 l'écran** (`clusterFootprints`, `maquettes.ts`) : des sites dont les emprises — un disque d'une
 envergure, à l'échelle « bâtiments » courante — se chevauchent se rangent en anneau autour de leur
 barycentre — l'emprise va jusqu'au pied de la garnison (`GARRISON_FOOT`), sans quoi celle d'un
@@ -559,7 +580,7 @@ s'imprime (`ink.ts`, `ink-bursts.ts`) — un **tampon grenu** du prototype, le m
 écrasé de 1,7 à 1, tenu trois secondes et levé (`stampAt`) : « arrivé », « engagé », puis
 « terrain tenu » après un engagement gagné et à l'ouverture du compte rendu d'un rejeu gagné, et
 « hors réseau » sur la région d'un de mes sites à l'instant où elle décolore (`cutRegions`, lu
-sur `regions[].linked`) —, et le rayon d'un de mes avant-postes qui se lève ou
+sur `regions[].linked`), « achevé » sur un de mes chantiers qui se lève sous les yeux —, et le rayon d'un de mes avant-postes qui se lève ou
 monte se trace une fois autour de lui (`raisedReaches`, muet à l'ouverture de la carte). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
