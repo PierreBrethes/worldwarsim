@@ -348,7 +348,18 @@ que le milieu servi. Au rapproché, le pion dit son milieu : une coque en mer la
 (`Wake`, `smoke.ts`), un avion porte son **ombre** au sol, l'écart valant son altitude — le fil
 aérien d'une route tout aérienne monte, tient sa croisière et redescend (`flightAltitude`,
 `thread.ts`) ; un véhicule entamé de mes mouvements **fume** comme posé (`movementWear`, lu sur
-mes troupes, `null` hors `mine`). **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
+mes troupes, `null` hors `mine`). **Et mes pièces vivent sur leur route** (lot « vie des
+pièces », 13/10/2026, valeurs du prototype) : un véhicule qui roule soulève de la **poussière**
+et tangue, une coque roule et pilonne, un avion **s'incline** dans la courbe de sa route lue
+autour de lui (`swayOf`, `sway.ts` ; rôles par `movementRoles`, donc `null` hors `mine` — un
+bloc adverse ne bouge pas), le tout en animations « actives » seulement, figé sinon ; le fil
+affiché tient déjà le rendu continu. **Et un site qui produit fume** : une couche d'`Ambience`
+à 8 pas par seconde (`MaquetteLayer.smoke`) au-dessus des repères `fx_smoke` de la maquette — le
+haut de sa boîte faute de repère —, sur mes seuls producteurs reliés dont le débit servi est
+positif (`producingSites`, `src/domain/producing.ts`), figée en « réduites », absente en
+« coupées ». Au rejeu, chaque pièce envoie **un trait d'encre** vers l'autre ligne pendant les
+salves (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent** à l'impact et la
+fumée des salves s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
 mes bâtiments debout, les installations relevées et les objectifs neutres poussent au rapproché
 en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
