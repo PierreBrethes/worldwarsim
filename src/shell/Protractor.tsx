@@ -61,16 +61,18 @@ export function Protractor({
       if (frame.current?.contains(event.target as Node)) return;
       setOpen(false);
     };
+    // Caught before the windows' own Escape: one key folds the protractor, not the window under it.
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      event.stopPropagation();
       setOpen(false);
       hub.current?.focus();
     };
     document.addEventListener('pointerdown', elsewhere);
-    document.addEventListener('keydown', escape);
+    document.addEventListener('keydown', escape, true);
     return () => {
       document.removeEventListener('pointerdown', elsewhere);
-      document.removeEventListener('keydown', escape);
+      document.removeEventListener('keydown', escape, true);
     };
   }, [open]);
 
@@ -175,7 +177,7 @@ export function Protractor({
         className="protractor-arc border border-dashed border-(color:--ink)/45"
         style={ARC(ARC_INNER)}
       />
-      <ul inert={!open} aria-hidden={!open}>
+      <ul id={ROUNDS_ID} inert={!open} aria-hidden={!open}>
         {rounds.map(({ key, round }, rank) => {
           const angle = ((FIRST_DEG + rank * STEP_DEG) * Math.PI) / 180;
           return (
@@ -194,17 +196,25 @@ export function Protractor({
         ref={hub}
         type="button"
         aria-expanded={open}
-        title={open ? fr.protractor.close : fr.protractor.open}
+        aria-controls={ROUNDS_ID}
+        aria-label={open ? fr.protractor.close : fr.protractor.open(waiting)}
+        title={open ? fr.protractor.close : fr.protractor.open(waiting)}
         onClick={() => setOpen((shown) => !shown)}
         className="protractor-hub float flex cursor-pointer flex-col items-center justify-center gap-[3px] bg-[var(--ink)] text-[var(--paper)]"
       >
-        <span className="flex flex-col items-center gap-[3px]">
-          {waiting > 0 && (
-            <span className="font-(family-name:--font-display) text-[24px] leading-none font-bold">
-              {waiting}
-            </span>
+        {/* Ouvert, « à faire » est un rond de l'arc : le coin ne dit plus que « fermer », jamais
+            deux fois la même entrée à l'écran. */}
+        <span aria-hidden className="flex flex-col items-center gap-[3px]">
+          {open ? (
+            <span className="font-(family-name:--font-display) text-[24px] leading-none">×</span>
+          ) : (
+            waiting > 0 && (
+              <span className="font-(family-name:--font-display) text-[24px] leading-none font-bold">
+                {waiting}
+              </span>
+            )
           )}
-          <span className={LABEL}>{fr.foot.todo}</span>
+          <span className={LABEL}>{open ? fr.protractor.closeShort : fr.foot.todo}</span>
         </span>
       </button>
 
@@ -229,6 +239,8 @@ export function Protractor({
 
 /** L'arc où les ronds se posent, du ras du sol (à gauche) au ras du bord (en haut). Le premier et
  *  le dernier rond restent à un demi-rond du bord, sans quoi le pouce ne les attrape qu'à moitié. */
+const ROUNDS_ID = 'protractor-rounds';
+
 const RADIUS = 205;
 const FIRST_DEG = 11;
 const STEP_DEG = 68 / 5;

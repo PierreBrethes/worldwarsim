@@ -137,7 +137,7 @@ body {
    d'un sixième au lieu de les ajuster. `cqi`, lui, diffère : Chromium le lit sur la boîte du
    conteneur avant zoom, WebKit sur sa taille d'écran puis le zoome encore (voir `FrontPage`). */
 
-/* **Entre le bandeau et la barre de pied** (piste A, passe 2) : le cadre du plateau publie ses
+/* **Entre la réglette et la barre d'accueil** (piste A, passe 2 ; table plein écran) : le cadre du plateau publie ses
    deux bords en pixels d'écran (`--board-top`, `--board-bottom`, `shell/Shell.tsx`), et ce qui
    se pose dessus les divise par l'échelle comme toute longueur écrite dans une surface `.hud`.
    Une fenêtre y tient en entier ; le clavier, quand il monte, prend la place du pied
@@ -190,7 +190,7 @@ body {
 }
 
 /* Le dossier de la nation (refonte mobile, 1s) : posé sous le bandeau, la carte voilée jusqu'à
-   la barre de pied. Il défile s'il ne tient pas — l'iPhone SE couché n'a pas cinq lignes de 56 px
+   la barre d'accueil. Il défile s'il ne tient pas — l'iPhone SE couché n'a pas cinq lignes de 56 px
    sous un bandeau. */
 .board-veil {
   position: fixed;
@@ -296,7 +296,7 @@ body {
 
 /* **Quarante-quatre pixels sous le doigt.** La fonte ne bouge pas — le style presse tient à ses
    neuf pixels d'œil — c'est le creux autour du mot qui grandit, et seulement là où l'on touche :
-   les fenêtres, les feuilles, la barre de pied et le bandeau. */
+   les fenêtres, les feuilles et la réglette. */
 @media (max-width: 767px) {
   .board-window button,
   .board-window a,

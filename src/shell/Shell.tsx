@@ -69,9 +69,10 @@ export function Shell({
 
 /**
  * **Les bords du plateau, publiés deux fois.** En pixels d'écran pour ce qui se pose en `fixed`
- * (`--board-top`) : feuilles et fenêtres se posent sous la réglette sans connaître sa hauteur ;
- * rien ne tient plus le pied, et `--board-bottom` garde son zéro de `tokens.css`. Et depuis le bord de la carte pour ce qu'elle range au bord
- * (`BoardInsets`) : la réglette et la colonne couvrent la carte, elles ne la poussent plus.
+ * (`--board-top`, `--board-bottom`, `--board-left`) : feuilles et fenêtres se posent sous la
+ * réglette et à droite de la colonne sans connaître leur taille, et au téléphone au-dessus de la barre d'accueil, que plus aucune barre de pied
+ * n'absorbe. Et depuis le bord de la carte pour ce qu'elle range au bord (`BoardInsets`) : la
+ * réglette, la colonne et le coin du rapporteur couvrent la carte, ils ne la poussent plus.
  * Mesurés et non calculés, parce que l'échelle d'interface, l'encoche et la barre d'accueil s'y
  * ajoutent chacune de son côté.
  */
@@ -89,6 +90,9 @@ function usePublishedEdges(
       const band = top.current?.getBoundingClientRect();
       const column = side.current?.getBoundingClientRect();
       root.setProperty('--board-top', `${Math.round(band?.bottom ?? 0)}px`);
+      root.setProperty('--board-bottom', narrow ? 'var(--safe-bottom)' : '0px');
+      root.setProperty('--board-left', `${Math.round(column?.right ?? 0)}px`);
+      const corner = board.current?.querySelector('.protractor-hub')?.getBoundingClientRect();
       const left = Math.round(
         column === undefined || map === undefined ? 0 : column.right - map.left,
       );
@@ -97,10 +101,17 @@ function usePublishedEdges(
       const next = {
         top: Math.round(band === undefined || map === undefined ? 0 : band.bottom - map.top),
         right: left,
-        bottom: 0,
+        bottom: Math.round(corner === undefined || map === undefined ? 0 : map.bottom - corner.top),
         left,
       };
-      setInsets((held) => (held.top === next.top && held.left === next.left ? held : next));
+      setInsets((held) =>
+        held.top === next.top &&
+        held.right === next.right &&
+        held.bottom === next.bottom &&
+        held.left === next.left
+          ? held
+          : next,
+      );
     };
     publish();
     const observer = new ResizeObserver(publish);
@@ -110,6 +121,8 @@ function usePublishedEdges(
       observer.disconnect();
       window.removeEventListener('resize', publish);
       root.removeProperty('--board-top');
+      root.removeProperty('--board-bottom');
+      root.removeProperty('--board-left');
     };
   }, [board, top, side, narrow]);
   return insets;

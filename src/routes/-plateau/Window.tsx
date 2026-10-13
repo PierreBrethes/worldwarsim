@@ -236,8 +236,8 @@ function DeskWindow({
         alignment === 'right'
           ? 'items-start justify-end px-4 pt-[calc(var(--board-top)_+_10px)] pb-4'
           : alignment === 'top'
-            ? 'items-start justify-center px-6 pt-[calc(var(--board-top)_+_14px)] pb-[34px]'
-            : 'items-center justify-center p-8 pt-[calc(var(--board-top)_+_14px)]'
+            ? 'items-start justify-center pt-[calc(var(--board-top)_+_14px)] pr-6 pb-[34px] pl-[calc(var(--board-left,0px)_+_var(--table-gap))]'
+            : 'items-center justify-center p-8 pt-[calc(var(--board-top)_+_14px)] pl-[calc(var(--board-left,0px)_+_var(--table-gap))]'
       }`}
       /** **Le plan des fenêtres vient de l'échelle, pas d'ici** (`--z-window`, `tokens.css`) : un
        *  40 écrit à la main ne se comparait à rien, et le bandeau des ressources est passé

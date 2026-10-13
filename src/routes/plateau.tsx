@@ -2181,7 +2181,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <div
                 className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
                   narrow
-                    ? 'bottom-4 left-4'
+                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)] left-1/2 -translate-x-1/2'
                     : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
                       windows.includes('journal')
                       ? 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 -translate-x-1/2'
@@ -2204,7 +2204,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               </div>
             )}
             {narrow && sent !== null && (
-              <div className="absolute inset-x-[10px] bottom-[14px] z-[var(--z-indicator)]">
+              <div className="absolute inset-x-[10px] bottom-[96px] z-[var(--z-indicator)]">
                 <SentNotice
                   order={sent.order}
                   destination={sent.destination}

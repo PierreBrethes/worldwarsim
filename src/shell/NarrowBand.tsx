@@ -58,7 +58,7 @@ export function NarrowBand({
   return (
     <header
       ref={ref}
-      className="hud paper-grain float absolute top-[6px] right-[6px] left-[6px] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
+      className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <div className="flex h-[40px] items-center gap-[10px] border-b border-(color:--ink)/25 px-[12px]">
@@ -97,7 +97,6 @@ export function NarrowBand({
             resource={resource}
             view={view}
             now={now}
-            mark={marks[resource]}
             stacked
             onClick={(event) => {
               const left = event.currentTarget.offsetLeft;

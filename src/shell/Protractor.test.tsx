@@ -71,7 +71,7 @@ async function mount(): Promise<AnyRouter> {
   return router;
 }
 
-const hub = () => screen.getByRole('button', { name: /à faire/, expanded: false });
+const hub = () => screen.getByRole('button', { name: /ouvrir le menu/, expanded: false });
 
 const rounds = (): ReadonlyArray<string> =>
   within(screen.getByRole('navigation'))
@@ -107,6 +107,15 @@ describe('the protractor', () => {
     await act(async () => screen.getByRole('link', { name: /chantiers/ }).click());
     expect(router.state.location.search).toEqual({ windows: ['economy'] });
     expect(hub()).toBeTruthy();
+  });
+
+  it('says « à faire » once: the corner turns to « fermer » while the arc carries it', async () => {
+    await mount();
+    act(() => hub().click());
+
+    const corner = screen.getByRole('button', { name: fr.protractor.close });
+    expect(corner.textContent).toBe(`×${fr.protractor.closeShort}`);
+    expect(screen.getAllByText(fr.foot.todo)).toHaveLength(1);
   });
 
   it('opens « à faire » as a sheet carrying the board’s lines', async () => {

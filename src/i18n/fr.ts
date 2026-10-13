@@ -971,11 +971,11 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
-    /** L'étiquette qui pend sous une case en alerte (réglette) : l'état en deux mots, le
-     *  diagnostic reste à la carte de la réserve. */
-    fullTag: 'au plafond',
-    /** Huit colonnes sur un téléphone : l'étiquette tient dans la sienne. */
-    fullTagShort: 'plein',
+    /** L'étiquette qui pend sous une réserve à sec (réglette), seule encre rouge de la ligne. */
+    dry: 'à sec',
+    drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
+    /** Huit colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
+    drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
     /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : huit colonnes sur un téléphone,
      *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
     abbreviations: {
@@ -1081,22 +1081,20 @@ export const fr = {
   },
 
   /**
-   * **La barre de pied, sous 768 px** (refonte mobile du 04/10) : cinq entrées, « à faire » au
-   * centre. « Plus » est parti — ce qu'on cherche à froid s'ouvre au drapeau du bandeau
-   * (`dossier`) — et les chantiers en sont sortis, parce qu'on les ouvre souvent. Les libellés
-   * sont ceux de la maquette, en capitales par la feuille de style.
-   */
-  /**
    * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplace la barre
-   * de pied, et ses ronds posés sur l'arc. Les titres des ronds sont ceux de la barre.
+   * de pied, et ses ronds posés sur l'arc. Les titres des ronds sont ceux de `foot`.
    */
   protractor: {
     label: 'menu du plateau',
-    open: 'ouvrir le menu — à faire, chantiers, journal, presse, télégraphe, réglages',
+    open: (waiting: number) =>
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, chantiers, journal, presse, télégraphe, réglages`,
     close: 'refermer le menu',
+    closeShort: 'fermer',
     works: 'chant.',
   },
 
+  /** Les entrées du téléphone, que portaient la barre de pied et que portent les ronds du
+   *  rapporteur. */
   foot: {
     works: 'chantiers',
     journal: 'journal',

@@ -72,10 +72,17 @@ describe('the narrow band', () => {
     expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
   });
 
-  it('hangs the alert under a reserve at its ceiling, and under no other', async () => {
-    const full = { ...view.me.resources, coal: { ...view.me.resources.coal, stock: 400 } };
-    await mount(() => {}, { ...view, me: { ...view.me, resources: full } } as PlayerView);
-    expect(screen.getAllByText(fr.resourceBand.fullTagShort)).toHaveLength(1);
+  it('hangs the alert under a dry reserve, never under a full one', async () => {
+    const resources = {
+      ...view.me.resources,
+      coal: { ...view.me.resources.coal, stock: 400 },
+      oil: { ...view.me.resources.oil, stock: 0, ratePerHour: 0 },
+      ore: { ...view.me.resources.ore, stock: 30, ratePerHour: -2.9 },
+    };
+    await mount(() => {}, { ...view, me: { ...view.me, resources } } as PlayerView);
+    expect(screen.getByText(fr.resourceBand.dry)).toBeTruthy();
+    expect(screen.getByText(fr.resourceBand.drySoonShort(10))).toBeTruthy();
+    expect(screen.queryAllByText(/à sec/)).toHaveLength(2);
   });
 
   it('opens a resource’s detail on a touch, never on a hover', async () => {

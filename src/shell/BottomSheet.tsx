@@ -56,7 +56,7 @@ export const useSheetClose = (): (() => void) | null => useContext(SheetCloseCon
 /**
  * **La feuille basse, une seule pour tout l'écran étroit** (piste A, passe 2) : « à faire », les
  * calques, les panneaux du plateau — et au lot 3 la fiche. Elle se pose entre le bandeau et la
- * barre de pied, dont le cadre publie les bords (`--board-top`, `--board-bottom`), à trois
+ * barre d'accueil, dont le cadre publie les bords (`--board-top`, `--board-bottom`), à trois
  * hauteurs : aperçu, moitié, plein écran. Glisser la poignée vers le bas descend d'un cran puis
  * ferme — ou réduit, pour la feuille d'une sélection (`keepsSelection`) ; vers le haut, monte. « Fermer » reste toujours là, parce qu'un geste qu'on ne voit pas
  * n'est pas une sortie.

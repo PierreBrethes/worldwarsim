@@ -70,3 +70,21 @@ function fullDiagnosis(reserve: { readonly ratePerHour: number }, resource: Reso
       )
     : fr.resourceBand.fullQuiet(fr.resources[resource]);
 }
+
+/** @a-mesurer — a day ahead: one evening's glance covers the night. */
+export const DRY_SOON_HOURS = 24;
+
+/** `hoursLeft` is `0` for a stock already empty. */
+export type Dryness = { readonly hoursLeft: number };
+
+/**
+ * **The one red of the rule** (table plein écran, 13/10): a reserve that is empty, or that its
+ * net rate — the view serves production less upkeep — will empty within `DRY_SOON_HOURS`. A
+ * reserve at its ceiling is no alarm: it wastes, it does not stop anything.
+ */
+export function drynessOf(stock: number, netPerHour: number): Dryness | null {
+  if (stock <= 0) return { hoursLeft: 0 };
+  if (netPerHour >= 0) return null;
+  const hoursLeft = stock / -netPerHour;
+  return hoursLeft < DRY_SOON_HOURS ? { hoursLeft } : null;
+}

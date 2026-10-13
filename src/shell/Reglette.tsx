@@ -4,7 +4,7 @@ import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork, RESOURCES, type ResourceKey } from '@/domain/ids';
 import { currentMinutes, currentStock, type PlayerView } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
-import { marksOf, sourceOf, type Mark } from '@/domain/resource-band';
+import { drynessOf, marksOf, sourceOf, type Dryness, type Mark } from '@/domain/resource-band';
 import { Flag } from '@/emblems/Flag';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
@@ -19,9 +19,10 @@ import { useClock } from './clock';
  * son icône, son chiffre et sa jauge à l'encre. Le journal en est parti : il a son carré dans la
  * colonne, et le dire deux fois était le doublon.
  *
- * **Le rouge n'y sert qu'à l'alerte**, et l'alerte est la marque du bandeau d'avant, ni plus ni
- * moins (`marksOf`) : la réserve au plafond. Le chiffre et la jauge rougissent, un cercle
- * l'entoure, et une étiquette pend sous la case.
+ * **Le rouge n'y sert qu'à l'alerte, et l'alerte est la réserve à sec** (`drynessOf`) : vide, ou
+ * vide avant un jour au débit net. Le chiffre et la jauge rougissent, un cercle l'entoure, et une
+ * étiquette pend sous la case. **Au plafond n'est pas une alarme** (Pierre, 13/10) : la jauge
+ * pleine le dit à l'encre, et le diagnostic reste à la carte de la réserve.
  */
 export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElement> }) {
   const { me } = view;
@@ -102,7 +103,6 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
               resource={resource}
               view={view}
               now={now}
-              mark={marks[resource]}
               onPointerEnter={(event) => {
                 if (event.pointerType !== 'touch') setShown(resource);
               }}
@@ -115,7 +115,7 @@ export function Reglette({ view, ref }: { view: PlayerView; ref?: Ref<HTMLElemen
                 now={now}
                 mark={marks[resource]}
                 left={0}
-                top={52}
+                top={70}
                 {...(marks[resource] === null ? {} : { width: 240 })}
               />
             )}
@@ -175,20 +175,19 @@ export function ResourceCell({
   resource,
   view,
   now,
-  mark,
   stacked = false,
   ...button
 }: {
   resource: ResourceKey;
   view: PlayerView;
   now: number;
-  mark: Mark | null;
   stacked?: boolean;
 } & Pick<ComponentProps<'button'>, 'onClick' | 'onPointerEnter'>) {
   const reserve = view.me.resources[resource];
   const stock = currentStock(reserve, view.loadedAt, now);
   const fill = reserve.cap > 0 ? Math.min(1, stock / reserve.cap) : 0;
-  const ink = mark === null ? 'var(--ink)' : 'var(--critical)';
+  const dry = drynessOf(stock, reserve.ratePerHour);
+  const ink = dry === null ? 'var(--ink)' : 'var(--critical)';
   return (
     <button
       type="button"
@@ -225,19 +224,24 @@ export function ResourceCell({
       >
         <span className="block h-full" style={{ width: `${fill * 100}%`, background: ink }} />
       </span>
-      {mark !== null && !stacked && (
+      {dry !== null && !stacked && (
         <span
           aria-hidden
           className="pointer-events-none absolute -inset-x-[9px] -inset-y-[8px] rotate-[-4deg] border-[1.5px] border-[var(--critical)]"
           style={{ borderRadius: '50% 46% 52% 44%' }}
         />
       )}
-      {mark !== null && (
-        <AlertTag label={stacked ? fr.resourceBand.fullTagShort : fr.resourceBand.fullTag} />
-      )}
+      {dry !== null && <AlertTag label={dryLabel(dry, stacked)} />}
     </button>
   );
 }
+
+/** Une heure entière, jamais « dans 0 h » : sous l'heure, c'est déjà à sec dans l'heure. */
+const dryLabel = (dry: Dryness, stacked: boolean): string => {
+  if (dry.hoursLeft === 0) return fr.resourceBand.dry;
+  const hours = Math.max(1, Math.floor(dry.hoursLeft));
+  return stacked ? fr.resourceBand.drySoonShort(hours) : fr.resourceBand.drySoon(hours);
+};
 
 const PLATE = 22;
 const SLOT_RATIO = 1.8;
@@ -315,7 +319,6 @@ function useClosedOnTouchElsewhere(
 
 /** La saison et sa fin, contre l'enseigne, comme elle l'était au pied du rail : un repère, pas une entrée. */
 function SeasonMark({ season, loadedAt }: { season: PlayerView['season']; loadedAt: number }) {
-  // The season's end counts in days: the minute is enough.
   const now = useClock(60_000);
   /** `null` = sans horloge : rien à décompter, et la réglette le dit en un mot plutôt que
    *  d'afficher un « 0 h 00 » qui se lirait comme une fin imminente (ADR 0017). */
