@@ -115,11 +115,39 @@ export function ringOffsets(count: number): Array<readonly [x: number, z: number
   });
 }
 
+/**
+ * **How far from its maquette a building's garrison stands**, in board units at full near
+ * weight: a span off its centre, so that its figurines clear the corner of a square model turned
+ * any way. `@a-mesurer` on the board.
+ */
+export const GARRISON_FOOT = 0.8;
+
+/**
+ * **Where a building's garrison stands, from the maquette's place on its ring**: outward from the
+ * mast, so that it never stands nearer another maquette than its own; a lone maquette has its
+ * garrison in front, towards +z. Fixed by the ring, never by the camera — a pile that slid with
+ * the view would read as moving. `facing` turns the pile's row to stand across that line.
+ */
+export function footOf([x, z]: readonly [number, number]): {
+  x: number;
+  z: number;
+  facing: number;
+} {
+  const facing = Math.atan2(x, z);
+  return {
+    x: x + GARRISON_FOOT * Math.sin(facing),
+    z: z + GARRISON_FOOT * Math.cos(facing),
+    facing,
+  };
+}
+
 type Placed = {
   readonly id: string;
   readonly ground: Vector3;
   /** The ground, or its place on its group's ring. */
   readonly at: Vector3;
+  /** Its offset from the ring's mast, where its garrison's foot is read from. */
+  ring: readonly [number, number];
   readonly turn: Quaternion;
   /** Inside a replay's ground: it steps aside, and its plate with it. */
   cleared: boolean;
@@ -214,6 +242,7 @@ export class MaquetteLayer {
         id: maquette.id,
         ground,
         at: ground.clone(),
+        ring: [0, 0],
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
@@ -225,15 +254,19 @@ export class MaquetteLayer {
   }
 
   private place(): void {
-    for (const { item } of this.byId.values()) item.at.copy(item.ground);
+    for (const { item } of this.byId.values()) {
+      item.at.copy(item.ground);
+      item.ring = [0, 0];
+    }
     for (const members of this.groups) {
       const lead = this.byId.get(members[0] ?? '')?.item;
       if (lead === undefined) continue;
       const standing = members.filter((id) => this.byId.has(id)).sort();
       const offsets = ringOffsets(standing.length);
       standing.forEach((id, k) => {
-        const [x, z] = offsets[k]!;
-        this.byId.get(id)!.item.at.set(lead.ground.x + x, lead.ground.y, lead.ground.z + z);
+        const item = this.byId.get(id)!.item;
+        item.ring = offsets[k]!;
+        item.at.set(lead.ground.x + item.ring[0], lead.ground.y, lead.ground.z + item.ring[1]);
       });
     }
     for (const { item } of this.byId.values()) item.near = -1;
@@ -267,6 +300,20 @@ export class MaquetteLayer {
   isDressed(id: string): boolean {
     const dressed = this.byId.get(id);
     return dressed !== undefined && dressed.lot.model !== null && !dressed.item.cleared;
+  }
+
+  /**
+   * **Where the garrison of a maquette stands**, `null` while its model has not landed: a pile
+   * beside a plate would stand beside nothing. Read at every frame, so that a fold or a region
+   * that lands carries the pile along. The step is at full near weight: the caller scales it as
+   * the maquette is scaled.
+   */
+  garrisonAt(id: string): { at: Vector3; step: readonly [number, number]; facing: number } | null {
+    const dressed = this.byId.get(id);
+    if (dressed === undefined || dressed.lot.model === null) return null;
+    const { at, ring } = dressed.item;
+    const foot = footOf(ring);
+    return { at, step: [foot.x - ring[0], foot.z - ring[1]], facing: foot.facing };
   }
 
   /** `cleared` is a replay's ground: what stands inside it steps aside while it plays. */
