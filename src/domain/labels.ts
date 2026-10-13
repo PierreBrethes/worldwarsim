@@ -12,6 +12,7 @@ import {
   type UnitRole,
 } from './ids';
 import type { ArcView, PlayerView, Stack, TroopStation } from './player-view';
+import type { WorkSite } from './construction';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -174,10 +175,11 @@ export type MapMarker =
       /** The plate hung at the top of the callout. `null` leaves the mast bare. */
       readonly plate: string | null;
       /**
-       * A first level or an upgrade — the map says the same thing, because the region says the
-       * same thing: work is going on here. The crane takes the plate's place until it is done.
+       * **The works on this site** (mode chantier): its plan in the queue, its first level
+       * rising, or a level raised on what stands. The mast wears a pennant for it far away, the
+       * board its maquette up close; the hour and the bar are the poster's, never the label's.
        */
-      readonly finishesAt: number | null;
+      readonly works: WorkSite | null;
       readonly reach: Reach | null;
       readonly ink: string;
     }
@@ -329,6 +331,8 @@ export type MapLabel = {
   readonly offensive: boolean;
   /** A finished construction that nothing follows — the oversight the screen edge catches. */
   readonly idle: boolean;
+  /** The works a building's mast carries (`WorkSite`): a pennant far away, the poster's lines. */
+  readonly works: WorkSite | null;
   /** The country a click selects; `null` when the label is not clickable. */
   readonly hostCountry: string | null;
   /**
@@ -387,8 +391,8 @@ export const isCountdown = (line: LabelLine): line is Extract<LabelLine, { role:
  * qui vient de toucher, faute de survol.
  *
  * Deux exceptions, chacune pour ce qu'elle porte et non pour ce qu'elle est : un compte à
- * rebours reste au repos, parce que c'est une durée qu'on surveille d'un coup d'œil (le chantier,
- * l'élévation, le point qui se lève) ; et une tête de mouvement n'est pas une pièce posée — sa
+ * rebours reste au repos, parce que c'est une durée qu'on surveille d'un coup d'œil (le point qui
+ * se lève — un chantier de bâtiment, lui, se lit sur sa maquette et à l'affiche, mode chantier) ; et une tête de mouvement n'est pas une pièce posée — sa
  * ligne dit l'heure d'arrivée, et l'alerte « cap sur moi » ne s'attend pas au survol.
  */
 const NAMED_WHEN_POINTED: ReadonlySet<LabelType> = new Set([
@@ -488,6 +492,7 @@ export function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     identified: false,
     offensive: false,
     idle: false,
+    works: null,
     hostCountry: null,
     building: null,
     installation: null,
@@ -538,6 +543,7 @@ function markerLabel(marker: MapMarker): MapLabel {
     identified: false,
     offensive: false,
     idle: false,
+    works: null,
     building: null,
     installation: null,
     camp: null,
@@ -714,25 +720,16 @@ function markerLabel(marker: MapMarker): MapLabel {
                 regionName: marker.regionName,
                 level: marker.level,
               },
-        // Under the crane the portrait is wrong twice over: a first level has nothing to
-        // show, and an upgraded building is not the one standing there tonight.
-        pictogram: marker.finishesAt === null ? null : 'construction',
-        plate: marker.finishesAt === null ? marker.plate : null,
+        // A queued site has nothing standing yet: its pennant alone marks the mast.
+        plate: marker.works?.phase === 'queued' ? null : marker.plate,
+        pictogram: null,
+        works: marker.works,
         hostCountry: marker.hostCountry,
         lines: [
           { role: 'nature', text: marker.name },
           ...(marker.level === null
             ? []
             : [{ role: 'figures', text: fr.labels.buildingLevel(marker.level) } as const]),
-          ...(marker.finishesAt === null
-            ? []
-            : [
-                {
-                  role: 'countdown',
-                  dueAt: marker.finishesAt,
-                  prefix: fr.labels.constructionPrefix,
-                } as const,
-              ]),
         ],
       };
     case 'deposit':
@@ -782,6 +779,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       identified: false,
       offensive: false,
       idle: false,
+      works: null,
       hostCountry: null,
       building: null,
       station: null,
@@ -830,6 +828,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       identified: false,
       offensive: false,
       idle: false,
+      works: null,
       hostCountry: null,
       building: null,
       station: null,
@@ -876,6 +875,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     identified: arc.identification.pierced,
     offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
     idle: false,
+    works: null,
     hostCountry: null,
     building: null,
     station: null,

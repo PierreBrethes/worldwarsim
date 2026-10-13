@@ -747,15 +747,30 @@ export function MapLabels({
                 register(blocks.current, label.id, node);
               }}
             >
-              {label.plate !== null && (
+              {(label.plate !== null || label.works !== null) && (
                 <span className="label-pictogram">
-                  <img
-                    className="label-plate"
-                    src={
-                      label.id === selected && selectedPlate !== null ? selectedPlate : label.plate
-                    }
-                    alt=""
-                  />
+                  {label.plate !== null && (
+                    <img
+                      className="label-plate"
+                      src={
+                        label.id === selected && selectedPlate !== null
+                          ? selectedPlate
+                          : label.plate
+                      }
+                      alt=""
+                    />
+                  )}
+                  {/* Le mode chantier au loin : un fanion ocre sur la planche, ou seul sur le mât
+                      d'un plan en file. L'heure et la barre sont à l'affiche. */}
+                  {label.works !== null && (
+                    <svg className="label-pennant" viewBox="0 0 16 22" width="16" height="22">
+                      <path className="label-flag-pole" d="M2 1v21" />
+                      <path
+                        className="label-pennant-cloth"
+                        d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z"
+                      />
+                    </svg>
+                  )}
                 </span>
               )}
               {label.type === 'arrival' && (

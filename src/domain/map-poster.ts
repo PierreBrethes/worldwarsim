@@ -1,8 +1,9 @@
 import { fr, stackLabel } from '@/i18n/fr';
-import { asClockTime } from './duration';
+import { riseOf, type WorkSite } from './construction';
+import { asClockTime, asDuration } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
-import { isCountdown, type MapLabel } from './labels';
+import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import type { CargoView, PlayerView } from './player-view';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
@@ -56,6 +57,7 @@ export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster
       },
     };
   }
+  if (label.works !== null && label.works.phase !== 'raising') return worksPoster(label.works, now);
   if (label.building !== null) return buildingPoster(label, label.building, view, now);
   if (label.objective !== null) {
     const { name, tier, depot, emptied } = label.objective;
@@ -193,24 +195,48 @@ function buildingPoster(
     }
   }
 
-  const works = label.lines.find(isCountdown);
-  const full = view.me.buildings.find((candidate) => candidate.id === building.id);
-  if (works !== undefined && full !== undefined) {
-    lines.push({ kind: 'row', label: fr.posters.works, value: asClockTime(works.dueAt) });
-    // L'élévation en cours est celle que `nextLevelMinutes` chiffre : le niveau servi est
-    // encore celui d'avant.
-    const total = full.nextLevelMinutes * 60_000;
-    bar = Math.min(1, Math.max(0, 1 - (works.dueAt - now) / total));
+  const works = label.works;
+  if (works?.finishesAt != null) {
+    lines.push(left(works.finishesAt, now));
+    bar = riseOf((works.finishesAt - now) / 60_000, works.minutes);
   }
 
   return {
     ...plain,
-    eyebrow: fr.posters.site(building.regionName),
-    title: fr.posters.building(fr.buildings[building.key], building.level),
+    eyebrow: (works === null ? fr.posters.site : fr.posters.raisingSite)(building.regionName),
+    title:
+      works === null
+        ? fr.posters.building(fr.buildings[building.key], building.level)
+        : fr.posters.raising(fr.buildings[building.key], building.level, works.level),
     lines,
     bar,
   };
 }
+
+/** A site where nothing stands yet: its plan in the queue, or its first level rising. */
+function worksPoster(works: WorkSite, now: number): Poster {
+  const title = fr.posters.building(fr.buildings[works.key], works.level);
+  if (works.finishesAt === null)
+    return {
+      ...plain,
+      eyebrow: fr.posters.queuedSite(works.regionName),
+      title,
+      lines: [{ kind: 'text', text: fr.posters.queued(works.rank) }],
+    };
+  return {
+    ...plain,
+    eyebrow: fr.posters.worksSite(works.regionName),
+    title,
+    lines: [left(works.finishesAt, now)],
+    bar: riseOf((works.finishesAt - now) / 60_000, works.minutes),
+  };
+}
+
+const left = (dueAt: number, now: number): PosterLine => ({
+  kind: 'row',
+  label: fr.posters.left,
+  value: asDuration((dueAt - now) / 60_000),
+});
 
 /**
  * An extractor reads its own site. A chain is served summed over its sites, and its rate is

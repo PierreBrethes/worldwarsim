@@ -49,7 +49,7 @@ import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
-import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -72,7 +72,7 @@ import {
   type CompassTarget,
   type OrderAction,
 } from '@/domain/compass-rose';
-import { placementOf } from '@/domain/construction';
+import { placementOf, workSitesOf } from '@/domain/construction';
 import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
@@ -139,7 +139,7 @@ import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { HandSheet } from './-plateau/HandSheet';
-import { MapPoster } from './-plateau/MapPoster';
+import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
@@ -1354,8 +1354,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     if (!toggles.buildings)
       return [...deposits, ...loot, ...camps, ...objectives, ...outposts, ...stacks];
     const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
-    const work = view.me.construction;
-    const finishesAt = work === null ? null : view.loadedAt + work.minutesLeft * 60_000;
+    const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
+    const worksOn = (regionId: string, key: string) =>
+      works.find((site) => site.regionId === regionId && site.key === key) ?? null;
     const pointOfRegion = new Map(view.me.regions.map((region) => [region.id, region.point]));
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     const standing = view.me.buildings.map((building) => ({
@@ -1370,12 +1371,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       name: building.name,
       level: building.level,
       plate: buildingSprite(building.key),
-      // An upgrade is work on a building that already stands: the crane takes the plate's
-      // place on the mast that is already there, rather than raising a second one beside it.
-      finishesAt:
-        work !== null && work.regionId === building.regionId && work.key === building.key
-          ? finishesAt
-          : null,
+      // An upgrade is work on a building that already stands: its own mast wears the pennant.
+      works: worksOn(building.regionId, building.key),
       /** **Le seul bâtiment qui couvre du terrain**, et le seul dont le rayon décide où on le
        *  pose. Le point est celui de la région tel que le serveur le mesure, jamais celui que
        *  la couche des régions dessine — deux points, deux cercles, et l'un des deux mentirait
@@ -1384,34 +1381,32 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ink: view.me.ink,
     }));
 
-    // A first level has no building to hang the crane on: the site gets its own mast, and
-    // that is the whole point — a region under work reads as such before anything stands.
-    /** **Une élévation d'avant-poste ne plante pas de grue** : le point a déjà son mât, et une
-     *  seconde marque sur sa région en ferait un bâtiment (précision du 15/09). */
-    const site = work === null || isOutpostWork(work.key) ? null : { ...work, key: work.key };
-    const raising =
-      site === null || standing.some((building) => building.finishesAt !== null)
-        ? []
-        : [
-            {
-              kind: 'building' as const,
-              id: buildingLabelId(site),
-              // A first level under the crane opens nothing: no line stands for it yet.
-              buildingId: null,
-              key: site.key,
-              regionId: site.regionId,
-              regionName: site.regionName,
-              lonLat: site.point,
-              hostCountry: host,
-              name: site.name,
-              level: null,
-              plate: null,
-              finishesAt,
-              /** Rien ne se tient encore : un chantier n'entend rien. */
-              reach: null,
-              ink: view.me.ink,
-            },
-          ];
+    // A first level has no building to hang its works on: the site gets its own mast, from
+    // the queue on — a region paid for reads as such before anything stands. **Une élévation
+    // d'avant-poste ne plante rien** : le point a déjà son mât (précision du 15/09), et
+    // `workSitesOf` laisse ses travaux au panneau du point.
+    const head = view.me.construction;
+    const raising = works
+      .filter((site) => site.phase !== 'raising')
+      .map((site) => ({
+        kind: 'building' as const,
+        id: buildingLabelId(site),
+        // Nothing stands: a click opens no line yet.
+        buildingId: null,
+        key: site.key,
+        regionId: site.regionId,
+        regionName: site.regionName,
+        // Only the head is served its quay; a queued port hangs from its region.
+        lonLat: site.phase === 'rising' ? (head?.point ?? null) : null,
+        hostCountry: host,
+        name: fr.buildings[site.key],
+        level: null,
+        plate: buildingSprite(site.key),
+        works: site,
+        /** Rien ne se tient encore : un chantier n'entend rien. */
+        reach: null,
+        ink: view.me.ink,
+      }));
     return [
       ...deposits,
       ...loot,
@@ -1428,6 +1423,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     regionAt,
     view.me,
     view.loadedAt,
+    view.buildCatalog,
     view.lootSightings,
     view.camps,
     view.objectives,
@@ -1593,8 +1589,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         ) ?? null);
   const poster = useCallback(
     (label: MapLabel) => {
-      const read = posterOf(label, view, Date.now());
-      return read === null ? null : <MapPoster poster={read} />;
+      return posterOf(label, view, Date.now()) === null ? null : (
+        <LivePoster label={label} view={view} />
+      );
     },
     [view],
   );

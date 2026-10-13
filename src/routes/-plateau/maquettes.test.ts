@@ -3,7 +3,8 @@ import type { MapMarker } from '@/domain/labels';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf } from './maquettes';
-import { buildMinutes } from '../../../convex/constants';
+import type { WorkSite } from '@/domain/construction';
+import { asClockTime } from '@/domain/duration';
 
 const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}): MapMarker => ({
   kind: 'building',
@@ -17,7 +18,7 @@ const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}):
   name: 'Mine',
   level: 1,
   plate: 'mine.webp',
-  finishesAt: null,
+  works: null,
   reach: null,
   ink: '#000',
   ...over,
@@ -44,13 +45,46 @@ describe('maquettesOf', () => {
     ).toEqual([true, undefined]);
   });
 
-  it('keeps an upgrade standing, and raises a first level by the scale of its first level', () => {
-    const upgrade = building({ finishesAt: 1, plate: null });
-    const site = building({ id: 's', buildingId: null, level: null, finishesAt: 9, plate: null });
-    expect(maquettesOf([upgrade, site], () => undefined).map((m) => [m.id, m.rising])).toEqual([
-      ['building-FRA-5328-mine', undefined],
-      ['s', { finishesAt: 9, minutes: buildMinutes('mine', 1) }],
-    ]);
+  it('dresses a site by its works: a plan queued, a level rising or raised, its stamp dated', () => {
+    const works = (
+      phase: WorkSite['phase'],
+      level: number,
+      finishesAt: number | null,
+    ): WorkSite => ({
+      phase,
+      key: 'mine',
+      regionId: 'FRA-5328',
+      regionName: 'Nord',
+      level,
+      rank: 0,
+      finishesAt,
+      minutes: 40,
+    });
+    const at = 1_700_000_000_000;
+    const upgrade = building({ works: works('raising', 3, at) });
+    const site = building({
+      id: 's',
+      buildingId: null,
+      level: null,
+      works: works('rising', 1, at),
+    });
+    const plan = building({
+      id: 'q',
+      buildingId: null,
+      level: null,
+      works: works('queued', 1, null),
+    });
+    const stamp = { word: 'achevé', hour: asClockTime(at) };
+    expect(maquettesOf([upgrade, site, plan], () => undefined).map((m) => [m.id, m.works])).toEqual(
+      [
+        [
+          'building-FRA-5328-mine',
+          { phase: 'raising', finishesAt: at, minutes: 40, pennant: 'niv. 3', stamp },
+        ],
+        ['s', { phase: 'rising', finishesAt: at, minutes: 40, pennant: null, stamp }],
+        ['q', { phase: 'queued', finishesAt: null, minutes: 40, pennant: null, stamp: null }],
+      ],
+    );
   });
 
   it('washes an aged survey, stands an emptied objective whole, and nothing else', () => {

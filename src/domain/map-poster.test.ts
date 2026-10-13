@@ -4,6 +4,7 @@ import { posterOf, type Poster } from './map-poster';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
 import { asClockTime } from './duration';
+import type { WorkSite } from './construction';
 
 const LOADED_AT = 1_700_000_000_000;
 const route = directRoute([0, 0], [1, 1], 'land', 10);
@@ -52,7 +53,7 @@ const building = (
   id: string,
   key: string,
   regionId: string,
-  finishesAt: number | null = null,
+  works: WorkSite | null = null,
   level = 2,
 ) =>
   ({
@@ -67,7 +68,7 @@ const building = (
     name: key,
     level,
     plate: null,
-    finishesAt,
+    works,
     reach: null,
     ink: '#2f4f78',
   }) as MapMarker;
@@ -165,15 +166,56 @@ describe('posterOf', () => {
     expect(foundry?.bar).toBe(0.25);
   });
 
-  it('says nothing of a network a barracks does not belong to, and fills its works bar', () => {
-    const due = LOADED_AT + 15 * 60_000;
+  it('says nothing of a network a barracks does not belong to, and counts its raise down', () => {
+    const raise: WorkSite = {
+      phase: 'raising',
+      key: 'barracks',
+      regionId: 'r-plain',
+      regionName: 'Marne',
+      level: 2,
+      rank: 0,
+      finishesAt: LOADED_AT + 15 * 60_000,
+      minutes: 60,
+    };
     const barracks = posterFor(
       view(),
-      [building('b-barracks', 'barracks', 'r-plain', due)],
+      [building('b-barracks', 'barracks', 'r-plain', raise, 1)],
       'm-b-barracks',
     );
-    expect(barracks?.lines).toEqual([{ kind: 'row', label: 'chantier', value: asClockTime(due) }]);
-    expect(barracks?.bar).toBe(0.75);
+    expect(barracks).toMatchObject({
+      eyebrow: 'élévation · Marne',
+      title: 'Caserne, niv. 1 → 2',
+      lines: [{ kind: 'row', label: 'reste', value: '00:15:00' }],
+      bar: 0.75,
+    });
+  });
+
+  it('names a site where nothing stands yet: rising by what is left, queued by its rank', () => {
+    const rising: WorkSite = {
+      phase: 'rising',
+      key: 'farm',
+      regionId: 'r-a',
+      regionName: 'Meuse',
+      level: 1,
+      rank: 0,
+      finishesAt: LOADED_AT + 24 * 60_000,
+      minutes: 60,
+    };
+    const site = (works: WorkSite) =>
+      ({ ...building('x', 'farm', 'r-a', works), buildingId: null, level: null }) as MapMarker;
+    expect(posterFor(view(), [site(rising)], 'm-x')).toMatchObject({
+      eyebrow: 'chantier · Meuse',
+      title: 'Ferme, niv. 1',
+      lines: [{ kind: 'row', label: 'reste', value: '00:24:00' }],
+      bar: 0.6,
+    });
+    const queued = { ...rising, phase: 'queued', rank: 2, finishesAt: null } as const;
+    expect(posterFor(view(), [site(queued)], 'm-x')).toMatchObject({
+      eyebrow: 'en file · Meuse',
+      title: 'Ferme, niv. 1',
+      lines: [{ kind: 'text', text: 'après 2 chantiers' }],
+      bar: null,
+    });
   });
 
   it('never prints the type nor the composition of an enemy movement it has not pierced', () => {

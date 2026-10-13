@@ -485,10 +485,11 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => this.invalidate(),
-      (at) =>
+      (at, words) =>
         this.inkBurst({
-          kind: 'arrival',
+          kind: 'built',
           at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+          words,
         }),
     );
     this.scene.add(this.maquettes.group);
@@ -1415,6 +1416,7 @@ export class MapEngine {
     this.camps.motion = motion;
     this.standing.motion = motion;
     this.ink.motion = motion;
+    this.maquettes.motion = motion;
     this.regions.terrain.motion = motion;
   }
 
@@ -1815,6 +1817,7 @@ export class MapEngine {
     if (
       this.arcs.isFlowing ||
       this.ink.active ||
+      this.maquettes.settling ||
       this.regions.terrain.active ||
       this.standing.isSpreading ||
       this.standing.isCarrying
