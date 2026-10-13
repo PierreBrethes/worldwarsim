@@ -993,8 +993,7 @@ function EstateRow({
       <span className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
         {building.key === 'listening' ? (
           <>
-            {fr.economy.listeningUnfigured}{' '}
-            <HelpMark align="left">{fr.economy.listeningTemporary}</HelpMark>
+            {fr.economy.listeningUnfigured} <HelpMark>{fr.economy.listeningTemporary}</HelpMark>
           </>
         ) : (
           fr.buildingEffects[building.key]
@@ -2024,9 +2023,7 @@ function SiteLine({
               ? fr.economy.listeningUnfigured
               : fr.buildingEffects[building.key]}
           </span>
-          {building.key === 'listening' && (
-            <HelpMark align="left">{fr.economy.listeningTemporary}</HelpMark>
-          )}
+          {building.key === 'listening' && <HelpMark>{fr.economy.listeningTemporary}</HelpMark>}
         </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} onQueued={onQueued} />

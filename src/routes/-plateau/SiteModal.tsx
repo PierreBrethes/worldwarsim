@@ -344,7 +344,7 @@ function Site({
                 )}
                 <div className="mt-auto flex items-center gap-2 px-4 pt-3 pb-4">
                   <span className="eyebrow">{fr.production.atWaking}</span>
-                  <HelpMark align="left">{fr.production.wakingNote}</HelpMark>
+                  <HelpMark>{fr.production.wakingNote}</HelpMark>
                 </div>
               </div>
             </aside>
@@ -624,7 +624,7 @@ function NarrowSite({
             </>
           )}
           <div className="mx-4 mt-4 mb-6">
-            <HelpMark align="left">{fr.production.troopCapNote}</HelpMark>
+            <HelpMark>{fr.production.troopCapNote}</HelpMark>
           </div>
         </>
       ) : tab === 'queue' ? (
@@ -676,9 +676,7 @@ function NarrowSite({
             </div>
           )}
           <div className="mx-4 mt-[18px] mb-6">
-            <HelpMark align="left">
-              {fr.production.sheet.queueNote(aSecondBuilding(building.key))}
-            </HelpMark>
+            <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
           </div>
         </>
       ) : held.length === 0 ? (

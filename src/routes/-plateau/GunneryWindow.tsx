@@ -28,6 +28,7 @@ import { ClockGlyph, EyeGlyph, HeartGlyph, IngotGlyph } from '@/shell/Glyph';
 import { HoverCard } from '@/shell/HoverCard';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 
 /**
@@ -76,14 +77,15 @@ export function GunneryWindow({ seat, onClose, ...windowProps }: WindowProps & {
           <p className="mt-[5px] max-w-[74ch] text-[12px] leading-[1.45] text-[var(--ink-soft)]">
             {fr.gunnery.lead}
           </p>
-          <p className="mt-[3px] max-w-[74ch] text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
-            {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}
-          </p>
-          {/* Le contact est le même pour tous : il se dit une fois ici, et jamais sur la fiche
+          {/* Le bonus de défense et le contact, repliés : ils se lisent une fois, la table tous
+              les jours. Le contact est le même pour tous — il se dit ici, et jamais sur la fiche
               d'un rôle, où il passerait pour une de ses qualités. */}
-          <p className="mt-[3px] max-w-[74ch] text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
-            {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
-          </p>
+          <div className="mt-[3px]">
+            <HelpMark>
+              {fr.gunnery.before(DEFENDER_BONUS, DRY_AMMUNITION_FACTOR)}{' '}
+              {fr.gunnery.contactRange(ARRIVAL_RADIUS_KM)}
+            </HelpMark>
+          </div>
         </div>
 
         <Legend />
