@@ -1034,10 +1034,10 @@ export class StandingLayer {
     const eased = t * t * (3 - 2 * t);
     const point = entry.object.position;
     const near = nearWeight(point.distanceTo(cameraPosition));
-    entry.object.scale.setScalar(near * (1 - eased));
+    entry.object.scale.setScalar(near * pieceScale.troops * (1 - eased));
     spread.object.visible = near > 0;
     spread.object.position.copy(point);
-    spread.object.scale.setScalar(near);
+    spread.object.scale.setScalar(near * pieceScale.troops);
     spread.object.rotation.y = Math.atan2(cameraPosition.x - point.x, cameraPosition.z - point.z);
     const travel = this.motion === 'full' ? eased : 1;
     for (const { object, to } of spread.parts.values()) {
