@@ -60,4 +60,14 @@ describe('the reserve counter', () => {
       gain: 0,
     });
   });
+
+  it('never announces a deposit as a loss when the figure stood above a falling stock', () => {
+    const before = { stock: 100, ratePerHour: -60, cap: 400 };
+    const after = { stock: 50, ratePerHour: -60, cap: 400 };
+    // 100 shown, 40 predicted after the hour's eating, 10 deposited: 50 served.
+    expect(onNewView(100, { reserve: before, at: AT }, { reserve: after, at: AT + HOUR })).toEqual({
+      shown: 50,
+      gain: 0,
+    });
+  });
 });
