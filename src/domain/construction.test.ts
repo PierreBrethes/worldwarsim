@@ -4,6 +4,7 @@ import {
   buildableOn,
   outpostRaiseHold,
   placementOf,
+  riseOf,
   upgradeHold,
   type OutpostRaise,
   type Site,
@@ -607,5 +608,20 @@ describe('raising an outpost', () => {
     } as Partial<OutpostRaise>;
     expect(outpostRaiseHold(point({ level: 3, ...broke }), COST, 3)?.kind).toBe('maxLevel');
     expect(outpostRaiseHold(point({ disabled: true, ...broke }), COST, 3)?.kind).toBe('disabled');
+  });
+});
+
+describe('riseOf', () => {
+  it('reads how far a site has risen from the minutes left out of the minutes it lasts', () => {
+    expect(riseOf(30, 30)).toBe(0);
+    expect(riseOf(27, 30)).toBeCloseTo(0.1);
+    expect(riseOf(3, 30)).toBeCloseTo(0.9);
+    expect(riseOf(0, 30)).toBe(1);
+  });
+
+  it('never overflows when the clock or the scale disagree with the site', () => {
+    expect(riseOf(-5, 30)).toBe(1);
+    expect(riseOf(45, 30)).toBe(0);
+    expect(riseOf(0, 0)).toBe(1);
   });
 });

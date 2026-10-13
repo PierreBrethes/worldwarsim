@@ -36,6 +36,7 @@ import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl, type Queued } from './RaiseControl';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import { HelpMark } from './HelpMark';
 import type { Seat } from '@/data/session';
 
 /**
@@ -108,10 +109,10 @@ export function EconomyWindow({
     <FloatingWindow name="economy" onClose={onClose} {...windowProps} alignment="top" width={1280}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b-2 border-[var(--ink)] px-4 py-[10px]">
-          <h2 className="font-(family-name:--font-display) text-[24px] leading-none font-extrabold tracking-[.04em] text-[var(--ink)] uppercase">
+          <h2 className="font-(family-name:--font-display) text-[26px] leading-none font-bold text-[var(--ink)] first-letter:uppercase">
             {fr.economy.header}
           </h2>
-          <span className="text-[10.5px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+          <span className="eyebrow">
             {fr.economy.subtitle(nationLabel(view.me.nation), view.season.number)}
           </span>
           <span className="flex-1" />
@@ -135,11 +136,16 @@ export function EconomyWindow({
             `shell/viewport.ts`). */}
         <div className="flex min-h-0 flex-1 flex-col overflow-auto md:flex-row md:items-stretch md:overflow-visible">
           <div className="flex min-h-0 min-w-0 shrink-0 flex-col md:flex-1 md:shrink md:overflow-auto">
-            <p className="shrink-0 px-4 py-[9px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)] italic">
-              {fr.economy.lead}
-            </p>
-
-            <Header note={<ChartLegend />}>{fr.economy.chartHeader}</Header>
+            <Header
+              note={
+                <div className="flex items-center gap-3">
+                  <ChartLegend />
+                  <HelpMark>{fr.economy.lead}</HelpMark>
+                </div>
+              }
+            >
+              {fr.economy.chartHeader}
+            </Header>
             <div className="grid shrink-0 grid-cols-2 gap-x-[7px] gap-y-5 px-4 py-4 @xl:grid-cols-4 @5xl:grid-cols-8">
               {columns.map((column) => (
                 <SupplyColumn
@@ -191,10 +197,6 @@ export function EconomyWindow({
             />
 
             <AbsentKeys view={view} placements={placements} />
-
-            <p className="px-4 pt-1 pb-4 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
-              {fr.economy.listeningTemporary}
-            </p>
 
             <UpkeepFoot view={view} />
           </div>
@@ -379,7 +381,7 @@ function useQueueCancel(seat: Seat) {
  * ground a building works, `PRODUCER_OF` says which building brings a resource into the world.
  * Nothing here is a second list of the economy.
  */
-type Column = {
+export type Column = {
   readonly id: string;
   readonly sources: ReadonlyArray<Source>;
   /** The exploitation buildings that work the deposits above — empty when the input is an
@@ -389,7 +391,7 @@ type Column = {
   readonly output: { readonly resource: ResourceKey; readonly perHour: number };
 };
 
-type Source =
+export type Source =
   | { readonly kind: 'deposit'; readonly deposit: DepositKey; readonly held: number }
   | { readonly kind: 'chain'; readonly resource: ResourceKey; readonly by: BuildingKey };
 
@@ -463,7 +465,11 @@ function SupplyColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <ColumnHead column={column} cut={isCut(view, column, worked)} />
+      <ColumnHead
+        column={column}
+        cut={isCut(view, column, worked)}
+        raw={rawVerdictOf(view, column)}
+      />
       {column.sources.map((source, rank) => (
         <SourceBox
           key={source.kind === 'deposit' ? source.deposit : source.resource}
@@ -499,12 +505,13 @@ function SupplyColumn({
 
 /**
  * The head of a filière: the one badge and the one figure the surface promises at a glance
- * (contrat 02, P1). **A raw column carries no badge** — `chains[].state` exists for the three
- * conversions and nowhere else, and stamping "tourne" on a mine would invent a settlement the
- * server never ran. The name of the resource is not repeated here: the sortie box at the foot
- * of the column is where the filière ends, and the plate identifies the head well enough.
+ * (contrat 02, P1). **A raw column carries no state of its own** — `chains[].state` exists for the
+ * three conversions and nowhere else, and stamping "tourne" on a mine would invent a settlement
+ * the server never ran; at zero it says what is missing, or « à sec » (`rawVerdictOf`). The name
+ * of the resource is not repeated here: the sortie box at the foot of the column is where the
+ * filière ends, and the plate identifies the head well enough.
  */
-function ColumnHead({ column, cut }: { column: Column; cut: boolean }) {
+function ColumnHead({ column, cut, raw }: { column: Column; cut: boolean; raw: RawVerdict }) {
   const dry = column.output.perHour <= 0;
   return (
     <div className="mb-[7px] border-b border-[var(--ink)] pb-[5px]">
@@ -515,22 +522,56 @@ function ColumnHead({ column, cut }: { column: Column; cut: boolean }) {
         <ResourcePlate resource={column.output.resource} height={17} />
         <span
           className="ml-auto shrink-0 font-(family-name:--font-mono) text-[15px] leading-none"
-          style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
+          style={{ color: dry ? 'var(--ink-soft)' : 'var(--ink)' }}
         >
           {fr.economy.perHour(column.output.perHour)}
         </span>
       </div>
-      {/* **Hors réseau passe avant tout** (ADR 0020 §6) : un extracteur coupé n'a jamais eu de
-          badge — une filière brute n'en porte pas — mais celui-là dit *pourquoi* le débit est à
-          zéro, et c'est la seule chose que le chiffre ne dit pas. Sur une colonne convertie il
-          l'emporte sur « à sec » et sur « tourne » : un site coupé n'est pas à sec. */}
+      {/* **Une seule alerte par colonne, et c'est ce tampon** (table d'état-major). Le chiffre en
+          rouge, la sortie « ne produit rien » et le gisement manquant en rouge disaient trois fois
+          la même chose sur la même colonne, et huit colonnes en criaient vingt.
+          **Hors réseau passe avant tout** (ADR 0020 §6) : sur une colonne convertie il l'emporte
+          sur « à sec » et sur « tourne » — un site coupé n'est pas à sec. Une filière brute n'a
+          pas d'état servi : à zéro, elle dit le manque ou « à sec » (`rawVerdictOf`). */}
       {cut ? (
         <StateBadge state="unlinked" label={fr.economy.chainStates.unlinked} />
+      ) : column.conversion !== null ? (
+        <ChainVerdict chain={column.conversion} />
       ) : (
-        column.conversion !== null && <ChainVerdict chain={column.conversion} />
+        raw !== null && (
+          <StateBadge
+            state={raw === 'dry' ? 'starved' : 'idle'}
+            label={
+              raw === 'dry'
+                ? fr.economy.chainStates.starved
+                : raw === 'noDeposit'
+                  ? fr.economy.roleDepositNone
+                  : fr.economy.legendMissing
+            }
+          />
+        )
       )}
     </div>
   );
+}
+
+/**
+ * **Ce que dit la tête d'une filière brute à zéro** (décision du 13/10). « À sec » est réservé à
+ * une filière qui a de quoi produire et ne produit pas ; une filière à zéro parce que rien n'y est
+ * posé — aucun gisement sur son sol, aucun extracteur debout ni en chantier — dit le manque, à
+ * l'encre et non en rouge : ce n'est pas une panne, c'est ce qui reste à bâtir. `null` pour une
+ * filière qui coule, ou convertie (la chaîne répond d'elle-même).
+ */
+export type RawVerdict = 'noDeposit' | 'missing' | 'dry' | null;
+
+export function rawVerdictOf(view: PlayerView, column: Column): RawVerdict {
+  if (column.conversion !== null || column.output.perHour > 0) return null;
+  if (column.sources.every((source) => source.kind === 'deposit' && source.held === 0)) {
+    return 'noDeposit';
+  }
+  return column.extraction.every((key) => stateOf(view, key).kind === 'missing')
+    ? 'missing'
+    : 'dry';
 }
 
 /**
@@ -692,13 +733,9 @@ function SourceBox({ source, first }: { source: Source; first: boolean }) {
     <>
       {!first && <Connector />}
       <div
-        className={
-          none
-            ? 'border border-dashed border-[var(--critical)] bg-[rgba(157,70,56,.08)] px-[8px] py-[6px]'
-            : 'border border-[var(--ink)] bg-[var(--ink)] px-[8px] py-[6px]'
-        }
+        className={`${none ? SKIN.missing : 'border border-[var(--ink)] bg-[var(--ink)]'} px-[8px] py-[6px]`}
       >
-        <BoxLabel ink={none ? 'var(--critical)' : 'var(--paper-dim-2)'}>
+        <BoxLabel ink={none ? 'var(--ink-soft)' : 'var(--paper-dim-2)'}>
           {none ? fr.economy.roleDepositNone : fr.economy.roleDeposit}
         </BoxLabel>
         <span
@@ -792,9 +829,7 @@ function ConversionBox({
     <>
       <Connector dotted={state.kind !== 'built'} />
       <div className={`${SKIN[state.kind]} px-[8px] py-[6px]`}>
-        <BoxLabel ink={state.kind === 'missing' ? 'var(--critical)' : 'var(--ink-soft)'}>
-          {role}
-        </BoxLabel>
+        <BoxLabel>{role}</BoxLabel>
         <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
           <span
             className="min-w-0 text-[13px] leading-[1.25] font-semibold"
@@ -853,10 +888,12 @@ const StateBadge = ({ state, label }: { state: ChainView['state']; label: string
   </span>
 );
 
+/** La sortie, sans filet pointillé : le pointillé dit « manquant », et une sortie ne manque pas —
+ *  elle coule ou elle ne coule pas, et la tête de colonne le dit déjà. */
 function OutputBox({ column }: { column: Column }) {
   const dry = column.output.perHour <= 0;
   return (
-    <div className="border border-dashed border-(color:--ink)/50 px-[8px] py-[6px]">
+    <div className="border border-(color:--ink)/25 px-[8px] py-[6px]">
       <BoxLabel>{fr.economy.roleOutput}</BoxLabel>
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
         <span
@@ -866,13 +903,11 @@ function OutputBox({ column }: { column: Column }) {
           <ResourcePlate resource={column.output.resource} height={17} />
           <span className="min-w-0 leading-[1.25]">{fr.resources[column.output.resource]}</span>
         </span>
-        {/* A rate never breaks; the sentence that replaces it must, or it spills into the
-            next column — a column is narrower than « ne produit rien » set in mono. */}
         <span
-          className={`${dry ? 'min-w-0' : 'shrink-0'} font-(family-name:--font-mono) text-[11.5px]`}
-          style={{ color: dry ? 'var(--critical)' : 'var(--ink)' }}
+          className="shrink-0 font-(family-name:--font-mono) text-[11.5px]"
+          style={{ color: dry ? 'var(--ink-soft)' : 'var(--ink)' }}
         >
-          {dry ? fr.economy.noRate : fr.economy.perHour(column.output.perHour)}
+          {fr.economy.perHour(column.output.perHour)}
         </span>
       </div>
     </div>
@@ -988,11 +1023,15 @@ function EstateRow({
       <span className="w-[62px] shrink-0 font-(family-name:--font-mono) text-[11.5px] text-[var(--ink)]">
         {fr.economy.level(building.level)}
       </span>
-      <span className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-        {building.key === 'listening'
-          ? fr.economy.listeningUnfigured
-          : fr.buildingEffects[building.key]}
-      </span>
+      <div className="min-w-[150px] flex-1 text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+        {building.key === 'listening' ? (
+          <>
+            {fr.economy.listeningUnfigured} <HelpMark>{fr.economy.listeningTemporary}</HelpMark>
+          </>
+        ) : (
+          fr.buildingEffects[building.key]
+        )}
+      </div>
       {building.cappedByHq && (
         <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--critical)] uppercase">
           {fr.economy.cappedByHq}
@@ -1284,7 +1323,7 @@ function Header({ children, note }: { children: string; note?: ReactNode }) {
   return (
     <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-y border-(color:--ink)/35 bg-[var(--paper)] px-4 py-[5px]">
       <span className="eyebrow">{children}</span>
-      {note !== undefined && <span className="ml-auto">{note}</span>}
+      {note !== undefined && <div className="ml-auto">{note}</div>}
     </div>
   );
 }
@@ -1317,7 +1356,7 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
         </span>
       </div>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] text-[var(--ink-quiet)] italic">
+        <span className="text-[11px] text-[var(--ink-soft)]">
           {unsupplied === 0
             ? fr.economy.upkeepAllSupplied
             : fr.economy.upkeepUnsupplied(unsupplied, UPKEEP_UNSUPPLIED_MULTIPLIER)}
@@ -1332,7 +1371,7 @@ function UpkeepFoot({ view }: { view: PlayerView }) {
         </span>
       </div>
       {view.me.starving ? (
-        <p className="pt-1 text-[11px] leading-[1.45] text-[var(--critical)] italic">
+        <p className="pt-1 text-[11px] leading-[1.45] text-[var(--critical)]">
           {fr.economy.upkeepStarving}
         </p>
       ) : null}
@@ -1735,7 +1774,7 @@ function WorksSheet({
         </div>
         <div ref={head}>
           {running === null ? (
-            <p className="mx-3 border border-dashed border-(color:--ink)/50 px-3 py-[10px] text-[12.5px] leading-[1.45] text-[var(--ink-soft)]">
+            <p className="mx-3 px-3 py-[10px] text-[12.5px] leading-[1.45] text-[var(--ink-soft)]">
               {fr.economy.constructionNone}
             </p>
           ) : (
@@ -1782,17 +1821,12 @@ function WorksSheet({
           );
         })}
         <AbsentKeys view={view} placements={placements} />
-        <p className="px-4 pt-2 pb-1 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
-          {fr.economy.listeningTemporary}
-        </p>
       </section>
 
       <section ref={section('chains')} className="mt-[18px] border-t-2 border-[var(--ink)]">
-        <p className="px-4 pt-3 pb-2 font-(family-name:--font-text) text-[13.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
-          {fr.works.chainsLead}
-        </p>
-        <div className="border-b border-[var(--ink)] px-4 pb-[10px]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ink)] px-4 pt-3 pb-[10px]">
           <ChartLegend />
+          <HelpMark>{fr.works.chainsLead}</HelpMark>
         </div>
         {columns.map((column) => (
           <ChainLine
@@ -2022,6 +2056,7 @@ function SiteLine({
               ? fr.economy.listeningUnfigured
               : fr.buildingEffects[building.key]}
           </span>
+          {building.key === 'listening' && <HelpMark>{fr.economy.listeningTemporary}</HelpMark>}
         </div>
       </div>
       <RaiseControl building={building} view={view} seat={seat} now={now} onQueued={onQueued} />

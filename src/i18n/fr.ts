@@ -590,6 +590,8 @@ export const fr = {
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
+    /** Le « ? » qui déplie une phrase d'aide : la phrase se lit une fois, le chiffre tous les jours. */
+    help: 'aide',
   },
 
   /**
@@ -927,7 +929,6 @@ export const fr = {
       'Le plateau ne s’ouvre qu’avec une saison rejointe. Fondez-en une ou entrez le code d’une partie existante.',
     backHome: 'retour à l’accueil',
     loading: 'Préparation du plateau…',
-    regionLabel: 'Région',
     /**
      * What the ground holds, and nothing else. The terrain type used to read here: it came
      * from a hash of the region's name, so the tooltip was printing an invention where the
@@ -2186,7 +2187,6 @@ export const fr = {
     depositNoneHeld: (deposit: string) =>
       `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
     fromChain: (building: string) => `de ${lowerFirst(building)}`,
-    noRate: 'ne produit rien',
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
@@ -2650,9 +2650,7 @@ export const fr = {
     myTitle: 'Mon territoire',
     marker: 'sélection',
     hoverMarker: 'survol',
-    progression: 'progression',
     restWindow: 'plage de repos',
-    lastIntel: 'dernier renseignement',
     /**
      * **Deux questions, deux lignes** (correctif du 31/08). « Avant-poste » répond de *ce
      * pays-ci* — ai-je un point planté dedans — et c'est juste ; c'est l'étiquette qui mentait
@@ -2661,7 +2659,6 @@ export const fr = {
      */
     outpost: 'avant-poste',
     enemyOwner: 'adverse',
-    none: 'aucun',
     garrison: 'garnison',
     heldBy: 'tenue par',
     moreDetails: 'détails',

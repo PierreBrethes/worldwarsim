@@ -31,7 +31,7 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
-import type { PieceClick } from '@/map/engine';
+import type { PieceClick, StandingPile } from '@/map/engine';
 import {
   readWindows,
   toggleWindow,
@@ -410,7 +410,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () => (hand.kind === 'held' ? armedColumn(view, hand.station, hand.troopIds) : null),
     [view, hand],
   );
-  /** Ce que le moteur porte sous le pointeur : un mât n'a pas de figurines, la main y est seule. */
+  /** Ce que le moteur porte sous le pointeur : la pile posée ou la garnison d'où la main l'a
+   *  prise, par l'identifiant que porte sa pile ; un avant-poste n'a pas de figurines, la main y
+   *  est seule. */
   const holding = useMemo(
     () =>
       hand.kind === 'empty'
@@ -653,7 +655,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         setGarrison(null);
         setHand(EMPTY_HAND);
         setOrder(null);
-        setFocus({ ids: [`building-${standing.regionId}-${standing.key}`], nonce: Date.now() });
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
          *  garnison n'a qu'une sortie — « préparer » — et l'ouvrir à un défait promettrait
@@ -1340,7 +1342,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     const nameOfRegion = new Map(view.me.regions.map((region) => [region.id, region.name]));
     const standing = view.me.buildings.map((building) => ({
       kind: 'building' as const,
-      id: `building-${building.regionId}-${building.key}`,
+      id: buildingLabelId(building),
       buildingId: building.id,
       key: building.key,
       regionId: building.regionId,
@@ -1375,7 +1377,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         : [
             {
               kind: 'building' as const,
-              id: `building-${site.regionId}-${site.key}`,
+              id: buildingLabelId(site),
               // A first level under the crane opens nothing: no line stands for it yet.
               buildingId: null,
               key: site.key,
@@ -1436,13 +1438,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [markers, applyPileClick],
   );
   const standing = useMemo(
-    () =>
-      markers.flatMap((marker) =>
+    (): ReadonlyArray<StandingPile> => [
+      ...markers.flatMap((marker) =>
         marker.kind === 'stack'
-          ? [{ id: marker.id, lonLat: marker.lonLat, pieces: marker.pieces }]
+          ? [{ id: marker.id, at: { lonLat: marker.lonLat }, pieces: marker.pieces }]
           : [],
       ),
-    [markers],
+      ...garrisonPiles(view.me, marching),
+    ],
+    [markers, view.me, marching],
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
@@ -1857,7 +1861,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       const point = view.me.regions.find((region) => region.id === regionId)?.point;
       if (!toggles.buildings && point !== undefined)
         setFocus({ ids: [], places: [point], nonce: Date.now() });
-      else setFocus({ ids: [`building-${regionId}-${key}`], nonce: Date.now() });
+      else setFocus({ ids: [buildingLabelId({ regionId, key })], nonce: Date.now() });
     },
     [view.me.regions, toggles.buildings],
   );
@@ -2713,6 +2717,29 @@ function postedStacks(
   });
 }
 
+/**
+ * **Les garnisons de mes bâtiments, au pied de leur maquette** (ADR 0026 §5). Mes troupes
+ * seulement : la garnison d'un autre ne sort jamais du serveur. Une maquette qui n'est pas debout
+ * — chantier, bâtiments masqués — n'en porte aucune, et le moteur ne la pose pas.
+ */
+function garrisonPiles(
+  me: PlayerView['me'],
+  marching: ReadonlySet<string>,
+): ReadonlyArray<StandingPile> {
+  return me.buildings.flatMap((building) => {
+    // The station's key, as `holding` names the pile a hand was taken from.
+    const id = stationKeyOf({ kind: 'building', buildingId: building.id });
+    const troops = troopsAt(me, id, marching);
+    return troops.length === 0
+      ? []
+      : [{ id, at: { beside: buildingLabelId(building) }, pieces: pilePieces(troops) }];
+  });
+}
+
+/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché. */
+const buildingLabelId = ({ regionId, key }: { regionId: string; key: string }): string =>
+  `building-${regionId}-${key}`;
+
 const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(
     (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
@@ -2729,7 +2756,7 @@ function markerOfStation(view: PlayerView, station: TroopStation): string | null
   }
   if (station.kind !== 'building') return null;
   const building = view.me.buildings.find((candidate) => candidate.id === station.buildingId);
-  return building === undefined ? null : `building-${building.regionId}-${building.key}`;
+  return building === undefined ? null : buildingLabelId(building);
 }
 
 /** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer

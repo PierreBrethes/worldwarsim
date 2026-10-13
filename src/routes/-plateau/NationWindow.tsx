@@ -15,6 +15,7 @@ import { Flag } from '@/emblems/Flag';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
+import { HelpMark } from './HelpMark';
 
 /**
  * **The strategic identity sheet — and nothing else.** It used to carry the census of the
@@ -51,13 +52,12 @@ export function NationWindow({
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)]">
         <DragHandle className="flex shrink-0 items-center gap-[11px] border-b-2 border-[var(--ink)] px-4 py-[10px]">
           <Flag nation={view.me.nation} width={26} onPaper />
-          <h1 className="font-(family-name:--font-display) text-[19px] leading-none font-extrabold tracking-[.04em] text-[var(--ink)] uppercase">
+          <h1 className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
             {nationLabel(view.me.nation)}
           </h1>
           <span className="flex-1" />
-          <span className="text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
-            {fr.nationSheet.kicker}
-          </span>
+          <span className="eyebrow">{fr.nationSheet.kicker}</span>
+          <HelpMark>{fr.nationSheet.readOnly}</HelpMark>
           <button
             type="button"
             onClick={onClose}
@@ -114,20 +114,13 @@ export function NationWindow({
           </Entry>
 
           <Entry header={fr.nationSheet.restHeader}>
-            <p className="font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
+            <div className="flex items-center gap-2 font-(family-name:--font-mono) text-[14px] text-[var(--ink)]">
               {view.me.restWindow}
-            </p>
-            <p className="mt-[3px] text-[11.5px] leading-[1.45] text-[var(--ink-soft)]">
-              {fr.nationSheet.restNote}
-            </p>
-            <p className="mt-1 text-[11.5px] leading-[1.45] text-[var(--ink-quiet)] italic">
-              {fr.nationSheet.restFrozen}
-            </p>
+              <HelpMark>
+                {fr.nationSheet.restNote} {fr.nationSheet.restFrozen}
+              </HelpMark>
+            </div>
           </Entry>
-
-          <p className="px-4 pt-3 pb-5 text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
-            {fr.nationSheet.readOnly}
-          </p>
         </div>
       </div>
     </FloatingWindow>
@@ -209,7 +202,7 @@ function Registers({ press }: { press: PressEdition | null }) {
           </span>
         ))}
       </div>
-      <p className="mt-[6px] text-[11px] leading-[1.45] text-[var(--ink-quiet)] italic">
+      <p className="mt-[6px] text-[11px] leading-[1.45] text-[var(--ink-soft)]">
         {own.since === null ? said.noPrevious : said.since(asLocalTime(own.since))}
       </p>
     </Entry>

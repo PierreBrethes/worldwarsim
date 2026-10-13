@@ -363,6 +363,9 @@ export class MapEngine {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // Off by default in three: a site under the crane is cut where its work has reached, by a
+    // plane on its own materials (`maquettes.ts`).
+    this.renderer.localClippingEnabled = true;
     container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -443,7 +446,11 @@ export class MapEngine {
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
-    this.standing = new StandingLayer(this.frame, () => this.invalidate());
+    this.standing = new StandingLayer(
+      this.frame,
+      () => this.invalidate(),
+      (id) => this.maquettes.garrisonAt(id),
+    );
     this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
@@ -451,6 +458,11 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => this.invalidate(),
+      (at) =>
+        this.inkBurst({
+          kind: 'arrival',
+          at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+        }),
     );
     this.scene.add(this.maquettes.group);
     this.camps = new CampLayer(this.frame);
@@ -1693,7 +1705,7 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
-    this.maquettes.orient(this.camera.position, this.replay);
+    this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw, now);
     this.clearReplayGround();
     if (this.lamp.follow(this.controls.target, distance)) {
