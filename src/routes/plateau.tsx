@@ -61,6 +61,7 @@ import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
+import { producingSites } from '@/domain/producing';
 import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
@@ -1456,8 +1457,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
-    return maquettesOf(markers, (id) => keyOf.get(id));
-  }, [markers, view.objectives]);
+    return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
+  }, [markers, view.objectives, view.me]);
   const camps = useMemo(
     () =>
       markers.flatMap((marker) =>

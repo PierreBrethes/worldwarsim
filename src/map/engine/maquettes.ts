@@ -24,6 +24,23 @@ import { PALETTE } from './palette';
 import { washedOf } from './standing';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
+import type { AmbientLayer } from './ambience';
+import { Smoke, type Plume } from './smoke';
+
+/**
+ * **A factory at work smokes** (`table-etat-major.html`, `fac.userData.stacks`): a slow grey
+ * thread from each chimney, leaning downwind. In board units at full near weight — a maquette is
+ * `MAQUETTE_SPAN` wide.
+ */
+const FACTORY_SMOKE: Plume = {
+  puffs: 9,
+  life: 4.2,
+  rise: 0.9,
+  lean: 0.75,
+  size: [0.1, 0.5],
+  opacity: 0.5,
+  color: '#6e685e',
+};
 
 /**
  * **What a maquette stands on and as** (ADR 0026 §1): a building, a surveyed installation or a
@@ -38,6 +55,8 @@ export type StandingMaquette = {
   readonly washed: boolean;
   /** A first level under the crane: it rises from the ground with its work (`riseOf`). */
   readonly rising?: { readonly finishesAt: number; readonly minutes: number };
+  /** One of my producers at work: a thread of smoke rises from its chimneys. */
+  readonly smoking?: boolean;
 };
 
 /**
@@ -96,6 +115,8 @@ type Model = {
   readonly scale: number;
   /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
   readonly box: Box3;
+  /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
+  readonly chimneys: ReadonlyArray<Vector3>;
 };
 const models = new Map<string, Promise<Model>>();
 function modelOf(url: string): Promise<Model> {
@@ -108,7 +129,15 @@ function modelOf(url: string): Promise<Model> {
         geometry.computeBoundingBox();
         box.union(geometry.boundingBox!);
       }
-      return { parts, scale: spanScale(box.getSize(new Vector3())), box };
+      const chimneys: Vector3[] = [];
+      scene.traverse((node) => {
+        if (node.name.startsWith('fx_smoke')) chimneys.push(node.getWorldPosition(new Vector3()));
+      });
+      if (chimneys.length === 0) {
+        const top = box.getCenter(new Vector3());
+        chimneys.push(top.setY(box.max.y));
+      }
+      return { parts, scale: spanScale(box.getSize(new Vector3())), box, chimneys };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -171,6 +200,9 @@ type Placed = {
   /** Inside a replay's ground: it steps aside, and its plate with it. */
   cleared: boolean;
   near: number;
+  readonly smoking: boolean;
+  /** One per chimney once the model has landed, empty for a site that does not produce. */
+  smokes: Smoke[];
 };
 
 /**
@@ -328,6 +360,9 @@ export class MaquetteLayer {
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
+        // A rising site and a ghost of a survey do not work.
+        smoking: maquette.smoking === true && !maquette.rising && !maquette.washed,
+        smokes: [],
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -375,6 +410,13 @@ export class MaquetteLayer {
       return mesh;
     });
     lot.group.add(...lot.meshes);
+    for (const item of lot.items) {
+      if (!item.smoking) continue;
+      item.smokes = model.chimneys.map(() => new Smoke(FACTORY_SMOKE));
+      lot.group.add(...item.smokes.map((smoke) => smoke.object));
+      // Its smoke is placed with its matrix: the next `orient` places both.
+      item.near = -1;
+    }
     if (rising !== null) {
       rising.scaffold = scaffoldOf(model.box);
       lot.group.add(rising.scaffold);
@@ -452,6 +494,10 @@ export class MaquetteLayer {
           scale.setScalar(near * lot.model!.scale * pieceScale.buildings),
         );
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
+        item.smokes.forEach((smoke, c) => {
+          smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
+          smoke.object.scale.setScalar(near * pieceScale.buildings);
+        });
       });
       if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       if (!moved) continue;
@@ -463,6 +509,25 @@ export class MaquetteLayer {
       lot.group.visible = lot.items.some((item) => item.near > 0);
     }
   }
+
+  /**
+   * **The factories' smoke, an ambience** (`ambience.ts`): it loops for good, so it steps at its
+   * own low beat rather than holding the board at sixty frames. Idle when no smoking maquette
+   * stands close; still at reduced motion, gone at cut motion.
+   */
+  readonly smoke: AmbientLayer = {
+    fx: 'smoke',
+    hz: 8,
+    idle: () =>
+      ![...this.byId.values()].some(({ item }) => item.smokes.length > 0 && item.near > 0),
+    frame: (time, motion) => {
+      for (const { item } of this.byId.values())
+        for (const smoke of item.smokes) {
+          smoke.object.visible = item.near > 0 && motion !== 'off';
+          if (smoke.object.visible) smoke.frame(time);
+        }
+    },
+  };
 
   /** Slow — a first level lasts tens of minutes: the board's heartbeat moves it enough, and no
    *  frame is ever asked for it. */

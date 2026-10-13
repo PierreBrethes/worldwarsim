@@ -497,6 +497,7 @@ export class MapEngine {
         }),
     );
     this.scene.add(this.maquettes.group);
+    this.ambience.add(this.maquettes.smoke);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
