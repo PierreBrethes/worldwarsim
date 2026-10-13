@@ -1,5 +1,5 @@
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import {
   Suspense,
   lazy,
@@ -69,6 +69,8 @@ import {
   PREVIEW_ARC_ID,
   type ArcView,
   type CombatReport,
+  type JournalDispatch,
+  type ReplayView,
   type Cost,
   type PlayerView,
   type Stack,
@@ -98,7 +100,7 @@ import { useBoardView } from '@/data/useBoardView';
 import { keepSeat, readSession, type Seat } from '@/data/session';
 import { adaptServerView } from '@/data/serverView';
 import { useTelegraph } from '@/data/telegraph';
-import { errorCode, handleError } from '@/data/errors';
+import { errorCode, errorMessage, handleError } from '@/data/errors';
 import { notify } from '@/shell/notifications';
 import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
@@ -118,6 +120,8 @@ import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { LayersGlyph, Glyph } from '@/shell/Glyph';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { DispatchSheet } from './-plateau/DispatchSheet';
+import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
+import type { ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
@@ -477,6 +481,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    */
   const [openedReport, setOpenedReport] = useState<string | null>(null);
   const [journalLead, setJournalLead] = useState<string | null>(null);
+  /** **Le rejeu en cours** (surface 4.7) : la vue servie, la phrase de sa dépêche, et ce que le
+   *  bandeau commande — la carte le joue tant qu'il est là. */
+  const [replay, setReplay] = useState<{
+    readonly view: ReplayView;
+    readonly said: string;
+    readonly step: ReplayStep | null;
+    readonly playing: boolean;
+    readonly stepping: { readonly direction: 1 | -1; readonly nonce: number } | null;
+  } | null>(null);
   /** Une pose de rose en cours, cachée sous une feuille si l'on n'y prend garde : un point qu'une
    *  surface basse va couvrir est remonté au-dessus d'elle (`WorldMap.reveal`). */
   const [reveal, setReveal] = useState<{
@@ -1684,6 +1697,42 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const showCombat = useCallback((combat: CombatReport) => locate(combat.point), [locate]);
 
   /**
+   * **Rejouer une dépêche** : le serveur d'abord — un refus reste dans la dépêche, rien d'autre
+   * ne bouge —, puis ce qui couvrirait la scène se ferme (le journal, lu comme à sa fermeture ;
+   * la feuille d'arrivée ; la pièce en main) et la carte joue.
+   */
+  const convex = useConvex();
+  const markJournalRead = useMutation(api.journal.markRead);
+  const launchReplay = useCallback(
+    async (dispatch: JournalDispatch): Promise<string | null> => {
+      if (dispatch.combat === null) return null;
+      try {
+        const served = await convex.query(api.replay.replayOf, {
+          ...seat,
+          combatId: dispatch.combat.id,
+        });
+        if ('refusal' in served) return fr.errors[served.refusal]();
+        if (windows.includes('journal')) {
+          void markJournalRead(seat).catch(() => undefined);
+          setJournalLead(null);
+          closeWindow('journal');
+        }
+        setOpenedReport(null);
+        dropHand();
+        setReplay({ view: served, said: dispatch.text, step: null, playing: true, stepping: null });
+        return null;
+      } catch (error) {
+        return errorMessage(error) ?? fr.unexpectedError;
+      }
+    },
+    [convex, seat, windows, markJournalRead, closeWindow, dropHand],
+  );
+  const replayStep = useCallback(
+    (step: ReplayStep) => setReplay((current) => current && { ...current, step }),
+    [],
+  );
+
+  /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
    * parce qu'aucune ne sait refuser à la place des autres : celle qui ne sert pas est en `skip`,
    * et la carte lit celle de l'ordre en cours.
@@ -1862,431 +1911,471 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       onShowBriefing={showBriefing}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
-        <div ref={board} className="relative min-w-0 flex-1">
-          <WorldMap
-            world={world}
-            arcs={arcs}
-            troops={view.me.troops}
-            journal={view.journal}
-            labels={labels}
-            standing={standing}
-            camps={camps}
-            inkByCountry={inkByCountry}
-            held={held}
-            outposts={reachedOutposts}
-            built={built}
-            selectedCountry={country ?? null}
-            playerNation={view.me.nation}
-            indicators={toggles}
-            accentedMovement={hoveredMovement}
-            onSelect={aimingOnPhone ? keepSelection : select}
-            onOpenBuilding={openBuilding}
-            onOpenStack={openStack}
-            holding={holding}
-            onPieceClick={view.me.defeated ? undefined : pieceClick}
-            onRestAim={restAt}
-            onRoseDismiss={dropHand}
-            onHeldCompass={setHeldCompass}
-            onOpenLoot={openLoot}
-            onOpenCamp={openCamp}
-            onOpenObjective={openObjective}
-            selectedLabel={highlight?.labelId ?? null}
-            selectedPlate={highlightPlate}
-            selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
-            reach={handReach ?? movementReach}
-            onCountryHover={setHoveredCountry}
-            onRegionHover={setHoveredRegion}
-            onRegionsLoaded={keepRegionAt}
-            onArcHover={setHoveredArc}
-            onLabelHover={setHoveredLabel}
-            onStackHover={onStackHover}
-            compassOf={compassOfTarget}
-            onCompassAction={actOnCompass}
-            building={buildingSite !== null}
-            placing={placing}
-            onPlacePoint={placePort}
-            aiming={column !== null}
-            designatedRegions={designated}
-            onDesignateRegion={placeFoundation}
-            focus={focus}
-            searchArea={searchArea}
-            fingerRose={fingerRose}
-            showDestinations
-            onOrderTarget={narrow ? orderFrom : undefined}
-            covered={narrow && windows.length > 0}
-            reveal={reveal}
-          />
-          {selectedLoot !== null && selectedLootSighting !== null && (
-            <LootCrateCard
-              key={selectedLoot.id}
-              sighting={selectedLootSighting}
-              at={selectedLoot}
-              onClose={() => setSelectedLoot(null)}
+        <ReplayLaunch.Provider value={launchReplay}>
+          <div ref={board} className="relative min-w-0 flex-1">
+            <WorldMap
+              world={world}
+              arcs={arcs}
+              troops={view.me.troops}
+              journal={view.journal}
+              labels={labels}
+              standing={standing}
+              camps={camps}
+              inkByCountry={inkByCountry}
+              held={held}
+              outposts={reachedOutposts}
+              built={built}
+              selectedCountry={country ?? null}
+              playerNation={view.me.nation}
+              indicators={toggles}
+              accentedMovement={hoveredMovement}
+              onSelect={aimingOnPhone ? keepSelection : select}
+              onOpenBuilding={openBuilding}
+              onOpenStack={openStack}
+              holding={holding}
+              onPieceClick={view.me.defeated ? undefined : pieceClick}
+              onRestAim={restAt}
+              onRoseDismiss={dropHand}
+              onHeldCompass={setHeldCompass}
+              onOpenLoot={openLoot}
+              onOpenCamp={openCamp}
+              onOpenObjective={openObjective}
+              selectedLabel={highlight?.labelId ?? null}
+              selectedPlate={highlightPlate}
+              selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
+              reach={handReach ?? movementReach}
+              onCountryHover={setHoveredCountry}
+              onRegionHover={setHoveredRegion}
+              onRegionsLoaded={keepRegionAt}
+              onArcHover={setHoveredArc}
+              onLabelHover={setHoveredLabel}
+              onStackHover={onStackHover}
+              compassOf={compassOfTarget}
+              onCompassAction={actOnCompass}
+              building={buildingSite !== null}
+              placing={placing}
+              onPlacePoint={placePort}
+              aiming={column !== null}
+              designatedRegions={designated}
+              onDesignateRegion={placeFoundation}
+              focus={focus}
+              searchArea={searchArea}
+              fingerRose={fingerRose}
+              showDestinations
+              onOrderTarget={narrow ? orderFrom : undefined}
+              covered={narrow && windows.length > 0}
+              reveal={reveal}
+              replay={replay}
+              onReplayStep={replayStep}
             />
-          )}
-          {selectedCamp !== null && selectedCampView !== null && (
-            <CampBadge
-              key={selectedCamp.id}
-              camp={selectedCampView}
-              at={selectedCamp}
-              onClose={() => setSelectedCamp(null)}
-            />
-          )}
-          {selectedObjective !== null && selectedObjectiveView !== null && (
-            <ObjectiveBadge
-              key={selectedObjective.id}
-              objective={selectedObjectiveView}
-              at={selectedObjective}
-              onClose={() => setSelectedObjective(null)}
-            />
-          )}
-          {buildingSite && (
-            /* Keyed on where it was aimed: a panel opened at a second point is a second panel,
+            {selectedLoot !== null && selectedLootSighting !== null && (
+              <LootCrateCard
+                key={selectedLoot.id}
+                sighting={selectedLootSighting}
+                at={selectedLoot}
+                onClose={() => setSelectedLoot(null)}
+              />
+            )}
+            {selectedCamp !== null && selectedCampView !== null && (
+              <CampBadge
+                key={selectedCamp.id}
+                camp={selectedCampView}
+                at={selectedCamp}
+                onClose={() => setSelectedCamp(null)}
+              />
+            )}
+            {selectedObjective !== null && selectedObjectiveView !== null && (
+              <ObjectiveBadge
+                key={selectedObjective.id}
+                objective={selectedObjectiveView}
+                at={selectedObjective}
+                onClose={() => setSelectedObjective(null)}
+              />
+            )}
+            {buildingSite && (
+              /* Keyed on where it was aimed: a panel opened at a second point is a second panel,
              and it must not inherit the push the player gave the first (`Draggable`). */
-            <ConstructionPanel
-              key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
-              view={view}
-              seat={seat}
-              regionId={buildingSite.regionId}
-              at={buildingSite}
-              onClose={() => setBuildingSite(null)}
-              onRaiseOutpost={(outpostId) => {
-                setBuildingSite(null);
-                openOutpost(outpostId);
-              }}
-              onPlace={(option) =>
-                setPlacing({
-                  regionId: buildingSite.regionId,
-                  key: option.key,
-                  sprite: buildingSprite(option.key),
-                  title: regionName(view, buildingSite.regionId),
-                  figures: fr.placing.figures(
-                    fr.buildings[option.key],
-                    priceOf(option.cost),
-                    asDuration(option.minutes),
-                  ),
-                })
-              }
-            />
-          )}
-          {demolition !== null && razed !== undefined && (
-            /* Relu dans la vue à chaque image plutôt que recopié au clic : le mât disparaît au
+              <ConstructionPanel
+                key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
+                view={view}
+                seat={seat}
+                regionId={buildingSite.regionId}
+                at={buildingSite}
+                onClose={() => setBuildingSite(null)}
+                onRaiseOutpost={(outpostId) => {
+                  setBuildingSite(null);
+                  openOutpost(outpostId);
+                }}
+                onPlace={(option) =>
+                  setPlacing({
+                    regionId: buildingSite.regionId,
+                    key: option.key,
+                    sprite: buildingSprite(option.key),
+                    title: regionName(view, buildingSite.regionId),
+                    figures: fr.placing.figures(
+                      fr.buildings[option.key],
+                      priceOf(option.cost),
+                      asDuration(option.minutes),
+                    ),
+                  })
+                }
+              />
+            )}
+            {demolition !== null && razed !== undefined && (
+              /* Relu dans la vue à chaque image plutôt que recopié au clic : le mât disparaît au
              moment où le serveur répond, et la carte s'en va avec lui. */
-            <DemolitionCard
-              key={razed.id}
-              seat={seat}
-              view={view}
-              building={razed}
-              at={demolition}
-              onClose={() => setDemolition(null)}
-            />
-          )}
-          {dismantling !== null && dismantled !== undefined && (
-            /* Relu dans la vue comme le mât rasé : le point disparaît au moment où le serveur
+              <DemolitionCard
+                key={razed.id}
+                seat={seat}
+                view={view}
+                building={razed}
+                at={demolition}
+                onClose={() => setDemolition(null)}
+              />
+            )}
+            {dismantling !== null && dismantled !== undefined && (
+              /* Relu dans la vue comme le mât rasé : le point disparaît au moment où le serveur
              répond, et la carte s'en va avec lui. */
-            <DismantleCard
-              key={dismantled.id}
-              seat={seat}
-              view={view}
-              outpost={dismantled}
-              at={dismantling}
-              onClose={() => setDismantling(null)}
-            />
-          )}
-          {garrison && (
-            <GarrisonPanel
-              /* The pre-check is part of the panel's identity, not only its address: a second
+              <DismantleCard
+                key={dismantled.id}
+                seat={seat}
+                view={view}
+                outpost={dismantled}
+                at={dismantling}
+                onClose={() => setDismantling(null)}
+              />
+            )}
+            {garrison && (
+              <GarrisonPanel
+                /* The pre-check is part of the panel's identity, not only its address: a second
                card of the same garrison — the cargo after the infantry — opens the same
                station and must arrive with *its* troops ticked, not the previous card's. */
-              key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}-${garrison.preselect.join()}`}
-              view={view}
-              seat={seat}
-              station={garrison.station}
-              at={garrison}
-              preselect={garrison.preselect}
-              onClose={() => setGarrison(null)}
-              onPrepare={prepareColumn}
-              onPickedChange={setGarrisonPicked}
-            />
-          )}
-          {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
+                key={`${stationKeyOf(garrison.station)}-${garrison.x}-${garrison.y}-${garrison.preselect.join()}`}
+                view={view}
+                seat={seat}
+                station={garrison.station}
+                at={garrison}
+                preselect={garrison.preselect}
+                onClose={() => setGarrison(null)}
+                onPrepare={prepareColumn}
+                onPickedChange={setGarrisonPicked}
+              />
+            )}
+            {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
-          <StackHoverSheet
-            register={setStackHover}
-            me={view.me}
-            marching={marching}
-            holding={hand.kind === 'held'}
-            labels={labels}
-          />
-          {hand.kind === 'held' && !(narrow && order !== null) && (
-            <HandSheet
-              key={`${stationKeyOf(hand.station)}-${lifts}`}
-              view={view}
-              station={hand.station}
-              place={
-                hand.station.kind === 'point'
-                  ? pilePlace(hand.station, stationNames(view), regionAt)
-                  : stationNames(view).place(hand.station)
-              }
-              held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
-              troopIds={hand.troopIds}
-              onCompose={compose}
-              founding={
-                heldCompass === null
-                  ? null
-                  : {
-                      action:
-                        heldCompass.actions.find(
-                          (action): action is Extract<CompassAction, { key: 'found' }> =>
-                            action.key === 'found',
-                        ) ?? null,
-                      refusal: heldCompass.refusal,
-                      onFound: () => {
-                        const found = heldCompass.actions.find((action) => action.key === 'found');
-                        if (found !== undefined) actOnCompass(found, boardPoint());
-                      },
-                    }
-              }
-              onOpenGunnery={() => openWindow('gunnery')}
-              onDrop={dropHand}
+            <StackHoverSheet
+              register={setStackHover}
+              me={view.me}
+              marching={marching}
+              holding={hand.kind === 'held'}
+              labels={labels}
             />
-          )}
-          {resting !== null && order === null && preview && (
-            /* Placed outside the `.hud` zoom, which would scale the board point as well. */
-            <div
-              className="pointer-events-none absolute z-10"
-              style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
-            >
-              <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper)]">
-                {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
+            {hand.kind === 'held' && !(narrow && order !== null) && (
+              <HandSheet
+                key={`${stationKeyOf(hand.station)}-${lifts}`}
+                view={view}
+                station={hand.station}
+                place={
+                  hand.station.kind === 'point'
+                    ? pilePlace(hand.station, stationNames(view), regionAt)
+                    : stationNames(view).place(hand.station)
+                }
+                held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
+                troopIds={hand.troopIds}
+                onCompose={compose}
+                founding={
+                  heldCompass === null
+                    ? null
+                    : {
+                        action:
+                          heldCompass.actions.find(
+                            (action): action is Extract<CompassAction, { key: 'found' }> =>
+                              action.key === 'found',
+                          ) ?? null,
+                        refusal: heldCompass.refusal,
+                        onFound: () => {
+                          const found = heldCompass.actions.find(
+                            (action) => action.key === 'found',
+                          );
+                          if (found !== undefined) actOnCompass(found, boardPoint());
+                        },
+                      }
+                }
+                onOpenGunnery={() => openWindow('gunnery')}
+                onDrop={dropHand}
+              />
+            )}
+            {resting !== null && order === null && preview && (
+              /* Placed outside the `.hud` zoom, which would scale the board point as well. */
+              <div
+                className="pointer-events-none absolute z-10"
+                style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
+              >
+                <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper)]">
+                  {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
+                </div>
               </div>
-            </div>
-          )}
-          {column && order && (
-            <MovementPreview
-              seat={seat}
-              origin={column.station}
-              troopIds={column.troopIds}
-              strength={view.me.troops
-                .filter((troop) => column.troopIds.includes(troop.id))
-                .reduce((sum, troop) => sum + troop.strength, 0)}
-              choice={order}
-              choices={order.choices}
-              onChoose={(choice) =>
-                setOrder(
-                  (previous) =>
-                    previous && {
-                      ...choice,
-                      choices: previous.choices,
-                      x: previous.x,
-                      y: previous.y,
-                    },
-                )
-              }
-              at={order}
-              preview={preview}
-              slots={view.me.slots}
-              originName={stationNames(view).place(column.station)}
-              onClose={dropHand}
-              onSent={afterSent}
-            />
-          )}
-          {openedDispatch !== null && openedCombat !== null && (
-            <DispatchSheet
-              dispatch={openedDispatch}
-              combat={openedCombat}
-              onOpenGarrison={
-                combatStation === null
-                  ? null
-                  : () => {
-                      setOpenedReport(null);
-                      openGarrison(combatStation, [], boardPoint());
-                    }
-              }
-              onOpenJournal={() => {
-                setOpenedReport(null);
-                openWindow('journal');
-              }}
-              onClose={() => setOpenedReport(null)}
-            />
-          )}
-          {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
+            )}
+            {column && order && (
+              <MovementPreview
+                seat={seat}
+                origin={column.station}
+                troopIds={column.troopIds}
+                strength={view.me.troops
+                  .filter((troop) => column.troopIds.includes(troop.id))
+                  .reduce((sum, troop) => sum + troop.strength, 0)}
+                choice={order}
+                choices={order.choices}
+                onChoose={(choice) =>
+                  setOrder(
+                    (previous) =>
+                      previous && {
+                        ...choice,
+                        choices: previous.choices,
+                        x: previous.x,
+                        y: previous.y,
+                      },
+                  )
+                }
+                at={order}
+                preview={preview}
+                slots={view.me.slots}
+                originName={stationNames(view).place(column.station)}
+                onClose={dropHand}
+                onSent={afterSent}
+              />
+            )}
+            {openedDispatch !== null && openedCombat !== null && (
+              <DispatchSheet
+                dispatch={openedDispatch}
+                combat={openedCombat}
+                onOpenGarrison={
+                  combatStation === null
+                    ? null
+                    : () => {
+                        setOpenedReport(null);
+                        openGarrison(combatStation, [], boardPoint());
+                      }
+                }
+                onOpenJournal={() => {
+                  setOpenedReport(null);
+                  openWindow('journal');
+                }}
+                onClose={() => setOpenedReport(null)}
+              />
+            )}
+            {/* Haut-droite : le refus de fondation, et lui seul. **Plus rien n'y dit la visée** — le
             cartouche la porte (décision du 30/08). Pas en haut à gauche : l'échelle de route d'un
             mouvement survolé s'y pose, et le refus reste affiché jusqu'au geste suivant. */}
-          {orderError !== null && (
-            <div
-              className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
-                narrow
-                  ? 'bottom-4 left-4'
-                  : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
-                    windows.includes('journal')
-                    ? 'top-4 left-1/2 -translate-x-1/2'
-                    : 'top-4 right-4'
-              }`}
-            >
-              {orderError}
-            </div>
-          )}
-          {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
+            {orderError !== null && (
+              <div
+                className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
+                  narrow
+                    ? 'bottom-4 left-4'
+                    : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
+                      windows.includes('journal')
+                      ? 'top-4 left-1/2 -translate-x-1/2'
+                      : 'top-4 right-4'
+                }`}
+              >
+                {orderError}
+              </div>
+            )}
+            {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
             remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
             **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
             du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
-          {!narrow && (
-            <div className="absolute bottom-4 left-4 z-[var(--z-band)]">{nextActions('card')}</div>
-          )}
-          {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
-            la cible, et la colonne passerait sous le doigt qui la nomme. */}
-          {narrow && column === null && (
-            <div className="absolute top-[10px] left-2 z-10">
-              <UnderwayColumn
-                lines={underway}
-                nation={view.me.nation}
-                fresh={sent === null ? null : `movement-${sent.movementId}`}
-                onLocate={locateUnderway}
-              />
-            </div>
-          )}
-          {narrow && sent !== null && (
-            <div className="absolute inset-x-[10px] bottom-[14px] z-[var(--z-indicator)]">
-              <SentNotice
-                order={sent.order}
-                destination={sent.destination}
-                arrivesAt={sent.arrivesAt}
-                slots={view.me.slots}
-                onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
-              />
-            </div>
-          )}
-          <div className="pointer-events-none absolute right-4 bottom-4 z-[var(--z-indicator)] flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
-            {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
-              prendrait la place de la visée et la désarmerait. */}
-            {!aimingOnPhone && (
-              <GroundPanel
-                selected={country ?? null}
-                hoveredCountry={hoveredCountry}
-                hoveredRegion={hoveredRegion}
-                holding={
-                  hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
-                }
-                suspendedUntil={
-                  hoveredRegion === null
-                    ? null
-                    : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
-                }
-                view={view}
-                onDeselect={() => select(null)}
-              />
+            {!narrow && replay === null && (
+              <div className="absolute bottom-4 left-4 z-[var(--z-band)]">
+                {nextActions('card')}
+              </div>
             )}
-            {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
+            {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
+            la cible, et la colonne passerait sous le doigt qui la nomme. */}
+            {narrow && column === null && (
+              <div className="absolute top-[10px] left-2 z-10">
+                <UnderwayColumn
+                  lines={underway}
+                  nation={view.me.nation}
+                  fresh={sent === null ? null : `movement-${sent.movementId}`}
+                  onLocate={locateUnderway}
+                />
+              </div>
+            )}
+            {narrow && sent !== null && (
+              <div className="absolute inset-x-[10px] bottom-[14px] z-[var(--z-indicator)]">
+                <SentNotice
+                  order={sent.order}
+                  destination={sent.destination}
+                  arrivesAt={sent.arrivesAt}
+                  slots={view.me.slots}
+                  onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
+                />
+              </div>
+            )}
+            <div className="pointer-events-none absolute right-4 bottom-4 z-[var(--z-indicator)] flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
+              {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
+              prendrait la place de la visée et la désarmerait. */}
+              {!aimingOnPhone && (
+                <GroundPanel
+                  selected={country ?? null}
+                  hoveredCountry={hoveredCountry}
+                  hoveredRegion={hoveredRegion}
+                  holding={
+                    hoveredRegion === null ? null : (knownRegionById.get(hoveredRegion.id) ?? null)
+                  }
+                  suspendedUntil={
+                    hoveredRegion === null
+                      ? null
+                      : (suspendedUntilByRegion.get(hoveredRegion.id) ?? null)
+                  }
+                  view={view}
+                  onDeselect={() => select(null)}
+                />
+              )}
+              {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
               coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place
               au cartouche « transmis » le temps qu'il se lit. */}
-            {!narrow && corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
-            {!narrow && corner === 'layers' && (
-              <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
-                <LayersGrid />
-              </CornerCard>
-            )}
-            {(!narrow || sent === null) && (
-              <MapButtons narrow={narrow} onRecenter={recenterOnHome} onCorner={setCorner} />
+              {!narrow && corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
+              {!narrow && corner === 'layers' && (
+                <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
+                  <LayersGrid />
+                </CornerCard>
+              )}
+              {(!narrow || sent === null) && replay === null && (
+                <MapButtons narrow={narrow} onRecenter={recenterOnHome} onCorner={setCorner} />
+              )}
+            </div>
+            {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
+            {/* **Pendant le rejeu, la carte ne se commande pas** : un voile prend tous les gestes —
+            ni lever, ni rose, ni caméra, que le rejeu conduit et ramène. */}
+            {replay !== null && (
+              <div className="absolute inset-0 z-[var(--z-band)]">
+                <ReplayDeck
+                  view={replay.view}
+                  said={replay.said}
+                  step={replay.step}
+                  playing={replay.playing}
+                  onToggle={() =>
+                    setReplay((current) => current && { ...current, playing: !current.playing })
+                  }
+                  onStep={(direction) =>
+                    setReplay(
+                      (current) =>
+                        current && { ...current, stepping: { direction, nonce: Date.now() } },
+                    )
+                  }
+                  onLeave={() => setReplay(null)}
+                />
+              </div>
             )}
           </div>
-          {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
-        </div>
-        <Suspense fallback={null}>
-          {windows.map((name, rank) => {
-            const windowProps = {
-              rank,
-              inFront: rank === windows.length - 1,
-              onBringForward: () => bringForward(name),
-              onClose: () => {
-                /** La manchette d'une notification ne survit pas au journal qui la portait. */
-                if (name === 'journal') setJournalLead(null);
-                closeWindow(name);
-              },
-            };
-            switch (name) {
-              case 'journal':
-                return (
-                  <JournalWindow
-                    key={name}
-                    view={view}
-                    seat={seat}
-                    leadReport={journalLead}
-                    rumors={lootRumors}
-                    selectedRumorId={selectedRumorId}
-                    onSelectRumor={selectRumor}
-                    garrisonAt={garrisonAtCombat}
-                    onShowCombat={showCombat}
-                    onLocate={locate}
-                    onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
-                    {...windowProps}
-                  />
-                );
-              case 'telegraph':
-                return (
-                  <TelegraphWindow key={name} telegraph={telegraph} seat={seat} {...windowProps} />
-                );
-              case 'site':
-                /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
-                 *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
-                return focused === undefined ? null : (
-                  <SiteModal
-                    key={name}
-                    view={view}
-                    seat={seat}
-                    buildingId={focused}
-                    onOpenGunnery={() => openWindow('gunnery')}
-                    onPrepare={prepareColumn}
-                    {...windowProps}
-                  />
-                );
-              case 'economy':
-                return (
-                  <EconomyWindow
-                    key={name}
-                    view={view}
-                    seat={seat}
-                    focused={focused ?? null}
-                    onRaiseOutpost={openOutpost}
-                    {...windowProps}
-                  />
-                );
-              case 'nation':
-                return (
-                  <NationWindow key={name} view={view} onLocate={locateStation} {...windowProps} />
-                );
-              case 'gunnery':
-                return <GunneryWindow key={name} seat={seat} {...windowProps} />;
-              case 'press':
-                return <PressWindow key={name} press={view.press} {...windowProps} />;
-              case 'settings':
-                return (
-                  <SettingsWindow
-                    key={name}
-                    seat={seat}
-                    mayConclude={view.me.mayConclude}
-                    defeated={view.me.defeated}
-                    onShowBriefing={showBriefing}
-                    {...windowProps}
-                  />
-                );
-            }
-          })}
-        </Suspense>
-        {briefing && (
-          <BriefingSheet
-            onDismiss={() => {
-              markBriefingSeen();
-              setBriefing(false);
-            }}
+          <Suspense fallback={null}>
+            {windows.map((name, rank) => {
+              const windowProps = {
+                rank,
+                inFront: rank === windows.length - 1,
+                onBringForward: () => bringForward(name),
+                onClose: () => {
+                  /** La manchette d'une notification ne survit pas au journal qui la portait. */
+                  if (name === 'journal') setJournalLead(null);
+                  closeWindow(name);
+                },
+              };
+              switch (name) {
+                case 'journal':
+                  return (
+                    <JournalWindow
+                      key={name}
+                      view={view}
+                      seat={seat}
+                      leadReport={journalLead}
+                      rumors={lootRumors}
+                      selectedRumorId={selectedRumorId}
+                      onSelectRumor={selectRumor}
+                      garrisonAt={garrisonAtCombat}
+                      onShowCombat={showCombat}
+                      onLocate={locate}
+                      onOpenGarrison={(station) => openGarrison(station, [], boardPoint())}
+                      {...windowProps}
+                    />
+                  );
+                case 'telegraph':
+                  return (
+                    <TelegraphWindow
+                      key={name}
+                      telegraph={telegraph}
+                      seat={seat}
+                      {...windowProps}
+                    />
+                  );
+                case 'site':
+                  /** Sans bâtiment nommé il n'y a pas de site : l'URL a perdu son ancre, et une
+                   *  modale sans sujet n'est pas une modale vide, c'est rien du tout. */
+                  return focused === undefined ? null : (
+                    <SiteModal
+                      key={name}
+                      view={view}
+                      seat={seat}
+                      buildingId={focused}
+                      onOpenGunnery={() => openWindow('gunnery')}
+                      onPrepare={prepareColumn}
+                      {...windowProps}
+                    />
+                  );
+                case 'economy':
+                  return (
+                    <EconomyWindow
+                      key={name}
+                      view={view}
+                      seat={seat}
+                      focused={focused ?? null}
+                      onRaiseOutpost={openOutpost}
+                      {...windowProps}
+                    />
+                  );
+                case 'nation':
+                  return (
+                    <NationWindow
+                      key={name}
+                      view={view}
+                      onLocate={locateStation}
+                      {...windowProps}
+                    />
+                  );
+                case 'gunnery':
+                  return <GunneryWindow key={name} seat={seat} {...windowProps} />;
+                case 'press':
+                  return <PressWindow key={name} press={view.press} {...windowProps} />;
+                case 'settings':
+                  return (
+                    <SettingsWindow
+                      key={name}
+                      seat={seat}
+                      mayConclude={view.me.mayConclude}
+                      defeated={view.me.defeated}
+                      onShowBriefing={showBriefing}
+                      {...windowProps}
+                    />
+                  );
+              }
+            })}
+          </Suspense>
+          {briefing && (
+            <BriefingSheet
+              onDismiss={() => {
+                markBriefingSeen();
+                setBriefing(false);
+              }}
+            />
+          )}
+          {/* the curtain extends the launch's black until the map's first frame */}
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0 z-[var(--z-veil)] bg-[var(--desk)]"
+            style={{ animation: 'curtain-rise .9s ease forwards' }}
           />
-        )}
-        {/* the curtain extends the launch's black until the map's first frame */}
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-0 z-[var(--z-veil)] bg-[var(--desk)]"
-          style={{ animation: 'curtain-rise .9s ease forwards' }}
-        />
+        </ReplayLaunch.Provider>
       </SelectionSheetReport.Provider>
     </Shell>
   );

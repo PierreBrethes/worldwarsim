@@ -47,8 +47,13 @@ lui seul). Ce qui reste automatique est la **réponse** : attaqué, un camp se b
 que personne l'ordonne (ADR 0024 §3). Les neuf
 portées sont des placeholders `@a-mesurer`. Un raid gagné **désactive** l'avant-poste, jamais ne le
 prend. Chaque engagement laisse un **compte
-rendu** que le journal sert en dépêches ; le rejeu visuel attend la surface 4.7 et se construira
-sur ce compte rendu, sans re-résoudre.
+rendu** que le journal sert en dépêches, et **ce compte rendu se rejoue** (surface 4.7, ADR 0026
+§7, 13/10/2026) : « rejouer » sur la dépêche d'un combat à soi — marge du journal, sa manchette
+au téléphone, feuille d'arrivée — et nulle part ailleurs ; une dizaine de secondes sur la carte,
+sans re-résoudre (`replay.replayOf`, `src/routes/-plateau/ReplayDeck.tsx`), un bandeau qui coupe
+la lecture et avance étape par étape, la carte muette jusqu'à « quitter », qui se confirme et
+rend la caméra. Chez soi des figurines par rôle ; en face **un bloc par troupe et des totaux**,
+jamais un rôle — le brouillard ne se lève pas parce qu'on a tiré.
 
 **Et un cargo peut rester en mer avec des unités dedans** (décision de Pierre, 18/09/2026, qui
 révise la 72a du 04/09 — bannières dans les ADR 0019 §2 et 0012). Une colonne embarquée

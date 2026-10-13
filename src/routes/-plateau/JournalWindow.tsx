@@ -17,6 +17,7 @@ import {
 } from '@/domain/player-view';
 import { useNarrowScreen } from '@/shell/viewport';
 import { CombatLines } from './DispatchSheet';
+import { ReplayButton } from './ReplayDeck';
 import { DragHandle } from './Draggable';
 import { FloatingWindow, type WindowProps } from './Window';
 import type { Seat } from '@/data/session';
@@ -347,6 +348,10 @@ function DeskLine({
             {fr.journal.locate}
           </button>
         )}
+        <ReplayButton
+          dispatch={dispatch}
+          className="cursor-pointer text-[10.5px] tracking-[.14em] uppercase underline underline-offset-[3px] hover:text-[var(--critical)]"
+        />
       </div>
       <span
         className="font-(family-name:--font-text) text-[15px] leading-[1.3] text-pretty break-words"
@@ -533,6 +538,12 @@ function NarrowJournal({
                   </button>
                 )}
               </div>
+              <div className="mt-2 flex flex-col gap-1">
+                <ReplayButton
+                  dispatch={lead}
+                  className="min-h-[44px] w-full cursor-pointer border border-[var(--ink)] text-[10.5px] font-bold tracking-[.16em] uppercase"
+                />
+              </div>
             </>
           )}
         </section>
@@ -649,21 +660,29 @@ function DispatchList({
             {line}
           </div>
         ) : (
-          <button
-            key={`${entry.at}-${entry.text}`}
-            type="button"
-            title={fr.journal.showOnMap}
-            onClick={() => onShowCombat(combat)}
-            className={`${row} cursor-pointer`}
-          >
-            {line}
-            <span
-              aria-hidden
-              className="self-center text-[20px] leading-none text-[var(--ink-soft)]"
+          <div key={`${entry.at}-${entry.text}`}>
+            <button
+              type="button"
+              title={fr.journal.showOnMap}
+              onClick={() => onShowCombat(combat)}
+              className={`${row} cursor-pointer`}
             >
-              ›
-            </span>
-          </button>
+              {line}
+              <span
+                aria-hidden
+                className="self-center text-[20px] leading-none text-[var(--ink-soft)]"
+              >
+                ›
+              </span>
+            </button>
+            {/* À côté de la ligne et non dedans : un bouton ne se pose pas dans un bouton. */}
+            <div className="flex flex-col items-end gap-1 border-b border-(color:--ink)/16 px-4 py-[6px]">
+              <ReplayButton
+                dispatch={entry}
+                className="min-h-[44px] cursor-pointer border border-[var(--ink)] px-4 text-[10.5px] font-bold tracking-[.16em] uppercase"
+              />
+            </div>
+          </div>
         );
       })}
     </section>

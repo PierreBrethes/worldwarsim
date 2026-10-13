@@ -119,7 +119,9 @@ export type ErrorCode =
   | 'NOT_ORDERABLE'
   | 'EMPTY_MESSAGE'
   | 'MESSAGE_TOO_LONG'
-  | 'TELEGRAPH_TOO_FAST';
+  | 'TELEGRAPH_TOO_FAST'
+  | 'UNKNOWN_COMBAT'
+  | 'NOT_A_PARTY';
 
 export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };
 
