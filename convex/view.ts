@@ -18,7 +18,7 @@ import {
 import { carryCapacityOf } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
-import { NOTICES_SERVED, type TroopStation } from '../src/domain/player-view';
+import { NOTICES_SERVED, type CombatTally, type TroopStation } from '../src/domain/player-view';
 import {
   buildingCostKey,
   cappedByHq,
@@ -75,6 +75,15 @@ import { cargoTotal, movementCargoLoads, stationedCargoGroups } from './cargo';
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
 const workKey = (building: BuildCostKey): BuildCostKey =>
   isOutpostWork(building) ? building : canonicalBuildingKey(building);
+
+/** What a set of engaged troops amounts to, in men and machines (ADR 0014) — one count for the
+ *  account and for the replay, so the two cannot disagree. */
+export const tallyOf = (rows: Doc<'engagements'>['troops']): CombatTally => ({
+  troops: rows.length,
+  lost: rows.reduce((sum, troop) => sum + (troop.strengthBefore - troop.strengthAfter), 0),
+  routed: rows.filter((troop) => troop.state === 'routed').length,
+  destroyed: rows.filter((troop) => troop.state === 'destroyed').length,
+});
 
 export const playerView = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
@@ -679,15 +688,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     reports: (await engagementsOf(ctx, player._id)).map((engagement) => {
       const side =
         engagement.attackerId === player._id ? ('attacker' as const) : ('defender' as const);
-      const tally = (of: 'attacker' | 'defender') => {
-        const rows = engagement.troops.filter((troop) => troop.side === of);
-        return {
-          troops: rows.length,
-          lost: rows.reduce((sum, troop) => sum + (troop.strengthBefore - troop.strengthAfter), 0),
-          routed: rows.filter((troop) => troop.state === 'routed').length,
-          destroyed: rows.filter((troop) => troop.state === 'destroyed').length,
-        };
-      };
+      const tally = (of: 'attacker' | 'defender') =>
+        tallyOf(engagement.troops.filter((troop) => troop.side === of));
       return {
         id: engagement._id,
         at: engagement.at,
