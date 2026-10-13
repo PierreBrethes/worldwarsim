@@ -2482,6 +2482,12 @@ export const fr = {
     dayCycle: { real: 'réel', hour: 'accéléré — une heure' },
     dayCycleNote:
       'Réel : la nuit suit le vrai soleil. Accéléré : une journée entière en soixante minutes, pour juger la lumière sans attendre.',
+    pieceScaleLabel: 'Taille des pièces',
+    pieceScaleNote:
+      'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',
+    pieceScaleTroops: 'Troupes',
+    pieceScaleBuildings: 'Bâtiments',
+    pieceScalePercent: (value: number) => `${value} %`,
     soundLabel: 'Son du télégraphe',
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',

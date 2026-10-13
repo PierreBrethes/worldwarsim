@@ -19,6 +19,7 @@ import type { Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
+import { pieceScale } from './piece-scale';
 
 /** A surveyed enemy camp as the board stands it: its label id, its point, its medium, its age. */
 export type SurveyedCamp = {
@@ -287,7 +288,7 @@ export class CampLayer {
       const { object, piece } = entry;
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
-      object.scale.setScalar(near);
+      object.scale.setScalar(near * pieceScale.troops);
       object.rotation.set(0, yaw, 0);
       if (entry.landing === null) continue;
       const d = (now - entry.landing.since) / 1000;

@@ -40,6 +40,7 @@ import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useDayCycle } from '@/data/dayCycle';
 import { useMapMotion } from '@/data/mapMotion';
+import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
@@ -322,6 +323,7 @@ export function WorldMap({
   const mapping = useMouseMapping();
   const motion = useMapMotion();
   const dayCycle = useDayCycle();
+  const pieces = usePieceScale();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -644,6 +646,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setMouseMapping(mapping);
   }, [readyEngine, mapping]);
+
+  useEffect(() => {
+    readyEngine?.setPieceScale(pieces);
+  }, [readyEngine, pieces]);
 
   useEffect(() => {
     readyEngine?.setMapMotion(motion);

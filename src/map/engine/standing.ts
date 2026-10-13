@@ -19,6 +19,7 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
+import { pieceScale } from './piece-scale';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -542,13 +543,13 @@ export class StandingLayer {
       }
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
-      object.scale.setScalar(near);
+      object.scale.setScalar(near * pieceScale.troops);
     }
     if (this.carried === null) return;
     const { object, at } = this.carried;
     const near = nearWeight(object.position.distanceTo(cameraPosition));
     object.visible = at && near > 0;
-    object.scale.setScalar(near);
+    object.scale.setScalar(near * pieceScale.troops);
   }
 
   /** Model geometry is shared with the pawns and the counter disc with every pile: only the
