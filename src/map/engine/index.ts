@@ -1603,7 +1603,12 @@ export class MapEngine {
       this.arcs.headPositions,
     );
     this.onLabels(this.outsideReplay(projections, distance));
-    this.onEdges(projections);
+    // An arrow at the edge would lead out of a replay the veil does not let one leave.
+    this.onEdges(
+      this.replay === null
+        ? projections
+        : projections.map((projection) => ({ ...projection, atEdge: false })),
+    );
   };
 }
 
