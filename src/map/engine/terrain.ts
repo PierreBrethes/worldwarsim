@@ -8,19 +8,6 @@ import { inkedStrands } from './ink';
 import { PALETTE } from './palette';
 
 /**
- * Hover wash per type — muted inks, under the highlight material's opacity: the map stays
- * paper, the tint is only a hint.
- */
-export const TYPE_TINTS: Record<RegionType, string> = {
-  plain: '#a8a352',
-  forest: '#48663a',
-  jungle: '#2f7a4c',
-  mountain: '#8a8072',
-  desert: '#c99f56',
-  tundra: '#9fbfc4',
-};
-
-/**
  * **Les dessins de terrain au survol** (`WWS/docs/design/propositions/table-etat-major.md`) :
  * des pictogrammes de cartographe tracés à la plume dans la région survolée. Décor pur — le type
  * est cuit hors ligne et aucune règle ne le lit.
@@ -368,7 +355,15 @@ export function mulberry(seedValue: number): () => number {
 const FADE_OUT_S = 0.4;
 /** « Réduites » : the drawing appears without the pen, in a short fade. */
 const FADE_IN_S = 0.25;
-const PEAK_OPACITY = 0.88;
+const PEAK_OPACITY = 1;
+/** Share of the regions layer's fade over which a drawing reaches full opacity: a translucent
+ *  paper stroke takes the ground's colour (grey-blue instead of white), so the fade is a hair. */
+const ZOOM_FADE_BAND = 0.08;
+
+/** Drawings are fully inked as soon as they show; the layer only decides *whether*. */
+export function zoomFade(layerFade: number): number {
+  return Math.min(1, Math.max(0, layerFade / ZOOM_FADE_BAND));
+}
 const STROKE_PX = 1.4;
 
 export type PenStrands = ReadonlyArray<{
@@ -454,6 +449,9 @@ export class TerrainSketches {
       new LineSegmentsGeometry(),
       this.material(inkOn(ground, groundOpacity)),
     );
+    /** Transparent like the fills it lies on: drawn before them, a paper stroke is tinted by the
+     *  nation's ink and reads grey-blue. */
+    line.renderOrder = 1;
     this.group.add(line);
     this.sketches.push({
       regionId,
@@ -491,7 +489,7 @@ export class TerrainSketches {
         sketch.drawn = !pen || elapsed >= SKETCH_S;
       }
       const material = sketch.line.material;
-      material.opacity = PEAK_OPACITY * fadeIn * sketch.fade * layerFade;
+      material.opacity = PEAK_OPACITY * fadeIn * sketch.fade * zoomFade(layerFade);
       if (!sketch.drawn || sketch.leftAt !== null || sketch.fade < 1 || fadeIn < 1)
         this.busy = true;
     }

@@ -19,7 +19,8 @@ import {
   seed,
   sketchRegion,
   TerrainSketches,
-  TYPE_TINTS,
+  inkOn,
+  zoomFade,
   type PenStrands,
 } from './terrain';
 
@@ -298,6 +299,7 @@ export class RegionLayer {
       depthWrite: false,
     });
     this.hoverOutline = new LineSegments(new BufferGeometry(), this.hoverMaterial);
+    this.hoverOutline.renderOrder = 1;
     this.hoverOutline.visible = false;
   }
 
@@ -554,7 +556,7 @@ export class RegionLayer {
     this.built.visible = this.share > VISIBLE_SHARE && this.builtIds.size > 0;
     this.designatedMaterial.opacity = this.share * DESIGNATED_OPACITY;
     this.designated.visible = this.share > VISIBLE_SHARE && this.designatedIds.size > 0;
-    this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
+    this.hoverMaterial.opacity = zoomFade(this.share) * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
     this.terrain.animate(now, this.share);
@@ -613,7 +615,7 @@ export class RegionLayer {
 
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
      *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
-    this.hoverMaterial.color.set(held?.ink ?? TYPE_TINTS[region.type]);
+    this.hoverMaterial.color.set(inkOn(painted?.ink ?? null, HELD_OPACITY * (painted?.wash ?? 0)));
 
     const points: number[] = [];
     for (const ring of region.rings) {
