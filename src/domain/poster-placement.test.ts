@@ -80,10 +80,10 @@ describe('posterPlacement', () => {
   });
 
   it('keeps its side across the seam, and leaves it once that side no longer fits', () => {
-    const near = { left: 580, right: 620, top: 165, bottom: 400 };
+    const near = { left: 580, right: 620, top: 180, bottom: 400 };
     expect(posterPlacement(near, poster, viewport, insets).side).toBe('right');
     expect(posterPlacement(near, poster, viewport, insets, 'above').side).toBe('above');
-    const far = { ...near, top: 150 };
+    const far = { ...near, top: 160 };
     expect(posterPlacement(far, poster, viewport, insets, 'above').side).toBe('right');
   });
 });
