@@ -15,7 +15,14 @@ import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import type { Curvature } from './curvature';
 import { builtInk, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { TYPE_TINTS } from './terrain';
+import {
+  mulberry,
+  seed,
+  sketchRegion,
+  TerrainSketches,
+  TYPE_TINTS,
+  type PenStrands,
+} from './terrain';
 
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
@@ -44,6 +51,8 @@ const BUILT_LIFT = 0.001;
 const DESIGNATED_LIFT = 0.002;
 const HOVER_LIFT = 0.0035;
 const ANCHOR_LIFT = 0.001;
+/** Over the fills, under the hover contour that frames them. */
+const SKETCH_LIFT = 0.003;
 
 /** Thin enough that the contour reads as a pen stroke and not as a second border. */
 const HOVER_OPACITY = 0.85;
@@ -174,6 +183,7 @@ export class RegionLayer {
   /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
   readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
+  readonly terrain = new TerrainSketches();
   private readonly lineMaterial: LineBasicMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
   private readonly designatedMaterial: MeshStandardMaterial;
@@ -477,7 +487,7 @@ export class RegionLayer {
   }
 
   /** Fade driven by camera→target distance; invisible, the layer costs nothing. */
-  animate(cameraDistance: number): void {
+  animate(cameraDistance: number, now: number): void {
     this.share = Math.min(
       1,
       Math.max(
@@ -494,6 +504,7 @@ export class RegionLayer {
     this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
+    this.terrain.animate(now, this.share);
   }
 
   dispose(): void {
@@ -512,6 +523,7 @@ export class RegionLayer {
     this.builtMaterial.dispose();
     this.designatedMaterial.dispose();
     this.hoverMaterial.dispose();
+    this.terrain.dispose();
     this.lines.removeFromParent();
     this.built.removeFromParent();
     this.designated.removeFromParent();
@@ -530,6 +542,11 @@ export class RegionLayer {
     if (region === this.hoveredRegion) return;
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
+    this.terrain.show(
+      region?.id ?? null,
+      () => (prepared ? this.penStrandsOf(prepared) : []),
+      performance.now(),
+    );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
       this.hoverOutline.visible = false;
@@ -556,6 +573,21 @@ export class RegionLayer {
 
     this.hoverOutline.geometry = geometry;
     this.hoverOutline.visible = true;
+  }
+
+  private penStrandsOf({ region, box, area }: PreparedRegion): PenStrands {
+    return sketchRegion({
+      type: region.type,
+      seed: seed(region.id),
+      box,
+      area,
+      covers: (x, y) => contains(region, x, y),
+    }).map(({ delay, strokes }) => ({
+      delay,
+      strands: strokes.map((stroke) =>
+        stroke.map(([x, y]) => this.frame.toWorld(x, y, COUNTRY_THICKNESS + SKETCH_LIFT)),
+      ),
+    }));
   }
 
   /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
@@ -613,23 +645,6 @@ function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
     if (contains(prepared.region, x, y)) return [x, y];
   }
   return centroid;
-}
-
-function seed(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return hash;
-}
-
-function mulberry(seedValue: number): () => number {
-  let state = seedValue >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 function contains(region: DisplayedRegion, x: number, y: number): boolean {
