@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { UnitRole, UnitTier } from './ids';
 import { pilePieces, pileSheet } from './pile-pieces';
 
+let serial = 0;
 const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStrength = 100) => ({
+  id: `t${++serial}`,
   role,
   tier,
   strength,
@@ -11,7 +13,7 @@ const troop = (role: UnitRole, tier: UnitTier = 1, strength = 100, nominalStreng
 
 describe('pilePieces', () => {
   it('is empty for no troops', () => {
-    expect(pilePieces([])).toEqual({ groups: [], more: 0 });
+    expect(pilePieces([])).toEqual({ groups: [], more: 0, troopIds: [] });
     expect(pileSheet([])).toEqual([]);
   });
 
@@ -90,6 +92,20 @@ describe('pilePieces', () => {
     expect(one(1, 1)).toEqual([1]);
   });
 
+  it('names the troops of each group, and of the whole pile beyond the +N', () => {
+    const pile = [
+      { ...troop('armor'), id: 'a1' },
+      { ...troop('infantry'), id: 'i1' },
+      { ...troop('armor'), id: 'a2' },
+      { ...troop('landTransport'), id: 'l1' },
+      { ...troop('fighter'), id: 'f1' },
+    ];
+    const { groups, troopIds } = pilePieces(pile);
+    expect(groups.map((g) => g.troopIds)).toEqual([['a1', 'a2'], ['i1'], ['l1']]);
+    expect(troopIds).toEqual(['a1', 'i1', 'a2', 'l1', 'f1']);
+    expect(pileSheet(pile).map((l) => l.troopIds)).toEqual([['a1', 'a2'], ['i1'], ['l1'], ['f1']]);
+  });
+
   it('treats a zero nominal strength as whole', () => {
     const [group] = pilePieces([troop('armor', 1, 0, 0)]).groups;
     expect(group?.wear).toBe('whole');
@@ -109,7 +125,14 @@ describe('pileSheet', () => {
 
   it('counts troops and cumulates strength per role', () => {
     expect(pileSheet([troop('armor', 1, 100), troop('armor', 1, 0)])).toEqual([
-      { role: 'armor', troops: 2, health: 50, notches: 5, ink: 'ochre' },
+      {
+        role: 'armor',
+        troops: 2,
+        troopIds: [`t${serial - 1}`, `t${serial}`],
+        health: 50,
+        notches: 5,
+        ink: 'ochre',
+      },
     ]);
   });
 });

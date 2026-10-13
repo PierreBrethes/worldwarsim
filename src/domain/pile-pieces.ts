@@ -7,7 +7,7 @@ import { ROLE_ORDER } from './troops';
  * le moteur et la feuille de lecture partagent un seul avis sur ce qui se montre et ce qui s'use.
  */
 
-type PileTroop = Pick<TroopView, 'role' | 'tier' | 'strength' | 'nominalStrength'>;
+type PileTroop = Pick<TroopView, 'id' | 'role' | 'tier' | 'strength' | 'nominalStrength'>;
 
 export type Wear = 'whole' | 'smoking' | 'burning';
 
@@ -15,6 +15,8 @@ export type PieceGroup = {
   readonly role: UnitRole;
   /** Troops of this role in the pile — the ×N counter shows when > 1. */
   readonly troops: number;
+  /** What a click on the group lifts (ADR 0026 §6). */
+  readonly troopIds: ReadonlyArray<string>;
   /** Marks of the figures that stand, front first. */
   readonly figures: ReadonlyArray<UnitTier>;
   readonly wear: Wear;
@@ -24,11 +26,14 @@ export type PilePieces = {
   readonly groups: ReadonlyArray<PieceGroup>;
   /** Roles present beyond the three shown — the "+N" counter, 0 when none. */
   readonly more: number;
+  /** Every troop of the pile, the +N's included: what a click on a counter lifts. */
+  readonly troopIds: ReadonlyArray<string>;
 };
 
 export type SheetLine = {
   readonly role: UnitRole;
   readonly troops: number;
+  readonly troopIds: ReadonlyArray<string>;
   /** 0..100, the group's strength against its nominal, rounded. */
   readonly health: number;
   /** Ten notches, how many are inked: Math.round(health / 10). */
@@ -83,10 +88,12 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
     groups: buckets.slice(0, SHOWN_GROUPS).map((bucket) => ({
       role: bucket.role,
       troops: bucket.troops.length,
+      troopIds: bucket.troops.map((t) => t.id),
       figures: figuresOf(bucket),
       wear: wearOf(bucket.ratio),
     })),
     more: Math.max(0, buckets.length - SHOWN_GROUPS),
+    troopIds: troops.map((t) => t.id),
   };
 }
 
@@ -96,6 +103,7 @@ export function pileSheet(troops: ReadonlyArray<PileTroop>): ReadonlyArray<Sheet
     return {
       role,
       troops: members.length,
+      troopIds: members.map((t) => t.id),
       health,
       notches: Math.round(health / 10),
       ink: ratio > 2 / 3 ? 'ink' : ratio > 1 / 3 ? 'ochre' : 'red',

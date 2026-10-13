@@ -4,6 +4,7 @@ import { pilePieces } from '@/domain/pile-pieces';
 import { drawnKey, dressedGroups, pileLayout } from './standing';
 
 const troop = (role: UnitRole, strength = 100) => ({
+  id: role,
   role,
   tier: 1 as const,
   strength,
@@ -28,7 +29,7 @@ describe('dressedGroups', () => {
   it('leaves the whole pile to its plate when one group has none', () => {
     expect(dressedGroups('france', pilePieces([troop('infantry'), troop('armor')]))).toBeNull();
     expect(dressedGroups('italy', pilePieces([troop('infantry')]))).toBeNull();
-    expect(dressedGroups('france', { groups: [], more: 0 })).toBeNull();
+    expect(dressedGroups('france', { groups: [], more: 0, troopIds: [] })).toBeNull();
   });
 });
 

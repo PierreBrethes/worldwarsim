@@ -90,6 +90,7 @@ for (const role of ROLES) {
 
 /** Piles as the board stands them: whole, worn and counted, and one left to its plate. */
 const troop = (role: UnitRole, strength = 100, tier: UnitTier = 1) => ({
+  id: role,
   role,
   tier,
   strength,
