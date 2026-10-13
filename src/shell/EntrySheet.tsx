@@ -25,7 +25,7 @@ export function EntrySheet({
 }) {
   return (
     <Newspaper width={width} turning={turning} backdrop={backdrop}>
-      <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)] [--sheet-pad:30px] max-md:[--sheet-pad:16px]">
+      <div className="paper-grain @container relative border border-[var(--ink)] text-[var(--ink)] float [--sheet-pad:30px] max-md:[--sheet-pad:16px]">
         {children}
       </div>
     </Newspaper>

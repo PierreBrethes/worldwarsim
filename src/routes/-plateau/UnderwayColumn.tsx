@@ -64,7 +64,7 @@ export function UnderwayColumn({
             type="button"
             title={fr.underway.locate(line.label)}
             onClick={() => onLocate(line)}
-            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left shadow-[0_2px_0_rgba(15,10,4,.55)] ${
+            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${
               open ? 'w-[174px]' : 'w-[90px]'
             } ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
           >
