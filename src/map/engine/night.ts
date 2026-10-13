@@ -19,6 +19,7 @@ import type { SeaLayer } from './sea';
  * pays et des régions. Une sélection cuite des grandes villes de 1940 tient lieu de lumières —
  * du décor, jamais lu par une règle.
  */
+// prettier-ignore
 const CITIES: ReadonlyArray<LonLat> = [
   [-0.13, 51.51], [2.35, 48.86], [13.4, 52.52], [37.62, 55.75], [12.5, 41.9], [16.37, 48.21],
   [-3.7, 40.42], [21.01, 52.23], [19.04, 47.5], [14.42, 50.09], [4.9, 52.37], [4.35, 50.85],

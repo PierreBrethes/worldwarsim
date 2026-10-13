@@ -151,10 +151,10 @@ const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
 /** Development only: `?nuit=0.8` holds the sky at that share of night, to look at it now. */
-const FORCED_NIGHT = (() => {
-  const raw = import.meta.env.DEV ? new URLSearchParams(location.search).get('nuit') : null;
+function forcedNight(search: string): number | null {
+  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('nuit') : null;
   return raw === null ? null : Number(raw);
-})();
+}
 
 /**
  * Below this accumulated motion, the gesture is a clean click and designates the aimed
@@ -203,6 +203,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly forcedNight = forcedNight(location.search);
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -1604,7 +1605,7 @@ export class MapEngine {
     this.ambience.frame();
     // The cycle is slow enough for the heartbeat: no frame is ever asked for the sky alone. Cut
     // motion keeps it too — a half-hour dusk does not move, a stepped one would jump.
-    this.night.apply(FORCED_NIGHT ?? nightAt(Date.now()));
+    this.night.apply(this.forcedNight ?? nightAt(Date.now()));
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
