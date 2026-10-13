@@ -117,7 +117,7 @@ export function NextActions({
         {/* At the desk the card's own fold is the only one (Pierre, 10/10): two "replier" one
             above the other fought over the same gesture. */}
         {frame === 'card' ? (
-          <p className="border-b border-(color:--ink)/18 px-[13px] py-[8px] text-[12.5px] leading-[1.35]">
+          <p className="border-b border-(color:--ink)/18 px-[13px] py-[8px] text-[13px] leading-[1.25]">
             {action.label}
           </p>
         ) : (
@@ -157,19 +157,20 @@ export function NextActions({
 
   return (
     <section
-      className="hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
+      className="float hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
       style={{ zoom: `calc(var(--hud-scale) * ${CARD_ZOOM})` }}
     >
       <div
-        className={`flex items-baseline gap-2 px-[13px] pt-[9px] pb-2 ${folded ? '' : 'border-b-2 border-[var(--ink)]'}`}
+        className={`flex items-end gap-2 px-[13px] pt-[9px] pb-2 ${folded ? '' : 'border-b-2 border-[var(--ink)]'}`}
       >
-        <h2 className="font-(family-name:--font-display) text-[15px] leading-none font-extrabold tracking-[.06em] uppercase">
-          {fr.nextActions.header}
-        </h2>
-        <span className="h-px flex-1 bg-(--ink)/25" />
-        <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-          {fr.nextActions.count(actions.length)}
-        </span>
+        <div className="grid min-w-0 flex-1 gap-[5px]">
+          <span className="text-[10px] leading-none font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
+            {fr.nextActions.count(actions.length)}
+          </span>
+          <h2 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">
+            {fr.nextActions.header}
+          </h2>
+        </div>
         <button
           type="button"
           aria-expanded={!folded}
@@ -241,7 +242,7 @@ function Row({
       onClick={onPick}
       className="flex w-full cursor-pointer items-baseline gap-2 border-b border-(color:--ink)/18 px-[13px] py-[8px] text-left last:border-b-0 hover:bg-(--ink)/7"
     >
-      <span className="min-w-0 flex-1 text-[12.5px] leading-[1.35] text-[var(--ink)]">
+      <span className="min-w-0 flex-1 text-[13px] leading-[1.25] text-[var(--ink)]">
         {action.label}
       </span>
       <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
