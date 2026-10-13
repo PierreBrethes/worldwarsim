@@ -298,6 +298,7 @@ export class ReplayScene {
     }
     pivot.add(built.body, marker);
     built.shot.visible = false;
+    built.shot.userData.ground = true;
     this.object.add(holder);
     return built;
   }

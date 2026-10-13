@@ -106,6 +106,8 @@ export class Smoke {
     for (let k = 0; k < plume.puffs; k++) {
       const puff = new Sprite(this.steps[0]);
       puff.renderOrder = 3;
+      // Dust and smoke are air over the piece, not the piece: the pointer passes through.
+      puff.userData.ground = true;
       this.object.add(puff);
     }
     this.frame(0);
