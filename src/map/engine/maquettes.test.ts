@@ -1,6 +1,15 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { bakedParts, MAQUETTE_SPAN, ringOffsets, spanScale, yawOf } from './maquettes';
+import {
+  bakedParts,
+  footOf,
+  GARRISON_FOOT,
+  MAQUETTE_SPAN,
+  ringOffsets,
+  spanScale,
+  yawOf,
+} from './maquettes';
+import { pileLayout } from './standing';
 
 describe('yawOf', () => {
   it('turns a building the same way at every display, and two buildings apart', () => {
@@ -63,5 +72,40 @@ describe('ringOffsets', () => {
       const [bx, bz] = ring[1]!;
       expect(Math.hypot(ax - bx, az - bz)).toBeCloseTo(MAQUETTE_SPAN);
     }
+  });
+});
+
+/** The widest pile's half-width: three groups and the +N, half a squad past the last slot. */
+const PILE_REACH = pileLayout(3, true).more! + 0.1;
+
+describe('footOf', () => {
+  it('stands a lone garrison in front of its maquette, facing the front', () => {
+    expect(footOf([0, 0])).toEqual({ x: 0, z: GARRISON_FOOT, facing: 0 });
+  });
+
+  it('stands a ring garrison outward, never nearer a maquette than its own', () => {
+    for (let count = 2; count <= 8; count++) {
+      const ring = ringOffsets(count);
+      for (const offset of ring) {
+        const foot = footOf(offset);
+        expect(Math.hypot(foot.x - offset[0], foot.z - offset[1])).toBeCloseTo(GARRISON_FOOT);
+        expect(foot.x - offset[0]).toBeCloseTo(GARRISON_FOOT * Math.sin(foot.facing));
+        // The row runs across the facing, its widest pile reaching the +N counter's edge.
+        const [ax, az] = [Math.cos(foot.facing), -Math.sin(foot.facing)];
+        for (const [x, z] of ring) {
+          const along = Math.max(
+            -PILE_REACH,
+            Math.min(PILE_REACH, (x - foot.x) * ax + (z - foot.z) * az),
+          );
+          const nearest = Math.hypot(foot.x + along * ax - x, foot.z + along * az - z);
+          expect(nearest).toBeGreaterThanOrEqual(GARRISON_FOOT - 1e-9);
+        }
+      }
+    }
+  });
+
+  it('keeps the garrison clear of its own maquette at any turn', () => {
+    // A square model turned 45° reaches half a diagonal; the pile reaches back a third of a span.
+    expect(GARRISON_FOOT - MAQUETTE_SPAN / 3).toBeGreaterThan((MAQUETTE_SPAN / 2) * Math.SQRT2);
   });
 });
