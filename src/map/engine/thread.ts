@@ -84,7 +84,7 @@ export const DRIFT_CEILING_PX_S = 6;
 const MAX_DRIFT_STEP_S = 0.1;
 
 /** The air leg's ground trace: a floor of a pixel, and a share of the ribbon's true width. */
-const SHADOW_THICKNESS = 1;
+const SHADOW_THICKNESS = 1.6;
 const SHADOW_SHARE = 0.4;
 
 /**
