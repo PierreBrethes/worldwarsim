@@ -3,8 +3,22 @@ import type { LonLat } from '@/domain/geo';
 import type { OutlineSample, World } from '@/domain/world';
 
 export const COUNTRY_THICKNESS = 0.08;
-export const SEA_LEVEL = -0.1;
+/**
+ * **La feuille est posée sur la mer, pas au-dessus** : à dix-huit centièmes d'écart, la caméra
+ * inclinée voyait sous la côte une bande de mer de deux dixièmes, sans lavis et pleine d'écume —
+ * une seconde terre pâle décalée sous la vraie. L'écart n'est plus qu'un fil ; c'est le recul en
+ * profondeur (`RECESSION`) qui ordonne la mer, le lavis et la terre, à toutes les distances.
+ */
+export const SEA_LEVEL = COUNTRY_THICKNESS - 0.004;
+/**
+ * Polygon-offset units, in recession order: what is lower on the sheet recedes further. Units
+ * only, never a slope factor — in world view the board is seen almost edge-on, and the slope term
+ * would push the land behind the sea there.
+ */
+export const RECESSION = { land: 2, wash: 4, sea: 6 } as const;
 export const PLINTH_HEIGHT = 5;
+/** Written by the country sheets, read by the region fills; the coastal wash writes 1 on water. */
+export const LAND_STENCIL = 2;
 
 /**
  * The world's frame. **La table est plate** (13/10/2026) : la courbure d'horizon, qui n'était

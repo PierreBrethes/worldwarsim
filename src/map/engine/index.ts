@@ -51,7 +51,7 @@ import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
-import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
+import { HELD_OPACITY, RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
@@ -213,6 +213,8 @@ export class MapEngine {
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly countries: CountryMesh[];
+  private nationInks: ReadonlyMap<string, string> = new Map();
+  private sheets: ReadonlyMap<string, string> = new Map();
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   private readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -437,7 +439,10 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame);
+    this.regions = new RegionLayer(this.frame, (sheets) => {
+      this.sheets = sheets;
+      this.paintCountries();
+    });
     this.labels = new LabelLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -897,8 +902,17 @@ export class MapEngine {
    */
   colorNations(inkByCountry: ReadonlyMap<string, string>): void {
     this.invalidate();
+    this.nationInks = inkByCountry;
+    this.paintCountries();
+  }
+
+  /** A sheet painted whole takes the holder's ink over the nation's, as its region fills did. */
+  private paintCountries(): void {
     for (const mesh of this.countries) {
-      mesh.material.color.set(inkByCountry.get(mesh.userData.name) ?? PALETTE.neutralLand);
+      const ground = new Color(this.nationInks.get(mesh.userData.name) ?? PALETTE.neutralLand);
+      const sheet = this.sheets.get(mesh.userData.adm0);
+      mesh.material.color.copy(sheet === undefined ? ground : inkOver(ground, sheet));
+      mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
     }
   }
 
@@ -1706,4 +1720,13 @@ function disposeNode(node: Object3D): void {
     }
     single.dispose();
   }
+}
+
+/** The fill's ink over the ground, blended where the framebuffer blended it: in sRGB. */
+function inkOver(ground: Color, ink: string): Color {
+  return ground
+    .clone()
+    .convertLinearToSRGB()
+    .lerp(new Color(ink).convertLinearToSRGB(), HELD_OPACITY)
+    .convertSRGBToLinear();
 }

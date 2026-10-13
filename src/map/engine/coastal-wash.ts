@@ -11,11 +11,11 @@ import {
 } from 'three';
 import type { World } from '@/domain/world';
 import { PALETTE } from './palette';
-import { SEA_LEVEL, type WorldFrame } from './frame';
+import { RECESSION, SEA_LEVEL, type WorldFrame } from './frame';
 
 const WASH_WIDTH = 0.8;
 const SHORE_OPACITY = 0.18;
-const WASH_LIFT = 0.005;
+const WASH_LIFT = 0.002;
 const JOINT_STEP = Math.PI / 12;
 const OUTLINE_STEP = 0.4;
 /** Beyond this, the miter of a re-entrant concave angle would head out to sea. */
@@ -40,11 +40,12 @@ export function buildCoastalWash(
 
   for (const country of world.countries) {
     for (const ring of country.rings) {
-      const outline = coarsen(
-        ring.map(([px, py]) => [px - frame.centerX, py - frame.centerY] as const),
-      );
+      const trace = ring.map(([px, py]) => [px - frame.centerX, py - frame.centerY] as const);
+      const kept = coarsen(trace);
+      const outline = kept.map((index) => trace[index]!);
       if (outline.length < 3) continue;
       ribbon.ring(outline, orientation(outline));
+      ribbon.bays(trace, kept);
     }
   }
 
@@ -54,6 +55,8 @@ export function buildCoastalWash(
       vertexColors: true,
       transparent: true,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetUnits: RECESSION.wash,
       side: DoubleSide,
       // A pixel takes the ink only once: without the stencil, every ribbon overlap — capes,
       // islets, straits — would ink twice and draw a sun on the water.
@@ -131,6 +134,22 @@ class Ribbon {
     });
   }
 
+  /**
+   * **The wash starts at the coast, not at the coarsened trace** : a bay the trace cuts across
+   * stayed unwashed, a crisp pale wedge between the shore and the ribbon. Each chord fans over
+   * the vertices it skipped, at shore ink; whatever of the fan lies on land is under the sheet,
+   * and the stencil keeps an overlap from inking twice.
+   */
+  bays(trace: ReadonlyArray<Point>, kept: ReadonlyArray<number>): void {
+    kept.forEach((from, k) => {
+      const to = k + 1 < kept.length ? kept[k + 1]! : kept[0]! + trace.length;
+      if (to - from < 2) return;
+      const base = this.positions.length / 3;
+      for (let i = from; i <= to; i++) this.shore(trace[i % trace.length]!);
+      for (let i = 1; i < to - from; i++) this.indices.push(base, base + i, base + i + 1);
+    });
+  }
+
   geometry(): BufferGeometry {
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(this.positions, 3));
@@ -204,17 +223,17 @@ function bevel(vertex: Point, incoming: Point, outgoing: Point): Point | null {
  * coarsened to half a wash before offsetting — the sharp silhouette stays the country's,
  * drawn by its sheet; the wash only has to border it.
  */
-function coarsen(outline: ReadonlyArray<Point>): ReadonlyArray<Point> {
-  const kept: Point[] = [];
+function coarsen(outline: ReadonlyArray<Point>): ReadonlyArray<number> {
+  const kept: number[] = [];
   let anchor: Point | null = null;
-  for (const point of outline) {
+  outline.forEach((point, index) => {
     if (anchor === null || Math.hypot(point[0] - anchor[0], point[1] - anchor[1]) >= OUTLINE_STEP) {
-      kept.push(point);
+      kept.push(index);
       anchor = point;
     }
-  }
+  });
   // An island smaller than the step would not survive coarsening: it keeps its trace.
-  return kept.length >= 3 ? kept : outline;
+  return kept.length >= 3 ? kept : outline.map((_, index) => index);
 }
 
 /** +1 when the ring turns counterclockwise in the (x, z) plane, -1 otherwise. */

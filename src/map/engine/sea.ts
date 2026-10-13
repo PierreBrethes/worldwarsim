@@ -11,7 +11,7 @@ import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain
 import type { World } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
 import { distanceToLand } from './coast-distance';
-import type { WorldFrame } from './frame';
+import { RECESSION, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
 
@@ -69,6 +69,8 @@ export function seaMaterial(world: World, anisotropy: number): MeshStandardMater
     map: seaTexture(world, anisotropy),
     roughness: 0.98,
     metalness: 0,
+    polygonOffset: true,
+    polygonOffsetUnits: RECESSION.sea,
   });
   // This texture is baked per engine, so the engine frees it on teardown. Sprite textures
   // are the opposite case — shared through `textureOf`'s cache — hence the flag rather than

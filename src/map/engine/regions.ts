@@ -1,5 +1,6 @@
 import {
   BufferGeometry,
+  EqualStencilFunc,
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
@@ -13,7 +14,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import { builtInk, PALETTE } from './palette';
-import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, LAND_STENCIL, type WorldFrame } from './frame';
 import {
   mulberry,
   seed,
@@ -74,7 +75,7 @@ const DESIGNATED_OPACITY = 0.62;
  * plancher du délavage (`FADED_WASH`) ne bouge pas : il multiplie cette opacité, donc l'écart
  * franc/délavé — qui est une information (ADR 0020 §5) — reste le même rapport.
  */
-const HELD_OPACITY = 0.72;
+export const HELD_OPACITY = 0.72;
 
 /**
  * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
@@ -136,6 +137,18 @@ export function screenTrame<M extends MeshStandardMaterial>(material: M, body: s
   material.customProgramCacheKey = () => body;
   return material;
 }
+
+/**
+ * **Un aplat de région ne déborde pas de la terre** : son contour (10m simplifié) n'est pas celui
+ * du pays (50m), et il passait sur la mer en liseré. Le pays marque le stencil (`LAND_STENCIL`),
+ * l'aplat ne s'imprime que là.
+ */
+const onLand = <M extends MeshStandardMaterial>(material: M): M => {
+  material.stencilWrite = true;
+  material.stencilRef = LAND_STENCIL;
+  material.stencilFunc = EqualStencilFunc;
+  return material;
+};
 
 const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
   screenTrame(
@@ -253,7 +266,11 @@ export class RegionLayer {
   private designatedIds: ReadonlySet<string> = new Set();
   private share = 0;
 
-  constructor(private readonly frame: WorldFrame) {
+  constructor(
+    private readonly frame: WorldFrame,
+    /** The countries painted whole on their own sheet, adm0 → ink — see `wholeSheets`. */
+    private readonly onSheets: (sheets: ReadonlyMap<string, string>) => void = () => {},
+  ) {
     this.lineMaterial = new LineBasicMaterial({
       color: PALETTE.border,
       transparent: true,
@@ -264,14 +281,16 @@ export class RegionLayer {
 
     // The same material as the country slab, light included: an unlit fill would read as a
     // sticker rather than as ink laid on that very ground.
-    this.builtMaterial = new MeshStandardMaterial({
-      color: PALETTE.neutralLand,
-      roughness: 0.97,
-      metalness: 0,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
+    this.builtMaterial = onLand(
+      new MeshStandardMaterial({
+        color: PALETTE.neutralLand,
+        roughness: 0.97,
+        metalness: 0,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
     this.built = new Mesh(new BufferGeometry(), this.builtMaterial);
     this.built.receiveShadow = true;
     this.built.visible = false;
@@ -280,14 +299,16 @@ export class RegionLayer {
      * The rail's amber — the ink of "you are here" (`FOCUS_MARK`) — and never the critical
      * ink: a region that accepts a placement is an invitation, not an alarm.
      */
-    this.designatedMaterial = new MeshStandardMaterial({
-      color: PALETTE.designated,
-      roughness: 0.97,
-      metalness: 0,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
+    this.designatedMaterial = onLand(
+      new MeshStandardMaterial({
+        color: PALETTE.designated,
+        roughness: 0.97,
+        metalness: 0,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
     this.designated = new Mesh(new BufferGeometry(), this.designatedMaterial);
     this.designated.receiveShadow = true;
     this.designated.visible = false;
@@ -402,6 +423,11 @@ export class RegionLayer {
       (mesh.material as MeshStandardMaterial).dispose();
     }
     this.held.clear();
+    const sheets = wholeSheets(
+      this.claims,
+      this.prepared.map(({ region }) => region),
+    );
+    this.onSheets(sheets);
     for (const claim of this.claims) {
       /** La clef porte la franchise **et** la trame : deux régions de même encre ne partagent un
        *  maillage que si elles se peignent de la même façon. */
@@ -419,19 +445,21 @@ export class RegionLayer {
       for (const { wash, state, ids } of byWash.values()) {
         const lift = state === 'suspended' ? SUSPENDED_LIFT : HELD_LIFT;
         const parts = this.prepared
-          .filter(({ region }) => ids.has(region.id))
+          .filter(({ region }) => ids.has(region.id) && !sheets.has(region.country))
           .map(({ region }) => this.fillOf(region, lift));
         if (parts.length === 0) continue;
         const geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false)!;
         if (parts.length > 1) parts.forEach((part) => part.dispose());
-        const material = new MeshStandardMaterial({
-          color: claim.ink,
-          roughness: 0.97,
-          metalness: 0,
-          transparent: true,
-          opacity: HELD_OPACITY * wash,
-          depthWrite: false,
-        });
+        const material = onLand(
+          new MeshStandardMaterial({
+            color: claim.ink,
+            roughness: 0.97,
+            metalness: 0,
+            transparent: true,
+            opacity: HELD_OPACITY * wash,
+            depthWrite: false,
+          }),
+        );
         const fill = new Mesh(
           geometry,
           state === 'suspended'
@@ -687,6 +715,32 @@ export class RegionLayer {
     geometry.translate(0, COUNTRY_THICKNESS + lift, 0);
     return geometry;
   }
+}
+
+/**
+ * **Un pays tenu tout entier se peint sur sa propre feuille** : les régions sont du 10m
+ * simplifié, les pays du 50m, et leurs contours ne coïncident pas — à quelques kilomètres près,
+ * qui font au rapproché un liseré d'aplat sur la mer et une frange d'encre nationale sur la côte.
+ * Le pays dont chaque région est à jour sous une même encre (son propre sol, toujours) n'a donc
+ * pas d'aplat : c'est la feuille qui prend la couleur, au trait exact de la côte. Ce qui est tenu
+ * en partie, relevé ou suspendu reste aux régions.
+ */
+export function wholeSheets(
+  claims: ReadonlyArray<HeldClaim>,
+  regions: ReadonlyArray<DisplayedRegion>,
+): ReadonlyMap<string, string> {
+  // A hatch drawn on the region too would land over the sheet, when it goes under the full colour.
+  const inkOf = new Map<string, string | null>();
+  for (const claim of claims)
+    for (const { id, state } of claim.regions)
+      inkOf.set(id, state === 'current' && !inkOf.has(id) ? claim.ink : null);
+  const sheets = new Map<string, string | null>();
+  for (const { id, country } of regions) {
+    const ink = inkOf.get(id) ?? null;
+    const sheet = sheets.get(country);
+    sheets.set(country, sheet === undefined || sheet === ink ? ink : null);
+  }
+  return new Map([...sheets].filter((entry): entry is [string, string] => entry[1] !== null));
 }
 
 export function prepare(region: DisplayedRegion): PreparedRegion {
