@@ -40,24 +40,28 @@ const IMAGE_BY_NATION: Readonly<Record<Nation, string>> = {
  */
 const CARTOUCHE_FILTER = 'saturate(.45) sepia(.28) brightness(.85) contrast(1.05)';
 const WATERMARK_FILTER = 'saturate(.4) sepia(.22) brightness(1.15)';
+const PAPER_WATERMARK_FILTER = 'saturate(.6) sepia(.18)';
 
 export function nationImage(nation: string | null): string | null {
   return nation !== null && isNation(nation) ? IMAGE_BY_NATION[nation] : null;
 }
 
 /**
- * Watermark — the flag anchored to the left of a dark band, fading rightward. The container
+ * Watermark — the flag anchored to the left of a band, fading rightward. The container
  * is exactly 3:2 (`aspect-[3/2] h-full`), so the real path fits undistorted, and the fade
- * runs over its own width. **Dark backgrounds only**: on paper, the flag turns into a grey block.
+ * runs over its own width. The dark-band filter brightens, which on paper turns the flag into a
+ * grey block: `onPaper` keeps its colour and lets the paper itself be what it fades into.
  */
 const WATERMARK_MASK = 'linear-gradient(to right, #000 0%, #000 52%, transparent 100%)';
 
 export function FlagWatermark({
   nation,
   opacity = 0.6,
+  onPaper = false,
 }: {
   nation: string | null;
   opacity?: number;
+  onPaper?: boolean;
 }) {
   const image = nationImage(nation);
   if (image === null) return null;
@@ -69,7 +73,7 @@ export function FlagWatermark({
         opacity,
         backgroundImage: image,
         backgroundSize: '100% 100%',
-        filter: WATERMARK_FILTER,
+        filter: onPaper ? PAPER_WATERMARK_FILTER : WATERMARK_FILTER,
         maskImage: WATERMARK_MASK,
         WebkitMaskImage: WATERMARK_MASK,
       }}
