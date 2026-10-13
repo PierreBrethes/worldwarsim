@@ -66,7 +66,7 @@ export function Notifications() {
     ...shown.filter((notification) => notification.tone === 'info'),
   ];
   return (
-    <div className="hud pointer-events-none fixed top-4 right-4 z-[var(--z-notice)] flex w-[340px] max-w-[calc(100vw-32px)] flex-col gap-2">
+    <div className="hud pointer-events-none fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] right-4 z-[var(--z-notice)] flex w-[340px] max-w-[calc(100vw-32px)] flex-col gap-2">
       {ordered.map((notification) =>
         notification.tone === 'error' ? (
           <Card key={notification.id} notification={notification} />

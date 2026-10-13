@@ -4,31 +4,29 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import { CATEGORIES } from '@/domain/indicators';
-import { currentStock, seasonDayOf, type PlayerView } from '@/domain/player-view';
-import { marksOf, sourceOf, type Mark } from '@/domain/resource-band';
+import { seasonDayOf, type PlayerView } from '@/domain/player-view';
+import { marksOf } from '@/domain/resource-band';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { Flag } from '@/emblems/Flag';
 import { withWindow, type BoardSearch, type BoardWindow } from '@/routes/-plateau/board-search';
 import { AbacusMark } from '@/routes/-plateau/GunneryButton';
 import { LayersGlyph, SettingsGlyph } from './Glyph';
-import { HoverCard } from './HoverCard';
 import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
+import { ReserveCard, ResourceCell, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
 
 /**
- * **Le bandeau du téléphone** (refonte mobile du 04/10, 1a) : la ligne de la nation et des
- * mouvements, puis huit colonnes — trois lettres, le stock, la tendance. Il remplace sous le seuil
- * la barre de la nation et le bandeau des ressources, dont le journal est descendu au pied.
+ * **La réglette du téléphone** (table plein écran, 13/10, qui reprend la refonte mobile du 04/10) :
+ * la bande de papier du bureau sur deux lignes, posée sur la carte — la nation et les mouvements,
+ * puis les huit réserves en colonnes, icône, chiffre et jauge. L'alerte y est la même qu'au bureau
+ * (`marksOf`), sans le cercle : le chiffre rouge et l'étiquette qui pend.
  *
- * **Il ne se replie plus** : la languette qui pendait dessous se lisait comme la poignée d'une
- * feuille, et c'est le drapeau qui ouvre désormais quelque chose — le dossier de la nation, où
- * vit ce qu'on cherche à froid (1s). « Plus » a quitté la barre de pied pour lui.
- *
- * **Le détail s'ouvre au toucher**, jamais au survol (M1) : le nom, le plafond, le débit, la
- * source et le diagnostic d'un pavé, dans la même carte de papier qu'au bureau.
+ * **Le drapeau ouvre le dossier de la nation** (1s), où vit ce qu'on cherche à froid. **Le détail
+ * d'une réserve s'ouvre au toucher**, jamais au survol (M1) : le nom, le plafond, le débit, la
+ * source et le diagnostic, dans la même carte de papier qu'au bureau.
  */
 export function NarrowBand({
   view,
@@ -38,7 +36,7 @@ export function NarrowBand({
   view: PlayerView;
   /** L'aide-mémoire est un état du plateau, qui le sert aussi à la première arrivée. */
   onShowBriefing: () => void;
-  ref?: Ref<HTMLDivElement>;
+  ref?: Ref<HTMLElement>;
 }) {
   const now = useClock();
   const [shown, setShown] = useState<{ resource: ResourceKey; left: number } | null>(null);
@@ -58,50 +56,50 @@ export function NarrowBand({
   }, [shown]);
 
   return (
-    <div
+    <header
       ref={ref}
-      className="hud relative z-[var(--z-band)] shrink-0 border-b border-[var(--ink-quiet)] bg-[var(--desk)]"
+      className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <div className="flex h-[42px] items-center gap-[10px] px-[14px]">
+      <div className="flex h-[40px] items-center gap-[10px] border-b border-(color:--ink)/25 px-[12px]">
         <button
           type="button"
           aria-expanded={surface === 'dossier'}
           title={fr.dossier.open(nationLabel(me.nation))}
           onClick={() => setSurface((open) => (open === 'dossier' ? null : 'dossier'))}
-          className="-ml-[6px] flex min-h-[42px] shrink-0 cursor-pointer items-center gap-[10px] px-[6px]"
+          className="-ml-[6px] flex min-h-[40px] shrink-0 cursor-pointer items-center gap-[10px] px-[6px]"
         >
-          <Flag nation={me.nation} width={27} />
-          <span className="font-(family-name:--font-display) text-[20px] leading-none font-extrabold tracking-[.02em] text-[var(--paper)] uppercase">
+          <Flag nation={me.nation} width={27} onPaper />
+          <span className="font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
-          <span aria-hidden className="-ml-[4px] text-[11px] leading-none text-[var(--paper-dim)]">
+          <span aria-hidden className="-ml-[4px] text-[11px] leading-none text-[var(--ink-soft)]">
             ▾
           </span>
         </button>
         {me.defeated && <Stamp label={fr.stamps.defeated} size="small" />}
         <span className="flex-1" />
-        {/* Le compte seul, sans cases (retour de Pierre, 04/10) : trois carrés vides redisaient
-            le chiffre d'à côté. */}
-        <span className="flex shrink-0 items-baseline gap-[8px] whitespace-nowrap">
-          <span className="text-[9px] leading-none tracking-[.16em] text-[var(--paper-dim)] uppercase">
-            {fr.resourceBand.slots}
-          </span>
-          <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium text-[var(--paper)]">
+        <span
+          className="flex shrink-0 items-center gap-[8px] whitespace-nowrap"
+          title={fr.banner.slotsTitle(me.slots.used, me.slots.total)}
+        >
+          <SlotBoxes used={me.slots.used} total={me.slots.total} />
+          <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
             {fr.banner.slotsCount(me.slots.used, me.slots.total)}
           </span>
         </span>
       </div>
 
-      <div ref={columns} className="relative grid grid-cols-8 px-[6px]">
+      <div ref={columns} className="relative grid grid-cols-8 px-[4px] py-[4px]">
         {RESOURCES.map((resource) => (
-          <Column
+          <ResourceCell
             key={resource}
             resource={resource}
             view={view}
             now={now}
-            mark={marks[resource]}
-            onTouch={(left) =>
+            stacked
+            onClick={(event) => {
+              const left = event.currentTarget.offsetLeft;
               setShown((open) =>
                 open?.resource === resource
                   ? null
@@ -112,17 +110,18 @@ export function NarrowBand({
                         Math.min(left, (columns.current?.offsetWidth ?? 0) - DETAIL_WIDTH),
                       ),
                     },
-              )
-            }
+              );
+            }}
           />
         ))}
         {shown !== null && (
-          <NarrowDetail
+          <ReserveCard
             resource={shown.resource}
-            left={shown.left}
-            mark={marks[shown.resource]}
             view={view}
             now={now}
+            mark={marks[shown.resource]}
+            left={shown.left}
+            width={DETAIL_WIDTH}
           />
         )}
       </div>
@@ -139,88 +138,12 @@ export function NarrowBand({
         />
       )}
       {surface === 'layers' && <LayersSheet onClose={() => setSurface(null)} />}
-    </div>
+    </header>
   );
 }
 
-/** ▴ ▾ –, et le trait l'emporte au plafond : un stock plein ne monte plus, quoi que dise le
- *  débit. */
-const trendOf = (perHour: number, stock: number, cap: number): string =>
-  stock >= cap || perHour === 0 ? '–' : perHour > 0 ? '▴' : '▾';
-
-/** **Le pavé seul prend l'alerte** : le chiffre garde l'encre de la ligne, comme au bureau où la
- *  marque est un carré et jamais un mot recoloré. */
-function Column({
-  resource,
-  view,
-  now,
-  mark,
-  onTouch,
-}: {
-  resource: ResourceKey;
-  view: PlayerView;
-  now: number;
-  mark: Mark | null;
-  onTouch: (left: number) => void;
-}) {
-  const reserve = view.me.resources[resource];
-  const stock = currentStock(reserve, view.loadedAt, now);
-  return (
-    <button
-      type="button"
-      title={fr.resources[resource]}
-      onClick={(event) => onTouch(event.currentTarget.offsetLeft)}
-      className="flex min-h-[44px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[3px]"
-    >
-      <span className="flex items-center gap-[3px] text-[8.5px] leading-none tracking-[.12em] text-[var(--paper-dim)] uppercase">
-        <span
-          className={`h-[5px] w-[5px] shrink-0 ${mark === null ? 'bg-[var(--routine)]' : 'bg-[var(--critical)]'}`}
-        />
-        {fr.resourceBand.abbreviations[resource]}
-      </span>
-      <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium text-[var(--paper)] tabular-nums">
-        {stock.toLocaleString('fr-FR')}
-        <span className="text-[9px] text-[var(--paper-dim)]">
-          {trendOf(reserve.ratePerHour, stock, reserve.cap)}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-/** La carte du bureau, en une seule : la réserve, puis le diagnostic s'il y a un pavé. */
+/** Assez large pour que le diagnostic passe à la ligne sans sortir de l'écran. */
 const DETAIL_WIDTH = 220;
-
-function NarrowDetail({
-  resource,
-  left,
-  mark,
-  view,
-  now,
-}: {
-  resource: ResourceKey;
-  left: number;
-  mark: Mark | null;
-  view: PlayerView;
-  now: number;
-}) {
-  const reserve = view.me.resources[resource];
-  const source = sourceOf(view, resource);
-  return (
-    <HoverCard left={left} width={DETAIL_WIDTH}>
-      {fr.resourceBand.tooltip(
-        fr.resources[resource],
-        currentStock(reserve, view.loadedAt, now),
-        reserve.cap,
-        reserve.ratePerHour,
-      )}
-      {source !== null && ` · ${fr.resourceBand.source(fr.buildings[source.by], source.level)}`}
-      {mark !== null && (
-        <span className="mt-[3px] block text-[var(--critical)]">{mark.diagnosis}</span>
-      )}
-    </HoverCard>
-  );
-}
 
 /**
  * **Le dossier de la nation** (1s) : posé sous le bandeau, la carte voilée jusqu'à la barre de

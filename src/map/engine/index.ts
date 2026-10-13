@@ -46,7 +46,7 @@ import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
-import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
+import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
@@ -544,6 +544,11 @@ export class MapEngine {
     // The label set changed: the overlap degradation must be redone, but not before the
     // loop has laid the new positions — the camera rest serves that too.
     this.postponeRest();
+  }
+
+  setEdgeInsets(insets: EdgeInsets): void {
+    this.invalidate();
+    this.labels.edgeInsets = insets;
   }
 
   displayRegions(data: RegionsData): void {

@@ -127,7 +127,7 @@ function ConnectedLobby({ seat }: { seat: Seat }) {
     <>
       <div className="h-full">
         <Newspaper width={WIDTH} turning={turning}>
-          <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] shadow-[0_20px_46px_rgba(0,0,0,.6),0_2px_0_rgba(0,0,0,.5)]">
+          <div className="paper-grain @container relative [--sheet-pad:30px] max-md:[--sheet-pad:16px] border border-[var(--ink)] text-[var(--ink)] float">
             <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 px-(--sheet-pad) pt-3 pb-[10px]">
               {/* La manchette réduite : le salon est une feuille du même journal que l'accueil,
                   et c'est la seule chose qui le dit une fois la page tournée. */}

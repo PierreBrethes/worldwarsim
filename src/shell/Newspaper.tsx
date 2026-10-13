@@ -71,11 +71,11 @@ export function Newspaper({
           <div className="hud relative m-auto max-w-full" style={{ width }}>
             <div
               aria-hidden
-              className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] shadow-[0_10px_24px_rgba(0,0,0,.5)]"
+              className="absolute -bottom-[15px] -left-[9px] top-[11px] right-[5px] rotate-[-.7deg] border border-(color:--map-desk)/60 bg-[var(--paper-pile-2)] float"
             />
             <div
               aria-hidden
-              className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-(color:--map-desk)/55 bg-[var(--paper-pile)] shadow-[0_9px_21px_rgba(0,0,0,.45)]"
+              className="absolute -right-[11px] -bottom-[8px] left-[7px] top-[5px] rotate-[.9deg] border border-(color:--map-desk)/55 bg-[var(--paper-pile)] float"
             />
             <div
               className="relative origin-left"

@@ -10,6 +10,7 @@ import {
   type NextActionSurface,
   type NextActionTarget,
 } from '@/domain/next-actions';
+import { SQUARE_FRAME } from '@/shell/SurfaceColumn';
 import { FoundationRows, type FoundationPlacement } from './FoundationRows';
 
 /**
@@ -155,43 +156,66 @@ export function NextActions({
 
   if (frame === 'sheet') return <div>{rows}</div>;
 
+  const fold = () => {
+    // Folding hides an armed key's rows: it disarms, like the foundation's own fold.
+    onArm(null);
+    setFolded(!folded);
+    keepNextActionsFolded(!folded);
+  };
+
+  /* **Au bureau, un carré d'encre en tête de la colonne** (table plein écran, 13/10) : le compte,
+     et la carte qui se déplie à sa droite. Replié, il ne reste que le carré — c'est le repli du
+     10/10, déplacé du titre de la carte au carré qui la porte. */
   return (
-    <section
-      className="float hud paper-grain w-[300px] border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
-      style={{ zoom: `calc(var(--hud-scale) * ${CARD_ZOOM})` }}
-    >
-      <div
-        className={`flex items-end gap-2 px-[13px] pt-[9px] pb-2 ${folded ? '' : 'border-b-2 border-[var(--ink)]'}`}
+    <>
+      <button
+        type="button"
+        aria-expanded={!folded}
+        title={fr.nextActions.header}
+        onClick={fold}
+        className={`${SQUARE_FRAME} bg-[var(--ink)] text-[var(--paper)] ${
+          folded ? '' : 'outline-2 outline-offset-[3px] outline-[var(--ink)]'
+        }`}
       >
-        <div className="grid min-w-0 flex-1 gap-[5px]">
-          <span className="text-[10px] leading-none font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
-            {fr.nextActions.count(actions.length)}
-          </span>
-          <h2 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">
-            {fr.nextActions.header}
-          </h2>
-        </div>
-        <button
-          type="button"
-          aria-expanded={!folded}
-          onClick={() => {
-            // Folding hides an armed key's rows: it disarms, like the foundation's own fold.
-            onArm(null);
-            setFolded(!folded);
-            keepNextActionsFolded(!folded);
-          }}
-          className="cursor-pointer font-(family-name:--font-mono) text-[11px] tracking-[.12em] text-[var(--ink)] uppercase underline-offset-2 hover:underline"
+        <span className="font-(family-name:--font-display) text-[21px] leading-none font-bold">
+          {actions.length}
+        </span>
+        <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
+          {fr.rail.todo}
+        </span>
+      </button>
+      {!folded && (
+        <section
+          className="float paper-grain absolute top-0 left-full ml-[calc(var(--table-gap)/var(--hud-scale)/0.75)] max-h-full w-[300px] overflow-y-auto border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
+          style={{ zoom: CARD_ZOOM }}
         >
-          {folded ? fr.nextActions.unfold : fr.nextActions.fold}
-        </button>
-      </div>
-      {!folded && rows}
-    </section>
+          <div className="flex items-end gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
+            <div className="grid min-w-0 flex-1 gap-[5px]">
+              <span className="text-[10px] leading-none font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
+                {fr.nextActions.count(actions.length)}
+              </span>
+              <h2 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">
+                {fr.nextActions.header}
+              </h2>
+            </div>
+            <button
+              type="button"
+              aria-expanded
+              onClick={fold}
+              className="cursor-pointer font-(family-name:--font-mono) text-[11px] tracking-[.12em] text-[var(--ink)] uppercase underline-offset-2 hover:underline"
+            >
+              {fr.nextActions.fold}
+            </button>
+          </div>
+          {rows}
+        </section>
+      )}
+    </>
   );
 }
 
 /** Three quarters of the HUD's scale on the desk (Pierre, 10/10): full size covered the board,
- *  half was too small to read. */
+ *  half was too small to read. The column already carries the HUD's zoom. */
 const CARD_ZOOM = 0.75;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {

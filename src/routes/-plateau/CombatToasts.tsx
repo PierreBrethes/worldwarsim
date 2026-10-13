@@ -79,8 +79,8 @@ export function CombatToasts({
     <div
       className={`hud pointer-events-none absolute z-[var(--z-band)] flex flex-col gap-2 ${
         narrow
-          ? 'inset-x-[10px] bottom-[14px]'
-          : 'top-4 left-1/2 w-[min(400px,calc(100%-32px))] -translate-x-1/2'
+          ? 'inset-x-[10px] bottom-[80px]'
+          : 'top-[calc(var(--board-top)/var(--hud-scale)_+_40px)] left-1/2 w-[min(400px,calc(100%-32px))] -translate-x-1/2'
       }`}
     >
       {shown.map((toast) => (

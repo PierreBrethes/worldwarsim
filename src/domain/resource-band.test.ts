@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_GROUPS, marksOf, sourceOf } from './resource-band';
+import { BAND_GROUPS, DRY_SOON_HOURS, drynessOf, marksOf, sourceOf } from './resource-band';
 import { RESOURCES, type ResourceKey } from './ids';
 import type { ChainView, PlayerView, Resource } from './player-view';
 
@@ -80,5 +80,28 @@ describe('the source of a resource', () => {
 describe('the band’s order', () => {
   it('reads the eight reserves as one warehouse group', () => {
     expect(BAND_GROUPS).toEqual([RESOURCES]);
+  });
+});
+
+describe('drynessOf', () => {
+  it('is dry at an empty stock, whatever comes in', () => {
+    expect(drynessOf(0, 0)).toEqual({ hoursLeft: 0 });
+    expect(drynessOf(0, 5)).toEqual({ hoursLeft: 0 });
+  });
+
+  it('warns when a draining stock runs out within the day', () => {
+    expect(drynessOf(30, -2)).toEqual({ hoursLeft: 15 });
+    expect(drynessOf(47, -2)).toEqual({ hoursLeft: 23.5 });
+  });
+
+  it('says nothing of a stock that lasts the day, fills, or holds', () => {
+    expect(drynessOf(48, -2)).toBeNull();
+    expect(drynessOf(400, 3)).toBeNull();
+    expect(drynessOf(10, 0)).toBeNull();
+  });
+
+  it('reads the day as DRY_SOON_HOURS', () => {
+    expect(drynessOf(DRY_SOON_HOURS - 1, -1)).not.toBeNull();
+    expect(drynessOf(DRY_SOON_HOURS, -1)).toBeNull();
   });
 });

@@ -1,4 +1,11 @@
-import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import {
+  Link,
+  Navigate,
+  createFileRoute,
+  redirect,
+  useNavigate,
+  useSearch,
+} from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
 import {
   Suspense,
@@ -27,6 +34,8 @@ import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import type { PieceClick } from '@/map/engine';
 import {
   readWindows,
+  toggleWindow,
+  windowOpen,
   withWindow,
   withoutWindow,
   type BoardSearch,
@@ -116,7 +125,8 @@ import {
 import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
-import { LayersGlyph, Glyph } from '@/shell/Glyph';
+import { LayersGlyph, Glyph, SettingsGlyph } from '@/shell/Glyph';
+import { SQUARE } from '@/shell/SurfaceColumn';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { CombatToasts } from './-plateau/CombatToasts';
 import { DispatchSheet } from './-plateau/DispatchSheet';
@@ -344,7 +354,7 @@ function LiveBoard({ world, seat }: { world: World; seat: Seat }) {
       {interrupted && (
         <div
           role="status"
-          className="hud fixed top-4 left-1/2 z-50 -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
+          className="hud fixed top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 z-50 -translate-x-1/2 border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)]"
         >
           {fr.board.linkLost}
         </div>
@@ -1908,7 +1918,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     <Shell
       view={view}
       telegraphUnread={telegraph.unread}
-      todo={nextActions('sheet')}
+      todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
@@ -2171,29 +2181,20 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               <div
                 className={`hud absolute z-[var(--z-band)] border border-[var(--critical)] bg-[var(--desk)] px-3 py-2 text-[11px] text-[var(--critical)] ${
                   narrow
-                    ? 'bottom-4 left-4'
+                    ? 'top-[calc((var(--board-top)_-_var(--safe-top))/var(--hud-scale)_+_40px)] left-1/2 -translate-x-1/2'
                     : /** Le journal tient la marge droite (piste 1c) : le refus ne doit pas passer dessous. */
                       windows.includes('journal')
-                      ? 'top-4 left-1/2 -translate-x-1/2'
-                      : 'top-4 right-4'
+                      ? 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] left-1/2 -translate-x-1/2'
+                      : 'top-[calc(var(--board-top)/var(--hud-scale)_+_12px)] right-4'
                 }`}
               >
                 {orderError}
               </div>
             )}
-            {/* Bas-gauche : ce qui attend le joueur, et rien de ce qu'il possède — la carte a
-            remplacé le widget de troupes (décision Pierre, 30/08). Vide, elle n'est pas là.
-            **Sous le seuil elle quitte la carte** : elle est la feuille de l'entrée « à faire »
-            du pied (piste A, A5), et le plateau ne lui donne que ses lignes. */}
-            {!narrow && replay === null && (
-              <div className="absolute bottom-4 left-4 z-[var(--z-band)]">
-                {nextActions('card')}
-              </div>
-            )}
             {/* **« En cours » se range pendant la visée** (refonte mobile, 1b) : la carte est alors à
             la cible, et la colonne passerait sous le doigt qui la nomme. */}
             {narrow && column === null && (
-              <div className="absolute top-[10px] left-2 z-10">
+              <div className="absolute top-[calc(var(--board-top)_-_var(--safe-top)_+_22px)] left-2 z-10">
                 <UnderwayColumn
                   lines={underway}
                   nation={view.me.nation}
@@ -2203,7 +2204,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               </div>
             )}
             {narrow && sent !== null && (
-              <div className="absolute inset-x-[10px] bottom-[14px] z-[var(--z-indicator)]">
+              <div className="absolute inset-x-[10px] bottom-[96px] z-[var(--z-indicator)]">
                 <SentNotice
                   order={sent.order}
                   destination={sent.destination}
@@ -2213,7 +2214,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 />
               </div>
             )}
-            <div className="pointer-events-none absolute right-4 bottom-4 z-[var(--z-indicator)] flex flex-col items-end gap-3 [&>*]:pointer-events-auto">
+            {/* **Bas-droite, une rangée** (table plein écran, 13/10) : la fiche du survol posée à
+            gauche de la pile des boutons, bas alignés, au même écart et à la même marge que la
+            colonne des surfaces en face (`--table-gap`, `--table-margin`). Sous le seuil, les
+            boutons passent en bas à gauche : le coin droit est au rapporteur. */}
+            <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
               {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
               {!aimingOnPhone && (
@@ -2233,19 +2238,28 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   onDeselect={() => select(null)}
                 />
               )}
-              {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
-              coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place
-              au cartouche « transmis » le temps qu'il se lit. */}
-              {!narrow && corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
-              {!narrow && corner === 'layers' && (
-                <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
-                  <LayersGrid />
-                </CornerCard>
-              )}
-              {(!narrow || sent === null) && replay === null && (
-                <MapButtons narrow={narrow} onRecenter={recenterOnHome} onCorner={setCorner} />
+              {!narrow && (
+                <div className="pointer-events-none flex flex-col items-end gap-(--table-gap) [&>*]:pointer-events-auto">
+                  {corner === 'controls' && <ControlsCard onClose={() => setCorner(null)} />}
+                  {corner === 'layers' && (
+                    <CornerCard title={fr.foot.layersTitle} onClose={() => setCorner(null)}>
+                      <LayersGrid />
+                    </CornerCard>
+                  )}
+                  {replay === null && (
+                    <MapButtons narrow={false} onRecenter={recenterOnHome} onCorner={setCorner} />
+                  )}
+                </div>
               )}
             </div>
+            {/* Sous le seuil, les gestes vivent dans l'aide-mémoire du dossier de la nation : le
+            coin ne porte que ce qu'on y touche souvent (refonte mobile, 1a), et cède la place au
+            cartouche « transmis » le temps qu'il se lit. */}
+            {narrow && sent === null && replay === null && (
+              <div className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]">
+                <MapButtons narrow onRecenter={recenterOnHome} onCorner={setCorner} />
+              </div>
+            )}
             {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}
             {/* **Pendant le rejeu, la carte ne se commande pas** : un voile prend tous les gestes —
             ni lever, ni rose, ni caméra, que le rejeu conduit et ramène. */}
@@ -2436,10 +2450,11 @@ function MapButtons({
     return () => removeEventListener('keydown', onKey);
   }, [narrow, onRecenter, onCorner]);
 
-  const size = narrow ? 'h-[44px] w-[44px]' : 'h-[36px] w-[36px]';
-  const glyph = narrow ? 22 : 18;
+  const size = narrow ? 'h-[44px] w-[44px]' : 'h-[46px] w-[46px]';
+  const glyph = narrow ? 22 : 20;
+  const search = useSearch({ strict: false }) as BoardSearch;
   return (
-    <div className="hud flex flex-col gap-2">
+    <div className="hud flex flex-col gap-[calc(var(--table-gap)/var(--hud-scale))]">
       <button
         type="button"
         title={fr.mapUi.recenterTitle}
@@ -2473,6 +2488,24 @@ function MapButtons({
         >
           ?
         </button>
+      )}
+      {/* **Les réglages au pied de la pile** (table plein écran, 13/10) : ils ont quitté la colonne
+          des surfaces, qu'on ouvre souvent, pour le coin, qu'on touche rarement. Sous le seuil ils
+          gardent leur ligne au dossier de la nation. */}
+      {!narrow && (
+        <Link
+          to="/plateau"
+          search={toggleWindow(search, 'settings')}
+          title={fr.rail.settings}
+          aria-label={fr.rail.settings}
+          aria-current={windowOpen(search, 'settings') ? 'true' : undefined}
+          className={SQUARE}
+        >
+          <SettingsGlyph size={18} />
+          <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
+            {fr.rail.settingsShort}
+          </span>
+        </Link>
       )}
     </div>
   );

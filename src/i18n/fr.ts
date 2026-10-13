@@ -942,10 +942,8 @@ export const fr = {
 
   banner: {
     home: 'retour à l’accueil — vos parties',
-    journalEmpty: 'journal — rien à signaler',
     unread: (count: number) =>
       `${count} dépêche${plural(count, '', 's')} non lue${plural(count, '', 's')}`,
-    slots: 'slots de mouvement',
     slotsCount: (used: number, total: number) => `${used} / ${total}`,
     slotsTitle: (used: number, total: number) =>
       `${used} slot${plural(used, '', 's')} engagé${plural(used, '', 's')} sur ${total}`,
@@ -965,8 +963,6 @@ export const fr = {
    * ce qui tourne pour rien et le magasin à agrandir.
    */
   resourceBand: {
-    expand: 'déplier le bandeau des ressources',
-    collapse: 'replier le bandeau des ressources',
     /** Le seul endroit où le plafond et le débit se lisent — d'où les quatre champs d'un coup. */
     tooltip: (resource: string, stock: number, cap: number, perHour: number) =>
       `${resource} · ${num(stock)} / ${num(cap)} · ${perHour > 0 ? '+' : ''}${tenths(perHour)} / h`,
@@ -975,6 +971,11 @@ export const fr = {
       `${producer} tourne pour rien — ${tenths(perHour)} / h perdus, agrandir ${store}`,
     /** Au plafond sans rien qui la remplisse : agrandir le magasin n'y changerait rien, on le dit. */
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
+    /** L'étiquette qui pend sous une réserve à sec (réglette), seule encre rouge de la ligne. */
+    dry: 'à sec',
+    drySoon: (hours: number) => `à sec dans ${num(hours)} h`,
+    /** Huit colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
+    drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
     /** **Trois lettres par colonne sous le seuil** (passe 2, A1) : huit colonnes sur un téléphone,
      *  et le nom entier revient au toucher, dans la même carte que le plafond et le débit. */
     abbreviations: {
@@ -1065,7 +1066,10 @@ export const fr = {
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
+    journal: { title: 'Journal d’événements', label: 'journal' },
+    todo: 'à faire',
     settings: 'Réglages',
+    settingsShort: 'régl.',
     seasonEnd: (season: number, hours: number, minutes: string) =>
       `saison ${season} — fin dans ${hours} h ${minutes}`,
     /** Une saison sans horloge ne compte rien à rebours : le rail le dit en un mot plutôt que
@@ -1077,11 +1081,20 @@ export const fr = {
   },
 
   /**
-   * **La barre de pied, sous 768 px** (refonte mobile du 04/10) : cinq entrées, « à faire » au
-   * centre. « Plus » est parti — ce qu'on cherche à froid s'ouvre au drapeau du bandeau
-   * (`dossier`) — et les chantiers en sont sortis, parce qu'on les ouvre souvent. Les libellés
-   * sont ceux de la maquette, en capitales par la feuille de style.
+   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplace la barre
+   * de pied, et ses ronds posés sur l'arc. Les titres des ronds sont ceux de `foot`.
    */
+  protractor: {
+    label: 'menu du plateau',
+    open: (waiting: number) =>
+      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, chantiers, journal, presse, télégraphe, réglages`,
+    close: 'refermer le menu',
+    closeShort: 'fermer',
+    works: 'chant.',
+  },
+
+  /** Les entrées du téléphone, que portaient la barre de pied et que portent les ronds du
+   *  rapporteur. */
   foot: {
     works: 'chantiers',
     journal: 'journal',
