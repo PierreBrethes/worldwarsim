@@ -611,14 +611,23 @@ export class MapEngine {
    * told through `onRest` from the first move on; the clean left press then puts down
    * (`onAct`) rather than reads.
    */
-  holdPiece(held: PieceHold | null): void {
+  holdPiece(held: PieceHold | null, sent = false): void {
     this.invalidate();
     this.held = held;
-    this.standing.hold(held);
+    this.standing.hold(held, sent);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  /** **The piece in hand is set down where the pose opened its rose**, and waits there for
+   *  the order: it no longer follows the pointer on its way to the rose. */
+  setDownPiece(clientX: number, clientY: number): void {
+    this.invalidate();
+    if (this.held === null || !this.castAt(clientX, clientY)) return;
+    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    if (ground !== undefined) this.standing.setDown(ground);
   }
 
   /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
@@ -1788,7 +1797,8 @@ export class MapEngine {
       this.arcs.isFlowing ||
       this.ink.active ||
       this.regions.terrain.active ||
-      this.standing.isSpreading
+      this.standing.isSpreading ||
+      this.standing.isCarrying
     )
       this.invalidate();
     const now = performance.now();

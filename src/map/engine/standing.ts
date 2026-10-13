@@ -11,14 +11,22 @@ import {
   type Object3D,
   type Raycaster,
   SRGBColorSpace,
-  type Vector3,
+  Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import type { PilePieces, SpreadPiece } from '@/domain/pile-pieces';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
-import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
+import {
+  CONTACT,
+  contactShadow,
+  FIGURINE_SCALE,
+  figurineFor,
+  nearWeight,
+  type Figurine,
+} from './figurines/figurine';
+import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
 import { footedHit, nearer, type PieceHit } from './piece-pick';
@@ -352,6 +360,46 @@ function wash(object: Object3D, washed: boolean): void {
 
 /** The prototype's lift (`LIFT_Y`, `lpHand` at 4.2), in board units at full near weight. */
 const CARRIED_LIFT = 0.25;
+/** The prototype's scale: its piece is 1.35 long, a group here about 0.4 — its gestures in our units. */
+const PROTOTYPE_UNIT = 0.3;
+/** The hop on the way back: the prototype's 1.0 over a lift of 1.5. */
+const RETURN_HOP = CARRIED_LIFT * 0.67;
+/** Regathered from its deployment, the pile drops this little onto the board. */
+const SETTLE_DROP = CARRIED_LIFT * 0.6;
+
+/**
+ * **The piece in hand** (ADR 0026 §6, the prototype's `lp`). It hangs `lift` above the board,
+ * follows the pointer a beat late and sways while it does; set down at a pose, it drops and
+ * stays; put back, it glides home and drops there. Its shadow is a disc on the board that
+ * spreads and pales as the piece rises.
+ */
+type Carried = {
+  readonly pileId: string;
+  readonly object: Group;
+  readonly piece: Group;
+  readonly shadow: { readonly object: Group; readonly materials: MeshBasicMaterial[] };
+  readonly width: number;
+  pointer: Vector3 | null;
+  lift: number;
+  drag: { x: number; z: number };
+  readonly since: number;
+  clock: number;
+  down: { readonly at: Vector3; readonly since: number; readonly from: number } | null;
+  back: { readonly from: Vector3; readonly since: number; readonly carried: number } | null;
+};
+
+/** Its own copy of the contact discs: the board's are shared, and this one fades on its own. */
+function carriedShadow(): Carried['shadow'] {
+  const object = contactShadow();
+  const materials: MeshBasicMaterial[] = [];
+  object.traverse((part) => {
+    if (!(part instanceof Mesh)) return;
+    const material = (part.material as MeshBasicMaterial).clone();
+    materials.push(material);
+    part.material = material;
+  });
+  return { object, materials };
+}
 
 /** The held groups only, the +N with them when a troop beyond the three shown is held. */
 function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePieces {
@@ -469,7 +517,11 @@ export class StandingLayer {
   private spread: Spread | null = null;
   motion: MapMotion = 'full';
   /** The copy of what is in hand; `null` when the pile is not dressed. */
-  private carried: { readonly object: Group; at: boolean } | null = null;
+  private carried: Carried | null = null;
+  /** The copy put back, on its way home. */
+  private leaving: Carried | null = null;
+  /** A pile regathered from its deployment, dropping onto the board. */
+  private settle: { readonly pileId: string; readonly since: number } | null = null;
   /** Set by the first `display`; no pile exists before it. */
   private texts: CounterTexts = { count: String, more: String };
 
@@ -627,16 +679,28 @@ export class StandingLayer {
    * copy of the held groups waits for `carryTo` to follow the pointer. A pile that is not
    * dressed lifts nothing on the board — the cursor alone says a piece is in hand.
    */
-  hold(held: PieceHold | null): void {
+  hold(held: PieceHold | null, sent = false): void {
     const previous = this.held;
     if (previous?.pileId === held?.pileId && previous?.troopIds.join() === held?.troopIds.join())
       return;
-    if (previous !== null) {
-      const entry = this.dressed.get(previous.pileId);
-      if (entry) wash(entry.object, false);
-    }
-    this.carried?.object.removeFromParent();
+    const deployed = this.spread !== null;
+    this.dropLeaving();
+    const lifted = this.carried;
     this.carried = null;
+    // Put back, the copy goes home and drops there; sent, its pawn takes over; deployed, the
+    // troops regather into the pile, which drops in its turn.
+    if (lifted !== null && held === null && !sent && !deployed && this.motion !== 'off') {
+      const now = performance.now();
+      lifted.back = { from: lifted.object.position.clone(), since: now, carried: lifted.lift };
+      lifted.down = null;
+      this.leaving = lifted;
+    } else {
+      lifted?.object.removeFromParent();
+      if (previous !== null) {
+        const entry = this.dressed.get(previous.pileId);
+        if (entry) wash(entry.object, false);
+      }
+    }
     this.held = held;
     this.deploy(held);
     if (held === null) return;
@@ -650,12 +714,30 @@ export class StandingLayer {
       this.faces,
     );
     if (copy === null) return;
-    copy.object.position.y = CARRIED_LIFT;
+    for (const disc of copy.object.getObjectsByProperty('name', CONTACT)) disc.visible = false;
+    const piece = new Group();
+    piece.add(copy.object);
+    const shadow = carriedShadow();
     const object = new Group();
-    object.add(copy.object);
+    object.add(piece, shadow.object);
+    object.position.copy(entry.object.position);
     object.visible = false;
     for (const smoke of copy.smokes) smoke.frame(this.time);
-    const carried = { object, at: false };
+    const now = performance.now();
+    const carried: Carried = {
+      pileId: held.pileId,
+      object,
+      piece,
+      shadow,
+      width: Math.max(1, 0.6 * heldPieces(entry.pieces, held.troopIds).groups.length),
+      pointer: null,
+      lift: this.motion === 'full' ? 0 : CARRIED_LIFT,
+      drag: { x: 0, z: 0 },
+      since: now,
+      clock: now,
+      down: null,
+      back: null,
+    };
     this.carried = carried;
     copy.ready.then(
       () => {
@@ -745,11 +827,35 @@ export class StandingLayer {
     return !spread.opening || this.progressOf(spread, performance.now()) < 1;
   }
 
+  /** The piece in hand sways and trails the pointer, a piece set down or put back drops, a
+   *  regathered pile drops too: every frame while it lasts, at full motion. */
+  get isCarrying(): boolean {
+    if (this.motion !== 'full') return false;
+    return this.carried !== null || this.leaving !== null || this.settle !== null;
+  }
+
   /** The ground under the pointer, `null` off the board or under a finger. */
   carryTo(at: Vector3 | null): void {
     if (this.carried === null) return;
-    this.carried.at = at !== null;
-    if (at !== null) this.carried.object.position.copy(at);
+    this.carried.pointer = at === null ? null : at.clone();
+  }
+
+  /** **The piece is set down at a pose** (the rose opens there): it drops and waits for the order. */
+  setDown(at: Vector3): void {
+    const carried = this.carried;
+    if (carried === null) return;
+    carried.down = { at: at.clone(), since: performance.now(), from: carried.lift };
+  }
+
+  /** The copy on its way home is done with: it goes, and the pile it left is whole again. */
+  private dropLeaving(): void {
+    const leaving = this.leaving;
+    if (leaving === null) return;
+    this.leaving = null;
+    leaving.object.removeFromParent();
+    if (this.held?.pileId === leaving.pileId) return;
+    const entry = this.dressed.get(leaving.pileId);
+    if (entry) wash(entry.object, false);
   }
 
   /** Every dressed pile set back on its point; a garrison is set at its maquette's foot by `orient`. */
@@ -780,11 +886,74 @@ export class StandingLayer {
       object.scale.setScalar(near * pieceScale.troops);
     }
     this.orientSpread(cameraPosition);
-    if (this.carried === null) return;
-    const { object, at } = this.carried;
+    this.orientSettle();
+    const now = performance.now();
+    if (this.leaving !== null) this.orientCarried(this.leaving, cameraPosition, now);
+    if (this.carried !== null) this.orientCarried(this.carried, cameraPosition, now);
+  }
+
+  /** Its time in seconds since `since`, or past every animation when motion is not full. */
+  private seconds(since: number, now: number): number {
+    return this.motion === 'full' ? (now - since) / 1000 : Infinity;
+  }
+
+  private orientCarried(carried: Carried, cameraPosition: Vector3, now: number): void {
+    const { object, piece, down, back } = carried;
+    const dt = Math.min(0.1, (now - carried.clock) / 1000);
+    carried.clock = now;
     const near = nearWeight(object.position.distanceTo(cameraPosition));
-    object.visible = at && near > 0;
-    object.scale.setScalar(near * pieceScale.troops);
+    const scale = near * pieceScale.troops;
+    const full = this.motion === 'full';
+    let tilt = { x: 0, z: 0 };
+    if (back !== null) {
+      const t = this.seconds(back.since, now);
+      if (t >= RETURN_DONE) {
+        this.dropLeaving();
+        return;
+      }
+      const home = this.dressed.get(carried.pileId)?.object.position ?? back.from;
+      const at = returnAt(t, back.carried, RETURN_HOP);
+      object.position.lerpVectors(back.from, home, at.share);
+      carried.lift = at.lift;
+    } else if (down !== null) {
+      object.position.lerp(down.at, full ? followShare(dt, 20) : 1);
+      const t = this.seconds(down.since, now);
+      carried.lift = t >= DROP_DONE ? 0 : dropLift(t, down.from);
+    } else if (carried.pointer !== null) {
+      const gap = carried.pointer.clone().sub(object.position);
+      object.position.addScaledVector(gap, full ? followShare(dt, 14) : 1);
+      carried.lift += (CARRIED_LIFT - carried.lift) * (full ? followShare(dt, 12) : 1);
+      // The prototype leans 0.012 a unit of lag; its unit is ours over PROTOTYPE_UNIT.
+      const lean = 0.012 / PROTOTYPE_UNIT / Math.max(scale, 1e-3);
+      carried.drag = { x: gap.x * lean, z: gap.z * lean };
+      if (full) tilt = swayAt((now - carried.since) / 1000, carried.drag);
+    }
+    piece.position.y = carried.lift;
+    piece.rotation.set(tilt.x, 0, tilt.z);
+    // The prototype's blob: `radius × (0.8 + h × 0.3)`, `0.42 − h × 0.1`, h in its units.
+    const height = (carried.lift / CARRIED_LIFT) * 1.5;
+    carried.shadow.object.scale.setScalar(carried.width * 0.6 * (0.8 + height * 0.3));
+    const fade = Math.max(0, 0.42 - height * 0.1) / 0.42;
+    carried.shadow.materials.forEach(
+      (material, k) => (material.opacity = [0.12, 0.06][k]! * fade * 1.5),
+    );
+    object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
+    object.scale.setScalar(scale);
+  }
+
+  /** A regathered pile drops onto its point; only a pile on open ground deploys. */
+  private orientSettle(): void {
+    const settle = this.settle;
+    if (settle === null) return;
+    const entry = this.dressed.get(settle.pileId);
+    const t = this.seconds(settle.since, performance.now());
+    if (entry === undefined || !('lonLat' in entry.at) || t >= DROP_DONE) {
+      this.settle = null;
+      this.rebuild();
+      return;
+    }
+    const base = this.frame.projectLonLat(entry.at.lonLat, COUNTRY_THICKNESS);
+    entry.object.position.y = base.y + dropLift(t, SETTLE_DROP) * entry.object.scale.y;
   }
 
   /** The deployed troops slide out of the pile's point as its groups shrink into it, the whole
@@ -801,6 +970,7 @@ export class StandingLayer {
     const t = this.progressOf(spread, performance.now());
     if (t === 0 && !spread.opening) {
       this.fold();
+      if (this.motion === 'full') this.settle = { pileId: spread.pileId, since: performance.now() };
       return;
     }
     const eased = t * t * (3 - 2 * t);
@@ -822,6 +992,7 @@ export class StandingLayer {
    *  counter faces are this layer's to free. */
   dispose(): void {
     this.fold();
+    this.dropLeaving();
     this.group.removeFromParent();
     this.faces.keepOnly(new Set());
   }

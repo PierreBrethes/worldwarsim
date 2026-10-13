@@ -108,6 +108,9 @@ type Props = {
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
   /** **La pièce en main** (ADR 0026 §6), que le moteur porte sous le pointeur. */
   holding?: PieceHold | null;
+  /** Compte les ordres partis : la pièce lâchée après l'un d'eux ne rentre pas chez elle, son
+   *  pion prend le relais. */
+  departures?: number;
   /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
   /**
@@ -275,6 +278,7 @@ export function WorldMap({
   onOpenBuilding,
   onOpenStack,
   holding = null,
+  departures = 0,
   onPieceClick,
   onRestAim,
   onRoseDismiss,
@@ -396,6 +400,7 @@ export function WorldMap({
       const rect = container.current?.getBoundingClientRect();
       if (drawn === null || rect === undefined) return;
       const at = { x: clientX - rect.left, y: clientY - rect.top };
+      if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
       if (aiming && onOrderTarget?.(drawn, at) === true) {
         setRose(null);
         return;
@@ -420,7 +425,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction],
+    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction, holding],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -573,9 +578,11 @@ export function WorldMap({
       });
   }, [readyEngine, onPieceClick, labels, onLabelAct]);
 
+  const departed = useRef(departures);
   useEffect(() => {
-    readyEngine?.holdPiece(holding);
-  }, [readyEngine, holding]);
+    readyEngine?.holdPiece(holding, departed.current !== departures);
+    departed.current = departures;
+  }, [readyEngine, holding, departures]);
 
   /** Lue sur le point de la pile et non sous un pointeur : la fiche n'a pas de clic à suivre. */
   useEffect(() => {

@@ -406,6 +406,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  const [departures, setDepartures] = useState(0);
   /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
   const [lifts, setLifts] = useState(0);
   const column = useMemo(
@@ -1904,6 +1905,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const afterSent = useCallback(
     (filed: Sent) => {
       if (narrow && order !== null) setSent({ ...filed, order: order.label });
+      setDepartures((count) => count + 1);
       dropHand();
     },
     [narrow, order, dropHand],
@@ -1966,6 +1968,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
               holding={holding}
+              departures={departures}
               onPieceClick={view.me.defeated ? undefined : pieceClick}
               onRestAim={restAt}
               onRoseDismiss={dropHand}
