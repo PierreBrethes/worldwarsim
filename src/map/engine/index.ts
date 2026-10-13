@@ -48,10 +48,10 @@ import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { LabelLayer, closeShare, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
-import { PALETTE } from './palette';
+import { HELD_OPACITY, lavis, PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
 import { buildBoard } from './board';
-import { HELD_OPACITY, RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
+import { RegionLayer, REGIONS_GONE_DISTANCE, type HeldClaim } from './regions';
 import { PlacingGhost, type CoastSpot } from './placing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
@@ -914,12 +914,13 @@ export class MapEngine {
     this.paintCountries();
   }
 
-  /** A sheet painted whole takes the holder's ink over the nation's, as its region fills did. */
+  /** A sheet painted whole takes the holder's lavis instead of the nation's, as its region fills
+   *  did: both over the paper, never one over the other (`lavis`). */
   private paintCountries(): void {
     for (const mesh of this.countries) {
-      const ground = new Color(this.nationInks.get(mesh.userData.name) ?? PALETTE.neutralLand);
       const sheet = this.sheets.get(mesh.userData.adm0);
-      mesh.material.color.copy(sheet === undefined ? ground : inkOver(ground, sheet));
+      const ink = sheet ?? this.nationInks.get(mesh.userData.name);
+      mesh.material.color.set(ink === undefined ? PALETTE.neutralLand : lavis(ink));
       mesh.userData.pencil.value = sheet === undefined ? 1 : 1 - HELD_OPACITY;
     }
   }
@@ -1743,13 +1744,4 @@ function disposeNode(node: Object3D): void {
     }
     single.dispose();
   }
-}
-
-/** The fill's ink over the ground, blended where the framebuffer blended it: in sRGB. */
-function inkOver(ground: Color, ink: string): Color {
-  return ground
-    .clone()
-    .convertLinearToSRGB()
-    .lerp(new Color(ink).convertLinearToSRGB(), HELD_OPACITY)
-    .convertSRGBToLinear();
 }

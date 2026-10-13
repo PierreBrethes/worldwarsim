@@ -1,11 +1,11 @@
-import { Color, Group, type Vector3 } from 'three';
+import { Group, type Vector3 } from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { RegionType } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import { inkedStrands } from './ink';
-import { PALETTE } from './palette';
+import { lavis, PALETTE } from './palette';
 
 /**
  * **Les dessins de terrain au survol** (`WWS/docs/design/propositions/table-etat-major.md`) :
@@ -510,10 +510,8 @@ const DARK_GROUND_LUMA = 0.6;
  */
 export function inkOn(ink: string | null, opacity: number): string {
   if (ink === null) return PALETTE.border;
-  const sheet = new Color(PALETTE.neutralLand).getHex();
-  const seat = new Color(ink).getHex();
-  const channel = (shift: number) =>
-    (((sheet >> shift) & 255) * (1 - opacity) + ((seat >> shift) & 255) * opacity) / 255;
+  const ground = parseInt(lavis(ink, opacity).slice(1), 16);
+  const channel = (shift: number) => ((ground >> shift) & 255) / 255;
   const luma = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
   return luma < DARK_GROUND_LUMA ? PALETTE.paper : PALETTE.border;
 }

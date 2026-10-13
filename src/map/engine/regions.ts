@@ -13,7 +13,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import { builtInk, PALETTE } from './palette';
+import { builtInk, HELD_OPACITY, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, LAND_STENCIL, type WorldFrame } from './frame';
 import {
   mulberry,
@@ -60,22 +60,6 @@ const HOVER_OPACITY = 0.85;
 
 /** Enough to read as a wash over the country's own ink, never enough to hide the ground. */
 const DESIGNATED_OPACITY = 0.62;
-
-/**
- * **La couleur de possession ne suit pas le fondu du rapproché** (décision de Pierre, 31/08) :
- * au-delà du seuil les traits de région disparaissent, la teinte reste. On voit qui tient quoi
- * sans voir le découpage — et c'est l'apparition des frontières intérieures, elle seule, qui
- * annonce au joueur qu'une région devient survolable.
- *
- * L'opacité est donc constante : c'est un lavis posé sur l'encre du pays, jamais un aplat qui
- * remplacerait le sol.
- *
- * **Elle est montée d'un cran le 31/08** (contrôle visuel de Pierre) : à 0,5 sur le terrain clair,
- * un bleu de siège se lisait gris — un joueur doit reconnaître sa couleur sans y penser. Le
- * plancher du délavage (`FADED_WASH`) ne bouge pas : il multiplie cette opacité, donc l'écart
- * franc/délavé — qui est une information (ADR 0020 §5) — reste le même rapport.
- */
-export const HELD_OPACITY = 0.72;
 
 /**
  * Ce qu'un joueur **connaît** d'un tenant, et de quelle encre — la forme que `control.held` sert
