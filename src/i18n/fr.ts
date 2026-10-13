@@ -2554,10 +2554,9 @@ export const fr = {
               title: 'Vos bureaux',
               lines: [
                 'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
-                'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
+                '« À faire maintenant », en bas à gauche : tout ce qui attend un ordre, l’ordre de mobilisation en tête — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.',
                 'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
                 'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
-                'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
               ],
             },
       ];
