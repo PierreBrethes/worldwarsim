@@ -17,6 +17,21 @@ import { nearWeight } from './figurines/figurine';
  */
 export const LABEL_EXPANDED_DISTANCE = 220;
 
+const PLATE_FLOOR = 0.4;
+const PLATE_SHRINK_DISTANCE = 300;
+
+/**
+ * A folded building keeps its plate at any distance, but the buildings of one nation fall within
+ * a few pixels of each other at world scale: five plates of 46 px piled into one giant
+ * building. Past the expanded threshold the plate shrinks with the camera's distance, so the
+ * pile reads as a cluster of small marks.
+ */
+export function plateScale(distance: number): number {
+  const t =
+    (distance - LABEL_EXPANDED_DISTANCE) / (PLATE_SHRINK_DISTANCE - LABEL_EXPANDED_DISTANCE);
+  return 1 - (1 - PLATE_FLOOR) * Math.min(1, Math.max(0, t));
+}
+
 /** The anchor sits on the crust, not above it: the callout must start from the ground it
  *  designates. */
 const ANCHOR_ELEVATION = COUNTRY_THICKNESS + 0.01;
@@ -44,6 +59,8 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
+  plateScale: number;
   /**
    * Off-frame: the anchor parks at the screen edge.
    */
@@ -116,6 +133,7 @@ export class LabelLayer {
         lod: 'glyph',
         fade: withRegionLayer ? 0 : 1,
         dressed: 0,
+        plateScale: 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -173,6 +191,7 @@ export class LabelLayer {
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
+      projection.plateScale = plateScale(distance);
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
 
       projection.atEdge = !projection.visible;

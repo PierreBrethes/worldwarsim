@@ -461,6 +461,10 @@
   pointer-events: auto;
 }
 
+.label--building.label--glyph .label-plate {
+  height: calc(46px * var(--plate-scale, 1));
+}
+
 .label--building.label--glyph .label-lines,
 .label--building.label--glyph .label-bar {
   display: none;
