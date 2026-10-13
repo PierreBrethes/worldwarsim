@@ -38,7 +38,8 @@ import {
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { DepositMark } from '@/emblems/DepositMark';
+import { resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
 
@@ -634,7 +635,7 @@ export function MapLabels({
                   className="label-deposit"
                   style={{ color: resourceColor(label.deposit, true) }}
                 >
-                  <ResourceIcon resource={label.deposit} size={15} />
+                  <DepositMark resource={label.deposit} />
                 </span>
               )}
               {label.lootSightingId !== null && (
