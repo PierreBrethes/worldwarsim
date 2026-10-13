@@ -23,6 +23,7 @@ import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration } from '@/domain/duration';
 import { produces } from '@/domain/economy';
+import { HelpMark } from './HelpMark';
 import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl } from './RaiseControl';
 import { DragHandle } from './Draggable';
@@ -189,13 +190,13 @@ function Site({
     <>
       <DragHandle className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--ink)] px-4 py-[10px]">
         <BuildingPlate building={building.key} height={30} />
-        <span className="font-(family-name:--font-display) text-[19px] leading-none font-extrabold text-[var(--ink)]">
+        <span className="font-(family-name:--font-display) text-[22px] leading-none font-bold text-[var(--ink)]">
           {fr.buildings[building.key]}
         </span>
         <span className="text-[12.5px] text-[var(--ink-soft)]">
           {fr.economy.inRegion(region?.name ?? building.regionId)}
         </span>
-        <span className="border border-(color:--ink)/45 px-[7px] py-[2px] text-[10px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
           {fr.production.siteLevel(building.level)}
         </span>
         {/* **Un état, jamais une action** (ADR 0020 §6). Rien ne se répare ici : le bâtiment est
@@ -246,10 +247,8 @@ function Site({
               queued={workshop.troopsQueued}
               cap={workshop.troopCap}
             />
-            <span className="h-px flex-1 bg-(--ink)/20" />
-            <span className="max-w-[40ch] text-right text-[11.5px] leading-[1.4] text-[var(--ink-soft)] italic">
-              {fr.production.troopCapNote}
-            </span>
+            <span className="flex-1" />
+            <HelpMark>{fr.production.troopCapNote}</HelpMark>
           </div>
 
           {/* **Deux colonnes larges, une seule feuille étroite.** Sous `@4xl` — un écran de
@@ -343,11 +342,9 @@ function Site({
                     ))}
                   </>
                 )}
-                <div className="mt-auto border-t border-(color:--ink)/35 px-4 pt-3 pb-5">
+                <div className="mt-auto flex items-center gap-2 px-4 pt-3 pb-4">
                   <span className="eyebrow">{fr.production.atWaking}</span>
-                  <p className="mt-1 text-[11.5px] leading-[1.5] text-[var(--ink-soft)]">
-                    {fr.production.wakingNote}
-                  </p>
+                  <HelpMark>{fr.production.wakingNote}</HelpMark>
                 </div>
               </div>
             </aside>
@@ -626,9 +623,9 @@ function NarrowSite({
               ))}
             </>
           )}
-          <p className="mx-4 mt-4 mb-6 font-(family-name:--font-body) text-[12.5px] leading-[1.45] text-[var(--ink-soft)] italic">
-            {fr.production.troopCapNote}
-          </p>
+          <div className="mx-4 mt-4 mb-6">
+            <HelpMark>{fr.production.troopCapNote}</HelpMark>
+          </div>
         </>
       ) : tab === 'queue' ? (
         <>
@@ -678,9 +675,9 @@ function NarrowSite({
               </button>
             </div>
           )}
-          <p className="mx-4 mt-[18px] mb-6 font-(family-name:--font-body) text-[12.5px] leading-[1.45] text-[var(--ink-soft)] italic">
-            {fr.production.sheet.queueNote(aSecondBuilding(building.key))}
-          </p>
+          <div className="mx-4 mt-[18px] mb-6">
+            <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
+          </div>
         </>
       ) : held.length === 0 ? (
         <div className="px-4 pt-7 pb-6">
