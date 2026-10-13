@@ -259,6 +259,10 @@ export const fr = {
     freeCapacity: (free: number) => `capacité libre : ${num(free)}`,
     sharedCargo: (carriers: number) =>
       carriers > 1 ? `charge commune · ${carriers} porteurs` : 'charge embarquée',
+    loading: (minutesLeft: number) => {
+      const minutes = Math.floor(minutesLeft);
+      return `chargement · reste ${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
     missions: {
       plunderOutbound: 'expédition vers le site',
       plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,

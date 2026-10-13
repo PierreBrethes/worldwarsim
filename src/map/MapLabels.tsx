@@ -13,6 +13,8 @@ import {
 } from 'react';
 import { asDuration } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
+import { useMapMotion } from '@/data/mapMotion';
+import { LoadingGauge } from './LoadingGauge';
 import {
   URGENCY_MS,
   isCountdown,
@@ -145,6 +147,7 @@ export function MapLabels({
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
   const countdowns = useRef(new Map<string, HTMLElement>());
+  const motion = useMapMotion();
   const states = useRef(new Map<string, RenderState>());
   const pendingDegrade = useRef(0);
   /**
@@ -625,6 +628,8 @@ export function MapLabels({
                         register(countdowns.current, label.id, node);
                       }}
                     />
+                  ) : line.role === 'loading' ? (
+                    <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
                   ) : (
                     <div key={rank} className={`label-line label-line--${line.role}`}>
                       {line.text}

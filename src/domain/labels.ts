@@ -2,6 +2,7 @@ import { asDuration, asLocalTime } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
+import { loadingUntilOf } from './loading';
 import {
   RESOURCES,
   type BuildingKey,
@@ -248,7 +249,9 @@ export type LabelType =
  */
 export type LabelLine =
   | { readonly role: 'nature' | 'figures' | 'headcount' | 'mention'; readonly text: string }
-  | { readonly role: 'countdown'; readonly dueAt: number; readonly prefix: string };
+  | { readonly role: 'countdown'; readonly dueAt: number; readonly prefix: string }
+  /** My expedition loading on site: a bar and what is left, in place of the countdown. */
+  | { readonly role: 'loading'; readonly until: number };
 
 /**
  * A mobile anchor carries no position: a movement's head travels along its arc every frame,
@@ -726,6 +729,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     const mission = arc.mission ?? null;
     const cargo = arc.cargo;
     const cargoVisible = cargo !== undefined && (cargo.carried > 0 || mission !== null);
+    const loadingUntil = loadingUntilOf(arc);
     return {
       id: arc.id,
       type: 'my-movement',
@@ -750,7 +754,9 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       station: null,
       force: null,
       lines: [
-        ...scheduleLines(arc, loadedAt),
+        ...(loadingUntil === null
+          ? scheduleLines(arc, loadedAt)
+          : [{ role: 'loading', until: loadingUntil } as const]),
         ...(cargoVisible
           ? [
               {
