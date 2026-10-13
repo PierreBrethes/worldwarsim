@@ -23,6 +23,7 @@ import {
   type ArcView,
   type JournalDispatch,
   type TroopStation,
+  type TroopView,
 } from '@/domain/player-view';
 import { inkBursts } from '@/domain/ink-bursts';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
@@ -47,6 +48,8 @@ import {
 type Props = {
   world: World;
   arcs: ReadonlyArray<ArcView>;
+  /** My troops: a movement's wear is read on them, the arc does not carry strength. */
+  troops: ReadonlyArray<TroopView>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
@@ -215,6 +218,7 @@ const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles }
 export function WorldMap({
   world,
   arcs,
+  troops,
   journal,
   labels,
   standing,
@@ -677,8 +681,8 @@ export function WorldMap({
   const designatedArc = arcs.find((arc) => arc.id === accentedMovement) ?? null;
 
   useEffect(() => {
-    engine.current?.displayArcs(arcs);
-  }, [arcs]);
+    engine.current?.displayArcs(arcs, troops);
+  }, [arcs, troops]);
 
   useEffect(() => {
     readyEngine?.displayStanding(standing, COUNTER_TEXTS);

@@ -1855,6 +1855,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           <WorldMap
             world={world}
             arcs={arcs}
+            troops={view.me.troops}
             journal={view.journal}
             labels={labels}
             standing={standing}

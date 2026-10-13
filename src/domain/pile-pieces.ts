@@ -1,6 +1,6 @@
 import type { UnitRole, UnitTier } from './ids';
-import type { TroopView } from './player-view';
-import { ROLE_ORDER } from './troops';
+import type { ArcView, TroopView } from './player-view';
+import { DOMAIN_BY_ROLE, ROLE_ORDER, type UnitDomain } from './troops';
 
 /**
  * Une pile posée se lit en groupes de figurines (ADR 0026 §5). La règle vit ici, pure, pour que
@@ -109,4 +109,25 @@ export function pileSheet(troops: ReadonlyArray<PileTroop>): ReadonlyArray<Sheet
       ink: ratio > 2 / 3 ? 'ink' : ratio > 1 / 3 ? 'ochre' : 'red',
     };
   });
+}
+
+/**
+ * **What wear each medium of my movement shows**, read off the troops it carries — the arc does
+ * not carry strength, the troop list does. The face of a medium is its most numerous role, as for
+ * the figurine (`movementRoles`), and infantry never smokes. `null` for anything not mine: an
+ * enemy column has no troops to read (fog).
+ */
+export function movementWear(
+  arc: ArcView,
+  troops: ReadonlyArray<PileTroop>,
+): Readonly<Record<UnitDomain, Wear>> | null {
+  if (arc.state !== 'mine') return null;
+  const carried = new Set(arc.troopIds);
+  const wearIn = (domain: UnitDomain): Wear => {
+    const face = bucketsOf(
+      troops.filter((t) => carried.has(t.id) && DOMAIN_BY_ROLE[t.role] === domain),
+    )[0];
+    return face === undefined || face.role === 'infantry' ? 'whole' : wearOf(face.ratio);
+  };
+  return { land: wearIn('land'), sea: wearIn('sea'), air: wearIn('air') };
 }

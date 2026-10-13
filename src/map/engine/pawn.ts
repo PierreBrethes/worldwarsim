@@ -8,12 +8,14 @@ import {
   ShapeGeometry,
   Vector3,
 } from 'three';
+import type { Wear } from '@/domain/pile-pieces';
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
 import { contactShadow, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
-import { Wake } from './smoke';
+import { PLUME_BY_WEAR, Smoke, Wake } from './smoke';
+import { blacken } from './standing';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -63,6 +65,7 @@ export class Pawn {
   private readonly sprites = new Map<Medium, SpriteCostume>();
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
+  private readonly smokes = new Map<Medium, Smoke>();
   private readonly wake = new Wake();
   private readonly shadow = contactShadow();
   /** Height of the ground under the pawn, relative to it: zero, or below a plane. */
@@ -77,6 +80,8 @@ export class Pawn {
     sprites: MediumSprites | null,
     color: string,
     figurines: Readonly<Record<Medium, Figurine | null>> | null = null,
+    /** My movement's wear per medium (`movementWear`); `null` for anything not mine. */
+    wear: Readonly<Record<Medium, Wear>> | null = null,
   ) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
@@ -90,6 +95,20 @@ export class Pawn {
         figurine.object.visible = false;
         this.figurines.set(medium, figurine);
         this.object.add(figurine.object);
+        const worn = wear?.[medium] ?? 'whole';
+        const plume = PLUME_BY_WEAR[worn];
+        if (plume !== null) {
+          // A worn vehicle on the move smokes as it does standing (ADR 0026 §5).
+          const smoke = new Smoke(plume);
+          this.smokes.set(medium, smoke);
+          void figurine.ready.then(
+            () => {
+              figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
+              if (worn === 'burning') blacken(figurine.object);
+            },
+            () => {},
+          );
+        }
       }
     }
     this.wake.object.name = 'wake';
@@ -137,6 +156,7 @@ export class Pawn {
     this.figurines.get(this.medium)?.spin(elapsedSeconds);
     this.clock += elapsedSeconds;
     if (this.wake.object.visible) this.wake.frame(this.clock);
+    this.smokes.get(this.medium)?.frame(this.clock);
   }
 
   /**

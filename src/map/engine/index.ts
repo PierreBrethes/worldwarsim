@@ -33,7 +33,7 @@ import {
 import type { LonLat } from '@/domain/geo';
 import type { RegionIdentity, RegionsData, World } from '@/domain/world';
 import { buildGrid, coastCellsIn, isCoastCell, isLandCell, type RouteGrid } from '@/domain/routing';
-import type { ArcView } from '@/domain/player-view';
+import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -453,8 +453,9 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
-  displayArcs(arcs: ReadonlyArray<ArcView>): void {
+  displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
     this.invalidate();
+    this.arcs.troops = troops;
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
     // nothing on screen moved.

@@ -6,8 +6,9 @@ import {
   unrollRoute,
   type UnrolledSegment,
 } from '@/domain/route-timing';
-import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
+import { PREVIEW_ARC_ID, type ArcView, type TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
+import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { blockFigurine } from './blocks';
@@ -81,6 +82,8 @@ export class ArcLayer {
   private lastFrameMs = 0;
   /** `off` stops the dashes drifting, so a displayed thread no longer forces continuous rendering. */
   motion: MapMotion = 'full';
+  /** My troops, read for the strength my movements carry: the arc does not serve it. */
+  troops: ReadonlyArray<TroopView> = [];
 
   /** Ids on screen at the last real display; `null` until the first, which is no appearance. */
   private known: ReadonlySet<string> | null = null;
@@ -163,6 +166,7 @@ export class ArcLayer {
               sea: figurineOf(roles.sea),
               air: figurineOf(roles.air),
             },
+        movementWear(arc, this.troops),
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
