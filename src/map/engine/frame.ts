@@ -17,7 +17,7 @@ export const SEA_LEVEL = COUNTRY_THICKNESS - 0.004;
  */
 export const RECESSION = { land: 2, wash: 4, sea: 6 } as const;
 export const PLINTH_HEIGHT = 5;
-/** Written by the country sheets, read by the region fills; the coastal wash writes 1 on water. */
+/** Written by the country sheets, read through `onLand`; the coastal wash writes 1 on water. */
 export const LAND_STENCIL = 2;
 
 /**
