@@ -47,6 +47,12 @@ describe('footprintOf', () => {
     expect(footprintOf([...rect(0, 0, 1, 1), ...rect(3, 0, 4, 1)])).toHaveLength(2);
   });
 
+  it('keeps two buildings touching by a corner as two outlines, not a figure eight', () => {
+    const loops = footprintOf([...rect(0, 0, 1, 1), ...rect(1.25, 1.25, 2, 2)], 8);
+    expect(loops).toHaveLength(2);
+    for (const loop of loops) expect(area(loop)).toBeLessThan(1.6);
+  });
+
   it('has nothing to draw for nothing', () => {
     expect(footprintOf([])).toEqual([]);
   });

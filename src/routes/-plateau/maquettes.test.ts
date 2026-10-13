@@ -79,10 +79,13 @@ describe('maquettesOf', () => {
       [
         [
           'building-FRA-5328-mine',
-          { phase: 'raising', finishesAt: at, minutes: 40, pennant: 'niv. 3', stamp },
+          { phase: 'raising', level: 3, finishesAt: at, minutes: 40, pennant: 'niv. 3', stamp },
         ],
-        ['s', { phase: 'rising', finishesAt: at, minutes: 40, pennant: null, stamp }],
-        ['q', { phase: 'queued', finishesAt: null, minutes: 40, pennant: null, stamp: null }],
+        ['s', { phase: 'rising', level: 1, finishesAt: at, minutes: 40, pennant: null, stamp }],
+        [
+          'q',
+          { phase: 'queued', level: 1, finishesAt: null, minutes: 40, pennant: null, stamp: null },
+        ],
       ],
     );
   });

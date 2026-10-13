@@ -319,7 +319,7 @@ export class MaquetteLayer {
     const seen = new Map(
       this.maquettes.flatMap((m) =>
         m.works?.stamp && (this.byId.get(m.id)?.item.near ?? 0) > 0
-          ? [[m.id, m.works.stamp] as const]
+          ? [[m.id, { stamp: m.works.stamp, level: m.works.level }] as const]
           : [],
       ),
     );
@@ -327,9 +327,11 @@ export class MaquetteLayer {
     this.rebuild();
     for (const maquette of maquettes) {
       const stood = this.byId.get(maquette.id);
-      const stamp = seen.get(maquette.id);
-      if (stood === undefined || stamp === undefined || maquette.works) continue;
-      this.posed(stood.item.at, stamp);
+      const was = seen.get(maquette.id);
+      // Done, or done and the next level already started on it: either way it stood up.
+      const stoodUp = was !== undefined && (!maquette.works || maquette.works.level > was.level);
+      if (stood === undefined || was === undefined || !stoodUp) continue;
+      this.posed(stood.item.at, was.stamp);
       if (this.motion === 'full') stood.item.settledAt = Date.now();
     }
     return true;
@@ -544,8 +546,9 @@ export class MaquetteLayer {
           : Math.round(nearWeight(item.at.distanceTo(cameraPosition)) * 100) / 100;
         const bounce = item.settledAt === null ? null : bounceAt(now - item.settledAt);
         // Its last bounce sets it back on its feet: one more placement, then still.
-        if (item.settledAt !== null && bounce === null) item.settledAt = null;
-        if (near === item.near && item.settledAt === null && bounce === null) return;
+        const ending = item.settledAt !== null && bounce === null;
+        if (ending) item.settledAt = null;
+        if (near === item.near && item.settledAt === null && !ending) return;
         item.near = near;
         moved = true;
         const size = near * lot.model!.scale * pieceScale.buildings;

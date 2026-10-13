@@ -36,6 +36,8 @@ import { ARC_COLORS, PALETTE } from './palette';
  */
 export type Works = {
   readonly phase: 'queued' | 'rising' | 'raising';
+  /** The level it will stand at: a raise that follows another is a new site, not the same. */
+  readonly level: number;
   /** Only the head of the queue is dated. */
   readonly finishesAt: number | null;
   readonly minutes: number;
@@ -349,10 +351,17 @@ export class WorksDressing {
     this.scaffold!.visible = shown;
   }
 
-  /** The plan is taken by the pointer over its whole sheet, as a maquette by its walls. */
+  /** The plan is taken by the pointer over the ground it marks, as a maquette by its walls —
+   *  not over the margin its sheet keeps for the dimension lines, which a neighbour may need. */
   pick(ray: Raycaster): number | null {
     if (this.plan === null || !this.object.visible) return null;
-    return ray.intersectObject(this.plan, false)[0]?.distance ?? null;
+    const hit = ray.intersectObject(this.plan, false)[0];
+    if (hit === undefined) return null;
+    const local = this.object.worldToLocal(hit.point.clone());
+    const { min, max } = this.box;
+    return local.x >= min.x && local.x <= max.x && local.z >= min.z && local.z <= max.z
+      ? hit.distance
+      : null;
   }
 
   dispose(): void {

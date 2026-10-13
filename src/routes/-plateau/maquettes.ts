@@ -49,6 +49,7 @@ export function maquettesOf(
             ? undefined
             : {
                 phase: marker.works.phase,
+                level: marker.works.level,
                 finishesAt:
                   marker.works.finishesAt === null ? null : Math.round(marker.works.finishesAt),
                 minutes: marker.works.minutes,

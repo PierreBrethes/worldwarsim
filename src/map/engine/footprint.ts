@@ -105,16 +105,36 @@ export function footprintOf(triangles: ArrayLike<number>, cells = 96): Loop[] {
   for (const start of from.keys()) {
     while ((from.get(start)?.length ?? 0) > 0) {
       const corners: Array<[number, number]> = [];
-      let at = start;
+      let [previous, at] = [start, start];
       do {
         corners.push([ox + (at % (nx + 1)) * step, oz + Math.floor(at / (nx + 1)) * step]);
-        at = from.get(at)!.pop()!;
+        const next = leftmost(from.get(at)!, previous, at, nx + 1);
+        [previous, at] = [at, next];
       } while (at !== start && (from.get(at)?.length ?? 0) > 0);
       const loop = straightened(corners, step);
       if (loop.length >= 3) loops.push(loop);
     }
   }
   return loops;
+}
+
+/**
+ * Takes the way out of a corner, the sharpest left of the way in: two cells that touch only by
+ * a corner keep an outline each, where an arbitrary pick would knot them into a figure eight.
+ */
+function leftmost(ways: number[], previous: number, at: number, row: number): number {
+  const [ix, iz] = [
+    (at % row) - (previous % row),
+    Math.floor(at / row) - Math.floor(previous / row),
+  ];
+  let best = 0;
+  let turn = -Infinity;
+  ways.forEach((to, k) => {
+    const [ox, oz] = [(to % row) - (at % row), Math.floor(to / row) - Math.floor(at / row)];
+    const cross = ix * oz - iz * ox;
+    if (cross > turn) [best, turn] = [k, cross];
+  });
+  return ways.splice(best, 1)[0]!;
 }
 
 /** Douglas-Peucker on a closed loop, split at the corner farthest from the first. */

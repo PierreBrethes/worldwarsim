@@ -387,7 +387,7 @@ cartouche fixe. L'état sort d'**une** règle pure, `workSitesOf` (`src/domain/c
 **en file** — payé, pas en tête —, l'**empreinte** de la maquette tracée en pointillés d'encre
 sur le sol avec deux traits de cote **sans chiffre** (une maquette n'est pas à l'échelle), sans
 volume ; **en construction** — le premier niveau en tête de file — la maquette **monte**, coupée
-au plan où le travail est arrivé (ombre comprise), la coupe **hachurée**, un échafaudage **en
+au plan où le travail est arrivé (ombre comprise), la coupe **hachurée** (dans l'empreinte du pied, pas la section à cette hauteur), un échafaudage **en
 traits d'encre** qui monte avec elle et, au pied, un **piquet de chantier** à fanion ocre ;
 **élévation** — la maquette entière, l'échafaudage jusqu'en haut de sa boîte, cheminées
 comprises, le fanion portant « niv. N » ; **achevé** — l'échafaudage tombe, un petit rebond
