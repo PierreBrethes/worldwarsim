@@ -1862,6 +1862,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             camps={camps}
             inkByCountry={inkByCountry}
             held={held}
+            outposts={view.me.outposts}
             built={built}
             selectedCountry={country ?? null}
             playerNation={view.me.nation}

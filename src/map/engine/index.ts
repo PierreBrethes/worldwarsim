@@ -42,7 +42,7 @@ import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
-import { ReachRing } from './reach';
+import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import { Curvature } from './curvature';
 import { LabelLayer, type LabelProjection, type NamedAnchor } from './labels';
@@ -451,6 +451,17 @@ export class MapEngine {
   inkBurst(burst: InkBurst): void {
     this.invalidate();
     this.ink.burst(burst, performance.now());
+  }
+
+  /** A point of mine now holds this far: its reach is inked once around it. */
+  inkReach(at: LonLat, km: number): void {
+    this.invalidate();
+    const ring = circleAround(this.frame, at, km).positions;
+    const vertices = Array.from(
+      { length: ring.length / 3 },
+      (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
+    );
+    this.ink.traceReach(vertices, performance.now());
   }
 
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {

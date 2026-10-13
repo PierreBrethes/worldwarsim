@@ -1,7 +1,7 @@
 import { outpostReachKm } from '../../convex/constants';
 import type { LonLat } from './geo';
 
-type Point = {
+export type ReachedOutpost = {
   readonly id: string;
   readonly lonLat: LonLat;
   readonly level: number;
@@ -13,8 +13,8 @@ type Point = {
  * the previous view is not one that was raised — it is what the map opened on, and stays silent.
  */
 export function raisedReaches(
-  before: ReadonlyArray<Point>,
-  now: ReadonlyArray<Point>,
+  before: ReadonlyArray<ReachedOutpost>,
+  now: ReadonlyArray<ReachedOutpost>,
 ): ReadonlyArray<{ readonly at: LonLat; readonly km: number }> {
   return now.flatMap((point) => {
     const was = before.find((candidate) => candidate.id === point.id);

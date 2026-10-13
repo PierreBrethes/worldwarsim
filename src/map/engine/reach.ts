@@ -118,44 +118,44 @@ export class ReachRing {
   }
 
   private write(reach: Reach): void {
-    this.detection.write(this.circle(reach.lonLat, reach.detectionKm));
+    this.detection.write(circleAround(this.frame, reach.lonLat, reach.detectionKm));
 
     if (reach.contactKm === null) {
       this.contact.line.visible = false;
       this.contactUnits = 0;
       return;
     }
-    const contact = this.circle(reach.lonLat, reach.contactKm);
+    const contact = circleAround(this.frame, reach.lonLat, reach.contactKm);
     this.contact.write(contact);
     this.contactUnits = contact.perimeter / (2 * Math.PI);
   }
+}
 
-  private circle([lon, lat]: LonLat, km: number): Circle {
-    const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
-    const positions: number[] = [];
-    let perimeter = 0;
+export function circleAround(frame: WorldFrame, [lon, lat]: LonLat, km: number): Circle {
+  const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  const positions: number[] = [];
+  let perimeter = 0;
 
-    for (let step = 0; step <= SEGMENTS; step += 1) {
-      const angle = (step / SEGMENTS) * Math.PI * 2;
-      const around: LonLat = [
-        lon + (km / perDegreeEast) * Math.sin(angle),
-        Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
-      ];
-      const vertex = this.frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
-      if (step > 0) {
-        perimeter += Math.hypot(
-          vertex.x - positions[positions.length - 3]!,
-          vertex.y - positions[positions.length - 2]!,
-          vertex.z - positions[positions.length - 1]!,
-        );
-      }
-      positions.push(vertex.x, vertex.y, vertex.z);
+  for (let step = 0; step <= SEGMENTS; step += 1) {
+    const angle = (step / SEGMENTS) * Math.PI * 2;
+    const around: LonLat = [
+      lon + (km / perDegreeEast) * Math.sin(angle),
+      Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
+    ];
+    const vertex = frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
+    if (step > 0) {
+      perimeter += Math.hypot(
+        vertex.x - positions[positions.length - 3]!,
+        vertex.y - positions[positions.length - 2]!,
+        vertex.z - positions[positions.length - 1]!,
+      );
     }
-    // The loop is closed by hand: a fat line has no `LineLoop` form, and an open ring shows
-    // its gap at the very radius the player is measuring.
-    positions.push(positions[0]!, positions[1]!, positions[2]!);
-    return { positions, perimeter };
+    positions.push(vertex.x, vertex.y, vertex.z);
   }
+  // The loop is closed by hand: a fat line has no `LineLoop` form, and an open ring shows
+  // its gap at the very radius the player is measuring.
+  positions.push(positions[0]!, positions[1]!, positions[2]!);
+  return { positions, perimeter };
 }
 
 /** Le tracé projeté d'un cercle, et sa longueur : le rythme du tireté comme le seuil du contact

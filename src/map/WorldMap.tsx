@@ -26,6 +26,7 @@ import {
   type TroopView,
 } from '@/domain/player-view';
 import { inkBursts } from '@/domain/ink-bursts';
+import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
@@ -63,6 +64,8 @@ type Props = {
    * jamais recalculé ici : la carte dessine ce qu'on lui tend.
    */
   held: ReadonlyArray<HeldClaim>;
+  /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
+  outposts: ReadonlyArray<ReachedOutpost>;
   /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
@@ -225,6 +228,7 @@ export function WorldMap({
   camps,
   inkByCountry,
   held,
+  outposts,
   built,
   selectedCountry,
   playerNation,
@@ -691,6 +695,14 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
+
+  const reachedBefore = useRef<ReadonlyArray<ReachedOutpost> | null>(null);
+  useEffect(() => {
+    const before = reachedBefore.current;
+    reachedBefore.current = outposts;
+    if (before === null) return;
+    for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
+  }, [outposts, readyEngine]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {

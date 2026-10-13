@@ -6,6 +6,7 @@ import {
   Path,
   Shape,
   ShapeGeometry,
+  Vector2,
   Vector3,
 } from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
@@ -27,6 +28,9 @@ const LIFE_MS = 2600;
 const PEAK_OPACITY = 0.8;
 const STAMP_PX = 16;
 const SPLASH_PX = 14;
+
+const REACH_HOLD_MS = 600;
+const REACH_FADE_MS = 600;
 
 /** A pen accelerates, then slows down to lift: ease in-out, never linear. */
 export const penEase = (share: number): number =>
@@ -61,6 +65,14 @@ type Trace = {
   readonly strands: ReadonlyArray<ReadonlyArray<Vector3>>;
   readonly start: number;
   lines: Line2[];
+};
+type ReachTrace = {
+  readonly ring: ReadonlyArray<Vector3>;
+  readonly start: number;
+  readonly pen: number;
+  readonly material: LineMaterial;
+  line: Line2 | null;
+  inked: boolean;
 };
 type Stamp = {
   readonly mesh: Mesh<ShapeGeometry, MeshBasicMaterial>;
@@ -102,6 +114,8 @@ export class InkLayer {
   motion: MapMotion = 'full';
   private traces: Trace[] = [];
   private stamps: Stamp[] = [];
+  private reaches: ReachTrace[] = [];
+  private readonly size = new Vector2();
   /** One material for every stroke: disposing it each frame dropped its program, which three
    *  then recompiled on the next one — a stutter per pen stroke on a phone. */
   private readonly material = new LineMaterial({
@@ -120,11 +134,12 @@ export class InkLayer {
   ) {}
 
   get active(): boolean {
-    return this.traces.length + this.stamps.length > 0;
+    return this.traces.length + this.stamps.length + this.reaches.length > 0;
   }
 
   resize(width: number, height: number): void {
     this.material.resolution.set(width, height);
+    this.size.set(width, height);
   }
 
   /** Returns how long the pen takes, `0` when the thread should simply be there. */
@@ -133,6 +148,21 @@ export class InkLayer {
     const strands = legs.flatMap((leg) => leg.strands.map((strand) => strand.vertices));
     this.traces.push({ strands, start: now, lines: [] });
     return TRACE_MS;
+  }
+
+  /** The circle a point now holds, pen-drawn when motion is full and simply there, briefly,
+   *  when it is reduced. Its own material: the fade is the material's opacity. */
+  traceReach(ring: ReadonlyArray<Vector3>, now: number): void {
+    if (!this.enabled || this.motion === 'off') return;
+    const material = new LineMaterial({
+      color: ARC_COLORS.mine.progress,
+      linewidth: TRACE_PX,
+      transparent: true,
+      depthTest: false,
+    });
+    material.resolution.copy(this.size);
+    const pen = this.motion === 'full' ? TRACE_MS : 0;
+    this.reaches.push({ ring, start: now, pen, material, line: null, inked: false });
   }
 
   burst({ kind, at }: InkBurst, now: number): void {
@@ -158,11 +188,14 @@ export class InkLayer {
   animate(now: number, unitsPerPixel: number): void {
     this.traces = this.traces.filter((trace) => this.draw(trace, now));
     this.stamps = this.stamps.filter((stamp) => this.age(stamp, now, unitsPerPixel));
+    this.reaches = this.reaches.filter((reach) => this.drawReach(reach, now));
   }
 
   dispose(): void {
     for (const trace of this.traces) this.wipe(trace);
     for (const stamp of this.stamps) stamp.mesh.material.dispose();
+    for (const reach of this.reaches) this.wipeReach(reach);
+    this.reaches = [];
     this.material.dispose();
     this.traces = [];
     this.stamps = [];
@@ -184,6 +217,47 @@ export class InkLayer {
       return line;
     });
     return true;
+  }
+
+  private drawReach(reach: ReachTrace, now: number): boolean {
+    const elapsed = now - reach.start;
+    const fading = elapsed - reach.pen - REACH_HOLD_MS;
+    if (fading >= REACH_FADE_MS) {
+      this.wipeReach(reach);
+      return false;
+    }
+    reach.material.opacity = fading > 0 ? 1 - fading / REACH_FADE_MS : 1;
+    if (elapsed < reach.pen) {
+      this.dropLine(reach);
+      const [strand] = inkedStrands([reach.ring], penEase(elapsed / reach.pen));
+      if (strand !== undefined) reach.line = this.reachLine(reach, strand);
+    } else if (!reach.inked) {
+      this.dropLine(reach);
+      reach.line = this.reachLine(reach, reach.ring);
+      reach.inked = true;
+    }
+    return true;
+  }
+
+  private reachLine(reach: ReachTrace, strand: ReadonlyArray<Vector3>): Line2 {
+    const geometry = new LineGeometry();
+    geometry.setPositions(strand.flatMap((point) => [point.x, point.y, point.z]));
+    const line = new Line2(geometry, reach.material);
+    line.renderOrder = TRACE_RANK;
+    line.frustumCulled = false;
+    this.group.add(line);
+    return line;
+  }
+
+  private dropLine(reach: ReachTrace): void {
+    reach.line?.removeFromParent();
+    reach.line?.geometry.dispose();
+    reach.line = null;
+  }
+
+  private wipeReach(reach: ReachTrace): void {
+    this.dropLine(reach);
+    reach.material.dispose();
   }
 
   private wipe(trace: Trace): void {
