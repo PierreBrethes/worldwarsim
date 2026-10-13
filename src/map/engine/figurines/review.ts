@@ -29,7 +29,12 @@ const ROLES = Object.keys(TIERS_BY_ROLE) as ReadonlyArray<UnitRole>;
 const root = document.getElementById('review')!;
 const views: Array<() => void> = [];
 
-function card(plate: string | null, caption: string, object: Object3D | null): void {
+function card(
+  plate: string | null,
+  caption: string,
+  object: Object3D | null,
+  still?: { readonly size: number; readonly angle: number },
+): void {
   const figure = document.createElement('figure');
   figure.innerHTML = `${plate ? `<img src="${plate}" alt="">` : '<div></div>'}<figcaption>${caption}</figcaption>`;
   root.append(figure);
@@ -54,8 +59,9 @@ function card(plate: string | null, caption: string, object: Object3D | null): v
     const { clientWidth: w, clientHeight: h } = canvas;
     if (canvas.width !== w * devicePixelRatio) renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    const size = new Box3().setFromObject(object).getSize(new Vector3()).length() || 1;
-    const angle = performance.now() / 4000;
+    const size =
+      still?.size ?? (new Box3().setFromObject(object).getSize(new Vector3()).length() || 1);
+    const angle = still?.angle ?? performance.now() / 4000;
     camera.position.set(Math.sin(angle) * size * 1.6, size * 0.9, Math.cos(angle) * size * 1.6);
     camera.lookAt(0, size * 0.2, 0);
     camera.updateProjectionMatrix();
@@ -91,10 +97,13 @@ for (const [caption, troops] of [
   );
 }
 
+// Seen from behind, as on the board: the pictogram is what the page is there to judge.
+const BLOCK_VIEW = { size: 1.1, angle: 0.5 };
+
 /** The enemy as the board stands it: a block per medium, and a last known position. */
 for (const medium of ['land', 'sea', 'air'] as const)
-  card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object);
-card(null, 'bloc adverse · dernière position connue', washedBlock('land'));
+  card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object, BLOCK_VIEW);
+card(null, 'bloc adverse · dernière position connue', washedBlock('land'), BLOCK_VIEW);
 
 const frame = () => {
   for (const view of views) view();
