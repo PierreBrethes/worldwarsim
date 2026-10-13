@@ -1,19 +1,25 @@
 import {
   Box3,
-  type BufferGeometry,
+  BufferGeometry,
+  Float32BufferAttribute,
   Group,
   InstancedMesh,
+  LineBasicMaterial,
+  LineSegments,
   type Material,
   Matrix4,
   Mesh,
   type Object3D,
+  Plane,
   Quaternion,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { riseOf } from '@/domain/construction';
 import type { LonLat } from '@/domain/geo';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { nearWeight, sceneOf } from './figurines/figurine';
+import { PALETTE } from './palette';
 import { washedOf } from './standing';
 
 /**
@@ -27,6 +33,8 @@ export type StandingMaquette = {
   readonly url: string;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
+  /** A first level under the crane: it rises from the ground with its work (`riseOf`). */
+  readonly rising?: { readonly finishesAt: number; readonly minutes: number };
 };
 
 /**
@@ -80,7 +88,12 @@ export function bakedParts(scene: Object3D): Part[] {
   });
 }
 
-type Model = { readonly parts: ReadonlyArray<Part>; readonly scale: number };
+type Model = {
+  readonly parts: ReadonlyArray<Part>;
+  readonly scale: number;
+  /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
+  readonly box: Box3;
+};
 const models = new Map<string, Promise<Model>>();
 function modelOf(url: string): Promise<Model> {
   let model = models.get(url);
@@ -92,7 +105,7 @@ function modelOf(url: string): Promise<Model> {
         geometry.computeBoundingBox();
         box.union(geometry.boundingBox!);
       }
-      return { parts, scale: spanScale(box.getSize(new Vector3())) };
+      return { parts, scale: spanScale(box.getSize(new Vector3())), box };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -154,15 +167,55 @@ type Placed = {
   near: number;
 };
 
+/**
+ * **A site rising**: its lot alone, its materials cut by a plane that climbs with the work —
+ * the shadow map honours the same cut (`clipShadows`) — and a scaffold inked at the cut.
+ */
+type Rising = {
+  readonly finishesAt: number;
+  readonly minutes: number;
+  readonly cut: Plane;
+  scaffold: LineSegments | null;
+};
+
 /** The exemplars of one model in one ink, drawn as instances: one draw call per material. */
 type Lot = {
   readonly items: Placed[];
   readonly group: Group;
   model: Model | null;
   meshes: InstancedMesh[];
+  readonly rising: Rising | null;
 };
 
 const UP = new Vector3(0, 1, 0);
+const DOWN = new Vector3(0, -1, 0);
+const SCAFFOLD_INK = new LineBasicMaterial({ color: PALETTE.border });
+
+/** Four posts from the ground to a height of one and the ring that ties them at the top, around
+ *  the footprint a little wide: the lot scales it up to the cut. */
+function scaffoldOf(box: Box3): LineSegments {
+  const [x0, x1, z0, z1] = [box.min.x, box.max.x, box.min.z, box.max.z].map((v) => v * 1.08) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const corners = [
+    [x0, z0],
+    [x1, z0],
+    [x1, z1],
+    [x0, z1],
+  ] as const;
+  const points = corners.flatMap(([x, z], k) => {
+    const [nx, nz] = corners[(k + 1) % 4]!;
+    return [x, 0, z, x, 1, z, x, 1, z, nx, 1, nz];
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+  const scaffold = new LineSegments(geometry, SCAFFOLD_INK);
+  scaffold.matrixAutoUpdate = false;
+  return scaffold;
+}
 const matrix = new Matrix4();
 const scale = new Vector3();
 
@@ -185,6 +238,8 @@ export class MaquetteLayer {
     private readonly frame: WorldFrame,
     private readonly groundOfRegion: (regionId: string) => Vector3 | null,
     private readonly changed: () => void,
+    /** A site seen rising has stood up under the player's eyes: the board stamps it. */
+    private readonly posed: (at: Vector3) => void,
   ) {}
 
   /** Re-served at every step of any column: says whether anything changed, and only then
@@ -193,8 +248,14 @@ export class MaquetteLayer {
     const drawn = JSON.stringify(maquettes);
     if (drawn === this.drawn) return false;
     this.drawn = drawn;
+    const rising = new Set(this.maquettes.filter((m) => m.rising).map((m) => m.id));
     this.maquettes = maquettes;
     this.rebuild();
+    for (const maquette of maquettes) {
+      const stood = this.byId.get(maquette.id);
+      if (stood !== undefined && rising.has(maquette.id) && !maquette.rising)
+        this.posed(stood.item.at);
+    }
     return true;
   }
 
@@ -225,10 +286,20 @@ export class MaquetteLayer {
           : this.groundOfRegion(maquette.at.regionId);
       if (ground === null) continue;
       ground.setY(COUNTRY_THICKNESS);
-      const key = `${maquette.url} ${maquette.washed}`;
+      const key = maquette.rising
+        ? `${maquette.url} rising ${maquette.id}`
+        : `${maquette.url} ${maquette.washed}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
-        lot = { items: [], group: new Group(), model: null, meshes: [] };
+        lot = {
+          items: [],
+          group: new Group(),
+          model: null,
+          meshes: [],
+          rising: maquette.rising
+            ? { ...maquette.rising, cut: new Plane(DOWN, 0), scaffold: null }
+            : null,
+        };
         this.lots.set(key, lot);
         this.group.add(lot.group);
         const landing = lot;
@@ -275,10 +346,11 @@ export class MaquetteLayer {
   private landed(lot: Lot, model: Model, washed: boolean): void {
     if (![...this.lots.values()].includes(lot)) return;
     lot.model = model;
+    const rising = lot.rising;
     lot.meshes = model.parts.map(({ geometry, material }) => {
       const mesh = new InstancedMesh(
         geometry,
-        washed ? washedOf(material) : material,
+        rising !== null ? cutOf(material, rising.cut) : washed ? washedOf(material) : material,
         lot.items.length,
       );
       mesh.matrixAutoUpdate = false;
@@ -287,13 +359,22 @@ export class MaquetteLayer {
       return mesh;
     });
     lot.group.add(...lot.meshes);
+    if (rising !== null) {
+      rising.scaffold = scaffoldOf(model.box);
+      lot.group.add(rising.scaffold);
+    }
     this.changed();
   }
 
   private clear(lot: Lot): void {
     lot.group.removeFromParent();
-    // Geometry and materials are the model's, shared by every lot drawn from it.
-    for (const mesh of lot.meshes) mesh.dispose();
+    // Geometry and materials are the model's, shared by every lot drawn from it — but for a
+    // rising site's cut copies, and its scaffold's lines.
+    for (const mesh of lot.meshes) {
+      mesh.dispose();
+      if (lot.rising !== null) (mesh.material as Material).dispose();
+    }
+    lot.rising?.scaffold?.geometry.dispose();
   }
 
   /** Its maquette stands, so its plate gives way — not while a replay has cleared it away. */
@@ -317,9 +398,14 @@ export class MaquetteLayer {
   }
 
   /** `cleared` is a replay's ground: what stands inside it steps aside while it plays. */
-  orient(cameraPosition: Vector3, cleared: { center: Vector3; reach: number } | null): void {
+  orient(
+    cameraPosition: Vector3,
+    cleared: { center: Vector3; reach: number } | null,
+    now: number,
+  ): void {
     for (const lot of this.lots.values()) {
       if (lot.model === null) continue;
+      if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       let moved = false;
       lot.items.forEach((item, k) => {
         item.cleared = cleared !== null && item.at.distanceTo(cleared.center) < cleared.reach;
@@ -338,10 +424,31 @@ export class MaquetteLayer {
     }
   }
 
+  /** Slow — a first level lasts tens of minutes: the board's heartbeat moves it enough, and no
+   *  frame is ever asked for it. Read at the near weight of the frame before, as the scale. */
+  private rise(rising: Rising, item: Placed, model: Model, now: number): void {
+    const share = riseOf((rising.finishesAt - now) / 60_000, rising.minutes);
+    const height = model.box.max.y * model.scale * Math.max(item.near, 0) * share;
+    rising.cut.constant = item.at.y + height;
+    const scaffold = rising.scaffold;
+    if (scaffold === null) return;
+    scaffold.visible = share < 1 && item.near > 0;
+    const width = Math.max(item.near, 0) * model.scale;
+    scaffold.matrix.compose(item.at, item.turn, scale.set(width, Math.max(height, 1e-4), width));
+  }
+
   dispose(): void {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
     this.group.removeFromParent();
   }
+}
+
+/** A rising site's own copy of a material, cut above the work — its shadow with it. */
+function cutOf(material: Material, cut: Plane): Material {
+  const copy = material.clone();
+  copy.clippingPlanes = [cut];
+  copy.clipShadows = true;
+  return copy;
 }
