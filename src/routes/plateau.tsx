@@ -1170,6 +1170,17 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [heldRaw],
   );
 
+  const reachedOutposts = useMemo(
+    () =>
+      view.me.outposts.map(({ id, lonLat, level, standsAt }) => ({
+        id,
+        lonLat,
+        reachKm: outpostReachKm(level),
+        standsAt,
+      })),
+    [view.me.outposts],
+  );
+
   const built = useMemo(
     () => ({
       regionIds: view.me.buildings.map(({ regionId }) => regionId),
@@ -1862,7 +1873,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             camps={camps}
             inkByCountry={inkByCountry}
             held={held}
-            outposts={view.me.outposts}
+            outposts={reachedOutposts}
             built={built}
             selectedCountry={country ?? null}
             playerNation={view.me.nation}

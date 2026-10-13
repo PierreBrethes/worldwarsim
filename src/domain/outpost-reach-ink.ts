@@ -1,15 +1,15 @@
-import { outpostReachKm } from '../../convex/constants';
 import type { LonLat } from './geo';
 
 export type ReachedOutpost = {
   readonly id: string;
   readonly lonLat: LonLat;
-  readonly level: number;
+  /** Served by the caller from the point's level: the domain does not read the backend's tables. */
+  readonly reachKm: number;
   readonly standsAt: number | null;
 };
 
 /**
- * The reach a point of mine has just earned: it stood up, or its level rose. A point absent from
+ * The reach a point of mine has just earned: it stood up, or its reach grew. A point absent from
  * the previous view is not one that was raised — it is what the map opened on, and stays silent.
  */
 export function raisedReaches(
@@ -21,7 +21,7 @@ export function raisedReaches(
     const rose =
       was !== undefined &&
       point.standsAt === null &&
-      (was.standsAt !== null || point.level > was.level);
-    return rose ? [{ at: point.lonLat, km: outpostReachKm(point.level) }] : [];
+      (was.standsAt !== null || point.reachKm > was.reachKm);
+    return rose ? [{ at: point.lonLat, km: point.reachKm }] : [];
   });
 }
