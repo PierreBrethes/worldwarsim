@@ -39,6 +39,7 @@ import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
+import { cameraYaw } from './billboard';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { ReachRing } from './reach';
@@ -55,9 +56,11 @@ import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { StandingLayer, type CounterTexts, type StandingPile } from './standing';
+import { CampLayer, type SurveyedCamp } from './blocks';
 
 export type { SearchArea } from './search-area';
 export type { CounterTexts, StandingPile } from './standing';
+export type { SurveyedCamp } from './blocks';
 
 /**
  * What the player has raised, and the ink to draw it in. **Only ever his own**: `PlayerView`
@@ -167,6 +170,7 @@ export class MapEngine {
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
+  private readonly camps: CampLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
   private readonly searchArea: SearchAreaLayer;
@@ -364,6 +368,8 @@ export class MapEngine {
     this.standing = new StandingLayer(this.frame, () => this.invalidate());
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
+    this.camps = new CampLayer(this.frame);
+    this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.searchArea.object);
@@ -374,7 +380,7 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
-      (id) => this.standing.isDressed(id),
+      (id) => this.standing.isDressed(id) || this.camps.isDressed(id),
     );
 
     this.scene.add(this.regions.lines);
@@ -421,6 +427,12 @@ export class MapEngine {
   displayStanding(piles: ReadonlyArray<StandingPile>, texts: CounterTexts): void {
     this.invalidate();
     this.standing.display(piles, texts);
+  }
+
+  /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
+  displayCamps(camps: ReadonlyArray<SurveyedCamp>): void {
+    this.invalidate();
+    this.camps.display(camps, performance.now());
   }
 
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -730,6 +742,7 @@ export class MapEngine {
     this.searchArea.rebuild();
     this.ghost.rebuild();
     this.standing.rebuild();
+    this.camps.rebuild();
     this.arcs.rebuild();
     this.labels.rebuild();
     this.regions.rebuild();
@@ -772,6 +785,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.camps.dispose();
     this.arcs.dispose();
     this.ink.dispose();
     this.regions.dispose();
@@ -959,6 +973,7 @@ export class MapEngine {
     this.invalidate();
     this.ambience.motion = motion;
     this.arcs.motion = motion;
+    this.camps.motion = motion;
     this.ink.motion = motion;
     this.regions.instantGrowth = motion !== 'full';
   }
@@ -1236,13 +1251,15 @@ export class MapEngine {
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
-    this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    const yaw = cameraYaw(this.camera.position, this.controls.target);
+    this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    this.camps.orient(this.camera.position, yaw, now);
     this.regions.animate(distance);
     this.sea?.fade(distance);
     this.borders.material.opacity =

@@ -10,6 +10,7 @@ import { PREVIEW_ARC_ID, type ArcView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles, movementSprites } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
+import { blockFigurine } from './blocks';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
@@ -68,6 +69,7 @@ export class ArcLayer {
   private readonly aheadPoint = new Vector3();
   private readonly groundPoint = new Vector3();
   private readonly cameraPosition = new Vector3();
+  private cameraYaw = 0;
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
   private targets: Line2[] = [];
@@ -153,11 +155,14 @@ export class ArcLayer {
       const pawn = new Pawn(
         movementSprites(arc, this.playerNation),
         ARC_COLORS[arc.state].progress,
-        roles && {
-          land: figurineOf(roles.land),
-          sea: figurineOf(roles.sea),
-          air: figurineOf(roles.air),
-        },
+        // The fog serves an enemy no roles: its pieces are blocks, back to the eye (ADR 0026 §4).
+        arc.state === 'enemyDetected'
+          ? { land: blockFigurine('land'), sea: blockFigurine('sea'), air: blockFigurine('air') }
+          : roles && {
+              land: figurineOf(roles.land),
+              sea: figurineOf(roles.sea),
+              air: figurineOf(roles.air),
+            },
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
@@ -218,8 +223,9 @@ export class ArcLayer {
    * The position comes from time, not distance: a movement straddling three mediums does
    * not cross the sea at road speed, and it stops at the dock.
    */
-  animate(camera?: Camera, unitsPerPixel?: number): void {
+  animate(camera?: Camera, unitsPerPixel?: number, yaw?: number): void {
     if (camera) this.cameraPosition.copy(camera.position);
+    if (yaw !== undefined) this.cameraYaw = yaw;
     if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
 
     const now = performance.now();
@@ -257,7 +263,7 @@ export class ArcLayer {
       );
       rendered.pawn.place(this.pawnPoint, this.aheadPoint);
       if (this.motion === 'full') rendered.pawn.step(elapsed);
-      rendered.pawn.orient(this.cameraPosition);
+      rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
       rendered.headPosition.copy(this.pawnPoint);
 
       if (rendered.thread.tether !== null) {

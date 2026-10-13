@@ -234,6 +234,12 @@
   inset: -7px;
 }
 
+/* Up close the block stands where the silhouette hung (ADR 0026 §4): the glyph fades, its box
+   stays to take the hover and the click. */
+.label--camp .label-camp > svg {
+  opacity: calc(1 - var(--dressed, 0));
+}
+
 .label--camp.label--selected .label-camp {
   color: var(--ink);
   outline: 2px solid var(--ink);

@@ -33,6 +33,8 @@ export type Figurine = {
   readonly ready: Promise<void>;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
+  /** Turns its back to the eye rather than its front to the road: an enemy block (ADR 0026 §4). */
+  readonly facesEye?: boolean;
 };
 
 const loader = new GLTFLoader();
@@ -131,7 +133,7 @@ const SHADOW_DISCS = (
     [0.48, SHADOW_OUTER],
   ] as const
 ).map(([radius, material]) => [new CircleGeometry(radius, 24), material] as const);
-function contactShadow(): Group {
+export function contactShadow(): Group {
   const shadow = new Group();
   for (const [geometry, material] of SHADOW_DISCS) {
     const disc = new Mesh(geometry, material);

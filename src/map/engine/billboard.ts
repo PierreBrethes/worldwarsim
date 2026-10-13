@@ -44,3 +44,11 @@ export function faceCamera(
   const up = cameraPosition.y - from.y;
   object.rotation.set(-Math.atan2(up, Math.hypot(east, south)), Math.atan2(east, south), 0, 'YXZ');
 }
+
+/**
+ * The one yaw every upright piece shares: the camera's azimuth about its target. Turning each
+ * piece toward the camera's foot fans them out and spins them when the eye is vertical; a single
+ * azimuth keeps the board's pieces parallel and stable.
+ */
+export const cameraYaw = (cameraPosition: Vector3, target: Vector3): number =>
+  Math.atan2(cameraPosition.x - target.x, cameraPosition.z - target.z);

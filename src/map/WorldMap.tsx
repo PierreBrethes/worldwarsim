@@ -37,6 +37,7 @@ import {
   type HeldClaim,
   type SearchArea,
   type StandingPile,
+  type SurveyedCamp,
 } from './engine';
 
 type Props = {
@@ -47,6 +48,8 @@ type Props = {
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
+  /** The enemy's surveyed camps, which the board stands as blocks up close. */
+  camps: ReadonlyArray<SurveyedCamp>;
   inkByCountry: ReadonlyMap<string, string>;
   /**
    * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
@@ -222,6 +225,7 @@ export function WorldMap({
   journal,
   labels,
   standing,
+  camps,
   inkByCountry,
   held,
   built,
@@ -677,6 +681,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayStanding(standing, COUNTER_TEXTS);
   }, [readyEngine, standing]);
+
+  useEffect(() => {
+    readyEngine?.displayCamps(camps);
+  }, [readyEngine, camps]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {
