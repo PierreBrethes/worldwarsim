@@ -2188,7 +2188,6 @@ export const fr = {
     depositNoneHeld: (deposit: string) =>
       `aucun gisement de ${deposit} — ce qui manque se prend ailleurs`,
     fromChain: (building: string) => `de ${lowerFirst(building)}`,
-    noRate: 'ne produit rien',
 
     /** La condition d'un maillon manquant — jamais un texte en dur : elle sort de la règle de
      *  placement que le serveur refuse avec (`placementOf`). */
