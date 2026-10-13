@@ -1,4 +1,4 @@
-import { Color, Group, SRGBColorSpace, type Vector3 } from 'three';
+import { Color, Group, type Vector3 } from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -389,20 +389,24 @@ type Sketch = {
   tick: number;
 };
 
-const hsl = { h: 0, s: 0, l: 0 };
+/** France's blue held in full draws in paper, the same blue washed to a quarter in ink. */
+const DARK_GROUND_LUMA = 0.6;
+
 /**
  * Dark ink vanishes on a dark ground (France's blue): there the pen draws in paper. The ground is
- * what is *painted*, not the seat's ink: a held region lays it at `opacity` over the sheet (a
- * faded survey barely tints it), so the luminance is read, in sRGB, on that mix. No `ink` is the bare sheet.
+ * what is *painted*, not the seat's ink: a held region lays it at `opacity` over the land (a
+ * faded survey barely tints it). Its luma is read on the sRGB numbers, and the board's light
+ * darkens what it lays on, so a ground reads dark well above the middle grey. No `ink` is the
+ * bare sheet.
  */
 export function inkOn(ink: string | null, opacity: number): string {
   if (ink === null) return PALETTE.border;
-  const sheet = new Color(PALETTE.paper).getHex();
+  const sheet = new Color(PALETTE.neutralLand).getHex();
   const seat = new Color(ink).getHex();
   const channel = (shift: number) =>
-    Math.round(((sheet >> shift) & 255) * (1 - opacity) + ((seat >> shift) & 255) * opacity);
-  const painted = new Color((channel(16) << 16) | (channel(8) << 8) | channel(0));
-  return painted.getHSL(hsl, SRGBColorSpace).l < 0.45 ? PALETTE.paper : PALETTE.border;
+    (((sheet >> shift) & 255) * (1 - opacity) + ((seat >> shift) & 255) * opacity) / 255;
+  const luma = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+  return luma < DARK_GROUND_LUMA ? PALETTE.paper : PALETTE.border;
 }
 
 /**

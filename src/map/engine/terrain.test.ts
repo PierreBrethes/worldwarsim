@@ -77,8 +77,8 @@ describe('the pen', () => {
 describe('inkOn', () => {
   it('reads the ground as painted: ink over paper at the opacity it is laid', () => {
     const held = 0.72;
-    expect(inkOn('#1f3f66', held)).toBe(PALETTE.paper);
-    expect(inkOn('#1f3f66', held * 0.35)).toBe(PALETTE.border);
+    expect(inkOn('#276893', held)).toBe(PALETTE.paper);
+    expect(inkOn('#276893', held * 0.35)).toBe(PALETTE.border);
     expect(inkOn('#e8d27a', held)).toBe(PALETTE.border);
   });
 
