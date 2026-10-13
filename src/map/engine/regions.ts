@@ -1,6 +1,5 @@
 import {
   BufferGeometry,
-  EqualStencilFunc,
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
@@ -14,7 +13,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import { builtInk, PALETTE } from './palette';
-import { COUNTRY_THICKNESS, LAND_STENCIL, type WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import {
   mulberry,
   seed,
@@ -137,18 +136,6 @@ export function screenTrame<M extends MeshStandardMaterial>(material: M, body: s
   material.customProgramCacheKey = () => body;
   return material;
 }
-
-/**
- * **Un aplat de région ne déborde pas de la terre** : son contour (10m simplifié) n'est pas celui
- * du pays (50m), et il passait sur la mer en liseré. Le pays marque le stencil (`LAND_STENCIL`),
- * l'aplat ne s'imprime que là.
- */
-const onLand = <M extends MeshStandardMaterial>(material: M): M => {
-  material.stencilWrite = true;
-  material.stencilRef = LAND_STENCIL;
-  material.stencilFunc = EqualStencilFunc;
-  return material;
-};
 
 const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
   screenTrame(
