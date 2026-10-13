@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3, type InterleavedBufferAttribute } from 'three';
-import type { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { Vector3 } from 'three';
 import { pawnTarget, temporalPosition, unrollRoute } from '@/domain/route-timing';
 import type { World } from '@/domain/world';
 import { buildGrid, computeRoute, directRoute } from '@/domain/routing';
@@ -17,6 +15,7 @@ import {
   DRIFT_SPEED,
 } from './thread';
 import { COUNTRY_THICKNESS, WorldFrame } from './frame';
+import type { Ribbon } from './route-ribbon';
 
 /** The toy world of `routing.test.ts`: two islands separated by ten units of sea. */
 function toyWorld(): World {
@@ -137,130 +136,70 @@ describe('the pawn follows time, not distance', () => {
   });
 });
 
-/** A segment's vertices as the GPU will read them, not as they were written. */
-function segment(line: Line2, index: number): { from: Vector3; to: Vector3 } {
-  const buffer = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute).data
-    .array;
-  return {
-    from: new Vector3(buffer[index * 6]!, buffer[index * 6 + 1]!, buffer[index * 6 + 2]!),
-    to: new Vector3(buffer[index * 6 + 3]!, buffer[index * 6 + 4]!, buffer[index * 6 + 5]!),
-  };
-}
-
-const visibleSegments = (line: Line2): number => line.geometry.instanceCount;
-
-const visibleLength = (line: Line2): number => {
-  let sum = 0;
-  for (let i = 0; i < visibleSegments(line); i++) {
-    const { from, to } = segment(line, i);
-    sum += from.distanceTo(to);
-  }
-  return sum;
-};
+const alongOf = (ribbon: Ribbon): number[] =>
+  Array.from(ribbon.geometry.getAttribute('along').array);
 
 describe('the thread cut', () => {
   const thread = buildThread(crossing, frame, colors, thickness, opacities);
+  const stroke = thread.targets[0]!.material;
   const unrolled = unrollRoute(crossing);
-  // Targets come out in pairs, covered then remaining, in strand order.
-  const pairs = thread.targets.reduce<Array<[Line2, Line2]>>((acc, line, i) => {
-    if (i % 2 === 0) acc.push([line, thread.targets[i + 1]!]);
-    return acc;
-  }, []);
   const totalLength = thread.legs.reduce((sum, leg) => sum + leg.length, 0);
 
-  const cutAt = (t: number): Vector3 => {
+  const cutAt = (t: number): number => {
     const { legIndex, local } = pawnTarget(temporalPosition(unrolled, t));
     thread.cut(legIndex, local);
-    const point = new Vector3();
-    pointOnLeg(thread.legs[legIndex]!, local, point);
-    return point;
+    return stroke.cut;
   };
 
-  it('covered and remaining meet on the pawn vertex, nowhere else', () => {
-    // Off the dock, where the pawn parks on the seam between two legs and no strand is cut.
-    for (const t of [0.1, 0.25, 0.4, 0.75, 0.9, 0.99]) {
-      const pawn = cutAt(t);
-      const started = pairs.filter(
-        ([covered, remaining]) => visibleSegments(covered) > 0 && visibleSegments(remaining) > 0,
-      );
-      // A single strand carries the cut: the others are all covered or all to cover.
-      expect(started).toHaveLength(1);
-      const [covered, remaining] = started[0]!;
-      const coveredEnd = segment(covered, visibleSegments(covered) - 1).to;
-      const remainingEnd = segment(remaining, visibleSegments(remaining) - 1).to;
-      // The same vertex, to the bit: what gap remains to the pawn is the buffer's precision,
-      // the same for both — so nothing that could show at the seam.
-      expect(coveredEnd.equals(remainingEnd)).toBe(true);
-      expect(coveredEnd.distanceTo(pawn)).toBeCloseTo(0, 5);
-    }
+  it('every strand reads the same distance: the thread is one ribbon, end to end', () => {
+    const ends = thread.targets.map((ribbon) => alongOf(ribbon));
+    expect(ends[0]![0]).toBe(0);
+    for (let i = 1; i < ends.length; i++)
+      expect(ends[i]![0]).toBeCloseTo(ends[i - 1]![ends[i - 1]!.length - 1]!, 4);
+    expect(ends.at(-1)!.at(-1)).toBeCloseTo(totalLength, 4);
   });
 
-  it('the two pieces cover the whole thread: no hole, no overlap', () => {
-    for (const t of [0, 0.15, 0.5, 0.77, 1]) {
-      cutAt(t);
-      const visible = pairs.reduce(
-        (sum, [covered, remaining]) => sum + visibleLength(covered) + visibleLength(remaining),
-        0,
-      );
-      expect(visible).toBeCloseTo(totalLength, 6);
-    }
+  it('cuts nothing at departure and everything at arrival', () => {
+    expect(cutAt(0)).toBe(0);
+    expect(cutAt(1)).toBeCloseTo(totalLength, 6);
   });
 
-  it('going back restores the thread’s full length: the cut leaves no trace', () => {
-    cutAt(0.9);
-    cutAt(0.05);
-    const [covered, remaining] = pairs[0]!;
-    // The first strand is barely started: its remainder must have all its segments back.
-    expect(visibleSegments(remaining)).toBe(remaining.geometry.attributes.instanceStart!.count);
-    expect(visibleLength(covered) + visibleLength(remaining)).toBeCloseTo(
-      thread.legs[0]!.length,
-      6,
-    );
+  it('the covered part only grows as the pawn walks, and holds still at the dock', () => {
+    const cuts = [0.1, 0.25, 0.4, 0.75, 0.9, 0.99].map(cutAt);
+    for (let i = 1; i < cuts.length; i++) expect(cuts[i]).toBeGreaterThanOrEqual(cuts[i - 1]!);
+    const dock = unrolled.find((segment) => segment.kind === 'dock')!;
+    const dockStart = unrolled
+      .slice(0, unrolled.indexOf(dock))
+      .reduce((sum, s) => sum + s.share, 0);
+    expect(cutAt(dockStart + dock.share * 0.1)).toBeCloseTo(thread.legs[0]!.length, 6);
+    expect(cutAt(dockStart + dock.share * 0.9)).toBeCloseTo(thread.legs[0]!.length, 6);
   });
 });
 
 describe('the dash drift', () => {
   const threadOf = () => buildThread(crossing, frame, colors, thickness, opacities);
-  const materialsOf = (thread: ReturnType<typeof threadOf>) => ({
-    covered: thread.targets[0]!.material as LineMaterial,
-    remaining: thread.targets[1]!.material as LineMaterial,
-  });
-
-  it('only animates the remainder: the covered part is not even dashed', () => {
-    const { covered, remaining } = materialsOf(threadOf());
-    expect(covered.dashed).toBe(false);
-    expect(remaining.dashed).toBe(true);
-    // A single cut thread, hence a single stroke: the remainder is no discount thread.
-    expect(remaining.linewidth).toBe(covered.linewidth);
-  });
+  /** How far the dashes moved, in board units: the phase is a share of the pitch. */
+  const travelled = (thread: ReturnType<typeof threadOf>): number => {
+    const stroke = thread.targets[0]!.material;
+    return stroke.phase * stroke.pitch;
+  };
 
   it('advances at constant world speed, not screen speed', () => {
-    const thread = threadOf();
-    const { remaining } = materialsOf(thread);
-    thread.setScale(0.5);
-    thread.drift(0.05);
-    // `dashOffset` counts in the dash pitch: a world unit is worth `dashScale` there.
-    expect(remaining.dashOffset).toBeCloseTo(DRIFT_SPEED * 0.05 * remaining.dashScale, 10);
-  });
-
-  it('flows faster up close than from afar: that is the depth cue', () => {
     const [near, far] = [threadOf(), threadOf()];
-    near.setScale(0.5);
-    far.setScale(5);
+    near.setScale(0.2);
+    far.setScale(0.4);
     near.drift(0.05);
     far.drift(0.05);
-    const nearStep = materialsOf(near).remaining.dashOffset;
-    const farStep = materialsOf(far).remaining.dashOffset;
-    expect(nearStep).toBeCloseTo(farStep * 10, 10);
+    expect(travelled(near)).toBeCloseTo(DRIFT_SPEED * 0.05, 10);
+    expect(travelled(far)).toBeCloseTo(DRIFT_SPEED * 0.05, 10);
   });
 
   it('caps up close: the thread flows, it does not flicker', () => {
     const thread = threadOf();
-    const { remaining } = materialsOf(thread);
     // Two thousandths of a unit per pixel: the zoom stop, where world speed runs away.
     thread.setScale(0.002);
     thread.drift(0.1);
-    expect(remaining.dashOffset).toBeCloseTo(DRIFT_CEILING_PX_S * 0.1, 10);
+    expect(travelled(thread) / 0.002).toBeCloseTo(DRIFT_CEILING_PX_S * 0.1, 8);
   });
 
   it('a tab back in the foreground does not catch up its drift in one jump', () => {
@@ -269,10 +208,7 @@ describe('the dash drift', () => {
     asleep.setScale(1);
     normal.drift(0.1);
     asleep.drift(30);
-    expect(materialsOf(asleep).remaining.dashOffset).toBeCloseTo(
-      materialsOf(normal).remaining.dashOffset,
-      10,
-    );
+    expect(travelled(asleep)).toBeCloseTo(travelled(normal), 10);
   });
 });
 

@@ -1,5 +1,4 @@
 import { Group, Vector3, type Camera, type Raycaster } from 'three';
-import type { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import {
   pawnTarget,
   temporalPosition,
@@ -15,6 +14,7 @@ import { blockFigurine, washedBlock } from './blocks';
 import { nearWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
+import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
@@ -43,8 +43,8 @@ type RenderedArc = {
 };
 
 /**
- * Thickness carries the hierarchy between movements, in pixels and not world units: what is
- * not mine does not push to the foreground. Within a thread it says nothing — covered and
+ * Thickness carries the hierarchy between movements — the ribbon's floor in pixels, and its true
+ * width in proportion (`threadWidth`): what is not mine does not push to the foreground. Within a thread it says nothing — covered and
  * remaining are the same stroke, and the dashes tell them apart.
  */
 const THICKNESSES: Readonly<Record<ArcView['state'], number>> = {
@@ -63,7 +63,7 @@ const TRACE_OPACITY = 0.55;
  */
 const ACCENT_DESIGNATED = 1.6;
 const ACCENT_OTHERS = 0.4;
-/** A thread's pointer pick radius, in pixels: a fat line is aimed at on screen. */
+/** A thread's pointer pick radius, in pixels beyond the ribbon's edge: it is aimed at on screen. */
 export const ARC_HOVER_THRESHOLD = 6;
 
 export class ArcLayer {
@@ -82,7 +82,7 @@ export class ArcLayer {
   get pawns(): ReadonlyArray<Group> {
     return this.rendered.map((rendered) => rendered.pawn.object);
   }
-  private targets: Line2[] = [];
+  private targets: Ribbon[] = [];
   private accented: string | null = null;
   private width = 1;
   private height = 1;
@@ -111,7 +111,7 @@ export class ArcLayer {
   }
 
   /**
-   * A fat line thickens in pixels: it needs the canvas size to convert. Keeping it here
+   * A ribbon's floor and its marks are in pixels: they need the canvas size to convert. Keeping it here
    * prevents a thread built after a resize from being born at the wrong scale — the kind of
    * bug that only shows after moving the window.
    */

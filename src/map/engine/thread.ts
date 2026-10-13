@@ -1,4 +1,4 @@
-import { Group, Vector3, type InterleavedBufferAttribute } from 'three';
+import { Group, Mesh, Vector3, type InterleavedBufferAttribute } from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -8,6 +8,7 @@ import type { LonLat } from '@/domain/geo';
 import type { ComputedRoute, Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
+import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 
 /**
  * The taut thread. **Two heights, not three**: land and sea share the surface, just above
@@ -47,17 +48,16 @@ export function flightAltitude(share: number): number {
 }
 
 /**
- * The remainder's dashes, in pixels. The stroke has the same thickness as the covered part —
- * it is the gap between dashes that says intent, not thinness. The dash must therefore stay
- * longer than the stroke is thick, otherwise it closes into a dot and the thread becomes
- * stippling. `dashScale = 1 / unitsPerPixel` makes both numbers directly readable in pixels.
+ * **The ribbon's true width on the sheet, per pixel of its floor** (`route-ribbon.ts`): a thread
+ * of thickness 2.5 is a band of 0.0625 units — some seven kilometres — which the eye reads as
+ * the plate's ribbon from thirty units down, and as its floor of 2.5 px beyond.
  */
-const DASH_PX = 3;
-const GAP_PX = 5;
+const WIDTH_PER_FLOOR_PX = 0.025;
+export const threadWidth = (thickness: number): number => thickness * WIDTH_PER_FLOOR_PX;
 
 /**
- * The remainder's dash drift, in **board units per second** — never in pixels. The dash
- * pitch, in turn, stays in pixels: `dashScale` converts one into the other. The thread thus
+ * The remainder's dash drift, in **board units per second** — never in pixels, whatever the
+ * dash pitch the drawn width sets (`dashPitch`). The thread thus
  * flows at the same speed in the world whatever the viewpoint, which makes it flow slower on
  * screen when you pull back. That is the depth cue: a distant thread crawls, a near one races.
  */
@@ -75,18 +75,16 @@ export const DRIFT_CEILING_PX_S = 6;
 /** A tab back in the foreground must not catch up its drift in one jump. */
 const MAX_DRIFT_STEP_S = 0.1;
 
-/**
- * Thicknesses in pixels — constant on screen, whatever the zoom: that is the whole point of
- * fat lines over the one-pixel stroke they replace.
- */
+/** The air leg's ground trace: a floor of a pixel, and a share of the ribbon's true width. */
 const SHADOW_THICKNESS = 1;
+const SHADOW_SHARE = 0.4;
 
 /**
  * The thread's backing, in pixels of bleed on either side. A dashed remainder laid over a
  * loaded sheet — a region's tint, a forest's props, another thread — loses its gaps in the
  * noise, and the route one is about to order is precisely the one that must read. The casing
- * runs continuous under dash *and* gap: the line gets a ground of its own, the dashes stay
- * dashes, and the desk's ink is used rather than a fifth thread colour.
+ * rims the ribbon continuously along dash *and* gap: the band gets an edge of its own, its gaps
+ * still show the sheet, and the desk's ink is used rather than a fifth thread colour.
  */
 const CASING_BLEED = 2.2;
 const CASING_SHARE = 0.8;
@@ -151,17 +149,17 @@ export type Thread = {
   readonly object: Group;
   readonly legs: ReadonlyArray<ThreadLeg>;
   readonly docks: ReadonlyArray<Dock>;
-  /** What the pointer targets: covered and remaining, so the whole thread hovers. */
-  readonly targets: ReadonlyArray<Line2>;
+  /** What the pointer targets: one ribbon per strand, covered and remaining alike. */
+  readonly targets: ReadonlyArray<Ribbon>;
   /** The vertical thread tying an airborne pawn to its shadow; `null` outside the sky. */
   readonly tether: Line2 | null;
   /** Cuts the thread at the pawn's position — the only thing that moves per frame. */
   cut(legIndex: number, local: number): void;
   /** Advances the remainder's dashes by `seconds` of drift. The covered part never moves. */
   drift(seconds: number): void;
-  /** Marks and dashes keep their screen pitch: a single measure, set per frame. */
+  /** Marks and the ribbon's floor keep their screen size: a single measure, set per frame. */
   setScale(unitsPerPixel: number): void;
-  /** A fat line draws in pixels: without the canvas size, it cannot make them. */
+  /** The ribbon's floor and the marks draw in pixels: without the canvas size, no pixels. */
   setResolution(width: number, height: number): void;
   setAccent(accentFactor: number): void;
   dispose(): void;
@@ -169,7 +167,7 @@ export type Thread = {
 
 /**
  * Builds the thread once and for all. Nothing here replays per frame: the engine's loop
- * only advances an `instanceCount` and moves the pawn.
+ * only moves a cut uniform and the pawn.
  */
 export function buildThread(
   route: ComputedRoute,
@@ -180,77 +178,72 @@ export function buildThread(
 ): Thread {
   const object = new Group();
   const legs = cutIntoLegs(route, frame);
-  const materials: LineMaterial[] = [];
+  const lineMaterials: LineMaterial[] = [];
+  const width = threadWidth(thickness);
 
-  const makeMaterial = (options: {
-    color: string;
-    thickness: number;
-    opacity: number;
-    dashed?: boolean;
-  }): LineMaterial => {
+  const makeLineMaterial = (color: string, linewidth: number, opacity: number): LineMaterial => {
     const material = new LineMaterial({
-      color: options.color,
-      linewidth: options.thickness,
+      color,
+      linewidth,
       transparent: true,
-      opacity: options.opacity,
+      opacity,
       depthTest: false,
-      dashed: options.dashed === true,
-      dashSize: DASH_PX,
-      gapSize: GAP_PX,
     });
-    materials.push(material);
+    lineMaterials.push(material);
     return material;
   };
 
-  // Covered and remaining share the same thickness: it is a single thread, cut, not two
-  // strokes of different rank. The hierarchy lies in the dashes and the ink — a thinner
-  // remainder stopped showing at all, and a thread thinning mid-course reads as a plot error.
-  const remainingMaterial = makeMaterial({
-    color: colors.trace,
-    thickness,
-    opacity: opacities.trace,
+  // Covered and remaining are one ribbon of one width, cut by a uniform: a thread thinning
+  // mid-course reads as a plot error. The hierarchy lies in the dashes and the ink.
+  const stroke = new RibbonMaterial({
+    width,
+    floorPx: thickness,
+    covered: { color: colors.progress, opacity: opacities.progress },
+    remaining: { color: colors.trace, opacity: opacities.trace },
     dashed: true,
   });
-  const coveredMaterial = makeMaterial({
-    color: colors.progress,
-    thickness,
-    opacity: opacities.progress,
+  const casingInk = { color: PALETTE.desk, opacity: opacities.trace * CASING_SHARE };
+  const casing = new RibbonMaterial({
+    width,
+    floorPx: thickness,
+    bleedPx: CASING_BLEED,
+    covered: casingInk,
+    remaining: casingInk,
   });
-  const shadowMaterial = makeMaterial({
-    color: colors.trace,
-    thickness: SHADOW_THICKNESS,
-    opacity: opacities.trace * 0.9,
+  const shadowInk = { color: colors.trace, opacity: opacities.trace * 0.9 };
+  const shadow = new RibbonMaterial({
+    width: width * SHADOW_SHARE,
+    floorPx: SHADOW_THICKNESS,
+    covered: shadowInk,
+    remaining: shadowInk,
     dashed: true,
   });
-  const casingMaterial = makeMaterial({
-    color: PALETTE.desk,
-    thickness: thickness + CASING_BLEED,
-    opacity: opacities.trace * CASING_SHARE,
-  });
-  const markMaterial = makeMaterial({
-    color: colors.progress,
-    thickness: MARK_THICKNESS,
-    opacity: opacities.progress,
-  });
+  const ribbonMaterials = [stroke, casing, shadow];
+  const markMaterial = makeLineMaterial(colors.progress, MARK_THICKNESS, opacities.progress);
 
-  const targets: Line2[] = [];
-  const strokes: CutStroke[] = [];
+  const targets: Ribbon[] = [];
   const props: Group[] = [];
+  const legStarts: number[] = [];
+  let along = 0;
 
   for (const leg of legs) {
-    const rank = RENDER_RANK[leg.medium];
+    legStarts.push(along);
     for (const strand of leg.strands) {
-      object.add(threadOf(strand.vertices, casingMaterial, CASING_RANK));
-      const stroke = cutStrokeOf(strand, coveredMaterial, remainingMaterial, rank);
-      object.add(stroke.covered.line, stroke.remaining.line);
-      targets.push(stroke.covered.line, stroke.remaining.line);
-      strokes.push(stroke);
+      const ribbon = new Ribbon(strand.vertices, stroke, along);
+      ribbon.renderOrder = RENDER_RANK[leg.medium];
+      const backing = new Mesh(ribbon.geometry, casing);
+      backing.renderOrder = CASING_RANK;
+      object.add(backing, ribbon);
+      targets.push(ribbon);
 
       // The hovered itinerary: without it, a high arc reads as a stroke laid halfway
       // between two countries. It is a ground trace, not a cast shadow — a thread casts none.
       if (leg.medium === 'air') {
-        object.add(threadOf(strand.vertices.map(onGround), shadowMaterial, RENDER_RANK.land));
+        const trace = new Ribbon(strand.vertices.map(onGround), shadow, along);
+        trace.renderOrder = RENDER_RANK.land;
+        object.add(trace);
       }
+      along += strand.lengths.reduce((sum, length) => sum + length, 0);
     }
   }
 
@@ -271,17 +264,18 @@ export function buildThread(
   const tether = legs.some((leg) => leg.medium === 'air')
     ? threadOf(
         [new Vector3(), new Vector3()],
-        makeMaterial({
-          color: colors.trace,
-          thickness: TETHER_THICKNESS,
-          opacity: Math.min(1, opacities.trace * 1.4),
-        }),
+        makeLineMaterial(colors.trace, TETHER_THICKNESS, Math.min(1, opacities.trace * 1.4)),
         RENDER_RANK.air,
       )
     : null;
   if (tether) object.add(tether);
 
-  const baseOpacities = materials.map((material) => material.opacity);
+  const baseLineOpacities = lineMaterials.map((material) => material.opacity);
+  const baseRibbonOpacities = ribbonMaterials.map((material) => [
+    material.coveredOpacity,
+    material.remainingOpacity,
+  ]);
+  let unitsPerPixel = 1;
 
   return {
     object,
@@ -290,58 +284,50 @@ export function buildThread(
     targets,
     tether,
     /**
-     * Covered and remaining are a single trace, cut at the pawn's parametric position. The
-     * distance spreads leg by leg then strand by strand: the world wraps, a thread exiting
-     * by the antimeridian re-enters from the other edge and must fill in that order.
+     * Covered and remaining are a single ribbon, cut at the pawn's distance along the whole
+     * thread. The distance runs leg by leg then strand by strand: the world wraps, a thread
+     * exiting by the antimeridian re-enters from the other edge and fills in that order.
      */
     cut(legIndex, local) {
-      const share = Math.min(1, Math.max(0, local));
-      let rank = 0;
-      for (let l = 0; l < legs.length; l++) {
-        const leg = legs[l]!;
-        let distance = (l < legIndex ? 1 : l > legIndex ? 0 : share) * leg.length;
-        for (let s = 0; s < leg.strands.length; s++) {
-          const stroke = strokes[rank++];
-          if (stroke === undefined) continue;
-          cutStroke(stroke, distance);
-          distance = Math.max(0, distance - stroke.length);
-        }
-      }
+      const leg = legs[legIndex];
+      if (leg === undefined) return;
+      stroke.cut = legStarts[legIndex]! + Math.min(1, Math.max(0, local)) * leg.length;
     },
     drift(seconds) {
-      // `dashOffset` counts in the dash pattern's units, hence in pixels: `dashScale`
-      // converts the world speed into them. It accumulates instead of being recomputed,
-      // otherwise a zoom notch would jump the phase.
-      const speed = Math.min(DRIFT_SPEED * remainingMaterial.dashScale, DRIFT_CEILING_PX_S);
-      const step = speed * Math.min(seconds, MAX_DRIFT_STEP_S);
-      // The remainder is written destination-to-departure: its distance decreases along the
-      // route, so it is an *increasing* offset that makes the dashes flow toward arrival.
-      remainingMaterial.dashOffset = (remainingMaterial.dashOffset + step) % (DASH_PX + GAP_PX);
+      // The drift is a world speed, capped on screen, turned into a share of the dash pitch.
+      // It accumulates instead of being recomputed, otherwise a zoom notch would jump it.
+      const speed = Math.min(DRIFT_SPEED, DRIFT_CEILING_PX_S * unitsPerPixel);
+      const step = (speed * Math.min(seconds, MAX_DRIFT_STEP_S)) / stroke.pitch;
+      stroke.phase = (stroke.phase + step) % 1;
     },
-    setScale(unitsPerPixel) {
-      for (const prop of props) prop.scale.setScalar(unitsPerPixel);
-      // `dashScale` divides the world distance: at 1/unitsPerPixel, dash and gap count
-      // directly in pixels, and the dash pitch stops moving with zoom.
-      const scale = unitsPerPixel > 0 ? 1 / unitsPerPixel : 1;
-      for (const material of materials) {
-        if (material.dashed) material.dashScale = scale;
-      }
+    setScale(scale) {
+      unitsPerPixel = scale;
+      for (const prop of props) prop.scale.setScalar(scale);
+      const pitch = dashPitch(ribbonWidth(width, thickness, scale));
+      stroke.pitch = pitch;
+      shadow.pitch = pitch;
     },
-    setResolution(width, height) {
-      for (const material of materials) material.resolution.set(width, height);
+    setResolution(viewWidth, viewHeight) {
+      for (const material of lineMaterials) material.resolution.set(viewWidth, viewHeight);
+      for (const material of ribbonMaterials) material.viewHeight = viewHeight;
     },
     setAccent(accentFactor) {
-      materials.forEach((material, rank) => {
-        material.opacity = Math.min(1, baseOpacities[rank]! * accentFactor);
+      lineMaterials.forEach((material, rank) => {
+        material.opacity = Math.min(1, baseLineOpacities[rank]! * accentFactor);
+      });
+      ribbonMaterials.forEach((material, rank) => {
+        const [covered, remaining] = baseRibbonOpacities[rank]!;
+        material.coveredOpacity = Math.min(1, covered! * accentFactor);
+        material.remainingOpacity = Math.min(1, remaining! * accentFactor);
       });
     },
     dispose() {
       object.removeFromParent();
       object.traverse((node) => {
-        const line = node as Partial<Line2>;
-        if (line.geometry) line.geometry.dispose();
+        const drawn = node as Partial<Mesh>;
+        if (drawn.geometry) drawn.geometry.dispose();
       });
-      for (const material of materials) material.dispose();
+      for (const material of [...lineMaterials, ...ribbonMaterials]) material.dispose();
     },
   };
 }
@@ -503,138 +489,6 @@ function projectedDistance(a: LonLat, b: LonLat, frame: WorldFrame): number {
   const from = frame.projectLonLat(a, 0);
   const to = frame.projectLonLat(b, 0);
   return Math.hypot(to.x - from.x, to.z - from.z);
-}
-
-/* --------------------------------- strokes -------------------------------- */
-
-/**
- * A thread section: **a single trace**, drawn by two lines sharing the cut vertex. The
- * covered part stops on it, the remainder starts from it — no notch, no overlap at the
- * seam, at every zoom, because the point is the same and computed, not rounded to the
- * nearest vertex.
- */
-type CutStroke = {
-  readonly covered: Side;
-  readonly remaining: Side;
-  readonly lengths: ReadonlyArray<number>;
-  readonly length: number;
-  /** The last distance served; recutting at the same place would rewrite nothing new. */
-  servedDistance: number;
-};
-
-/**
- * One of the cut's two sides. A fat line only truncates from the start — `instanceCount`
- * counts from the first segment — so the remainder carries its vertices **reversed**,
- * destination to departure: its counter then bites from the pawn, not from arrival.
- */
-type Side = {
-  readonly line: Line2;
-  /** The vertices in the order the line carries them. */
-  readonly vertices: ReadonlyArray<Vector3>;
-  /** The segment shortened last frame; `-1` when the line is whole. */
-  cutIndex: number;
-};
-
-function cutStrokeOf(
-  strand: ThreadStrand,
-  coveredMaterial: LineMaterial,
-  remainingMaterial: LineMaterial,
-  rank: number,
-): CutStroke {
-  const reversed = [...strand.vertices].reverse();
-  const covered: Side = {
-    line: threadOf(strand.vertices, coveredMaterial, rank),
-    vertices: strand.vertices,
-    cutIndex: -1,
-  };
-  const remaining: Side = {
-    line: threadOf(reversed, remainingMaterial, rank),
-    vertices: reversed,
-    cutIndex: -1,
-  };
-  // `instanceCount` is infinite until touched: a fresh thread is all still to cover, and
-  // saying it here avoids depending on that default value.
-  covered.line.geometry.instanceCount = 0;
-  remaining.line.geometry.instanceCount = strand.lengths.length;
-  return {
-    covered,
-    remaining,
-    lengths: strand.lengths,
-    length: strand.lengths.reduce((sum, length) => sum + length, 0),
-    servedDistance: -1,
-  };
-}
-
-const CUT_POINT = new Vector3();
-
-function cutStroke(stroke: CutStroke, distance: number): void {
-  const clamped = Math.min(stroke.length, Math.max(0, distance));
-  if (clamped === stroke.servedDistance) return;
-  stroke.servedDistance = clamped;
-
-  const segments = stroke.lengths.length;
-  if (clamped <= 0) {
-    trim(stroke.covered, 0, null);
-    trim(stroke.remaining, segments, null);
-    return;
-  }
-  if (clamped >= stroke.length) {
-    trim(stroke.covered, segments, null);
-    trim(stroke.remaining, 0, null);
-    return;
-  }
-
-  let index = 0;
-  let rest = clamped;
-  while (index < segments - 1 && rest >= stroke.lengths[index]!) rest -= stroke.lengths[index++]!;
-  const length = stroke.lengths[index]!;
-  CUT_POINT.copy(stroke.covered.vertices[index]!).lerp(
-    stroke.covered.vertices[index + 1]!,
-    length > 0 ? rest / length : 0,
-  );
-
-  trim(stroke.covered, index + 1, CUT_POINT);
-  trim(stroke.remaining, segments - index, CUT_POINT);
-}
-
-/**
- * Shows `visible` segments, the last stopping on the cut point. The segment shortened last
- * frame first regains its full length: otherwise the trace would keep the mark of every
- * place the pawn passed.
- */
-function trim(side: Side, visible: number, cutPoint: Vector3 | null): void {
-  if (side.cutIndex >= 0) {
-    writeSegment(
-      side.line,
-      side.cutIndex,
-      side.vertices[side.cutIndex]!,
-      side.vertices[side.cutIndex + 1]!,
-    );
-    side.cutIndex = -1;
-  }
-  side.line.geometry.instanceCount = visible;
-  if (cutPoint === null || visible <= 0) return;
-  const last = visible - 1;
-  writeSegment(side.line, last, side.vertices[last]!, cutPoint);
-  side.cutIndex = last;
-}
-
-/**
- * Rewrites a segment in the interleaved buffers the line already owns. The end distance
- * follows the new length: without it, the shortened segment's dashes would compress as the
- * pawn crosses it, and the pitch would jump at the next vertex.
- */
-function writeSegment(line: Line2, index: number, from: Vector3, to: Vector3): void {
-  const positions = (line.geometry.getAttribute('instanceStart') as InterleavedBufferAttribute)
-    .data;
-  positions.array.set([from.x, from.y, from.z, to.x, to.y, to.z], index * 6);
-  positions.needsUpdate = true;
-
-  const distances = (
-    line.geometry.getAttribute('instanceDistanceStart') as InterleavedBufferAttribute
-  ).data;
-  distances.array[index * 2 + 1] = distances.array[index * 2]! + from.distanceTo(to);
-  distances.needsUpdate = true;
 }
 
 function threadOf(vertices: ReadonlyArray<Vector3>, material: LineMaterial, rank: number): Line2 {

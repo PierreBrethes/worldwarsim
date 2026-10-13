@@ -448,7 +448,8 @@ export class MapEngine {
     this.scene.add(this.regions.terrain.group);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
-    // material's pixel thickness. Without it, a 1.5 px stroke would only hover to the pixel.
+    // ribbon's drawn half-width (`Ribbon.raycast`). Without it, a ribbon at its 2 px floor would
+    // only hover to the pixel.
     this.ray.params.Line2 = { threshold: ARC_HOVER_THRESHOLD };
 
     this.wireInputs();
