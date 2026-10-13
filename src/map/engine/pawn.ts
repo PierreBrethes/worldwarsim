@@ -13,6 +13,7 @@ import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
 import { nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
+import { Wake } from './smoke';
 
 /**
  * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
@@ -59,9 +60,12 @@ export class Pawn {
   private readonly sprites = new Map<Medium, SpriteCostume>();
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
+  private readonly wake = new Wake();
   private medium: Medium = 'land';
   private westward = false;
   private heading = 0;
+  /** The effects' clock: it only runs while `step` is called, so reduced motion stills them. */
+  private clock = 0;
 
   constructor(
     sprites: MediumSprites | null,
@@ -82,6 +86,9 @@ export class Pawn {
         this.object.add(figurine.object);
       }
     }
+    this.wake.object.name = 'wake';
+    this.wake.object.visible = false;
+    this.object.add(this.wake.object);
   }
 
   set visible(value: boolean) {
@@ -117,6 +124,8 @@ export class Pawn {
   /** What spins on the worn figurine — its propellers — and nothing else. */
   step(elapsedSeconds: number): void {
     this.figurines.get(this.medium)?.spin(elapsedSeconds);
+    this.clock += elapsedSeconds;
+    if (this.wake.object.visible) this.wake.frame(this.clock);
   }
 
   /**
@@ -126,8 +135,13 @@ export class Pawn {
    */
   orient(cameraPosition: Vector3, yaw: number): void {
     const distance = this.object.position.distanceTo(cameraPosition);
+    const close = nearWeight(distance);
+    // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».
+    this.wake.object.visible = this.medium === 'sea' && close > 0;
+    this.wake.object.rotation.set(0, this.heading, 0);
+    this.wake.object.scale.setScalar(close);
     const figurine = this.figurines.get(this.medium);
-    const near = figurine === undefined ? 0 : nearWeight(distance);
+    const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
       figurine.object.rotation.set(0, figurine.facesEye ? yaw : this.heading, 0);

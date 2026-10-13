@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MeshStandardMaterial } from 'three';
-import { charred, PLUME_BY_WEAR, puffAt, Smoke } from './smoke';
+import { charred, PLUME_BY_WEAR, puffAt, Smoke, Wake, WAKE_LIFE, wakePuffAt } from './smoke';
 
 describe('PLUME_BY_WEAR', () => {
   it('leaves a whole vehicle clean and burns thicker than it smokes', () => {
@@ -47,5 +47,35 @@ describe('charred', () => {
     expect(charred(paint)).toBe(burnt);
     expect(paint.color.getHexString()).toBe('808080');
     expect(burnt.color.r).toBeLessThan(paint.color.r);
+  });
+});
+
+describe('wakePuffAt', () => {
+  it('trails behind the stern, on both sides of the road', () => {
+    for (const time of [0, 0.4, 1.1, 2.3]) {
+      const left = wakePuffAt(0, time);
+      const right = wakePuffAt(1, time);
+      expect(left.ahead).toBeLessThan(0);
+      expect(right.ahead).toBeLessThan(0);
+      expect(Math.sign(left.side)).toBe(-Math.sign(right.side));
+    }
+  });
+
+  it('spreads and fades as it falls behind', () => {
+    const young = wakePuffAt(0, 0.2 * WAKE_LIFE);
+    const old = wakePuffAt(0, 0.9 * WAKE_LIFE);
+    expect(old.ahead).toBeLessThan(young.ahead);
+    expect(Math.abs(old.side)).toBeGreaterThan(Math.abs(young.side));
+    expect(old.size).toBeGreaterThan(young.size);
+    expect(old.opacity).toBeLessThan(young.opacity);
+  });
+});
+
+describe('Wake', () => {
+  it('keeps its pool whatever the time', () => {
+    const wake = new Wake();
+    const pool = wake.object.children.length;
+    for (const time of [0, 3.3, 1e6]) wake.frame(time);
+    expect(wake.object.children).toHaveLength(pool);
   });
 });
