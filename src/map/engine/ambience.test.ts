@@ -42,6 +42,17 @@ describe('Ambience', () => {
     expect(times).toEqual({ sea: [1, 1], wind: [1, 31 / 30] });
   });
 
+  it('asks nothing for an idle layer, and its next step once it wakes', () => {
+    let idle = true;
+    const ambience = new Ambience(new Set(['smoke']));
+    ambience.add({ fx: 'smoke', idle: () => idle, frame: () => {} });
+    expect(ambience.advance(1000)).toBe(false);
+    expect(ambience.advance(1100)).toBe(false);
+    idle = false;
+    expect(ambience.advance(1100)).toBe(true);
+    expect(ambience.advance(1110)).toBe(false);
+  });
+
   it('drops layers whose effect is switched off', () => {
     const ambience = new Ambience(new Set());
     ambience.add(layer);

@@ -366,6 +366,7 @@ export class MapEngine {
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame);
     this.standing = new StandingLayer(this.frame, () => this.invalidate());
+    this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
     this.camps = new CampLayer(this.frame);

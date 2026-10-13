@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces } from '@/domain/pile-pieces';
-import { dressedGroups, pileLayout } from './standing';
+import { drawnKey, dressedGroups, pileLayout } from './standing';
 
 const troop = (role: UnitRole, strength = 100) => ({
   role,
@@ -29,5 +29,14 @@ describe('dressedGroups', () => {
     expect(dressedGroups('france', pilePieces([troop('infantry'), troop('armor')]))).toBeNull();
     expect(dressedGroups('italy', pilePieces([troop('infantry')]))).toBeNull();
     expect(dressedGroups('france', { groups: [], more: 0 })).toBeNull();
+  });
+});
+
+describe('drawnKey', () => {
+  it('redraws a pile whose vehicles cross a wear line, and only then', () => {
+    const at = (strength: number) => drawnKey('germany', pilePieces([troop('armor', strength)]));
+    expect(at(90)).toBe(at(80));
+    expect(at(50)).not.toBe(at(80));
+    expect(at(20)).not.toBe(at(50));
   });
 });

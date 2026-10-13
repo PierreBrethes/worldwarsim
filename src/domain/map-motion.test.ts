@@ -12,7 +12,7 @@ describe('resolveMapMotion', () => {
 
 describe('parseFx', () => {
   it('enables all three when absent, none when empty, and ignores unknown values', () => {
-    expect([...parseFx('')].sort()).toEqual(['ink', 'sea', 'wind']);
+    expect([...parseFx('')].sort()).toEqual(['ink', 'sea', 'smoke', 'wind']);
     expect([...parseFx('?fx=')]).toEqual([]);
     expect([...parseFx('?fx=sea,ink')].sort()).toEqual(['ink', 'sea']);
     expect([...parseFx('?fx=sea,bogus')]).toEqual(['sea']);

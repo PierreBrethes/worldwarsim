@@ -17,6 +17,7 @@ import { spriteUrl } from '@/emblems/units/manifest';
 import { pilePieces } from '@/domain/pile-pieces';
 import { fr } from '@/i18n/fr';
 import { blockFigurine, washedBlock } from '../blocks';
+import type { Smoke } from '../smoke';
 import { Faces, pileObject } from '../standing';
 import { figurineFor } from './figurine';
 
@@ -88,24 +89,26 @@ for (const role of ROLES) {
 }
 
 /** Piles as the board stands them: whole, worn and counted, and one left to its plate. */
-const troop = (role: UnitRole, strength = 100) => ({
+const troop = (role: UnitRole, strength = 100, tier: UnitTier = 1) => ({
   role,
-  tier: 1 as UnitTier,
+  tier,
   strength,
   nominalStrength: 100,
 });
 const faces = new Faces(() => {});
+const smokes: Smoke[] = [];
 const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
 for (const [caption, troops] of [
   ['pile · 1 infanterie', [troop('infantry')]],
   ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
   ['pile · 4 rôles', [troop('infantry'), troop('armor'), troop('landTransport'), troop('fighter')]],
+  // MK2: France has no R35 yet. Smoke at half strength, thick smoke and a burnt hull at a quarter.
+  ['pile · 2 blindés à 50 %', [1, 2].map(() => troop('armor', 50, 2))],
+  ['pile · 2 blindés à 25 %', [1, 2].map(() => troop('armor', 25, 2))],
 ] as const) {
-  card(
-    spriteUrl(nation, 'infantry', 1),
-    caption,
-    pileObject(nation, pilePieces(troops), texts, faces)?.object ?? null,
-  );
+  const pile = pileObject(nation, pilePieces(troops), texts, faces);
+  if (pile) smokes.push(...pile.smokes);
+  card(spriteUrl(nation, 'infantry', 1), caption, pile?.object ?? null);
 }
 
 // Seen from behind, as on the board: the pictogram is what the page is there to judge.
@@ -116,7 +119,10 @@ for (const medium of ['land', 'sea', 'air'] as const)
   card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object, BLOCK_VIEW);
 card(null, 'bloc adverse · dernière position connue', washedBlock('land'), BLOCK_VIEW);
 
+/** `?motion=reduced` stills the smoke, as the board does. */
+const still = new URLSearchParams(location.search).get('motion') === 'reduced';
 const frame = () => {
+  for (const smoke of smokes) smoke.frame(still ? 0 : performance.now() / 1000);
   for (const view of views) view();
   requestAnimationFrame(frame);
 };

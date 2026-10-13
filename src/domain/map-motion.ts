@@ -1,6 +1,6 @@
 export type MapMotionSetting = 'auto' | 'full' | 'reduced' | 'off';
 export type MapMotion = 'full' | 'reduced' | 'off';
-export type Fx = 'sea' | 'wind' | 'ink';
+export type Fx = 'sea' | 'wind' | 'ink' | 'smoke';
 
 export const MAP_MOTION_SETTINGS: ReadonlyArray<MapMotionSetting> = [
   'auto',
@@ -18,7 +18,7 @@ export const resolveMapMotion = (
   prefersReducedMotion: boolean,
 ): MapMotion => (setting === 'auto' ? (prefersReducedMotion ? 'reduced' : 'full') : setting);
 
-const ALL_FX: ReadonlyArray<Fx> = ['sea', 'wind', 'ink'];
+const ALL_FX: ReadonlyArray<Fx> = ['sea', 'wind', 'ink', 'smoke'];
 
 // ponytail: prototype switch for comparing effects one by one; removed before the merge.
 export function parseFx(search: string): ReadonlySet<Fx> {
