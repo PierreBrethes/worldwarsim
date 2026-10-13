@@ -830,14 +830,8 @@ export function WorldMap({
           WebkitMaskImage: 'linear-gradient(transparent, #000 85%)',
         }}
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1]"
-        style={{
-          background:
-            'radial-gradient(ellipse 75% 68% at 50% 44%, rgba(228,216,189,.045) 0%, transparent 42%), radial-gradient(ellipse 85% 75% at 50% 46%, transparent 48%, rgba(10,7,3,.5) 100%)',
-        }}
-      />
+      <div aria-hidden className="map-veil" />
+      <div aria-hidden className="map-grain" />
       <MapLabels
         labels={labels}
         engine={readyEngine}
