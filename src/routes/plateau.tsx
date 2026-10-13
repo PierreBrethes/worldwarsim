@@ -52,7 +52,7 @@ import { lootWords } from '@/domain/journal';
 import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
-import { DEPOSIT_REGIONS, depositOfRegion, type RegionIdentity, type World } from '@/domain/world';
+import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
   isOrder,
@@ -405,7 +405,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const narrow = useNarrowScreen();
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [hoveredRegion, setHoveredRegion] = useState<RegionIdentity | null>(null);
+  const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
   // Where the crane was clicked: the construction panel is anchored to the aimed point, since
   // what it answers is "here", not "somewhere".
   const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);

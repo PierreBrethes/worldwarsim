@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { countryLabel, fr } from '@/i18n/fr';
-import { loadRegions, type RegionIdentity, type World } from '@/domain/world';
+import { loadRegions, type HoveredRegion, type RegionIdentity, type World } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
 import type { MapLabel, Reach } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
@@ -119,7 +119,7 @@ type Props = {
    */
   reach?: Reach | null;
   onCountryHover?: (adm0: string | null) => void;
-  onRegionHover?: (region: RegionIdentity | null) => void;
+  onRegionHover?: (region: HoveredRegion | null) => void;
   /**
    * **La couche admin-1 est arrivée** : la carte tend au plateau de quoi nommer la région sous un
    * point, par la même lecture que le survol. Un cartouche de pile en a besoin, et il est écrit
