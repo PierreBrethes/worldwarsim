@@ -48,12 +48,14 @@ type RenderedArc = {
   loadingUntil: number | null;
 };
 
+/** Every thread's weight against its original design: the first one read too heavy on the sheet. */
+const THREAD_WEIGHT = 0.5;
+
 /**
  * Thickness carries the hierarchy between movements — the ribbon's floor in pixels, and its true
  * width in proportion (`threadWidth`): what is not mine does not push to the foreground. Within a thread it says nothing — covered and
  * remaining are the same stroke, and the dashes tell them apart.
  */
-const THREAD_WEIGHT = 0.5;
 const THICKNESSES: Readonly<Record<ArcView['state'], number>> = {
   mine: 2.5 * THREAD_WEIGHT,
   enemyDetected: 2 * THREAD_WEIGHT,
