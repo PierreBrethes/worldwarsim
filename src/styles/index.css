@@ -367,9 +367,11 @@ body {
   );
 }
 
+/* Le surtitre des affiches (table d'état-major) : Archivo 600, majuscules espacées. */
 .eyebrow {
-  font-size: var(--size-eyebrow-sm);
-  letter-spacing: var(--track-label);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
