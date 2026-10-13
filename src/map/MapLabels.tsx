@@ -17,6 +17,7 @@ import { useMapMotion } from '@/data/mapMotion';
 import { LoadingGauge } from './LoadingGauge';
 import {
   URGENCY_MS,
+  cartoucheShown,
   isCountdown,
   type MapLabel,
   type LabelPictogram,
@@ -175,6 +176,42 @@ export function MapLabels({
     return () => document.removeEventListener('pointerdown', elsewhere);
   }, [openedGroup]);
 
+  /**
+   * **La pièce sous le pointeur, une à la fois** (retours du 13/10) : la souris qui la survole,
+   * ou le doigt qui vient de la toucher — faute de survol, le toucher la nomme jusqu'au suivant.
+   * Écrit sur le nœud et non dans l'état React : un survol ne rend pas cent étiquettes.
+   */
+  const pointed = useRef<string | null>(null);
+  const point = useCallback(
+    (id: string | null) => {
+      const previous = pointed.current;
+      pointed.current = id;
+      for (const target of new Set([previous, id])) {
+        const root = target === null ? undefined : roots.current.get(target);
+        const label = labels.find((candidate) => candidate.id === target);
+        if (root === undefined || label === undefined) continue;
+        root.classList.toggle('label--pointed', target === id);
+        root.classList.toggle(
+          'label--quiet',
+          !cartoucheShown(label, {
+            pointed: target === id,
+            selected: root.classList.contains('label--selected'),
+          }),
+        );
+      }
+    },
+    [labels],
+  );
+  useEffect(() => {
+    const elsewhere = (event: PointerEvent) => {
+      const held = pointed.current === null ? undefined : roots.current.get(pointed.current);
+      if (event.pointerType === 'touch' && held?.contains(event.target as Node) !== true)
+        point(null);
+    };
+    document.addEventListener('pointerdown', elsewhere);
+    return () => document.removeEventListener('pointerdown', elsewhere);
+  }, [point]);
+
   const apply = useCallback((id: string, state: RenderState) => {
     const root = roots.current.get(id);
     if (!root) return;
@@ -203,6 +240,10 @@ export function MapLabels({
    * A degradation that contradicted itself from one round to the next.
    */
   const degrade = useCallback(() => {
+    // Mesurée nommée, la pièce survolée replierait ses voisines tant qu'on la survole, puis les
+    // rendrait en la quittant : on mesure la carte au repos, et on la renomme après.
+    const held = pointed.current;
+    point(null);
     const candidates = labels
       .filter((label) => {
         const state = states.current.get(label.id);
@@ -292,7 +333,8 @@ export function MapLabels({
     const shown = formed.filter((group) => !fans(group));
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
-  }, [labels, apply, engine]);
+    point(held);
+  }, [labels, apply, engine, point]);
 
   /**
    * One degradation per frame at most, and only when something asked for it. Crossing the
@@ -483,6 +525,7 @@ export function MapLabels({
             onPointerEnter={(event) => {
               // A finger has no hover to take back: what it lit would stay lit (C4).
               if (event.pointerType === 'touch') return;
+              point(label.id);
               if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
               onReachHover(label.reach);
               if (label.type === 'stack' && label.station !== null && event.buttons === 0)
@@ -499,11 +542,13 @@ export function MapLabels({
             }}
             onPointerLeave={(event) => {
               if (event.pointerType === 'touch') return;
+              point(null);
               if (label.anchor.kind === 'movementHead') onMovementHover(null);
               onReachHover(null);
               onStackHover(null);
             }}
             onClick={(event) => {
+              if (pressedWith.current === 'touch') point(label.id);
               const press = cleanPressAt(mapping, pressedWith.current, event.button, holding);
               if (holding && label.type !== 'stack') {
                 onAct(label, event.clientX, event.clientY);
@@ -812,6 +857,7 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
 function classesOf(label: MapLabel, selected: boolean, destination: boolean): string {
   return [
     'label',
+    cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
     destination ? 'label--destination' : '',
     'label--glyph',
     `label--${label.type}`,
