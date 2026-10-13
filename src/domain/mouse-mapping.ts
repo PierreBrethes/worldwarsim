@@ -4,9 +4,10 @@
  * la partie du 11/09 tient en une phrase : deux joueurs, deux habitudes, et aucune des deux n'est
  * une règle du jeu. La décision du 30/08 (« la carte au clic droit agit ») reste le défaut.
  *
- * Ce qui ne se règle pas et n'a donc aucun champ ici : le clic net gauche qui lit, l'alias
- * `espace + glisser gauche` qui déplace, et le fait qu'`agir` soit un clic net quand `orienter`
- * et `déplacer` sont des glissers.
+ * Ce qui ne se règle pas et n'a donc aucun champ ici : le clic net gauche qui lit — **sauf
+ * pièce en main, où il pose** (ADR 0026 §6, révisé le 13/10) —, l'alias `espace + glisser
+ * gauche` qui déplace, et le fait qu'`agir` soit un clic net quand `orienter` et `déplacer` sont
+ * des glissers.
  *
  * **Le doigt ne se règle pas non plus, et ne lit pas le réglage** (décision mobile-1c du 03/10,
  * qui révise celle du 15/09). Il se décide par événement, sur `pointerType` : un toucher net lit
@@ -104,12 +105,21 @@ export function dragRoleAt(
  * qui agit ouvre la rose — les deux quand le joueur a mis `agir` à gauche. Au doigt, les deux
  * toujours : la rose s'ouvre et la lecture que donnait le clic gauche s'affiche avec elle, sans
  * quoi ce qui se lit à la souris deviendrait illisible au toucher.
+ *
+ * `picks` : l'appui qui touche une pièce à soi la prend, avant toute lecture. **Pièce en main
+ * (`holding`), le gauche ne lit plus : il pose**, par le même chemin que le bouton qui agit — et
+ * il touche encore les pièces, puisqu'un clic sur la pièce levée la repose.
  */
 export function cleanPressAt(
   mapping: MouseMapping,
   pointerType: string,
   index: number,
-): { readonly reads: boolean; readonly acts: boolean } {
-  if (isFinger(pointerType)) return { reads: true, acts: true };
-  return { reads: buttonAt(index) === 'left', acts: roleAt(mapping, index) === 'act' };
+  holding = false,
+): { readonly picks: boolean; readonly reads: boolean; readonly acts: boolean } {
+  const picks = isFinger(pointerType) || buttonAt(index) === 'left';
+  return {
+    picks,
+    reads: picks && !holding,
+    acts: isFinger(pointerType) || roleAt(mapping, index) === 'act' || (holding && picks),
+  };
 }
