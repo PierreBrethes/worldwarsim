@@ -30,6 +30,18 @@ describe('puffAt', () => {
 });
 
 describe('Smoke', () => {
+  it('fades out with `fade`: fully faded shows no puff', () => {
+    const smoke = new Smoke(PLUME_BY_WEAR.burning!);
+    smoke.frame(1.2);
+    const shown = smoke.object.children.filter((c) => c.visible).length;
+    smoke.frame(1.2, 0.5);
+    const dimmed = smoke.object.children.filter((c) => c.visible).length;
+    smoke.frame(1.2, 0);
+    expect(shown).toBeGreaterThan(0);
+    expect(dimmed).toBeLessThanOrEqual(shown);
+    expect(smoke.object.children.some((c) => c.visible)).toBe(false);
+  });
+
   it('keeps its pool whatever the time: a frame moves puffs, never adds one', () => {
     const smoke = new Smoke(PLUME_BY_WEAR.burning!);
     const pool = smoke.object.children.length;
