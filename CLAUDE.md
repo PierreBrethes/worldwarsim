@@ -179,7 +179,11 @@ icône, chiffre, jauge du stock sur son plafond. **Le rouge n'y sert qu'à l'ale
 est la réserve à sec** (`drynessOf`, `src/domain/resource-band.ts`) : vide, ou vide avant
 `DRY_SOON_HOURS` au débit net que la vue sert déjà — chiffre, jauge, cercle et une étiquette
 « à sec dans N h » qui pend sous la case. Au plafond n'est pas une alarme : la jauge pleine à
-l'encre, le diagnostic à la carte de la réserve. À gauche, la
+l'encre, le diagnostic à la carte de la réserve. **Le chiffre ne suit pas l'horloge, il s'annonce** (compteur du
+13/10, `src/domain/reserve-counter.ts`) : chaque réserve tire son instant entre 30 et 60 s, roule
+comme un compteur jusqu'au stock et montre « +N » ; un gain que le débit n'explique pas — la vue
+neuve comparée à ce que l'ancienne prédisait — s'annonce sur-le-champ, une dépense roule sans
+étiquette. Jauge, alerte et libellé accessible lisent le stock réel. À gauche, la
 **colonne des surfaces** (`SurfaceColumn.tsx`) : en tête le carré d'encre « N à faire », qui
 déplie la carte `NextActions` à sa droite (repli retenu), puis Nation, Écon., Abaque, Journal
 (badge des non-lus — la mention a quitté la réglette), Presse (rang), Télég. Les **réglages** sont
