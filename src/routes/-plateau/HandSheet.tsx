@@ -1,5 +1,6 @@
 import { detectionRangeOf, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr } from '@/i18n/fr';
+import type { CompassAction } from '@/domain/compass-rose';
 import type { MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -19,6 +20,7 @@ export function HandSheet({
   held,
   troopIds,
   onCompose,
+  founding,
   onOpenGunnery,
   onDrop,
 }: {
@@ -31,6 +33,16 @@ export function HandSheet({
   /** Ce qu'on tient. */
   troopIds: ReadonlyArray<string>;
   onCompose: (troopIds: ReadonlyArray<string>) => void;
+  /**
+   * **Fonder, d'ici** : au doigt la pile ne fait plus que se lever, et la fiche porte l'ordre que
+   * sa rose porterait sur place — la même branche, le même prix, le même motif (ADR 0015).
+   * `null` quand la rose n'a rien à dire là.
+   */
+  founding: {
+    readonly action: Extract<CompassAction, { key: 'found' }> | null;
+    readonly refusal: string | null;
+    readonly onFound: () => void;
+  } | null;
   onOpenGunnery: () => void;
   onDrop: () => void;
 }) {
@@ -65,6 +77,23 @@ export function HandSheet({
       <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
         {fr.hand.scouting(detectionRangeOf(inHand.map((troop) => troop.role)))}
       </p>
+      {founding?.action != null && (
+        <button
+          type="button"
+          onClick={founding.onFound}
+          className="mt-[8px] w-full cursor-pointer border border-[var(--ink)] px-[12px] py-[7px] text-left text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          {fr.hand.found}
+          <span className="block font-(family-name:--font-mono) text-[10px] tracking-normal normal-case">
+            {founding.action.bill.map((line) => line.text).join(' · ')} · {founding.action.duration}
+          </span>
+        </button>
+      )}
+      {founding?.action == null && founding?.refusal != null && (
+        <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--lacking-ink)]">
+          {founding.refusal}
+        </p>
+      )}
       <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
         {narrow ? fr.hand.hintFinger : fr.hand.hint}
       </p>

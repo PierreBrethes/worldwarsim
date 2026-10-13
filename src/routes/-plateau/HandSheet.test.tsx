@@ -52,6 +52,7 @@ describe('HandSheet', () => {
         held={held}
         troopIds={['inf', 'tank']}
         onCompose={onCompose}
+        founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
       />,
@@ -62,5 +63,42 @@ describe('HandSheet', () => {
     act(() => boxes[1]!.click());
     expect(onCompose).toHaveBeenLastCalledWith(['inf']);
     expect(screen.queryByText(fr.garrison.prepare)).toBeNull();
+  });
+});
+
+/** **Fonder d'ici** : la branche de la rose, ou son motif — jamais un bouton grisé (ADR 0015). */
+describe('HandSheet founding', () => {
+  const sheet = (founding: Parameters<typeof HandSheet>[0]['founding']) =>
+    render(
+      <HandSheet
+        view={{ me: { nation: 'france', stationedCargo: [] } } as unknown as PlayerView}
+        station={station}
+        place="Saône-et-Loire"
+        held={[troop('inf', 'infantry')]}
+        troopIds={['inf']}
+        onCompose={() => {}}
+        founding={founding}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+      />,
+    );
+
+  it('founds through the rose branch it was handed', () => {
+    const onFound = vi.fn();
+    const action = {
+      key: 'found',
+      bill: [{ text: 'acier 20 / 40', lacking: false }],
+      duration: '2 h',
+    } as unknown as NonNullable<Parameters<typeof HandSheet>[0]['founding']>['action'];
+    sheet({ action, refusal: null, onFound });
+    act(() => screen.getByRole('button', { name: /fonder un avant-poste ici/i }).click());
+    expect(onFound).toHaveBeenCalledOnce();
+    expect(screen.getByText(/acier 20 \/ 40 · 2 h/)).toBeTruthy();
+  });
+
+  it('says the motive instead of a button when the rose would', () => {
+    sheet({ action: null, refusal: 'déjà à vous', onFound: () => {} });
+    expect(screen.queryByText(fr.hand.found)).toBeNull();
+    expect(screen.getByText('déjà à vous')).toBeTruthy();
   });
 });

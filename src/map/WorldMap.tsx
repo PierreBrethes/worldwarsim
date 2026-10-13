@@ -91,6 +91,9 @@ type Props = {
   onRestAim?: (action: OrderAction | null, at: { x: number; y: number }) => void;
   /** La rose s'est refermée sans ordre : la pièce en main se repose. */
   onRoseDismiss?: () => void;
+  /** **La rose de la pile en main**, celle que son étiquette ouvrirait, `null` sans pile posée :
+   *  la fiche latérale y lit « fonder ». */
+  onHeldCompass?: (compass: Compass | null) => void;
   /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
   onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
@@ -230,6 +233,7 @@ export function WorldMap({
   onPieceClick,
   onRestAim,
   onRoseDismiss,
+  onHeldCompass,
   onOpenLoot,
   onOpenCamp,
   onOpenObjective,
@@ -512,6 +516,19 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.holdPiece(holding);
   }, [readyEngine, holding]);
+
+  /** Lue sur le point de la pile et non sous un pointeur : la fiche n'a pas de clic à suivre. */
+  useEffect(() => {
+    if (onHeldCompass === undefined) return;
+    const label = holding === null ? undefined : labels.find((c) => c.id === holding.pileId);
+    if (label === undefined || label.anchor.kind !== 'ground') {
+      onHeldCompass(null);
+      return;
+    }
+    const region = readyEngine?.regionAtLonLat(label.anchor.lonLat) ?? null;
+    const target = targetOfLabel(label, null, region, coastAt, landAt);
+    onHeldCompass(target === null ? null : compassOf(target));
+  }, [readyEngine, holding, labels, compassOf, coastAt, landAt, onHeldCompass]);
 
   /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
    *  là — l'étiquette sous le pointeur ou le sol —, et l'ordre est le premier que la rose y

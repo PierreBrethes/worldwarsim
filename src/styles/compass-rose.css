@@ -39,8 +39,8 @@
   --figure-ink: #7a3a1c;
 }
 
-/* Hors de la rose aussi : la feuille d'une troupe dit le refus que la rose ne s'ouvre plus pour
-   dire au doigt (`TroopBadge`), et dans la même encre. */
+/* Hors de la rose aussi : la fiche de la pièce en main dit le motif de « fonder » que la rose
+   dirait sur place (`HandSheet`), et dans la même encre. */
 :root {
   --lacking-ink: #8c2f16;
 }

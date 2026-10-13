@@ -451,6 +451,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
   const [order, setOrder] = useState<Order | null>(null);
   const [resting, setResting] = useState<RestAim | null>(null);
+  /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */
+  const [heldCompass, setHeldCompass] = useState<Compass | null>(null);
   const [sent, setSent] = useState<SentOrder | null>(null);
   /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
   const [corner, setCorner] = useState<Corner | null>(null);
@@ -1871,6 +1873,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onPieceClick={view.me.defeated ? undefined : pieceClick}
             onRestAim={restAt}
             onRoseDismiss={dropHand}
+            onHeldCompass={setHeldCompass}
             onOpenLoot={openLoot}
             onOpenCamp={openCamp}
             onOpenObjective={openObjective}
@@ -2015,6 +2018,22 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
               troopIds={hand.troopIds}
               onCompose={compose}
+              founding={
+                heldCompass === null
+                  ? null
+                  : {
+                      action:
+                        heldCompass.actions.find(
+                          (action): action is Extract<CompassAction, { key: 'found' }> =>
+                            action.key === 'found',
+                        ) ?? null,
+                      refusal: heldCompass.refusal,
+                      onFound: () => {
+                        const found = heldCompass.actions.find((action) => action.key === 'found');
+                        if (found !== undefined) actOnCompass(found, boardPoint());
+                      },
+                    }
+              }
               onOpenGunnery={() => openWindow('gunnery')}
               onDrop={dropHand}
             />

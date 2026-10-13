@@ -95,7 +95,9 @@ point de pose avec les seuls ordres possibles ; s'il n'y en a qu'un, on passe di
 pièce levée, la repose chez elle. Seul le serveur date un mouvement.
 
 **Au toucher**, un tap lève la pièce et ouvre sa fiche sur le côté, un tap sur la carte la pose,
-un tap sur la pièce levée la repose. La fiche ne bloque pas la pose.
+un tap sur la pièce levée la repose. La fiche ne bloque pas la pose. Elle porte « fonder un avant-poste
+ici » quand la rose de la pile le porterait, au même prix et avec le même motif : c'est le seul
+ordre qui se donne sur place, et le tap ne fait plus que lever.
 
 **La fiche au survol remplace le cartouche** d'une troupe à soi : une ligne par rôle, la vie sur
 100, la charge. Le bloc adverse garde un cartouche au clic.

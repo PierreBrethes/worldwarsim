@@ -104,13 +104,16 @@ dérivent la colonne armée et la pièce que porte le moteur, et une seule règl
 ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). Un bâtiment
 ou un avant-poste n'a pas de figurines : son **panneau de garnison** compose la pile et
 « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
-l'heure de la première marche ; la pose ouvre la rose au point de pose, ou passe droit à
+l'heure du premier ordre — sur le sol comme sur un mât, un camp ou un objectif, dont
+l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au point de pose, ou passe droit à
 « envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
 la rose et l'aperçu refermés la reposent.
 
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la
-main sans la lâcher ; elle ne porte aucun ordre. Le cartouche `TroopBadge` et la feuille de visée
+main sans la lâcher ; elle ne porte qu'un ordre, **« fonder un avant-poste ici »**, la branche
+même que la rose de la pile offrirait (même prix, même motif, rien de grisé) — sans quoi le
+toucher, qui ne fait plus que lever, n'avait plus de chemin vers la fondation. Le cartouche `TroopBadge` et la feuille de visée
 du téléphone sont **supprimés**. Le bouton « agir » garde la rose sur place — fonder sur sa pile,
 bâtir sur sa région. Au toucher, un tap lève, un tap sur la carte pose, un tap sur la pièce
 repose.
