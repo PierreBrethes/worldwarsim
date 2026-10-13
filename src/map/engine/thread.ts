@@ -56,6 +56,14 @@ const WIDTH_PER_FLOOR_PX = 0.025;
 export const threadWidth = (thickness: number): number => thickness * WIDTH_PER_FLOOR_PX;
 
 /**
+ * The floor is not the width's weight: halving the thread's weight on the near sheet (#55)
+ * also halved its hairline from afar, where a 1.25 px band vanishes under the pieces. The floor
+ * keeps the hierarchy between movements (mine over the others) at a share above the thickness.
+ */
+const THREAD_FLOOR_BOOST = 1.6;
+export const threadFloorPx = (thickness: number): number => thickness * THREAD_FLOOR_BOOST;
+
+/**
  * The remainder's dash drift, in **board units per second** — never in pixels, whatever the
  * dash pitch the drawn width sets (`dashPitch`). The thread thus
  * flows at the same speed in the world whatever the viewpoint, which makes it flow slower on
@@ -75,8 +83,8 @@ export const DRIFT_CEILING_PX_S = 6;
 /** A tab back in the foreground must not catch up its drift in one jump. */
 const MAX_DRIFT_STEP_S = 0.1;
 
-/** The air leg's ground trace: a floor of a pixel, and a share of the ribbon's true width. */
-const SHADOW_THICKNESS = 1;
+/** The air leg's ground trace: thick enough to read at night under the raised thread. */
+const SHADOW_THICKNESS = 1.6;
 const SHADOW_SHARE = 0.4;
 
 /**
@@ -197,7 +205,7 @@ export function buildThread(
   // mid-course reads as a plot error. The hierarchy lies in the dashes and the ink.
   const stroke = new RibbonMaterial({
     width,
-    floorPx: thickness,
+    floorPx: threadFloorPx(thickness),
     covered: { color: colors.progress, opacity: opacities.progress },
     remaining: { color: colors.trace, opacity: opacities.trace },
     dashed: true,
@@ -205,7 +213,7 @@ export function buildThread(
   const casingInk = { color: PALETTE.desk, opacity: opacities.trace * CASING_SHARE };
   const casing = new RibbonMaterial({
     width,
-    floorPx: thickness,
+    floorPx: threadFloorPx(thickness),
     bleedPx: CASING_BLEED,
     covered: casingInk,
     remaining: casingInk,
@@ -303,7 +311,7 @@ export function buildThread(
     setScale(scale) {
       unitsPerPixel = scale;
       for (const prop of props) prop.scale.setScalar(scale);
-      const pitch = dashPitch(ribbonWidth(width, thickness, scale));
+      const pitch = dashPitch(ribbonWidth(width, threadFloorPx(thickness), scale));
       stroke.pitch = pitch;
       shadow.pitch = pitch;
     },
