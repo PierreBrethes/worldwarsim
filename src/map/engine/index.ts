@@ -297,10 +297,10 @@ export class MapEngine {
    * The same projections, for the edge indicator layer. Two calls rather than a
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
+  onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   /** 0..1, told only when it changes. */
   onTiltShift: (strength: number) => void = () => {};
   private tiltShift = -1;
-  onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
   /**
