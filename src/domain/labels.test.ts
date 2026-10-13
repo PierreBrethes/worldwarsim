@@ -154,7 +154,7 @@ describe('buildLabels', () => {
           stack: { infantry: 4 },
           place: 'France',
           plate: null,
-          pieces: { groups: [], more: 0, troopIds: [] },
+          pieces: { groups: [], more: 0, troopIds: [], spread: [] },
           ink: '#000',
         },
         {
@@ -228,7 +228,7 @@ describe('buildLabels', () => {
         stack: { infantry: 2, armor: 1 },
         place: 'Italie',
         plate: null,
-        pieces: { groups: [], more: 0, troopIds: [] },
+        pieces: { groups: [], more: 0, troopIds: [], spread: [] },
         ink: '#000',
       },
     ]);
@@ -284,7 +284,7 @@ describe('buildLabels', () => {
         stack: { infantry: 4 },
         place: 'France',
         plate: null,
-        pieces: { groups: [], more: 0, troopIds: [] },
+        pieces: { groups: [], more: 0, troopIds: [], spread: [] },
         ink: '#000',
       },
     ]);

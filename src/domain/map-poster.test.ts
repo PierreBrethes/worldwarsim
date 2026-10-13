@@ -90,7 +90,7 @@ describe('posterOf', () => {
       stack: { infantry: 1 },
       place: 'Marne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [] },
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
       ink: '#2f4f78',
     };
     const poster = posterFor(view(), [pile], 'pile');
