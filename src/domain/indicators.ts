@@ -98,9 +98,6 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
 const HALF_BADGE = 15;
 export const EDGE_MARGIN = 14 + HALF_BADGE;
 
-/** Below this, two same-category indicators no longer read apart: they merge. */
-export const CLUSTER_THRESHOLD = 48;
-
 export type EdgePoint = { readonly x: number; readonly y: number; readonly heading: number };
 
 /**
@@ -140,47 +137,65 @@ export type RawIndicator = {
   readonly id: string;
   readonly category: IndicatorCategory;
   readonly priority: number;
+  /** The point folded onto the inner rectangle (`clampToEdge`). */
   readonly x: number;
   readonly y: number;
+  /** How far from the screen centre the real point lies, in pixels: the smallest is the nearest. */
+  readonly reach: number;
 };
+
+export type EdgeSide = 'top' | 'right' | 'bottom' | 'left';
 
 export type IndicatorGroup = {
   readonly id: string;
   readonly category: IndicatorCategory;
   readonly priority: number;
   readonly members: ReadonlyArray<string>;
+  /** What a click brings back: framing a whole edge of deposits would fly to the world view. */
+  readonly nearest: string;
 };
 
 /**
- * Kernel clustering, category by category: the highest priority opens the group, the
- * followers join it if they fall within its radius. One pass, no moving average — the result
- * therefore depends only on positions, and it is identical from one computation to the next
- * as long as the camera has not moved. That is what allows recomputing only at rest.
+ * **One token per edge and per category** (carte allégée, 13/10/2026). Grouping by screen
+ * distance left a column of pictograms along each rim, the loudest thing on the screen; the
+ * rim only has to say *there is more of this, that way*. The token's place is the mean of its
+ * members, which the per-frame pass computes. Depends only on positions, so it is identical
+ * from one computation to the next while the camera holds — what allows recomputing at rest.
  */
 export function cluster(
   indicators: ReadonlyArray<RawIndicator>,
-  threshold: number = CLUSTER_THRESHOLD,
+  width: number,
+  height: number,
 ): ReadonlyArray<IndicatorGroup> {
-  const kernels: Array<{ kernel: RawIndicator; members: string[] }> = [];
-
-  for (const indicator of [...indicators].sort(
-    (first, second) => second.priority - first.priority,
-  )) {
-    const near = kernels.find(
-      ({ kernel }) =>
-        kernel.category === indicator.category &&
-        Math.hypot(kernel.x - indicator.x, kernel.y - indicator.y) < threshold,
-    );
-    if (near) near.members.push(indicator.id);
-    else kernels.push({ kernel: indicator, members: [indicator.id] });
+  const groups = new Map<string, RawIndicator[]>();
+  for (const indicator of indicators) {
+    const id = `${indicator.category}:${sideOf(indicator, width, height)}`;
+    const group = groups.get(id);
+    if (group) group.push(indicator);
+    else groups.set(id, [indicator]);
   }
+  return [...groups].map(([id, members]) => {
+    const ranked = [...members].sort((first, second) => second.priority - first.priority);
+    const lead = ranked[0] as RawIndicator;
+    const nearest = members.reduce((best, member) => (member.reach < best.reach ? member : best));
+    return {
+      id,
+      category: lead.category,
+      priority: lead.priority,
+      members: ranked.map((member) => member.id),
+      nearest: nearest.id,
+    };
+  });
+}
 
-  return kernels.map(({ kernel, members }) => ({
-    id: `${kernel.category}:${kernel.id}`,
-    category: kernel.category,
-    priority: kernel.priority,
-    members,
-  }));
+function sideOf({ x, y }: { x: number; y: number }, width: number, height: number): EdgeSide {
+  const gaps: ReadonlyArray<readonly [EdgeSide, number]> = [
+    ['top', y],
+    ['right', width - x],
+    ['bottom', height - y],
+    ['left', x],
+  ];
+  return gaps.reduce((best, gap) => (gap[1] < best[1] ? gap : best))[0];
 }
 
 /**

@@ -327,6 +327,11 @@ sous le doigt une fois (`regionTapped`, `updateHover`) et la même plume la trac
 prochain tap ou quand la sélection part. La feuille du sol s'ouvre alors à l'aperçu, compacte
 (`Panel compact`, `GroundPanel`).
 
+**Et la carte s'allège pour que les pièces ressortent — 13/10/2026.** Le bord de l'écran ne
+porte plus qu'**un jeton par bord et par sorte**, avec son compte, posé à la moyenne de ses
+membres (`cluster`, `src/domain/indicators.ts`) ; un clic recentre sur **le plus proche** du
+groupe (`nearest`) — cadrer tout un bord de gisements renverrait à la vue monde.
+
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
 à seize sites chez elle. La Bavière, le Bade-Wurtemberg et la Hesse sont donc découpés en leurs
