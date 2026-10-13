@@ -64,16 +64,31 @@ function frond(from: Point, control: Point, to: Point, leaf: number, hanging: bo
   return [rib, ...leaves];
 }
 
-const PICTOGRAMS = {
-  /** The sapin: three drooping tiers on a stub of trunk, its shade side hatched. */
+const between = (random: Random, lo: number, hi: number): number => lo + random() * (hi - lo);
+/** An integer in [lo, hi]. */
+const count = (random: Random, lo: number, hi: number): number =>
+  lo + Math.floor(random() * (hi - lo + 1));
+
+/** Leans a drawing: each point slides sideways in proportion to its height above `y`. */
+const lean = (strokes: Stroke[], y: number, k: number): Stroke[] =>
+  strokes.map((stroke) => stroke.map(([px, py]) => [px + (y - py) * k, py] as const));
+
+export const PICTOGRAMS = {
+  /** The sapin: two or three drooping tiers on a stub of trunk, its shade side hatched, leaning a hair. */
   conifer: (x, y, random) => {
-    const h = 18 + random() * 3;
-    const w = h * 0.36;
-    const tiers = [
-      [0.62, 0.55],
-      [0.34, 0.8],
-      [0.08, 1],
-    ] as const;
+    const h = between(random, 16, 22);
+    const w = h * between(random, 0.32, 0.4);
+    const tiers =
+      random() < 0.5
+        ? ([
+            [0.55, 0.7],
+            [0.12, 1],
+          ] as const)
+        : ([
+            [0.62, 0.55],
+            [0.34, 0.8],
+            [0.08, 1],
+          ] as const);
     const side = (s: number): Stroke => [
       [x, y - h],
       ...tiers.flatMap(([at, width]): Point[] => [
@@ -83,97 +98,120 @@ const PICTOGRAMS = {
       [x + s * 1, y - h * 0.08],
       [x + s * 1, y],
     ];
-    return [
-      side(-1),
-      side(1),
-      ...[0.5, 0.24].map((at) =>
-        line([x + w * 0.2, y - h * (at + 0.08)], [x + w * 0.62, y - h * (at - 0.02)]),
-      ),
-    ];
+    return lean(
+      [
+        side(-1),
+        side(1),
+        ...tiers
+          .slice(0, -1)
+          .map(([at]) =>
+            line([x + w * 0.2, y - h * (at - 0.04)], [x + w * 0.62, y - h * (at - 0.14)]),
+          ),
+      ],
+      y,
+      between(random, -0.06, 0.06),
+    );
   },
   /** The broadleaf: a round, scalloped crown on a forked trunk, hatched under its belly. */
   broadleaf: (x, y, random) => {
-    const h = 16 + random() * 3;
+    const h = between(random, 14, 20);
     const cy = y - h * 0.62;
-    const r = h * 0.36;
+    const r = h * between(random, 0.33, 0.4);
     const lobes = 6 + Math.floor(random() * 2);
-    return [
-      loop(x, cy, (a) => r * (0.86 + 0.16 * Math.abs(Math.sin((a * lobes) / 2))), 42),
+    return lean(
       [
-        [x - 0.6, y],
-        [x - 0.3, cy + r * 0.5],
-        [x - 2.4, cy - r * 0.05],
-      ],
-      line([x - 0.3, cy + r * 0.62], [x + 1.8, cy + r * 0.1]),
-      ...[0, 1, 2].map((k) =>
-        line(
-          [x + r * (0.05 + k * 0.28), cy + r * 0.78],
-          [x + r * (0.35 + k * 0.28), cy + r * 0.32],
+        loop(x, cy, (a) => r * (0.86 + 0.16 * Math.abs(Math.sin((a * lobes) / 2))), 42),
+        [
+          [x - 0.6, y],
+          [x - 0.3, cy + r * 0.5],
+          [x - 2.4, cy - r * 0.05],
+        ],
+        line([x - 0.3, cy + r * 0.62], [x + 1.8, cy + r * 0.1]),
+        ...[0, 1, 2].map((k) =>
+          line(
+            [x + r * (0.05 + k * 0.28), cy + r * 0.78],
+            [x + r * (0.35 + k * 0.28), cy + r * 0.32],
+          ),
         ),
-      ),
-      line([x - 3, y + 0.4], [x + 3.4, y + 0.4]),
-    ];
-  },
-  /** A massif: a main peak and its lower neighbour, the shade flank hatched down the fall line. */
-  mountain: (x, y, random) => {
-    const h = 19 + random() * 7;
-    const w = h * 0.95;
-    const peak: Point = [x + random() * 2, y - h];
-    const hatches: Stroke[] = [];
-    for (let k = 0; k < 6; k++) {
-      const t = (k + 0.7) / 6.6;
-      const px = peak[0] + (x + w - peak[0]) * t;
-      const py = peak[1] + (y - peak[1]) * t;
-      hatches.push(line([px, py], [px - 4 - (1 - t) * 3, py + (y - py) * (0.7 + random() * 0.2)]));
-    }
-    return [
-      [
-        [x - w, y],
-        [x - w * 0.62, y - h * 0.52],
-        [x - w * 0.44, y - h * 0.44],
-        [x - w * 0.2, y - h * 0.7],
-        peak,
-        [x + w * 0.35, y - h * 0.48],
-        [x + w * 0.5, y - h * 0.52],
-        [x + w, y],
+        line([x - 3, y + 0.4], [x + 3.4, y + 0.4]),
       ],
-      line([peak[0] - 0.5, peak[1] + 4], [peak[0] - 2.5, peak[1] + 7]),
-      ...hatches,
+      y,
+      between(random, -0.05, 0.05),
+    );
+  },
+  /** A massif of one to three peaks, one dominant at a random place along it, the shade flank of
+   *  the dominant one hatched down the fall line. */
+  mountain: (x, y, random) => {
+    const peaks = count(random, 1, 3);
+    const h = between(random, 19, 26);
+    const w = h * 0.95 * (1 + 0.5 * (peaks - 1));
+    const main = Math.floor(random() * peaks);
+    const tops: Point[] = Array.from({ length: peaks }, (_, i) => {
+      const height = i === main ? h : h * between(random, 0.5, 0.78);
+      return [x + w * (-1 + (2 * (i + 0.5)) / peaks) + between(random, -2, 2), y - height];
+    });
+    // A shoulder halfway up each outer slope; the ridge between two summits dips to 40 % of the
+    // lower one, never to the ground.
+    const slope = (top: Point, foot: number): Point => [
+      (top[0] + foot) / 2,
+      y - (y - top[1]) * 0.5,
     ];
+    const outline: Point[] = [[x - w, y], slope(tops[0]!, x - w)];
+    tops.forEach((top, i) => {
+      if (i > 0) {
+        const prev = tops[i - 1]!;
+        outline.push([(prev[0] + top[0]) / 2, y - (y - Math.min(prev[1], top[1])) * 0.4]);
+      }
+      outline.push(top);
+    });
+    outline.push(slope(tops.at(-1)!, x + w), [x + w, y]);
+    const peak = tops[main]!;
+    const foot = outline[outline.indexOf(peak) + 1]!;
+    const reach = between(random, 0.5, 0.9);
+    const strokes = count(random, 4, 7);
+    const hatches = Array.from({ length: strokes }, (_, k) => {
+      const t = (k + 0.7) / (strokes + 0.6);
+      const px = peak[0] + (foot[0] - peak[0]) * t;
+      const py = peak[1] + (foot[1] - peak[1]) * t;
+      return line([px, py], [px - 4 - (1 - t) * 3, py + (y - py) * (reach - 0.1 + random() * 0.2)]);
+    });
+    return [outline, line([peak[0] - 0.5, peak[1] + 4], [peak[0] - 2.5, peak[1] + 7]), ...hatches];
   },
   /** A crescent dune: a long windward back, a sharp crest, the lee face hatched, sand grains. */
   dune: (x, y, random) => {
-    const h = 11 + random() * 2;
-    const w = 16 + random() * 5;
-    const crest: Point = [x + w * 0.3, y - h];
+    const h = between(random, 10, 14);
+    const w = between(random, 13, 23);
+    const crest: Point = [x + w * between(random, 0.2, 0.4), y - h];
     const lee = quad(crest, [x + w * 0.5, y - h * 0.15], [x + w, y], 8);
     const grain = (gx: number, gy: number): Stroke => line([gx, gy], [gx + 0.5, gy + 0.2]);
+    const grains: ReadonlyArray<Point> = [
+      [-0.6, 2.2],
+      [-0.15, 3.6],
+      [0.2, 2.4],
+      [0.55, 3.8],
+      [-0.95, 5.6],
+      [0.85, 2.6],
+    ];
     return [
-      quad([x - w, y], [x - w * 0.3, y - h * 1.4], crest, 12),
+      quad([x - w, y], [x - w * 0.3, y - h * between(random, 1.1, 1.7)], crest, 12),
       lee,
       ...lee.slice(1, -1).map(([lx, ly]) => line([lx, ly + 0.8], [lx, y - 0.4])),
       quad([x - w * 1.25, y + 4], [x - w * 0.8, y - 1], [x - w * 0.35, y + 4], 6),
-      ...[
-        [-0.6, 2.2],
-        [-0.15, 3.6],
-        [0.2, 2.4],
-        [0.55, 3.8],
-        [-0.95, 5.6],
-        [0.85, 2.6],
-      ].map(([u, v]) => grain(x + u! * w, y + v!)),
+      ...grains.slice(0, count(random, 3, 6)).map(([u, v]) => grain(x + u! * w, y + v!)),
     ];
   },
   /** The palm: a ringed, bent trunk and a fan of drooping fronds with their leaflets. */
   palm: (x, y, random) => {
-    const h = 22 + random() * 4;
-    const lean = 3 + random() * 3;
-    const top: Point = [x + lean, y - h];
-    const trunk = quad([x, y], [x - 2, y - h * 0.5], top, 8);
+    const h = between(random, 20, 26);
+    const reachBase = between(random, 9, 12);
+    const top: Point = [x + between(random, 3, 6), y - h];
+    const trunk = quad([x, y], [x - between(random, 0, 4.5), y - h * 0.5], top, 8);
     const rings = trunk
       .slice(1, -2)
       .map(([tx, ty]) => line([tx - 1.3, ty + 0.5], [tx + 1.3, ty - 0.3]));
-    const fronds = [-2.9, -2.35, -1.85, -1.3, -0.8, -0.25].flatMap((a) => {
-      const reach = 10 + random() * 2;
+    const n = count(random, 5, 7);
+    const fronds = Array.from({ length: n }, (_, i) => -2.9 + (2.65 * i) / (n - 1)).flatMap((a) => {
+      const reach = reachBase + random() * 2;
       const end: Point = [
         top[0] + Math.cos(a) * reach,
         top[1] + reach * (0.7 - Math.abs(Math.sin(a)) * 0.85),
@@ -185,8 +223,9 @@ const PICTOGRAMS = {
   },
   /** The undergrowth fern: arching fronds from one root, leaflets on both sides. */
   fern: (x, y, random) => {
-    const h = 12 + random() * 3;
-    return [-0.85, -0.42, 0, 0.42, 0.85].flatMap((a) =>
+    const h = between(random, 10, 15);
+    const n = count(random, 4, 6);
+    return Array.from({ length: n }, (_, i) => -0.85 + (1.7 * i) / (n - 1)).flatMap((a) =>
       frond(
         [x + a, y],
         [x + a * h * 0.25, y - h * (1.1 - Math.abs(a) * 0.2)],
@@ -196,9 +235,10 @@ const PICTOGRAMS = {
       ),
     );
   },
-  /** A tussock over the bog: short blades in a clump, the marsh dashes under it, a lichen. */
+  /** A tussock over the bog: three to six short blades in a clump, the marsh dashes under it, a lichen. */
   tussock: (x, y, random) => {
-    const blades = [-1, -0.5, 0, 0.5, 1].map((k) =>
+    const n = count(random, 3, 6);
+    const blades = Array.from({ length: n }, (_, i) => -1 + (2 * i) / (n - 1)).map((k) =>
       quad(
         [x + k * 1.5, y],
         [x + k * 2, y - 5.5],
@@ -223,6 +263,7 @@ const PICTOGRAMS = {
   fields: (x, y, random) => {
     const back = y - 10;
     const flip = random() < 0.5 ? 1 : -1;
+    const skew = between(random, -3, 3) * flip;
     const lerp = (a: Point, b: Point, t: number): Point => [
       a[0] + (b[0] - a[0]) * t,
       a[1] + (b[1] - a[1]) * t,
@@ -232,19 +273,20 @@ const PICTOGRAMS = {
     const along: [Point, Point, Point, Point] = [
       [x - 16 * flip, y],
       [x, y],
-      [x - 1 * flip, back],
-      [x - 12 * flip, back],
+      [x - 1 * flip + skew, back],
+      [x - 12 * flip + skew, back],
     ];
     const across: [Point, Point, Point, Point] = [
       [x + 1.5 * flip, y],
       [x + 16 * flip, y],
-      [x + 12.5 * flip, back],
-      [x + 0.5 * flip, back],
+      [x + 12.5 * flip + skew, back],
+      [x + 0.5 * flip + skew, back],
     ];
-    const furrowsAlong = [0.2, 0.4, 0.6, 0.8].map((t) =>
+    const furrow = (n: number) => Array.from({ length: n }, (_, i) => (i + 1) / (n + 1));
+    const furrowsAlong = furrow(count(random, 3, 5)).map((t) =>
       line(lerp(along[0], along[1], t), lerp(along[3], along[2], t)),
     );
-    const furrowsAcross = [0.33, 0.66].map((t) =>
+    const furrowsAcross = furrow(count(random, 2, 3)).map((t) =>
       line(lerp(across[0], across[3], t), lerp(across[1], across[2], t)),
     );
     const bushes = [0.06, 0.37, 0.68, 0.98].map((t) => {
@@ -374,13 +416,30 @@ export function sketchRegion({
   });
 }
 
+/** What every drawing gets on top of its own variations: a mirror, a scale within ±10 %, a
+ *  rotation within ±4°, all about its base. */
+export function drawVariation(random: Random) {
+  return {
+    mirror: random() < 0.5 ? -1 : 1,
+    scale: 0.9 + random() * 0.2,
+    angle: ((random() * 8 - 4) * Math.PI) / 180,
+  };
+}
+
 /** One anchor's drawing in the prototype's pixels, base at the origin — what the review page
  *  (`/pictograms.html`) shows as it is, and `sketchRegion` lays on a region. */
 export function terrainCluster(type: RegionType, random: Random): Stroke[] {
   const kinds = TERRAIN_PICTOGRAMS[type](random);
   return kinds.flatMap((kind, k) => {
     const [ox, oy] = kinds.length > 1 ? CLUSTER_OFFSETS[k]! : [0, 0];
-    return PICTOGRAMS[kind](ox, oy, random);
+    const { mirror, scale, angle } = drawVariation(random);
+    const [cos, sin] = [Math.cos(angle) * scale, Math.sin(angle) * scale];
+    return PICTOGRAMS[kind](ox, oy, random).map((stroke) =>
+      stroke.map(([px, py]) => {
+        const [dx, dy] = [(px - ox) * mirror, py - oy];
+        return [ox + dx * cos - dy * sin, oy + dx * sin + dy * cos] as const;
+      }),
+    );
   });
 }
 
