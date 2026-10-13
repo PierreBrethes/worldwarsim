@@ -221,7 +221,9 @@ describe('the neutral objectives', () => {
       expect(Object.keys(OBJECTIVE_SPRITES).sort()).toEqual(
         OBJECTIVE_ARCHETYPES.map((archetype) => archetype.key).sort(),
       );
-      expect(Object.keys(OBJECTIVE_MAQUETTES).sort()).toEqual(Object.keys(OBJECTIVE_SPRITES).sort());
+      expect(Object.keys(OBJECTIVE_MAQUETTES).sort()).toEqual(
+        Object.keys(OBJECTIVE_SPRITES).sort(),
+      );
     });
   });
 
