@@ -737,14 +737,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
    *  plateau rend vrai quand la pile cliquée devient la destination. */
   const applyPileClick = useCallback(
-    (click: PileClick): boolean => {
+    (click: PileClick, clientX: number, clientY: number): boolean => {
       const move = clickPile(hand, click);
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
-      else liftHand(move.hand);
+      else {
+        liftHand(move.hand);
+        /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
+         *  toucher qui la repose tomberait sur la feuille. */
+        if (narrow)
+          setReveal({
+            ...boardPoint(clientX, clientY),
+            floor: sheetHeight('peek'),
+            nonce: Date.now(),
+          });
+      }
       return false;
     },
-    [hand, liftHand, dropHand],
+    [hand, liftHand, dropHand, narrow, boardPoint],
   );
 
   /**
@@ -759,7 +769,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
-      return applyPileClick({ station, troopIds, shift: false });
+      return applyPileClick({ station, troopIds, shift: false }, clientX, clientY);
     },
     [openGarrison, boardPoint, view.me, marching, applyPileClick],
   );
@@ -1430,7 +1440,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           marker.kind === 'stack' && marker.id === hit.pileId,
       );
       if (pile === undefined || pile.station.kind === 'home') return false;
-      return applyPileClick({ station: pile.station, troopIds: hit.troopIds, shift: hit.shift });
+      return applyPileClick(
+        { station: pile.station, troopIds: hit.troopIds, shift: hit.shift },
+        hit.clientX,
+        hit.clientY,
+      );
     },
     [markers, applyPileClick],
   );
