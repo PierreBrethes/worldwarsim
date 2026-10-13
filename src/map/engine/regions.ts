@@ -115,26 +115,63 @@ const HATCH_PERIOD = 9;
 const HATCH_WIDTH = 3.4;
 const HATCH_EDGE = 0.9;
 
-function hatch(material: MeshStandardMaterial): MeshStandardMaterial {
+/**
+ * Le même procédé pour toutes les trames du sol : `trame` est la position du fragment en pixels
+ * CSS, et le corps ne fait que moduler la couleur déjà éclairée. La clef de programme porte le
+ * corps — sans elle, three.js reconnaît deux trames au même `onBeforeCompile` et leur sert le
+ * premier programme compilé.
+ */
+export function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.hatchScale = { value: window.devicePixelRatio || 1 };
+    shader.uniforms.trameScale = { value: window.devicePixelRatio || 1 };
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'uniform float hatchScale;\nvoid main() {')
+      .replace('void main() {', 'uniform float trameScale;\nvoid main() {')
       .replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
-        float band = mod((gl_FragCoord.x + gl_FragCoord.y) / hatchScale, ${HATCH_PERIOD.toFixed(1)});
-        float ink = 1.0 - smoothstep(
-          ${(HATCH_WIDTH - HATCH_EDGE).toFixed(2)},
-          ${(HATCH_WIDTH + HATCH_EDGE).toFixed(2)},
-          band
-        );
-        if (ink <= 0.004) discard;
-        gl_FragColor.a *= ink;`,
+        vec2 trame = gl_FragCoord.xy / trameScale;
+        ${body}`,
       );
   };
+  material.customProgramCacheKey = () => body;
   return material;
 }
+
+const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
+  screenTrame(
+    material,
+    `float band = mod(trame.x + trame.y, ${HATCH_PERIOD.toFixed(1)});
+    float ink = 1.0 - smoothstep(
+      ${(HATCH_WIDTH - HATCH_EDGE).toFixed(2)},
+      ${(HATCH_WIDTH + HATCH_EDGE).toFixed(2)},
+      band
+    );
+    if (ink <= 0.004) discard;
+    gl_FragColor.a *= ink;`,
+  );
+
+/**
+ * **Un relevé est gravé, il n'est pas imprimé** (`table-etat-major.md`) : la couleur du tenant vu
+ * ce jour-là, en tailles horizontales serrées sur un fond plus pâle de la même encre. Le fond
+ * garde la teinte lisible au loin — c'est le score, il doit se lire sans zoom —, les tailles la
+ * distinguent de l'encre fraîche d'une région à jour, au même délavage. Horizontales, pour ne
+ * jamais se confondre avec la hachure oblique d'une zone suspendue.
+ */
+const ENGRAVE_PERIOD = 4;
+const ENGRAVE_WIDTH = 1.7;
+const ENGRAVE_EDGE = 0.6;
+const ENGRAVE_GROUND = 0.45;
+
+const engrave = (material: MeshStandardMaterial): MeshStandardMaterial =>
+  screenTrame(
+    material,
+    `float cut = 1.0 - smoothstep(
+      ${(ENGRAVE_WIDTH - ENGRAVE_EDGE).toFixed(2)},
+      ${(ENGRAVE_WIDTH + ENGRAVE_EDGE).toFixed(2)},
+      mod(trame.y, ${ENGRAVE_PERIOD.toFixed(1)})
+    );
+    gl_FragColor.a *= mix(${ENGRAVE_GROUND.toFixed(2)}, 1.0, cut);`,
+  );
 
 /**
  * **Une donnée future ne doit pas pouvoir repeindre le monde.** Natural Earth projette de loin
@@ -380,8 +417,7 @@ export class RegionLayer {
         byWash.set(key, kept);
       }
       for (const { wash, state, ids } of byWash.values()) {
-        const suspended = state === 'suspended';
-        const lift = suspended ? SUSPENDED_LIFT : HELD_LIFT;
+        const lift = state === 'suspended' ? SUSPENDED_LIFT : HELD_LIFT;
         const parts = this.prepared
           .filter(({ region }) => ids.has(region.id))
           .map(({ region }) => this.fillOf(region, lift));
@@ -396,7 +432,16 @@ export class RegionLayer {
           opacity: HELD_OPACITY * wash,
           depthWrite: false,
         });
-        this.held.add(new Mesh(geometry, suspended ? hatch(material) : material));
+        this.held.add(
+          new Mesh(
+            geometry,
+            state === 'suspended'
+              ? hatch(material)
+              : state === 'surveyed'
+                ? engrave(material)
+                : material,
+          ),
+        );
       }
     }
   }
