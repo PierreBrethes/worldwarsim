@@ -16,7 +16,7 @@ import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
-import { turnBetween } from './sway';
+import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -55,7 +55,6 @@ const THREAD_WEIGHT = 0.5;
 
 /** Board units read behind and ahead of a plane for the bend of its road: a few grid cells. */
 const BANK_SPAN = 0.4;
-const headingOf = (from: Vector3, to: Vector3): number => Math.atan2(to.x - from.x, to.z - from.z);
 
 /**
  * Thickness carries the hierarchy between movements — the ribbon's floor in pixels, and its true
@@ -318,14 +317,10 @@ export class ArcLayer {
         pointOnLeg(leg, local, this.pawnPoint);
         pointOnLeg(leg, Math.min(1, local + 0.01), this.aheadPoint);
         if (leg.medium === 'air' && leg.length > 0) {
-          // A plane banks on the bend of its road around it, read a little behind and ahead.
           const span = BANK_SPAN / leg.length;
           pointOnLeg(leg, local - span, this.behindPoint);
           pointOnLeg(leg, local + span, this.furtherPoint);
-          turn = turnBetween(
-            headingOf(this.behindPoint, this.pawnPoint),
-            headingOf(this.pawnPoint, this.furtherPoint),
-          );
+          turn = bendAround(this.behindPoint, this.pawnPoint, this.furtherPoint);
         }
         // At the dock, the pawn already wears the silhouette of what it is about to become:
         // it is the embarkation itself that shows, and the stop that reads.

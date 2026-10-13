@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gaitOf, MAX_BANK, swayOf, turnBetween } from './sway';
+import { bendAround, gaitOf, MAX_BANK, swayOf } from './sway';
 
 describe('gaitOf', () => {
   it('lets infantry walk, and every vehicle ride its medium', () => {
@@ -38,10 +38,21 @@ describe('swayOf', () => {
   });
 });
 
-describe('turnBetween', () => {
-  it('takes the short way round across the back', () => {
-    expect(turnBetween(3, -3)).toBeCloseTo(2 * Math.PI - 6);
-    expect(turnBetween(-3, 3)).toBeCloseTo(6 - 2 * Math.PI);
-    expect(turnBetween(0.1, 0.4)).toBeCloseTo(0.3);
+describe('bendAround', () => {
+  const p = (x: number, z: number) => ({ x, z });
+
+  it('reads a turn towards +x as a left turn, and a straight road as none', () => {
+    expect(bendAround(p(0, -1), p(0, 0), p(1, 1))).toBeCloseTo(Math.PI / 4);
+    expect(bendAround(p(0, -1), p(0, 0), p(-1, 1))).toBeCloseTo(-Math.PI / 4);
+    expect(bendAround(p(0, -1), p(0, 0), p(0, 1))).toBeCloseTo(0);
+  });
+
+  it('flies level at either end of the leg, where one stretch has no length', () => {
+    expect(bendAround(p(0, 0), p(0, 0), p(1, 1))).toBe(0);
+    expect(bendAround(p(-3, 2), p(0, 0), p(0, 0))).toBe(0);
+  });
+
+  it('ignores the seam: a jump wider than a quarter turn is not a turn', () => {
+    expect(bendAround(p(0, -1), p(0, 0), p(-0.1, -1))).toBe(0);
   });
 });

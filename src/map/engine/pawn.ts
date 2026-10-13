@@ -85,7 +85,8 @@ export class Pawn {
   private readonly color: string;
   private readonly smokes = new Map<Medium, Smoke>();
   private readonly gaits = new Map<Medium, Gait>();
-  private readonly dust = new Smoke(DUST);
+  /** Raised by a vehicle that rolls on land, `null` for any other piece. */
+  private dust: Smoke | null = null;
   /** Its road bends here — positive to the left —, and it has gone forward since the last frame. */
   private turn = 0;
   private moving = false;
@@ -127,6 +128,7 @@ export class Pawn {
         const gait = gaitOf(roles?.[medium] ?? null);
         if (gait !== null) this.gaits.set(medium, gait);
         if (gait === 'rolling') {
+          this.dust = new Smoke(DUST);
           this.dust.object.scale.setScalar(FIGURINE_SCALE);
           this.dust.object.position.set(0, 0.1 * FIGURINE_SCALE, -DUST_REAR * FIGURINE_SCALE);
           // A puff leans along its +x: turned, it is thrown back behind the vehicle.
@@ -200,7 +202,7 @@ export class Pawn {
     this.clock += elapsedSeconds;
     if (this.wake.object.visible) this.wake.frame(this.clock);
     this.smokes.get(this.medium)?.frame(this.clock);
-    if (this.dust.object.visible) this.dust.frame(this.clock);
+    if (this.dust?.object.visible) this.dust.frame(this.clock);
   }
 
   /**
@@ -233,8 +235,9 @@ export class Pawn {
       figurine.object.rotation.set(sway.pitch, figurine.facesEye ? yaw : this.heading, sway.roll);
       figurine.object.position.y = sway.lift * FIGURINE_SCALE * scale;
       figurine.object.scale.setScalar(scale);
-      this.dust.object.visible =
-        this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';
+      if (this.dust !== null)
+        this.dust.object.visible =
+          this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';
     }
     const costume = this.costumes.get(this.medium);
     if (costume === undefined) return;

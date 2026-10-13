@@ -127,8 +127,8 @@ const LINGER_MS = 900;
 const SHOT = new BoxGeometry(0.02, 0.02, 0.24);
 const SHOT_INK = new MeshBasicMaterial({ color: '#2b2118' });
 const MUZZLE_HEIGHT = 0.12;
-const from = new Vector3();
-const to = new Vector3();
+const muzzle = new Vector3();
+const aim = new Vector3();
 const FORWARD = new Vector3(0, 0, 1);
 
 const PLATE = new PlaneGeometry(1, 1).translate(0, 0.5, 0);
@@ -226,6 +226,9 @@ export class ReplayScene {
     const flashSprite = flash();
     marker.add(flashSprite, firing.object);
     holder.add(pivot);
+    // The shake turns about the scene's own z, outermost: both lines lean the same way, whatever
+    // their yaw — inner, it rolled mine along their aim and tipped the blocks towards the eye.
+    holder.rotation.order = 'ZYX';
     holder.position.set(home[0], 0, home[1]);
     const built: Piece = {
       side: piece.side,
@@ -362,11 +365,11 @@ export class ReplayScene {
       const share = step === 'salves' ? shotShare(progress, k, still) : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
-      from.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
-      to.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
-      piece.shot.position.lerpVectors(from, to, share!);
+      muzzle.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
+      aim.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
+      piece.shot.position.lerpVectors(muzzle, aim, share!);
       // In the scene's own frame: `lookAt` would read `to` as a world point.
-      piece.shot.quaternion.setFromUnitVectors(FORWARD, to.sub(from).normalize());
+      piece.shot.quaternion.setFromUnitVectors(FORWARD, aim.sub(muzzle).normalize());
     });
   }
 

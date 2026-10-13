@@ -59,8 +59,23 @@ export function swayOf(gait: Gait | null, time: number, moving: boolean, turn = 
   }
 }
 
-/** Signed angle from heading `from` to heading `to` (`atan2(dx, dz)`), in (-π, π]. */
-export function turnBetween(from: number, to: number): number {
-  const delta = (to - from) % (2 * Math.PI);
-  return delta > Math.PI ? delta - 2 * Math.PI : delta <= -Math.PI ? delta + 2 * Math.PI : delta;
+type Xz = { readonly x: number; readonly z: number };
+
+/** Below this, a stretch of road has no heading: the end of a leg, read clamped onto the piece. */
+const SHORTEST_STRETCH = 1e-6;
+
+/**
+ * **The road's bend around a piece**, from a point behind it to one ahead, in radians and
+ * positive to the left. Zero where either stretch has no length — at take-off and landing the
+ * clamped read falls on the piece itself, and `atan2(0, 0)` would bank it by its compass
+ * heading — and across a jump wider than a quarter turn, which is the board's east-west seam,
+ * never a turn.
+ */
+export function bendAround(behind: Xz, at: Xz, ahead: Xz): number {
+  const [bx, bz, ax, az] = [at.x - behind.x, at.z - behind.z, ahead.x - at.x, ahead.z - at.z];
+  if (Math.hypot(bx, bz) < SHORTEST_STRETCH || Math.hypot(ax, az) < SHORTEST_STRETCH) return 0;
+  let delta = (Math.atan2(ax, az) - Math.atan2(bx, bz)) % (2 * Math.PI);
+  if (delta > Math.PI) delta -= 2 * Math.PI;
+  if (delta <= -Math.PI) delta += 2 * Math.PI;
+  return Math.abs(delta) > Math.PI / 2 ? 0 : delta;
 }
