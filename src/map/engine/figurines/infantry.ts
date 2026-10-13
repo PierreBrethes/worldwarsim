@@ -49,14 +49,18 @@ const SLOTS = [
 
 /**
  * Up to three men to a troop (ADR 0026 §5), one per figure, the first in front: a whole squad
- * has the footprint of a tank, a worn one stands fewer in the same slots.
+ * has the footprint of a tank, a worn one stands fewer in the same slots. A man who does not
+ * march keeps the stance he was sculpted in — the French mark 2 kneels behind his bazooka, and
+ * swinging his legs would stand him up.
  */
-export function squadOf(soldiers: ReadonlyArray<() => Object3D>): Group {
+export function squadOf(
+  soldiers: ReadonlyArray<{ readonly make: () => Object3D; readonly marches: boolean }>,
+): Group {
   const squad = new Group();
   soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
     const [x, z] = SLOTS[k]!;
-    const man = soldier();
-    pose(man, marching(k * 1.8 + 0.6));
+    const man = soldier.make();
+    if (soldier.marches) pose(man, marching(k * 1.8 + 0.6));
     man.position.set(x, 0, z);
     squad.add(man);
   });

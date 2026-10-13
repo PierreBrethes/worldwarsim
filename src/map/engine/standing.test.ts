@@ -27,7 +27,7 @@ describe('dressedGroups', () => {
 
   it('leaves the whole pile to its plate when one group has none', () => {
     expect(dressedGroups('france', pilePieces([troop('infantry'), troop('armor')]))).toBeNull();
-    expect(dressedGroups('germany', pilePieces([troop('infantry')]))).toBeNull();
+    expect(dressedGroups('italy', pilePieces([troop('infantry')]))).toBeNull();
     expect(dressedGroups('france', { groups: [], more: 0 })).toBeNull();
   });
 });

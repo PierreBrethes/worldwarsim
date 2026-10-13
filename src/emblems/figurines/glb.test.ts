@@ -51,20 +51,24 @@ function readGlb(url: string): Gltf {
 
 const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
   Object.entries(roles ?? {}).flatMap(([role, entry]) =>
-    (typeof entry === 'string' ? [entry] : entry.filter((url): url is string => url !== null)).map(
-      (url) => [`${nation} ${role} ${url}`, role as UnitRole, url] as const,
+    (typeof entry === 'string' ? [entry] : entry).flatMap((url, k) =>
+      url === null ? [] : [[`${nation} ${role} ${url}`, role as UnitRole, url, k + 1] as const],
     ),
   ),
 );
 
 describe.runIf(files.length > 0)('sculpted figurines', () => {
-  it.each(files)('%s keeps to the brief', (_, role, url) => {
+  it.each(files)('%s keeps to the brief', (_, role, url, tier) => {
     const gltf = readGlb(url);
     const triangles = (gltf.meshes ?? [])
       .flatMap((mesh) => mesh.primitives)
       .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
     expect(triangles).toBeLessThanOrEqual(BRIEF[role].triangles);
     const names = new Set((gltf.nodes ?? []).map((node) => node.name));
-    for (const part of BRIEF[role].parts) expect(names.has(part), part).toBe(true);
+    // A mark-2 infantryman may carry something else than a rifle (the French bazooka).
+    const parts = BRIEF[role].parts.filter(
+      (part) => !(role === 'infantry' && tier === 2 && part === 'rifle'),
+    );
+    for (const part of parts) expect(names.has(part), part).toBe(true);
   });
 });
