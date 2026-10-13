@@ -4,14 +4,18 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
+  type Object3D,
   SRGBColorSpace,
   type Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { PilePieces } from '@/domain/pile-pieces';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
+import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -79,22 +83,45 @@ export function pileObject(
   pieces: PilePieces,
   texts: CounterTexts,
   faces: Faces,
-): { object: Group; ready: Promise<unknown> } | null {
+): { object: Group; ready: Promise<unknown>; smokes: ReadonlyArray<Smoke> } | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
   const layout = pileLayout(figurines.length, pieces.more > 0);
   const words = counterTexts(pieces, texts);
   const object = new Group();
+  const smokes: Smoke[] = [];
   figurines.forEach((figurine, k) => {
     const x = layout.groups[k]!;
     figurine.object.position.x = x;
     object.add(figurine.object);
     const text = words.groups[k];
     if (text) object.add(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
+    const group = pieces.groups[k]!;
+    // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
+    const plume = group.role === 'infantry' ? null : PLUME_BY_WEAR[group.wear];
+    if (plume === null) return;
+    const smoke = new Smoke(plume);
+    smokes.push(smoke);
+    void figurine.ready.then(
+      () => {
+        figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
+        if (group.wear === 'burning') blacken(figurine.object);
+      },
+      () => {},
+    );
   });
   if (layout.more !== null && words.more !== null)
     object.add(counter(faces.of(words.more), layout.more, 0));
-  return { object, ready: Promise.all(figurines.map((figurine) => figurine.ready)) };
+  return { object, ready: Promise.all(figurines.map((figurine) => figurine.ready)), smokes };
+}
+
+function blacken(figurine: Object3D): void {
+  figurine.traverse((part) => {
+    if (part instanceof Mesh && !(part.material instanceof MeshBasicMaterial))
+      part.material = Array.isArray(part.material)
+        ? part.material.map(charred)
+        : charred(part.material);
+  });
 }
 
 /**
@@ -171,21 +198,29 @@ function counter(face: MeshStandardMaterial, x: number, z: number): Group {
 }
 
 /** `ready` flips once every figurine is in: until then the pile is not on the layer and its plate stays. */
-type Dressed = { readonly key: string; lonLat: LonLat; readonly object: Group; ready: boolean };
+type Dressed = {
+  readonly key: string;
+  lonLat: LonLat;
+  readonly object: Group;
+  ready: boolean;
+  readonly smokes: ReadonlyArray<Smoke>;
+};
 
-/** What a pile draws: its nation, and per group the role, the figures and the troop count, plus `more` — not the wear. */
-const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
-  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.troops]), more]);
+/** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
+export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
+  JSON.stringify([nation, groups.map((g) => [g.role, g.figures, g.troops, g.wear]), more]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
  * movement's pawn for what is not moving. Full at the country level, gone beyond the region
- * fade: far away the label's plate is the pile. Nothing here moves on its own, so nothing is
- * declared flowing: a camera that moves already asks for its frames, and a model or a counter
- * face that lands late asks through `changed`.
+ * fade: far away the label's plate is the pile. Only a worn vehicle's smoke moves on its own,
+ * and it is an ambient layer: it steps on the ambient beat and stands still when motion is
+ * reduced or cut — the smoke stays, the wear is information. A model or a counter face that
+ * lands late asks for its frame through `changed`.
  */
 export class StandingLayer {
   readonly group = new Group();
+  private time = 0;
   private nation: string | null = null;
   private piles: ReadonlyArray<StandingPile> = [];
   private dressed = new Map<string, Dressed>();
@@ -222,7 +257,14 @@ export class StandingLayer {
       }
       const built = pileObject(this.nation, pile.pieces, this.texts, this.faces);
       if (built === null) continue;
-      const entry: Dressed = { key, lonLat: pile.lonLat, object: built.object, ready: false };
+      for (const smoke of built.smokes) smoke.frame(this.time);
+      const entry: Dressed = {
+        key,
+        lonLat: pile.lonLat,
+        object: built.object,
+        ready: false,
+        smokes: built.smokes,
+      };
       next.set(pile.id, entry);
       // A model that fails to load leaves the pile in its plate.
       built.ready.then(
@@ -247,6 +289,15 @@ export class StandingLayer {
     }
     this.faces.keepOnly(shown);
   }
+
+  readonly smoke: AmbientLayer = {
+    fx: 'smoke',
+    frame: (time) => {
+      this.time = time;
+      for (const { ready, smokes } of this.dressed.values())
+        if (ready) for (const smoke of smokes) smoke.frame(time);
+    },
+  };
 
   isDressed(id: string): boolean {
     return this.dressed.get(id)?.ready === true;
