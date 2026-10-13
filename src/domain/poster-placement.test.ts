@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { posterPlacement } from './poster-placement';
 
 const viewport = { width: 1200, height: 800 };
-const insets = { top: 60, margin: 8, stem: 18 };
+const insets = { top: 60, bottom: 0, margin: 8, stem: 18 };
 const poster = { width: 200, height: 100 };
 
 describe('posterPlacement', () => {
@@ -68,5 +68,14 @@ describe('posterPlacement', () => {
     );
     expect(at.side).toBe('below');
     expect(at.y).toBe(300);
+  });
+
+  it('is held above the bottom strip when it falls under the piece', () => {
+    const at = posterPlacement({ left: 10, right: 1190, top: 70, bottom: 790 }, poster, viewport, {
+      ...insets,
+      bottom: 100,
+    });
+    expect(at.side).toBe('below');
+    expect(at.y + insets.stem + poster.height).toBeLessThanOrEqual(800 - 100 - 8);
   });
 });

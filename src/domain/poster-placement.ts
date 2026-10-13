@@ -22,7 +22,7 @@ export function posterPlacement(
   piece: Rect,
   poster: Size,
   viewport: Size,
-  insets: { top: number; margin: number; stem: number },
+  insets: { top: number; bottom: number; margin: number; stem: number },
 ): PosterSpot {
   const { margin, stem } = insets;
   const cx = (piece.left + piece.right) / 2;
@@ -35,7 +35,12 @@ export function posterPlacement(
     return { at, stem: Math.round(Math.min(reach, Math.max(-reach, want - at))) };
   };
   const horizontal = along(cx, poster.width, margin, viewport.width - margin);
-  const vertical = along(cy, poster.height, insets.top + margin, viewport.height - margin);
+  const vertical = along(
+    cy,
+    poster.height,
+    insets.top + margin,
+    viewport.height - insets.bottom - margin,
+  );
 
   if (piece.top - stem - poster.height >= insets.top + margin)
     return { side: 'above', x: horizontal.at, y: piece.top, stem: horizontal.stem };
@@ -43,5 +48,12 @@ export function posterPlacement(
     return { side: 'right', x: piece.right, y: vertical.at, stem: vertical.stem };
   if (piece.left - stem - poster.width - margin >= 0)
     return { side: 'left', x: piece.left, y: vertical.at, stem: vertical.stem };
-  return { side: 'below', x: horizontal.at, y: piece.bottom, stem: horizontal.stem };
+  // Last resort: held on screen even if it then covers a corner of the piece.
+  const lowest = viewport.height - insets.bottom - margin - poster.height - stem;
+  return {
+    side: 'below',
+    x: horizontal.at,
+    y: Math.min(piece.bottom, lowest),
+    stem: horizontal.stem,
+  };
 }

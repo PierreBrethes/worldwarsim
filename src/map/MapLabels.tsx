@@ -523,7 +523,12 @@ export function MapLabels({
             rect,
             { width: place.width, height: place.height },
             { width: layerWidth(poster), height: poster.parentElement?.clientHeight ?? Infinity },
-            { top: place.insetTop, margin: POSTER_MARGIN_PX, stem: POSTER_STEM_PX },
+            {
+              top: place.insetTop,
+              bottom: place.insetBottom,
+              margin: POSTER_MARGIN_PX,
+              stem: POSTER_STEM_PX,
+            },
           );
           ({ side, x, y, stem } = spot);
         } else {
@@ -924,6 +929,7 @@ type PosterPlace = {
   readonly height: number;
   /** The strip of the HUD over the board, in the layer's pixels: nothing stands under it. */
   readonly insetTop: number;
+  readonly insetBottom: number;
 };
 
 const POSTER_SIDES = ['above', 'below', 'left', 'right'] as const;
@@ -998,6 +1004,14 @@ function PosterLayer({
       shift: drawn ? face.left + face.width / 2 - origin.left : 0,
       width: card?.width ?? 0,
       height: card?.height ?? 0,
+      insetBottom: Math.max(
+        0,
+        (Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--board-bottom'),
+        ) || 0) -
+          (window.innerHeight -
+            (anchor.current?.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight)),
+      ),
       insetTop: Math.max(
         0,
         (Number.parseFloat(
