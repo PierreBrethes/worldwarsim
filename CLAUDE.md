@@ -389,8 +389,25 @@ compilateur, pas par la relecture.
 frontière : `WorldMap.tsx`. La géométrie est cuite une fois ; react-three-fiber n'apporterait rien
 ici et coûterait un modèle mental de plus.
 
-**La courbure est appliquée côté CPU**, jamais dans un shader : sinon le raycasting vise une
-géométrie plate et le clic tombe à côté sur les bords de la carte.
+**La carte est une feuille posée sur une table — 13/10/2026.** Plus de courbure d'horizon : le
+réglage n'était plus jamais au-dessus de zéro, et `Curvature`, `frame.drop`, `setCurvature` et le
+test d'horizon des étiquettes sont partis avec lui — un point du plateau se relit tel quel, et le
+raycast vise la géométrie qu'on voit. Plus d'épaisseur non plus : un pays est un aplat
+(`ShapeGeometry`) à `COUNTRY_THICKNESS` au-dessus de la mer, sans paroi — la côte est le trait
+d'encre des frontières, et l'écart ne sert qu'au tampon de profondeur. **La pente suit la
+distance** (`steepestTiltAt`, `camera-tilt.ts`) : on se penche jusqu'à 66° au rapproché, on ne
+dépasse plus 52° à la vue monde ; l'aplomb reste permis partout et la pente sous ce plafond reste
+celle du joueur.
+
+**Une seule lampe porte les ombres** (`lamp.ts`), chaude, dans la direction de l'ancien soleil,
+en attendant le jour et la nuit. Une pièce éclairée et opaque (`MeshStandardMaterial`) porte la
+sienne — figurines, blocs, jetons, copie portée, rejeu ; une planche, un disque ou un fil, non —,
+et la feuille la reçoit : pays, mer et encres de région. La carte d'ombres (2048², PCF doux) est
+**recalée sur ce que la caméra regarde** à chaque image, par crans de 2^¼ et calée au texel pour
+ne pas scintiller, et **éteinte au-delà du fondu des régions** (`shadowReach`) : à la vue monde
+aucune pièce ne tient debout, et l'ombre ne coûte rien. Elle ne demande aucune image — elle se
+rend avec celles que la carte doit déjà. Les disques de contact restent, très légers : ils posent
+la pièce sous ses pieds quand l'ombre de la lampe tombe à côté.
 
 **La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
 dessinait soixante images par seconde même posée et immobile. La boucle tourne toujours, mais
