@@ -30,8 +30,8 @@ const PER_COLUMN = 3;
 /** How far a routed piece backs off, and how high a piece is let go above the board. */
 const RETREAT = 0.9;
 const DROP = 1.2;
-/** A block's half width at board scale: it tips over its far bottom edge, not through the board. */
-const BLOCK_HALF = 0.75 * FIGURINE_SCALE;
+/** A block's half thickness at board scale: it tips over its back bottom edge, not through the board. */
+const BLOCK_HALF = 0.3 * FIGURINE_SCALE;
 
 /**
  * **Where the `count` pieces of a side stand**, in the replay's frame: x across the screen, z
@@ -130,6 +130,8 @@ type Piece = {
   readonly side: 'mine' | 'theirs';
   /** A vehicle burns where it stands; a man and a block go down. */
   readonly burns: boolean;
+  /** A card faces the eye: it goes down onto its back, as a block does, never in its own plane. */
+  card: boolean;
   readonly home: readonly [number, number];
   readonly holder: Group;
   readonly pivot: Group;
@@ -185,6 +187,7 @@ export class ReplayScene {
     const built: Piece = {
       side: piece.side,
       burns: piece.side === 'mine' && piece.role !== 'infantry',
+      card: false,
       home,
       holder,
       pivot,
@@ -203,10 +206,11 @@ export class ReplayScene {
 
     if (piece.side === 'theirs') {
       built.body = blockFigurine(medium).object;
-      // It tips over its far edge, away from my line.
-      pivot.position.x = BLOCK_HALF;
-      built.body.position.x = -BLOCK_HALF;
-      marker.position.set(-BLOCK_HALF * 2, 0.3, 0);
+      // It tips onto its back, away from the eye, its pictogram to the sky: tipped sideways, in
+      // the eye's plane, a fallen block looked like a standing one.
+      pivot.position.z = -BLOCK_HALF;
+      built.body.position.z = BLOCK_HALF;
+      marker.position.set(-0.75 * FIGURINE_SCALE, 0.3, BLOCK_HALF);
     } else {
       // Its front, +z, towards the enemy on the right.
       holder.rotation.y = Math.PI / 2;
@@ -218,6 +222,7 @@ export class ReplayScene {
         infantry ? [piece.tier, piece.tier, piece.tier] : [piece.tier],
       );
       if (figurine === null) {
+        built.card = true;
         const plate = plateOf(spriteUrl(nation, piece.role, piece.tier));
         // Upright to the eye, while the holder faces the enemy.
         plate.rotation.y = -Math.PI / 2;
@@ -278,6 +283,9 @@ export class ReplayScene {
       if (piece.burns) {
         pivot.rotation.set(0, 0, 0);
       } else if (piece.side === 'theirs') {
+        pivot.rotation.set(-(Math.PI / 2) * fall, 0, 0);
+      } else if (piece.card) {
+        // Away from the eye: the holder's +x is the scene's -z.
         pivot.rotation.set(0, 0, -(Math.PI / 2) * fall);
       } else {
         // Backwards, away from the enemy: the holder's +z faces them.

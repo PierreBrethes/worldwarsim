@@ -57,7 +57,12 @@ export type ReplayFrame = {
   readonly pieces: ReadonlyArray<ReplayPiece>;
 };
 
-/** The first `destroyed` fall, the next `routed` rout, the rest stand — per entry. */
+/**
+ * The first `destroyed` fall, the next `routed` rout, the rest stand — per entry. **A piece is a
+ * troop, and only a destroyed troop falls**: losses in men leave it standing whole, its three
+ * figurines included — as on the board, where a weak troop drops no figurine (grilling, tour 4).
+ * The account card gives the men.
+ */
 function destinies(troops: number, destroyed: number, routed: number): PieceFate[] {
   const falls = Math.min(troops, destroyed);
   const routs = Math.min(troops - falls, routed);

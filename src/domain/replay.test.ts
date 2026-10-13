@@ -85,6 +85,18 @@ describe('replayAt', () => {
     expect(last.every((p) => p.progress === 1 || p.fate === 'standing')).toBe(true);
   });
 
+  it('fells a destroyed troop, and leaves a battered one standing whole', () => {
+    const luxembourg: ReplayView = {
+      ...view,
+      side: 'defender',
+      mine: [{ role: 'infantry', tier: 1, troops: 3, lost: 25, routed: 0, destroyed: 0 }],
+      theirs: { troops: 1, lost: 50, routed: 0, destroyed: 1 },
+    };
+    const last = replayAt(luxembourg, REPLAY_MS).pieces;
+    expect(count(last, 'theirs', 'fallen')).toBe(1);
+    expect(count(last, 'mine', 'standing')).toBe(3);
+  });
+
   it('snaps each step to its end when motion is reduced, and skips to the account when cut', () => {
     const mid = (stepBounds('pertes').start + stepBounds('pertes').end) / 2;
     const reduced = replayAt(view, mid, 'reduced');
