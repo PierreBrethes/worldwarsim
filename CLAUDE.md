@@ -107,8 +107,9 @@ posséder**. En lecture seule, et il tient l'entrée de rail que l'onglet « pro
 ADR 0026 §6). On **lève** une pile, on la **pose** : une seule main au plateau (`Hand`), dont
 dérivent la colonne armée et la pièce que porte le moteur, et une seule règle pour les clics sur
 ses piles (`clickPile`, `src/domain/hand.ts` — lever, reposer, ou viser l'autre pile). La garnison d'un
-bâtiment ou d'un avant-poste ne se lève pas sur la carte : son **panneau de garnison** compose la
-pile et « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
+**bâtiment** se lève aussi par ses figurines, au pied de sa maquette, comme une pile posée ; celle
+d'un avant-poste, qui n'en a pas, ne se lève pas sur la carte. Les deux gardent leur **panneau de
+garnison**, qui compose la pile et dont « préparer » la met dans la même main. Pointeur arrêté, `movements.preview` trace la route et
 l'heure du premier ordre — sur le sol comme sur un mât, un camp ou un objectif, dont
 l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au point de pose, ou passe droit à
 « envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
@@ -133,8 +134,9 @@ repose la pièce. **Maj + clic a disparu** : il n'avait plus rien à ajouter, et
 fiche restent la voie clavier. La main reste la seule source — la fiche se remonte sur elle à
 chaque clic. Reposer, Échap ou un ordre envoyé referment le déploiement sur ce qui reste.
 L'animation dure 250 ms, déclarée à la boucle (`isSpreading`) ; réduite, les troupes poussent
-sur place en 120 ms ; coupée, elles sont posées d'un coup. Ni garnison de bâtiment ni pile
-adverse ne se déploient, et une pile sans figurine pour chacune de ses troupes non plus.
+sur place en 120 ms ; coupée, elles sont posées d'un coup. La garnison d'un bâtiment se déploie
+à son pied ; une pile adverse ne se déploie pas, ni une pile sans figurine pour chacune de ses
+troupes.
 
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la
@@ -384,16 +386,22 @@ mine sur charbon prend son chevalement (`buildingMaquette`), un premier niveau s
 échafaudage d'encre au niveau de coupe, la part lue sur les minutes restantes et la durée du
 barème (`riseOf`, `buildMinutes(clé, 1)`, rien d'inventé), au battement et sans image demandée,
 et l'encre d'arrivée s'imprime quand il se tient sous les yeux ; une élévation reste entière à
-côté de sa grue —, un relevé daté se délave, et les sites réunis en « N sites » se rangent en
-anneau sous leur cartouche. **Et la garnison de mes bâtiments se tient à leur pied** (13/10/2026) :
+côté de sa grue —, un relevé daté se délave. **Et les maquettes se dégagent sur le plateau, pas à
+l'écran** (`clusterFootprints`, `maquettes.ts`) : des sites dont les emprises — un disque d'une
+envergure, à l'échelle « bâtiments » courante — se chevauchent se rangent en anneau autour de leur
+barycentre, et un anneau qui grandit jusqu'à un autre site ou un autre anneau l'absorbe. Le
+cartouche « N sites » n'y est pour rien : hors écran, ou avant que les étiquettes se touchent, les
+maquettes se touchaient déjà. **Et la garnison de mes bâtiments se tient à leur pied** (13/10/2026) :
 mes troupes `stationedAt` un bâtiment sont une pile posée comme les autres — même
 `StandingLayer`, mêmes groupes (`pilePieces`), même règle « habillée entière ou rien » —, dont
 l'adresse est la maquette (`StandingPile.at.beside`) et non un point. Elle se tient à
 `GARRISON_FOOT` de la maquette, devant elle (+z) quand elle est seule, **vers l'extérieur de
-l'anneau** dans un « N sites » (`footOf`), donc jamais plus près d'une autre maquette que de la
+l'anneau** (`footOf`), donc jamais plus près d'une autre maquette que de la
 sienne ; jamais tant que la maquette n'est pas debout. La garnison adverse ne sort pas du
-serveur. Elle **se voit et ne se prend pas** : ni lever ni survol sur ses figurines, le survol
-reste celui du mât, et le panneau de garnison reste **le** chemin pour la mettre en main.
+serveur. Elle **se lève par ses figurines** comme une pile posée — même `Hand`, même
+déploiement, même repose (`pieceClick`, station `building`) — et la maquette, elle, ouvre
+toujours la modale du site : une maquette devant la garnison prend le clic (`pieceToTake`,
+`MapEngine`). Le panneau de garnison reste l'autre chemin.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
