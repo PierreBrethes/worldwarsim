@@ -67,8 +67,14 @@ async function subscribe(t: Bench, seat: Seat, endpoint: string) {
   });
 }
 
+/** Le germe de la saison tire les objectifs neutres (`objectives.place`) : laissé à
+ *  `Math.random`, un sur trente environ tombait sur Prahova, sa garnison irrégulière y répondait à
+ *  l'attaque à la place de Léa, et la file perdait son `attack`. */
+const SEED = 1;
+
 async function lobby(t: Bench) {
   const { seat, code } = await foundSeat(t, 'Pierre', 48, 0.5);
+  await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { seed: SEED }));
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
@@ -84,6 +90,8 @@ async function launchedSeason(t: Bench) {
   await subscribe(t, guest, 'https://push.example/lea');
   await t.mutation(api.seasons.launch, seat);
   await advance(t, 2 * MINUTE);
+  const objectives = await t.run(async (ctx) => ctx.db.query('objectives').collect());
+  expect(objectives.map((objective) => objective.regionId)).not.toContain(PRAHOVA);
   webpush.sent.length = 0;
   return { seat, guest };
 }
