@@ -2,6 +2,7 @@ import {
   Box3,
   type Object3D,
   DirectionalLight,
+  Group,
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
@@ -19,12 +20,16 @@ import { fr } from '@/i18n/fr';
 import { blockFigurine, washedBlock } from '../blocks';
 import type { Smoke } from '../smoke';
 import { Faces, pileObject } from '../standing';
-import { figurineFor } from './figurine';
+import { BUILDINGS } from '@/domain/ids';
+import { BUILDING_SPRITES, buildingMaquette } from '@/emblems/buildings/manifest';
+import { OBJECTIVE_MAQUETTES, OBJECTIVE_SPRITES } from '@/emblems/objectives/manifest';
+import { figurineFor, sceneOf } from './figurine';
 
 /**
  * **The dev review page** (`/figurines.html`): every French role beside its plate, under the
  * board's own lights, turning slowly. It is where a figurine is judged against its plate
  * before it reaches the map — never shipped, `vite build` only knows `index.html`.
+ * `?kind=buildings` reviews the maquettes of the buildings and the objectives instead.
  */
 const ROLES = Object.keys(TIERS_BY_ROLE) as ReadonlyArray<UnitRole>;
 const root = document.getElementById('review')!;
@@ -81,44 +86,65 @@ function card(
   });
 }
 
-for (const role of ROLES) {
-  for (let tier = 1 as UnitTier; tier <= TIERS_BY_ROLE[role]; tier = (tier + 1) as UnitTier) {
-    const figurine = figurineFor(nation, role, [tier, tier, tier]);
-    card(spriteUrl(nation, role, tier), `${role} MK${tier}`, figurine?.object ?? null);
-  }
-}
-
-/** Piles as the board stands them: whole, worn and counted, and one left to its plate. */
-const troop = (role: UnitRole, strength = 100, tier: UnitTier = 1) => ({
-  id: role,
-  role,
-  tier,
-  strength,
-  nominalStrength: 100,
-});
-const faces = new Faces(() => {});
+const kind = new URLSearchParams(location.search).get('kind');
 const smokes: Smoke[] = [];
-const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
-for (const [caption, troops] of [
-  ['pile · 1 infanterie', [troop('infantry')]],
-  ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
-  ['pile · 4 rôles', [troop('infantry'), troop('armor'), troop('landTransport'), troop('fighter')]],
-  // MK2: France has no R35 yet. Smoke at half strength, thick smoke and a burnt hull at a quarter.
-  ['pile · 2 blindés à 50 %', [1, 2].map(() => troop('armor', 50, 2))],
-  ['pile · 2 blindés à 25 %', [1, 2].map(() => troop('armor', 25, 2))],
-] as const) {
-  const pile = pileObject(nation, pilePieces(troops), texts, faces);
-  if (pile) smokes.push(...pile.smokes);
-  card(spriteUrl(nation, 'infantry', 1), caption, pile?.object ?? null);
+
+/** A maquette as the sculptor sent it, under the same lights: the board only scales and turns it. */
+function maquette(url: string | null): Group | null {
+  if (url === null) return null;
+  const object = new Group();
+  void sceneOf(url).then((scene) => object.add(scene.clone(true)));
+  return object;
 }
 
-// Seen from behind, as on the board: the pictogram is what the page is there to judge.
-const BLOCK_VIEW = { size: 1.1, angle: 0.5 };
+if (kind === 'buildings') {
+  for (const key of BUILDINGS.filter((key) => key !== 'depot'))
+    card(BUILDING_SPRITES[key], key, maquette(buildingMaquette(key, null)));
+  card(BUILDING_SPRITES.mine, 'mine · sur charbon', maquette(buildingMaquette('mine', 'coal')));
+  for (const [key, url] of Object.entries(OBJECTIVE_MAQUETTES))
+    card(OBJECTIVE_SPRITES[key] ?? null, `objectif · ${key}`, maquette(url));
+} else {
+  for (const role of ROLES) {
+    for (let tier = 1 as UnitTier; tier <= TIERS_BY_ROLE[role]; tier = (tier + 1) as UnitTier) {
+      const figurine = figurineFor(nation, role, [tier, tier, tier]);
+      card(spriteUrl(nation, role, tier), `${role} MK${tier}`, figurine?.object ?? null);
+    }
+  }
 
-/** The enemy as the board stands it: a block per medium, and a last known position. */
-for (const medium of ['land', 'sea', 'air'] as const)
-  card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object, BLOCK_VIEW);
-card(null, 'bloc adverse · dernière position connue', washedBlock('land'), BLOCK_VIEW);
+  /** Piles as the board stands them: whole, worn and counted, and one left to its plate. */
+  const troop = (role: UnitRole, strength = 100, tier: UnitTier = 1) => ({
+    id: role,
+    role,
+    tier,
+    strength,
+    nominalStrength: 100,
+  });
+  const faces = new Faces(() => {});
+  const texts = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
+  for (const [caption, troops] of [
+    ['pile · 1 infanterie', [troop('infantry')]],
+    ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
+    [
+      'pile · 4 rôles',
+      [troop('infantry'), troop('armor'), troop('landTransport'), troop('fighter')],
+    ],
+    // MK2: France has no R35 yet. Smoke at half strength, thick smoke and a burnt hull at a quarter.
+    ['pile · 2 blindés à 50 %', [1, 2].map(() => troop('armor', 50, 2))],
+    ['pile · 2 blindés à 25 %', [1, 2].map(() => troop('armor', 25, 2))],
+  ] as const) {
+    const pile = pileObject(nation, pilePieces(troops), texts, faces);
+    if (pile) smokes.push(...pile.smokes);
+    card(spriteUrl(nation, 'infantry', 1), caption, pile?.object ?? null);
+  }
+
+  // Seen from behind, as on the board: the pictogram is what the page is there to judge.
+  const BLOCK_VIEW = { size: 1.1, angle: 0.5 };
+
+  /** The enemy as the board stands it: a block per medium, and a last known position. */
+  for (const medium of ['land', 'sea', 'air'] as const)
+    card(null, `bloc adverse · ${medium}`, blockFigurine(medium).object, BLOCK_VIEW);
+  card(null, 'bloc adverse · dernière position connue', washedBlock('land'), BLOCK_VIEW);
+}
 
 /** `?motion=reduced` stills the smoke, as the board does. */
 const still = new URLSearchParams(location.search).get('motion') === 'reduced';
