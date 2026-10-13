@@ -15,6 +15,15 @@ import {
   telegraphSoundOn,
 } from '@/data/settings';
 import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
+import { setDayCycle, useDayCycle } from '@/data/dayCycle';
+import { DAY_CYCLES } from '@/domain/daylight';
+import { setPieceScale, usePieceScale } from '@/data/pieceScale';
+import {
+  MAX_PIECE_SCALE,
+  MIN_PIECE_SCALE,
+  PIECE_SCALE_STEP,
+  parsePercent,
+} from '@/domain/piece-scale';
 import { MAP_MOTION_SETTINGS } from '@/domain/map-motion';
 import { setMouseMapping, useMouseMapping } from '@/data/mouseMapping';
 import {
@@ -48,6 +57,8 @@ export function SettingsWindow({
   const [sound, setSound] = useState(telegraphSoundOn);
   const mapping = useMouseMapping();
   const mapMotion = useMapMotionSetting();
+  const dayCycle = useDayCycle();
+  const pieces = usePieceScale();
   const coarse = useCoarsePointer();
   const conclude = useMutation(api.seasons.conclude);
   const surrender = useMutation(api.players.surrender);
@@ -216,6 +227,62 @@ export function SettingsWindow({
             <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
               {fr.settingsWindow.motionNote}
             </p>
+          </div>
+
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.dayCycleLabel}
+              </span>
+              <div className="flex gap-[6px]">
+                {DAY_CYCLES.map((cycle) => (
+                  <Chip
+                    key={cycle}
+                    label={fr.settingsWindow.dayCycle[cycle]}
+                    marked={dayCycle === cycle}
+                    onClick={() => setDayCycle(cycle)}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.settingsWindow.dayCycleNote}
+            </p>
+          </div>
+
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+            <span className="text-[13.5px] text-[var(--ink)]">
+              {fr.settingsWindow.pieceScaleLabel}
+            </span>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.settingsWindow.pieceScaleNote}
+            </p>
+            {(['troops', 'buildings'] as const).map((kind) => {
+              const label =
+                kind === 'troops'
+                  ? fr.settingsWindow.pieceScaleTroops
+                  : fr.settingsWindow.pieceScaleBuildings;
+              return (
+                <label key={kind} className="mt-[8px] flex items-center gap-3 text-[11.5px]">
+                  <span className="w-[70px] text-[var(--ink)]">{label}</span>
+                  <input
+                    type="range"
+                    aria-label={label}
+                    min={MIN_PIECE_SCALE}
+                    max={MAX_PIECE_SCALE}
+                    step={PIECE_SCALE_STEP}
+                    value={pieces[kind]}
+                    onChange={(event) =>
+                      setPieceScale({ ...pieces, [kind]: parsePercent(event.target.value) })
+                    }
+                    className="min-w-0 flex-1 cursor-pointer accent-[var(--ink)]"
+                  />
+                  <span className="w-[44px] text-right tabular-nums text-[var(--ink-soft)]">
+                    {fr.settingsWindow.pieceScalePercent(pieces[kind])}
+                  </span>
+                </label>
+              );
+            })}
           </div>
 
           <NotificationsSection seat={seat} />

@@ -12,6 +12,7 @@ import {
   type Object3D,
   Plane,
   Quaternion,
+  type Raycaster,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -21,6 +22,25 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { nearWeight, sceneOf } from './figurines/figurine';
 import { PALETTE } from './palette';
 import { washedOf } from './standing';
+import { pieceScale } from './piece-scale';
+import { nearer, type PieceHit } from './piece-pick';
+import type { AmbientLayer } from './ambience';
+import { Smoke, type Plume } from './smoke';
+
+/**
+ * **A factory at work smokes** (`table-etat-major.html`, `fac.userData.stacks`): a slow grey
+ * thread from each chimney, leaning downwind. In board units at full near weight — a maquette is
+ * `MAQUETTE_SPAN` wide.
+ */
+const FACTORY_SMOKE: Plume = {
+  puffs: 9,
+  life: 4.2,
+  rise: 0.9,
+  lean: 0.75,
+  size: [0.1, 0.5],
+  opacity: 0.5,
+  color: '#6e685e',
+};
 
 /**
  * **What a maquette stands on and as** (ADR 0026 §1): a building, a surveyed installation or a
@@ -35,6 +55,8 @@ export type StandingMaquette = {
   readonly washed: boolean;
   /** A first level under the crane: it rises from the ground with its work (`riseOf`). */
   readonly rising?: { readonly finishesAt: number; readonly minutes: number };
+  /** One of my producers at work: a thread of smoke rises from its chimneys. */
+  readonly smoking?: boolean;
 };
 
 /**
@@ -93,6 +115,8 @@ type Model = {
   readonly scale: number;
   /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
   readonly box: Box3;
+  /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
+  readonly chimneys: ReadonlyArray<Vector3>;
 };
 const models = new Map<string, Promise<Model>>();
 function modelOf(url: string): Promise<Model> {
@@ -105,7 +129,15 @@ function modelOf(url: string): Promise<Model> {
         geometry.computeBoundingBox();
         box.union(geometry.boundingBox!);
       }
-      return { parts, scale: spanScale(box.getSize(new Vector3())), box };
+      const chimneys: Vector3[] = [];
+      scene.traverse((node) => {
+        if (node.name.startsWith('fx_smoke')) chimneys.push(node.getWorldPosition(new Vector3()));
+      });
+      if (chimneys.length === 0) {
+        const top = box.getCenter(new Vector3());
+        chimneys.push(top.setY(box.max.y));
+      }
+      return { parts, scale: spanScale(box.getSize(new Vector3())), box, chimneys };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -119,9 +151,9 @@ function modelOf(url: string): Promise<Model> {
  * they share, one span apart, so that none stands in another. Offsets in board units, in the
  * order given — the caller sorts, so a group keeps its order from one fold to the next.
  */
-export function ringOffsets(count: number): Array<readonly [x: number, z: number]> {
+export function ringOffsets(count: number, scale = 1): Array<readonly [x: number, z: number]> {
   if (count < 2) return [[0, 0]];
-  const radius = MAQUETTE_SPAN / (2 * Math.sin(Math.PI / count));
+  const radius = (MAQUETTE_SPAN * scale) / (2 * Math.sin(Math.PI / count));
   return Array.from({ length: count }, (_, k) => {
     const angle = (2 * Math.PI * k) / count;
     return [radius * Math.sin(angle), radius * Math.cos(angle)] as const;
@@ -141,15 +173,18 @@ export const GARRISON_FOOT = 0.8;
  * garrison in front, towards +z. Fixed by the ring, never by the camera — a pile that slid with
  * the view would read as moving. `facing` turns the pile's row to stand across that line.
  */
-export function footOf([x, z]: readonly [number, number]): {
+export function footOf(
+  [x, z]: readonly [number, number],
+  scale = 1,
+): {
   x: number;
   z: number;
   facing: number;
 } {
   const facing = Math.atan2(x, z);
   return {
-    x: x + GARRISON_FOOT * Math.sin(facing),
-    z: z + GARRISON_FOOT * Math.cos(facing),
+    x: x + GARRISON_FOOT * scale * Math.sin(facing),
+    z: z + GARRISON_FOOT * scale * Math.cos(facing),
     facing,
   };
 }
@@ -165,6 +200,9 @@ type Placed = {
   /** Inside a replay's ground: it steps aside, and its plate with it. */
   cleared: boolean;
   near: number;
+  readonly smoking: boolean;
+  /** One per chimney once the model has landed, empty for a site that does not produce. */
+  smokes: Smoke[];
 };
 
 /**
@@ -322,10 +360,18 @@ export class MaquetteLayer {
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
+        // A rising site and a ghost of a survey do not work.
+        smoking: maquette.smoking === true && !maquette.rising && !maquette.washed,
+        smokes: [],
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
     }
+    this.place();
+  }
+
+  /** The ring and every matrix follow the size: both are rebuilt on the next `orient`. */
+  resize(): void {
     this.place();
   }
 
@@ -338,7 +384,7 @@ export class MaquetteLayer {
       const lead = this.byId.get(members[0] ?? '')?.item;
       if (lead === undefined) continue;
       const standing = members.filter((id) => this.byId.has(id)).sort();
-      const offsets = ringOffsets(standing.length);
+      const offsets = ringOffsets(standing.length, pieceScale.buildings);
       standing.forEach((id, k) => {
         const item = this.byId.get(id)!.item;
         item.ring = offsets[k]!;
@@ -364,6 +410,13 @@ export class MaquetteLayer {
       return mesh;
     });
     lot.group.add(...lot.meshes);
+    for (const item of lot.items) {
+      if (!item.smoking) continue;
+      item.smokes = model.chimneys.map(() => new Smoke(FACTORY_SMOKE));
+      lot.group.add(...item.smokes.map((smoke) => smoke.object));
+      // Its smoke is placed with its matrix: the next `orient` places both.
+      item.near = -1;
+    }
     if (rising !== null) {
       rising.scaffold = scaffoldOf(model.box);
       lot.group.add(rising.scaffold);
@@ -382,6 +435,22 @@ export class MaquetteLayer {
     lot.rising?.scaffold?.geometry.dispose();
   }
 
+  /** The maquette under `ray`, by the instance it hits: each is tried by its bounds first. */
+  under(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const lot of this.lots.values()) {
+      if (!lot.group.visible) continue;
+      for (const hit of ray.intersectObjects(lot.meshes, false)) {
+        const item = hit.instanceId === undefined ? undefined : lot.items[hit.instanceId];
+        // A rising site is drawn up to its cut: above it there is nothing to point at.
+        const built = lot.rising === null || hit.point.y <= lot.rising.cut.constant;
+        if (item !== undefined && item.near > 0 && !item.cleared && built)
+          best = nearer(best, { id: item.id, distance: hit.distance });
+      }
+    }
+    return best;
+  }
+
   /** Its maquette stands, so its plate gives way — not while a replay has cleared it away. */
   isDressed(id: string): boolean {
     const dressed = this.byId.get(id);
@@ -398,7 +467,7 @@ export class MaquetteLayer {
     const dressed = this.byId.get(id);
     if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
     const { at, ring } = dressed.item;
-    const foot = footOf(ring);
+    const foot = footOf(ring, pieceScale.buildings);
     return { at, step: [foot.x - ring[0], foot.z - ring[1]], facing: foot.facing };
   }
 
@@ -419,26 +488,58 @@ export class MaquetteLayer {
         if (near === item.near) return;
         item.near = near;
         moved = true;
-        matrix.compose(item.at, item.turn, scale.setScalar(near * lot.model!.scale));
+        matrix.compose(
+          item.at,
+          item.turn,
+          scale.setScalar(near * lot.model!.scale * pieceScale.buildings),
+        );
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
+        item.smokes.forEach((smoke, c) => {
+          smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
+          smoke.object.scale.setScalar(near * pieceScale.buildings);
+        });
       });
       if (lot.rising !== null) this.rise(lot.rising, lot.items[0]!, lot.model, now);
       if (!moved) continue;
-      for (const mesh of lot.meshes) mesh.instanceMatrix.needsUpdate = true;
+      for (const mesh of lot.meshes) {
+        mesh.instanceMatrix.needsUpdate = true;
+        // The pointer's test reads the bounds first: they must follow the instances.
+        mesh.computeBoundingSphere();
+      }
       lot.group.visible = lot.items.some((item) => item.near > 0);
     }
   }
+
+  /**
+   * **The factories' smoke, an ambience** (`ambience.ts`): it loops for good, so it steps at its
+   * own low beat rather than holding the board at sixty frames. Idle when no smoking maquette
+   * stands close; still at reduced motion, gone at cut motion.
+   */
+  readonly smoke: AmbientLayer = {
+    fx: 'smoke',
+    hz: 8,
+    idle: () =>
+      ![...this.byId.values()].some(({ item }) => item.smokes.length > 0 && item.near > 0),
+    frame: (time, motion) => {
+      for (const { item } of this.byId.values())
+        for (const smoke of item.smokes) {
+          smoke.object.visible = item.near > 0 && motion !== 'off';
+          if (smoke.object.visible) smoke.frame(time);
+        }
+    },
+  };
 
   /** Slow — a first level lasts tens of minutes: the board's heartbeat moves it enough, and no
    *  frame is ever asked for it. */
   private rise(rising: Rising, item: Placed, model: Model, now: number): void {
     const share = riseOf((rising.finishesAt - now) / 60_000, rising.minutes);
-    const height = model.box.max.y * model.scale * Math.max(item.near, 0) * share;
+    const height =
+      model.box.max.y * model.scale * pieceScale.buildings * Math.max(item.near, 0) * share;
     rising.cut.constant = item.at.y + height;
     const scaffold = rising.scaffold;
     if (scaffold === null) return;
     scaffold.visible = share < 1 && item.near > 0;
-    const width = Math.max(item.near, 0) * model.scale;
+    const width = Math.max(item.near, 0) * model.scale * pieceScale.buildings;
     scaffold.matrix.compose(item.at, item.turn, scale.set(width, Math.max(height, 1e-4), width));
   }
 

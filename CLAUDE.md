@@ -114,6 +114,28 @@ l'étiquette relaie l'arrêt que la toile ne voit pas ; la pose ouvre la rose au
 « envoyer — irréversible » s'il n'y a qu'un ordre (`soleOrderOf`). Échap, un clic sur la pièce, ou
 la rose et l'aperçu refermés la reposent.
 
+**Et la pièce se tient comme une pièce d'échecs** (lot « tampons et gestes », 13/10/2026, gestes
+du prototype `table-etat-major.html`, courbes pures dans `src/map/engine/landing.ts`). Levée,
+la copie monte, suit le pointeur avec un temps de retard et se balance ; son ombre est un disque
+au sol qui s'étale et pâlit avec la hauteur. **Posée** là où la rose s'ouvre (`setDownPiece`),
+elle tombe, rebondit et attend l'ordre ; **reposée**, elle rentre en glissant et retombe chez
+elle ; **envoyée**, son pion prend le relais (`departures`, compté par le plateau à l'ordre
+parti) ; une pile déployée qui se referme retombe aussi. Pas de main 3D : le curseur système la
+porte. Tout cela est une animation **déclarée à la boucle** (`standing.isCarrying`), en
+`actives` seulement — réduites ou coupées, la pièce est où elle doit être, d'un coup.
+
+**Et la pile levée se déploie — 13/10/2026** (ADR 0026 §6). Lever prend toute la pile ; levée,
+une pile de plusieurs troupes s'ouvre au sol, **une figurine par troupe** avec ses dix crans de
+vie (`pilePieces(...).spread`, rangées de quatre centrées sur le point et tournées vers l'œil —
+`spreadLayout`, `standing.ts`). Un clic ou un tap sur une troupe déployée l'ajoute à la main ou
+l'en retire (`clickPile`, variante `troop`) ; hors main, elle se délave ; la dernière retirée
+repose la pièce. **Maj + clic a disparu** : il n'avait plus rien à ajouter, et les cases de la
+fiche restent la voie clavier. La main reste la seule source — la fiche se remonte sur elle à
+chaque clic. Reposer, Échap ou un ordre envoyé referment le déploiement sur ce qui reste.
+L'animation dure 250 ms, déclarée à la boucle (`isSpreading`) ; réduite, les troupes poussent
+sur place en 120 ms ; coupée, elles sont posées d'un coup. Ni garnison de bâtiment ni pile
+adverse ne se déploient, et une pile sans figurine pour chacune de ses troupes non plus.
+
 **La fiche lit, la carte agit** (décision Pierre, 30/08, révisée par l'ADR 0026 §6). Pièce en
 main, la **fiche au bord** (`HandSheet.tsx`) reprend les cases de `GarrisonStack` et compose la
 main sans la lâcher ; elle ne porte qu'un ordre, **« fonder un avant-poste ici »**, la branche
@@ -336,7 +358,18 @@ que le milieu servi. Au rapproché, le pion dit son milieu : une coque en mer la
 (`Wake`, `smoke.ts`), un avion porte son **ombre** au sol, l'écart valant son altitude — le fil
 aérien d'une route tout aérienne monte, tient sa croisière et redescend (`flightAltitude`,
 `thread.ts`) ; un véhicule entamé de mes mouvements **fume** comme posé (`movementWear`, lu sur
-mes troupes, `null` hors `mine`). **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
+mes troupes, `null` hors `mine`). **Et mes pièces vivent sur leur route** (lot « vie des
+pièces », 13/10/2026, valeurs du prototype) : un véhicule qui roule soulève de la **poussière**
+et tangue, une coque roule et pilonne, un avion **s'incline** dans la courbe de sa route lue
+autour de lui (`swayOf`, `sway.ts` ; rôles par `movementRoles`, donc `null` hors `mine` — un
+bloc adverse ne bouge pas), le tout en animations « actives » seulement, figé sinon ; le fil
+affiché tient déjà le rendu continu. **Et un site qui produit fume** : une couche d'`Ambience`
+à 8 pas par seconde (`MaquetteLayer.smoke`) au-dessus des repères `fx_smoke` de la maquette — le
+haut de sa boîte faute de repère —, sur mes seuls producteurs reliés dont le débit servi est
+positif (`producingSites`, `src/domain/producing.ts`), figée en « réduites », absente en
+« coupées ». Au rejeu, chaque pièce envoie **un trait d'encre** vers l'autre ligne pendant les
+salves (`salvoTarget`, `shotShare`, `replay.ts`), les deux lignes **tremblent** à l'impact et la
+fumée des salves s'attarde. **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
 mes bâtiments debout, les installations relevées et les objectifs neutres poussent au rapproché
 en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
 pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
@@ -501,13 +534,19 @@ qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
 Le battement est un filet, pas une excuse : un oubli se lit comme une demi-seconde de retard au
 lieu d'une carte gelée, et il se corrige.
 
+**La taille des pièces est une préférence** (`wws-piece-scale`, 50–150 %, deux curseurs aux Réglages : troupes et bâtiments) : un facteur au rapproché seulement (`pieceScale`, `src/map/engine/piece-scale.ts`, posé par `setPieceScale`), que les planches du lointain et les seuils ignorent ; l'anneau des « N sites » et le pied des garnisons suivent les bâtiments. Le fil des mouvements pèse la moitié de ce qu'il pesait (`THREAD_WEIGHT`, `arcs.ts`).
+
 **Et la carte vit — 10/10/2026** (`WWS/docs/design/propositions/carte-vivante.md`) : une houle
 lente passe sur la marbrure de la mer (`sea.ts` — une trame de points, essayée, fatiguait
 l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonction pure de l'heure
 (`weather.ts`, `ribbons.ts`), les courants marins y passent en filigrane (`currents.ts`), une
 écume respire le long des côtes au rapproché, lue sur un seul champ de distance à la côte
 (`coast-distance.ts`), un mouvement envoyé se trace à l'encre et une arrivée ou un combat
-s'imprime (`ink.ts`, `ink-bursts.ts`), et le rayon d'un de mes avant-postes qui se lève ou
+s'imprime (`ink.ts`, `ink-bursts.ts`) — un **tampon grenu** du prototype, le mot et l'heure,
+écrasé de 1,7 à 1, tenu trois secondes et levé (`stampAt`) : « arrivé », « engagé », puis
+« terrain tenu » après un engagement gagné et à l'ouverture du compte rendu d'un rejeu gagné, et
+« hors réseau » sur la région d'un de mes sites à l'instant où elle décolore (`cutRegions`, lu
+sur `regions[].linked`) —, et le rayon d'un de mes avant-postes qui se lève ou
 monte se trace une fois autour de lui (`raisedReaches`, muet à l'ouverture de la carte). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
@@ -527,7 +566,7 @@ terminaison glisse d'ouest en est en ombre douce. Une centaine de grandes villes
 la main faute de données, s'allument chacune à **son** crépuscule ; le ciel et la lampe suivent la
 nuit **au point regardé**, au rapproché seulement — la vue monde montre les deux moitiés et garde
 sa lumière. Lu au rendu, sans demande d'image : le battement suffit. `?heure=2026-01-15T23:00Z`
-fige l'instant en développement. Pas de feux sur les pièces.
+fige l'instant en développement. Pas de feux sur les pièces. Un réglage « cycle jour et nuit » (`localStorage`, Réglages) accélère le soleil à une journée par heure réelle — `boardInstant`, `src/domain/daylight.ts`, l'unique source de l'instant lu par le voile et les villes, dont `night.apply` tire aussi le ciel et la lampe ; le battement suffit (0,05° par image), et `?heure=` garde la priorité.
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne

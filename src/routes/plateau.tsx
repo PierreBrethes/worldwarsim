@@ -50,6 +50,7 @@ import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
@@ -61,6 +62,7 @@ import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
 import { maquettesOf } from './-plateau/maquettes';
+import { producingSites } from '@/domain/producing';
 import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
@@ -404,6 +406,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  const [departures, setDepartures] = useState(0);
   /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
   const [lifts, setLifts] = useState(0);
   const column = useMemo(
@@ -714,10 +717,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       if (move.kind === 'pose') return true;
       if (move.kind === 'drop') dropHand();
       else {
+        // Une troupe de la pile déployée compose la main : la fiche, remontée sur la main, en
+        // reprend les cases — et la caméra ne bouge pas sous le doigt qui coche.
         liftHand(move.hand);
         /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
          *  toucher qui la repose tomberait sur la feuille. */
-        if (narrow)
+        if (narrow && click.kind === 'pile')
           setReveal({
             ...boardPoint(clientX, clientY),
             floor: sheetHeight('peek'),
@@ -741,7 +746,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
-      return applyPileClick({ station, troopIds, shift: false }, clientX, clientY);
+      return applyPileClick({ kind: 'pile', station, troopIds }, clientX, clientY);
     },
     [openGarrison, boardPoint, view.me, marching, applyPileClick],
   );
@@ -1173,6 +1178,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [heldRaw],
   );
 
+  const cut = useMemo(
+    () => ({
+      unlinked: view.me.regions.filter((region) => !region.linked).map((region) => region.id),
+      producing: new Set(
+        view.me.buildings
+          .filter((building) => produces(building.key))
+          .map((building) => building.regionId),
+      ),
+    }),
+    [view.me.regions, view.me.buildings],
+  );
+
   const reachedOutposts = useMemo(
     () =>
       view.me.outposts.map(({ id, lonLat, level, standsAt }) => ({
@@ -1421,7 +1438,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
-  /** Un groupe de figurines, ou toute la pile par son jeton. */
+  /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée. */
   const pieceClick = useCallback(
     (hit: PieceClick): boolean => {
       const pile = markers.find(
@@ -1429,8 +1446,12 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
           marker.kind === 'stack' && marker.id === hit.pileId,
       );
       if (pile === undefined || pile.station.kind === 'home') return false;
+      const station = pile.station;
+      const troopId = hit.troopIds[0];
       return applyPileClick(
-        { station: pile.station, troopIds: hit.troopIds, shift: hit.shift },
+        hit.spread && troopId !== undefined
+          ? { kind: 'troop', station, troopId }
+          : { kind: 'pile', station, troopIds: pile.pieces.troopIds },
         hit.clientX,
         hit.clientY,
       );
@@ -1450,8 +1471,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
-    return maquettesOf(markers, (id) => keyOf.get(id));
-  }, [markers, view.objectives]);
+    return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
+  }, [markers, view.objectives, view.me]);
   const camps = useMemo(
     () =>
       markers.flatMap((marker) =>
@@ -1891,6 +1912,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const afterSent = useCallback(
     (filed: Sent) => {
       if (narrow && order !== null) setSent({ ...filed, order: order.label });
+      setDepartures((count) => count + 1);
       dropHand();
     },
     [narrow, order, dropHand],
@@ -1943,6 +1965,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               inkByCountry={inkByCountry}
               held={held}
               outposts={reachedOutposts}
+              cut={cut}
               built={built}
               selectedCountry={country ?? null}
               playerNation={view.me.nation}
@@ -1952,6 +1975,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
               holding={holding}
+              departures={departures}
               onPieceClick={view.me.defeated ? undefined : pieceClick}
               onRestAim={restAt}
               onRoseDismiss={dropHand}

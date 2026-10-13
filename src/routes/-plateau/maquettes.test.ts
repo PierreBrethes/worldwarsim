@@ -37,6 +37,13 @@ describe('maquettesOf', () => {
     ]);
   });
 
+  it('smokes over my producers at work, and over nothing else', () => {
+    const idle = building({ id: 'i', buildingId: 'b2' });
+    expect(
+      maquettesOf([building(), idle], () => undefined, new Set(['b1'])).map((m) => m.smoking),
+    ).toEqual([true, undefined]);
+  });
+
   it('keeps an upgrade standing, and raises a first level by the scale of its first level', () => {
     const upgrade = building({ finishesAt: 1, plate: null });
     const site = building({ id: 's', buildingId: null, level: null, finishesAt: 9, plate: null });

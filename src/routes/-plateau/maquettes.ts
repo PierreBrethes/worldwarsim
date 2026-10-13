@@ -15,6 +15,8 @@ import { buildMinutes } from '../../../convex/constants';
 export function maquettesOf(
   markers: ReadonlyArray<MapMarker>,
   objectiveKey: (objectiveId: string) => string | undefined,
+  /** My buildings that produce right now (`producingSites`): they smoke. */
+  producing: ReadonlySet<string> = new Set(),
 ): StandingMaquette[] {
   return markers.flatMap((marker): StandingMaquette[] => {
     const standing = (
@@ -22,7 +24,20 @@ export function maquettesOf(
       url: string | null,
       washed = false,
       rising?: StandingMaquette['rising'],
-    ) => (url === null ? [] : [{ id: marker.id, at, url, washed, ...(rising && { rising }) }]);
+      smoking = false,
+    ) =>
+      url === null
+        ? []
+        : [
+            {
+              id: marker.id,
+              at,
+              url,
+              washed,
+              ...(rising && { rising }),
+              ...(smoking && { smoking }),
+            },
+          ];
     switch (marker.kind) {
       case 'building':
         return standing(
@@ -32,6 +47,7 @@ export function maquettesOf(
           marker.level === null && marker.finishesAt !== null
             ? { finishesAt: Math.round(marker.finishesAt), minutes: buildMinutes(marker.key, 1) }
             : undefined,
+          marker.buildingId !== null && producing.has(marker.buildingId),
         );
       case 'installation':
         return standing(

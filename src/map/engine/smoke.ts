@@ -25,6 +25,8 @@ export type Plume = {
   readonly size: readonly [number, number];
   readonly opacity: number;
   readonly color: string;
+  /** How far it drifts sideways for its rise, by the top: the wind's push. 0.35 when absent. */
+  readonly lean?: number;
 };
 
 export const PLUME_BY_WEAR: Readonly<Record<Wear, Plume | null>> = {
@@ -44,7 +46,7 @@ export function puffAt(plume: Plume, rank: number, time: number) {
   return {
     height: plume.rise * phase,
     // It leans downwind as it rises: the column bends rather than standing like a post.
-    lean: 0.35 * plume.rise * phase * phase,
+    lean: (plume.lean ?? 0.35) * plume.rise * phase * phase,
     size: from + (to - from) * Math.sqrt(phase),
     opacity: plume.opacity * (phase < 0.15 ? phase / 0.15 : 1 - (phase - 0.15) / 0.85),
   };
@@ -104,6 +106,8 @@ export class Smoke {
     for (let k = 0; k < plume.puffs; k++) {
       const puff = new Sprite(this.steps[0]);
       puff.renderOrder = 3;
+      // Dust and smoke are air over the piece, not the piece: the pointer passes through.
+      puff.userData.ground = true;
       this.object.add(puff);
     }
     this.frame(0);
@@ -169,6 +173,8 @@ export class Wake {
     for (let k = 0; k < WAKE_PUFFS; k++) {
       const puff = new Mesh(WAKE_DISC, wakeSteps[0]);
       puff.renderOrder = 3;
+      // Foam on the water, not the hull: the pointer behind a ship is on the sea (`drawnHit`).
+      puff.userData.ground = true;
       this.object.add(puff);
     }
     this.frame(0);

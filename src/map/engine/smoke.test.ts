@@ -79,3 +79,10 @@ describe('Wake', () => {
     expect(wake.object.children).toHaveLength(pool);
   });
 });
+
+describe('a puff of smoke', () => {
+  it('never catches the pointer: it is air over the piece', () => {
+    const smoke = new Smoke(PLUME_BY_WEAR.smoking!);
+    expect(smoke.object.children.every((puff) => puff.userData.ground === true)).toBe(true);
+  });
+});

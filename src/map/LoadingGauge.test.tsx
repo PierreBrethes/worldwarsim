@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LoadingGauge } from './LoadingGauge';
+import { LoadingGauge, MarchGauge } from './LoadingGauge';
 
 describe('LoadingGauge', () => {
   afterEach(() => vi.useRealTimers());
@@ -24,5 +24,16 @@ describe('LoadingGauge', () => {
     expect(renderToStaticMarkup(<LoadingGauge until={at32Left()} crawl={false} />)).not.toContain(
       'loading-gauge--crawl',
     );
+  });
+});
+
+describe('MarchGauge', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('fills with the time walked over the whole trip', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    expect(renderToStaticMarkup(<MarchGauge since={0} dueAt={4_000} />)).toContain('width:25%');
+    expect(renderToStaticMarkup(<MarchGauge since={0} dueAt={500} />)).toContain('width:100%');
   });
 });

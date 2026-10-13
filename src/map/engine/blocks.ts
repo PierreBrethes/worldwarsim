@@ -9,6 +9,7 @@ import {
   PlaneGeometry,
   RingGeometry,
   SRGBColorSpace,
+  type Raycaster,
   type Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -17,8 +18,11 @@ import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import type { Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
+import { dropLift } from './landing';
 import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
+import { pieceScale } from './piece-scale';
+import { drawnHit, nearer, type PieceHit } from './piece-pick';
 
 /** A surveyed enemy camp as the board stands it: its label id, its point, its medium, its age. */
 export type SurveyedCamp = {
@@ -140,6 +144,7 @@ function block(medium: Medium, washed: boolean): { object: Group; piece: Group }
   if (washed) {
     const ring = new Mesh(RING, RING_INK);
     ring.scale.setScalar(FIGURINE_SCALE);
+    ring.userData.ground = true;
     object.add(ring);
   }
   return { object, piece };
@@ -196,8 +201,6 @@ function hand(): Group {
 
 /** The prototype's landing (`liftTick`), in seconds and model units: down with the hand, a drop, a small bounce. */
 const DESCENT = 0.35;
-const FALL = 0.14;
-const BOUNCE = 0.12;
 const HAND_GONE = 0.75;
 const FROM = 7;
 const LIFT = 1.1;
@@ -208,11 +211,7 @@ function landing(d: number): { lift: number; hand: number } {
     const lift = LIFT + (FROM - LIFT) * (1 - d / DESCENT) ** 2;
     return { lift, hand: lift + HAND_ABOVE };
   }
-  const hand = LIFT + HAND_ABOVE + (d - DESCENT) * 13;
-  const t = d - DESCENT;
-  if (t < FALL) return { lift: LIFT * (1 - t / FALL) ** 2, hand };
-  if (t < FALL + BOUNCE) return { lift: Math.sin(((t - FALL) / BOUNCE) * Math.PI) * 0.11, hand };
-  return { lift: 0, hand };
+  return { lift: dropLift(d - DESCENT, LIFT), hand: LIFT + HAND_ABOVE + (d - DESCENT) * 13 };
 }
 
 type Placed = {
@@ -274,6 +273,17 @@ export class CampLayer {
     return this.placed.has(id);
   }
 
+  /** The block under `ray`, the hand that lays it down aside. */
+  under(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const [id, { object, piece }] of this.placed) {
+      if (!object.visible) continue;
+      const distance = drawnHit(ray, piece);
+      if (distance !== null) best = nearer(best, { id, distance });
+    }
+    return best;
+  }
+
   /** A force at sea floats on the water, not on the crust's height. */
   rebuild(): void {
     for (const { lonLat, medium, object } of this.placed.values())
@@ -287,7 +297,7 @@ export class CampLayer {
       const { object, piece } = entry;
       const near = nearWeight(object.position.distanceTo(cameraPosition));
       object.visible = near > 0;
-      object.scale.setScalar(near);
+      object.scale.setScalar(near * pieceScale.troops);
       object.rotation.set(0, yaw, 0);
       if (entry.landing === null) continue;
       const d = (now - entry.landing.since) / 1000;

@@ -2,7 +2,15 @@ import { MeshStandardMaterial, Raycaster, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces } from '@/domain/pile-pieces';
-import { drawnKey, dressedGroups, type Faces, pileLayout, pileObject, pickedIn } from './standing';
+import {
+  drawnKey,
+  dressedGroups,
+  type Faces,
+  pileLayout,
+  pileObject,
+  pickedIn,
+  spreadLayout,
+} from './standing';
 
 const troop = (role: UnitRole, strength = 100) => ({
   id: role,
@@ -20,6 +28,27 @@ describe('pileLayout', () => {
   });
 });
 
+describe('spreadLayout', () => {
+  it('stands the troops side by side, centred on the point', () => {
+    expect(spreadLayout(1)).toEqual([{ x: 0, z: 0 }]);
+    expect(spreadLayout(3)).toEqual([
+      { x: -0.5, z: 0 },
+      { x: 0, z: 0 },
+      { x: 0.5, z: 0 },
+    ]);
+  });
+
+  it('starts a row behind the first past four, each row centred', () => {
+    const layout = spreadLayout(6);
+    expect(layout.slice(0, 4).map((at) => at.z)).toEqual([0, 0, 0, 0]);
+    expect(layout[0]!.x).toBe(-0.75);
+    expect(layout.slice(4)).toEqual([
+      { x: -0.25, z: -0.7 },
+      { x: 0.25, z: -0.7 },
+    ]);
+  });
+});
+
 describe('dressedGroups', () => {
   it('dresses a pile whose every group has a figurine', () => {
     expect(
@@ -30,7 +59,7 @@ describe('dressedGroups', () => {
   it('leaves the whole pile to its plate when one group has none', () => {
     expect(dressedGroups('france', pilePieces([troop('infantry'), troop('armor')]))).toBeNull();
     expect(dressedGroups('japan', pilePieces([troop('airTransport')]))).toBeNull();
-    expect(dressedGroups('france', { groups: [], more: 0, troopIds: [] })).toBeNull();
+    expect(dressedGroups('france', { groups: [], more: 0, troopIds: [], spread: [] })).toBeNull();
   });
 });
 

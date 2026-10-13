@@ -24,6 +24,7 @@ import {
   DEFAULT_MOUSE_MAPPING,
   buttonAt,
   cleanPressAt,
+  type CleanPress,
   dragRoleAt,
   type MouseButton,
   type MouseMapping,
@@ -36,14 +37,17 @@ import type { ArcView, TroopView } from '@/domain/player-view';
 import { FrameDemand } from './frame-demand';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
+import { boardInstant, type DayCycle } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
+import { pieceScale } from './piece-scale';
+import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
-import type { InkBurst } from '@/domain/ink-bursts';
+import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import {
@@ -63,8 +67,15 @@ import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
-import { StandingLayer, type CounterTexts, type PieceHold, type StandingPile } from './standing';
+import {
+  StandingLayer,
+  type CounterTexts,
+  type PieceHold,
+  type PiecePick,
+  type StandingPile,
+} from './standing';
 import { PointerRest } from './pointer-rest';
+import { nearer, type PieceHit } from './piece-pick';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { ReplayScene, replayReach } from './replay';
 import {
@@ -78,7 +89,7 @@ import {
 import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
-export type { CounterTexts, PieceHold, StandingPile } from './standing';
+export type { CounterTexts, PieceHold, PiecePick, StandingPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './blocks';
 
@@ -109,12 +120,20 @@ export type MapActClick = {
   clientY: number;
 };
 
-/** A clean press that took one of my pieces (`MapEngine.onPieceClick`). */
-export type PieceClick = PieceHold & {
-  /** Maj + clic adds a group of the same pile (ADR 0026 §6). */
-  shift: boolean;
+/** A clean press that took one of my pieces, or a troop of the deployed one
+ *  (`MapEngine.onPieceClick`). */
+export type PieceClick = PiecePick & {
   clientX: number;
   clientY: number;
+};
+
+/** A clean press on a drawn piece (`MapEngine.onPiecePress`), already read through the mapping. */
+export type PiecePress = {
+  readonly labelId: string;
+  readonly press: CleanPress;
+  readonly pointerType: string;
+  readonly clientX: number;
+  readonly clientY: number;
 };
 
 /** Where a held piece's pointer stopped: what `onAct` gets, and the DOM label it stopped on —
@@ -211,6 +230,7 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly forcedInstant = forcedInstant(location.search);
+  private dayCycle: DayCycle = 'real';
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -325,7 +345,10 @@ export class MapEngine {
   private hoveredArc: string | null = null;
   /** The piece in hand, `null` when nothing is held (ADR 0026 §6). */
   private held: PieceHold | null = null;
-  private hoveredPiece = false;
+  /** The cursor the piece under the mouse asks for: a hand on what lifts, a finger on what opens. */
+  private hoveredPiece: string | null = null;
+  /** The label of the piece under the mouse (`onPieceHover`). */
+  private hoveredLabel: string | null = null;
   private readonly rest = new PointerRest();
   private readonly lastPointer = { clientX: 0, clientY: 0 };
   /** The label under a held piece's pointer, `null` over the bare board. */
@@ -338,6 +361,15 @@ export class MapEngine {
    * done with that press. Unset, the press reads the board as it always did.
    */
   onPieceClick?: ((hit: PieceClick) => void) | undefined;
+  /**
+   * **The piece under the mouse, by its label's id** — a figurine, a maquette, a block, a pawn
+   * covers far more of the screen than its label does, and is what the player points at. `null`
+   * off every piece. A finger has no hover, a press in course or a building held none either.
+   */
+  onPieceHover?: ((labelId: string | null) => void) | undefined;
+  /** A clean press on a piece the canvas drew: its label answers it as if it had been pressed
+   *  itself, and says whether it did — `false` lets the board read the press. */
+  onPiecePress?: ((press: PiecePress) => boolean) | undefined;
   /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
   onRest?: (at: PointerStop) => void;
   /** It moved again after `onRest`, or left the board. */
@@ -465,6 +497,7 @@ export class MapEngine {
         }),
     );
     this.scene.add(this.maquettes.group);
+    this.ambience.add(this.maquettes.smoke);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
@@ -518,6 +551,27 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
+  /** The stamps of `kind` lifted from the board, as a replay that is left takes its own. */
+  liftStamps(kind: InkBurst['kind']): void {
+    this.invalidate();
+    this.ink.lift(kind);
+  }
+
+  /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
+  inkCut(regionId: string, words: StampWords): void {
+    this.invalidate();
+    const at = this.regions.anchorOf(regionId);
+    if (at === null) return;
+    this.ink.burst(
+      {
+        kind: 'cut',
+        at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+        words,
+      },
+      performance.now(),
+    );
+  }
+
   /** A point of mine now holds this far: its reach is inked once around it. */
   inkReach(at: LonLat, km: number): void {
     this.invalidate();
@@ -563,14 +617,23 @@ export class MapEngine {
    * told through `onRest` from the first move on; the clean left press then puts down
    * (`onAct`) rather than reads.
    */
-  holdPiece(held: PieceHold | null): void {
+  holdPiece(held: PieceHold | null, sent = false): void {
     this.invalidate();
     this.held = held;
-    this.standing.hold(held);
+    this.standing.hold(held, sent);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  /** **The piece in hand is set down where the pose opened its rose**, and waits there for
+   *  the order: it no longer follows the pointer on its way to the rose. */
+  setDownPiece(clientX: number, clientY: number): void {
+    this.invalidate();
+    if (this.held === null || !this.castAt(clientX, clientY)) return;
+    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    if (ground !== undefined) this.standing.setDown(ground);
   }
 
   /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
@@ -1162,6 +1225,8 @@ export class MapEngine {
     // Another finger of a pinch lifted: the press stays spoiled until its own finger goes.
     if (gesture !== null && event.pointerId !== gesture.pointerId) return;
     this.gesture = null;
+    // A press hides the piece under the pointer: released, it is there again.
+    this.hoverDirty = true;
     this.applyMapping();
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
@@ -1180,6 +1245,7 @@ export class MapEngine {
       this.updateHover();
     }
     if (press.picks && this.pickAt(event)) return;
+    if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt(event);
     if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
@@ -1203,11 +1269,35 @@ export class MapEngine {
     if (piece === null) return false;
     onPieceClick({
       ...piece,
-      shift: event.shiftKey,
       clientX: event.clientX,
       clientY: event.clientY,
     });
     return true;
+  }
+
+  /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
+  private pressPiece(event: PointerEvent, press: CleanPress): boolean {
+    if (this.onPiecePress === undefined || this.placing !== null || this.designating) return false;
+    if (!this.castAt(event.clientX, event.clientY)) return false;
+    const labelId = this.pieceUnder()?.id;
+    if (labelId === undefined) return false;
+    return this.onPiecePress({
+      labelId,
+      press,
+      pointerType: event.pointerType,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }
+
+  /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
+  private pieceUnder(): PieceHit | null {
+    return [
+      this.standing.under(this.ray),
+      this.camps.under(this.ray),
+      this.arcs.pawnUnder(this.ray),
+      this.maquettes.under(this.ray),
+    ].reduce(nearer, null);
   }
 
   /**
@@ -1230,7 +1320,7 @@ export class MapEngine {
     const { clientX, clientY } = this.lastPointer;
     const click = this.actClickAt(clientX, clientY);
     if (click.point === null && this.restLabel === null) return;
-    this.onRest?.({ ...click, labelId: this.restLabel });
+    this.onRest?.({ ...click, labelId: this.restLabel ?? this.hoveredLabel });
   }
 
   private readAt(event: PointerEvent): void {
@@ -1292,11 +1382,25 @@ export class MapEngine {
     this.hoverDirty = true;
   }
 
+  setDayCycle(cycle: DayCycle): void {
+    this.invalidate();
+    this.dayCycle = cycle;
+  }
+
+  /** Percentages from the settings; the pieces re-measure on the next frame. */
+  setPieceScale(scale: PieceScale): void {
+    this.invalidate();
+    pieceScale.troops = scale.troops / 100;
+    pieceScale.buildings = scale.buildings / 100;
+    this.maquettes.resize();
+  }
+
   setMapMotion(motion: MapMotion): void {
     this.invalidate();
     this.ambience.motion = motion;
     this.arcs.motion = motion;
     this.camps.motion = motion;
+    this.standing.motion = motion;
     this.ink.motion = motion;
     this.regions.terrain.motion = motion;
   }
@@ -1338,7 +1442,7 @@ export class MapEngine {
     else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
-    else if (this.hoveredPiece) style.cursor = PIECE_CURSOR;
+    else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
     else style.cursor = '';
   }
 
@@ -1590,13 +1694,30 @@ export class MapEngine {
     const onScreen = Math.abs(this.pointer.x) <= 1 && Math.abs(this.pointer.y) <= 1;
     const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
-
-    if (!this.fingerOnBoard || this.regionTapped) {
-      this.regionTapped = false;
-      this.updateRegionHover(hit?.point ?? null);
+    const pointing =
+      onScreen &&
+      !this.fingerOnBoard &&
+      this.gesture === null &&
+      this.placing === null &&
+      !this.designating;
+    const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    if (label !== this.hoveredLabel) {
+      this.hoveredLabel = label;
+      this.onPieceHover?.(label);
     }
 
-    const piece = !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null;
+    // The piece stands in front of its region: the region is not what the pointer is on.
+    if (!this.fingerOnBoard || this.regionTapped) {
+      this.regionTapped = false;
+      this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
+    }
+
+    const piece =
+      !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null
+        ? PIECE_CURSOR
+        : label !== null
+          ? 'pointer'
+          : null;
     if (piece !== this.hoveredPiece) {
       this.hoveredPiece = piece;
       this.refreshCursor();
@@ -1630,7 +1751,8 @@ export class MapEngine {
     }
 
     this.hovered = touched ?? null;
-    const adm0 = this.fingerOnBoard ? null : (this.hovered?.userData.adm0 ?? null);
+    const adm0 =
+      this.fingerOnBoard || label !== null ? null : (this.hovered?.userData.adm0 ?? null);
     if (adm0 !== this.hoveredCountry) {
       this.hoveredCountry = adm0;
       this.onCountryHover(adm0);
@@ -1677,7 +1799,14 @@ export class MapEngine {
     }
     // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image — et la plume
     // trace le terrain survolé tant qu'elle n'a pas fini.
-    if (this.arcs.isFlowing || this.ink.active || this.regions.terrain.active) this.invalidate();
+    if (
+      this.arcs.isFlowing ||
+      this.ink.active ||
+      this.regions.terrain.active ||
+      this.standing.isSpreading ||
+      this.standing.isCarrying
+    )
+      this.invalidate();
     const now = performance.now();
     this.advanceReplay(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
@@ -1689,7 +1818,7 @@ export class MapEngine {
     const distance = this.camera.position.distanceTo(this.controls.target);
     const looked = this.controls.target;
     this.night.apply(
-      this.forcedInstant ?? Date.now(),
+      this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle),
       this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
       distance,
     );

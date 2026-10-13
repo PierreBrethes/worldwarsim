@@ -360,6 +360,18 @@
   background-size: 8.49px 8.49px;
 }
 
+/* My column's way walked: the prototype's ochre bar, no quarters — nothing drops on the way. */
+.loading-gauge--march {
+  width: 96px;
+  height: 4px;
+  border-color: var(--notable);
+  background: none;
+}
+
+.loading-gauge--march b {
+  background: var(--notable);
+}
+
 .loading-gauge--crawl b {
   animation: loading-crawl 0.7s linear infinite;
 }
@@ -798,4 +810,18 @@
 .label--postered .label-lines,
 .label--postered .label-bar {
   opacity: 0;
+}
+
+/* Habillée, la pièce prend le pointeur par la toile : son étiquette, plantée au milieu d'elle,
+   ne vole plus le clic de ce qu'elle couvre — planche, mât, pictogramme. Ses mots, hissés
+   au-dessus de la pièce, restent à elle ; le clavier aussi. Un cartouche réuni de maquettes
+   suit la même règle. */
+.label-anchor.label-anchor--dressed .label-block,
+.label-anchor.label-anchor--dressed .label-block * {
+  pointer-events: none;
+}
+
+.label-anchor.label-anchor--dressed .label-block .label-lines,
+.label-anchor.label-anchor--dressed .label-block .label-lines * {
+  pointer-events: auto;
 }

@@ -90,7 +90,7 @@ describe('posterOf', () => {
       stack: { infantry: 1 },
       place: 'Marne',
       plate: null,
-      pieces: { groups: [], more: 0, troopIds: [] },
+      pieces: { groups: [], more: 0, troopIds: [], spread: [] },
       ink: '#2f4f78',
     };
     const poster = posterFor(view(), [pile], 'pile');
@@ -122,7 +122,18 @@ describe('posterOf', () => {
       progress: 0.4,
     };
     const poster = posterFor(view({ arcs: [arc] }), [], 'mv');
-    expect(poster).toMatchObject({ eyebrow: 'mouvement · le mien', title: '1 blindé', bar: 0.4 });
+    expect(poster).toMatchObject({
+      eyebrow: 'mouvement · le mien',
+      title: '1 blindé',
+      bar: 0.4,
+      loading: null,
+    });
+    const until = LOADED_AT + 3_600_000;
+    const loading = {
+      ...arc,
+      mission: { kind: 'plunder', phase: 'presence', buildingId: 'b', presenceEndsAt: until },
+    } as ArcView;
+    expect(posterFor(view({ arcs: [loading] }), [], 'mv')?.loading).toBe(until);
     expect(poster?.lines).toContainEqual({
       kind: 'row',
       label: 'Marne → Meuse',
@@ -257,6 +268,7 @@ describe('posterOf', () => {
         { kind: 'row', label: 'dépôt restant', value: '120 alliage' },
       ],
       bar: null,
+      loading: null,
       pile: null,
     });
   });

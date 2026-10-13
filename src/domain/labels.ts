@@ -249,7 +249,13 @@ export type LabelType =
  */
 export type LabelLine =
   | { readonly role: 'nature' | 'figures' | 'headcount' | 'mention'; readonly text: string }
-  | { readonly role: 'countdown'; readonly dueAt: number; readonly prefix: string }
+  | {
+      readonly role: 'countdown';
+      readonly dueAt: number;
+      readonly prefix: string;
+      /** My column's departure, read off the share served: its bar fills from there to `dueAt`. */
+      readonly since?: number;
+    }
   /** My expedition loading on site: a bar and what is left, in place of the countdown. */
   | { readonly role: 'loading'; readonly until: number };
 
@@ -889,7 +895,11 @@ function scheduleLines(
 ): ReadonlyArray<LabelLine> {
   const wait = arc.borderWait;
   if (wait === null) {
-    return [{ role: 'countdown', dueAt: loadedAt + arc.minutesLeft * 60_000, prefix: '' }];
+    const dueAt = loadedAt + arc.minutesLeft * 60_000;
+    // The share walked and the minutes left date the departure; a share at its end dates nothing.
+    const since =
+      arc.progress < 1 ? loadedAt - (arc.progress / (1 - arc.progress)) * (dueAt - loadedAt) : null;
+    return [{ role: 'countdown', dueAt, prefix: '', ...(since === null ? {} : { since }) }];
   }
   const resolvesAt = asLocalTime(loadedAt + wait.resolutionInMinutes * 60_000);
   if (arc.minutesLeft === 0) return [{ role: 'mention', text: fr.labels.arrivalHeld(resolvesAt) }];

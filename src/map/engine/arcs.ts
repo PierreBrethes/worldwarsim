@@ -16,12 +16,15 @@ import type { Medium } from '@/domain/routing';
 import { buildThread, pointOnLeg, projectOnGround, stretchTether, type Thread } from './thread';
 import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
+import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
+import { pieceScale } from './piece-scale';
+import { drawnHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
   arc: ArcView;
@@ -47,16 +50,22 @@ type RenderedArc = {
   loadingUntil: number | null;
 };
 
+/** Every thread's weight against its original design: the first one read too heavy on the sheet. */
+const THREAD_WEIGHT = 0.5;
+
+/** Board units read behind and ahead of a plane for the bend of its road: a few grid cells. */
+const BANK_SPAN = 0.4;
+
 /**
  * Thickness carries the hierarchy between movements — the ribbon's floor in pixels, and its true
  * width in proportion (`threadWidth`): what is not mine does not push to the foreground. Within a thread it says nothing — covered and
  * remaining are the same stroke, and the dashes tell them apart.
  */
 const THICKNESSES: Readonly<Record<ArcView['state'], number>> = {
-  mine: 2.5,
-  enemyDetected: 2,
-  lastKnown: 2,
-  seaControl: 2,
+  mine: 2.5 * THREAD_WEIGHT,
+  enemyDetected: 2 * THREAD_WEIGHT,
+  lastKnown: 2 * THREAD_WEIGHT,
+  seaControl: 2 * THREAD_WEIGHT,
 };
 
 const TRACE_OPACITY = 0.55;
@@ -76,6 +85,8 @@ export class ArcLayer {
   /** The head labels' screen positions read here: they move every frame. */
   readonly headPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
+  private readonly behindPoint = new Vector3();
+  private readonly furtherPoint = new Vector3();
   private readonly aheadPoint = new Vector3();
   private readonly groundPoint = new Vector3();
   private readonly cameraPosition = new Vector3();
@@ -183,6 +194,7 @@ export class ArcLayer {
               air: figurineOf(roles.air),
             },
         movementWear(arc, this.troops),
+        roles,
       );
       pawn.visible = !stale;
       this.group.add(pawn.object);
@@ -246,6 +258,16 @@ export class ArcLayer {
     this.applyAccent();
   }
 
+  /** The pawn under `ray`, by its movement's id — the id its head label carries. */
+  pawnUnder(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const { arc, pawn } of this.rendered) {
+      const distance = drawnHit(ray, pawn.object);
+      if (distance !== null) best = nearer(best, { id: arc.id, distance });
+    }
+    return best;
+  }
+
   /** The movement id under the pointer, so the timeline highlights its card. */
   hover(ray: Raycaster): string | null {
     const hit = ray.intersectObjects(this.targets, false)[0];
@@ -271,7 +293,7 @@ export class ArcLayer {
       if (rendered.relic !== null) {
         const near = nearWeight(rendered.relic.position.distanceTo(this.cameraPosition));
         rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(near);
+        rendered.relic.scale.setScalar(near * pieceScale.troops);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);
@@ -290,9 +312,16 @@ export class ArcLayer {
       rendered.thread.cut(legIndex, local);
 
       const leg = rendered.thread.legs[legIndex];
+      let turn = 0;
       if (leg !== undefined) {
         pointOnLeg(leg, local, this.pawnPoint);
         pointOnLeg(leg, Math.min(1, local + 0.01), this.aheadPoint);
+        if (leg.medium === 'air' && leg.length > 0) {
+          const span = BANK_SPAN / leg.length;
+          pointOnLeg(leg, local - span, this.behindPoint);
+          pointOnLeg(leg, local + span, this.furtherPoint);
+          turn = bendAround(this.behindPoint, this.pawnPoint, this.furtherPoint);
+        }
         // At the dock, the pawn already wears the silhouette of what it is about to become:
         // it is the embarkation itself that shows, and the stop that reads.
         rendered.pawn.wear(
@@ -305,8 +334,8 @@ export class ArcLayer {
         this.aheadPoint.copy(rendered.rest);
       } else continue;
       projectOnGround(this.pawnPoint, this.groundPoint);
-      rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y);
-      if (this.motion === 'full') rendered.pawn.step(elapsed);
+      rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y, turn);
+      rendered.pawn.step(this.motion === 'full' ? elapsed : null);
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
       rendered.headPosition.copy(this.pawnPoint);
 

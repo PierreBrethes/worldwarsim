@@ -34,11 +34,14 @@ import {
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
+import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useDayCycle } from '@/data/dayCycle';
 import { useMapMotion } from '@/data/mapMotion';
+import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
 import { useBoardInsets } from '@/shell/viewport';
@@ -81,6 +84,13 @@ type Props = {
   /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
   outposts: ReadonlyArray<ReachedOutpost>;
   /**
+   * **My regions that lost their colour** (ADR 0020 §6), and those where something of mine
+   * produces: a region that loses it under a producer is stamped « hors réseau » beside its
+   * maquette. The colour is what is diffed, not the sites — a producer finished on ground already
+   * cut was never cut.
+   */
+  cut?: { readonly unlinked: ReadonlyArray<string>; readonly producing: ReadonlySet<string> };
+  /**
    * What the player has built, and his ink to lay it in. Opposing buildings are absent from
    * `PlayerView`, so no region but his own can ever be inked here (ADR 0005).
    */
@@ -102,6 +112,9 @@ type Props = {
   onOpenStack?: (station: TroopStation, clientX: number, clientY: number) => boolean;
   /** **La pièce en main** (ADR 0026 §6), que le moteur porte sous le pointeur. */
   holding?: PieceHold | null;
+  /** Compte les ordres partis : la pièce lâchée après l'un d'eux ne rentre pas chez elle, son
+   *  pion prend le relais. */
+  departures?: number;
   /** Un groupe de figurines pris au clic ; vrai quand le clic pose sur cette pile. */
   onPieceClick?: ((hit: PieceClick) => boolean) | undefined;
   /**
@@ -243,6 +256,9 @@ export type PlacingBuilding = {
 
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
+const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
+/** The branches that open the order card (`actOnCompass`) rather than act at once. */
+const ORDER_CARD_KEYS: ReadonlySet<CompassAction['key']> = new Set(['aim', 'plunder', 'collect']);
 const NO_DESTINATIONS: ReadonlySet<string> = new Set();
 
 const COUNTER_TEXTS = { count: fr.troops.sheetCount, more: fr.troops.moreRoles };
@@ -259,6 +275,7 @@ export function WorldMap({
   inkByCountry,
   held,
   outposts,
+  cut = NO_CUT,
   built,
   selectedCountry,
   playerNation,
@@ -268,6 +285,7 @@ export function WorldMap({
   onOpenBuilding,
   onOpenStack,
   holding = null,
+  departures = 0,
   onPieceClick,
   onRestAim,
   onRoseDismiss,
@@ -320,6 +338,8 @@ export function WorldMap({
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
   const motion = useMapMotion();
+  const dayCycle = useDayCycle();
+  const pieces = usePieceScale();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -387,16 +407,24 @@ export function WorldMap({
       const rect = container.current?.getBoundingClientRect();
       if (drawn === null || rect === undefined) return;
       const at = { x: clientX - rect.left, y: clientY - rect.top };
+      /** **La pièce se pose là où l'ordre se lit** — sous une rose ou une carte d'ordre — et pas
+       *  quand le geste part droit au serveur : un refus la laisserait figée au sol. */
+      const setDown = () => {
+        if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
+      };
       if (aiming && onOrderTarget?.(drawn, at) === true) {
+        setDown();
         setRose(null);
         return;
       }
       const sole = aiming ? soleOrderOf(drawn) : null;
       if (sole !== null) {
+        if (ORDER_CARD_KEYS.has(sole.key)) setDown();
         setRose(null);
         onCompassAction(sole, at);
         return;
       }
+      setDown();
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
        *  sous elle une fois mesurée (`CompassRose`, `fitShift`). */
@@ -411,7 +439,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction],
+    [compassOf, fingerRose, aiming, onOrderTarget, onCompassAction, holding],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -564,9 +592,11 @@ export function WorldMap({
       });
   }, [readyEngine, onPieceClick, labels, onLabelAct]);
 
+  const departed = useRef(departures);
   useEffect(() => {
-    readyEngine?.holdPiece(holding);
-  }, [readyEngine, holding]);
+    readyEngine?.holdPiece(holding, departed.current !== departures);
+    departed.current = departures;
+  }, [readyEngine, holding, departures]);
 
   /** Lue sur le point de la pile et non sous un pointeur : la fiche n'a pas de clic à suivre. */
   useEffect(() => {
@@ -644,8 +674,16 @@ export function WorldMap({
   }, [readyEngine, mapping]);
 
   useEffect(() => {
+    readyEngine?.setPieceScale(pieces);
+  }, [readyEngine, pieces]);
+
+  useEffect(() => {
     readyEngine?.setMapMotion(motion);
   }, [readyEngine, motion]);
+
+  useEffect(() => {
+    readyEngine?.setDayCycle(dayCycle);
+  }, [readyEngine, dayCycle]);
 
   useEffect(() => {
     readyEngine?.setEdgeInsets(insets);
@@ -718,12 +756,32 @@ export function WorldMap({
   useEffect(() => {
     if (!readyEngine || replayView === null) return;
     setRose(null);
+    // « Terrain tenu », the account's own stamp, pressed on the board too as the account opens.
+    const held = replayView.won
+      ? {
+          kind: 'held' as const,
+          at: [replayView.point.lon, replayView.point.lat] as const,
+          words: { word: fr.replay.held, hour: asClockTime(replayView.at) },
+        }
+      : null;
+    // Once a replay: stepping back and forth through the account does not stamp it again.
+    let stamped = false;
     readyEngine.playReplay(
       replayView,
-      (step, ended) => replayStep.current?.(step, ended),
+      (step, ended) => {
+        if (held !== null && step === 'compte-rendu' && !stamped) {
+          stamped = true;
+          readyEngine.inkBurst(held);
+        }
+        replayStep.current?.(step, ended);
+      },
       below.current,
     );
-    return () => readyEngine.stopReplay();
+    return () => {
+      readyEngine.stopReplay();
+      // « Quitter » takes the account's stamp with it: it belonged to the replay.
+      if (stamped) readyEngine.liftStamps('held');
+    };
   }, [readyEngine, replayView]);
   const replayPlaying = replay?.playing ?? true;
   useEffect(() => {
@@ -781,6 +839,17 @@ export function WorldMap({
     if (before === null) return;
     for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
   }, [outposts, readyEngine]);
+
+  const cutBefore = useRef<ReadonlyArray<string> | null>(null);
+  useEffect(() => {
+    const before = cutBefore.current;
+    cutBefore.current = cut.unlinked;
+    if (before === null || readyEngine === null) return;
+    const hour = asClockTime(Date.now());
+    for (const regionId of cut.unlinked)
+      if (!before.includes(regionId) && cut.producing.has(regionId))
+        readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
+  }, [cut, readyEngine]);
 
   const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
   useEffect(() => {
