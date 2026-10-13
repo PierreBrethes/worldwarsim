@@ -494,6 +494,20 @@
   opacity: calc(1 - var(--dressed, 0));
 }
 
+/* The same for a building, a surveyed installation and an objective in maquette (ADR 0026 §1).
+   An upgrade's crane is a pictogram, not a plate: it stays beside the building. */
+.label--building .label-plate,
+.label--building .label-bar,
+.label--building:not(.label--selected)::before,
+.label--installation .label-plate,
+.label--installation .label-bar,
+.label--installation:not(.label--selected)::before,
+.label--objective .label-plate,
+.label--objective .label-bar,
+.label--objective:not(.label--selected)::before {
+  opacity: calc(1 - var(--dressed, 0));
+}
+
 .label--stack.label--glyph .label-block {
   opacity: 1;
   pointer-events: auto;
@@ -673,6 +687,13 @@
 
 .label-group-plates .label-plate + .label-plate {
   margin-left: -12px;
+}
+
+/* Up close the group's maquettes stand in a ring under the mast: its plates give way, the
+   cartouche stays to take the click. */
+.label--building-group .label-group-plates,
+.label--building-group .label-bar {
+  opacity: calc(1 - var(--dressed, 0));
 }
 
 .label--building.label--grouped .label-pictogram {

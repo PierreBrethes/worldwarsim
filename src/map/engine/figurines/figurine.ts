@@ -39,7 +39,8 @@ export type Figurine = {
 
 const loader = new GLTFLoader();
 const scenes = new Map<string, Promise<Object3D>>();
-function sceneOf(url: string): Promise<Object3D> {
+/** One load per file, shared by every figurine and maquette drawn from it. */
+export function sceneOf(url: string): Promise<Object3D> {
   let scene = scenes.get(url);
   if (!scene) {
     scene = loader.loadAsync(url).then((gltf) => gltf.scene);

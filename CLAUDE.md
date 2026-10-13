@@ -336,7 +336,15 @@ que le milieu servi. Au rapproché, le pion dit son milieu : une coque en mer la
 (`Wake`, `smoke.ts`), un avion porte son **ombre** au sol, l'écart valant son altitude — le fil
 aérien d'une route tout aérienne monte, tient sa croisière et redescend (`flightAltitude`,
 `thread.ts`) ; un véhicule entamé de mes mouvements **fume** comme posé (`movementWear`, lu sur
-mes troupes, `null` hors `mine`). Les garnisons de bâtiment sont le lot suivant.
+mes troupes, `null` hors `mine`). **Et les bâtiments sont des maquettes** (lot 6, 13/10/2026) :
+mes bâtiments debout, les installations relevées et les objectifs neutres poussent au rapproché
+en maquettes 3D, les mêmes pour toutes les nations, et leur plaque s'efface comme celle d'une
+pile (`maquettesOf`, `src/routes/-plateau/maquettes.ts` ; `MaquetteLayer`, `maquettes.ts` — une
+instance par exemplaire, une géométrie par matière, toutes ramenées à `MAQUETTE_SPAN`) ; une
+mine sur charbon prend son chevalement (`buildingMaquette`), un premier niveau sous la grue
+garde sa grue, un relevé daté se délave, et les sites réunis en « N sites » se rangent en
+anneau sous leur cartouche. Les garnisons de bâtiment, elles,
+restent lues sur le mât : pas de figurines dans un bâtiment.
 
 **La carte se zoome jusqu'au pays** (littoraux Natural Earth 50m, trame de mer recalculée au
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière

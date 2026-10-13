@@ -156,6 +156,8 @@ export function MapLabels({
    */
   const [groups, setGroups] = useState<ReadonlyArray<LabelGroup>>([]);
   const groupsNow = useRef<ReadonlyArray<LabelGroup>>([]);
+  /** The members of each group that hang a plate — a site under the crane has none to fade. */
+  const platedNow = useRef<ReadonlyMap<string, ReadonlyArray<string>>>(new Map());
   const groupAnchors = useRef(new Map<string, HTMLElement>());
   /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
   const widths = useRef(new Map<string, number>());
@@ -332,6 +334,18 @@ export function MapLabels({
     }
 
     const shown = formed.filter((group) => !fans(group));
+    // Folded into « N sites », the buildings gather around the cartouche's mast up close.
+    engine?.gatherMaquettes(
+      shown
+        .filter((group) => group.kind === 'building' && placedGroups.get(group.id) === true)
+        .map((group) => group.members),
+    );
+    const plated = new Set(
+      measured.flatMap(({ label }) => (label.plate === null ? [] : [label.id])),
+    );
+    platedNow.current = new Map(
+      shown.map((group) => [group.id, group.members.filter((member) => plated.has(member))]),
+    );
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
     point(held);
@@ -475,7 +489,15 @@ export function MapLabels({
         if (!anchor) continue;
         const shown = lead?.visible === true && lead.grouped;
         anchor.style.display = shown ? '' : 'none';
-        if (shown) anchor.style.transform = `translate3d(${lead.x}px, ${lead.y}px, 0)`;
+        if (!shown) continue;
+        anchor.style.transform = `translate3d(${lead.x}px, ${lead.y}px, 0)`;
+        // Its plates give way as its members' do: the maquettes stand in a ring under it.
+        const plated = platedNow.current.get(group.id) ?? [];
+        const dressed =
+          plated.length === 0
+            ? 0
+            : Math.min(...plated.map((member) => states.current.get(member)?.dressed ?? 0));
+        anchor.style.setProperty('--dressed', String(dressed));
       }
     };
     const unsubscribe = engine.subscribeRest(degrade);
