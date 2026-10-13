@@ -79,14 +79,19 @@ export function ReplayDeck({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const control = `cursor-pointer border border-[var(--ink)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase ${
+  const frame = `cursor-pointer border border-[var(--ink)] px-3 font-semibold tracking-[.16em] uppercase ${
     narrow ? 'min-h-[44px] flex-1' : 'py-[6px]'
   }`;
+  const control = `${frame} text-[10.5px]`;
+  /** Un chevron en petites capitales se perdait dans un bouton de 44 px au pouce. */
+  const arrow = `${frame} ${narrow ? 'text-[18px] leading-none' : 'text-[10.5px]'}`;
   return (
+    /* Au téléphone, le relief de « à faire » monte de la barre de pied dans le bandeau : la marge
+       basse le laisse sous les boutons au lieu de les toucher. */
     <div
       className={`paper-grain absolute bottom-0 flex flex-col gap-2 border border-[var(--ink)] text-[var(--ink)] ${
         narrow
-          ? 'inset-x-0 border-x-0 border-b-0 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]'
+          ? 'inset-x-0 border-x-0 border-b-0 px-4 pt-3 pb-[max(24px,env(safe-area-inset-bottom))]'
           : 'left-1/2 mb-4 w-[min(560px,calc(100%-32px))] -translate-x-1/2 px-4 py-3'
       }`}
     >
@@ -129,7 +134,7 @@ export function ReplayDeck({
             <button
               type="button"
               aria-label={fr.replay.previous}
-              className={control}
+              className={arrow}
               onClick={() => onStep(-1)}
             >
               ‹
@@ -140,7 +145,7 @@ export function ReplayDeck({
             <button
               type="button"
               aria-label={fr.replay.next}
-              className={control}
+              className={arrow}
               onClick={() => onStep(1)}
             >
               ›
