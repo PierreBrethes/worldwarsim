@@ -113,11 +113,12 @@ export class Smoke {
     this.frame(0);
   }
 
-  frame(time: number): void {
+  /** `fade` (0..1) dims the whole plume: the way out of a smoke that is about to be retired. */
+  frame(time: number, fade = 1): void {
     this.object.children.forEach((child, rank) => {
       const puff = child as Sprite;
       const { height, lean, size, opacity } = puffAt(this.plume, rank, time);
-      const step = Math.round((opacity / this.plume.opacity) * OPACITY_STEPS);
+      const step = Math.round((opacity * fade * OPACITY_STEPS) / this.plume.opacity);
       puff.visible = step > 0;
       puff.material = this.steps[step]!;
       puff.position.set(lean, height, 0);

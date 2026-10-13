@@ -1,4 +1,4 @@
-import { Group, Vector3, type Camera, type Raycaster } from 'three';
+import { type Box3, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
   temporalPosition,
@@ -24,7 +24,7 @@ import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { pieceScale } from './piece-scale';
-import { drawnHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
   arc: ArcView;
@@ -256,6 +256,11 @@ export class ArcLayer {
     if (id === this.accented) return;
     this.accented = id;
     this.applyAccent();
+  }
+
+  boxOf(id: string): Box3 | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    return rendered?.pawn.object.visible ? boxOfObject(rendered.pawn.object) : null;
   }
 
   /** The pawn under `ray`, by its movement's id — the id its head label carries. */

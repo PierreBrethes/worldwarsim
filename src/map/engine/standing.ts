@@ -1,4 +1,5 @@
 import {
+  type Box3,
   BoxGeometry,
   CanvasTexture,
   CircleGeometry,
@@ -29,14 +30,14 @@ import {
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
-import { footedHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, footedHit, nearer, type PieceHit } from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
   readonly id: string;
   /**
-   * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. A
-   * garrison is shown, never lifted — its garrison panel is the one way to take it in hand.
+   * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is
+   * lifted by its figurines like any pile; the maquette itself opens its site.
    */
   readonly at: { readonly lonLat: LonLat } | { readonly beside: string };
   readonly pieces: PilePieces;
@@ -503,7 +504,13 @@ type Spread = {
 };
 
 /** What a pick found: a troop of the deployed pile, or the pile itself. */
-export type PiecePick = PieceHold & { readonly spread: boolean };
+export type PiecePick = PieceHold & {
+  readonly spread: boolean;
+  /** How far from the eye: a maquette in front of the piece takes the click. */
+  readonly distance: number;
+  /** The piece in hand itself: it is put back wherever it is seen. */
+  readonly carried?: true;
+};
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
 export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
@@ -652,7 +659,8 @@ export class StandingLayer {
       if (distance !== null && (copy === null || distance < copy.distance))
         copy = { distance, pick: { pileId: carried.pileId, troopIds: carried.troopIds } };
     }
-    if (copy !== null) return { ...copy.pick, spread: false };
+    if (copy !== null)
+      return { ...copy.pick, spread: false, distance: copy.distance, carried: true };
     const spread = this.spread;
     // Half open, the troops have taken over from the groups: before, the pile still answers.
     const deployed =
@@ -668,23 +676,35 @@ export class StandingLayer {
         const distance = footedHit(ray, object, footprints);
         if (distance !== null) troop = nearer(troop, { id: troopId, distance });
       }
-      if (troop !== null) return { pileId: spread.pileId, troopIds: [troop.id], spread: true };
+      if (troop !== null)
+        return {
+          pileId: spread.pileId,
+          troopIds: [troop.id],
+          spread: true,
+          distance: troop.distance,
+        };
     }
     let best: { distance: number; pick: PieceHold } | null = null;
     for (const [pileId, entry] of this.dressed) {
-      if (!entry.ready || !entry.object.visible || 'beside' in entry.at) continue;
+      if (!entry.ready || !entry.object.visible) continue;
       if (deployed && spread?.pileId === pileId) continue;
       const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
       if (distance === undefined || (best !== null && best.distance <= distance)) continue;
       const troopIds = pickedIn(ray, entry.targets, entry.pieces);
       if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
     }
-    return best === null ? null : { ...best.pick, spread: false };
+    return best === null ? null : { ...best.pick, spread: false, distance: best.distance };
+  }
+
+  /** The world box of the figurines a dressed pile stands in, `null` when it is not drawn. */
+  boxOf(id: string): Box3 | null {
+    const entry = this.dressed.get(id);
+    return entry?.ready === true && entry.object.visible ? boxOfObject(entry.object) : null;
   }
 
   /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside
-   *  its maquette included: what the pointer is over is not only what it may lift. The pile in
-   *  hand is not under the pointer: it is what the pointer carries. */
+   *  its maquette included. The pile in hand is not under the pointer: it is what the pointer
+   *  carries. */
   under(ray: Raycaster): PieceHit | null {
     let best: PieceHit | null = null;
     for (const [id, entry] of this.dressed) {
@@ -794,8 +814,7 @@ export class StandingLayer {
 
   /**
    * **Deploys the pile in hand, one figurine per troop** (ADR 0026 §6, 13/10), the troops out of
-   * hand washed; any other hand folds it back. A pile of one troop has nothing to deploy, and a
-   * garrison is never lifted from the board.
+   * hand washed; any other hand folds it back. A pile of one troop has nothing to deploy.
    */
   private deploy(held: PieceHold | null): void {
     let spread = this.spread;
@@ -807,7 +826,7 @@ export class StandingLayer {
     if (held === null) return;
     if (spread === null) {
       const entry = this.dressed.get(held.pileId);
-      if (!entry?.ready || 'beside' in entry.at || entry.pieces.spread.length < 2) return;
+      if (!entry?.ready || entry.pieces.spread.length < 2) return;
       const built = spreadObject(this.nation, entry.pieces, held.pileId);
       if (built === null) return;
       const fresh: Spread = {
@@ -975,18 +994,23 @@ export class StandingLayer {
     object.scale.setScalar(scale);
   }
 
-  /** A regathered pile drops onto its point; only a pile on open ground deploys. */
+  /** A regathered pile drops onto its point, or its maquette's foot. */
   private orientSettle(): void {
     const settle = this.settle;
     if (settle === null) return;
     const entry = this.dressed.get(settle.pileId);
     const t = this.seconds(settle.since, performance.now());
-    if (entry === undefined || !('lonLat' in entry.at) || t >= DROP_DONE) {
+    const base =
+      entry === undefined
+        ? null
+        : 'lonLat' in entry.at
+          ? this.frame.projectLonLat(entry.at.lonLat, COUNTRY_THICKNESS)
+          : (this.garrisonAt(entry.at.beside)?.at ?? null);
+    if (entry === undefined || base === null || t >= DROP_DONE) {
       this.settle = null;
       this.rebuild();
       return;
     }
-    const base = this.frame.projectLonLat(entry.at.lonLat, COUNTRY_THICKNESS);
     entry.object.position.y = base.y + dropLift(t, SETTLE_DROP) * entry.object.scale.y;
   }
 
@@ -1010,10 +1034,10 @@ export class StandingLayer {
     const eased = t * t * (3 - 2 * t);
     const point = entry.object.position;
     const near = nearWeight(point.distanceTo(cameraPosition));
-    entry.object.scale.setScalar(near * (1 - eased));
+    entry.object.scale.setScalar(near * pieceScale.troops * (1 - eased));
     spread.object.visible = near > 0;
     spread.object.position.copy(point);
-    spread.object.scale.setScalar(near);
+    spread.object.scale.setScalar(near * pieceScale.troops);
     spread.object.rotation.y = Math.atan2(cameraPosition.x - point.x, cameraPosition.z - point.z);
     const travel = this.motion === 'full' ? eased : 1;
     for (const { object, to } of spread.parts.values()) {

@@ -145,7 +145,7 @@ export function readIndicatorToggles(): IndicatorToggles {
   return Object.fromEntries(
     CATEGORIES.map((category) => [
       category,
-      typeof kept[category] === 'boolean' && (category !== 'deposits' || kept[DEPOSITS_CLOSE])
+      typeof kept[category] === 'boolean' && (category !== 'deposits' || kept[DEPOSITS_EVERYWHERE])
         ? kept[category]
         : DEFAULT_TOGGLES[category],
     ]),
@@ -153,13 +153,13 @@ export function readIndicatorToggles(): IndicatorToggles {
 }
 
 /**
- * Before 13/10 any bascule touched wrote the whole object, `deposits: true` included — the
- * default of the time, not the player's choice. Only what is written since says it.
+ * Until 13/10 the deposits bascule meant "close up" when off; it now means hidden. Only what is
+ * written since carries this marker, and an older `deposits: false` takes the default (on).
  */
-const DEPOSITS_CLOSE = 'depositsClose';
+const DEPOSITS_EVERYWHERE = 'depositsEverywhere';
 
 export function keepIndicatorToggles(toggles: IndicatorToggles): void {
-  localStorage.setItem(INDICATORS_KEY, JSON.stringify({ ...toggles, [DEPOSITS_CLOSE]: true }));
+  localStorage.setItem(INDICATORS_KEY, JSON.stringify({ ...toggles, [DEPOSITS_EVERYWHERE]: true }));
 }
 
 const WINDOW_LAYOUT_KEY = 'wws-window-layout';

@@ -40,15 +40,14 @@ describe('le mappage gardé par le navigateur', () => {
 });
 
 describe('les bascules gardées par le navigateur', () => {
-  /** Avant le 13/10, toute bascule touchée écrivait l'objet entier, `deposits: true` compris —
-   *  le défaut d'alors, pas un choix du joueur. */
-  it('ne relit pas les gisements écrits avant leur rapproché', () => {
-    kept.set('wws-edge-indicators', JSON.stringify({ ...DEFAULT_TOGGLES, deposits: true }));
-    expect(readIndicatorToggles().deposits).toBe(false);
+  /** Éteinte, elle voulait dire « au rapproché seulement » : plus maintenant. */
+  it('relit un ancien « éteint » comme le défaut, cochée', () => {
+    kept.set('wws-edge-indicators', JSON.stringify({ ...DEFAULT_TOGGLES, deposits: false }));
+    expect(readIndicatorToggles().deposits).toBe(true);
   });
 
-  it('rend les gisements allumés depuis', () => {
-    keepIndicatorToggles({ ...DEFAULT_TOGGLES, deposits: true });
-    expect(readIndicatorToggles().deposits).toBe(true);
+  it('garde les gisements masqués quand le joueur les masque', () => {
+    keepIndicatorToggles({ ...DEFAULT_TOGGLES, deposits: false });
+    expect(readIndicatorToggles().deposits).toBe(false);
   });
 });

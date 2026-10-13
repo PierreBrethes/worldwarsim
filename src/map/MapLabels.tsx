@@ -43,6 +43,7 @@ import { silhouettePaths } from './engine/silhouettes';
 import { DepositMark } from '@/emblems/DepositMark';
 import { resourceColor } from '@/emblems/ResourceIcon';
 import type { DetailLevel, LabelProjection } from './engine/labels';
+import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
 
 /**
@@ -94,7 +95,6 @@ export function MapLabels({
   onHoldOver,
   muted,
   destinations,
-  depositLayer,
 }: {
   labels: ReadonlyArray<MapLabel>;
   engine: MapEngine | null;
@@ -140,8 +140,6 @@ export function MapLabels({
   muted: boolean;
   /** Les destinations de la colonne armée, cerclées au pied (lot mobile-3, A8). */
   destinations: ReadonlySet<string>;
-  /** Le rapproché par défaut ; la bascule « gisements » les rend à toute la couche des régions. */
-  depositLayer: 'regions' | 'close';
 }) {
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
@@ -186,6 +184,7 @@ export function MapLabels({
   const showPoster = useRef<(id: string | null) => void>(() => {});
   const posterAnchor = useRef<HTMLDivElement | null>(null);
   const posterPlace = useRef<PosterPlace | null>(null);
+  const posterSide = useRef<{ id: string; side: PosterSpot['side'] } | null>(null);
   const point = useCallback(
     (id: string | null) => {
       const previous = pointed.current;
@@ -368,12 +367,6 @@ export function MapLabels({
     }
 
     const shown = formed.filter((group) => !fans(group));
-    // Folded into « N sites », the buildings gather around the cartouche's mast up close.
-    engine?.gatherMaquettes(
-      shown
-        .filter((group) => group.kind === 'building' && placedGroups.get(group.id) === true)
-        .map((group) => group.members),
-    );
     const plated = new Set(
       measured.flatMap(({ label }) => (label.plate === null ? [] : [label.id])),
     );
@@ -447,16 +440,16 @@ export function MapLabels({
 
   useEffect(() => {
     if (!engine) return;
-    // A deposit belongs to the zoomed-in layer, not merely to a region: close up by default, with
-    // the admin-1 borders when its bascule asks for them.
+    // A deposit belongs to the zoomed-in layer, not merely to a region: it comes and goes with
+    // the admin-1 borders, on their fade and not on a threshold of its own.
     engine.setLabelAnchors(
       labels.map(({ id, anchor, type }) => ({
         id,
         anchor,
-        fadesWith: type === 'deposit' ? depositLayer : null,
+        withRegionLayer: type === 'deposit',
       })),
     );
-  }, [engine, labels, depositLayer]);
+  }, [engine, labels]);
 
   useEffect(() => {
     if (!engine) return;
@@ -510,12 +503,39 @@ export function MapLabels({
       const under = place === null ? undefined : states.current.get(place.id);
       if (place !== null && poster !== null && under !== undefined) {
         poster.style.visibility = under.visible ? '' : 'hidden';
-        const top = under.y - place.lift;
-        const below = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX;
-        poster.classList.toggle('map-poster-anchor--below', below);
-        const half = place.width / 2 + POSTER_MARGIN_PX;
-        const x = Math.min(Math.max(under.x + place.shift, half), layerWidth(poster) - half);
-        poster.style.transform = `translate3d(${x}px, ${below ? under.y : top}px, 0)`;
+        // A drawn piece (maquette, figurines, block, pawn) is cleared whole, from its projected
+        // box; far away, where the plate is the piece, the poster hangs from the label.
+        const rect = engine.pieceRect(place.id);
+        let side: PosterSpot['side'];
+        let x: number;
+        let y: number;
+        let stem = 0;
+        if (rect !== null) {
+          const spot = posterPlacement(
+            rect,
+            { width: place.width, height: place.height },
+            { width: layerWidth(poster), height: poster.parentElement?.clientHeight ?? Infinity },
+            {
+              top: place.insetTop,
+              bottom: place.insetBottom,
+              margin: POSTER_MARGIN_PX,
+              stem: POSTER_STEM_PX,
+            },
+            posterSide.current?.id === place.id ? posterSide.current.side : undefined,
+          );
+          ({ side, x, y, stem } = spot);
+          posterSide.current = { id: place.id, side };
+        } else {
+          const top = under.y - place.lift;
+          side = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX ? 'below' : 'above';
+          const half = place.width / 2 + POSTER_MARGIN_PX;
+          x = Math.min(Math.max(under.x + place.shift, half), layerWidth(poster) - half);
+          y = side === 'below' ? under.y : top;
+        }
+        for (const each of POSTER_SIDES)
+          poster.classList.toggle(`map-poster-anchor--${each}`, each === side);
+        poster.style.setProperty('--stem', `${stem}px`);
+        poster.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       }
 
       // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
@@ -901,7 +921,12 @@ type PosterPlace = {
   readonly shift: number;
   readonly width: number;
   readonly height: number;
+  /** The strip of the HUD over the board, in the layer's pixels: nothing stands under it. */
+  readonly insetTop: number;
+  readonly insetBottom: number;
 };
+
+const POSTER_SIDES = ['above', 'below', 'left', 'right'] as const;
 
 const layerWidth = (poster: HTMLElement): number => poster.parentElement?.clientWidth ?? Infinity;
 
@@ -973,6 +998,20 @@ function PosterLayer({
       shift: drawn ? face.left + face.width / 2 - origin.left : 0,
       width: card?.width ?? 0,
       height: card?.height ?? 0,
+      insetBottom: Math.max(
+        0,
+        (Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--board-bottom'),
+        ) || 0) -
+          (window.innerHeight -
+            (anchor.current?.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight)),
+      ),
+      insetTop: Math.max(
+        0,
+        (Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--board-top'),
+        ) || 0) - (anchor.current?.parentElement?.getBoundingClientRect().top ?? 0),
+      ),
     };
     return () => {
       root?.classList.remove('label--postered');

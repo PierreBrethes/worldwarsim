@@ -147,17 +147,79 @@ function modelOf(url: string): Promise<Model> {
 }
 
 /**
- * **Where the maquettes of one folded group stand** (« N sites »): on a ring around the mast
- * they share, one span apart, so that none stands in another. Offsets in board units, in the
- * order given — the caller sorts, so a group keeps its order from one fold to the next.
+ * **Where the maquettes of one group stand**: on a ring around the point they share, one span
+ * apart, so that none stands in another. Offsets in board units, in the order given.
  */
-export function ringOffsets(count: number, scale = 1): Array<readonly [x: number, z: number]> {
+export function ringOffsets(
+  count: number,
+  span = MAQUETTE_SPAN,
+): Array<readonly [x: number, z: number]> {
   if (count < 2) return [[0, 0]];
-  const radius = (MAQUETTE_SPAN * scale) / (2 * Math.sin(Math.PI / count));
+  const radius = ringRadius(count, span);
   return Array.from({ length: count }, (_, k) => {
     const angle = (2 * Math.PI * k) / count;
     return [radius * Math.sin(angle), radius * Math.cos(angle)] as const;
   });
+}
+
+const ringRadius = (count: number, span: number): number =>
+  count < 2 ? 0 : span / (2 * Math.sin(Math.PI / count));
+
+type Point = readonly [x: number, z: number];
+
+/**
+ * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
+ * disc of radius `footprint`, half a span at least — overlap are gathered on a ring around their barycentre, and a ring that
+ * grows into another site, or another ring, takes it in. Whether their labels fold into one
+ * cartouche is the screen's affair: off screen, or before the labels touch, the maquettes
+ * already do. Per site, in the order given (the caller sorts, so a ring keeps its order): where
+ * it stands, and its offset from the ring's centre, where its garrison's foot is read from.
+ */
+export function clusterFootprints(
+  points: ReadonlyArray<Point>,
+  span: number,
+  footprint = span / 2,
+): Array<{ at: Point; ring: Point }> {
+  type Cluster = { members: number[]; centre: Point; reach: number };
+  const clusterOf = (members: number[]): Cluster => {
+    const sum = members.reduce<Point>(
+      ([x, z], k) => [x + points[k]![0], z + points[k]![1]],
+      [0, 0],
+    );
+    return {
+      members,
+      centre: [sum[0] / members.length, sum[1] / members.length],
+      reach: ringRadius(members.length, span) + Math.max(footprint, span / 2),
+    };
+  };
+  const clusters = points.map((_, k) => clusterOf([k]));
+  const overlapping = (): [number, number] | null => {
+    for (let i = 0; i < clusters.length; i++)
+      for (let j = i + 1; j < clusters.length; j++) {
+        const [a, b] = [clusters[i]!, clusters[j]!];
+        const gap = Math.hypot(a.centre[0] - b.centre[0], a.centre[1] - b.centre[1]);
+        if (gap < a.reach + b.reach) return [i, j];
+      }
+    return null;
+  };
+  for (let pair = overlapping(); pair !== null; pair = overlapping()) {
+    const [i, j] = pair;
+    const members = [...clusters[i]!.members, ...clusters[j]!.members].sort((a, b) => a - b);
+    clusters.splice(j, 1);
+    clusters[i] = clusterOf(members);
+  }
+  const placed = new Array<{ at: Point; ring: Point }>(points.length);
+  for (const { members, centre } of clusters) {
+    const offsets = ringOffsets(members.length, span);
+    members.forEach((k, rank) => {
+      const ring = members.length < 2 ? ([0, 0] as const) : offsets[rank]!;
+      placed[k] = {
+        at: members.length < 2 ? points[k]! : [centre[0] + ring[0], centre[1] + ring[1]],
+        ring,
+      };
+    });
+  }
+  return placed;
 }
 
 /**
@@ -169,7 +231,7 @@ export const GARRISON_FOOT = 0.8;
 
 /**
  * **Where a building's garrison stands, from the maquette's place on its ring**: outward from the
- * mast, so that it never stands nearer another maquette than its own; a lone maquette has its
+ * ring's centre, so that it never stands nearer another maquette than its own; a lone one has its
  * garrison in front, towards +z. Fixed by the ring, never by the camera — a pile that slid with
  * the view would read as moving. `facing` turns the pile's row to stand across that line.
  */
@@ -192,9 +254,9 @@ export function footOf(
 type Placed = {
   readonly id: string;
   readonly ground: Vector3;
-  /** The ground, or its place on its group's ring. */
+  /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
-  /** Its offset from the ring's mast, where its garrison's foot is read from. */
+  /** Its offset from its ring's centre, where its garrison's foot is read from. */
   ring: readonly [number, number];
   readonly turn: Quaternion;
   /** Inside a replay's ground: it steps aside, and its plate with it. */
@@ -256,6 +318,7 @@ function scaffoldOf(box: Box3): LineSegments {
 }
 const matrix = new Matrix4();
 const scale = new Vector3();
+const placedBox = new Box3();
 
 /**
  * **My buildings, the installations I surveyed and the neutral objectives, in maquettes up
@@ -269,8 +332,6 @@ export class MaquetteLayer {
   private byId = new Map<string, { item: Placed; lot: Lot }>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
-  private gathered = '';
-  private groups: ReadonlyArray<ReadonlyArray<string>> = [];
 
   constructor(
     private readonly frame: WorldFrame,
@@ -299,20 +360,6 @@ export class MaquetteLayer {
       if (stood !== undefined && seen.has(maquette.id) && !maquette.rising)
         this.posed(stood.item.at);
     }
-    return true;
-  }
-
-  /**
-   * **The labels folded into one cartouche** (« N sites »), lead first: their maquettes gather
-   * on a ring around the lead's mast. Says whether anything moved — the labels are measured
-   * every second, and a frame asked each time would keep the board rendering.
-   */
-  gather(groups: ReadonlyArray<ReadonlyArray<string>>): boolean {
-    const gathered = JSON.stringify(groups);
-    if (gathered === this.gathered) return false;
-    this.gathered = gathered;
-    this.groups = groups;
-    this.place();
     return true;
   }
 
@@ -376,22 +423,21 @@ export class MaquetteLayer {
   }
 
   private place(): void {
-    for (const { item } of this.byId.values()) {
-      item.at.copy(item.ground);
-      item.ring = [0, 0];
-    }
-    for (const members of this.groups) {
-      const lead = this.byId.get(members[0] ?? '')?.item;
-      if (lead === undefined) continue;
-      const standing = members.filter((id) => this.byId.has(id)).sort();
-      const offsets = ringOffsets(standing.length, pieceScale.buildings);
-      standing.forEach((id, k) => {
-        const item = this.byId.get(id)!.item;
-        item.ring = offsets[k]!;
-        item.at.set(lead.ground.x + item.ring[0], lead.ground.y, lead.ground.z + item.ring[1]);
-      });
-    }
-    for (const { item } of this.byId.values()) item.near = -1;
+    const items = [...this.byId.values()]
+      .map(({ item }) => item)
+      .sort((a, b) => (a.id < b.id ? -1 : 1));
+    const placed = clusterFootprints(
+      items.map(({ ground }) => [ground.x, ground.z] as const),
+      MAQUETTE_SPAN * pieceScale.buildings,
+      // A lone site's garrison stands this far in front: its footprint reaches it.
+      GARRISON_FOOT * pieceScale.buildings,
+    );
+    items.forEach((item, k) => {
+      const { at, ring } = placed[k]!;
+      item.ring = ring;
+      item.at.set(at[0], item.ground.y, at[1]);
+      item.near = -1;
+    });
   }
 
   private landed(lot: Lot, model: Model, washed: boolean): void {
@@ -435,6 +481,28 @@ export class MaquetteLayer {
     lot.rising?.scaffold?.geometry.dispose();
   }
 
+  /** The world box of a maquette as drawn now — its model's bounds under its instance's placement. */
+  boxOf(id: string): Box3 | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model || dressed.item.near <= 0 || !dressed.lot.group.visible)
+      return null;
+    const { item } = dressed;
+    matrix.compose(
+      item.at,
+      item.turn,
+      scale.setScalar(item.near * model.scale * pieceScale.buildings),
+    );
+    placedBox.copy(model.box).applyMatrix4(matrix);
+    // A rising site is drawn up to its cut only: the box the poster clears stops there too.
+    if (dressed.lot.rising !== null)
+      placedBox.max.y = Math.max(
+        placedBox.min.y,
+        Math.min(placedBox.max.y, dressed.lot.rising.cut.constant),
+      );
+    return placedBox;
+  }
+
   /** The maquette under `ray`, by the instance it hits: each is tried by its bounds first. */
   under(ray: Raycaster): PieceHit | null {
     let best: PieceHit | null = null;
@@ -459,7 +527,7 @@ export class MaquetteLayer {
 
   /**
    * **Where the garrison of a maquette stands**, `null` while its model has not landed — a pile
-   * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a fold or a region
+   * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a ring or a region
    * that lands carries the pile along. The step is at full near weight: the caller scales it as
    * the maquette is scaled.
    */

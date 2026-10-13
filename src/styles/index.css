@@ -511,3 +511,45 @@ body {
     display: none;
   }
 }
+
+/* The reserve counter's word: what the figure just rolled by, beside it a moment and gone
+   (`Reglette.tsx`). `translate` and not `transform`, which centres it on its figure. */
+.reserve-tag {
+  position: absolute;
+  padding: 2px 3px;
+  font: 600 9.5px/1 var(--font-mono);
+  color: var(--paper);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: reserve-tag 1.4s ease forwards;
+}
+
+.reserve-tag--quiet {
+  animation-name: reserve-tag-fade;
+}
+
+@keyframes reserve-tag {
+  0% {
+    opacity: 0;
+    translate: 0 3px;
+  }
+  15% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -2px;
+  }
+}
+
+@keyframes reserve-tag-fade {
+  10%,
+  85% {
+    opacity: 1;
+  }
+}

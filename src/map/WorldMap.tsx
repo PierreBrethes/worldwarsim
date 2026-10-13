@@ -587,10 +587,13 @@ export function WorldMap({
       onPieceClick &&
       ((hit) => {
         if (!onPieceClick(hit)) return;
-        const label = labels.find((candidate) => candidate.id === hit.pileId);
+        // A garrison is aimed at by its building's mast.
+        const at = standing.find((pile) => pile.id === hit.pileId)?.at;
+        const labelId = at !== undefined && 'beside' in at ? at.beside : hit.pileId;
+        const label = labels.find((candidate) => candidate.id === labelId);
         if (label !== undefined) onLabelAct(label, hit.clientX, hit.clientY);
       });
-  }, [readyEngine, onPieceClick, labels, onLabelAct]);
+  }, [readyEngine, onPieceClick, labels, onLabelAct, standing]);
 
   const departed = useRef(departures);
   useEffect(() => {
@@ -938,7 +941,6 @@ export function WorldMap({
         }
         muted={placing !== null}
         destinations={destinationIds}
-        depositLayer={indicators.deposits ? 'regions' : 'close'}
       />
       <EdgeIndicators
         labels={labels}

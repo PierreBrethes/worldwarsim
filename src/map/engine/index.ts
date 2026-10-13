@@ -50,13 +50,7 @@ import { InkLayer } from './ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
-import {
-  LabelLayer,
-  closeShare,
-  type EdgeInsets,
-  type LabelProjection,
-  type NamedAnchor,
-} from './labels';
+import { LabelLayer, type EdgeInsets, type LabelProjection, type NamedAnchor } from './labels';
 import { buildCoastalWash } from './coastal-wash';
 import { HELD_OPACITY, lavis, PALETTE } from './palette';
 import { buildCountries, type CountryMesh } from './countries';
@@ -75,7 +69,8 @@ import {
   type StandingPile,
 } from './standing';
 import { PointerRest } from './pointer-rest';
-import { nearer, type PieceHit } from './piece-pick';
+import { nearer, screenRect, type PieceHit } from './piece-pick';
+import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { ReplayScene, replayReach } from './replay';
 import {
@@ -513,7 +508,6 @@ export class MapEngine {
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
-      () => closeShare(this.camera.position.distanceTo(this.controls.target)),
       (id) =>
         this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
     );
@@ -603,11 +597,6 @@ export class MapEngine {
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (this.maquettes.display(maquettes)) this.invalidate();
-  }
-
-  /** The labels folded into one cartouche, lead first: their maquettes gather around its mast. */
-  gatherMaquettes(groups: ReadonlyArray<ReadonlyArray<string>>): void {
-    if (this.maquettes.gather(groups)) this.invalidate();
   }
 
   /**
@@ -1265,7 +1254,7 @@ export class MapEngine {
     const onPieceClick = this.onPieceClick;
     if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
-    const piece = this.standing.pick(this.ray);
+    const piece = this.pieceToTake();
     if (piece === null) return false;
     onPieceClick({
       ...piece,
@@ -1273,6 +1262,15 @@ export class MapEngine {
       clientY: event.clientY,
     });
     return true;
+  }
+
+  /** **The piece the ray takes**, unless a maquette stands in front of it: a garrison at its
+   *  building's foot is lifted by its figurines, the building by its maquette opens its site. */
+  private pieceToTake(): PiecePick | null {
+    const piece = this.standing.pick(this.ray);
+    if (piece === null || piece.carried) return piece;
+    const maquette = this.maquettes.under(this.ray);
+    return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }
 
   /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
@@ -1288,6 +1286,21 @@ export class MapEngine {
       clientX: event.clientX,
       clientY: event.clientY,
     });
+  }
+
+  /**
+   * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
+   * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
+   */
+  pieceRect(labelId: string): Rect | null {
+    const box =
+      this.standing.boxOf(labelId) ??
+      this.camps.boxOf(labelId) ??
+      this.arcs.boxOf(labelId) ??
+      this.maquettes.boxOf(labelId);
+    return box === null || box.isEmpty()
+      ? null
+      : screenRect(box, this.camera, this.screenWidth, this.screenHeight);
   }
 
   /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
@@ -1713,7 +1726,7 @@ export class MapEngine {
     }
 
     const piece =
-      !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null
+      !this.fingerOnBoard && onScreen && this.pieceToTake() !== null
         ? PIECE_CURSOR
         : label !== null
           ? 'pointer'

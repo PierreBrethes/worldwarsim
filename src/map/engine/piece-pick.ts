@@ -1,4 +1,5 @@
-import { Box3, type Mesh, type Object3D, type Raycaster } from 'three';
+import { Box3, type Camera, type Mesh, type Object3D, type Raycaster, Vector3 } from 'three';
+import type { Rect } from '@/domain/poster-placement';
 
 /** A piece the pointer is over: the label it answers to, and how far from the eye. */
 export type PieceHit = { readonly id: string; readonly distance: number };
@@ -36,3 +37,33 @@ export const footedHit = (
 
 export const nearer = (first: PieceHit | null, second: PieceHit | null): PieceHit | null =>
   first === null || (second !== null && second.distance < first.distance) ? second : first;
+
+const scratch = new Box3();
+const corner = new Vector3();
+
+/** The world box of what `object` draws, ground shadows apart. Shared: read it before the next call. */
+export function boxOfObject(object: Object3D): Box3 {
+  scratch.makeEmpty();
+  object.traverseVisible((part) => {
+    if ((part as Mesh).isMesh === true && part.userData.ground !== true)
+      scratch.expandByObject(part);
+  });
+  return scratch;
+}
+
+/** Where a world box falls on the screen, in the canvas's pixels. */
+export function screenRect(box: Box3, camera: Camera, width: number, height: number): Rect {
+  const rect = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+  for (const x of [box.min.x, box.max.x])
+    for (const y of [box.min.y, box.max.y])
+      for (const z of [box.min.z, box.max.z]) {
+        corner.set(x, y, z).project(camera);
+        const px = ((corner.x + 1) / 2) * width;
+        const py = ((1 - corner.y) / 2) * height;
+        rect.left = Math.min(rect.left, px);
+        rect.right = Math.max(rect.right, px);
+        rect.top = Math.min(rect.top, py);
+        rect.bottom = Math.max(rect.bottom, py);
+      }
+  return rect;
+}
