@@ -6,17 +6,14 @@ import {
   Path,
   Shape,
   ShapeGeometry,
-  Vector2,
   Vector3,
 } from 'three';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { InkBurst } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
-import type { ThreadLeg } from './thread';
+import { Ribbon, RibbonMaterial } from './route-ribbon';
+import { threadWidth, type ThreadLeg } from './thread';
 
 export const TRACE_MS = 800;
 const TRACE_RANK = 12.4;
@@ -61,18 +58,14 @@ export function inkedStrands(
   return inked;
 }
 
-type Trace = {
-  readonly strands: ReadonlyArray<ReadonlyArray<Vector3>>;
+/** A pen stroke is a ribbon drawn up to `end`: the thread's own band, revealed as it goes. */
+type PenStroke = {
+  readonly ribbons: ReadonlyArray<Ribbon>;
+  readonly material: RibbonMaterial;
+  readonly length: number;
   readonly start: number;
-  lines: Line2[];
-};
-type ReachTrace = {
-  readonly ring: ReadonlyArray<Vector3>;
-  readonly start: number;
+  /** How long the pen takes; `0` lays the stroke at once. */
   readonly pen: number;
-  readonly material: LineMaterial;
-  line: Line2 | null;
-  inked: boolean;
 };
 type Stamp = {
   readonly mesh: Mesh<ShapeGeometry, MeshBasicMaterial>;
@@ -112,17 +105,10 @@ function splashShapes(): Shape[] {
 export class InkLayer {
   readonly group = new Group();
   motion: MapMotion = 'full';
-  private traces: Trace[] = [];
+  private traces: PenStroke[] = [];
   private stamps: Stamp[] = [];
-  private reaches: ReachTrace[] = [];
-  private readonly size = new Vector2();
-  /** One material for every stroke: disposing it each frame dropped its program, which three
-   *  then recompiled on the next one — a stutter per pen stroke on a phone. */
-  private readonly material = new LineMaterial({
-    color: ARC_COLORS.mine.progress,
-    linewidth: TRACE_PX,
-    depthTest: false,
-  });
+  private reaches: PenStroke[] = [];
+  private viewHeight = 1;
   private readonly geometries = {
     arrival: new ShapeGeometry(stampShapes()),
     combat: new ShapeGeometry(splashShapes()),
@@ -137,32 +123,29 @@ export class InkLayer {
     return this.traces.length + this.stamps.length + this.reaches.length > 0;
   }
 
-  resize(width: number, height: number): void {
-    this.material.resolution.set(width, height);
-    this.size.set(width, height);
+  resize(_width: number, height: number): void {
+    this.viewHeight = height;
+    for (const stroke of [...this.traces, ...this.reaches]) stroke.material.viewHeight = height;
   }
 
   /** Returns how long the pen takes, `0` when the thread should simply be there. */
   trace(legs: ReadonlyArray<ThreadLeg>, now: number): number {
     if (!this.enabled || this.motion !== 'full') return 0;
-    const strands = legs.flatMap((leg) => leg.strands.map((strand) => strand.vertices));
-    this.traces.push({ strands, start: now, lines: [] });
+    this.traces.push(
+      this.penStroke(
+        legs.flatMap((leg) => leg.strands.map((strand) => strand.vertices)),
+        now,
+        TRACE_MS,
+      ),
+    );
     return TRACE_MS;
   }
 
   /** The circle a point now holds, pen-drawn when motion is full and simply there, briefly,
-   *  when it is reduced. Its own material: the fade is the material's opacity. */
+   *  when it is reduced. */
   traceReach(ring: ReadonlyArray<Vector3>, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
-    const material = new LineMaterial({
-      color: ARC_COLORS.mine.progress,
-      linewidth: TRACE_PX,
-      transparent: true,
-      depthTest: false,
-    });
-    material.resolution.copy(this.size);
-    const pen = this.motion === 'full' ? TRACE_MS : 0;
-    this.reaches.push({ ring, start: now, pen, material, line: null, inked: false });
+    this.reaches.push(this.penStroke([ring], now, this.motion === 'full' ? TRACE_MS : 0));
   }
 
   burst({ kind, at }: InkBurst, now: number): void {
@@ -192,11 +175,9 @@ export class InkLayer {
   }
 
   dispose(): void {
-    for (const trace of this.traces) this.wipe(trace);
+    for (const stroke of [...this.traces, ...this.reaches]) wipe(stroke);
     for (const stamp of this.stamps) stamp.mesh.material.dispose();
-    for (const reach of this.reaches) this.wipeReach(reach);
     this.reaches = [];
-    this.material.dispose();
     this.traces = [];
     this.stamps = [];
     this.geometries.arrival.dispose();
@@ -204,68 +185,54 @@ export class InkLayer {
     this.group.removeFromParent();
   }
 
-  private draw(trace: Trace, now: number): boolean {
-    const elapsed = (now - trace.start) / TRACE_MS;
-    this.wipe(trace);
-    if (elapsed >= 1) return false;
-    trace.lines = inkedStrands(trace.strands, penEase(Math.max(0, elapsed))).map((strand) => {
-      const geometry = new LineGeometry();
-      geometry.setPositions(strand.flatMap((point) => [point.x, point.y, point.z]));
-      const line = new Line2(geometry, this.material);
-      line.renderOrder = TRACE_RANK;
-      this.group.add(line);
-      return line;
+  private penStroke(
+    strands: ReadonlyArray<ReadonlyArray<Vector3>>,
+    now: number,
+    pen: number,
+  ): PenStroke {
+    const ink = { color: ARC_COLORS.mine.progress, opacity: 1 };
+    const material = new RibbonMaterial({
+      width: threadWidth(TRACE_PX),
+      floorPx: TRACE_PX,
+      covered: ink,
+      remaining: ink,
     });
+    material.viewHeight = this.viewHeight;
+    let length = 0;
+    const ribbons = strands.map((vertices) => {
+      const ribbon = new Ribbon(vertices, material, length);
+      length = ribbon.geometry.getAttribute('along').array.at(-1) ?? length;
+      ribbon.renderOrder = TRACE_RANK;
+      ribbon.frustumCulled = false;
+      this.group.add(ribbon);
+      return ribbon;
+    });
+    material.cut = length;
+    material.end = pen > 0 ? 0 : length;
+    return { ribbons, material, length, start: now, pen };
+  }
+
+  private draw(trace: PenStroke, now: number): boolean {
+    const elapsed = (now - trace.start) / TRACE_MS;
+    if (elapsed >= 1) {
+      wipe(trace);
+      return false;
+    }
+    trace.material.end = penEase(Math.max(0, elapsed)) * trace.length;
     return true;
   }
 
-  private drawReach(reach: ReachTrace, now: number): boolean {
+  private drawReach(reach: PenStroke, now: number): boolean {
     const elapsed = now - reach.start;
     const fading = elapsed - reach.pen - REACH_HOLD_MS;
     if (fading >= REACH_FADE_MS) {
-      this.wipeReach(reach);
+      wipe(reach);
       return false;
     }
-    reach.material.opacity = fading > 0 ? 1 - fading / REACH_FADE_MS : 1;
-    if (elapsed < reach.pen) {
-      this.dropLine(reach);
-      const [strand] = inkedStrands([reach.ring], penEase(elapsed / reach.pen));
-      if (strand !== undefined) reach.line = this.reachLine(reach, strand);
-    } else if (!reach.inked) {
-      this.dropLine(reach);
-      reach.line = this.reachLine(reach, reach.ring);
-      reach.inked = true;
-    }
+    reach.material.coveredOpacity = fading > 0 ? 1 - fading / REACH_FADE_MS : 1;
+    reach.material.end =
+      elapsed < reach.pen ? penEase(elapsed / reach.pen) * reach.length : reach.length;
     return true;
-  }
-
-  private reachLine(reach: ReachTrace, strand: ReadonlyArray<Vector3>): Line2 {
-    const geometry = new LineGeometry();
-    geometry.setPositions(strand.flatMap((point) => [point.x, point.y, point.z]));
-    const line = new Line2(geometry, reach.material);
-    line.renderOrder = TRACE_RANK;
-    line.frustumCulled = false;
-    this.group.add(line);
-    return line;
-  }
-
-  private dropLine(reach: ReachTrace): void {
-    reach.line?.removeFromParent();
-    reach.line?.geometry.dispose();
-    reach.line = null;
-  }
-
-  private wipeReach(reach: ReachTrace): void {
-    this.dropLine(reach);
-    reach.material.dispose();
-  }
-
-  private wipe(trace: Trace): void {
-    for (const line of trace.lines) {
-      line.removeFromParent();
-      line.geometry.dispose();
-    }
-    trace.lines = [];
   }
 
   private age({ mesh, start }: Stamp, now: number, unitsPerPixel: number): boolean {
@@ -285,4 +252,12 @@ export class InkLayer {
     );
     return true;
   }
+}
+
+function wipe(stroke: PenStroke): void {
+  for (const ribbon of stroke.ribbons) {
+    ribbon.removeFromParent();
+    ribbon.geometry.dispose();
+  }
+  stroke.material.dispose();
 }
