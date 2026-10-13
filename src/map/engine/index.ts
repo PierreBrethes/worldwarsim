@@ -42,7 +42,6 @@ import { cameraYaw } from './billboard';
 import { steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
-import { nightAt } from '@/domain/daylight';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
@@ -150,10 +149,10 @@ const JOURNEY_MS = 500;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
-/** Development only: `?nuit=0.8` holds the sky at that share of night, to look at it now. */
-function forcedNight(search: string): number | null {
-  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('nuit') : null;
-  return raw === null ? null : Number(raw);
+/** Development only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
+function forcedInstant(search: string): number | null {
+  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('heure') : null;
+  return raw === null ? null : Date.parse(raw);
 }
 
 /**
@@ -203,7 +202,7 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
-  private readonly forcedNight = forcedNight(location.search);
+  private readonly forcedInstant = forcedInstant(location.search);
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -375,7 +374,6 @@ export class MapEngine {
     this.lamp = new Lamp(this.scene);
 
     this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
-    this.night = new NightSky(this.scene, this.frame, this.lamp, this.sea);
     const board = buildBoard(
       world,
       this.frame,
@@ -390,6 +388,7 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
+    this.night = new NightSky(this.scene, this.frame, board.surface.geometry, this.lamp, this.sea);
     this.surface.receiveShadow = true;
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
@@ -1603,14 +1602,19 @@ export class MapEngine {
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
     this.ambience.frame();
-    // The cycle is slow enough for the heartbeat: no frame is ever asked for the sky alone. Cut
-    // motion keeps it too — a half-hour dusk does not move, a stepped one would jump.
-    this.night.apply(this.forcedNight ?? nightAt(Date.now()));
+    // The sun crosses a quarter degree a minute: the heartbeat is enough, no frame is ever asked
+    // for the sky alone, and cut motion keeps it — nothing about it is an animation.
+    const distance = this.camera.position.distanceTo(this.controls.target);
+    const looked = this.controls.target;
+    this.night.apply(
+      this.forcedInstant ?? Date.now(),
+      this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY),
+      distance,
+    );
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
     // beneath — WebGL only knows one pixel of width.
-    const distance = this.camera.position.distanceTo(this.controls.target);
     const yaw = cameraYaw(this.camera.position, this.controls.target);
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));

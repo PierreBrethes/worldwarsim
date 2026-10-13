@@ -4,13 +4,24 @@ import {
   Color,
   Float32BufferAttribute,
   HemisphereLight,
+  Mesh,
   Points,
   PointsMaterial,
   SRGBColorSpace,
+  ShaderMaterial,
   type Scene,
 } from 'three';
+import {
+  DAY_ALTITUDE_DEG,
+  NIGHT_ALTITUDE_DEG,
+  nightAt,
+  nightOfAltitude,
+  subsolarPoint,
+  sunAltitude,
+} from '@/domain/daylight';
 import type { LonLat } from '@/domain/geo';
-import type { WorldFrame } from './frame';
+import { nearWeight } from './figurines/figurine';
+import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { LAMP_INTENSITY, type Lamp } from './lamp';
 import type { SeaLayer } from './sea';
 
@@ -51,6 +62,14 @@ const NIGHT_SKY_INTENSITY = 0.45;
 // La nuit, la lampe reste seule : elle baisse moins que le ciel, donc elle pèse davantage et les
 // ombres se creusent, sans éteindre la feuille sous la couche de jeu.
 const NIGHT_LAMP = 0.9;
+const SHADE_INK = '#0c1430';
+/** How much ink the full night lays over the sheet: the game layer above it must still read. */
+const SHADE_DEPTH = 0.5;
+/** Just over the country tops and their region fills; under reaches, threads and pieces. */
+const SHADE_LIFT = COUNTRY_THICKNESS + 0.01;
+const SHADE_RANK = 2;
+/** The sun moves a quarter degree a minute: below a hundredth of one, nothing is worth a write. */
+const SUN_STEP_DEG = 0.01;
 
 function dotTexture(): CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -67,22 +86,70 @@ function dotTexture(): CanvasTexture {
   return texture;
 }
 
+/**
+ * **L'ombre de la Terre** : a veil over the whole sheet, land and sea alike, dark where the sun is
+ * down. The altitude is worked out per fragment from the board's own `lonLat` — `nightOfAltitude`
+ * written in GLSL — so the twilight is a soft band and not a stepped edge.
+ */
+function shadeMaterial(sun: { value: [number, number] }): ShaderMaterial {
+  const degrees = (value: number) => value.toFixed(1);
+  return new ShaderMaterial({
+    uniforms: { sun, ink: { value: new Color(SHADE_INK) }, depth: { value: SHADE_DEPTH } },
+    vertexShader: `
+      attribute vec2 lonLat;
+      varying vec2 vLonLat;
+      void main() {
+        vLonLat = lonLat;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform vec2 sun;
+      uniform vec3 ink;
+      uniform float depth;
+      varying vec2 vLonLat;
+      void main() {
+        vec2 here = radians(vLonLat);
+        vec2 s = radians(sun);
+        float sine = sin(here.y) * sin(s.y) + cos(here.y) * cos(s.y) * cos(here.x - s.x);
+        float altitude = degrees(asin(clamp(sine, -1.0, 1.0)));
+        float night = 1.0 - smoothstep(${degrees(NIGHT_ALTITUDE_DEG)}, ${degrees(DAY_ALTITUDE_DEG)}, altitude);
+        gl_FragColor = vec4(ink, night * depth);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+  });
+}
+
 export class NightSky {
   // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
   // la lampe qui fait la profondeur d'une ombre.
   private readonly sky = new HemisphereLight(DAY_SKY, DAY_GROUND, DAY_SKY_INTENSITY);
   private readonly cities: Points<BufferGeometry, PointsMaterial>;
-  private night = Number.NaN;
+  private readonly sun = { value: [Number.NaN, 0] as [number, number] };
 
   constructor(
     scene: Scene,
     frame: WorldFrame,
+    surface: BufferGeometry,
     private readonly lamp: Lamp,
     private readonly sea: SeaLayer | null,
   ) {
+    const shade = new Mesh(surface, shadeMaterial(this.sun));
+    shade.position.y = SHADE_LIFT - SEA_LEVEL;
+    shade.renderOrder = SHADE_RANK;
+
     const positions = CITIES.flatMap((city) => frame.projectLonLat(city, 0.3).toArray());
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    // Each city carries its own light in its alpha: it comes on with its own dusk.
+    geometry.setAttribute(
+      'color',
+      new Float32BufferAttribute(
+        CITIES.flatMap(() => [1, 1, 1, 0]),
+        4,
+      ),
+    );
     this.cities = new Points(
       geometry,
       new PointsMaterial({
@@ -91,26 +158,36 @@ export class NightSky {
         size: 9,
         sizeAttenuation: false,
         transparent: true,
+        vertexColors: true,
         depthWrite: false,
       }),
     );
+    this.cities.renderOrder = SHADE_RANK + 1;
     this.cities.material.userData.ownsMap = true;
-    scene.add(this.sky, this.cities);
-    this.apply(0);
+    scene.add(this.sky, shade, this.cities);
   }
 
-  /** `night` from `nightAt`, 0 in full day; a change under a hundredth is not worth a write. */
-  apply(night: number): void {
-    if (Math.abs(night - this.night) < 0.01) return;
-    this.night = night;
+  /**
+   * The sheet darkens where it is night; the lights follow the night **at the point looked at**,
+   * and only close in — from orbit both halves are on screen, and the veil alone tells them apart.
+   */
+  apply(epochMs: number, looked: LonLat, distance: number): void {
+    const night = nightAt(epochMs, looked) * nearWeight(distance);
     this.sky.color.lerpColors(DAY_SKY, NIGHT_SKY, night);
     this.sky.groundColor.lerpColors(DAY_GROUND, NIGHT_GROUND, night);
     this.sky.intensity = DAY_SKY_INTENSITY + (NIGHT_SKY_INTENSITY - DAY_SKY_INTENSITY) * night;
     this.lamp.light.intensity = LAMP_INTENSITY + (NIGHT_LAMP - LAMP_INTENSITY) * night;
     this.sea?.dim(night);
-    // Les villes ne s'allument qu'au crépuscule passé, pas dès le premier assombrissement.
-    const lit = Math.min(1, Math.max(0, (night - 0.3) / 0.5));
-    this.cities.material.opacity = lit;
-    this.cities.visible = lit > 0;
+
+    const sun = subsolarPoint(epochMs);
+    if (Math.abs(sun[0] - this.sun.value[0]) < SUN_STEP_DEG) return;
+    this.sun.value = [sun[0], sun[1]];
+    const colors = this.cities.geometry.getAttribute('color');
+    CITIES.forEach((city, index) => {
+      // Les villes ne s'allument qu'au crépuscule passé, pas dès le premier assombrissement.
+      const dark = nightOfAltitude(sunAltitude(sun, city));
+      colors.setW(index, Math.min(1, Math.max(0, (dark - 0.3) / 0.5)));
+    });
+    colors.needsUpdate = true;
   }
 }
