@@ -1,3 +1,5 @@
+import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
+
 /**
  * **Penché sur la table au rapproché, plus haut pour lire le monde** (13/10/2026). La pente
  * permise — l'angle polaire d'`OrbitControls` — suit la distance : à hauteur de pays on se
@@ -13,4 +15,21 @@ const FAR = 300;
 export function steepestTiltAt(distance: number): number {
   const t = Math.min(1, Math.max(0, (distance - NEAR) / (FAR - NEAR)));
   return LEANING - (LEANING - OVERLOOKING) * t;
+}
+
+/**
+ * **Le flou de la table penchée, 0..1** : nul à l'aplomb, plein à la pente la plus rasante que la
+ * distance permet, et nul au-delà du fondu des régions — la vue monde est lue de haut et ne
+ * s'estompe pas. Le carré garde le début de l'inclinaison nette.
+ */
+export function tiltShiftOf(polarAngle: number, distance: number): number {
+  const slope = Math.min(1, Math.max(0, polarAngle / steepestTiltAt(distance)));
+  const near = Math.min(
+    1,
+    Math.max(
+      0,
+      (REGIONS_GONE_DISTANCE - distance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+    ),
+  );
+  return slope * slope * near;
 }
