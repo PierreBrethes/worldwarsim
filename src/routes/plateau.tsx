@@ -60,6 +60,7 @@ import { lootWords } from '@/domain/journal';
 import { objectiveArchetype } from '../../convex/constants';
 import type { LonLat } from '@/domain/geo';
 import { positionAt } from '@/domain/interception';
+import { maquettesOf } from './-plateau/maquettes';
 import { DEPOSIT_REGIONS, depositOfRegion, type HoveredRegion, type World } from '@/domain/world';
 import {
   compassOf,
@@ -1443,6 +1444,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       ),
     [markers],
   );
+  const maquettes = useMemo(() => {
+    const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
+    return maquettesOf(markers, (id) => keyOf.get(id));
+  }, [markers, view.objectives]);
   const camps = useMemo(
     () =>
       markers.flatMap((marker) =>
@@ -1930,6 +1935,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               labels={labels}
               standing={standing}
               camps={camps}
+              maquettes={maquettes}
               inkByCountry={inkByCountry}
               held={held}
               outposts={reachedOutposts}

@@ -53,6 +53,7 @@ import {
   type PieceClick,
   type PieceHold,
   type SearchArea,
+  type StandingMaquette,
   type StandingPile,
   type SurveyedCamp,
 } from './engine';
@@ -69,6 +70,8 @@ type Props = {
   standing: ReadonlyArray<StandingPile>;
   /** The enemy's surveyed camps, which the board stands as blocks up close. */
   camps: ReadonlyArray<SurveyedCamp>;
+  /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
+  maquettes: ReadonlyArray<StandingMaquette>;
   inkByCountry: ReadonlyMap<string, string>;
   /**
    * **Qui tient quelles régions, et de quelle encre** (ADR 0020 §1) — servi par `control.held`,
@@ -252,6 +255,7 @@ export function WorldMap({
   labels,
   standing,
   camps,
+  maquettes,
   inkByCountry,
   held,
   outposts,
@@ -765,6 +769,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
+
+  useEffect(() => {
+    readyEngine?.displayMaquettes(maquettes);
+  }, [readyEngine, maquettes]);
 
   const reachedBefore = useRef<ReadonlyArray<ReachedOutpost> | null>(null);
   useEffect(() => {
