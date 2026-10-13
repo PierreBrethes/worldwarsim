@@ -682,7 +682,6 @@
   box-sizing: border-box;
   border: 2px solid var(--sea-ink);
   border-radius: 50%;
-  background: rgb(232 223 200 / 18%);
   pointer-events: none;
 }
 
