@@ -400,7 +400,9 @@ export class MaquetteLayer {
       if (!lot.group.visible) continue;
       for (const hit of ray.intersectObjects(lot.meshes, false)) {
         const item = hit.instanceId === undefined ? undefined : lot.items[hit.instanceId];
-        if (item !== undefined && item.near > 0 && !item.cleared)
+        // A rising site is drawn up to its cut: above it there is nothing to point at.
+        const built = lot.rising === null || hit.point.y <= lot.rising.cut.constant;
+        if (item !== undefined && item.near > 0 && !item.cleared && built)
           best = nearer(best, { id: item.id, distance: hit.distance });
       }
     }

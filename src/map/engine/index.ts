@@ -24,6 +24,7 @@ import {
   DEFAULT_MOUSE_MAPPING,
   buttonAt,
   cleanPressAt,
+  type CleanPress,
   dragRoleAt,
   type MouseButton,
   type MouseMapping,
@@ -129,7 +130,7 @@ export type PieceClick = PiecePick & {
 /** A clean press on a drawn piece (`MapEngine.onPiecePress`), already read through the mapping. */
 export type PiecePress = {
   readonly labelId: string;
-  readonly press: ReturnType<typeof cleanPressAt>;
+  readonly press: CleanPress;
   readonly pointerType: string;
   readonly clientX: number;
   readonly clientY: number;
@@ -344,7 +345,8 @@ export class MapEngine {
   private hoveredArc: string | null = null;
   /** The piece in hand, `null` when nothing is held (ADR 0026 §6). */
   private held: PieceHold | null = null;
-  private hoveredPiece = false;
+  /** The cursor the piece under the mouse asks for: a hand on what lifts, a finger on what opens. */
+  private hoveredPiece: string | null = null;
   /** The label of the piece under the mouse (`onPieceHover`). */
   private hoveredLabel: string | null = null;
   private readonly rest = new PointerRest();
@@ -1243,7 +1245,7 @@ export class MapEngine {
   }
 
   /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
-  private pressPiece(event: PointerEvent, press: ReturnType<typeof cleanPressAt>): boolean {
+  private pressPiece(event: PointerEvent, press: CleanPress): boolean {
     if (this.onPiecePress === undefined || this.placing !== null || this.designating) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
     const labelId = this.pieceUnder()?.id;
@@ -1409,7 +1411,7 @@ export class MapEngine {
     else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
-    else if (this.hoveredPiece) style.cursor = PIECE_CURSOR;
+    else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
     else style.cursor = '';
   }
 
@@ -1679,7 +1681,12 @@ export class MapEngine {
       this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
     }
 
-    const piece = !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null;
+    const piece =
+      !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null
+        ? PIECE_CURSOR
+        : label !== null
+          ? 'pointer'
+          : null;
     if (piece !== this.hoveredPiece) {
       this.hoveredPiece = piece;
       this.refreshCursor();

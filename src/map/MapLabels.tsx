@@ -25,7 +25,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
-import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
+import { buttonAt, cleanPressAt, type CleanPress, type MouseMapping } from '@/domain/mouse-mapping';
 import {
   GROUP_MARGIN_PX,
   boxesOverlap,
@@ -212,19 +212,28 @@ export function MapLabels({
    */
   const over = useRef<{ label: string | null; piece: string | null }>({ label: null, piece: null });
   const hovered = useRef<string | null>(null);
+  /** The piece just pressed: what it opened stands in for its poster until the pointer leaves
+   *  it — the canvas hands the piece back at the release, under the window it opened. */
+  const pressed = useRef<string | null>(null);
   const hover = useCallback(
     (poster: boolean) => {
+      // A label that went away takes no `pointerleave` with it: it no longer stands in the way.
+      const present = (id: string | null) => labels.some((candidate) => candidate.id === id);
+      if (!present(over.current.label)) over.current.label = null;
       const id = over.current.label ?? over.current.piece;
       const previous = hovered.current;
       if (id === previous) return;
       hovered.current = id;
+      if (id !== pressed.current) pressed.current = null;
       const left = labels.find((candidate) => candidate.id === previous);
       if (left?.anchor.kind === 'movementHead') onMovementHover(null);
       const label = labels.find((candidate) => candidate.id === id);
       point(label?.id ?? null);
       if (label?.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
       onReachHover(label?.reach ?? null);
-      showPoster.current(poster && label !== undefined ? label.id : null);
+      showPoster.current(
+        poster && label !== undefined && label.id !== pressed.current ? label.id : null,
+      );
     },
     [labels, point, onMovementHover, onReachHover],
   );
@@ -525,6 +534,7 @@ export function MapLabels({
             ? 0
             : Math.min(...plated.map((member) => states.current.get(member)?.dressed ?? 0));
         anchor.style.setProperty('--dressed', String(dressed));
+        anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
       }
     };
     const unsubscribe = engine.subscribeRest(degrade);
@@ -573,11 +583,12 @@ export function MapLabels({
    */
   const pressLabel = (
     label: MapLabel,
-    press: ReturnType<typeof cleanPressAt>,
+    press: CleanPress,
     pointerType: string,
     clientX: number,
     clientY: number,
   ) => {
+    pressed.current = label.id;
     if (pointerType === 'touch') point(label.id);
     if (press.picks) {
       if (holding && label.type !== 'stack') {

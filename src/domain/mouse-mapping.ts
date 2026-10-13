@@ -110,12 +110,18 @@ export function dragRoleAt(
  * (`holding`), le gauche ne lit plus : il pose**, par le même chemin que le bouton qui agit — et
  * il touche encore les pièces, puisqu'un clic sur la pièce levée la repose.
  */
+export type CleanPress = {
+  readonly picks: boolean;
+  readonly reads: boolean;
+  readonly acts: boolean;
+};
+
 export function cleanPressAt(
   mapping: MouseMapping,
   pointerType: string,
   index: number,
   holding = false,
-): { readonly picks: boolean; readonly reads: boolean; readonly acts: boolean } {
+): CleanPress {
   const picks = isFinger(pointerType) || buttonAt(index) === 'left';
   return {
     picks,

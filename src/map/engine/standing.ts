@@ -21,7 +21,7 @@ import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
-import { drawnHit, nearer, type PieceHit } from './piece-pick';
+import { footedHit, nearer, type PieceHit } from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -591,10 +591,9 @@ export class StandingLayer {
       // A troop is taken by its whole figurine, its footprint where a rifle is a pixel wide.
       let troop: PieceHit | null = null;
       for (const [troopId, { object }] of spread.parts) {
-        const distance =
-          drawnHit(ray, object) ??
-          ray.intersectObject(object, true).find((hit) => hit.object.userData.troopId)?.distance;
-        if (distance !== undefined) troop = nearer(troop, { id: troopId, distance });
+        const footprints = object.children.filter((child) => child.userData.troopId);
+        const distance = footedHit(ray, object, footprints);
+        if (distance !== null) troop = nearer(troop, { id: troopId, distance });
       }
       if (troop !== null) return { pileId: spread.pileId, troopIds: [troop.id], spread: true };
     }
@@ -611,14 +610,14 @@ export class StandingLayer {
   }
 
   /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside
-   *  its maquette included: what the pointer is over is not only what it may lift. */
+   *  its maquette included: what the pointer is over is not only what it may lift. The pile in
+   *  hand is not under the pointer: it is what the pointer carries. */
   under(ray: Raycaster): PieceHit | null {
     let best: PieceHit | null = null;
     for (const [id, entry] of this.dressed) {
-      if (!entry.ready || !entry.object.visible) continue;
-      const distance =
-        drawnHit(ray, entry.object) ?? ray.intersectObjects([...entry.targets], false)[0]?.distance;
-      if (distance !== undefined) best = nearer(best, { id, distance });
+      if (!entry.ready || !entry.object.visible || id === this.held?.pileId) continue;
+      const distance = footedHit(ray, entry.object, entry.targets);
+      if (distance !== null) best = nearer(best, { id, distance });
     }
     return best;
   }

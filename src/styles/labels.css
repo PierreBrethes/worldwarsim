@@ -801,8 +801,15 @@
 }
 
 /* Habillée, la pièce prend le pointeur par la toile : son étiquette, plantée au milieu d'elle,
-   ne vole plus le clic de ce qu'elle couvre. Le clavier la garde. */
+   ne vole plus le clic de ce qu'elle couvre — planche, mât, pictogramme. Ses mots, hissés
+   au-dessus de la pièce, restent à elle ; le clavier aussi. Un cartouche réuni de maquettes
+   suit la même règle. */
 .label-anchor.label-anchor--dressed .label-block,
 .label-anchor.label-anchor--dressed .label-block * {
   pointer-events: none;
+}
+
+.label-anchor.label-anchor--dressed .label-block .label-lines,
+.label-anchor.label-anchor--dressed .label-block .label-lines * {
+  pointer-events: auto;
 }

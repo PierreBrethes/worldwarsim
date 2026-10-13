@@ -26,5 +26,13 @@ export function drawnHit(ray: Raycaster, object: Object3D): number | null {
   return nearest;
 }
 
+/** A piece drawn or, where a rifle is a pixel wide, the footprints it is taken by. */
+export const footedHit = (
+  ray: Raycaster,
+  object: Object3D,
+  footprints: ReadonlyArray<Object3D>,
+): number | null =>
+  drawnHit(ray, object) ?? ray.intersectObjects([...footprints], false)[0]?.distance ?? null;
+
 export const nearer = (first: PieceHit | null, second: PieceHit | null): PieceHit | null =>
   first === null || (second !== null && second.distance < first.distance) ? second : first;
