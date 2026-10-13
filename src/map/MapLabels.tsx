@@ -452,7 +452,9 @@ export function MapLabels({
         const top = under.y - place.lift;
         const below = top - place.height - POSTER_STEM_PX < POSTER_MARGIN_PX;
         poster.classList.toggle('map-poster-anchor--below', below);
-        poster.style.transform = `translate3d(${under.x + place.shift}px, ${below ? under.y : top}px, 0)`;
+        const half = place.width / 2 + POSTER_MARGIN_PX;
+        const x = Math.min(Math.max(under.x + place.shift, half), layerWidth(poster) - half);
+        poster.style.transform = `translate3d(${x}px, ${below ? under.y : top}px, 0)`;
       }
 
       // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
@@ -784,9 +786,13 @@ type PosterPlace = {
   readonly lift: number;
   /** From the anchor to the middle of that piece: a plate hangs left of its mast. */
   readonly shift: number;
+  readonly width: number;
   readonly height: number;
 };
 
+const layerWidth = (poster: HTMLElement): number => poster.parentElement?.clientWidth ?? Infinity;
+
+/** The 15 px stem of `poster.css`, under the HUD zoom. */
 const POSTER_STEM_PX = 18;
 const POSTER_MARGIN_PX = 8;
 /** A movement head draws nothing in the DOM — its pawn is in the scene, about this tall. */
@@ -826,8 +832,12 @@ function PosterLayer({
       register.current = () => {};
     };
   }, [register]);
-  // A pile that leaves takes its label away without a pointerleave.
+  // A pile that leaves takes its label away without a pointerleave: forget it, or its return
+  // would reopen the poster under no pointer.
   const label = holding || id === null ? undefined : labels.find((each) => each.id === id);
+  useEffect(() => {
+    if (id !== null && label === undefined && !holding) setId(null);
+  }, [id, label, holding]);
   const card = label === undefined ? null : poster(label);
   const shown = card === null || label === undefined ? null : label.id;
 
@@ -842,12 +852,14 @@ function PosterLayer({
       ?.querySelector(':scope > .label-pictogram, :scope > .label-camp')
       ?.getBoundingClientRect();
     const origin = root?.getBoundingClientRect();
+    const card = anchor.current?.firstElementChild?.getBoundingClientRect();
     const drawn = face !== undefined && origin !== undefined && face.height > 0;
     place.current = {
       id: shown,
       lift: drawn ? Math.max(POSTER_MIN_LIFT_PX, origin.top - face.top) : POSTER_MIN_LIFT_PX,
       shift: drawn ? face.left + face.width / 2 - origin.left : 0,
-      height: anchor.current?.firstElementChild?.getBoundingClientRect().height ?? 0,
+      width: card?.width ?? 0,
+      height: card?.height ?? 0,
     };
     return () => {
       root?.classList.remove('label--postered');

@@ -27,9 +27,7 @@ export type Poster = {
   /** Un relevé n'est pas su à l'instant : la carte se lit délavée. */
   readonly washed: boolean;
   readonly lines: ReadonlyArray<PosterLine>;
-  /** The ochre bar, from 0 to 1 — a march, a works, a lot. */
   readonly bar: number | null;
-  /** My posted pile's sheet: health in ten notches, then its load. */
   readonly pile: {
     readonly lines: ReadonlyArray<SheetLine>;
     readonly cargo: ReadonlyArray<CargoView>;
@@ -38,7 +36,6 @@ export type Poster = {
 
 const plain = { washed: false, lines: [], bar: null, pile: null } as const;
 
-/** `null` for every label that has no poster: deposits, outposts, crates, installations… */
 export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster | null {
   if (label.type === 'stack' && label.station !== null) {
     const held = troopsAt(view.me, stationKeyOf(label.station), marchingTroopIds(view.arcs));
@@ -170,15 +167,18 @@ function buildingPoster(
           rate.perHour.toLocaleString('fr-FR', { maximumFractionDigits: 1 }),
         ),
       });
-    const linked =
-      view.me.regions.find((region) => region.id === building.regionId)?.linked ?? true;
-    lines.push({
-      kind: 'chip',
-      label: fr.posters.network,
-      chip: linked ? fr.posters.linked : fr.posters.unlinked,
-      tone: linked ? 'ok' : 'cut',
-    });
-    const order = view.me.chains.find((chain) => chain.by === building.key)?.order ?? null;
+    // Rien n'est dit plutôt qu'un « relié » supposé.
+    const linked = view.me.regions.find((region) => region.id === building.regionId)?.linked;
+    if (linked !== undefined)
+      lines.push({
+        kind: 'chip',
+        label: fr.posters.network,
+        chip: linked ? fr.posters.linked : fr.posters.unlinked,
+        tone: linked ? 'ok' : 'cut',
+      });
+    // Le lot est celui de la chaîne, pas du site : il ne se lit sur un site que s'il en est le seul.
+    const chain = view.me.chains.find((candidate) => candidate.by === building.key);
+    const order = chain?.level === building.level ? chain.order : null;
     if (order !== null && order.produced < order.ordered) {
       lines.push({
         kind: 'row',

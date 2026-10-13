@@ -34,8 +34,8 @@ const me = {
     {
       by: 'foundry',
       output: 'alloy',
-      perHour: 6,
-      level: 2,
+      perHour: 3,
+      level: 1,
       order: { ordered: 40, produced: 10 },
     },
   ],
@@ -138,7 +138,7 @@ describe('posterOf', () => {
       { kind: 'chip', label: 'réseau', chip: 'relié', tone: 'ok' },
     ]);
 
-    // Une fonderie sur deux niveaux de la chaîne tient la moitié du débit, et la région est coupée.
+    // La seule fonderie de la chaîne tient son débit et son lot, et sa région est coupée.
     const foundry = posterFor(
       view(),
       [building('b-foundry', 'foundry', 'r-plain', null, 1)],
