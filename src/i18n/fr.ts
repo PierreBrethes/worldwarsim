@@ -621,6 +621,29 @@ export const fr = {
         sourceUrl: 'https://daten.gdz.bkg.bund.de/produkte/vg/vg2500/',
       },
       {
+        name: 'NOAA NCEI — ETOPO 2022',
+        use: 'Classement des régions par relief, climat, forêt (relief).',
+        licence: 'Domaine public (États-Unis).',
+        attribution: 'NOAA NCEI (2022), ETOPO 2022 Global Relief Model, doi:10.25921/fd45-gt74',
+      },
+      {
+        name: 'Köppen-Geiger (Beck et al. 2023)',
+        use: 'Classement des régions par relief, climat, forêt (climat).',
+        licence: 'CC BY 4.0.',
+        attribution:
+          'Beck, H. E. et al., High-resolution (1 km) Köppen-Geiger maps for 1901–2099, Scientific Data 10, 724 (2023) ; figshare doi:10.6084/m9.figshare.21789074',
+        licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
+      },
+      {
+        name: 'Hansen et al. 2013, agrégé par Wallace et al.',
+        use: 'Classement des régions par relief, climat, forêt (couvert forestier).',
+        licence: 'CC BY 4.0.',
+        attribution:
+          'Hansen, M. C. et al., Science 342, 850 (2013) — Hansen/UMD/Google/USGS/NASA ; agrégat : Wallace et al., doi:10.5281/zenodo.16930105',
+        licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
+        sourceUrl: 'https://zenodo.org/records/16930105',
+      },
+      {
         name: 'Archivo Narrow, Bodoni Moda, IBM Plex Mono, Source Serif 4',
         use: 'Les caractères du journal, servis par Google Fonts.',
         licence: 'SIL Open Font License 1.1.',

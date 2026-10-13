@@ -34,6 +34,7 @@ export type RegionIdentity = {
 };
 
 export type DisplayedRegion = RegionIdentity & {
+  readonly type: RegionType;
   readonly rings: ReadonlyArray<ReadonlyArray<readonly [x: number, y: number]>>;
 };
 
@@ -97,16 +98,44 @@ export function loadCoastalRegions(url = '/region-index.json'): Promise<Readonly
  */
 let regions: Promise<RegionsData> | null = null;
 
-export function loadRegions(url = '/regions.json'): Promise<RegionsData> {
-  regions ??= fetchRegions(url).catch((error: unknown) => {
+export function loadRegions(
+  url = '/regions.json',
+  typesUrl = '/region-types.json',
+): Promise<RegionsData> {
+  regions ??= fetchRegions(url, typesUrl).catch((error: unknown) => {
     regions = null;
     throw error;
   });
   return regions;
 }
 
-async function fetchRegions(url: string): Promise<RegionsData> {
-  const response = await fetch(url);
+/** The type is baked offline into its own asset (`generate-region-types.mjs`). A missing file or
+ *  region reads as a plain: decoration only, no rule may read it. */
+const REGION_TYPES: ReadonlyArray<RegionType> = [
+  'plain',
+  'forest',
+  'jungle',
+  'mountain',
+  'desert',
+  'tundra',
+];
+
+async function fetchRegionTypes(url: string): Promise<ReadonlyMap<string, RegionType>> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return new Map();
+    const byType = (await response.json()) as Partial<Record<RegionType, string[]>>;
+    // A key the client does not know would tint and sow with `undefined`: it falls back to plain.
+    return new Map(
+      REGION_TYPES.flatMap((type) => (byType[type] ?? []).map((id) => [id, type] as const)),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+async function fetchRegions(url: string, typesUrl: string): Promise<RegionsData> {
+  const [response, types] = await Promise.all([fetch(url), fetchRegionTypes(typesUrl)]);
   if (!response.ok) throw new Error(`regions not found: ${url}`);
   const raw = (await response.json()) as {
     lines: RegionLine[];
@@ -118,43 +147,10 @@ async function fetchRegions(url: string): Promise<RegionsData> {
       id: region.id,
       country: region.country,
       name: region.n,
+      type: types.get(region.id) ?? 'plain',
       rings: region.p,
     })),
   };
-}
-
-/**
- * Six hand-classified witness regions — one per type — to judge the rendering before the
- * real terrain pass (ETOPO + Köppen + landcover, baked into `regions.json`).
- * "Amazonas" exists in four countries: all jungle, the homonymy is harmless.
- */
-const WITNESSES: ReadonlyMap<string, RegionType> = new Map([
-  ['Oise', 'plain'],
-  ['Landes', 'forest'],
-  ['Amazonas', 'jungle'],
-  ['Valais', 'mountain'],
-  ['Tamanghasset', 'desert'],
-  ['Chukchi Autonomous Okrug', 'tundra'],
-]);
-
-/**
- * **Placeholder type** outside the witnesses: a name hash, stable across reloads, to give the
- * hover tooltip something to say. No game rule may ever read it.
- */
-export function regionType(name: string): RegionType {
-  const witness = WITNESSES.get(name);
-  if (witness !== undefined) return witness;
-  const types: ReadonlyArray<RegionType> = [
-    'plain',
-    'forest',
-    'jungle',
-    'mountain',
-    'desert',
-    'tundra',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return types[hash % types.length]!;
 }
 
 type RawWorld = {

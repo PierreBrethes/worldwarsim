@@ -591,8 +591,8 @@ export const DAMAGE_TABLE: DamageTable = {
 
 /**
  * The modifiers of `chiffrage-combat.md` §4 a rule may read **today**. Two of the five are missing
- * on purpose: **the terrain**, because `RegionType` is a stand-in and a modifier would multiply
- * noise (`CLAUDE.md` forbids a rule reading it without its own ADR); and **the pincer** (×1.20),
+ * on purpose: **the terrain**, because `RegionType` is classified for the eye, coarsely, and
+ * `CLAUDE.md` forbids a rule reading it without its own ADR; and **the pincer** (×1.20),
  * because "two converging movements" is one number and three undecided definitions.
  *
  * **C'est le seul avantage qui reste au défenseur** depuis que les deux camps tirent ensemble

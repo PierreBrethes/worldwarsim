@@ -145,7 +145,7 @@ Ce qui manque : un aperçu par partie (décision marque-apercu-2026-10-03 : le m
 | `region-index.json` | 308 Ko | `scripts/generate-region-index.mjs` (lit aussi `country-names.json`, 8 Ko) |
 | `deposits.json` | 8 Ko | `scripts/generate-deposits.mjs` |
 
-Ces fichiers ne se retouchent jamais à la main. Garde-fous : `scripts/generators-import.test.mjs` et l'égalité octet à octet de `grid.json` avec `buildGrid`. Ce qui manque : la passe de classification du type de région (le type reste un factice par hachage du nom) ; le découpage des régions géantes, prévu au prochain wipe. Le CLAUDE.md racine écrit encore `generer-regions.mjs` et `generer-monde.mjs` pour `generate-regions.mjs` et `generate-world.mjs`.
+Ces fichiers ne se retouchent jamais à la main. Garde-fous : `scripts/generators-import.test.mjs` et l'égalité octet à octet de `grid.json` avec `buildGrid`. Le type de région est classé (`region-types.json`, `scripts/generate-region-types.mjs` ; voir `propositions/classification-regions.md`). Ce qui manque : le découpage des régions géantes, prévu au prochain wipe.
 
 ## Sources de `WWS/sprites/`
 

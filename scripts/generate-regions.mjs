@@ -327,6 +327,9 @@ const regionPoints = regions.reduce(
   (sum, region) => sum + region.p.reduce((s, ring) => s + ring.length, 0),
   0,
 );
+console.warn(
+  'regions.json rewritten: re-run `node scripts/generate-region-types.mjs <terrain-dir>` to bake region-types.json again.',
+);
 console.log(
   `${lines.length} lines (${points} pts), ${regions.length} regions (${regionPoints} pts), ${(JSON.stringify(output).length / 1024).toFixed(0)} Ko`,
 );

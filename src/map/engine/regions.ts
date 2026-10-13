@@ -11,7 +11,7 @@ import {
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { regionType, type DisplayedRegion, type RegionsData } from '@/domain/world';
+import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import type { RegionType } from '@/domain/ids';
 import type { Curvature } from './curvature';
 import { builtInk, PALETTE } from './palette';
@@ -550,7 +550,7 @@ export class RegionLayer {
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
      *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». Les
      *  accessoires 3D poussent quand même — ils disent le terrain, et le terrain n'a pas changé. */
-    const type = regionType(region.name);
+    const { type } = region;
     this.hoverMaterial.color.set(this.inkByRegion.get(region.id) ?? TYPE_TINTS[type]);
     this.sowProps(prepared, type);
 

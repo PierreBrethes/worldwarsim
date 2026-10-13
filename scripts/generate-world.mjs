@@ -166,3 +166,7 @@ await import('./generate-grid.mjs');
 /** And the region raster with it — the host channel is cut from these polygons too, and the
  *  server reads no polygon at all any more (ADR 0023). */
 await import('./generate-region-grid.mjs');
+
+/** The terrain classification reads the regions just baked; the rasters are outside the repo, so
+ *  it only runs when `--terrain <dir>` says where they are. */
+if (process.argv.includes('--terrain')) await import('./generate-region-types.mjs');
