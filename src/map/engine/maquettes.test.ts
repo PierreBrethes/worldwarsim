@@ -1,6 +1,6 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { bakedParts, MAQUETTE_SPAN, spanScale, yawOf } from './maquettes';
+import { bakedParts, MAQUETTE_SPAN, ringOffsets, spanScale, yawOf } from './maquettes';
 
 describe('yawOf', () => {
   it('turns a building the same way at every display, and two buildings apart', () => {
@@ -50,5 +50,18 @@ describe('bakedParts', () => {
     const size = part!.geometry.boundingBox!.getSize(new Vector3());
     expect(size.x).toBeCloseTo(1);
     expect(size.z).toBeCloseTo(2);
+  });
+});
+
+describe('ringOffsets', () => {
+  it('stands one maquette on its mast, and a group a span apart around it', () => {
+    expect(ringOffsets(1)).toEqual([[0, 0]]);
+    for (const count of [2, 3, 5]) {
+      const ring = ringOffsets(count);
+      expect(ring).toHaveLength(count);
+      const [ax, az] = ring[0]!;
+      const [bx, bz] = ring[1]!;
+      expect(Math.hypot(ax - bx, az - bz)).toBeCloseTo(MAQUETTE_SPAN);
+    }
   });
 });

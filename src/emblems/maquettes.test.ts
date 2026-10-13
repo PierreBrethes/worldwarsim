@@ -22,7 +22,11 @@ type Gltf = {
   scenes: ReadonlyArray<{ nodes: ReadonlyArray<number> }>;
   nodes: ReadonlyArray<Node>;
   meshes: ReadonlyArray<{
-    primitives: ReadonlyArray<{ indices?: number; attributes: { POSITION: number } }>;
+    primitives: ReadonlyArray<{
+      indices?: number;
+      material?: number;
+      attributes: { POSITION: number };
+    }>;
   }>;
   accessors: ReadonlyArray<{ count: number; min?: number[]; max?: number[] }>;
 };
@@ -74,6 +78,10 @@ describe('maquettes', () => {
       .flatMap((mesh) => mesh.primitives)
       .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
     expect(triangles).toBeLessThanOrEqual(TRIANGLES);
+    // One material per primitive, named: the board merges by material (`bakedParts`), and a
+    // primitive without one would wear the loader's grey default.
+    for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
+      expect(primitive.material).toBeTypeOf('number');
     // Y up, origin on the ground and inside the footprint: the point stands under the building.
     const { min, max } = boundsOf(gltf);
     expect(Math.abs(min.y)).toBeLessThan(0.02);

@@ -689,6 +689,13 @@
   margin-left: -12px;
 }
 
+/* Up close the group's maquettes stand in a ring under the mast: its plates give way, the
+   cartouche stays to take the click. */
+.label--building-group .label-group-plates,
+.label--building-group .label-bar {
+  opacity: calc(1 - var(--dressed, 0));
+}
+
 .label--building.label--grouped .label-pictogram {
   display: none;
 }

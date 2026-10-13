@@ -44,7 +44,7 @@ describe('maquettesOf', () => {
     ]);
   });
 
-  it('washes an aged survey and an emptied objective, and stands nothing else', () => {
+  it('washes an aged survey, stands an emptied objective whole, and nothing else', () => {
     const survey: MapMarker = {
       kind: 'installation',
       id: 'installation-x',
@@ -80,8 +80,23 @@ describe('maquettesOf', () => {
         id: 'objective-o',
         at: { lonLat: [10, 50] },
         url: objectiveMaquette('fuelDump'),
-        washed: true,
+        washed: false,
       },
     ]);
+  });
+
+  it('stands no objective whose archetype the view does not name', () => {
+    const objective: MapMarker = {
+      kind: 'objective',
+      id: 'objective-o',
+      objectiveId: 'o',
+      lonLat: [10, 50],
+      name: '',
+      tier: '',
+      plate: null,
+      depot: '',
+      emptied: false,
+    };
+    expect(maquettesOf([objective], () => undefined)).toEqual([]);
   });
 });

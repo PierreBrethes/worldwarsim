@@ -58,7 +58,10 @@ export function bakedParts(scene: Object3D): Part[] {
   const groups = new Map<string, { material: Material; geometries: BufferGeometry[] }>();
   scene.traverse((object) => {
     const mesh = object as Mesh;
-    if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+    if (!mesh.isMesh) return;
+    // glTF gives one material per primitive, and the loader one mesh per primitive: an array
+    // here is a file that broke the brief, and it keeps its plates rather than half its walls.
+    if (Array.isArray(mesh.material)) throw new Error(`${mesh.name}: several materials`);
     const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
     const key = [
       mesh.material.uuid,
@@ -91,15 +94,35 @@ function modelOf(url: string): Promise<Model> {
       }
       return { parts, scale: spanScale(box.getSize(new Vector3())) };
     });
+    // Kept failed: the same file fails again, and it is said once, not at every rebuild.
+    model.catch((error: unknown) => console.error(`maquette ${url}`, error));
     models.set(url, model);
   }
   return model;
 }
 
+/**
+ * **Where the maquettes of one folded group stand** (« N sites »): on a ring around the mast
+ * they share, one span apart, so that none stands in another. Offsets in board units, in the
+ * order given — the caller sorts, so a group keeps its order from one fold to the next.
+ */
+export function ringOffsets(count: number): Array<readonly [x: number, z: number]> {
+  if (count < 2) return [[0, 0]];
+  const radius = MAQUETTE_SPAN / (2 * Math.sin(Math.PI / count));
+  return Array.from({ length: count }, (_, k) => {
+    const angle = (2 * Math.PI * k) / count;
+    return [radius * Math.sin(angle), radius * Math.cos(angle)] as const;
+  });
+}
+
 type Placed = {
   readonly id: string;
-  readonly position: Vector3 | null;
+  readonly ground: Vector3;
+  /** The ground, or its place on its group's ring. */
+  readonly at: Vector3;
   readonly turn: Quaternion;
+  /** Inside a replay's ground: it steps aside, and its plate with it. */
+  cleared: boolean;
   near: number;
 };
 
@@ -114,7 +137,6 @@ type Lot = {
 const UP = new Vector3(0, 1, 0);
 const matrix = new Matrix4();
 const scale = new Vector3();
-const ORIGIN = new Vector3();
 
 /**
  * **My buildings, the installations I surveyed and the neutral objectives, in maquettes up
@@ -125,8 +147,11 @@ const ORIGIN = new Vector3();
 export class MaquetteLayer {
   readonly group = new Group();
   private lots = new Map<string, Lot>();
+  private byId = new Map<string, { item: Placed; lot: Lot }>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
+  private gathered = '';
+  private groups: ReadonlyArray<ReadonlyArray<string>> = [];
 
   constructor(
     private readonly frame: WorldFrame,
@@ -134,62 +159,102 @@ export class MaquetteLayer {
     private readonly changed: () => void,
   ) {}
 
-  /** Re-served at every step of any column: nothing is rebuilt unless what stands changed. */
-  display(maquettes: ReadonlyArray<StandingMaquette>): void {
+  /** Re-served at every step of any column: says whether anything changed, and only then
+   *  rebuilds. */
+  display(maquettes: ReadonlyArray<StandingMaquette>): boolean {
     const drawn = JSON.stringify(maquettes);
-    if (drawn === this.drawn) return;
+    if (drawn === this.drawn) return false;
     this.drawn = drawn;
     this.maquettes = maquettes;
     this.rebuild();
+    return true;
   }
 
-  /** Every maquette set back on its point — the regions landed under the region anchors. */
+  /**
+   * **The labels folded into one cartouche** (« N sites »), lead first: their maquettes gather
+   * on a ring around the lead's mast. Says whether anything moved — the labels are measured
+   * every second, and a frame asked each time would keep the board rendering.
+   */
+  gather(groups: ReadonlyArray<ReadonlyArray<string>>): boolean {
+    const gathered = JSON.stringify(groups);
+    if (gathered === this.gathered) return false;
+    this.gathered = gathered;
+    this.groups = groups;
+    this.place();
+    return true;
+  }
+
+  /** Every maquette set back on its point — the regions landed under the region anchors. A
+   *  region anchor that has not landed stands nothing yet. */
   rebuild(): void {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
+    this.byId.clear();
     for (const maquette of this.maquettes) {
+      const ground =
+        'lonLat' in maquette.at
+          ? this.frame.projectLonLat(maquette.at.lonLat, COUNTRY_THICKNESS)
+          : this.groundOfRegion(maquette.at.regionId);
+      if (ground === null) continue;
+      ground.setY(COUNTRY_THICKNESS);
       const key = `${maquette.url} ${maquette.washed}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = { items: [], group: new Group(), model: null, meshes: [] };
         this.lots.set(key, lot);
         this.group.add(lot.group);
-        this.load(lot, maquette.url, maquette.washed);
+        const landing = lot;
+        // A model that fails to load leaves the plates; `modelOf` has said why.
+        modelOf(maquette.url).then(
+          (model) => this.landed(landing, model, maquette.washed),
+          () => {},
+        );
       }
-      const position =
-        'lonLat' in maquette.at
-          ? this.frame.projectLonLat(maquette.at.lonLat, COUNTRY_THICKNESS)
-          : this.groundOfRegion(maquette.at.regionId);
-      position?.setY(COUNTRY_THICKNESS);
-      lot.items.push({
+      const item: Placed = {
         id: maquette.id,
-        position,
+        ground,
+        at: ground.clone(),
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
+        cleared: false,
         near: -1,
-      });
+      };
+      lot.items.push(item);
+      this.byId.set(maquette.id, { item, lot });
     }
+    this.place();
   }
 
-  private load(lot: Lot, url: string, washed: boolean): void {
-    // A model that fails to load leaves the plates.
-    modelOf(url).then(
-      (model) => {
-        if (![...this.lots.values()].includes(lot)) return;
-        lot.model = model;
-        lot.meshes = model.parts.map(({ geometry, material }) => {
-          const mesh = new InstancedMesh(
-            geometry,
-            washed ? washedOf(material) : material,
-            lot.items.length,
-          );
-          mesh.matrixAutoUpdate = false;
-          return mesh;
-        });
-        lot.group.add(...lot.meshes);
-        this.changed();
-      },
-      (error: unknown) => console.error(`maquette ${url}`, error),
-    );
+  private place(): void {
+    for (const { item } of this.byId.values()) item.at.copy(item.ground);
+    for (const members of this.groups) {
+      const lead = this.byId.get(members[0] ?? '')?.item;
+      if (lead === undefined) continue;
+      const standing = members.filter((id) => this.byId.has(id)).sort();
+      const offsets = ringOffsets(standing.length);
+      standing.forEach((id, k) => {
+        const [x, z] = offsets[k]!;
+        this.byId.get(id)!.item.at.set(lead.ground.x + x, lead.ground.y, lead.ground.z + z);
+      });
+    }
+    for (const { item } of this.byId.values()) item.near = -1;
+  }
+
+  private landed(lot: Lot, model: Model, washed: boolean): void {
+    if (![...this.lots.values()].includes(lot)) return;
+    lot.model = model;
+    lot.meshes = model.parts.map(({ geometry, material }) => {
+      const mesh = new InstancedMesh(
+        geometry,
+        washed ? washedOf(material) : material,
+        lot.items.length,
+      );
+      mesh.matrixAutoUpdate = false;
+      // Instances spread over a continent: one sphere around them all would cull nothing.
+      mesh.frustumCulled = false;
+      return mesh;
+    });
+    lot.group.add(...lot.meshes);
+    this.changed();
   }
 
   private clear(lot: Lot): void {
@@ -198,11 +263,10 @@ export class MaquetteLayer {
     for (const mesh of lot.meshes) mesh.dispose();
   }
 
+  /** Its maquette stands, so its plate gives way — not while a replay has cleared it away. */
   isDressed(id: string): boolean {
-    for (const lot of this.lots.values())
-      if (lot.model !== null && lot.items.some((item) => item.id === id && item.position !== null))
-        return true;
-    return false;
+    const dressed = this.byId.get(id);
+    return dressed !== undefined && dressed.lot.model !== null && !dressed.item.cleared;
   }
 
   /** `cleared` is a replay's ground: what stands inside it steps aside while it plays. */
@@ -211,26 +275,18 @@ export class MaquetteLayer {
       if (lot.model === null) continue;
       let moved = false;
       lot.items.forEach((item, k) => {
-        const near =
-          item.position === null ||
-          (cleared !== null && item.position.distanceTo(cleared.center) < cleared.reach)
-            ? 0
-            : Math.round(nearWeight(item.position.distanceTo(cameraPosition)) * 100) / 100;
+        item.cleared = cleared !== null && item.at.distanceTo(cleared.center) < cleared.reach;
+        const near = item.cleared
+          ? 0
+          : Math.round(nearWeight(item.at.distanceTo(cameraPosition)) * 100) / 100;
         if (near === item.near) return;
         item.near = near;
         moved = true;
-        matrix.compose(
-          item.position ?? ORIGIN,
-          item.turn,
-          scale.setScalar(near * lot.model!.scale),
-        );
+        matrix.compose(item.at, item.turn, scale.setScalar(near * lot.model!.scale));
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
       });
       if (!moved) continue;
-      for (const mesh of lot.meshes) {
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.computeBoundingSphere();
-      }
+      for (const mesh of lot.meshes) mesh.instanceMatrix.needsUpdate = true;
       lot.group.visible = lot.items.some((item) => item.near > 0);
     }
   }
@@ -238,6 +294,7 @@ export class MaquetteLayer {
   dispose(): void {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
+    this.byId.clear();
     this.group.removeFromParent();
   }
 }

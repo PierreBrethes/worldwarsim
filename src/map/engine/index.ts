@@ -535,8 +535,13 @@ export class MapEngine {
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
-    this.invalidate();
-    this.maquettes.display(maquettes);
+    // The view is re-served at every step of any column: a frame only when something changed.
+    if (this.maquettes.display(maquettes)) this.invalidate();
+  }
+
+  /** The labels folded into one cartouche, lead first: their maquettes gather around its mast. */
+  gatherMaquettes(groups: ReadonlyArray<ReadonlyArray<string>>): void {
+    if (this.maquettes.gather(groups)) this.invalidate();
   }
 
   /**

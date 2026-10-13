@@ -30,12 +30,11 @@ export function maquettesOf(
           buildingMaquette(marker.key, depositOfRegion(marker.regionId)),
           marker.washed,
         );
-      case 'objective':
-        return standing(
-          { lonLat: marker.lonLat },
-          objectiveMaquette(objectiveKey(marker.objectiveId) ?? ''),
-          marker.emptied,
-        );
+      case 'objective': {
+        // Emptied, it stands whole as its plate does: the cartouche says it is empty.
+        const key = objectiveKey(marker.objectiveId);
+        return key === undefined ? [] : standing({ lonLat: marker.lonLat }, objectiveMaquette(key));
+      }
       default:
         return [];
     }
