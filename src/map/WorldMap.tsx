@@ -38,6 +38,7 @@ import { inkBursts } from '@/domain/ink-bursts';
 import type { ReplayStep } from '@/domain/replay';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
+import { useDayCycle } from '@/data/dayCycle';
 import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
@@ -320,6 +321,7 @@ export function WorldMap({
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
   const motion = useMapMotion();
+  const dayCycle = useDayCycle();
   // The label layer can only attach once the engine exists: it needs the instance, not a
   // ref that triggers no render.
   const [readyEngine, setReadyEngine] = useState<MapEngine | null>(null);
@@ -646,6 +648,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setMapMotion(motion);
   }, [readyEngine, motion]);
+
+  useEffect(() => {
+    readyEngine?.setDayCycle(dayCycle);
+  }, [readyEngine, dayCycle]);
 
   useEffect(() => {
     readyEngine?.setEdgeInsets(insets);

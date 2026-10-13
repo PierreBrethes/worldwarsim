@@ -1,4 +1,5 @@
 import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
+import { DEFAULT_DAY_CYCLE, isDayCycle, type DayCycle } from '@/domain/daylight';
 import {
   DEFAULT_MAP_MOTION_SETTING,
   isMapMotionSetting,
@@ -188,3 +189,22 @@ function readObject(key: string): Record<string, unknown> {
     return {};
   }
 }
+
+const DAY_CYCLE_KEY = 'wws-day-cycle';
+
+export function readDayCycle(): DayCycle {
+  try {
+    const kept = localStorage.getItem(DAY_CYCLE_KEY);
+    return isDayCycle(kept) ? kept : DEFAULT_DAY_CYCLE;
+  } catch {
+    return DEFAULT_DAY_CYCLE;
+  }
+}
+
+export const keepDayCycle = (cycle: DayCycle): void => {
+  try {
+    localStorage.setItem(DAY_CYCLE_KEY, cycle);
+  } catch {
+    // Private mode: the choice lasts the session only.
+  }
+};

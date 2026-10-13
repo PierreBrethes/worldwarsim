@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from './geo';
-import { nightAt, subsolarPoint, sunAltitude } from './daylight';
+import { boardInstant, nightAt, subsolarPoint, sunAltitude } from './daylight';
 
 const PARIS: LonLat = [2.35, 48.86];
 const HOUR_MS = 3_600_000;
@@ -49,5 +49,37 @@ describe('nightAt', () => {
       expect(Math.abs(night - previous)).toBeLessThan(0.02);
       previous = night;
     }
+  });
+});
+
+describe('boardInstant', () => {
+  const noon = Date.UTC(2026, 9, 13, 12, 20);
+
+  it('is the real instant in the real cycle', () => {
+    expect(boardInstant(noon, 'real')).toBe(noon);
+  });
+
+  it('runs a day per real hour, on the real date', () => {
+    const start = Date.UTC(2026, 9, 13, 12);
+    expect(boardInstant(start, 'hour')).toBe(Date.UTC(2026, 9, 13));
+    expect(boardInstant(start + 30 * 60_000, 'hour')).toBe(Date.UTC(2026, 9, 13, 12));
+    expect(boardInstant(start + 15 * 60_000, 'hour')).toBe(Date.UTC(2026, 9, 13, 6));
+  });
+
+  it('moves the terminator all the way round in an hour, without a jump', () => {
+    const start = Date.UTC(2026, 9, 13, 23);
+    let previous = subsolarPoint(boardInstant(start, 'hour'))[0];
+    for (let t = start + 10_000; t < start + 2 * HOUR_MS; t += 10_000) {
+      const lon = subsolarPoint(boardInstant(t, 'hour'))[0];
+      const step = Math.abs(((lon - previous + 540) % 360) - 180);
+      expect(step).toBeLessThan(1.5);
+      previous = lon;
+    }
+  });
+
+  it('keeps the real date across simulated midnight', () => {
+    const justBefore = Date.UTC(2026, 9, 13, 23, 59, 59);
+    expect(boardInstant(justBefore, 'hour')).toBeLessThan(Date.UTC(2026, 9, 14));
+    expect(boardInstant(justBefore, 'hour')).toBeGreaterThanOrEqual(Date.UTC(2026, 9, 13));
   });
 });

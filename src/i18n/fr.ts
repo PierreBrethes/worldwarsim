@@ -2478,6 +2478,10 @@ export const fr = {
     motion: { auto: 'auto', full: 'actives', reduced: 'réduites', off: 'coupées' },
     motionNote:
       'Auto suit le réglage du système. Coupées, les fils ne coulent plus et la carte se redessine au plus juste : le mode batterie.',
+    dayCycleLabel: 'Cycle jour et nuit',
+    dayCycle: { real: 'réel', hour: 'accéléré — une heure' },
+    dayCycleNote:
+      'Réel : la nuit suit le vrai soleil. Accéléré : une journée entière en soixante minutes, pour juger la lumière sans attendre.',
     soundLabel: 'Son du télégraphe',
     soundNote:
       'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',

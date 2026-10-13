@@ -527,7 +527,7 @@ terminaison glisse d'ouest en est en ombre douce. Une centaine de grandes villes
 la main faute de données, s'allument chacune à **son** crépuscule ; le ciel et la lampe suivent la
 nuit **au point regardé**, au rapproché seulement — la vue monde montre les deux moitiés et garde
 sa lumière. Lu au rendu, sans demande d'image : le battement suffit. `?heure=2026-01-15T23:00Z`
-fige l'instant en développement. Pas de feux sur les pièces.
+fige l'instant en développement. Pas de feux sur les pièces. Un réglage « cycle jour et nuit » (`localStorage`, Réglages) accélère le soleil à une journée par heure réelle — `boardInstant`, `src/domain/daylight.ts`, l'unique source de l'instant lu par le voile et les villes, dont `night.apply` tire aussi le ciel et la lampe ; le battement suffit (0,05° par image), et `?heure=` garde la priorité.
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
