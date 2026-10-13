@@ -449,11 +449,16 @@ lampe chaude ne doit pas ramener à la couleur de la terre — d'où une part de
 gravé au fragment d'isobathes lues sur le même champ de distance que l'écume, d'un quadrillage de
 10° sur la mer seule et d'une rose des vents fixe dans l'Atlantique Nord (`sea.ts`) ; le
 quadrillage en lignes de 30° posé sur tout le plateau est parti avec. **Et le jour tombe**
-(13/10/2026) : le ciel est `nightAt(heure)` (`src/domain/daylight.ts`), un cycle de 5 h qui ne
-divise pas 24 h pour que la phase tourne d'un soir à l'autre ; la nuit le ciel baisse vers le bleu
-d'encre, la lampe reste seule et une centaine de grandes villes de 1940, cuites à la main faute de
-données, s'allument en points dorés (`night.ts`). Lu au rendu, sans demande d'image : le battement
-suffit. `?nuit=0.8` le fige en développement. Pas de feux sur les pièces.
+(13/10/2026) : il suit le **vrai soleil** — il fait nuit à Paris quand il fait nuit à Paris. Le
+point subsolaire sort de l'heure UTC et de la date, déclinaison saisonnière comprise
+(`subsolarPoint`, `src/domain/daylight.ts`), et la nuit d'un lieu se lit sur la hauteur du soleil,
+crépuscule doux de +4° à −12° (`nightOfAltitude`). Sur la carte, un voile d'encre posé sur tout le
+plateau, terre et mer, calculé **au fragment** sur le `lonLat` de la surface (`night.ts`) : la
+terminaison glisse d'ouest en est en ombre douce. Une centaine de grandes villes de 1940, cuites à
+la main faute de données, s'allument chacune à **son** crépuscule ; le ciel et la lampe suivent la
+nuit **au point regardé**, au rapproché seulement — la vue monde montre les deux moitiés et garde
+sa lumière. Lu au rendu, sans demande d'image : le battement suffit. `?heure=2026-01-15T23:00Z`
+fige l'instant en développement. Pas de feux sur les pièces.
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
