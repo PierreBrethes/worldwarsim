@@ -62,6 +62,7 @@ import { PlacingGhost, type CoastSpot } from './placing';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
+import { MaquetteLayer, type StandingMaquette } from './maquettes';
 import { StandingLayer, type CounterTexts, type PieceHold, type StandingPile } from './standing';
 import { PointerRest } from './pointer-rest';
 import { CampLayer, type SurveyedCamp } from './blocks';
@@ -78,6 +79,7 @@ import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
 export type { CounterTexts, PieceHold, StandingPile } from './standing';
+export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './blocks';
 
 /**
@@ -212,6 +214,7 @@ export class MapEngine {
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
+  private readonly maquettes: MaquetteLayer;
   private readonly camps: CampLayer;
   private readonly ink: InkLayer;
   private readonly reach: ReachRing;
@@ -444,6 +447,12 @@ export class MapEngine {
     this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
+    this.maquettes = new MaquetteLayer(
+      this.frame,
+      (regionId) => this.regions.anchorOf(regionId),
+      () => this.invalidate(),
+    );
+    this.scene.add(this.maquettes.group);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.scene.add(this.ink.group);
@@ -460,7 +469,8 @@ export class MapEngine {
       (regionId) => this.regions.anchorOf(regionId),
       () => (this.regions.isActive ? this.regions.fade : 0),
       () => closeShare(this.camera.position.distanceTo(this.controls.target)),
-      (id) => this.standing.isDressed(id) || this.camps.isDressed(id),
+      (id) =>
+        this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
     );
 
     this.scene.add(this.regions.lines);
@@ -522,6 +532,13 @@ export class MapEngine {
     this.standing.display(piles, texts);
   }
 
+  /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
+   *  (ADR 0026 §1). */
+  displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
+    this.invalidate();
+    this.maquettes.display(maquettes);
+  }
+
   /**
    * **Lifts a piece, or puts it back with `null`** (ADR 0026 §6). The original washes out where
    * it stands; a copy of the held groups follows the ground under the mouse, and the
@@ -565,6 +582,7 @@ export class MapEngine {
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.
     this.labels.rebuild();
+    this.maquettes.rebuild();
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
     this.hoverDirty = true;
@@ -1011,6 +1029,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.maquettes.dispose();
     this.camps.dispose();
     this.replay?.scene.dispose();
     this.arcs.dispose();
@@ -1669,10 +1688,16 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
+    this.maquettes.orient(this.camera.position, this.replay);
     this.camps.orient(this.camera.position, yaw, now);
     this.clearReplayGround();
     if (this.lamp.follow(this.controls.target, distance)) {
-      for (const root of [this.standing.group, this.camps.group, this.arcs.group])
+      for (const root of [
+        this.standing.group,
+        this.maquettes.group,
+        this.camps.group,
+        this.arcs.group,
+      ])
         castShadows(root);
       if (this.replay) castShadows(this.replay.scene.object);
     }
