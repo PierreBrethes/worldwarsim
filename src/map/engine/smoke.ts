@@ -25,6 +25,8 @@ export type Plume = {
   readonly size: readonly [number, number];
   readonly opacity: number;
   readonly color: string;
+  /** How far it drifts sideways for its rise, by the top: the wind's push. 0.35 when absent. */
+  readonly lean?: number;
 };
 
 export const PLUME_BY_WEAR: Readonly<Record<Wear, Plume | null>> = {
@@ -44,7 +46,7 @@ export function puffAt(plume: Plume, rank: number, time: number) {
   return {
     height: plume.rise * phase,
     // It leans downwind as it rises: the column bends rather than standing like a post.
-    lean: 0.35 * plume.rise * phase * phase,
+    lean: (plume.lean ?? 0.35) * plume.rise * phase * phase,
     size: from + (to - from) * Math.sqrt(phase),
     opacity: plume.opacity * (phase < 0.15 ? phase / 0.15 : 1 - (phase - 0.15) / 0.85),
   };
