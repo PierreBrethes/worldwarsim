@@ -1254,7 +1254,7 @@ export class MapEngine {
     const onPieceClick = this.onPieceClick;
     if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
-    const piece = this.standing.pick(this.ray);
+    const piece = this.pieceToTake();
     if (piece === null) return false;
     onPieceClick({
       ...piece,
@@ -1262,6 +1262,15 @@ export class MapEngine {
       clientY: event.clientY,
     });
     return true;
+  }
+
+  /** **The piece the ray takes**, unless a maquette stands in front of it: a garrison at its
+   *  building's foot is lifted by its figurines, the building by its maquette opens its site. */
+  private pieceToTake(): PiecePick | null {
+    const piece = this.standing.pick(this.ray);
+    if (piece === null) return null;
+    const maquette = this.maquettes.under(this.ray);
+    return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }
 
   /** A finger lifts where it was never hovering: the piece under it is cast for, then. */
@@ -1717,7 +1726,7 @@ export class MapEngine {
     }
 
     const piece =
-      !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null
+      !this.fingerOnBoard && onScreen && this.pieceToTake() !== null
         ? PIECE_CURSOR
         : label !== null
           ? 'pointer'
