@@ -381,7 +381,7 @@ function useQueueCancel(seat: Seat) {
  * ground a building works, `PRODUCER_OF` says which building brings a resource into the world.
  * Nothing here is a second list of the economy.
  */
-type Column = {
+export type Column = {
   readonly id: string;
   readonly sources: ReadonlyArray<Source>;
   /** The exploitation buildings that work the deposits above — empty when the input is an
@@ -391,7 +391,7 @@ type Column = {
   readonly output: { readonly resource: ResourceKey; readonly perHour: number };
 };
 
-type Source =
+export type Source =
   | { readonly kind: 'deposit'; readonly deposit: DepositKey; readonly held: number }
   | { readonly kind: 'chain'; readonly resource: ResourceKey; readonly by: BuildingKey };
 
@@ -465,7 +465,11 @@ function SupplyColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <ColumnHead column={column} cut={isCut(view, column, worked)} />
+      <ColumnHead
+        column={column}
+        cut={isCut(view, column, worked)}
+        raw={rawVerdictOf(view, column)}
+      />
       {column.sources.map((source, rank) => (
         <SourceBox
           key={source.kind === 'deposit' ? source.deposit : source.resource}
@@ -503,11 +507,11 @@ function SupplyColumn({
  * The head of a filière: the one badge and the one figure the surface promises at a glance
  * (contrat 02, P1). **A raw column carries no state of its own** — `chains[].state` exists for the
  * three conversions and nowhere else, and stamping "tourne" on a mine would invent a settlement
- * the server never ran; its only badge is « à sec », read off the very rate it prints. The name
+ * the server never ran; at zero it says what is missing, or « à sec » (`rawVerdictOf`). The name
  * of the resource is not repeated here: the sortie box at the foot of the column is where the
  * filière ends, and the plate identifies the head well enough.
  */
-function ColumnHead({ column, cut }: { column: Column; cut: boolean }) {
+function ColumnHead({ column, cut, raw }: { column: Column; cut: boolean; raw: RawVerdict }) {
   const dry = column.output.perHour <= 0;
   return (
     <div className="mb-[7px] border-b border-[var(--ink)] pb-[5px]">
@@ -528,17 +532,46 @@ function ColumnHead({ column, cut }: { column: Column; cut: boolean }) {
           la même chose sur la même colonne, et huit colonnes en criaient vingt.
           **Hors réseau passe avant tout** (ADR 0020 §6) : sur une colonne convertie il l'emporte
           sur « à sec » et sur « tourne » — un site coupé n'est pas à sec. Une filière brute n'a
-          pas d'état servi ; à zéro, elle porte « à sec », qui ne se règle sur rien d'autre que le
-          débit qu'elle affiche. */}
+          pas d'état servi : à zéro, elle dit le manque ou « à sec » (`rawVerdictOf`). */}
       {cut ? (
         <StateBadge state="unlinked" label={fr.economy.chainStates.unlinked} />
       ) : column.conversion !== null ? (
         <ChainVerdict chain={column.conversion} />
       ) : (
-        dry && <StateBadge state="starved" label={fr.economy.chainStates.starved} />
+        raw !== null && (
+          <StateBadge
+            state={raw === 'dry' ? 'starved' : 'idle'}
+            label={
+              raw === 'dry'
+                ? fr.economy.chainStates.starved
+                : raw === 'noDeposit'
+                  ? fr.economy.roleDepositNone
+                  : fr.economy.legendMissing
+            }
+          />
+        )
       )}
     </div>
   );
+}
+
+/**
+ * **Ce que dit la tête d'une filière brute à zéro** (décision du 13/10). « À sec » est réservé à
+ * une filière qui a de quoi produire et ne produit pas ; une filière à zéro parce que rien n'y est
+ * posé — aucun gisement sur son sol, aucun extracteur debout ni en chantier — dit le manque, à
+ * l'encre et non en rouge : ce n'est pas une panne, c'est ce qui reste à bâtir. `null` pour une
+ * filière qui coule, ou convertie (la chaîne répond d'elle-même).
+ */
+export type RawVerdict = 'noDeposit' | 'missing' | 'dry' | null;
+
+export function rawVerdictOf(view: PlayerView, column: Column): RawVerdict {
+  if (column.conversion !== null || column.output.perHour > 0) return null;
+  if (column.sources.every((source) => source.kind === 'deposit' && source.held === 0)) {
+    return 'noDeposit';
+  }
+  return column.extraction.every((key) => stateOf(view, key).kind === 'missing')
+    ? 'missing'
+    : 'dry';
 }
 
 /**
