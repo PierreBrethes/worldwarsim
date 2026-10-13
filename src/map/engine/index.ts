@@ -39,7 +39,7 @@ import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { steepestTiltAt } from './camera-tilt';
+import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
@@ -297,6 +297,9 @@ export class MapEngine {
    * The same projections, for the edge indicator layer. Two calls rather than a
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
+  /** 0..1, told only when it changes. */
+  onTiltShift: (strength: number) => void = () => {};
+  private tiltShift = -1;
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
@@ -1658,6 +1661,14 @@ export class MapEngine {
       this.screenHeight,
       this.arcs.headPositions,
     );
+    const tilt =
+      this.ambience.motion === 'off'
+        ? 0
+        : Math.round(tiltShiftOf(this.controls.getPolarAngle(), distance) * 50) / 50;
+    if (tilt !== this.tiltShift) {
+      this.tiltShift = tilt;
+      this.onTiltShift(tilt);
+    }
     this.onLabels(this.outsideReplay(projections, distance));
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(

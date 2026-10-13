@@ -340,6 +340,15 @@ export function WorldMap({
   }, [world]);
 
   useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onTiltShift = (strength) =>
+      container.current?.style.setProperty('--tilt-shift', String(strength));
+    return () => {
+      readyEngine.onTiltShift = () => {};
+    };
+  }, [readyEngine]);
+
+  useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
   }, [onSelect]);
 
@@ -794,6 +803,26 @@ export function WorldMap({
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div
         aria-hidden
+        className="pointer-events-none absolute inset-x-0 z-0 top-0 h-[28%]"
+        style={{
+          backdropFilter: TILT_BLUR,
+          WebkitBackdropFilter: TILT_BLUR,
+          maskImage: 'linear-gradient(#000 10%, transparent)',
+          WebkitMaskImage: 'linear-gradient(#000 10%, transparent)',
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 z-0 bottom-0 h-[22%]"
+        style={{
+          backdropFilter: TILT_BLUR,
+          WebkitBackdropFilter: TILT_BLUR,
+          maskImage: 'linear-gradient(transparent, #000 85%)',
+          WebkitMaskImage: 'linear-gradient(transparent, #000 85%)',
+        }}
+      />
+      <div
+        aria-hidden
         className="pointer-events-none absolute inset-0 z-[1]"
         style={{
           background:
@@ -929,6 +958,9 @@ function PlacingCard({
     </div>
   );
 }
+
+/** Tilt-shift: the bands blur the canvas under them, at most 1.5 px (`tiltShiftOf`). */
+const TILT_BLUR = 'blur(calc(var(--tilt-shift, 0) * 1.5px))';
 
 /** Clear of the cursor's own drawing, which is twenty-nine pixels wide (`TROWEL_CURSOR`). */
 const PLACING_CARD_GAP = 22;

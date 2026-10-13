@@ -407,7 +407,7 @@ et la feuille la reçoit : pays, mer et encres de région. La carte d'ombres (20
 ne pas scintiller, et **éteinte au-delà du fondu des régions** (`shadowReach`) : à la vue monde
 aucune pièce ne tient debout, et l'ombre ne coûte rien. Elle ne demande aucune image — elle se
 rend avec celles que la carte doit déjà. Les disques de contact restent, très légers : ils posent
-la pièce sous ses pieds quand l'ombre de la lampe tombe à côté.
+la pièce sous ses pieds quand l'ombre de la lampe tombe à côté. **Et un flou tilt-shift léger** (1,5 px au plus, `tiltShiftOf`, `camera-tilt.ts`) borde le haut et le bas de la carte : nul à l'aplomb, plein à la pente la plus rasante, nul au-delà du fondu des régions et coupé par « animations coupées » ; deux bandes DOM `backdrop-filter` sous les étiquettes, force écrite par le moteur dans `--tilt-shift` (`onTiltShift`).
 
 **La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
 dessinait soixante images par seconde même posée et immobile. La boucle tourne toujours, mais
