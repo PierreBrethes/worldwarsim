@@ -25,7 +25,7 @@ import {
   type LabelPictogram,
   type Reach,
 } from '@/domain/labels';
-import { buttonAt, cleanPressAt, type MouseMapping } from '@/domain/mouse-mapping';
+import { buttonAt, cleanPressAt, type CleanPress, type MouseMapping } from '@/domain/mouse-mapping';
 import {
   GROUP_MARGIN_PX,
   boxesOverlap,
@@ -205,6 +205,39 @@ export function MapLabels({
     },
     [labels],
   );
+  /**
+   * **What the mouse is over, by two routes**: a label in the DOM, or a piece the canvas drew
+   * (`MapEngine.onPieceHover`) — the figurine, the maquette, the block stand far wider than their
+   * label. The label wins, being on top; the piece answers exactly as its label would.
+   */
+  const over = useRef<{ label: string | null; piece: string | null }>({ label: null, piece: null });
+  const hovered = useRef<string | null>(null);
+  /** The piece just pressed: what it opened stands in for its poster until the pointer leaves
+   *  it — the canvas hands the piece back at the release, under the window it opened. */
+  const pressed = useRef<string | null>(null);
+  const hover = useCallback(
+    (poster: boolean) => {
+      // A label that went away takes no `pointerleave` with it: it no longer stands in the way.
+      const present = (id: string | null) => labels.some((candidate) => candidate.id === id);
+      if (!present(over.current.label)) over.current.label = null;
+      const id = over.current.label ?? over.current.piece;
+      const previous = hovered.current;
+      if (id === previous) return;
+      hovered.current = id;
+      if (id !== pressed.current) pressed.current = null;
+      const left = labels.find((candidate) => candidate.id === previous);
+      if (left?.anchor.kind === 'movementHead') onMovementHover(null);
+      const label = labels.find((candidate) => candidate.id === id);
+      point(label?.id ?? null);
+      if (label?.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
+      onReachHover(label?.reach ?? null);
+      showPoster.current(
+        poster && label !== undefined && label.id !== pressed.current ? label.id : null,
+      );
+    },
+    [labels, point, onMovementHover, onReachHover],
+  );
+
   useEffect(() => {
     const elsewhere = (event: PointerEvent) => {
       const held = pointed.current === null ? undefined : roots.current.get(pointed.current);
@@ -450,6 +483,9 @@ export function MapLabels({
         if (dressed !== state.dressed) {
           state.dressed = dressed;
           anchor.style.setProperty('--dressed', String(dressed));
+          // Dressed, the piece takes the pointer from the canvas (`onPieceHover`, `onPiecePress`):
+          // its label, standing in the middle of it, would steal the press of what it covers.
+          anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
         }
 
         const plate = Math.round(projection.plateScale * 20) / 20;
@@ -498,6 +534,7 @@ export function MapLabels({
             ? 0
             : Math.min(...plated.map((member) => states.current.get(member)?.dressed ?? 0));
         anchor.style.setProperty('--dressed', String(dressed));
+        anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
       }
     };
     const unsubscribe = engine.subscribeRest(degrade);
@@ -539,6 +576,70 @@ export function MapLabels({
     [engine],
   );
 
+  /**
+   * **One answer to a press on a piece**, whether it landed on its label or on what the canvas
+   * drew of it: the left press or the tap reads — lifts, opens, selects — and the button that
+   * carries `agir` acts, the mapping having said which (`cleanPressAt`).
+   */
+  const pressLabel = (
+    label: MapLabel,
+    press: CleanPress,
+    pointerType: string,
+    clientX: number,
+    clientY: number,
+  ) => {
+    pressed.current = label.id;
+    if (pointerType === 'touch') point(label.id);
+    if (press.picks) {
+      if (holding && label.type !== 'stack') {
+        onAct(label, clientX, clientY);
+        return;
+      }
+      // A building's mast opens its surface and nothing else: opening a window *and*
+      // moving the country selection would be two answers to one click.
+      if (label.lootSightingId !== null) {
+        onOpenLoot(nearbyLootSightings(label, labels, states.current), clientX, clientY);
+      } else if (label.building !== null) {
+        onOpenBuilding(label.building.id, clientX, clientY);
+      } else if (label.station !== null) {
+        onOpenStack(label, clientX, clientY);
+        // Lever ne fait que lever (ADR 0026 §6) : la pile ne rouvre pas de rose au même clic.
+        if (label.type === 'stack') return;
+      } else if (label.camp !== null) {
+        onOpenCamp(label.camp.id, clientX, clientY);
+      } else if (label.objective !== null) {
+        onOpenObjective(label.objective.id, clientX, clientY);
+      } else if (label.hostCountry !== null) onSelect(label.hostCountry);
+    }
+    // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
+    // `agir` — un seul geste, les deux réponses. Le toucher net, lui, agit toujours.
+    if (press.acts) onAct(label, clientX, clientY);
+  };
+
+  // Rewired at every render, like the label layer's own loop: the press reads this render's labels.
+  useEffect(() => {
+    if (!engine) return;
+    engine.onPieceHover = (labelId) => {
+      over.current.piece = labelId;
+      hover(true);
+    };
+    engine.onPiecePress = ({ labelId, press, pointerType, clientX, clientY }) => {
+      const label = labels.find((candidate) => candidate.id === labelId);
+      if (muted || label === undefined || (!press.picks && !press.acts)) return false;
+      showPoster.current(null);
+      pressLabel(label, press, pointerType, clientX, clientY);
+      return true;
+    };
+  });
+  useEffect(
+    () => () => {
+      if (!engine) return;
+      engine.onPieceHover = undefined;
+      engine.onPiecePress = undefined;
+    },
+    [engine],
+  );
+
   const inkOf = (id: string): string | null => labels.find((label) => label.id === id)?.ink ?? null;
 
   return (
@@ -568,10 +669,8 @@ export function MapLabels({
             onPointerEnter={(event) => {
               // A finger has no hover to take back: what it lit would stay lit (C4).
               if (event.pointerType === 'touch') return;
-              point(label.id);
-              if (label.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
-              onReachHover(label.reach);
-              if (event.buttons === 0) showPoster.current(label.id);
+              over.current.label = label.id;
+              hover(event.buttons === 0);
             }}
             onPointerMove={(event) => {
               if (holding && event.pointerType !== 'touch')
@@ -579,41 +678,18 @@ export function MapLabels({
             }}
             onPointerLeave={(event) => {
               if (event.pointerType === 'touch') return;
-              point(null);
-              if (label.anchor.kind === 'movementHead') onMovementHover(null);
-              onReachHover(null);
-              showPoster.current(null);
+              if (over.current.label === label.id) over.current.label = null;
+              hover(true);
             }}
-            onClick={(event) => {
-              if (pressedWith.current === 'touch') point(label.id);
-              const press = cleanPressAt(mapping, pressedWith.current, event.button, holding);
-              if (holding && label.type !== 'stack') {
-                onAct(label, event.clientX, event.clientY);
-                return;
-              }
-              // A building's mast opens its surface and nothing else: opening a window *and*
-              // moving the country selection would be two answers to one click.
-              if (label.lootSightingId !== null) {
-                onOpenLoot(
-                  nearbyLootSightings(label, labels, states.current),
-                  event.clientX,
-                  event.clientY,
-                );
-              } else if (label.building !== null) {
-                onOpenBuilding(label.building.id, event.clientX, event.clientY);
-              } else if (label.station !== null) {
-                onOpenStack(label, event.clientX, event.clientY);
-                // Lever ne fait que lever (ADR 0026 §6) : la pile ne rouvre pas de rose au même clic.
-                if (label.type === 'stack') return;
-              } else if (label.camp !== null) {
-                onOpenCamp(label.camp.id, event.clientX, event.clientY);
-              } else if (label.objective !== null) {
-                onOpenObjective(label.objective.id, event.clientX, event.clientY);
-              } else if (label.hostCountry !== null) onSelect(label.hostCountry);
-              // Le clic net gauche lit toujours ; il agit en plus quand c'est lui qui porte
-              // `agir` — un seul geste, les deux réponses. Le toucher net, lui, agit toujours.
-              if (press.acts) onAct(label, event.clientX, event.clientY);
-            }}
+            onClick={(event) =>
+              pressLabel(
+                label,
+                cleanPressAt(mapping, pressedWith.current, event.button, holding),
+                pressedWith.current,
+                event.clientX,
+                event.clientY,
+              )
+            }
             onKeyDown={(event) => {
               if (label.lootSightingId !== null && (event.key === 'Enter' || event.key === ' ')) {
                 event.preventDefault();

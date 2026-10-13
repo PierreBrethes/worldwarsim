@@ -23,6 +23,7 @@ import type { InkLayer } from './ink';
 import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { pieceScale } from './piece-scale';
+import { drawnHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
   arc: ArcView;
@@ -248,6 +249,16 @@ export class ArcLayer {
     if (id === this.accented) return;
     this.accented = id;
     this.applyAccent();
+  }
+
+  /** The pawn under `ray`, by its movement's id — the id its head label carries. */
+  pawnUnder(ray: Raycaster): PieceHit | null {
+    let best: PieceHit | null = null;
+    for (const { arc, pawn } of this.rendered) {
+      const distance = drawnHit(ray, pawn.object);
+      if (distance !== null) best = nearer(best, { id: arc.id, distance });
+    }
+    return best;
   }
 
   /** The movement id under the pointer, so the timeline highlights its card. */

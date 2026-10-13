@@ -169,6 +169,8 @@ export class Wake {
     for (let k = 0; k < WAKE_PUFFS; k++) {
       const puff = new Mesh(WAKE_DISC, wakeSteps[0]);
       puff.renderOrder = 3;
+      // Foam on the water, not the hull: the pointer behind a ship is on the sea (`drawnHit`).
+      puff.userData.ground = true;
       this.object.add(puff);
     }
     this.frame(0);
