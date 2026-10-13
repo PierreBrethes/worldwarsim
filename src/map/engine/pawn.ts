@@ -11,7 +11,6 @@ import {
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { yawToward } from './blocks';
 import { nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 
@@ -125,16 +124,13 @@ export class Pawn {
    * neither the same screen share nor the same frame — one hangs under its point, the other
    * stands on it — and a common scale would make the pawn's size jump at the dock.
    */
-  orient(cameraPosition: Vector3): void {
+  orient(cameraPosition: Vector3, yaw: number): void {
     const distance = this.object.position.distanceTo(cameraPosition);
     const figurine = this.figurines.get(this.medium);
     const near = figurine === undefined ? 0 : nearWeight(distance);
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
-      const yaw = figurine.facesEye
-        ? yawToward(this.object.position, cameraPosition)
-        : this.heading;
-      figurine.object.rotation.set(0, yaw, 0);
+      figurine.object.rotation.set(0, figurine.facesEye ? yaw : this.heading, 0);
       figurine.object.scale.setScalar(near);
     }
     const costume = this.costumes.get(this.medium);

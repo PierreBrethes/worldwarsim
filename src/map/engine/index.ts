@@ -39,6 +39,7 @@ import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
+import { cameraYaw } from './billboard';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { ReachRing } from './reach';
@@ -1250,14 +1251,15 @@ export class MapEngine {
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
     // beneath — WebGL only knows one pixel of width.
     const distance = this.camera.position.distanceTo(this.controls.target);
-    this.arcs.animate(this.camera, this.unitsPerPixel(distance));
+    const yaw = cameraYaw(this.camera.position, this.controls.target);
+    this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
     this.ink.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
-    this.camps.orient(this.camera.position, now);
+    this.camps.orient(this.camera.position, yaw, now);
     this.regions.animate(distance);
     this.sea?.fade(distance);
     this.borders.material.opacity =
