@@ -307,6 +307,9 @@ export class MapEngine {
    * lit.
    */
   private fingerOnBoard = false;
+  /** A finger has no hover: the region is read once, at the tap that selects, and kept until the
+   *  next tap or the selection leaves. */
+  private regionTapped = false;
   private hoveredArc: string | null = null;
   /** The piece in hand, `null` when nothing is held (ADR 0026 §6). */
   private held: PieceHold | null = null;
@@ -830,6 +833,7 @@ export class MapEngine {
   select(adm0: string | null): void {
     this.invalidate();
     this.selection = adm0;
+    if (adm0 === null && this.fingerOnBoard) this.updateRegionHover(null);
   }
 
   /**
@@ -1182,6 +1186,10 @@ export class MapEngine {
       this.onRegionClick(this.regionAtPoint(event.clientX, event.clientY)?.id ?? null);
       return;
     }
+    if (this.fingerOnBoard) {
+      this.regionTapped = true;
+      this.updateHover();
+    }
     this.onSelect(this.hovered?.userData.adm0 ?? null);
   }
 
@@ -1526,7 +1534,10 @@ export class MapEngine {
     const hit = onScreen ? this.ray.intersectObjects(this.countries, false)[0] : undefined;
     const touched = hit?.object as CountryMesh | undefined;
 
-    this.updateRegionHover(this.fingerOnBoard ? null : (hit?.point ?? null));
+    if (!this.fingerOnBoard || this.regionTapped) {
+      this.regionTapped = false;
+      this.updateRegionHover(hit?.point ?? null);
+    }
 
     const piece = !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null;
     if (piece !== this.hoveredPiece) {
