@@ -137,7 +137,16 @@ export class SeaLayer implements AmbientLayer {
   private readonly coastStep = { value: 1 };
   // Radius zero until the frame is known: no rose rather than a rose at the origin.
   private readonly rose = { value: [0, 0, 0] };
+  private readonly glow = { value: SHEET_GLOW };
+  private readonly paper = { value: new Color(PALETTE.foam) };
   private disposed = false;
+
+  /** The sheet's own light goes down with the sky: lit from within, the sea stayed day at night. */
+  dim(night: number): void {
+    this.glow.value = SHEET_GLOW * (1 - 0.8 * night);
+    // The foam is laid after the light: left alone, it shone white along every coast at night.
+    this.paper.value.set(PALETTE.foam).multiplyScalar(1 - 0.6 * night);
+  }
 
   /** Hands back the routing grid it decoded, so the engine does not build it a second time. */
   async shore(frame: WorldFrame, world: World): Promise<RouteGrid | null> {
@@ -178,9 +187,10 @@ export class SeaLayer implements AmbientLayer {
       shader.uniforms.seaCoastOrigin = this.coastOrigin;
       shader.uniforms.seaCoastScale = this.coastScale;
       shader.uniforms.seaCoastStep = this.coastStep;
-      shader.uniforms.seaPaper = { value: new Color(PALETTE.foam) };
+      shader.uniforms.seaPaper = this.paper;
       shader.uniforms.seaInk = { value: new Color(PALETTE.seaInk) };
       shader.uniforms.seaRose = this.rose;
+      shader.uniforms.seaGlow = this.glow;
       shader.vertexShader = shader.vertexShader
         .replace(
           'void main() {',
@@ -202,6 +212,7 @@ export class SeaLayer implements AmbientLayer {
           uniform vec3 seaPaper;
           uniform vec3 seaInk;
           uniform vec3 seaRose;
+          uniform float seaGlow;
           varying vec2 vSeaBoard;
           varying vec2 vSeaLonLat;
           // A line a pixel wide wherever value crosses at, whatever the zoom.
@@ -276,7 +287,7 @@ export class SeaLayer implements AmbientLayer {
         .replace(
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
-          totalEmissiveRadiance += ${glsl(SHEET_GLOW)} * diffuseColor.rgb;`,
+          totalEmissiveRadiance += seaGlow * diffuseColor.rgb;`,
         )
         .replace(
           '#include <colorspace_fragment>',

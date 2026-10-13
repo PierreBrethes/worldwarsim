@@ -10,11 +10,11 @@ import { REGIONS_GONE_DISTANCE } from './regions';
 
 /**
  * **Une seule lampe, chaude, au-dessus de la table** (13/10/2026) : c'est elle qui porte les
- * ombres des pièces sur la feuille, en attendant le jour et la nuit. Sa direction est celle de
+ * ombres des pièces sur la feuille ; la nuit, le ciel baisse et elle reste seule (`night.ts`). Sa direction est celle de
  * l'ancien soleil, pour que la carte garde sa lumière.
  */
 const LAMP_COLOR = '#ffe2b8';
-const LAMP_INTENSITY = 1.25;
+export const LAMP_INTENSITY = 1.25;
 const TOWARD_LAMP = new Vector3(-180, 320, 160).normalize();
 /** Assez loin pour que tout le cadre d'ombre tienne devant elle, à n'importe quel zoom permis. */
 const LAMP_DISTANCE = 300;

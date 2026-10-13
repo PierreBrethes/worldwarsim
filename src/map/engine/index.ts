@@ -1,7 +1,6 @@
 import {
   Color,
   Fog,
-  HemisphereLight,
   MOUSE,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -42,6 +41,8 @@ import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
+import { NightSky } from './night';
+import { nightAt } from '@/domain/daylight';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
@@ -149,6 +150,11 @@ const JOURNEY_MS = 500;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
+/** Development only: `?nuit=0.8` holds the sky at that share of night, to look at it now. */
+function forcedNight(search: string): number | null {
+  const raw = import.meta.env.DEV ? new URLSearchParams(search).get('nuit') : null;
+  return raw === null ? null : Number(raw);
+}
 
 /**
  * Below this accumulated motion, the gesture is a clean click and designates the aimed
@@ -196,6 +202,8 @@ export class MapEngine {
   private readonly controls: OrbitControls;
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
+  private readonly night: NightSky;
+  private readonly forcedNight = forcedNight(location.search);
   private readonly sea: SeaLayer | null;
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
@@ -364,12 +372,10 @@ export class MapEngine {
     // many trackpads have no third button and that path must stay open.
     this.applyMapping();
 
-    // Moins de ciel, plus de lampe, la même lumière au total sur la feuille : c'est la part de
-    // la lampe qui fait la profondeur d'une ombre.
-    this.scene.add(new HemisphereLight('#fff3dc', '#5a4e3a', 0.8));
     this.lamp = new Lamp(this.scene);
 
     this.sea = this.ambience.enabled('sea') ? new SeaLayer() : null;
+    this.night = new NightSky(this.scene, this.frame, this.lamp, this.sea);
     const board = buildBoard(
       world,
       this.frame,
@@ -1597,6 +1603,9 @@ export class MapEngine {
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
     this.ambience.frame();
+    // The cycle is slow enough for the heartbeat: no frame is ever asked for the sky alone. Cut
+    // motion keeps it too — a half-hour dusk does not move, a stepped one would jump.
+    this.night.apply(this.forcedNight ?? nightAt(Date.now()));
     this.lightCountries();
 
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear

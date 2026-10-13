@@ -448,7 +448,12 @@ deuxième exception, décidée, au pilier « rien ne bouge sans raison ». **La 
 lampe chaude ne doit pas ramener à la couleur de la terre — d'où une part de lumière propre),
 gravé au fragment d'isobathes lues sur le même champ de distance que l'écume, d'un quadrillage de
 10° sur la mer seule et d'une rose des vents fixe dans l'Atlantique Nord (`sea.ts`) ; le
-quadrillage en lignes de 30° posé sur tout le plateau est parti avec.
+quadrillage en lignes de 30° posé sur tout le plateau est parti avec. **Et le jour tombe**
+(13/10/2026) : le ciel est `nightAt(heure)` (`src/domain/daylight.ts`), un cycle de 5 h qui ne
+divise pas 24 h pour que la phase tourne d'un soir à l'autre ; la nuit le ciel baisse vers le bleu
+d'encre, la lampe reste seule et une centaine de grandes villes de 1940, cuites à la main faute de
+données, s'allument en points dorés (`night.ts`). Lu au rendu, sans demande d'image : le battement
+suffit. `?nuit=0.8` le fige en développement. Pas de feux sur les pièces.
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
