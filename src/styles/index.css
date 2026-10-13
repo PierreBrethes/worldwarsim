@@ -513,7 +513,7 @@ body {
 }
 
 /* The reserve counter's word: what the figure just rolled by, beside it a moment and gone
-   (`Reglette.tsx`). `translate` and not `transform`, which places it over its column on a phone. */
+   (`Reglette.tsx`). `translate` and not `transform`, which centres it on its figure. */
 .reserve-tag {
   position: absolute;
   padding: 2px 3px;
@@ -532,7 +532,7 @@ body {
 @keyframes reserve-tag {
   0% {
     opacity: 0;
-    translate: -6px 0;
+    translate: 0 3px;
   }
   15% {
     opacity: 1;
@@ -543,7 +543,7 @@ body {
   }
   100% {
     opacity: 0;
-    translate: 2px 0;
+    translate: 0 -2px;
   }
 }
 
