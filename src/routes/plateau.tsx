@@ -23,7 +23,6 @@ import {
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import type { StackHover } from '@/map/MapLabels';
 import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
 import type { PieceClick } from '@/map/engine';
 import {
@@ -40,7 +39,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
-import { pilePieces, pileSheet } from '@/domain/pile-pieces';
+import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
@@ -127,7 +126,8 @@ import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { HandSheet } from './-plateau/HandSheet';
-import { PileSheet } from './-plateau/PileSheet';
+import { MapPoster } from './-plateau/MapPoster';
+import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
 import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
@@ -290,47 +290,6 @@ export const Route = createFileRoute('/plateau')({
  * player back to the lobby, and a seat the server does not know gets dropped. Everything else
  * is a genuine failure and says so.
  */
-/** Owns the hover so a pointer crossing piles does not re-render the whole board. */
-function StackHoverSheet({
-  register,
-  me,
-  marching,
-  holding,
-  labels,
-}: {
-  register: { current: (hover: StackHover | null) => void };
-  me: PlayerView['me'];
-  marching: ReturnType<typeof marchingTroopIds>;
-  /** Pièce en main, la fiche latérale parle : le survol se tait (ADR 0026 §6). */
-  holding: boolean;
-  labels: ReadonlyArray<MapLabel>;
-}) {
-  const [hover, setHover] = useState<StackHover | null>(null);
-  useEffect(() => {
-    register.current = setHover;
-    return () => {
-      register.current = () => {};
-    };
-  }, [register]);
-  // A pile that leaves takes its label away without a pointerleave.
-  useEffect(() => {
-    if (hover !== null && !labels.some((label) => label.id === hover.labelId)) setHover(null);
-  }, [hover, labels]);
-  const sheet = useMemo(() => {
-    if (hover === null || holding) return null;
-    const held = troopsAt(me, stationKeyOf(hover.station), marching);
-    if (held.length === 0) return null;
-    const ids = new Set(held.map((troop) => troop.id));
-    return {
-      lines: pileSheet(held),
-      cargo: me.stationedCargo
-        .filter((group) => group.troopIds.some((id) => ids.has(id)))
-        .map((group) => group.cargo),
-    };
-  }, [hover, holding, me, marching]);
-  return sheet !== null && hover !== null ? <PileSheet {...sheet} at={hover} /> : null;
-}
-
 function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
   const code = errorCode(error);
   if (code === 'SEASON_NOT_LAUNCHED' || code === 'NOT_AT_WAR') {
@@ -1581,8 +1540,13 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       : (view.lootSightings.find(
           (sighting) => sighting.id === selectedLoot.id && sighting.present,
         ) ?? null);
-  const setStackHover = useRef<(hover: StackHover | null) => void>(() => {});
-  const onStackHover = useCallback((hover: StackHover | null) => setStackHover.current(hover), []);
+  const poster = useCallback(
+    (label: MapLabel) => {
+      const read = posterOf(label, view, Date.now());
+      return read === null ? null : <MapPoster poster={read} />;
+    },
+    [view],
+  );
   const closeWindow = useCallback(
     (name: BoardWindow) => {
       void navigate({ search: (previous) => withoutWindow(previous, name) });
@@ -1986,7 +1950,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onRegionsLoaded={keepRegionAt}
               onArcHover={setHoveredArc}
               onLabelHover={setHoveredLabel}
-              onStackHover={onStackHover}
+              poster={poster}
               compassOf={compassOfTarget}
               onCompassAction={actOnCompass}
               building={buildingSite !== null}
@@ -2101,13 +2065,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             )}
             {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
-            <StackHoverSheet
-              register={setStackHover}
-              me={view.me}
-              marching={marching}
-              holding={hand.kind === 'held'}
-              labels={labels}
-            />
             {hand.kind === 'held' && !(narrow && order !== null) && (
               <HandSheet
                 key={`${stationKeyOf(hand.station)}-${lifts}`}

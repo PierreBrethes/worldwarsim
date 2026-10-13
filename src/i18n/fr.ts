@@ -2965,6 +2965,32 @@ export const fr = {
     },
   },
 
+  /** **Les affiches au survol** (table d'état-major) : ce que la pièce survolée dit d'elle, en
+   *  carte de presse au-dessus d'elle. Elles remplacent le cartouche le temps du survol. */
+  posters: {
+    myMovement: 'mouvement · le mien',
+    route: (from: string, to: string) => `${from} → ${to}`,
+    site: (region: string) => `site · ${region}`,
+    building: (name: string, level: number) => `${name}, niv. ${level}`,
+    perHour: (amount: string) => `+${amount} / h`,
+    network: 'réseau',
+    linked: 'relié',
+    unlinked: 'hors réseau',
+    works: 'chantier',
+    lot: 'lot',
+    lotProgress: (produced: number, ordered: number) => `${produced} / ${ordered}`,
+    surveyed: (time: string) => `relevé · ${time}`,
+    inSight: 'relevé · en vue',
+    standing: 'force posée',
+    moving: 'force en mouvement',
+    unknown: 'composition inconnue, nation inconnue',
+    pierced: (type: string, composition: string) => `${type} · ${composition}, nation inconnue`,
+    estimatedArrival: 'arrivée estimée',
+    estimatedTime: (time: string) => `~${time}`,
+    heading: 'cap',
+    headingAtMe: 'sur nous · estimé',
+  },
+
   labels: {
     levelAndGarrison: (level: number, garrison: number) => `NIVEAU ${level} · GARNISON ${garrison}`,
     /** **Un chantier n'a pas de niveau** : il n'en aura un qu'au lever. Ce que le mât doit dire
