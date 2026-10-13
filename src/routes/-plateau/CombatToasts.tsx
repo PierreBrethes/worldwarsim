@@ -71,19 +71,24 @@ export function CombatToasts({
   );
 
   if (toasts.length === 0) return null;
+  /* Au téléphone, un seul à la fois et au pied de la carte, comme l'avis d'envoi : trois encarts
+     en haut couvraient la colonne « en cours » et la moitié du plateau. Les suivants attendent
+     que le premier parte. */
+  const shown = narrow ? toasts.slice(-1) : [...toasts].reverse();
   return (
     <div
       className={`hud pointer-events-none absolute z-[var(--z-band)] flex flex-col gap-2 ${
         narrow
-          ? 'inset-x-[10px] top-[10px]'
+          ? 'inset-x-[10px] bottom-[14px]'
           : 'top-4 left-1/2 w-[min(400px,calc(100%-32px))] -translate-x-1/2'
       }`}
     >
-      {[...toasts].reverse().map((toast) => (
+      {shown.map((toast) => (
         <CombatToast
           key={idOf(toast)}
           toast={toast}
           animated={animated}
+          narrow={narrow}
           onShow={onShow}
           onDismiss={dismiss}
           onGone={remove}
@@ -98,12 +103,14 @@ const idOf = (toast: Toast): string => toast.combat.id;
 function CombatToast({
   toast,
   animated,
+  narrow,
   onShow,
   onDismiss,
   onGone,
 }: {
   toast: Toast;
   animated: boolean;
+  narrow: boolean;
   onShow: (combat: CombatReport) => void;
   onDismiss: (id: string) => void;
   onGone: (id: string) => void;
@@ -118,8 +125,7 @@ function CombatToast({
   }, [held, leaving, id, onDismiss]);
 
   const alarm = isAlarm(dispatch.kind);
-  const action =
-    'min-h-[36px] cursor-pointer border border-[var(--ink)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase';
+  const action = `${narrow ? 'min-h-[44px]' : 'min-h-[36px]'} cursor-pointer border border-[var(--ink)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase`;
   return (
     <div
       role="status"
@@ -152,7 +158,7 @@ function CombatToast({
           onClick={() => onDismiss(id)}
           title={fr.combatToast.close}
           aria-label={fr.combatToast.close}
-          className="min-h-[28px] min-w-[28px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+          className={`${narrow ? 'min-h-[44px] min-w-[44px]' : 'min-h-[28px] min-w-[28px]'} shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)]`}
         >
           ×
         </button>
