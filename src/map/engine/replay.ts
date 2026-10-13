@@ -124,7 +124,7 @@ export function shakeOf(step: ReplayFrame['step'], progress: number, still: bool
 /** The salvo's smoke hangs on into the losses: a puff does not vanish as the shot lands. */
 const LINGER_MS = 900;
 
-const SHOT = new BoxGeometry(0.012, 0.012, 0.16);
+const SHOT = new BoxGeometry(0.02, 0.02, 0.24);
 const SHOT_INK = new MeshBasicMaterial({ color: '#2b2118' });
 const MUZZLE_HEIGHT = 0.12;
 const from = new Vector3();
