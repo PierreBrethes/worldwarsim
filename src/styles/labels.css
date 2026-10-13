@@ -328,6 +328,48 @@
   color: var(--ink);
 }
 
+.label-line--loading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink);
+}
+
+/* Graduated in quarters: one crate drops on the map at each mark. */
+.loading-gauge {
+  display: flex;
+  width: 120px;
+  height: 7px;
+  margin: 2px 0 1px;
+  border: 1px solid var(--ink);
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(25% - 1px),
+    rgb(42 33 24 / 22%) calc(25% - 1px) 25%
+  );
+}
+
+.loading-gauge b {
+  display: block;
+  height: 100%;
+  background-color: var(--ink-soft);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 32%) 0 3px,
+    transparent 3px 6px
+  );
+  background-size: 8.49px 8.49px;
+}
+
+.loading-gauge--crawl b {
+  animation: loading-crawl 0.7s linear infinite;
+}
+
+@keyframes loading-crawl {
+  to {
+    background-position: 8.49px 0;
+  }
+}
+
 .label-line--mention {
   font-size: 8.5px;
   letter-spacing: 0.22em;

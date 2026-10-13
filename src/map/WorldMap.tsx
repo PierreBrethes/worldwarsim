@@ -1090,5 +1090,5 @@ export function targetOfLabel(
 
 function lineText(label: MapLabel, role: 'nature'): string | null {
   const line = label.lines.find((candidate) => candidate.role === role);
-  return line === undefined || line.role === 'countdown' ? null : line.text;
+  return line === undefined || !('text' in line) ? null : line.text;
 }

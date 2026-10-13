@@ -18,8 +18,10 @@ import type { Ribbon } from './route-ribbon';
 import { Pawn } from './pawn';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
-import type { WorldFrame } from './frame';
+import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { InkLayer } from './ink';
+import { CratePile } from './crates';
+import { loadingAt, loadingUntilOf } from '@/domain/loading';
 
 type RenderedArc = {
   arc: ArcView;
@@ -40,6 +42,9 @@ type RenderedArc = {
   progress: number;
   /** Share of the trip per millisecond, zero for anything that is not travelling. */
   pace: number;
+  /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
+  rest: Vector3 | null;
+  loadingUntil: number | null;
 };
 
 /**
@@ -98,6 +103,8 @@ export class ArcLayer {
   private known: ReadonlySet<string> | null = null;
   /** Threads whose pen stroke is still being laid: hidden until this instant, whatever rebuilds. */
   private readonly inking = new Map<string, number>();
+  /** Kept across displays, which come at every step of any column: a crate falls once. */
+  private readonly crates = new Map<string, CratePile>();
 
   constructor(
     private readonly frame: WorldFrame,
@@ -214,8 +221,11 @@ export class ArcLayer {
          *  otherwise stand there for good. */
         progress: arc.progress >= 1 ? 1 : (carried?.get(arc.id) ?? arc.progress),
         pace: paceOf(arc),
+        rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
+        loadingUntil: loadingUntilOf(arc),
       });
     }
+    this.syncCrates();
     this.applyAccent();
     this.animate();
   }
@@ -280,17 +290,20 @@ export class ArcLayer {
       rendered.thread.cut(legIndex, local);
 
       const leg = rendered.thread.legs[legIndex];
-      if (leg === undefined) continue;
-      pointOnLeg(leg, local, this.pawnPoint);
-      pointOnLeg(leg, Math.min(1, local + 0.01), this.aheadPoint);
-
-      // At the dock, the pawn already wears the silhouette of what it is about to become:
-      // it is the embarkation itself that shows, and the stop that reads.
-      rendered.pawn.wear(
-        position.kind === 'dock'
-          ? (rendered.thread.legs[position.legIndex]?.medium ?? leg.medium)
-          : leg.medium,
-      );
+      if (leg !== undefined) {
+        pointOnLeg(leg, local, this.pawnPoint);
+        pointOnLeg(leg, Math.min(1, local + 0.01), this.aheadPoint);
+        // At the dock, the pawn already wears the silhouette of what it is about to become:
+        // it is the embarkation itself that shows, and the stop that reads.
+        rendered.pawn.wear(
+          position.kind === 'dock'
+            ? (rendered.thread.legs[position.legIndex]?.medium ?? leg.medium)
+            : leg.medium,
+        );
+      } else if (rendered.rest !== null) {
+        this.pawnPoint.copy(rendered.rest);
+        this.aheadPoint.copy(rendered.rest);
+      } else continue;
       projectOnGround(this.pawnPoint, this.groundPoint);
       rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y);
       if (this.motion === 'full') rendered.pawn.step(elapsed);
@@ -299,6 +312,35 @@ export class ArcLayer {
 
       if (rendered.thread.tether !== null)
         stretchTether(rendered.thread.tether, this.pawnPoint, this.groundPoint);
+
+      const pile = this.crates.get(rendered.arc.id);
+      if (pile !== undefined && rendered.loadingUntil !== null) {
+        pile.update(
+          loadingAt(rendered.loadingUntil, Date.now()).crates,
+          now,
+          this.motion === 'full',
+        );
+        pile.place(this.groundPoint, this.cameraPosition);
+      }
+    }
+  }
+
+  private syncCrates(): void {
+    const loading = new Map(
+      this.rendered.flatMap((rendered) =>
+        rendered.loadingUntil === null ? [] : [[rendered.arc.id, rendered.loadingUntil] as const],
+      ),
+    );
+    for (const [id, pile] of this.crates) {
+      if (loading.has(id)) continue;
+      pile.object.removeFromParent();
+      this.crates.delete(id);
+    }
+    for (const [id, until] of loading) {
+      if (this.crates.has(id)) continue;
+      const pile = new CratePile(loadingAt(until, Date.now()).crates);
+      this.crates.set(id, pile);
+      this.group.add(pile.object);
     }
   }
 

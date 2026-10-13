@@ -103,6 +103,20 @@ describe('buildLabels', () => {
     ]);
   });
 
+  it('shows the load of my expedition on site in place of its countdown', () => {
+    const until = LOADED_AT + 32 * 60_000;
+    const [label] = buildLabels(
+      viewWith([
+        mineArc({
+          mission: { kind: 'plunder', phase: 'presence', buildingId: 'b', presenceEndsAt: until },
+        }),
+      ]),
+      [],
+    );
+    expect(label?.lines[0]).toEqual({ role: 'loading', until });
+    expect(label?.lines.some((line) => line.role === 'countdown')).toBe(false);
+  });
+
   it('gives type and composition once intelligence has pierced', () => {
     const [label] = buildLabels(
       viewWith([
