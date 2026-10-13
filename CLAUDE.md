@@ -183,7 +183,8 @@ l'encre, le diagnostic à la carte de la réserve. **Le chiffre ne suit pas l'ho
 13/10, `src/domain/reserve-counter.ts`) : chaque réserve tire son instant entre 30 et 60 s, roule
 comme un compteur jusqu'au stock et montre « +N » ; un gain que le débit n'explique pas — la vue
 neuve comparée à ce que l'ancienne prédisait — s'annonce sur-le-champ, une dépense roule sans
-étiquette. Jauge, alerte et libellé accessible lisent le stock réel. À gauche, la
+étiquette ; animations « coupées » ou mouvement réduit du système, il suit l'horloge comme
+avant. Jauge, alerte et libellé accessible lisent le stock réel. À gauche, la
 **colonne des surfaces** (`SurfaceColumn.tsx`) : en tête le carré d'encre « N à faire », qui
 déplie la carte `NextActions` à sa droite (repli retenu), puis Nation, Écon., Abaque, Journal
 (badge des non-lus — la mention a quitté la réglette), Presse (rang), Télég. Les **réglages** sont
