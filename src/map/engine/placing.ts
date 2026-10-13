@@ -15,7 +15,7 @@ export type CoastSpot = {
  *  down, and it must weigh what a piece weighs on this board. */
 const GHOST_SHARE = 0.031;
 
-/** Just clear of the slab, like the props the region layer grows. */
+/** Just clear of the slab and of everything laid flat on it. */
 const GHOST_LIFT = COUNTRY_THICKNESS + 0.02;
 
 /**

@@ -295,8 +295,11 @@ planche. Les blocs adverses, le lever-poser et les garnisons de bâtiment sont l
 fragment pour rester nette — la mer est plate jusque sous la terre, aucune bande côtière
 cuite en texels). Au rapproché (< 65 unités), les **régions admin-1** apparaissent en fondu :
 traits intérieurs seulement, survol avec surbrillance teintée par type de terrain, infobulle
-nom + type, et accessoires 3D qui poussent sur la région (sapins, dunes, pyramides… —
-`src/map/engine/terrain.ts`, graine tirée du nom, taille et nombre suivant l'aire).
+nom + type, et des **pictogrammes de cartographe tracés à la plume** dans la région — sapins,
+monts hachurés, dunes, palmiers, touffes, blés —, du centre vers les bords, effacés en fondu
+quand on la quitte (`src/map/engine/terrain.ts`, une table `PICTOGRAMS` où chaque dessin se
+change seul ; graine tirée de l'identifiant, taille et nombre suivant l'aire). Ils ont remplacé
+les accessoires 3D le 13/10.
 
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
@@ -378,7 +381,7 @@ géométrie plate et le clic tombe à côté sur les bords de la carte.
 **La carte ne rend que sur demande — 05/10/2026** (`src/map/engine/frame-demand.ts`). Elle
 dessinait soixante images par seconde même posée et immobile. La boucle tourne toujours, mais
 l'image n'est due que si quelque chose a remué la carte dans les 1,5 s (`SETTLE_MS`, qui couvre
-l'inertie de la caméra et la pousse des accessoires), si un fil est affiché — ses tirets coulent,
+l'inertie de la caméra et la plume du terrain survolé), si un fil est affiché — ses tirets coulent,
 donc **un mouvement à l'écran garde le rendu continu** (sauf animations « coupées ») —, ou au
 battement de secours, deux fois par seconde. **Quatre règles quand on touche au moteur**, et la première est vérifiée par un test
 qui lit la source (`frame-demand.test.ts`, même procédé que `roleOf`) :
@@ -407,8 +410,8 @@ l'œil), des rubans de vent suivent une météo qui est la même pour tous, fonc
 s'imprime (`ink.ts`, `ink-bursts.ts`). **Décor pur** : rien ne
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
-aussi la caméra et la pousse des accessoires. C'est la deuxième exception, décidée, au pilier
-« rien ne bouge sans raison ».
+aussi la caméra et la plume du terrain survolé (tracé, fondu court, posé d'un coup). C'est la
+deuxième exception, décidée, au pilier « rien ne bouge sans raison ».
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne

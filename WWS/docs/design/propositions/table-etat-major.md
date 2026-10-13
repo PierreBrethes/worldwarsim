@@ -220,7 +220,7 @@ Avis de Pierre du 12/10 entre crochets.
   quittant. **Prérequis : la vraie classification**, livrée (`region-types.json`, voir
   `classification-regions.md`). Décor seulement — la fiche 08
   reste « ni grille, ni terrain ».
-  **Prototypé le 12/10** sur la carte inventée : six jeux de pictogrammes tracés à la plume
+  **Livré le 13/10** sur la vraie carte (`terrain.ts`, `regions.ts`). **Prototypé le 12/10** sur la carte inventée : six jeux de pictogrammes tracés à la plume
   (≈ 0,6 s, décalés du centre vers les bords), fondu de sortie, lavis léger de la région, infobulle
   nom et terrain ; le calque n'est redessiné que pendant l'animation. [*Pierre adore l'idée ; certains
   dessins seront retravaillés.*]

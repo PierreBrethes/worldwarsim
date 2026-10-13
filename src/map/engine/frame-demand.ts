@@ -6,7 +6,7 @@
  * Deux filets, parce qu'une invalidation oubliée fige une carte et qu'aucun test ne le voit :
  *
  * - **la fenêtre d'activité** : ce qui remue la carte ne demande pas *une* image mais
- *   `SETTLE_MS` d'images. L'inertie de la caméra, la pousse des accessoires d'une région, une
+ *   `SETTLE_MS` d'images. L'inertie de la caméra, la plume du terrain survolé, une
  *   texture qui arrive juste après : rien de cela n'a à se déclarer, la fenêtre le couvre ;
  * - **le battement** : même sans rien, une image toutes les `HEARTBEAT_MS`. Un oubli se lit
  *   alors comme un retard d'une demi-seconde, jamais comme une carte gelée.

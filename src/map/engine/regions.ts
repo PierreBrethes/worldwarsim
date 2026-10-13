@@ -12,11 +12,17 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
-import type { RegionType } from '@/domain/ids';
 import type { Curvature } from './curvature';
 import { builtInk, PALETTE } from './palette';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { createProp, disposeTerrain, TYPE_TINTS } from './terrain';
+import {
+  mulberry,
+  seed,
+  sketchRegion,
+  TerrainSketches,
+  TYPE_TINTS,
+  type PenStrands,
+} from './terrain';
 
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
@@ -44,7 +50,9 @@ const BUILT_LIFT = 0.001;
  *  read over the ink of what already stands there. */
 const DESIGNATED_LIFT = 0.002;
 const HOVER_LIFT = 0.0035;
-const PROP_LIFT = 0.001;
+const ANCHOR_LIFT = 0.001;
+/** Over the fills, under the hover contour that frames them. */
+const SKETCH_LIFT = 0.003;
 
 /** Thin enough that the contour reads as a pen stroke and not as a second border. */
 const HOVER_OPACITY = 0.85;
@@ -153,11 +161,17 @@ const spansTheFrame = (
   return maxX - minX > frame.width / 2 && maxY - minY > frame.height / 2;
 };
 
-type PreparedRegion = {
+type Box = readonly [minX: number, minY: number, maxX: number, maxY: number];
+
+export type PreparedRegion = {
   readonly region: DisplayedRegion;
-  readonly box: readonly [minX: number, minY: number, maxX: number, maxY: number];
+  readonly box: Box;
+  /** One box per ring, same order: `contains` skips a ring the point cannot cross. */
+  readonly ringBoxes: ReadonlyArray<Box>;
   readonly area: number;
 };
+
+const SKETCH_CACHE_SIZE = 32;
 
 /**
  * The admin-1 borders (regions, states, departments) of `regions.json` — inner segments
@@ -175,8 +189,7 @@ export class RegionLayer {
   /** The regions an armed key accepts — the mobilisation order's answer, laid on the ground. */
   readonly designated: Mesh;
   readonly hoverOutline: LineSegments;
-  readonly props = new Group();
-  instantGrowth = false;
+  readonly terrain = new TerrainSketches();
   private readonly lineMaterial: LineBasicMaterial;
   private readonly builtMaterial: MeshStandardMaterial;
   private readonly designatedMaterial: MeshStandardMaterial;
@@ -190,10 +203,15 @@ export class RegionLayer {
   private laid = '';
   /** L'encre du tenant, par région : le survol la lit pour teinter le contour d'une région tenue
    *  à sa couleur plutôt qu'à celle de son terrain. */
-  private inkByRegion = new Map<string, string>();
+  private heldByRegion = new Map<
+    string,
+    { readonly ink: string; readonly wash: number; readonly suspended: boolean }
+  >();
+  /** A big region costs 100+ ms to sketch (the Nunavut), and the pointer crosses it again and
+   *  again. Oldest out; emptied when the strands go stale (`rebuild`). */
+  private readonly strandsCache = new Map<string, PenStrands>();
   private builtIds: ReadonlySet<string> = new Set();
   private designatedIds: ReadonlySet<string> = new Set();
-  private birth = 0;
   private share = 0;
 
   constructor(
@@ -267,25 +285,7 @@ export class RegionLayer {
     geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
     this.lines.geometry = this.curvature.register(geometry);
 
-    this.prepared = data.regions.map((region) => {
-      let minX = Number.POSITIVE_INFINITY;
-      let minY = Number.POSITIVE_INFINITY;
-      let maxX = Number.NEGATIVE_INFINITY;
-      let maxY = Number.NEGATIVE_INFINITY;
-      let area = 0;
-      for (const ring of region.rings) {
-        for (let i = 0; i < ring.length; i++) {
-          const [x, y] = ring[i]!;
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-          const [nextX, nextY] = ring[(i + 1) % ring.length]!;
-          area += x * nextY - nextX * y;
-        }
-      }
-      return { region, box: [minX, minY, maxX, maxY], area: Math.abs(area / 2) };
-    });
+    this.prepared = data.regions.map(prepare);
     this.rebuild();
   }
 
@@ -302,9 +302,14 @@ export class RegionLayer {
     if (signature === this.laid) return;
     this.laid = signature;
     this.claims = claims;
-    this.inkByRegion = new Map(
-      claims.flatMap((claim) => claim.regions.map((region) => [region.id, claim.ink] as const)),
+    this.heldByRegion = new Map(
+      claims.flatMap((claim) =>
+        claim.regions.map(
+          ({ id, wash, suspended }) => [id, { ink: claim.ink, wash, suspended }] as const,
+        ),
+      ),
     );
+    this.forgetSketches();
     this.rebuildHeld();
   }
 
@@ -336,9 +341,18 @@ export class RegionLayer {
 
   /** The fill is placed by hand on the curved slab, so a curvature change has to redo it. */
   rebuild(): void {
+    this.forgetSketches();
     this.rebuildHeld();
     this.fill(this.built, this.builtIds, BUILT_LIFT);
     this.fill(this.designated, this.designatedIds, DESIGNATED_LIFT);
+  }
+
+  /** The strands are laid on the curved slab and the pen's ground is the painted one: when either
+   *  moves, the drawing on screen and the cached ones are stale, and the next hover redoes it. */
+  private forgetSketches(): void {
+    this.strandsCache.clear();
+    this.terrain.clear();
+    this.hoveredRegion = null;
   }
 
   /** Un maillage par tenant **et par cran de délavage**, refait entier : un diff par région
@@ -429,7 +443,7 @@ export class RegionLayer {
     const prepared = this.prepared.find(({ region }) => region.id === regionId);
     if (prepared === undefined) return null;
     const [x, y] = interiorPoint(prepared);
-    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + PROP_LIFT);
+    return this.frame.toWorld(x, y, COUNTRY_THICKNESS + ANCHOR_LIFT);
   }
 
   /**
@@ -448,7 +462,7 @@ export class RegionLayer {
     if (prepared === undefined) return null;
     return {
       box: prepared.box,
-      covers: (x, y) => contains(prepared.region, x, y),
+      covers: (x, y) => contains(prepared, x, y),
     };
   }
 
@@ -471,7 +485,7 @@ export class RegionLayer {
       if (projectedX < minX || projectedX > maxX || projectedY < minY || projectedY > maxY)
         continue;
       if (kept !== null && candidate.area >= kept.area) continue;
-      if (contains(candidate.region, projectedX, projectedY)) kept = candidate;
+      if (contains(candidate, projectedX, projectedY)) kept = candidate;
     }
     return kept;
   }
@@ -481,7 +495,7 @@ export class RegionLayer {
   }
 
   /** Fade driven by camera→target distance; invisible, the layer costs nothing. */
-  animate(cameraDistance: number): void {
+  animate(cameraDistance: number, now: number): void {
     this.share = Math.min(
       1,
       Math.max(
@@ -498,7 +512,7 @@ export class RegionLayer {
     this.hoverMaterial.opacity = this.share * HOVER_OPACITY;
     if (!this.isActive) this.changeHighlight(null);
     else this.hoverOutline.visible = this.hoveredRegion !== null;
-    this.growProps();
+    this.terrain.animate(now, this.share);
   }
 
   dispose(): void {
@@ -517,15 +531,11 @@ export class RegionLayer {
     this.builtMaterial.dispose();
     this.designatedMaterial.dispose();
     this.hoverMaterial.dispose();
-    // The props share the terrain module's geometries and materials: `disposeTerrain` frees
-    // them once, and detaching here keeps the engine's final sweep from meeting them again.
-    this.props.clear();
+    this.terrain.dispose();
     this.lines.removeFromParent();
     this.built.removeFromParent();
     this.designated.removeFromParent();
     this.hoverOutline.removeFromParent();
-    this.props.removeFromParent();
-    disposeTerrain();
   }
 
   /**
@@ -540,7 +550,16 @@ export class RegionLayer {
     if (region === this.hoveredRegion) return;
     this.hoveredRegion = region;
     this.hoverOutline.geometry.dispose();
-    this.props.clear();
+    const held = region === null ? undefined : this.heldByRegion.get(region.id);
+    /** A suspended zone is only a hatch: the ground under the pen is the sheet. */
+    const painted = held === undefined || held.suspended ? null : held;
+    this.terrain.show(
+      region?.id ?? null,
+      () => (prepared ? this.penStrandsOf(prepared) : []),
+      performance.now(),
+      painted?.ink ?? null,
+      painted === null ? 0 : HELD_OPACITY * painted.wash,
+    );
     if (prepared === null || region === null) {
       this.hoverOutline.geometry = new BufferGeometry();
       this.hoverOutline.visible = false;
@@ -548,11 +567,8 @@ export class RegionLayer {
     }
 
     /** **La teinte de possession remplace celle du terrain, elle ne s'y ajoute pas** (ADR 0020) :
-     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». Les
-     *  accessoires 3D poussent quand même — ils disent le terrain, et le terrain n'a pas changé. */
-    const { type } = region;
-    this.hoverMaterial.color.set(this.inkByRegion.get(region.id) ?? TYPE_TINTS[type]);
-    this.sowProps(prepared, type);
+     *  sur une région tenue, la question que le survol répond est « à qui », pas « quel sol ». */
+    this.hoverMaterial.color.set(held?.ink ?? TYPE_TINTS[region.type]);
 
     const points: number[] = [];
     for (const ring of region.rings) {
@@ -570,6 +586,29 @@ export class RegionLayer {
 
     this.hoverOutline.geometry = geometry;
     this.hoverOutline.visible = true;
+  }
+
+  private penStrandsOf(prepared: PreparedRegion): PenStrands {
+    const { region, box, area } = prepared;
+    const cached = this.strandsCache.get(region.id);
+    if (cached !== undefined) return cached;
+    const strands = sketchRegion({
+      type: region.type,
+      seed: seed(region.id),
+      box,
+      area,
+      center: interiorPoint(prepared),
+      covers: (x, y) => contains(prepared, x, y),
+    }).map(({ delay, strokes }) => ({
+      delay,
+      strands: strokes.map((stroke) =>
+        stroke.map(([x, y]) => this.frame.toWorld(x, y, COUNTRY_THICKNESS + SKETCH_LIFT)),
+      ),
+    }));
+    if (this.strandsCache.size >= SKETCH_CACHE_SIZE)
+      this.strandsCache.delete(this.strandsCache.keys().next().value!);
+    this.strandsCache.set(region.id, strands);
+    return strands;
   }
 
   /** The region's rings as a flat fill, laid on the curved slab like the highlight was. */
@@ -609,46 +648,33 @@ export class RegionLayer {
     positions.needsUpdate = true;
     return geometry;
   }
+}
 
-  /**
-   * Sows the type's 3D props — interior points by rejection in the box, seed drawn from the
-   * name so the same clearing shows on every hover. Size and count follow the area: an Oise
-   * reads up close, an Amazon from afar.
-   */
-  private sowProps(prepared: PreparedRegion, type: RegionType): void {
-    const [minX, minY, maxX, maxY] = prepared.box;
-    const random = mulberry(seed(prepared.region.name));
-    const count = Math.min(24, Math.max(8, Math.round(Math.sqrt(prepared.area) * 8)));
-    const size = Math.min(0.9, Math.max(0.28, 0.18 + Math.sqrt(prepared.area) * 0.06));
-    let placed = 0;
-    let attempts = 0;
-    while (placed < count && attempts < count * 80) {
-      attempts++;
-      const x = minX + random() * (maxX - minX);
-      const y = minY + random() * (maxY - minY);
-      if (!contains(prepared.region, x, y)) continue;
-      const prop = createProp(type);
-      prop.position.copy(this.frame.toWorld(x, y, COUNTRY_THICKNESS + PROP_LIFT));
-      prop.rotation.y = random() * Math.PI * 2;
-      prop.scale.setScalar(0.0001);
-      prop.userData.size = size * (0.7 + random() * 0.6);
-      prop.userData.delay = placed * 35 + random() * 50;
-      this.props.add(prop);
-      placed++;
+export function prepare(region: DisplayedRegion): PreparedRegion {
+  let area = 0;
+  const ringBoxes = region.rings.map((ring): Box => {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < ring.length; i++) {
+      const [x, y] = ring[i]!;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+      const [nextX, nextY] = ring[(i + 1) % ring.length]!;
+      area += x * nextY - nextX * y;
     }
-    this.birth = performance.now();
-  }
-
-  /** The growth: scale 0 → size with a slight overshoot, staggered prop by prop. */
-  private growProps(): void {
-    if (this.props.children.length === 0) return;
-    const age = this.instantGrowth ? Infinity : performance.now() - this.birth;
-    for (const child of this.props.children) {
-      const t = Math.min(1, Math.max(0, (age - (child.userData.delay as number)) / 320));
-      const overshoot = 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
-      child.scale.setScalar(Math.max(0.0001, (child.userData.size as number) * overshoot));
-    }
-  }
+    return [minX, minY, maxX, maxY];
+  });
+  const box: Box = [
+    Math.min(...ringBoxes.map(([minX]) => minX)),
+    Math.min(...ringBoxes.map(([, minY]) => minY)),
+    Math.max(...ringBoxes.map(([, , maxX]) => maxX)),
+    Math.max(...ringBoxes.map(([, , , maxY]) => maxY)),
+  ];
+  return { region, box, ringBoxes, area: Math.abs(area / 2) };
 }
 
 function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
@@ -657,38 +683,25 @@ function interiorPoint(prepared: PreparedRegion): readonly [number, number] {
   );
   const sum = ring.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0] as [number, number]);
   const centroid = [sum[0] / ring.length, sum[1] / ring.length] as const;
-  if (contains(prepared.region, centroid[0], centroid[1])) return centroid;
+  if (contains(prepared, centroid[0], centroid[1])) return centroid;
 
   const [minX, minY, maxX, maxY] = prepared.box;
   const random = mulberry(seed(prepared.region.name));
   for (let attempt = 0; attempt < 200; attempt++) {
     const x = minX + random() * (maxX - minX);
     const y = minY + random() * (maxY - minY);
-    if (contains(prepared.region, x, y)) return [x, y];
+    if (contains(prepared, x, y)) return [x, y];
   }
   return centroid;
 }
 
-function seed(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return hash;
-}
-
-function mulberry(seedValue: number): () => number {
-  let state = seedValue >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function contains(region: DisplayedRegion, x: number, y: number): boolean {
+/** A ring whose box misses the point crosses the ray an even number of times, or not at all:
+ *  skipping it is exact, and it is what keeps an archipelago from costing every ring. */
+export function contains({ region, ringBoxes }: PreparedRegion, x: number, y: number): boolean {
   let inside = false;
-  for (const ring of region.rings) {
+  for (const [index, ring] of region.rings.entries()) {
+    const [minX, minY, maxX, maxY] = ringBoxes[index]!;
+    if (y < minY || y > maxY || x < minX || x > maxX) continue;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const [xi, yi] = ring[i]!;
       const [xj, yj] = ring[j]!;

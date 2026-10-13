@@ -388,7 +388,7 @@ export class MapEngine {
     this.scene.add(this.regions.built);
     this.scene.add(this.regions.designated);
     this.scene.add(this.regions.hoverOutline);
-    this.scene.add(this.regions.props);
+    this.scene.add(this.regions.terrain.group);
 
     // The thread is aimed at on screen the way it is drawn there: the threshold adds to the
     // material's pixel thickness. Without it, a 1.5 px stroke would only hover to the pixel.
@@ -761,6 +761,7 @@ export class MapEngine {
     this.screenHeight = clientHeight;
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
+    this.regions.terrain.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
@@ -975,7 +976,7 @@ export class MapEngine {
     this.arcs.motion = motion;
     this.camps.motion = motion;
     this.ink.motion = motion;
-    this.regions.instantGrowth = motion !== 'full';
+    this.regions.terrain.motion = motion;
   }
 
   /**
@@ -1235,13 +1236,14 @@ export class MapEngine {
     this.animateJourney();
     this.controls.update();
     if (this.hoverDirty) {
-      // Le survol change ce qui s'allume, et sème les accessoires d'une région qui poussent.
+      // Le survol change ce qui s'allume.
       this.invalidate();
       this.hoverDirty = false;
       this.updateHover();
     }
-    // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image.
-    if (this.arcs.isFlowing || this.ink.active) this.invalidate();
+    // Un fil affiché coule : ses tirets dérivent et son pion marche, à chaque image — et la plume
+    // trace le terrain survolé tant qu'elle n'a pas fini.
+    if (this.arcs.isFlowing || this.ink.active || this.regions.terrain.active) this.invalidate();
     const now = performance.now();
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
@@ -1260,7 +1262,7 @@ export class MapEngine {
     this.ghost.orient(this.camera.position);
     this.standing.orient(this.camera.position);
     this.camps.orient(this.camera.position, yaw, now);
-    this.regions.animate(distance);
+    this.regions.animate(distance, now);
     this.sea?.fade(distance);
     this.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
