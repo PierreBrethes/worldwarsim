@@ -55,11 +55,12 @@ import { PlacingGhost, type CoastSpot } from './placing';
 import { WorldFrame } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer } from './sea';
-import { StandingLayer, type CounterTexts, type StandingPile } from './standing';
+import { StandingLayer, type CounterTexts, type PieceHold, type StandingPile } from './standing';
+import { PointerRest } from './pointer-rest';
 import { CampLayer, type SurveyedCamp } from './blocks';
 
 export type { SearchArea } from './search-area';
-export type { CounterTexts, StandingPile } from './standing';
+export type { CounterTexts, PieceHold, StandingPile } from './standing';
 export type { SurveyedCamp } from './blocks';
 
 /**
@@ -89,6 +90,18 @@ export type MapActClick = {
   clientY: number;
 };
 
+/** A clean press that took one of my pieces (`MapEngine.onPieceClick`). */
+export type PieceClick = PieceHold & {
+  /** Maj + clic adds a group of the same pile (ADR 0026 §6). */
+  shift: boolean;
+  clientX: number;
+  clientY: number;
+};
+
+/** Where a held piece's pointer stopped: what `onAct` gets, and the DOM label it stopped on —
+ *  the canvas does not see under a label, so the point may be missing there. */
+export type PointerStop = MapActClick & { labelId: string | null };
+
 /**
  * The trowel, hot spot on its point — top *right* of the drawing, hence `29 3`: at `0 0` the
  * click would land twenty-nine pixels away from the tool. The fallback keyword is not
@@ -99,6 +112,11 @@ const TROWEL_CURSOR = 'url(/cursors/curseur-construire.png) 29 3, crosshair';
 /** The aim wears a plain crosshair: there is no drawn cursor for it, and inventing one here
  *  would put a drawing decision in the engine. */
 const AIM_CURSOR = 'crosshair';
+
+/** One of my pieces under the pointer, nothing in hand, then in hand: the system's own hand —
+ *  the copy on the board already says what is carried (ADR 0026 §6). */
+const PIECE_CURSOR = 'grab';
+const HOLDING_CURSOR = 'grabbing';
 
 /** The one refusal the board shows with a cursor: holding a building over ground that has no
  *  shore to take it. The system's own, because refusal is a browser word before it is ours. */
@@ -266,6 +284,25 @@ export class MapEngine {
    */
   private fingerOnBoard = false;
   private hoveredArc: string | null = null;
+  /** The piece in hand, `null` when nothing is held (ADR 0026 §6). */
+  private held: PieceHold | null = null;
+  private hoveredPiece = false;
+  private readonly rest = new PointerRest();
+  private readonly lastPointer = { clientX: 0, clientY: 0 };
+  /** The label under a held piece's pointer, `null` over the bare board. */
+  private restLabel: string | null = null;
+
+  /**
+   * **A clean press took one of my pieces** — a group by its figurines, the whole pile by a
+   * counter. Tested before the countries on the press that reads, the left one or a finger,
+   * piece in hand or not: a click on the lifted piece is how it is put back. Nothing else is
+   * done with that press. Unset, the press reads the board as it always did.
+   */
+  onPieceClick?: ((hit: PieceClick) => void) | undefined;
+  /** A piece in hand, the mouse still `REST_MS` over the board: once per stop. */
+  onRest?: (at: PointerStop) => void;
+  /** It moved again after `onRest`, or left the board. */
+  onRestless?: () => void;
 
   constructor(
     private readonly container: HTMLElement,
@@ -430,6 +467,23 @@ export class MapEngine {
     this.standing.display(piles, texts);
   }
 
+  /**
+   * **Lifts a piece, or puts it back with `null`** (ADR 0026 §6). The original washes out where
+   * it stands; a copy of the held groups follows the ground under the mouse, and the
+   * cursor closes — the cursor alone when the pile is not dressed. Pointer stops are
+   * told through `onRest` from the first move on; the clean left press then puts down
+   * (`onAct`) rather than reads.
+   */
+  holdPiece(held: PieceHold | null): void {
+    this.invalidate();
+    this.held = held;
+    this.standing.hold(held);
+    // Another piece, or none: the route told for the last stop is not this one's.
+    if (this.rest.stop()) this.onRestless?.();
+    this.hoverDirty = true;
+    this.refreshCursor();
+  }
+
   /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
   displayCamps(camps: ReadonlyArray<SurveyedCamp>): void {
     this.invalidate();
@@ -528,14 +582,6 @@ export class MapEngine {
    *  les siens (`separatingDistance`). */
   cameraDistance(): number {
     return this.camera.position.distanceTo(this.controls.target);
-  }
-
-  /** **L'écart entre deux étiquettes, sur le plateau** : de quoi ranger les cibles d'une colonne
-   *  de la plus proche à la plus lointaine. `null` quand l'une n'est pas posée. */
-  labelSeparation(first: string, second: string): number | null {
-    const from = this.labels.position(first, this.arcs.headPositions);
-    const to = this.labels.position(second, this.arcs.headPositions);
-    return from === undefined || to === undefined ? null : from.distanceTo(to);
   }
 
   /** La caméra ne peut plus s'approcher : ce que le zoom ne sépare pas doit se séparer autrement. */
@@ -673,14 +719,19 @@ export class MapEngine {
   }
 
   private aimAt(clientX: number, clientY: number, includeSea = false): Intersection | undefined {
+    if (!this.castAt(clientX, clientY)) return undefined;
+    return this.ray.intersectObjects(includeSea ? this.aimable : this.countries, false)[0];
+  }
+
+  private castAt(clientX: number, clientY: number): boolean {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    if (!rect.width || !rect.height) return undefined;
+    if (!rect.width || !rect.height) return false;
     this.aim.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.ray.setFromCamera(this.aim, this.camera);
-    return this.ray.intersectObjects(includeSea ? this.aimable : this.countries, false)[0];
+    return true;
   }
 
   /** The camera holds still while a rose is open: one does not aim at a moving target. */
@@ -809,14 +860,21 @@ export class MapEngine {
       this.invalidate();
       this.hoverDirty = true;
       this.postponeRest();
+      // The ground slid under a still pointer: the stop it was on is not the same place.
+      if (this.pointer.x !== -2) this.pointerMoved();
     });
     canvas.addEventListener('pointermove', (event) => {
       this.fingerOnBoard = event.pointerType === 'touch';
       this.aimPointer(event.clientX, event.clientY);
+      this.lastPointer.clientX = event.clientX;
+      this.lastPointer.clientY = event.clientY;
+      this.restLabel = null;
+      if (!this.fingerOnBoard) this.pointerMoved();
     });
     canvas.addEventListener('pointerleave', () => {
       this.pointer.set(-2, -2);
       this.hoverDirty = true;
+      if (this.rest.stop()) this.onRestless?.();
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
@@ -885,7 +943,9 @@ export class MapEngine {
    * invariant is what keeps the board selectable under any mapping — and the one that acts opens
    * the rose. A drag was an orientation or a pan; held space makes the left button a pan, not a
    * designation. Both fire when the player put `act` on the left button, and in that order: the
-   * rose answers about what the click has just designated. A clean touch is always both.
+   * rose answers about what the click has just designated. A clean touch is always both. **A
+   * piece in hand turns the left one into a putting down** — it acts, once — and before any of
+   * it, the left press or the touch takes one of my pieces when it lands on one.
    */
   private endGesture = (event: PointerEvent): void => {
     const gesture = this.gesture;
@@ -896,7 +956,12 @@ export class MapEngine {
     this.refreshCursor();
     if (gesture === null || event.type !== 'pointerup') return;
     if (gesture.panning || gesture.pastThreshold) return;
-    const press = cleanPressAt(this.mapping, gesture.pointerType, gesture.index);
+    const press = cleanPressAt(
+      this.mapping,
+      gesture.pointerType,
+      gesture.index,
+      this.held !== null,
+    );
     // A finger has no hover to read from: the board is aimed where it lifted, now, so the
     // ghost of a placement and the country under it answer for this point and not the last.
     if (this.fingerOnBoard) {
@@ -904,17 +969,59 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
+    if (press.picks && this.pickAt(event)) return;
     if (press.reads) this.readAt(event);
-    if (press.acts) {
-      this.onAct({
-        country: this.countryAtPoint(event.clientX, event.clientY),
-        region: this.regionAtPoint(event.clientX, event.clientY),
-        point: this.pointAt(event.clientX, event.clientY),
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
-    }
+    if (press.acts) this.onAct(this.actClickAt(event.clientX, event.clientY));
   };
+
+  private actClickAt(clientX: number, clientY: number): MapActClick {
+    return {
+      country: this.countryAtPoint(clientX, clientY),
+      region: this.regionAtPoint(clientX, clientY),
+      point: this.pointAt(clientX, clientY),
+      clientX,
+      clientY,
+    };
+  }
+
+  /** A building held or a key armed wants the ground, not the piece standing on it. */
+  private pickAt(event: PointerEvent): boolean {
+    const onPieceClick = this.onPieceClick;
+    if (onPieceClick === undefined || this.placing !== null || this.designating) return false;
+    if (!this.castAt(event.clientX, event.clientY)) return false;
+    const piece = this.standing.pick(this.ray);
+    if (piece === null) return false;
+    onPieceClick({
+      ...piece,
+      shift: event.shiftKey,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    return true;
+  }
+
+  /**
+   * **The mouse moved over a DOM label**, which takes it from the canvas: a held piece's stop is
+   * told there too, on that label — a mast, a camp, an objective are where one puts down.
+   */
+  pointerOverLabel(labelId: string, clientX: number, clientY: number): void {
+    this.invalidate();
+    this.restLabel = labelId;
+    this.lastPointer.clientX = clientX;
+    this.lastPointer.clientY = clientY;
+    this.pointerMoved();
+  }
+
+  private pointerMoved(): void {
+    if (this.held !== null && this.rest.moved(performance.now())) this.onRestless?.();
+  }
+
+  private tellRest(): void {
+    const { clientX, clientY } = this.lastPointer;
+    const click = this.actClickAt(clientX, clientY);
+    if (click.point === null && this.restLabel === null) return;
+    this.onRest?.({ ...click, labelId: this.restLabel });
+  }
 
   private readAt(event: PointerEvent): void {
     if (this.placing !== null) {
@@ -1015,7 +1122,9 @@ export class MapEngine {
     else if (this.placing !== null)
       style.cursor = this.ghost.spot === null ? REFUSED_CURSOR : TROWEL_CURSOR;
     else if (this.building || this.designating) style.cursor = TROWEL_CURSOR;
+    else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
+    else if (this.hoveredPiece) style.cursor = PIECE_CURSOR;
     else style.cursor = '';
   }
 
@@ -1179,6 +1288,19 @@ export class MapEngine {
 
     this.updateRegionHover(this.fingerOnBoard ? null : (hit?.point ?? null));
 
+    const piece = !this.fingerOnBoard && onScreen && this.standing.pick(this.ray) !== null;
+    if (piece !== this.hoveredPiece) {
+      this.hoveredPiece = piece;
+      this.refreshCursor();
+    }
+    if (this.held !== null) {
+      const ground =
+        onScreen && !this.fingerOnBoard
+          ? this.ray.intersectObjects(this.aimable, false)[0]?.point
+          : undefined;
+      this.standing.carryTo(ground ?? null);
+    }
+
     const arc = this.fingerOnBoard || !onScreen ? null : this.arcs.hover(this.ray);
     if (arc !== this.hoveredArc) {
       this.hoveredArc = arc;
@@ -1246,6 +1368,7 @@ export class MapEngine {
     // trace le terrain survolé tant qu'elle n'a pas fini.
     if (this.arcs.isFlowing || this.ink.active || this.regions.terrain.active) this.invalidate();
     const now = performance.now();
+    if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
     if (!this.demand.due(now)) return;
     this.ambience.frame();

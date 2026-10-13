@@ -1517,8 +1517,6 @@ export const fr = {
     /** A column left standing on the map (ADR 0019 §3), named the same way. */
     postedAt: (adm0: string) => `en campagne — ${countryLabel(adm0)}`,
     postedAtSea: 'en campagne — en mer',
-    /** Le même état, nommé par la région sous la pile quand la carte la connaît. */
-    postedIn: (place: string) => `en campagne — ${place}`,
     /** Le lieu seul, pour une ligne qui dit déjà de quoi elle parle : « 1 troupe sans ordre —
      *  en mer », où « en campagne — en mer » dirait deux fois la même chose. */
     atSea: 'en mer',
@@ -1537,34 +1535,23 @@ export const fr = {
      * que D3 refusait pour l'attrition.
      */
     unsupplied: (factor: number) => `hors ravitaillement — entretien ×${factor}`,
-    /**
-     * **Le cartouche d'une troupe seule** (décision du 29/08). Sélectionner une troupe n'ouvre plus
-     * la fenêtre de garnison : elle dit ce que la vue du joueur sait déjà — le rôle, l'effectif,
-     * l'état — et la carte trace son cercle de détection. La fenêtre reste pour composer une pile.
-     */
-    badgeKicker: 'troupe',
     sheetKicker: 'fiche de pile',
     sheetHealth: (health: number) => `${health} / 100`,
     sheetCount: (troops: number) => `×${troops}`,
     moreRoles: (roles: number) => `+${roles}`,
-    /** Sous le seuil la feuille n'a pas de point d'ancrage à côté du sprite : son surtitre dit
-     *  où se tient ce qu'elle décrit (refonte mobile, 1b). */
-    badgeKickerAt: (where: string) => `troupe · ${where}`,
-    /** Le cachet de la feuille du téléphone : l'état et son prix, sans la phrase du bureau. */
-    unsuppliedStamp: (factor: number) => `hors ravitaillement ×${factor}`,
-    badgeScouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
-    /** Ce que la fenêtre « visée armée » disait d'unique, et la seule chose qu'elle disait :
-     *  combien de troupes partent ensemble (décision du 30/08). */
-    badgePile: (count: number) => `pile de ${count}`,
-    /**
-     * **Le pied du cartouche est le mode.** Désigner une troupe l'arme : le cartouche nomme donc
-     * le geste qui reste — la destination, au clic droit **ailleurs** — puis la sortie. Un mode
-     * qu'on ne sait pas quitter est un piège, et c'est la seule phrase que la fenêtre supprimée
-     * portait vraiment.
-     */
-    badgeAiming: 'choisissez la destination — clic droit sur la carte',
-    badgeDisarm: 'échap — désarme',
-    supplied: 'ravitaillée',
+  },
+
+  /**
+   * **La pièce en main** (ADR 0026 §6) : la fiche posée au bord pendant qu'on cherche où poser, et
+   * l'heure que la route du serveur rend quand le pointeur s'arrête. Le bouton qui lève et pose
+   * est le gauche, qu'aucun mappage ne déplace.
+   */
+  hand: {
+    kicker: (place: string) => `en main · ${place}`,
+    scouting: (radiusKm: number) => `relève à ${num(radiusKm)} km`,
+    hint: 'clic gauche sur la carte : poser · échap, ou clic sur la pièce : la reposer',
+    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer',
+    found: 'fonder un avant-poste ici',
   },
 
   /**
@@ -1702,22 +1689,6 @@ export const fr = {
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
     raiseQueued: 'Élévation déjà en file — elle se lit dans la fenêtre Économie.',
-  },
-
-  /**
-   * **La visée sous le seuil** (lot mobile-3, A8 et A3 bis) : la feuille qui tient lieu de
-   * curseur de visée et de carte de confirmation sur un téléphone.
-   */
-  aimSheet: {
-    kicker: (count: number, from: string) =>
-      `visée · ${count} troupe${plural(count, '', 's')} depuis ${from}`,
-    slots: (used: number, total: number) => `mouv. ${used} / ${total}`,
-    pick: 'Touchez une destination sur la carte : celles qu’on peut viser sont cerclées.',
-    /** **Les trois plus proches sous le pouce** (refonte mobile, 1b) : la carte reste la porte, la
-     *  feuille en offre un raccourci. */
-    pickShort: 'Touchez une cible cerclée, ou :',
-    allTargets: (count: number) => `toutes les cibles (${count})`,
-    fewerTargets: 'les plus proches',
   },
 
   /**
@@ -2542,7 +2513,7 @@ export const fr = {
               lines: [
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
-                'Une troupe touchée est armée : touchez une cible cerclée, ou l’un des raccourcis de sa fiche. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
+                'Touchez une de vos piles pour la lever : sa fiche s’ouvre au pied. Touchez la carte pour la poser, la pile pour la reposer. Le type d’ordre se choisit dans la feuille, et l’envoi se tient appuyé.',
                 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
               ],
             }
@@ -2552,6 +2523,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
+                `Une de vos piles : ${fr.mapUi.mouse.click.left} pour la lever, puis ${fr.mapUi.mouse.click.left} sur la carte pour la poser. Pointeur arrêté, la route et l’heure d’arrivée s’affichent ; Échap la repose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 'Les régions n’apparaissent qu’au zoom rapproché : c’est là qu’on bâtit et qu’on désigne un sol.',
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -2583,10 +2555,9 @@ export const fr = {
               title: 'Vos bureaux',
               lines: [
                 'Économie, dans le rail à gauche : tout ce qui se pose et tout ce qui coule — chantier, filière, projection.',
-                'Troupes, en bas à gauche : les stationnaires se dirigent, les mouvements s’observent. Une carte ouvre sa garnison, d’où part une colonne.',
+                '« À faire maintenant », en bas à gauche : tout ce qui attend un ordre, l’ordre de mobilisation en tête — chaque ligne recentre la carte. Vos troupes se lèvent sur la carte, et leur liste complète est dans la fenêtre Nation.',
                 'Journal, au bout du bandeau : tout ce qui s’est passé depuis votre dernier passage.',
                 'Télégraphe, dans le rail : le canal général de la saison — tout le monde y lit tout le monde.',
-                'Ordre de mobilisation, en haut à gauche : vos poses offertes. Il disparaît quand la fondation est payée.',
               ],
             },
       ];
@@ -2672,6 +2643,7 @@ export const fr = {
       orient: `${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'orient')]} : orienter `,
       separator: '·',
       pan: ` ${fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')]} ou espace : déplacer`,
+      lift: ` ${fr.mapUi.mouse.click.left} : lever une pile, puis la poser`,
     }),
     controlsLabel: 'carte des commandes',
     controlsHeader: 'commandes de la carte',
@@ -2682,6 +2654,11 @@ export const fr = {
         effect: 'orienter et incliner la caméra',
       },
       { gesture: 'clic gauche net', effect: 'sélectionner l’entité visée' },
+      {
+        gesture: `${fr.mapUi.mouse.click.left} sur une pile`,
+        effect: 'la lever ; le suivant, sur la carte, la pose',
+      },
+      { gesture: 'échap', effect: 'reposer la pièce en main' },
       {
         gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')],
         effect: 'déplacer la carte',
@@ -2696,6 +2673,7 @@ export const fr = {
     /** **Le doigt ne lit pas le mappage** (décision mobile-1c) : trois lignes, toujours les mêmes. */
     fingerGestures: [
       { gesture: 'toucher net', effect: 'ouvrir la rose et lire ce qui est touché' },
+      { gesture: 'toucher une pile', effect: 'la lever ; toucher la carte la pose' },
       { gesture: 'un doigt glissé', effect: 'déplacer la carte' },
       { gesture: 'deux doigts', effect: 'pincer pour zoomer, tourner pour orienter' },
     ],

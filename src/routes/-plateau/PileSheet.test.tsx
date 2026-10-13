@@ -9,8 +9,15 @@ describe('PileSheet', () => {
         at={{ x: 0, y: 0 }}
         cargo={[]}
         lines={[
-          { role: 'infantry', troops: 2, health: 100, notches: 10, ink: 'ink' },
-          { role: 'armor', troops: 1, health: 30, notches: 3, ink: 'red' },
+          {
+            role: 'infantry',
+            troops: 2,
+            troopIds: ['a', 'b'],
+            health: 100,
+            notches: 10,
+            ink: 'ink',
+          },
+          { role: 'armor', troops: 1, troopIds: ['c'], health: 30, notches: 3, ink: 'red' },
         ]}
       />,
     );

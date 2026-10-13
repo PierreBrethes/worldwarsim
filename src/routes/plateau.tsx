@@ -24,7 +24,8 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import type { StackHover } from '@/map/MapLabels';
-import { WorldMap, type Destination, type PlacingBuilding } from '@/map/WorldMap';
+import { WorldMap, type PlacingBuilding } from '@/map/WorldMap';
+import type { PieceClick } from '@/map/engine';
 import {
   readWindows,
   withWindow,
@@ -61,7 +62,8 @@ import {
   type OrderAction,
 } from '@/domain/compass-rose';
 import { placementOf } from '@/domain/construction';
-import { asDuration } from '@/domain/duration';
+import { clickPile, composeHand, type Hand, type PileClick } from '@/domain/hand';
+import { asDuration, asLocalTime } from '@/domain/duration';
 import type { Column } from '@/domain/movement-orders';
 import {
   PREVIEW_ARC_ID,
@@ -110,7 +112,6 @@ import {
   type Previewed,
   type Sent,
 } from './-plateau/MovementPreview';
-import { AimingSheet } from './-plateau/AimingSheet';
 import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
@@ -120,7 +121,7 @@ import { DispatchSheet } from './-plateau/DispatchSheet';
 import { NextActions } from './-plateau/NextActions';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
-import { TroopBadge } from './-plateau/TroopBadge';
+import { HandSheet } from './-plateau/HandSheet';
 import { PileSheet } from './-plateau/PileSheet';
 import { LootCrateCard } from './-plateau/LootCrateCard';
 import { CampBadge } from './-plateau/CampBadge';
@@ -169,19 +170,6 @@ type ArmedColumn = {
 };
 
 /**
- * **La force désignée sur la carte**, et le point où le cartouche se pose. Une troupe seule quand
- * le clic gauche l'a désignée ; la pile entière quand une garnison ou la rose l'a armée — le
- * cartouche porte alors l'état de la visée, qui n'a plus de fenêtre à lui (décision du 30/08).
- */
-type PostedForce = {
-  readonly station: Extract<TroopStation, { readonly kind: 'point' }>;
-  readonly troops: ReadonlyArray<TroopView>;
-  readonly labelId: string;
-  readonly x: number;
-  readonly y: number;
-};
-
-/**
  * **Ce que la carte a déjà décidé, en attente de la confirmation au bout de l'arc**, et le point
  * où elle se pose. `choices` est tout ce que la cible accepte de cette pile : la rose du bureau en
  * a déjà choisi un, la feuille du téléphone les offre en onglets (refonte mobile, 1c).
@@ -191,6 +179,12 @@ type Order = OrderChoice & {
   readonly x: number;
   readonly y: number;
 };
+
+/** **La marche que la route chiffre sous un pointeur arrêté** (ADR 0026 §6), et le point où
+ *  l'heure s'affiche. */
+type RestAim = OrderChoice & { readonly x: number; readonly y: number };
+
+const EMPTY_HAND: Hand = { kind: 'empty' };
 
 /** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
@@ -296,13 +290,14 @@ function StackHoverSheet({
   register,
   me,
   marching,
-  postedLabelId,
+  holding,
   labels,
 }: {
   register: { current: (hover: StackHover | null) => void };
   me: PlayerView['me'];
   marching: ReturnType<typeof marchingTroopIds>;
-  postedLabelId: string | undefined;
+  /** Pièce en main, la fiche latérale parle : le survol se tait (ADR 0026 §6). */
+  holding: boolean;
   labels: ReadonlyArray<MapLabel>;
 }) {
   const [hover, setHover] = useState<StackHover | null>(null);
@@ -317,7 +312,7 @@ function StackHoverSheet({
     if (hover !== null && !labels.some((label) => label.id === hover.labelId)) setHover(null);
   }, [hover, labels]);
   const sheet = useMemo(() => {
-    if (hover === null || hover.labelId === postedLabelId) return null;
+    if (hover === null || holding) return null;
     const held = troopsAt(me, stationKeyOf(hover.station), marching);
     if (held.length === 0) return null;
     const ids = new Set(held.map((troop) => troop.id));
@@ -327,7 +322,7 @@ function StackHoverSheet({
         .filter((group) => group.troopIds.some((id) => ids.has(id)))
         .map((group) => group.cargo),
     };
-  }, [hover, postedLabelId, me, marching]);
+  }, [hover, holding, me, marching]);
   return sheet !== null && hover !== null ? <PileSheet {...sheet} at={hover} /> : null;
 }
 
@@ -425,36 +420,42 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const [hoveredArc, setHoveredArc] = useState<string | null>(null);
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   /**
-   * **The whole movement flow, in three states and one direction.** A garrison is opened, a
-   * column is armed out of it, an aim is named on the map — and the only way back is to close.
+   * **The whole movement flow, in one direction.** A piece is lifted — off the map, or prepared
+   * in a garrison —, put down on the map, confirmed — and the only way back is to put it back.
    * Nothing here can redirect a movement already gone: there is no state for it, and that is
    * the guarantee rather than a missing button (decision 13a).
    */
   const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
-  const [column, setColumn] = useState<ArmedColumn | null>(null);
+  /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
+   *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
+  const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
+  const [lifts, setLifts] = useState(0);
+  const column = useMemo(
+    () => (hand.kind === 'held' ? armedColumn(view, hand.station, hand.troopIds) : null),
+    [view, hand],
+  );
+  /** Ce que le moteur porte sous le pointeur : un mât n'a pas de figurines, la main y est seule. */
+  const holding = useMemo(
+    () =>
+      hand.kind === 'empty'
+        ? null
+        : {
+            pileId:
+              hand.station.kind === 'point'
+                ? stackLabelId(hand.station)
+                : stationKeyOf(hand.station),
+            troopIds: hand.troopIds,
+          },
+    [hand],
+  );
   const [order, setOrder] = useState<Order | null>(null);
+  const [resting, setResting] = useState<RestAim | null>(null);
+  /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */
+  const [heldCompass, setHeldCompass] = useState<Compass | null>(null);
   const [sent, setSent] = useState<SentOrder | null>(null);
-  /** Les destinations de la colonne armée, telles que la carte les cercle : la feuille du
-   *  téléphone en offre les plus proches (refonte mobile, 1b). */
-  const [destinations, setDestinations] = useState<ReadonlyArray<Destination>>([]);
   /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
   const [corner, setCorner] = useState<Corner | null>(null);
-  /**
-   * **Une troupe seule est désignée, pas ouverte** (décision Pierre, 29/08). La fenêtre de
-   * garnison sert à composer une pile ; un point qui n'en porte qu'une n'a rien à composer, et
-   * lui faire payer un formulaire pour trois lignes était le reproche de la première partie.
-   * Ce qu'elle vaut se lit sur la carte : sa planche prend l'encre, son cercle de détection
-   * s'ouvre, et le cartouche dit le reste.
-   */
-  const [posted, setPosted] = useState<PostedForce | null>(null);
-  /** Le refus que la rose n'a pas ouvert au doigt sur une pile à soi, pour la feuille qui la lit
-   *  (décision 2a du 05/10). Attaché à l'étiquette : une autre pile ne le reprend pas. */
-  const [forceMotive, setForceMotive] = useState<{ labelId: string; motive: string } | null>(null);
-  const showForceMotive = useCallback(
-    (labelId: string, motive: string | null) =>
-      setForceMotive(motive === null ? null : { labelId, motive }),
-    [],
-  );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
@@ -611,9 +612,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
-      setColumn(null);
+      setHand(EMPTY_HAND);
       setOrder(null);
-      setPosted(null);
       /** **Un observateur lit sa garnison, il ne la compose plus** (décision du 31/08) : les
        *  cases partent avec `observing` et « préparer » avec elles, mais le panneau s'ouvre —
        *  une porte qui ne s'ouvre que parfois se lit comme une panne, et ses troupes restent
@@ -667,9 +667,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       if (PROJECTION_KEYS.includes(standing.key)) {
         setGarrison(null);
-        setColumn(null);
+        setHand(EMPTY_HAND);
         setOrder(null);
-        setPosted(null);
         setFocus({ ids: [`building-${standing.regionId}-${standing.key}`], nonce: Date.now() });
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
@@ -707,44 +706,48 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [openGarrison],
   );
 
+  const liftHand = useCallback((next: Hand) => {
+    setHand(next);
+    setLifts((count) => count + 1);
+    setGarrison(null);
+    setOrder(null);
+    setOrderError(null);
+  }, []);
+
+  const dropHand = useCallback(() => {
+    setHand(EMPTY_HAND);
+    setOrder(null);
+    setResting(null);
+  }, []);
+
+  /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
+   *  plateau rend vrai quand la pile cliquée devient la destination. */
+  const applyPileClick = useCallback(
+    (click: PileClick): boolean => {
+      const move = clickPile(hand, click);
+      if (move.kind === 'pose') return true;
+      if (move.kind === 'drop') dropHand();
+      else liftHand(move.hand);
+      return false;
+    },
+    [hand, liftHand, dropHand],
+  );
+
   /**
-   * **La troisième porte de la même garnison** : la pile posée sur la carte. Rien de coché
-   * d'avance — on ouvre ce qui se tient là, on compose ensuite, comme sur un mât.
-   *
-   * Il rend vrai quand le clic a **désigné** une troupe : la carte ouvre alors sa rose sur le
-   * sprite, en même temps que le cartouche (`WorldMap`). La règle qui sépare les deux réponses
-   * reste ici, parce que c'est ici qu'on sait ce qui se tient là.
+   * **L'étiquette d'une adresse à moi** : une pile posée se lève entière (ADR 0026 §6) ; un
+   * avant-poste, qui n'a pas de figurines, ouvre sa garnison, d'où « préparer » met la pile en
+   * main. **Un observateur ne lève rien** (décision du 31/08) : il lit la pile au panneau.
    */
   const openStack = useCallback(
     (station: TroopStation, clientX: number, clientY: number): boolean => {
-      const at = boardPoint(clientX, clientY);
-      /**
-       * **Une seule troupe ne compose rien** (décision Pierre, 29/08) : elle se désigne, et la
-       * carte répond — planche surlignée, cercle de détection, cartouche d'état. La fenêtre est
-       * pour les piles ; la servir ici faisait payer un formulaire pour trois lignes.
-       */
-      const held = troopsAt(view.me, stationKeyOf(station), marching);
-      const alone = held.length === 1 ? held[0] : undefined;
-      if (alone === undefined || station.kind !== 'point') {
-        openGarrison(station, [], at);
+      if (station.kind !== 'point' || view.me.defeated) {
+        openGarrison(station, [], boardPoint(clientX, clientY));
         return false;
       }
-      /**
-       * **Désigner une troupe, c'est l'armer** (décision Pierre, 29/08, tenue le 31/08). Le geste
-       * ne propose rien : il dit *celle-ci*, le cartouche la lit, et la destination se nomme au
-       * clic droit **ailleurs** — une branche « envoyer » sur le sprite n'aurait fait qu'ajouter
-       * un cran à un état déjà pris.
-       */
-      setGarrison(null);
-      setOrderError(null);
-      setOrder(null);
-      setPosted({ station, troops: [alone], labelId: stackLabelId(station), ...at });
-      /** Le cartouche d'un observateur se lit — encre, effectif, abaque de tir — mais désigner
-       *  n'arme plus rien : il n'a plus d'ailleurs à nommer (décision du 31/08). */
-      if (!view.me.defeated) setColumn(armedColumn(view, station, [alone.id]));
-      return true;
+      const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
+      return applyPileClick({ station, troopIds, shift: false });
     },
-    [openGarrison, boardPoint, view, marching],
+    [openGarrison, boardPoint, view.me, marching, applyPileClick],
   );
 
   /**
@@ -860,13 +863,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             origin: wireOrigin(column.station),
             troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
             transport: wireOrigin(action.transport),
-          }).then(
-            () => {
-              setPosted(null);
-              setColumn(null);
-            },
-            (problem: unknown) => handleError(problem, setOrderError),
-          );
+          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
           return;
         case 'aim':
         case 'plunder':
@@ -892,13 +889,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             regionId: action.regionId,
             specialization: 'relay',
             troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
-          }).then(
-            () => {
-              setPosted(null);
-              setColumn(null);
-            },
-            (problem: unknown) => handleError(problem, setOrderError),
-          );
+          }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
       }
     },
     [
@@ -907,6 +898,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
       raiseOutpost,
       respecialize,
       boardTransport,
+      dropHand,
       column,
       seat,
       narrow,
@@ -930,27 +922,48 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     return true;
   }, []);
 
-  /** Fermer le cartouche lâche tout : désigner et armer sont deux crans du même geste, et le
-   *  cartouche est ce qui les porte tous les deux. */
-  const releasePosted = useCallback(() => {
-    setPosted(null);
-    setColumn(null);
-    setOrder(null);
-  }, []);
-
-  /**
-   * **Échap lâche la visée, et la désignation avec elle** : désigner une troupe l'arme, donc les
-   * deux sont un seul état et une seule sortie. La rose arrête la touche avant nous quand elle
-   * est ouverte.
-   */
+  /** **Échap repose la pièce en main** (ADR 0026 §6). La rose arrête la touche avant nous quand
+   *  elle est ouverte. */
   useEffect(() => {
-    if (column === null && posted === null) return;
-    const disarm = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') releasePosted();
+    if (hand.kind === 'empty') return;
+    const putBack = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dropHand();
     };
-    document.addEventListener('keydown', disarm);
-    return () => document.removeEventListener('keydown', disarm);
-  }, [column, posted, releasePosted]);
+    document.addEventListener('keydown', putBack);
+    return () => document.removeEventListener('keydown', putBack);
+  }, [hand.kind, dropHand]);
+
+  /** **Une pièce dont les troupes ne sont plus là se repose seule** — parties, tombées, ou un
+   *  observateur qui vient de capituler : la main ne tient pas ce que la vue ne sert plus. */
+  useEffect(() => {
+    if (hand.kind === 'empty') return;
+    const here = new Set(
+      troopsAt(view.me, stationKeyOf(hand.station), marching).map((troop) => troop.id),
+    );
+    if (view.me.defeated || !hand.troopIds.every((troopId) => here.has(troopId))) dropHand();
+  }, [hand, view.me, marching, dropHand]);
+
+  /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). Un
+   *  ordre choisi pour l'ancienne composition ne vaut plus pour la nouvelle. */
+  const compose = useCallback(
+    (troopIds: ReadonlyArray<string>) => {
+      if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
+      const move = composeHand(hand, troopIds);
+      if (move.kind !== 'lift') {
+        dropHand();
+        return;
+      }
+      setHand(move.hand);
+      setOrder(null);
+    },
+    [hand, dropHand],
+  );
+
+  const restAt = useCallback(
+    (action: OrderAction | null, at: { x: number; y: number }) =>
+      setResting(action === null ? null : { ...choiceOf(action), ...at }),
+    [],
+  );
 
   /**
    * **Échap referme ce qui est posé sur la carte, une couche par touche** : les fenêtres d'abord,
@@ -958,7 +971,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * à un point. La rose, en capture, arrête la touche avant tous.
    */
   useEffect(() => {
-    if (windows.length > 0 || column !== null || posted !== null || placing !== null) return;
+    if (windows.length > 0 || column !== null || placing !== null) return;
     const close = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setGarrison(null);
@@ -971,7 +984,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     };
     document.addEventListener('keydown', close);
     return () => document.removeEventListener('keydown', close);
-  }, [windows.length, column, posted, placing]);
+  }, [windows.length, column, placing]);
 
   /** **Échap rend la carte intacte** : rien n'a été enfilé, il n'y a donc rien à défaire. */
   useEffect(() => {
@@ -1383,6 +1396,19 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   ]);
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
+
+  /** Un groupe de figurines, ou toute la pile par son jeton. */
+  const pieceClick = useCallback(
+    (hit: PieceClick): boolean => {
+      const pile = markers.find(
+        (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
+          marker.kind === 'stack' && marker.id === hit.pileId,
+      );
+      if (pile === undefined || pile.station.kind === 'home') return false;
+      return applyPileClick({ station: pile.station, troopIds: hit.troopIds, shift: hit.shift });
+    },
+    [markers, applyPileClick],
+  );
   const standing = useMemo(
     () =>
       markers.flatMap((marker) =>
@@ -1420,10 +1446,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () =>
       highlightOf(
         column && { station: column.station, troopIds: column.troopIds },
-        posted && { station: posted.station, troopIds: posted.troops.map((troop) => troop.id) },
         garrison && { station: garrison.station, troopIds: garrisonPicked },
       ),
-    [column, posted, garrison, garrisonPicked],
+    [column, garrison, garrisonPicked],
   );
   const highlightPlate = useMemo(() => {
     if (highlight === null) return null;
@@ -1435,22 +1460,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   }, [highlight, view.me]);
 
   /**
-   * **Le cercle de détection de la troupe désignée** (ADR 0019 §5) : le seul détecteur qui soit
-   * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il est rendu comme le cercle
-   * d'écoute — une onde, pas une couche — et part avec la désignation.
+   * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
+   * une troupe, et le seul chiffre qui dise ce que la poser rapporte. Il part avec la main.
    */
-  const postedReach = useMemo<Reach | null>(
+  const handReach = useMemo<Reach | null>(
     () =>
-      posted === null
+      column === null || column.station.kind !== 'point'
         ? null
         : {
-            lonLat: posted.station.lonLat,
-            detectionKm: detectionRangeOf(posted.troops.map((troop) => troop.role)),
+            lonLat: column.station.lonLat,
+            detectionKm: detectionRangeOf(column.rule.roles),
             /** **Ce qu'elle touche, à côté de ce qu'elle voit** (décisions 4a et 3a du 16/09) :
              *  une seule constante, celle que l'arrivée lit pour trouver qui se tient là. */
             contactKm: ARRIVAL_RADIUS_KM,
           },
-    [posted],
+    [column],
   );
   const movementReach = useMemo<Reach | null>(() => {
     const movement = view.arcs.find(
@@ -1501,22 +1525,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
         ) ?? null);
   const setStackHover = useRef<(hover: StackHover | null) => void>(() => {});
   const onStackHover = useCallback((hover: StackHover | null) => setStackHover.current(hover), []);
-  const postedCargo = useMemo(
-    () =>
-      posted === null
-        ? []
-        : view.me.stationedCargo
-            .filter((group) =>
-              group.troopIds.some((troopId) => posted.troops.some((troop) => troop.id === troopId)),
-            )
-            .map((group) => ({
-              id: group.troopIds.join('-'),
-              cargo: group.cargo,
-              carriers: group.troopIds.length,
-            })),
-    [posted, view.me.stationedCargo],
-  );
-
   const closeWindow = useCallback(
     (name: BoardWindow) => {
       void navigate({ search: (previous) => withoutWindow(previous, name) });
@@ -1532,40 +1540,21 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   );
 
   /**
-   * **Une pile composée, armée** — depuis le panneau d'une garnison posée ou depuis la modale
-   * d'un site, qui porte la même composition depuis la décision 61a. Un seul chemin, parce
-   * qu'il n'y a qu'un flux : composer, armer, viser sur la carte.
+   * **Une pile composée, mise en main** — depuis le panneau d'une garnison ou depuis la modale
+   * d'un site, qui porte la même composition depuis la décision 61a. C'est la même main que la
+   * pile levée sur la carte : un bâtiment n'a pas de figurines à prendre, pas d'autre flux.
    */
   const prepareColumn = useCallback(
     (station: TroopStation, troopIds: ReadonlyArray<string>) => {
       /** `home` is the one address no column leaves from — the panel offers nothing there, so
        *  this branch only guards the type. */
       if (station.kind === 'home') return;
-      const from = garrison;
-      setGarrison(null);
-      /** La modale s'efface avec la pile qu'elle vient d'armer : la destination se nomme sur la
-       *  carte, et une fenêtre de 1180 pixels par-dessus cacherait la cible. */
+      /** La modale s'efface avec la pile qu'elle vient de mettre en main : la destination se pose
+       *  sur la carte, et une fenêtre de 1180 pixels par-dessus cacherait la cible. */
       if (station.kind === 'building') closeWindow('site');
-      setColumn(armedColumn(view, station, troopIds));
-      /**
-       * **Le cartouche porte l'état, et il n'y a plus de fenêtre pour le porter à sa place.**
-       * Une pile armée depuis une garnison posée sur la carte s'y montre — « pile de 3 »,
-       * « choisissez la destination », « échap — désarme ». Depuis un mât ou un avant-poste il
-       * n'y a pas d'étiquette de pile à désigner : la visée se lit sur la carte, comme avant.
-       */
-      if (station.kind !== 'point' || from === null) return;
-      setPosted({
-        station,
-        troops: troopIds.flatMap((troopId) => {
-          const troop = view.me.troops.find((candidate) => candidate.id === troopId);
-          return troop ? [troop] : [];
-        }),
-        labelId: stackLabelId(station),
-        x: from.x,
-        y: from.y,
-      });
+      liftHand({ kind: 'held', station, troopIds });
     },
-    [view, garrison, closeWindow],
+    [liftHand, closeWindow],
   );
 
   const bringForward = useCallback(
@@ -1688,20 +1677,24 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
    * parce qu'aucune ne sait refuser à la place des autres : celle qui ne sert pas est en `skip`,
    * et la carte lit celle de l'ordre en cours.
    */
+  /** L'ordre ouvert l'emporte sur l'arrêt du pointeur : une seule demande, celle qu'on lit. */
+  const aimed = order ?? resting;
   const dispatch =
-    column === null || order === null
+    column === null || aimed === null
       ? null
       : {
           ...seat,
           origin: wireOrigin(column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
         };
-  const mission = order?.mission ?? null;
+  const mission = aimed?.mission ?? null;
+  /** **Une réponse périmée ne s'affiche jamais** : un argument neuf rend `undefined` jusqu'à sa
+   *  propre réponse, et l'abonnement précédent est remplacé, pas empilé (ADR 0026 §6). */
   const marchPreview = useQuery(
     api.movements.preview,
-    dispatch === null || order === null || mission?.kind !== 'march'
+    dispatch === null || aimed === null || mission?.kind !== 'march'
       ? 'skip'
-      : { ...dispatch, target: wireTarget(order.aim), type: order.type },
+      : { ...dispatch, target: wireTarget(aimed.aim), type: aimed.type },
   );
   const plunderPreview = useQuery(
     api.movements.previewPlunder,
@@ -1737,10 +1730,10 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const arcs = useMemo<ReadonlyArray<ArcView>>(
     () =>
-      column === null || order === null || !preview
+      column === null || aimed === null || !preview
         ? view.arcs
-        : [...view.arcs, previewArc(column, order, preview)],
-    [view.arcs, column, order, preview],
+        : [...view.arcs, previewArc(column, aimed, preview)],
+    [view.arcs, column, aimed, preview],
   );
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
@@ -1755,10 +1748,6 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     () => (narrow ? { floor: selectionSheet ?? sheetHeight('half') } : null),
     [narrow, selectionSheet],
   );
-
-  /** L'étiquette d'où la colonne armée part : ses cibles se rangent de la plus proche à la plus
-   *  lointaine de ce point-là. */
-  const aimOrigin = column === null ? null : markerOfStation(view, column.station);
 
   /**
    * **Les recrutements commencés, datés par l'atelier** : la vue ne sert que la liste des casernes
@@ -1824,29 +1813,15 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const afterSent = useCallback(
     (filed: Sent) => {
       if (narrow && order !== null) setSent({ ...filed, order: order.label });
-      setOrder(null);
-      setColumn(null);
-      setPosted(null);
+      dropHand();
     },
-    [narrow, order],
+    [narrow, order, dropHand],
   );
   useEffect(() => {
     if (sent === null) return;
     const timer = setTimeout(() => setSent(null), SENT_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [sent]);
-
-  const pickDestination = useCallback(
-    (destination: Destination) => {
-      const at = boardPoint();
-      if (orderFrom(destination.compass, at)) return;
-      /** **La feuille n'a pas de rose à rendre** — elle nomme aussi les cibles hors champ —, et sa
-       *  case dit déjà « embarquer » : le toucher embarque. */
-      const board = destination.compass.actions.find((action) => action.key === 'board');
-      if (board !== undefined) actOnCompass(board, at);
-    },
-    [orderFrom, actOnCompass, boardPoint],
-  );
 
   const showBriefing = useCallback(() => setBriefing(true), []);
 
@@ -1894,13 +1869,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             onSelect={aimingOnPhone ? keepSelection : select}
             onOpenBuilding={openBuilding}
             onOpenStack={openStack}
+            holding={holding}
+            onPieceClick={view.me.defeated ? undefined : pieceClick}
+            onRestAim={restAt}
+            onRoseDismiss={dropHand}
+            onHeldCompass={setHeldCompass}
             onOpenLoot={openLoot}
             onOpenCamp={openCamp}
             onOpenObjective={openObjective}
             selectedLabel={highlight?.labelId ?? null}
             selectedPlate={highlightPlate}
             selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
-            reach={postedReach ?? movementReach}
+            reach={handReach ?? movementReach}
             onCountryHover={setHoveredCountry}
             onRegionHover={setHoveredRegion}
             onRegionsLoaded={keepRegionAt}
@@ -1918,10 +1898,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             focus={focus}
             searchArea={searchArea}
             fingerRose={fingerRose}
-            onForceMotive={showForceMotive}
             showDestinations
-            aimOrigin={aimOrigin}
-            onDestinations={setDestinations}
             onOrderTarget={narrow ? orderFrom : undefined}
             covered={narrow && windows.length > 0}
             reveal={reveal}
@@ -2025,22 +2002,52 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
             register={setStackHover}
             me={view.me}
             marching={marching}
-            postedLabelId={posted?.labelId}
+            holding={hand.kind === 'held'}
             labels={labels}
           />
-          {posted && !(narrow && order !== null) && (
-            <TroopBadge
-              key={posted.labelId}
-              nation={view.me.nation}
-              troops={posted.troops}
-              where={fr.troops.postedIn(pilePlace(posted.station, stationNames(view), regionAt))}
-              at={posted}
-              aiming={column !== null}
-              motive={forceMotive?.labelId === posted.labelId ? forceMotive.motive : null}
-              cargo={postedCargo}
+          {hand.kind === 'held' && !(narrow && order !== null) && (
+            <HandSheet
+              key={`${stationKeyOf(hand.station)}-${lifts}`}
+              view={view}
+              station={hand.station}
+              place={
+                hand.station.kind === 'point'
+                  ? pilePlace(hand.station, stationNames(view), regionAt)
+                  : stationNames(view).place(hand.station)
+              }
+              held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
+              troopIds={hand.troopIds}
+              onCompose={compose}
+              founding={
+                heldCompass === null
+                  ? null
+                  : {
+                      action:
+                        heldCompass.actions.find(
+                          (action): action is Extract<CompassAction, { key: 'found' }> =>
+                            action.key === 'found',
+                        ) ?? null,
+                      refusal: heldCompass.refusal,
+                      onFound: () => {
+                        const found = heldCompass.actions.find((action) => action.key === 'found');
+                        if (found !== undefined) actOnCompass(found, boardPoint());
+                      },
+                    }
+              }
               onOpenGunnery={() => openWindow('gunnery')}
-              onClose={releasePosted}
+              onDrop={dropHand}
             />
+          )}
+          {resting !== null && order === null && preview && (
+            /* Placed outside the `.hud` zoom, which would scale the board point as well. */
+            <div
+              className="pointer-events-none absolute z-10"
+              style={{ left: resting.x + REST_TAG_GAP, top: resting.y + REST_TAG_GAP }}
+            >
+              <div className="hud border border-[var(--ink-quiet)] bg-[var(--desk)] px-[8px] py-[4px] font-(family-name:--font-mono) text-[11px] whitespace-nowrap text-[var(--paper)]">
+                {fr.aim.arrival(asLocalTime(preview.arrivesAt))}
+              </div>
+            </div>
           )}
           {column && order && (
             <MovementPreview
@@ -2067,18 +2074,8 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               preview={preview}
               slots={view.me.slots}
               originName={stationNames(view).place(column.station)}
-              onClose={releasePosted}
+              onClose={dropHand}
               onSent={afterSent}
-            />
-          )}
-          {narrow && column && order === null && posted === null && (
-            <AimingSheet
-              count={column.troopIds.length}
-              originName={stationNames(view).place(column.station)}
-              slots={view.me.slots}
-              destinations={destinations}
-              onPick={pickDestination}
-              onCancel={releasePosted}
             />
           )}
           {openedDispatch !== null && openedCombat !== null && (
@@ -2288,6 +2285,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
  */
 const DISPATCH_VIEW_DISTANCE = 20;
 
+/** Clear of the closed hand the cursor draws, thirty-two pixels wide. */
+const REST_TAG_GAP = 20;
+
 /** Le temps de lire « transmis » et de voir la ligne neuve sortir de « En cours ». */
 const SENT_NOTICE_MS = 6000;
 
@@ -2472,7 +2472,11 @@ function armedColumn(
  * stack, and the union makes that the only thing it can be. It is a preview and nothing on the
  * board treats it otherwise — it disappears with the card that describes it.
  */
-function previewArc(column: ArmedColumn, order: Order, preview: NonNullable<Previewed>): ArcView {
+function previewArc(
+  column: ArmedColumn,
+  order: OrderChoice,
+  preview: NonNullable<Previewed>,
+): ArcView {
   const points = preview.route.points.map((point) => [point.lon, point.lat] as LonLat);
   return {
     state: 'mine',

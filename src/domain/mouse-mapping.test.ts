@@ -75,26 +75,68 @@ describe('le rôle d’un geste selon le pointeur', () => {
       for (const [index, button] of MOUSE_BUTTONS.entries()) {
         expect(dragRoleAt(mapping, 'mouse', index)).toBe(mapping[button]);
         expect(cleanPressAt(mapping, 'mouse', index)).toEqual({
+          picks: button === 'left',
           reads: button === 'left',
           acts: mapping[button] === 'act',
         });
       }
     }
-    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2)).toEqual({ reads: false, acts: true });
-    expect(cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 1)).toEqual({ reads: false, acts: true });
-    expect(cleanPressAt(LEFT_ACTS_MAPPING, 'mouse', 0)).toEqual({ reads: true, acts: true });
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2)).toEqual({
+      picks: false,
+      reads: false,
+      acts: true,
+    });
+    expect(cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 1)).toEqual({
+      picks: false,
+      reads: false,
+      acts: true,
+    });
+    expect(cleanPressAt(LEFT_ACTS_MAPPING, 'mouse', 0)).toEqual({
+      picks: true,
+      reads: true,
+      acts: true,
+    });
   });
 
   it('traite le stylet comme une souris : il a des boutons', () => {
     expect(dragRoleAt(CLASSIC_MAPPING, 'pen', 0)).toBe('orient');
-    expect(cleanPressAt(CLASSIC_MAPPING, 'pen', 0)).toEqual({ reads: true, acts: false });
+    expect(cleanPressAt(CLASSIC_MAPPING, 'pen', 0)).toEqual({
+      picks: true,
+      reads: true,
+      acts: false,
+    });
   });
 
   it('au doigt : un toucher net lit et agit, un glissé déplace — quel que soit le réglage', () => {
     for (const mapping of mappings) {
-      expect(cleanPressAt(mapping, 'touch', 0)).toEqual({ reads: true, acts: true });
+      expect(cleanPressAt(mapping, 'touch', 0)).toEqual({ picks: true, reads: true, acts: true });
       expect(dragRoleAt(mapping, 'touch', 0)).toBe('pan');
     }
+  });
+
+  it('pièce en main, le clic net gauche pose au lieu de lire, et touche encore les pièces', () => {
+    for (const mapping of mappings) {
+      expect(cleanPressAt(mapping, 'mouse', 0, true)).toEqual({
+        picks: true,
+        reads: false,
+        acts: true,
+      });
+      expect(cleanPressAt(mapping, 'touch', 0, true)).toEqual({
+        picks: true,
+        reads: false,
+        acts: true,
+      });
+    }
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2, true)).toEqual({
+      picks: false,
+      reads: false,
+      acts: true,
+    });
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 1, true)).toEqual({
+      picks: false,
+      reads: false,
+      acts: false,
+    });
   });
 });
 
@@ -135,6 +177,14 @@ describe('les notices lisent le mappage', () => {
     expect(sentence(CLASSIC_MAPPING)).toContain('clic droit net — ouvrir la rose des vents');
     expect(sentence(WHEEL_ACTS_MAPPING)).toContain('clic molette net — ouvrir la rose des vents');
     expect(sentence(WHEEL_ACTS_MAPPING)).toContain('clic droit glissé — déplacer la carte');
+  });
+
+  /** Lever et poser restent au gauche quel que soit le mappage (ADR 0026 §6). */
+  it('nomme le clic gauche pour lever et poser, sous tout mappage', () => {
+    for (const mapping of [CLASSIC_MAPPING, WHEEL_ACTS_MAPPING]) {
+      expect(sentence(mapping)).toContain('clic gauche net sur une pile — la lever');
+      expect(fr.mapUi.gestureHint(mapping).lift).toContain('clic gauche net : lever une pile');
+    }
   });
 
   it('nomme le même bouton dans l’aide-mémoire et dans le bandeau', () => {

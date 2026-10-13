@@ -71,15 +71,33 @@ Sur ses propres pièces seulement :
 - **seules les marques présentes se montrent** : une pile tout MK1 n'a que des figurines MK1 ;
   une pile mixte répartit au prorata, au moins une de chaque.
 
-### 6. On lève la pièce, on la pose — révision du 30/08
+### 6. On lève la pièce, on la pose — révision du 30/08, précisée le 13/10
 
-**Lever** une pile, c'est le clic net qui lit (le gauche, invariant) : une main la prend, l'original
-reste délavé. **Poser**, c'est le clic « agir » (droit par défaut, réglable) : il ouvre la rose au
-point de pose, puis l'aperçu et « envoyer — irréversible » comme avant. Échap repose. Lever prend
-toute la pile, ou la composition du panneau de garnison s'il est ouvert. Pièce en main, la courbe
-est indicative ; la vraie route et l'heure viennent de `movements.preview` à la pose, et seul le
-serveur date un mouvement. Au toucher : un tap lève et ouvre la fiche, un tap sur la carte pose,
-un tap sur la pièce levée la repose.
+**Lever**, c'est le clic gauche net sur une de ses piles : la pièce suit le pointeur, l'original
+reste délavé, et le curseur prend la main de la souris — ouverte au survol d'une pièce, fermée
+pièce en main. Aucune main n'est dessinée sur le plateau (révision de Pierre, 13/10). **Lever ne fait que lever** : la pièce en main suffit
+à dire qu'un ordre est armé. Il n'y a ni cartouche ni bandeau.
+
+**Ce qu'on lève.** Un clic sur un groupe de figurines prend ce groupe seul. Un clic sur
+l'étiquette ou sur un jeton prend toute la pile. Maj + clic ajoute un autre groupe de la même
+pile. Pièce en main, la fiche s'ouvre **sur le côté**, avec les cases du panneau de garnison :
+cocher ou décocher y ajuste la composition sans lâcher la pièce.
+
+**La route est celle du serveur, jamais une courbe à part.** Tant que le pointeur bouge, aucun
+trait n'est montré. Quand il s'arrête un court instant, la route et l'heure de
+`movements.preview` s'affichent. Une seule demande est en vol, et une réponse périmée est
+ignorée.
+
+**Poser**, c'est le clic gauche pièce en main : il révise l'invariant « le clic net gauche lit »
+(`src/domain/mouse-mapping.ts`), qui ne vaut plus que pièce posée. La pose ouvre la rose au
+point de pose avec les seuls ordres possibles ; s'il n'y en a qu'un, on passe directement à
+« envoyer — irréversible ». Rien n'est deviné à la place du joueur. Échap, ou un clic sur la
+pièce levée, la repose chez elle. Seul le serveur date un mouvement.
+
+**Au toucher**, un tap lève la pièce et ouvre sa fiche sur le côté, un tap sur la carte la pose,
+un tap sur la pièce levée la repose. La fiche ne bloque pas la pose. Elle porte « fonder un avant-poste
+ici » quand la rose de la pile le porterait, au même prix et avec le même motif : c'est le seul
+ordre qui se donne sur place, et le tap ne fait plus que lever.
 
 **La fiche au survol remplace le cartouche** d'une troupe à soi : une ligne par rôle, la vie sur
 100, la charge. Le bloc adverse garde un cartouche au clic.

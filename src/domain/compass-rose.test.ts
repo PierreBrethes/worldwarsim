@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compassOf, withheldUnderFinger, type CompassTarget } from './compass-rose';
+import { compassOf, soleOrderOf, type CompassTarget } from './compass-rose';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView } from './player-view';
 import { fr } from '../i18n/fr';
@@ -804,12 +804,20 @@ describe('founding from the map', () => {
       },
     }) as unknown as PlayerView;
 
-  /** Au doigt, le cargo n'ouvre rien et la feuille porte le motif ; l'infanterie ouvre « fonder ». */
-  it('withholds under a finger the rose of a pile with nothing to do here', () => {
+  /** Le cargo n'a rien à faire là : pas d'ordre seul, la rose garde le motif. */
+  it('skips the rose only for a single order', () => {
     const cargo = compassOf(camp, posted(['cargo']))!;
-    expect(withheldUnderFinger(camp, cargo)).toBe(true);
+    expect(soleOrderOf(cargo)).toBeNull();
     expect(cargo.refusal).toBe('un cargo ne fonde pas — seule l’infanterie plante un point');
-    expect(withheldUnderFinger(camp, compassOf(camp, posted(['infantry']))!)).toBe(false);
+    const aim = {
+      key: 'aim',
+      label: 'marcher',
+      consequence: '',
+    } as unknown as Parameters<typeof soleOrderOf>[0]['actions'][number];
+    expect(soleOrderOf({ kicker: '', name: '', actions: [aim], refusal: null })).toBe(aim);
+    expect(soleOrderOf({ kicker: '', name: '', actions: [aim, aim], refusal: null })).toBeNull();
+    const board = { key: 'board' } as unknown as typeof aim;
+    expect(soleOrderOf({ kicker: '', name: '', actions: [board], refusal: null })).toBeNull();
   });
 
   it('offers the founding on a posted column, carrying its point and its manifest', () => {

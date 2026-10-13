@@ -53,7 +53,8 @@ export function GarrisonStack({
   /** **Un observateur lit sa garnison sans cases** (décision du 31/08) : il ne compose plus, et
    *  une case cochable lui promettrait l'ordre que `requirePlayable` refuse. */
   observing: boolean;
-  onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  /** Absent, la pile est déjà en main (fiche latérale, ADR 0026 §6) : on compose sans préparer. */
+  onPrepare?: ((station: TroopStation, troopIds: ReadonlyArray<string>) => void) | undefined;
   onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
 }) {
   const narrow = useNarrowScreen();
@@ -285,28 +286,32 @@ export function GarrisonStack({
               {fr.garrison.lootShort(carryCapacity)}
             </span>
           </div>
-          <button
-            type="button"
-            disabled={picked.size === 0}
-            onClick={() => onPrepare(station, [...picked])}
-            className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {fr.garrison.prepare}
-          </button>
+          {onPrepare && (
+            <button
+              type="button"
+              disabled={picked.size === 0}
+              onClick={() => onPrepare(station, [...picked])}
+              className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {fr.garrison.prepare}
+            </button>
+          )}
         </div>
       ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
             {picked.size === 0 ? fr.garrison.noColumn : fr.garrison.column(picked.size)}
           </span>
-          <button
-            type="button"
-            disabled={picked.size === 0}
-            onClick={() => onPrepare(station, [...picked])}
-            className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {fr.garrison.prepare}
-          </button>
+          {onPrepare && (
+            <button
+              type="button"
+              disabled={picked.size === 0}
+              onClick={() => onPrepare(station, [...picked])}
+              className="cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-[12px] py-[7px] text-[10px] tracking-[.18em] text-[var(--paper)] uppercase hover:bg-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {fr.garrison.prepare}
+            </button>
+          )}
         </div>
       ) : (
         /** Un observateur n'a pas d'ordre à préparer et le silence est la bonne réponse : la
