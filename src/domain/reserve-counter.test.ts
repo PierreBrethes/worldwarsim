@@ -42,13 +42,14 @@ describe('the reserve counter', () => {
     });
   });
 
-  it('takes a spending off the figure without a word, and leaves the pending gain pending', () => {
+  it('announces a spending at once, as a spending, and leaves the pending gain pending', () => {
     const before = { stock: 100.4, ratePerHour: 12, cap: 400 };
     const after = { stock: 62.4, ratePerHour: 12, cap: 400 };
     // 112 predicted, 62 served: 50 spent; the 12 produced stay for the next announcement.
     expect(onNewView(100, { reserve: before, at: AT }, { reserve: after, at: AT + HOUR })).toEqual({
       shown: 50,
-      gain: 0,
+      gain: -50,
+      spent: true,
     });
   });
 

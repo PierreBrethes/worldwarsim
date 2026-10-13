@@ -256,7 +256,7 @@ export function ResourceCell({
         {tag !== null && !stacked && (
           <ReserveTag
             gain={tag.gain}
-            dry={dry !== null}
+            alarm={dry !== null && !tag.spent}
             quiet={motion === 'reduced'}
             spot={tagSpot}
             onDone={clearTag}
@@ -281,7 +281,7 @@ export function ResourceCell({
       {tag !== null && stacked && (
         <ReserveTag
           gain={tag.gain}
-          dry={dry !== null}
+          alarm={dry !== null && !tag.spent}
           quiet={motion === 'reduced'}
           spot={tagSpot}
           onDone={clearTag}
@@ -299,13 +299,13 @@ export function ResourceCell({
  */
 function ReserveTag({
   gain,
-  dry,
+  alarm,
   quiet,
   spot,
   onDone,
 }: {
   gain: number;
-  dry: boolean;
+  alarm: boolean;
   quiet: boolean;
   spot: CSSProperties;
   onDone: () => void;
@@ -316,7 +316,7 @@ function ReserveTag({
       className={`reserve-tag ${quiet ? 'reserve-tag--quiet' : ''}`}
       style={{
         ...spot,
-        background: gain > 0 ? 'var(--notable)' : dry ? 'var(--critical)' : 'var(--ink-soft)',
+        background: gain > 0 ? 'var(--notable)' : alarm ? 'var(--critical)' : 'var(--ink-soft)',
       }}
       onAnimationEnd={onDone}
     >
@@ -326,7 +326,7 @@ function ReserveTag({
   );
 }
 
-type Tag = { readonly gain: number; readonly id: number };
+type Tag = { readonly gain: number; readonly spent: boolean; readonly id: number };
 
 /**
  * Le chiffre d'une réserve tel que la réglette l'annonce (`reserve-counter.ts`) : figé entre deux
@@ -355,7 +355,7 @@ function useAnnouncedStock(
       tag:
         next.gain === 0 || silent.current
           ? last.tag
-          : { gain: next.gain, id: (last.tag?.id ?? 0) + 1 },
+          : { gain: next.gain, spent: next.spent === true, id: (last.tag?.id ?? 0) + 1 },
     }));
   }, []);
   const clearTag = useCallback(() => setSaid((last) => ({ ...last, tag: null })), []);
