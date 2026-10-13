@@ -99,7 +99,7 @@ export type FigurineFiles = Partial<
 export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = {
   france: {
     infantry: [frInfantry1, frInfantry2],
-    armor: [, frArmor2],
+    armor: [null, frArmor2],
     landTransport: frLandTransport,
     fighter: frFighter,
     bomber: frBomber,
@@ -170,7 +170,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     cargo: itCargo,
   },
   japan: {
-    infantry: [jpInfantry1],
+    infantry: [jpInfantry1, null],
     armor: [jpArmor1, jpArmor2],
     landTransport: jpLandTransport,
     fighter: jpFighter,
