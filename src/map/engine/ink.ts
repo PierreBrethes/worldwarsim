@@ -1,14 +1,17 @@
 import {
+  CanvasTexture,
   DoubleSide,
   Group,
   Mesh,
   MeshBasicMaterial,
   Path,
+  PlaneGeometry,
+  SRGBColorSpace,
   Shape,
   ShapeGeometry,
   Vector3,
 } from 'three';
-import type { InkBurst } from '@/domain/ink-bursts';
+import { stampAt, type InkBurst, type StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
@@ -25,6 +28,11 @@ const LIFE_MS = 2600;
 const PEAK_OPACITY = 0.8;
 const STAMP_PX = 16;
 const SPLASH_PX = 14;
+/** The prototype's stamp is 6 units beside a piece of 1.35: on screen, about a hand's breadth. */
+const WORDED_PX = 170;
+/** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
+const WORDED_ASIDE = [0.95, 0.7] as const;
+const STAMP_RED = '#9d4638';
 
 const REACH_HOLD_MS = 600;
 const REACH_FADE_MS = 600;
@@ -68,9 +76,58 @@ type PenStroke = {
   readonly pen: number;
 };
 type Stamp = {
-  readonly mesh: Mesh<ShapeGeometry, MeshBasicMaterial>;
+  readonly mesh: Mesh<ShapeGeometry | PlaneGeometry, MeshBasicMaterial>;
   readonly start: number;
+  /** Where it was put, before it is pushed aside by its size on screen. */
+  readonly at: Vector3;
+  readonly worded: boolean;
+  readonly kind: InkBurst['kind'];
 };
+
+const PLANE = new PlaneGeometry(1, 1);
+
+/** The prototype's `stampTex`: a double ring, the word, the hour between stars, and the grain
+ *  of a rubber stamp that did not take everywhere. */
+function wordedTexture({ word, hour }: StampWords): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.translate(256, 256);
+  ctx.strokeStyle = ctx.fillStyle = STAMP_RED;
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.arc(0, 0, 220, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, 0, 192, 0, Math.PI * 2);
+  ctx.stroke();
+  const text = word.toLocaleUpperCase('fr-FR');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 64px "Bodoni Moda", Georgia, serif';
+  const fit = Math.min(64, (64 * 320) / ctx.measureText(text).width);
+  ctx.font = `700 ${fit}px "Bodoni Moda", Georgia, serif`;
+  // Stroked as well as filled: a didone's hairlines vanish once the sheet is seen at a slant.
+  ctx.lineWidth = 3;
+  ctx.fillText(text, 0, 0);
+  ctx.strokeText(text, 0, 0);
+  ctx.font = '600 30px "IBM Plex Mono", monospace';
+  ctx.fillText(`★  ${hour}  ★`, 0, 80);
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let k = 0; k < 900; k++) {
+    ctx.globalAlpha = Math.random() * 0.8;
+    ctx.fillRect(
+      Math.random() * 512 - 256,
+      Math.random() * 512 - 256,
+      Math.random() * 6,
+      Math.random() * 3,
+    );
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
 
 const disc = (x: number, y: number, radius: number): Shape =>
   new Shape().absarc(x, y, radius, 0, Math.PI * 2, false);
@@ -148,24 +205,58 @@ export class InkLayer {
     this.reaches.push(this.penStroke([ring], now, this.motion === 'full' ? TRACE_MS : 0));
   }
 
-  burst({ kind, at }: InkBurst, now: number): void {
+  /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
+   *  wears the stamp alone. */
+  burst({ kind, at, words, delayMs = 0 }: InkBurst, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
-    const ink = kind === 'combat' ? ARC_COLORS.enemyDetected.trace : PALETTE.border;
+    const point = this.frame.projectLonLat(at);
+    if (words !== undefined) {
+      const texture = wordedTexture(words);
+      this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true);
+    }
+    if (kind === 'combat' || (kind === 'arrival' && words === undefined))
+      this.stamp(
+        kind,
+        this.geometries[kind],
+        { color: kind === 'combat' ? ARC_COLORS.enemyDetected.trace : PALETTE.border },
+        point,
+        now,
+        false,
+      );
+  }
+
+  /** Lifts every stamp of `kind` at once: what the replay pressed goes with it. */
+  lift(kind: InkBurst['kind']): void {
+    for (const stamp of this.stamps) if (stamp.kind === kind) unstamp(stamp);
+    this.stamps = this.stamps.filter((stamp) => stamp.kind !== kind);
+  }
+
+  private stamp(
+    kind: InkBurst['kind'],
+    geometry: ShapeGeometry | PlaneGeometry,
+    paint: { color?: string; map?: CanvasTexture },
+    at: Vector3,
+    start: number,
+    worded: boolean,
+  ): void {
     const mesh = new Mesh(
-      this.geometries[kind],
+      geometry,
       new MeshBasicMaterial({
-        color: ink,
+        ...paint,
         transparent: true,
         opacity: 0,
         depthTest: false,
+        depthWrite: false,
+        // Ink is ink: the lamp's tone curve would wash the stamp's red into the sheet.
+        toneMapped: false,
         side: DoubleSide,
       }),
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.renderOrder = BURST_RANK;
-    mesh.position.copy(this.frame.projectLonLat(at));
+    mesh.position.copy(at);
     this.group.add(mesh);
-    this.stamps.push({ mesh, start: now });
+    this.stamps.push({ mesh, start, at, worded, kind });
   }
 
   animate(now: number, unitsPerPixel: number): void {
@@ -176,7 +267,7 @@ export class InkLayer {
 
   dispose(): void {
     for (const stroke of [...this.traces, ...this.reaches]) wipe(stroke);
-    for (const stamp of this.stamps) stamp.mesh.material.dispose();
+    for (const stamp of this.stamps) unstamp(stamp);
     this.reaches = [];
     this.traces = [];
     this.stamps = [];
@@ -235,11 +326,27 @@ export class InkLayer {
     return true;
   }
 
-  private age({ mesh, start }: Stamp, now: number, unitsPerPixel: number): boolean {
+  private age(stamp: Stamp, now: number, unitsPerPixel: number): boolean {
+    const { mesh, start } = stamp;
     const age = now - start;
+    if (stamp.worded) {
+      const at = stampAt(age, this.motion);
+      if (at === null) {
+        unstamp(stamp);
+        return false;
+      }
+      mesh.material.opacity = at.opacity;
+      const size = WORDED_PX * unitsPerPixel;
+      mesh.scale.setScalar(at.scale * size);
+      mesh.position.set(
+        stamp.at.x + WORDED_ASIDE[0] * size,
+        stamp.at.y,
+        stamp.at.z + WORDED_ASIDE[1] * size,
+      );
+      return true;
+    }
     if (age >= LIFE_MS) {
-      mesh.removeFromParent();
-      mesh.material.dispose();
+      unstamp(stamp);
       return false;
     }
     const imprint = Math.min(1, age / IMPRINT_MS);
@@ -252,6 +359,12 @@ export class InkLayer {
     );
     return true;
   }
+}
+
+function unstamp({ mesh }: Stamp): void {
+  mesh.removeFromParent();
+  mesh.material.map?.dispose();
+  mesh.material.dispose();
 }
 
 function wipe(stroke: PenStroke): void {

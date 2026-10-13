@@ -4,6 +4,7 @@
 'use no memo';
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -16,7 +17,7 @@ import {
 import { asDuration } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
-import { LoadingGauge } from './LoadingGauge';
+import { LoadingGauge, MarchGauge } from './LoadingGauge';
 import {
   URGENCY_MS,
   cartoucheShown,
@@ -782,13 +783,17 @@ export function MapLabels({
               <div className="label-lines">
                 {label.lines.map((line, rank) =>
                   line.role === 'countdown' ? (
-                    <div
-                      key={rank}
-                      className="label-line label-line--countdown"
-                      ref={(node) => {
-                        register(countdowns.current, label.id, node);
-                      }}
-                    />
+                    <Fragment key={rank}>
+                      <div
+                        className="label-line label-line--countdown"
+                        ref={(node) => {
+                          register(countdowns.current, label.id, node);
+                        }}
+                      />
+                      {line.since !== undefined && (
+                        <MarchGauge since={line.since} dueAt={line.dueAt} />
+                      )}
+                    </Fragment>
                   ) : line.role === 'loading' ? (
                     <LoadingGauge key={rank} until={line.until} crawl={motion === 'full'} />
                   ) : (

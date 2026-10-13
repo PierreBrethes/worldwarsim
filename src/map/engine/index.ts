@@ -47,7 +47,7 @@ import { steepestTiltAt, tiltShiftOf } from './camera-tilt';
 import { castShadows, Lamp } from './lamp';
 import { NightSky } from './night';
 import { InkLayer } from './ink';
-import type { InkBurst } from '@/domain/ink-bursts';
+import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import type { Reach } from '@/domain/labels';
 import {
@@ -551,6 +551,27 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
+  /** The stamps of `kind` lifted from the board, as a replay that is left takes its own. */
+  liftStamps(kind: InkBurst['kind']): void {
+    this.invalidate();
+    this.ink.lift(kind);
+  }
+
+  /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
+  inkCut(regionId: string, words: StampWords): void {
+    this.invalidate();
+    const at = this.regions.anchorOf(regionId);
+    if (at === null) return;
+    this.ink.burst(
+      {
+        kind: 'cut',
+        at: this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+        words,
+      },
+      performance.now(),
+    );
+  }
+
   /** A point of mine now holds this far: its reach is inked once around it. */
   inkReach(at: LonLat, km: number): void {
     this.invalidate();
@@ -596,14 +617,23 @@ export class MapEngine {
    * told through `onRest` from the first move on; the clean left press then puts down
    * (`onAct`) rather than reads.
    */
-  holdPiece(held: PieceHold | null): void {
+  holdPiece(held: PieceHold | null, sent = false): void {
     this.invalidate();
     this.held = held;
-    this.standing.hold(held);
+    this.standing.hold(held, sent);
     // Another piece, or none: the route told for the last stop is not this one's.
     if (this.rest.stop()) this.onRestless?.();
     this.hoverDirty = true;
     this.refreshCursor();
+  }
+
+  /** **The piece in hand is set down where the pose opened its rose**, and waits there for
+   *  the order: it no longer follows the pointer on its way to the rose. */
+  setDownPiece(clientX: number, clientY: number): void {
+    this.invalidate();
+    if (this.held === null || !this.castAt(clientX, clientY)) return;
+    const ground = this.ray.intersectObjects(this.aimable, false)[0]?.point;
+    if (ground !== undefined) this.standing.setDown(ground);
   }
 
   /** The enemy's surveyed camps, in blocks seen from behind up close (ADR 0026 §4). */
@@ -1773,7 +1803,8 @@ export class MapEngine {
       this.arcs.isFlowing ||
       this.ink.active ||
       this.regions.terrain.active ||
-      this.standing.isSpreading
+      this.standing.isSpreading ||
+      this.standing.isCarrying
     )
       this.invalidate();
     const now = performance.now();

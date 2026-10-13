@@ -138,8 +138,12 @@ const SHADOW_DISCS = (
     [0.48, SHADOW_OUTER],
   ] as const
 ).map(([radius, material]) => [new CircleGeometry(radius, 24), material] as const);
+/** The name a carried copy finds its figurines' discs by: lifted, a disc would read as a base. */
+export const CONTACT = 'contact';
+
 export function contactShadow(): Group {
   const shadow = new Group();
+  shadow.name = CONTACT;
   for (const [geometry, material] of SHADOW_DISCS) {
     const disc = new Mesh(geometry, material);
     disc.rotation.x = -Math.PI / 2;

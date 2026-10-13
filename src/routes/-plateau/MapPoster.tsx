@@ -1,4 +1,6 @@
+import { useMapMotion } from '@/data/mapMotion';
 import type { Poster } from '@/domain/map-poster';
+import { LoadingGauge } from '@/map/LoadingGauge';
 import { PileSheet } from './PileSheet';
 
 /**
@@ -7,6 +9,7 @@ import { PileSheet } from './PileSheet';
  * The map's label layer places it over the piece (`MapLabels`, `PosterLayer`).
  */
 export function MapPoster({ poster }: { poster: Poster }) {
+  const motion = useMapMotion();
   const classes = [
     'map-poster hud',
     poster.pile === null ? '' : 'map-poster--pile',
@@ -31,6 +34,7 @@ export function MapPoster({ poster }: { poster: Poster }) {
           </div>
         ),
       )}
+      {poster.loading !== null && <LoadingGauge until={poster.loading} crawl={motion === 'full'} />}
       {poster.bar !== null && (
         <div className="map-poster-bar">
           <i style={{ width: `${Math.round(poster.bar * 100)}%` }} />

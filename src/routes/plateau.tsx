@@ -50,6 +50,7 @@ import { StaleSeat } from '@/shell/StaleSeat';
 import { buildLabels, type MapLabel, type MapMarker, type Reach } from '@/domain/labels';
 import { pilePieces } from '@/domain/pile-pieces';
 import { isOutpostWork, RESOURCES, type BuildingKey, type UnitRole } from '@/domain/ids';
+import { produces } from '@/domain/economy';
 import { COUNTRY_BY_NATION, inkByClaimedCountry, isNation } from '@/domain/nations';
 import { FADED_WASH, surveyWash } from '@/domain/control';
 import { carryCapacityOf } from '@/domain/loot';
@@ -405,6 +406,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  const [departures, setDepartures] = useState(0);
   /** Chaque levée est une fiche neuve : ses cases repartent de ce qu'on vient de prendre. */
   const [lifts, setLifts] = useState(0);
   const column = useMemo(
@@ -1176,6 +1178,18 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
     [heldRaw],
   );
 
+  const cut = useMemo(
+    () => ({
+      unlinked: view.me.regions.filter((region) => !region.linked).map((region) => region.id),
+      producing: new Set(
+        view.me.buildings
+          .filter((building) => produces(building.key))
+          .map((building) => building.regionId),
+      ),
+    }),
+    [view.me.regions, view.me.buildings],
+  );
+
   const reachedOutposts = useMemo(
     () =>
       view.me.outposts.map(({ id, lonLat, level, standsAt }) => ({
@@ -1898,6 +1912,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   const afterSent = useCallback(
     (filed: Sent) => {
       if (narrow && order !== null) setSent({ ...filed, order: order.label });
+      setDepartures((count) => count + 1);
       dropHand();
     },
     [narrow, order, dropHand],
@@ -1950,6 +1965,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               inkByCountry={inkByCountry}
               held={held}
               outposts={reachedOutposts}
+              cut={cut}
               built={built}
               selectedCountry={country ?? null}
               playerNation={view.me.nation}
@@ -1959,6 +1975,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
               onOpenBuilding={openBuilding}
               onOpenStack={openStack}
               holding={holding}
+              departures={departures}
               onPieceClick={view.me.defeated ? undefined : pieceClick}
               onRestAim={restAt}
               onRoseDismiss={dropHand}
