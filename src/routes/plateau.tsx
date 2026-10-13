@@ -1440,25 +1440,36 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
 
   const labels = useMemo(() => buildLabels(view, markers), [view, markers]);
 
-  /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée. */
+  /** La pile entière, par n'importe laquelle de ses pièces — ou une troupe de la pile déployée.
+   *  La garnison d'un bâtiment se lève par ses figurines comme une pile posée. */
   const pieceClick = useCallback(
     (hit: PieceClick): boolean => {
       const pile = markers.find(
         (marker): marker is Extract<MapMarker, { kind: 'stack' }> =>
           marker.kind === 'stack' && marker.id === hit.pileId,
       );
-      if (pile === undefined || pile.station.kind === 'home') return false;
-      const station = pile.station;
+      const building = view.me.buildings.find(
+        (candidate) => stationKeyOf({ kind: 'building', buildingId: candidate.id }) === hit.pileId,
+      );
+      const station: TroopStation | undefined =
+        pile?.station ?? (building && { kind: 'building', buildingId: building.id });
+      if (station === undefined || station.kind === 'home') return false;
       const troopId = hit.troopIds[0];
       return applyPileClick(
         hit.spread && troopId !== undefined
           ? { kind: 'troop', station, troopId }
-          : { kind: 'pile', station, troopIds: pile.pieces.troopIds },
+          : {
+              kind: 'pile',
+              station,
+              troopIds:
+                pile?.pieces.troopIds ??
+                troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id),
+            },
         hit.clientX,
         hit.clientY,
       );
     },
-    [markers, applyPileClick],
+    [markers, view.me, marching, applyPileClick],
   );
   const standing = useMemo(
     (): ReadonlyArray<StandingPile> => [

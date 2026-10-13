@@ -367,12 +367,6 @@ export function MapLabels({
     }
 
     const shown = formed.filter((group) => !fans(group));
-    // Folded into « N sites », the buildings gather around the cartouche's mast up close.
-    engine?.gatherMaquettes(
-      shown
-        .filter((group) => group.kind === 'building' && placedGroups.get(group.id) === true)
-        .map((group) => group.members),
-    );
     const plated = new Set(
       measured.flatMap(({ label }) => (label.plate === null ? [] : [label.id])),
     );

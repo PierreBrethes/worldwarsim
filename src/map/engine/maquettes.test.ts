@@ -2,6 +2,7 @@ import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } f
 import { describe, expect, it } from 'vitest';
 import {
   bakedParts,
+  clusterFootprints,
   footOf,
   GARRISON_FOOT,
   MAQUETTE_SPAN,
@@ -71,6 +72,82 @@ describe('ringOffsets', () => {
       const [ax, az] = ring[0]!;
       const [bx, bz] = ring[1]!;
       expect(Math.hypot(ax - bx, az - bz)).toBeCloseTo(MAQUETTE_SPAN);
+    }
+  });
+});
+
+describe('clusterFootprints', () => {
+  const S = MAQUETTE_SPAN;
+  const gap = (a: readonly [number, number], b: readonly [number, number]) =>
+    Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  it('leaves a site whose footprint touches none where it stands', () => {
+    expect(
+      clusterFootprints(
+        [
+          [0, 0],
+          [3 * S, 0],
+        ],
+        S,
+      ),
+    ).toEqual([
+      { at: [0, 0], ring: [0, 0] },
+      { at: [3 * S, 0], ring: [0, 0] },
+    ]);
+  });
+
+  it('rings sites that overlap around their barycentre, a span apart', () => {
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [S / 2, 0],
+      ],
+      S,
+    );
+    expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo(S);
+    expect((placed[0]!.at[0] + placed[1]!.at[0]) / 2).toBeCloseTo(S / 4);
+    expect(placed[0]!.ring).toEqual(ringOffsets(2)[0]);
+  });
+
+  it('takes in a site the grown ring reaches', () => {
+    // Three on one point ring out to touch a fourth that touched none of them.
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [1.2 * S, 0],
+      ],
+      S,
+    );
+    const radius = Math.hypot(...ringOffsets(4)[0]!);
+    for (const { ring } of placed) expect(Math.hypot(...ring)).toBeCloseTo(radius);
+  });
+
+  it('stands no two maquettes nearer than a span, wherever the sites fall', () => {
+    let seed = 7;
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 4 * S;
+    const points = Array.from({ length: 40 }, () => [random(), random()] as const);
+    const placed = clusterFootprints(points, S);
+    for (let i = 0; i < placed.length; i++)
+      for (let j = i + 1; j < placed.length; j++)
+        expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThan(S - 1e-9);
+  });
+
+  it('keeps a lone garrison out of a neighbour maquette when the footprint reaches its foot', () => {
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [0, GARRISON_FOOT + S / 4],
+      ],
+      S,
+      GARRISON_FOOT,
+    );
+    for (const site of placed) {
+      const foot = footOf(site.ring);
+      const at = [site.at[0] - site.ring[0] + foot.x, site.at[1] - site.ring[1] + foot.z] as const;
+      for (const other of placed)
+        if (other !== site) expect(gap(at, other.at)).toBeGreaterThan(S / 2);
     }
   });
 });
