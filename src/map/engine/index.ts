@@ -40,6 +40,7 @@ import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
+import { steepestTiltAt } from './camera-tilt';
 import { InkLayer } from './ink';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
@@ -346,7 +347,7 @@ export class MapEngine {
      *  plateau et non à la sphère — à polaire nulle, l'azimut d'`OrbitControls` n'a plus de sens
      *  et la carte tourne sur elle-même au moindre tremblement de la main. */
     this.controls.minPolarAngle = 0.05;
-    this.controls.maxPolarAngle = 1.15;
+    // Le plafond suit la distance, recalé à chaque tour de boucle (`steepestTiltAt`).
     this.controls.minDistance = 4;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
@@ -1568,6 +1569,9 @@ export class MapEngine {
   private loop = (): void => {
     this.animation = requestAnimationFrame(this.loop);
     this.animateJourney();
+    this.controls.maxPolarAngle = steepestTiltAt(
+      this.camera.position.distanceTo(this.controls.target),
+    );
     this.controls.update();
     if (this.hoverDirty) {
       // Le survol change ce qui s'allume.
