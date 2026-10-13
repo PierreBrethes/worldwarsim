@@ -185,12 +185,15 @@ export function blacken(figurine: Object3D): void {
  * wood, its top a paper face inked in Bodoni. The face is a canvas, drawn once per text and
  * shared by the layer's piles; the layer frees the faces no pile shows any more.
  */
-const WOOD = new MeshStandardMaterial({ color: '#6b4a24', roughness: 0.55 });
-const DISC = new CylinderGeometry(0.5, 0.53, 0.14, 32);
-DISC.translate(0, 0.07, 0);
-const FACE = new CircleGeometry(0.47, 32);
+const WOOD = new MeshStandardMaterial({ color: '#5e4020', roughness: 0.6 });
+const BEVEL_WOOD = new MeshStandardMaterial({ color: '#9a7440', roughness: 0.45 });
+const DISC = new CylinderGeometry(0.5, 0.54, 0.11, 32);
+DISC.translate(0, 0.055, 0);
+const BEVEL = new CylinderGeometry(0.46, 0.5, 0.035, 32);
+BEVEL.translate(0, 0.1275, 0);
+const FACE = new CircleGeometry(0.455, 32);
 FACE.rotateX(-Math.PI / 2);
-FACE.translate(0, 0.142, 0);
+FACE.translate(0, 0.146, 0);
 
 export class Faces {
   private readonly faces = new Map<string, MeshStandardMaterial>();
@@ -205,19 +208,29 @@ export class Faces {
     const draw = () => {
       const ctx = canvas.getContext('2d')!;
       ctx.clearRect(0, 0, 128, 128);
-      ctx.fillStyle = '#e4d8bd';
+      const paper = ctx.createRadialGradient(56, 52, 8, 64, 64, 64);
+      paper.addColorStop(0, '#f1e7cc');
+      paper.addColorStop(1, '#dccfae');
+      ctx.fillStyle = paper;
       ctx.beginPath();
       ctx.arc(64, 64, 63, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#2a2118';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(64, 64, 53, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = '#2a2118';
-      ctx.font = `700 ${text.length > 2 ? 46 : 58}px "Bodoni Moda", Georgia, serif`;
+      for (const [radius, width] of [
+        [54, 4],
+        [46, 1.5],
+      ] as const) {
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.arc(64, 64, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.font = `700 ${text.length > 2 ? 44 : 56}px "Bodoni Moda", Georgia, serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255, 250, 235, 0.7)';
+      ctx.fillText(text, 64, 70);
+      ctx.fillStyle = '#2a2118';
       ctx.fillText(text, 64, 68);
     };
     draw();
@@ -249,7 +262,9 @@ function counter(face: MeshStandardMaterial, x: number, z: number): Group {
   const piece = new Group();
   const disc = new Mesh(DISC, WOOD);
   disc.userData.grip = 'pile' satisfies Grip;
-  piece.add(disc, new Mesh(FACE, face));
+  const bevel = new Mesh(BEVEL, BEVEL_WOOD);
+  bevel.userData.grip = 'pile' satisfies Grip;
+  piece.add(disc, bevel, new Mesh(FACE, face));
   piece.scale.setScalar(FIGURINE_SCALE);
   piece.position.set(x, 0, z);
   return piece;
