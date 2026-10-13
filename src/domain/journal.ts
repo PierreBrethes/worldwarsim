@@ -605,3 +605,17 @@ const ALARMS: ReadonlyArray<DispatchKind> = [
 ];
 
 export const isAlarm = (kind: DispatchKind): boolean => ALARMS.includes(kind);
+
+/**
+ * **Les combats arrivés depuis `seenAt`, et eux seuls** — ce que le toast de la carte annonce. Le
+ * journal servi à l'ouverture est déjà là quand on regarde : il se lit au journal, pas en toast
+ * (même silence au chargement que `inkBursts`).
+ */
+export const combatsSince = (
+  journal: ReadonlyArray<JournalDispatch>,
+  seenAt: number,
+): ReadonlyArray<JournalDispatch> =>
+  journal.filter((dispatch) => dispatch.combat !== null && dispatch.at > seenAt);
+
+export const latestDispatchAt = (journal: ReadonlyArray<JournalDispatch>): number =>
+  Math.max(0, ...journal.map((dispatch) => dispatch.at));

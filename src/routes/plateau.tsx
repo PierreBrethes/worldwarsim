@@ -119,6 +119,7 @@ import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { LayersGlyph, Glyph } from '@/shell/Glyph';
 import { GroundPanel } from './-plateau/GroundPanel';
+import { CombatToasts } from './-plateau/CombatToasts';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import type { ReplayStep } from '@/domain/replay';
@@ -2149,6 +2150,11 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onSent={afterSent}
               />
             )}
+            <CombatToasts
+              journal={view.journal}
+              quiet={replay !== null || view.me.defeated}
+              onShow={showCombat}
+            />
             {openedDispatch !== null && openedCombat !== null && (
               <DispatchSheet
                 dispatch={openedDispatch}

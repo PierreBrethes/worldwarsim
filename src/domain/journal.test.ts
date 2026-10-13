@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAlarm, journalDispatches } from './journal';
+import { combatsSince, isAlarm, journalDispatches, latestDispatchAt } from './journal';
 import { fr } from '@/i18n/fr';
 import type { BuildingKey } from './ids';
 import type { CombatReport, Notice } from './player-view';
@@ -288,5 +288,26 @@ describe('the sort a dispatch is stamped with', () => {
     const labels = Object.values(fr.stamps.dispatches);
     expect(labels.every((label) => label.length > 0)).toBe(true);
     expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+describe('the combats a map toast announces', () => {
+  const journal = journalDispatches(
+    [battle(NOON), battle(NOON + HOUR)],
+    null,
+    [],
+    [finished(NOON + 2 * HOUR)],
+  );
+
+  it('keeps out what the map opened with', () => {
+    expect(combatsSince(journal, latestDispatchAt(journal))).toEqual([]);
+  });
+
+  it('takes the combats arrived since, and no other dispatch', () => {
+    expect(combatsSince(journal, NOON).map((dispatch) => dispatch.at)).toEqual([NOON + HOUR]);
+  });
+
+  it('starts from nothing on an empty journal', () => {
+    expect(latestDispatchAt([])).toBe(0);
   });
 });

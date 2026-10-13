@@ -1,0 +1,179 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fr } from '@/i18n/fr';
+import { combatsSince, isAlarm, latestDispatchAt } from '@/domain/journal';
+import type { CombatReport, JournalDispatch } from '@/domain/player-view';
+import { useMapMotion } from '@/data/mapMotion';
+import { Stamp } from '@/shell/Stamp';
+import { useNarrowScreen } from '@/shell/viewport';
+import { ReplayButton } from './ReplayDeck';
+
+const MAX_TOASTS = 3;
+const TOAST_MS = 8_000;
+
+type Toast = {
+  readonly dispatch: JournalDispatch;
+  readonly combat: CombatReport;
+  readonly leaving: boolean;
+};
+
+/**
+ * **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7). Ce que le plateau a
+ * ouvert avec se lit au journal ; seul ce qui arrive ensuite s'imprime ici, au plus trois, le plus
+ * ancien sortant le premier. `quiet` — un rejeu à l'écran, un joueur défait — tait l'encart et
+ * vide la pile : ce qui arrive alors attend au journal, il ne ressort pas après coup.
+ */
+export function CombatToasts({
+  journal,
+  quiet,
+  onShow,
+}: {
+  journal: ReadonlyArray<JournalDispatch>;
+  quiet: boolean;
+  onShow: (combat: CombatReport) => void;
+}) {
+  const narrow = useNarrowScreen();
+  const animated = useMapMotion() === 'full';
+  const seenAt = useRef(latestDispatchAt(journal));
+  const [toasts, setToasts] = useState<ReadonlyArray<Toast>>([]);
+
+  useEffect(() => {
+    const arrived = combatsSince(journal, seenAt.current);
+    seenAt.current = Math.max(seenAt.current, latestDispatchAt(journal));
+    if (quiet) setToasts((current) => (current.length === 0 ? current : []));
+    else if (arrived.length > 0)
+      setToasts((current) =>
+        [
+          ...current,
+          // The journal reads newest first; the pile keeps arrival order, so the oldest leaves first.
+          ...[...arrived]
+            .reverse()
+            .flatMap(({ combat, ...dispatch }) =>
+              combat === null
+                ? []
+                : [{ dispatch: { ...dispatch, combat }, combat, leaving: false }],
+            ),
+        ].slice(-MAX_TOASTS),
+      );
+  }, [journal, quiet]);
+
+  const remove = useCallback(
+    (id: string) => setToasts((current) => current.filter((toast) => idOf(toast) !== id)),
+    [],
+  );
+  const dismiss = useCallback(
+    (id: string) =>
+      animated
+        ? setToasts((current) =>
+            current.map((toast) => (idOf(toast) === id ? { ...toast, leaving: true } : toast)),
+          )
+        : remove(id),
+    [animated, remove],
+  );
+
+  if (toasts.length === 0) return null;
+  return (
+    <div
+      className={`hud pointer-events-none absolute z-[var(--z-band)] flex flex-col gap-2 ${
+        narrow
+          ? 'inset-x-[10px] top-[10px]'
+          : 'top-4 left-1/2 w-[min(400px,calc(100%-32px))] -translate-x-1/2'
+      }`}
+    >
+      {[...toasts].reverse().map((toast) => (
+        <CombatToast
+          key={idOf(toast)}
+          toast={toast}
+          animated={animated}
+          onShow={onShow}
+          onDismiss={dismiss}
+          onGone={remove}
+        />
+      ))}
+    </div>
+  );
+}
+
+const idOf = (toast: Toast): string => toast.combat.id;
+
+function CombatToast({
+  toast,
+  animated,
+  onShow,
+  onDismiss,
+  onGone,
+}: {
+  toast: Toast;
+  animated: boolean;
+  onShow: (combat: CombatReport) => void;
+  onDismiss: (id: string) => void;
+  onGone: (id: string) => void;
+}) {
+  const { dispatch, leaving } = toast;
+  const id = idOf(toast);
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (held || leaving) return;
+    const timer = setTimeout(() => onDismiss(id), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [held, leaving, id, onDismiss]);
+
+  const alarm = isAlarm(dispatch.kind);
+  const action =
+    'min-h-[36px] cursor-pointer border border-[var(--ink)] px-3 text-[10.5px] font-semibold tracking-[.16em] uppercase';
+  return (
+    <div
+      role="status"
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onBlur={() => setHeld(false)}
+      onAnimationEnd={() => leaving && onGone(id)}
+      className={`paper-grain pointer-events-auto flex flex-col gap-2 border px-[14px] py-[10px] text-[var(--ink)] shadow-[0_10px_24px_rgba(0,0,0,.45)] ${
+        alarm ? 'border-[var(--critical)]' : 'border-[var(--ink)]'
+      } ${
+        animated
+          ? leaving
+            ? 'animate-[dispatch-toast-out_180ms_ease-in_forwards]'
+            : 'animate-[dispatch-toast-in_220ms_ease-out]'
+          : ''
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <Stamp
+          label={fr.stamps.dispatches[dispatch.kind]}
+          tone={alarm ? 'critical' : 'ink'}
+          size="small"
+        />
+        <span className="flex-1 font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
+          {dispatch.t}
+        </span>
+        <button
+          type="button"
+          onClick={() => onDismiss(id)}
+          title={fr.combatToast.close}
+          aria-label={fr.combatToast.close}
+          className="min-h-[28px] min-w-[28px] shrink-0 cursor-pointer border border-[var(--ink)] text-[11px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+        >
+          ×
+        </button>
+      </div>
+      <p
+        className="font-(family-name:--font-display) text-[15px] leading-[1.25] font-bold text-pretty break-words"
+        style={{ color: alarm ? 'var(--critical)' : 'var(--ink)' }}
+      >
+        {dispatch.text}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <ReplayButton dispatch={dispatch} className={action} />
+        <button
+          type="button"
+          title={fr.journal.showOnMap}
+          onClick={() => onShow(toast.combat)}
+          className={action}
+        >
+          {fr.combatToast.show}
+        </button>
+      </div>
+    </div>
+  );
+}
