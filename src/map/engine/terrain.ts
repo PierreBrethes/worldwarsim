@@ -1,4 +1,4 @@
-import { Color, Group, type Vector3 } from 'three';
+import { Color, Group, SRGBColorSpace, type Vector3 } from 'three';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -29,7 +29,7 @@ export const TYPE_TINTS: Record<RegionType, string> = {
  * (x, y) — and scaled onto the region afterwards: `PICTOGRAMS` is the one place a drawing changes.
  */
 type Point = readonly [number, number];
-export type Stroke = ReadonlyArray<Point>;
+type Stroke = ReadonlyArray<Point>;
 type Random = () => number;
 type Pictogram = (x: number, y: number, random: Random) => Stroke[];
 
@@ -252,7 +252,9 @@ const SPACING: Record<RegionType, number> = {
 };
 /** Clear of the border on every side: a sapin half over the neighbour reads as a mistake. */
 const MARGIN = 12;
-const MIN_COUNT = 5;
+/** What the rejection loop *aims* at, not a floor: it gives up after 900 tries, and a region too
+ *  thin for the margin ends up with fewer pictograms, or none. */
+const MIN_TARGET = 5;
 const MAX_COUNT = 34;
 /** Projected area per pictogram, in the prototype's square pixels. */
 const AREA_PER_PICTOGRAM = 1000;
@@ -263,8 +265,10 @@ export const STAGGER_S = 0.45;
 export const SKETCH_S = DRAW_S + STAGGER_S;
 
 /**
- * How tall a pictogram stands, in projected units: a dozen drawings across a department, the
- * prototype's density, until the cap keeps the Amazon from carrying trees a hundred km high.
+ * How tall a pictogram stands, in projected units: sized so that a region of twelve
+ * `AREA_PER_PICTOGRAM` cells would stand at the prototype's 17, whatever it then holds (the
+ * median department ends up with 5), until the cap keeps the Amazon from carrying trees a hundred
+ * km high.
  */
 const pictogramHeight = (area: number): number =>
   Math.min(0.9, Math.max(0.06, 17 * Math.sqrt(area / (12 * AREA_PER_PICTOGRAM))));
@@ -278,19 +282,21 @@ export type SketchedPictogram = {
 
 /**
  * Anchors by rejection in the box, kept apart by the type's spacing and clear of the border,
- * then ordered from the middle out: the pen starts where the eye is and runs to the edges.
+ * then ordered from `center` out: the pen starts where the eye is and runs to the edges.
  */
 export function sketchRegion({
   type,
   seed,
   box: [minX, minY, maxX, maxY],
   area,
+  center: [cx, cy],
   covers,
 }: {
   readonly type: RegionType;
   readonly seed: number;
   readonly box: readonly [number, number, number, number];
   readonly area: number;
+  readonly center: Point;
   readonly covers: (x: number, y: number) => boolean;
 }): SketchedPictogram[] {
   const random = mulberry(seed);
@@ -298,7 +304,7 @@ export function sketchRegion({
   const gap = SPACING[type] * unit;
   const margin = MARGIN * unit;
   const target = Math.max(
-    MIN_COUNT,
+    MIN_TARGET,
     Math.min(MAX_COUNT, Math.round(area / (AREA_PER_PICTOGRAM * unit * unit))),
   );
   const anchors: Point[] = [];
@@ -314,10 +320,8 @@ export function sketchRegion({
     if (clear && anchors.every(([ax, ay]) => (ax - x) ** 2 + (ay - y) ** 2 > gap * gap))
       anchors.push([x, y]);
   }
-  const mx = anchors.reduce((sum, [x]) => sum + x, 0) / anchors.length;
-  const my = anchors.reduce((sum, [, y]) => sum + y, 0) / anchors.length;
   anchors.sort(
-    ([ax, ay], [bx, by]) => (ax - mx) ** 2 + (ay - my) ** 2 - (bx - mx) ** 2 - (by - my) ** 2,
+    ([ax, ay], [bx, by]) => (ax - cx) ** 2 + (ay - cy) ** 2 - (bx - cx) ** 2 - (by - cy) ** 2,
   );
 
   return anchors.map((anchor, i) => {
@@ -379,18 +383,32 @@ type Sketch = {
   readonly start: number;
   leftAt: number | null;
   drawn: boolean;
+  /** 1 fully inked, 0 gone: it falls while the region is left and climbs back if hovered again,
+   *  so a revival continues from where the fade stood. */
+  fade: number;
+  tick: number;
 };
+
+const hsl = { h: 0, s: 0, l: 0 };
+/**
+ * Dark ink vanishes on a dark ground (France's blue): there the pen draws in paper. The ground is
+ * what is *painted*, not the seat's ink: a held region lays it at `opacity` over the sheet (a
+ * faded survey barely tints it), so the luminance is read, in sRGB, on that mix. No `ink` is the bare sheet.
+ */
+export function inkOn(ink: string | null, opacity: number): string {
+  if (ink === null) return PALETTE.border;
+  const sheet = new Color(PALETTE.paper).getHex();
+  const seat = new Color(ink).getHex();
+  const channel = (shift: number) =>
+    Math.round(((sheet >> shift) & 255) * (1 - opacity) + ((seat >> shift) & 255) * opacity);
+  const painted = new Color((channel(16) << 16) | (channel(8) << 8) | channel(0));
+  return painted.getHSL(hsl, SRGBColorSpace).l < 0.45 ? PALETTE.paper : PALETTE.border;
+}
 
 /**
  * The pen over the hovered region. The region being left fades while the next one draws; a
  * region hovered again while it fades is revived, not redrawn.
  */
-const hsl = { h: 0, s: 0, l: 0 };
-/** Dark ink vanishes on a dark seat's ground (France's blue): there the pen draws in paper. */
-export function inkOn(ground: string | null): string {
-  return ground !== null && new Color(ground).getHSL(hsl).l < 0.45 ? PALETTE.paper : PALETTE.border;
-}
-
 export class TerrainSketches {
   readonly group = new Group();
   motion: MapMotion = 'full';
@@ -406,12 +424,14 @@ export class TerrainSketches {
     return this.busy;
   }
 
-  /** `ground` is the seat's ink when the region is held, `null` on the bare sheet. */
+  /** `ground` is the seat's ink when the region is held, laid at `groundOpacity`; `null` on the
+   *  bare sheet. */
   show(
     regionId: string | null,
     sketch: () => PenStrands,
     now: number,
     ground: string | null = null,
+    groundOpacity = 0,
   ): void {
     for (const leaving of this.sketches.filter(
       (s) => s.leftAt === null && s.regionId !== regionId,
@@ -426,7 +446,10 @@ export class TerrainSketches {
       kept.leftAt = null;
       return;
     }
-    const line = new LineSegments2(new LineSegmentsGeometry(), this.material(inkOn(ground)));
+    const line = new LineSegments2(
+      new LineSegmentsGeometry(),
+      this.material(inkOn(ground, groundOpacity)),
+    );
     this.group.add(line);
     this.sketches.push({
       regionId,
@@ -435,7 +458,15 @@ export class TerrainSketches {
       start: now,
       leftAt: null,
       drawn: false,
+      fade: 1,
+      tick: now,
     });
+  }
+
+  /** Forgets every drawing at once: a fade would show strands laid for a stale curvature. */
+  clear(): void {
+    for (const sketch of [...this.sketches]) this.drop(sketch);
+    this.busy = true;
   }
 
   animate(now: number, layerFade: number): void {
@@ -443,19 +474,22 @@ export class TerrainSketches {
     for (const sketch of [...this.sketches]) {
       const elapsed = (now - sketch.start) / 1000;
       const fadeIn = this.motion === 'reduced' ? Math.min(1, elapsed / FADE_IN_S) : 1;
-      const fadeOut = sketch.leftAt === null ? 1 : 1 - (now - sketch.leftAt) / 1000 / FADE_OUT_S;
-      if (fadeOut <= 0) {
+      const step = (now - sketch.tick) / 1000 / FADE_OUT_S;
+      sketch.tick = now;
+      sketch.fade = Math.min(1, Math.max(0, sketch.fade + (sketch.leftAt === null ? step : -step)));
+      if (sketch.fade <= 0) {
         this.drop(sketch);
         continue;
       }
-      if (!sketch.drawn) {
+      if (!sketch.drawn && sketch.leftAt === null) {
         const pen = this.motion === 'full';
         this.lay(sketch, pen ? elapsed : SKETCH_S);
         sketch.drawn = !pen || elapsed >= SKETCH_S;
       }
       const material = sketch.line.material;
-      material.opacity = PEAK_OPACITY * fadeIn * fadeOut * layerFade;
-      if (!sketch.drawn || sketch.leftAt !== null || fadeIn < 1) this.busy = true;
+      material.opacity = PEAK_OPACITY * fadeIn * sketch.fade * layerFade;
+      if (!sketch.drawn || sketch.leftAt !== null || sketch.fade < 1 || fadeIn < 1)
+        this.busy = true;
     }
   }
 

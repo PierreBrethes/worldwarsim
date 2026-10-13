@@ -15,6 +15,7 @@ const TYPES: ReadonlyArray<RegionType> = [
 const square = (side: number) => ({
   box: [0, 0, side, side] as const,
   area: side * side,
+  center: [side / 2, side / 2] as const,
   covers: (x: number, y: number) => x >= 0 && y >= 0 && x <= side && y <= side,
 });
 
@@ -31,6 +32,7 @@ describe('the terrain sketched on a hovered region', () => {
     const halfDisc = {
       box: [-3, -3, 3, 3] as const,
       area: (Math.PI * 9) / 2,
+      center: [1, 0] as const,
       covers: (x: number, y: number) => x * x + y * y <= 9 && x >= 0,
     };
     const pictograms = sketchRegion({ type: 'forest', seed: 7, ...halfDisc });
@@ -73,9 +75,29 @@ describe('the pen', () => {
 });
 
 describe('inkOn', () => {
-  it('draws in paper on a dark seat, in ink on the bare sheet and a light seat', () => {
-    expect(inkOn('#1f3f66')).toBe(PALETTE.paper);
-    expect(inkOn(null)).toBe(PALETTE.border);
-    expect(inkOn('#e8d27a')).toBe(PALETTE.border);
+  it('reads the ground as painted: ink over paper at the opacity it is laid', () => {
+    const held = 0.72;
+    expect(inkOn('#1f3f66', held)).toBe(PALETTE.paper);
+    expect(inkOn('#1f3f66', held * 0.35)).toBe(PALETTE.border);
+    expect(inkOn('#e8d27a', held)).toBe(PALETTE.border);
+  });
+
+  it('draws in ink on the bare sheet and over a suspended zone, which is only a hatch', () => {
+    expect(inkOn(null, 0)).toBe(PALETTE.border);
+  });
+});
+
+describe('the order of the pen', () => {
+  it('runs from the given centre, not from the mean of the anchors', () => {
+    const corner = { ...square(6), center: [0, 0] as const };
+    const pictograms = sketchRegion({ type: 'plain', seed: 3, ...corner });
+    const distance = ({ anchor }: { anchor: readonly [number, number] }) =>
+      Math.hypot(anchor[0], anchor[1]);
+    expect(distance(pictograms[0]!)).toBeLessThan(distance(pictograms.at(-1)!));
+  });
+
+  it('draws nothing, without a NaN, where no anchor fits', () => {
+    const nowhere = { ...square(4), covers: () => false };
+    expect(sketchRegion({ type: 'forest', seed: 1, ...nowhere })).toEqual([]);
   });
 });
