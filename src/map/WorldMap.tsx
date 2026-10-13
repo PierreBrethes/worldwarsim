@@ -41,6 +41,7 @@ import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/setti
 import { useMapMotion } from '@/data/mapMotion';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
+import { useBoardInsets } from '@/shell/viewport';
 import { RouteScale } from './RouteScale';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
@@ -300,6 +301,7 @@ export function WorldMap({
   replayBelow = 0,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const insets = useBoardInsets();
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
    *  callback that changed identity. */
   const regionsLoaded = useRef(onRegionsLoaded);
@@ -642,6 +644,10 @@ export function WorldMap({
   }, [readyEngine, motion]);
 
   useEffect(() => {
+    readyEngine?.setEdgeInsets(insets);
+  }, [readyEngine, insets]);
+
+  useEffect(() => {
     readyEngine?.freezeOrbit(rose !== null);
   }, [readyEngine, rose]);
 
@@ -863,7 +869,7 @@ export function WorldMap({
         destinations={edgeNames}
       />
       {designatedArc && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute z-10" style={{ top: insets.top + 16, left: insets.left + 16 }}>
           <RouteScale arc={designatedArc} />
         </div>
       )}

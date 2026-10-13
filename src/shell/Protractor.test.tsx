@@ -8,19 +8,25 @@ import {
   createRouter,
   type AnyRouter,
 } from '@tanstack/react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
-import { FootBar } from './FootBar';
+import { Protractor } from './Protractor';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
- * **La barre de pied** (refonte mobile, 1a) : cinq entrées dans l'ordre de la maquette — « à
- * faire » au centre —, et la feuille qu'elle tient elle-même. Les comptes viennent des sources du
+ * **Le rapporteur** (table plein écran, 13/10) : le coin d'encre qui compte ce qui attend, six ronds
+ * sur l'arc dans l'ordre de la maquette, et la feuille « à faire » qu'il tient lui-même. Les comptes viennent des sources du
  * bureau — la liste « à faire », le non-lu du journal, le badge du télégraphe, le rang de la
  * dernière édition.
  */
 afterEach(cleanup);
+vi.stubGlobal('matchMedia', (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+}));
 
 /** Une saison dont le chantier est libre : `nextActionsOf` en tire une ligne, et une seule. Deux dépêches dont une lue, et la deuxième place à la dernière édition. */
 const view = {
@@ -52,7 +58,7 @@ async function mount(): Promise<AnyRouter> {
     path: '/plateau',
     component: () => (
       <SoleSurfaceProvider>
-        <FootBar view={view} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
+        <Protractor view={view} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
       </SoleSurfaceProvider>
     ),
   });
@@ -65,28 +71,48 @@ async function mount(): Promise<AnyRouter> {
   return router;
 }
 
-const entries = (): ReadonlyArray<string> =>
+const hub = () => screen.getByRole('button', { name: /à faire/, expanded: false });
+
+const rounds = (): ReadonlyArray<string> =>
   within(screen.getByRole('navigation'))
     .getAllByRole('listitem')
     .map((item) => item.textContent ?? '');
 
-describe('the foot bar', () => {
-  it('lays five entries in the mockup’s order, with the desk’s counts', async () => {
+describe('the protractor', () => {
+  it('lays six rounds in the mockup’s order, with the desk’s counts', async () => {
     await mount();
+    act(() => hub().click());
 
-    expect(entries()).toEqual(['chantiers', 'journal1', '1à faire', 'presse2ᵉ', 'télégraphe3']);
+    expect(rounds()).toEqual(['1à faire', 'chant.', 'journal1', 'presse2ᵉ', 'télég.3', 'régl.']);
   });
 
-  it('opens the works, which left « plus » for the bar itself', async () => {
+  it('keeps its rounds out of reach until the corner opens them, and hands focus back', async () => {
+    await mount();
+    expect(screen.queryByRole('link', { name: /chantiers/ })).toBeNull();
+
+    act(() => hub().click());
+    expect(screen.getByRole('link', { name: /chantiers/ })).toBeTruthy();
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(screen.queryByRole('link', { name: /chantiers/ })).toBeNull();
+    expect(document.activeElement).toBe(hub());
+  });
+
+  it('opens the works, and folds itself away', async () => {
     const router = await mount();
+    act(() => hub().click());
 
     await act(async () => screen.getByRole('link', { name: /chantiers/ }).click());
     expect(router.state.location.search).toEqual({ windows: ['economy'] });
+    expect(hub()).toBeTruthy();
   });
 
   it('opens « à faire » as a sheet carrying the board’s lines', async () => {
     await mount();
-    act(() => screen.getByRole('button', { name: /à faire/ }).click());
+    act(() => hub().click());
+    act(() => screen.getByRole('button', { name: fr.nextActions.header }).click());
 
     const todo = screen.getByRole('dialog', { name: fr.nextActions.header });
     expect(within(todo).getByText('les lignes à faire')).toBeTruthy();

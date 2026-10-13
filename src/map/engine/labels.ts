@@ -66,6 +66,15 @@ export type NamedAnchor = {
   readonly withRegionLayer: boolean;
 };
 
+export type EdgeInsets = {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+};
+
+const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
 /**
  * The engine's anchor registry. It knows neither DOM nor React: it says where each label
  * lands on screen, whether it lands, and at what detail level. The interface does the rest.
@@ -78,6 +87,9 @@ export class LabelLayer {
   private readonly gaze = new Vector3();
   private readonly toward = new Vector3();
   private anchors: ReadonlyArray<NamedAnchor> = [];
+  /** What the interface lays over the map's rim, in canvas pixels: an indicator folded under the
+   *  rule or the column would point at something nobody can click. */
+  edgeInsets: EdgeInsets = NO_INSETS;
 
   /**
    * A region anchor is resolved, not computed: its interior point comes from the region
@@ -177,9 +189,15 @@ export class LabelLayer {
 
       projection.atEdge = !projection.visible;
       if (projection.atEdge) {
-        const edge = clampToEdge(behind ? width - x : x, behind ? height - y : y, width, height);
-        projection.edgeX = edge.x;
-        projection.edgeY = edge.y;
+        const { top, right, bottom, left } = this.edgeInsets;
+        const edge = clampToEdge(
+          (behind ? width - x : x) - left,
+          (behind ? height - y : y) - top,
+          width - left - right,
+          height - top - bottom,
+        );
+        projection.edgeX = edge.x + left;
+        projection.edgeY = edge.y + top;
         projection.heading = edge.heading;
       }
     }

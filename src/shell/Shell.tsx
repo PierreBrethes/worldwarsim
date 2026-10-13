@@ -1,12 +1,11 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { PlayerView } from '@/domain/player-view';
-import { FootBar } from './FootBar';
-import { NationBanner } from './NationBanner';
 import { NarrowBand } from './NarrowBand';
-import { ResourceBand } from './ResourceBand';
+import { Protractor } from './Protractor';
+import { Reglette } from './Reglette';
 import { SoleSurfaceProvider } from './sole-surface';
-import { SurfaceRail } from './SurfaceRail';
-import { useNarrowScreen } from './viewport';
+import { SurfaceColumn } from './SurfaceColumn';
+import { BoardInsetsContext, useNarrowScreen, type BoardInsets } from './viewport';
 
 export function Shell({
   view,
@@ -17,20 +16,21 @@ export function Shell({
 }: {
   view: PlayerView;
   telegraphUnread: number;
-  /** Les lignes « à faire maintenant » que la feuille du pied porte sous le seuil : le plateau
-   *  seul sait où mène chacune. */
+  /** « À faire maintenant », que le plateau seul sait mener : au bureau le carré d'encre en tête
+   *  de la colonne et sa carte, sous le seuil les lignes de la feuille du pied. */
   todo: ReactNode;
   /** L'aide-mémoire, que le dossier de la nation rouvre sous le seuil. */
   onShowBriefing: () => void;
   children: ReactNode;
 }) {
-  /** **Sous le seuil, le pied de page** (refonte mobile du 04/10) : le bandeau en tête, dont le
-   *  drapeau ouvre le dossier de la nation, la carte, et une barre de cinq entrées au pied, qui
-   *  remplace le rail. Au-dessus, rien ne change. */
+  /** **La table plein écran** (décision de Pierre, 13/10) : la carte prend tout l'écran, et la
+   *  réglette et la colonne se posent dessus, sans cadre noir. Sous le seuil, la réglette sur
+   *  deux lignes et le rapporteur dans le coin, qui remplace la barre de pied. */
   const narrow = useNarrowScreen();
-  const top = useRef<HTMLDivElement>(null);
-  const foot = useRef<HTMLElement>(null);
-  usePublishedEdges(top, foot, narrow);
+  const board = useRef<HTMLElement>(null);
+  const top = useRef<HTMLElement>(null);
+  const side = useRef<HTMLElement>(null);
+  const insets = usePublishedEdges(board, top, side, narrow);
   /** **Le pincement est à la carte tant que le plateau est monté** (`.on-board`, `index.css`) : sur
    *  la racine du document et non sur ce cadre, parce que fenêtres et docks sont des portails. */
   useEffect(() => {
@@ -41,65 +41,76 @@ export function Shell({
   if (narrow) {
     return (
       <SoleSurfaceProvider>
-        <div className="board-frame flex h-full flex-col overflow-hidden">
-          <NarrowBand view={view} onShowBriefing={onShowBriefing} ref={top} />
-          <main className="relative flex min-h-0 min-w-0 flex-1">{children}</main>
-          <FootBar view={view} telegraphUnread={telegraphUnread} todo={todo} ref={foot} />
-        </div>
+        <BoardInsetsContext.Provider value={insets}>
+          <div className="board-frame flex h-full flex-col overflow-hidden">
+            <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
+              {children}
+              <NarrowBand view={view} onShowBriefing={onShowBriefing} ref={top} />
+              <Protractor view={view} telegraphUnread={telegraphUnread} todo={todo} />
+            </main>
+          </div>
+        </BoardInsetsContext.Provider>
       </SoleSurfaceProvider>
     );
   }
 
   return (
-    <div className="board-frame flex h-full flex-col overflow-hidden">
-      <div ref={top} className="shrink-0">
-        <NationBanner view={view} />
-        <ResourceBand view={view} />
+    <BoardInsetsContext.Provider value={insets}>
+      <div className="board-frame flex h-full overflow-hidden">
+        <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
+          {children}
+          <Reglette view={view} ref={top} />
+          <SurfaceColumn view={view} telegraphUnread={telegraphUnread} todo={todo} ref={side} />
+        </main>
       </div>
-      <div className="flex min-h-0 flex-1">
-        <SurfaceRail
-          season={view.season}
-          loadedAt={view.loadedAt}
-          telegraphUnread={telegraphUnread}
-        />
-        <main className="relative flex min-h-0 min-w-0 flex-1">{children}</main>
-      </div>
-    </div>
+    </BoardInsetsContext.Provider>
   );
 }
 
 /**
- * **Les deux bords du plateau, publiés en pixels d'écran** (`--board-top`, `--board-bottom`) :
- * feuilles et fenêtres se posent entre eux sans connaître la hauteur du bandeau ni celle du pied.
+ * **Les bords du plateau, publiés deux fois.** En pixels d'écran pour ce qui se pose en `fixed`
+ * (`--board-top`) : feuilles et fenêtres se posent sous la réglette sans connaître sa hauteur ;
+ * rien ne tient plus le pied, et `--board-bottom` garde son zéro de `tokens.css`. Et depuis le bord de la carte pour ce qu'elle range au bord
+ * (`BoardInsets`) : la réglette et la colonne couvrent la carte, elles ne la poussent plus.
  * Mesurés et non calculés, parce que l'échelle d'interface, l'encoche et la barre d'accueil s'y
  * ajoutent chacune de son côté.
  */
 function usePublishedEdges(
+  board: RefObject<HTMLElement | null>,
   top: RefObject<HTMLElement | null>,
-  foot: RefObject<HTMLElement | null>,
+  side: RefObject<HTMLElement | null>,
   narrow: boolean,
-): void {
+): BoardInsets {
+  const [insets, setInsets] = useState<BoardInsets>({ top: 0, right: 0, bottom: 0, left: 0 });
   useEffect(() => {
     const root = document.documentElement.style;
     const publish = () => {
+      const map = board.current?.getBoundingClientRect();
       const band = top.current?.getBoundingClientRect();
-      const bar = foot.current?.getBoundingClientRect();
+      const column = side.current?.getBoundingClientRect();
       root.setProperty('--board-top', `${Math.round(band?.bottom ?? 0)}px`);
-      root.setProperty(
-        '--board-bottom',
-        `${Math.round(bar === undefined ? 0 : window.innerHeight - bar.top)}px`,
+      const left = Math.round(
+        column === undefined || map === undefined ? 0 : column.right - map.left,
       );
+      // The map's buttons stand in the right corner with the column's square and margin: the
+      // same width, measured once.
+      const next = {
+        top: Math.round(band === undefined || map === undefined ? 0 : band.bottom - map.top),
+        right: left,
+        bottom: 0,
+        left,
+      };
+      setInsets((held) => (held.top === next.top && held.left === next.left ? held : next));
     };
     publish();
     const observer = new ResizeObserver(publish);
-    if (top.current) observer.observe(top.current);
-    if (foot.current) observer.observe(foot.current);
+    for (const ref of [board, top, side]) if (ref.current) observer.observe(ref.current);
     window.addEventListener('resize', publish);
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', publish);
       root.removeProperty('--board-top');
-      root.removeProperty('--board-bottom');
     };
-  }, [top, foot, narrow]);
+  }, [board, top, side, narrow]);
+  return insets;
 }

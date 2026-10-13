@@ -16,8 +16,8 @@ import { NarrowBand } from './NarrowBand';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
- * **Le bandeau du téléphone** (refonte mobile, 1a et 1s) : la ligne de la nation et des
- * mouvements, huit colonnes dessous, et le drapeau qui ouvre le dossier de la nation — ce qu'on
+ * **La réglette du téléphone** (refonte mobile, 1a et 1s ; table plein écran) : la ligne de la
+ * nation et des mouvements, huit colonnes dessous, et le drapeau qui ouvre le dossier de la nation — ce qu'on
  * cherche à froid, une ligne par porte. Il ne se replie plus.
  */
 beforeEach(() => localStorage.clear());
@@ -43,14 +43,14 @@ const view = {
 const columns = () =>
   RESOURCES.flatMap((resource) => screen.queryAllByTitle(fr.resources[resource]));
 
-async function mount(onShowBriefing = () => {}): Promise<AnyRouter> {
+async function mount(onShowBriefing = () => {}, shown = view): Promise<AnyRouter> {
   const root = createRootRoute();
   const board = createRoute({
     getParentRoute: () => root,
     path: '/plateau',
     component: () => (
       <SoleSurfaceProvider>
-        <NarrowBand view={view} onShowBriefing={onShowBriefing} />
+        <NarrowBand view={shown} onShowBriefing={onShowBriefing} />
       </SoleSurfaceProvider>
     ),
   });
@@ -70,7 +70,12 @@ describe('the narrow band', () => {
     await mount();
     expect(columns()).toHaveLength(8);
     expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
-    expect(screen.getByText(fr.resourceBand.abbreviations.alloy)).toBeTruthy();
+  });
+
+  it('hangs the alert under a reserve at its ceiling, and under no other', async () => {
+    const full = { ...view.me.resources, coal: { ...view.me.resources.coal, stock: 400 } };
+    await mount(() => {}, { ...view, me: { ...view.me, resources: full } } as PlayerView);
+    expect(screen.getAllByText(fr.resourceBand.fullTagShort)).toHaveLength(1);
   });
 
   it('opens a resource’s detail on a touch, never on a hover', async () => {

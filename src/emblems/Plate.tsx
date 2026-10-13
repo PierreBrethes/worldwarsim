@@ -132,7 +132,7 @@ export function ResourcePlate({
    * The box takes its surplus out of the wide subjects, so a heap of coal comes out fourteen
    * pixels tall beside a twenty-pixel drum — a stack of rows never sees it, a ticker sees
    * nothing else. Unboxed, height is pinned for all eight and the width is the one that
-   * varies, which is the caller's problem to seat (`ResourceBand` gives each a common slot).
+   * varies, which is the caller's problem to seat (`ResourceCell` gives each a common slot).
    */
   boxed?: boolean;
 }) {

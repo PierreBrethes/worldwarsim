@@ -209,25 +209,89 @@ body {
   overflow-y: auto;
 }
 
-/* La barre de pied descend sous la barre d'accueil de l'iPhone, et ses tuiles avec elle : la
-   tuile « à faire » et le fond de l'onglet ouvert touchent le bord de l'écran (retour de Pierre,
-   iPhone 13 Pro, 04/10). Le creux passe dans chaque tuile, sous son pictogramme et son mot, qui
-   restent au-dessus de la barre d'accueil.
-   Le creux sous le mot n'est plus toute la marge sûre mais seize points de moins (décision 1a du
-   05/10) : la barre d'accueil n'occupe que le bas de cette marge, et les trente-quatre points
-   entiers laissaient près de cinquante points de vide sous chaque libellé. */
-.board-foot {
-  --foot-safe: calc(var(--safe-bottom) / var(--hud-scale));
-  --foot-reserve: calc(max(0px, var(--safe-bottom) - 16px) / var(--hud-scale));
-  margin-bottom: calc(-1 * var(--foot-safe));
+/* **Le rapporteur** (téléphone, table plein écran, 13/10) : un quart de cercle d'encre dans le coin
+   bas droit, sous le pouce, qui remplace la barre de pied. Il descend sous la barre d'accueil et
+   dans l'arrondi de l'écran, comme la barre le faisait : le coin est le seul endroit de l'écran
+   que rien d'autre ne réclame. Ouvert, ses ronds sortent en éventail le long de l'arc, décalés ;
+   fermé, ils rentrent plus vite, dans l'ordre inverse. Rien qu'une transition CSS : la carte n'a
+   aucune image à rendre pour ça. */
+.protractor {
+  --arc: 152px;
+  position: absolute;
+  right: calc(-1 * var(--safe-right) / var(--hud-scale));
+  bottom: calc(-1 * var(--safe-bottom) / var(--hud-scale));
+  width: 0;
+  height: 0;
 }
 
-.board-foot > ul {
-  height: calc(50px + var(--foot-reserve));
+.protractor-hub {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: calc(70px + var(--safe-bottom) / var(--hud-scale));
+  height: calc(70px + var(--safe-bottom) / var(--hud-scale));
+  padding: 16px 0 calc(var(--safe-bottom) / var(--hud-scale)) 16px;
+  border-top-left-radius: 100%;
 }
 
-.board-foot > ul > li > * {
-  padding-bottom: var(--foot-reserve);
+/* Le coin pivote, pas sa forme : un quart de cercle tourné montrerait ses bords droits. */
+.protractor-hub > * {
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.protractor[data-open] .protractor-hub > * {
+  transform: rotate(-12deg);
+}
+
+.protractor-arc {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.protractor[data-open] .protractor-arc {
+  opacity: 1;
+}
+
+.protractor-round {
+  position: absolute;
+  right: calc(-24px + var(--safe-right) / var(--hud-scale));
+  bottom: calc(-24px + var(--safe-bottom) / var(--hud-scale));
+  opacity: 0;
+  transform: translate(0, 0) scale(0.35);
+  transition:
+    transform 150ms cubic-bezier(0.4, 0, 1, 1) calc(var(--back) * 18ms),
+    opacity 150ms ease calc(var(--back) * 18ms);
+}
+
+.protractor[data-open] .protractor-round {
+  opacity: 1;
+  transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y))) scale(1);
+  transition:
+    transform 230ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--rank) * 30ms),
+    opacity 180ms ease calc(var(--rank) * 30ms);
+}
+
+/* Réduites : les ronds sont à leur place et s'y fondent. Coupées : ils y sont, sans transition. */
+.protractor[data-motion='reduced'] .protractor-round {
+  transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y)));
+  transition: opacity 120ms ease;
+}
+
+.protractor[data-motion='reduced'] .protractor-hub > *,
+.protractor[data-motion='off'] .protractor-hub > * {
+  transform: none;
+}
+
+.protractor[data-motion='off'] .protractor-round {
+  transform: translate(calc(-1 * var(--x)), calc(-1 * var(--y)));
+}
+
+.protractor[data-motion='off'] .protractor-round,
+.protractor[data-motion='off'] .protractor-arc {
+  transition: none;
 }
 
 /* **Quarante-quatre pixels sous le doigt.** La fonte ne bouge pas — le style presse tient à ses
@@ -238,8 +302,6 @@ body {
   .board-window a,
   .board-sheet button,
   .board-sheet a,
-  .board-foot button,
-  .board-foot a,
   .board-dossier button,
   .board-dossier a {
     min-height: 44px;
