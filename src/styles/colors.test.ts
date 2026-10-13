@@ -103,7 +103,6 @@ describe('les couleurs suivent leurs variables', () => {
       seaInk: '--sea-ink',
       neutralLand: '--land',
       border: '--ink',
-      graticule: '--ink-quiet',
       plinthTop: '--plinth-top',
       plinthBottom: '--plinth-bottom',
       worldRim: '--border-world',

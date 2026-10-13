@@ -14,7 +14,7 @@ import { PALETTE } from './palette';
 import { SEA_LEVEL, type WorldFrame } from './frame';
 
 const WASH_WIDTH = 0.8;
-const SHORE_OPACITY = 0.35;
+const SHORE_OPACITY = 0.18;
 const WASH_LIFT = 0.005;
 const JOINT_STEP = Math.PI / 12;
 const OUTLINE_STEP = 0.4;

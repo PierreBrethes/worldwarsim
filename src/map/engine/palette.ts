@@ -5,9 +5,11 @@ export const PALETTE = {
   paper: '#e4d8bd',
   sea: '#a9c5cd',
   seaInk: '#2c5063',
+  /** The board's sea: a printed chart's water-tinted paper, paler than `sea` so the land and the
+   *  pieces stand out of it. Engine-only — the interface keeps `sea` for its swatches. */
+  seaSheet: '#cfe6ec',
   neutralLand: '#d5c5a0',
   border: '#2a2118',
-  graticule: '#4a4436',
   plinthTop: '#c7b48e',
   plinthBottom: '#5f5039',
   worldRim: '#6b4a24',

@@ -443,7 +443,12 @@ monte se trace une fois autour de lui (`raisedReaches`, muet à l'ouverture de l
 lit l'état de la partie, et l'encre ne joue que sur ce que le joueur reçoit déjà en dépêche. Le
 réglage `actives / réduites / coupées` (`map-motion.ts`, « auto » suit le système) commande
 aussi la caméra et la plume du terrain survolé (tracé, fondu court, posé d'un coup). C'est la
-deuxième exception, décidée, au pilier « rien ne bouge sans raison ».
+deuxième exception, décidée, au pilier « rien ne bouge sans raison ». **La mer est une feuille de carte imprimée** (13/10/2026, d'après
+`WWS/prototypes/table-etat-major.html`) : un papier clair vert d'eau (`PALETTE.seaSheet`, que la
+lampe chaude ne doit pas ramener à la couleur de la terre — d'où une part de lumière propre),
+gravé au fragment d'isobathes lues sur le même champ de distance que l'écume, d'un quadrillage de
+10° sur la mer seule et d'une rose des vents fixe dans l'Atlantique Nord (`sea.ts`) ; le
+quadrillage en lignes de 30° posé sur tout le plateau est parti avec.
 
 **Stockage unifié livré — 09/09/2026.** Chaque niveau d'entrepôt ajoute
 `STORAGE_CAP_PER_LEVEL` aux huit plafonds nationaux, au-dessus de `BASE_CAP`. Le QG ne
