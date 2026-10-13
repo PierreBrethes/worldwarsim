@@ -43,7 +43,7 @@
 .map-poster::after {
   content: '';
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--stem, 0px));
   bottom: -15px;
   width: 1px;
   height: 14px;
@@ -60,6 +60,41 @@
 .map-poster-anchor--below .map-poster::after {
   top: -15px;
   bottom: auto;
+}
+
+/* À côté de la pièce quand le haut manque : la tige sort du flanc, à hauteur de la pièce. */
+.map-poster-anchor--right .map-poster,
+.map-poster-anchor--left .map-poster {
+  bottom: auto;
+  top: 0;
+}
+
+.map-poster-anchor--right .map-poster {
+  left: 15px;
+  transform: translateY(-50%);
+}
+
+.map-poster-anchor--left .map-poster {
+  left: auto;
+  right: 15px;
+  transform: translateY(-50%);
+}
+
+.map-poster-anchor--right .map-poster::after,
+.map-poster-anchor--left .map-poster::after {
+  top: calc(50% + var(--stem, 0px));
+  bottom: auto;
+  width: 14px;
+  height: 1px;
+}
+
+.map-poster-anchor--right .map-poster::after {
+  left: -15px;
+}
+
+.map-poster-anchor--left .map-poster::after {
+  left: auto;
+  right: -15px;
 }
 
 .map-poster-eyebrow {

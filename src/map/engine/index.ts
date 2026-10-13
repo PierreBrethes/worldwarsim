@@ -75,7 +75,8 @@ import {
   type StandingPile,
 } from './standing';
 import { PointerRest } from './pointer-rest';
-import { nearer, type PieceHit } from './piece-pick';
+import { nearer, screenRect, type PieceHit } from './piece-pick';
+import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './blocks';
 import { ReplayScene, replayReach } from './replay';
 import {
@@ -1288,6 +1289,21 @@ export class MapEngine {
       clientX: event.clientX,
       clientY: event.clientY,
     });
+  }
+
+  /**
+   * **Where a drawn piece stands on the screen**, from the same boxes the pointer is cast against:
+   * the poster stands over its top. `null` for a piece the canvas does not draw — a plate far away.
+   */
+  pieceRect(labelId: string): Rect | null {
+    const box =
+      this.standing.boxOf(labelId) ??
+      this.camps.boxOf(labelId) ??
+      this.arcs.boxOf(labelId) ??
+      this.maquettes.boxOf(labelId);
+    return box === null || box.isEmpty()
+      ? null
+      : screenRect(box, this.camera, this.screenWidth, this.screenHeight);
   }
 
   /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */

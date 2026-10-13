@@ -1,4 +1,5 @@
 import {
+  type Box3,
   BoxGeometry,
   CanvasTexture,
   CircleGeometry,
@@ -29,7 +30,7 @@ import {
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
 import { pieceScale } from './piece-scale';
-import { footedHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, footedHit, nearer, type PieceHit } from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -680,6 +681,12 @@ export class StandingLayer {
       if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
     }
     return best === null ? null : { ...best.pick, spread: false };
+  }
+
+  /** The world box of the figurines a dressed pile stands in, `null` when it is not drawn. */
+  boxOf(id: string): Box3 | null {
+    const entry = this.dressed.get(id);
+    return entry?.ready === true && entry.object.visible ? boxOfObject(entry.object) : null;
   }
 
   /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside
