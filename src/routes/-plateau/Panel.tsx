@@ -22,6 +22,7 @@ export function Panel({
   width = 260,
   height,
   onClose,
+  compact = false,
   children,
 }: {
   title: string;
@@ -37,6 +38,9 @@ export function Panel({
   /** Sous le seuil, ce qui ferme la feuille : sans lui, elle suit une sélection et ne réclame pas
    *  la place des autres surfaces. Au bureau, le panneau garde ses propres boutons. */
   onClose?: () => void;
+  /** Sous le seuil, la feuille s'ouvre à l'aperçu et épouse son contenu, pour que la carte qu'elle
+   *  décrit reste visible au-dessus ; au bureau, sans effet. */
+  compact?: boolean;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -84,6 +88,7 @@ export function Panel({
             )
           }
           {...(onClose ? { onClose } : {})}
+          {...(compact ? { initial: 'peek', hug: true, keepsSelection: true } : {})}
         >
           <div className="px-3 py-[10px]">{children}</div>
         </BottomSheet>

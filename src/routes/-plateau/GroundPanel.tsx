@@ -4,6 +4,7 @@ import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
 import { depositOfRegion, loadCoastalRegions, type HoveredRegion } from '@/domain/world';
+import { useNarrowScreen } from '@/shell/viewport';
 import { Row, Panel } from './Panel';
 
 /**
@@ -73,6 +74,7 @@ export function GroundPanel({
   onDeselect: () => void;
 }) {
   const coastal = useCoastalRegions();
+  const narrow = useNarrowScreen();
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
   if (country === null) return null;
   const hovered = hoveredRegion?.country === country ? hoveredRegion : null;
@@ -89,24 +91,8 @@ export function GroundPanel({
    *  déjà ne pas dire. Aucune ligne ne change dessous — c'est le titre qui mentait. */
   const mine = nation !== undefined && nation === view.me.nation;
 
-  return (
-    <Panel
-      title={
-        mine
-          ? fr.selectedCountry.myTitle
-          : opponent
-            ? fr.selectedCountry.enemyTitle
-            : fr.selectedCountry.neutralTitle
-      }
-      marker={hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker}
-      position="static"
-      width={280}
-      onClose={onDeselect}
-    >
-      <h2 className="font-(family-name:--font-display) text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
-        {countryLabel(country)}
-      </h2>
-
+  const countryRows = (
+    <>
       {opponent ? (
         <>
           <Row
@@ -129,28 +115,32 @@ export function GroundPanel({
           {outpost && <Row label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />}
         </>
       )}
+    </>
+  );
 
-      {hovered && (
-        <div className="mt-[10px] border-t border-[var(--ink)] pt-[9px]">
-          <span className="eyebrow block">{fr.board.regionLabel}</span>
-          <p className="mt-1 text-[13px] text-[var(--ink)]">{hovered.name}</p>
-          <p className="text-[11.5px] text-[var(--ink-soft)]">
-            {fr.board.regionTerrain(fr.regionTypes[hovered.type])}
+  return (
+    <Panel
+      title={
+        mine
+          ? fr.selectedCountry.myTitle
+          : opponent
+            ? fr.selectedCountry.enemyTitle
+            : fr.selectedCountry.neutralTitle
+      }
+      marker={hoveredCountry === null ? fr.selectedCountry.marker : fr.selectedCountry.hoverMarker}
+      position="static"
+      width={280}
+      onClose={onDeselect}
+      compact
+    >
+      {narrow && hovered ? (
+        <>
+          <h2 className="font-(family-name:--font-display) text-[20px] leading-[1.05] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
+            {hovered.name}
+          </h2>
+          <p className="text-[12px] text-[var(--ink-soft)]">
+            {countryLabel(country)} — {fr.regionTypes[hovered.type]}
           </p>
-          <p className="text-[11.5px] text-[var(--ink-soft)]">
-            {deposit === null
-              ? fr.board.regionNoDeposit
-              : fr.board.regionDeposit(fr.deposits[deposit])}
-          </p>
-          {coastal.has(hovered.id) && (
-            <p className="text-[11px] text-[var(--ink-quiet)] italic">{fr.board.regionCoastal}</p>
-          )}
-          {suspendedUntil !== null && (
-            <Row
-              label={fr.selectedCountry.suspended}
-              value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
-            />
-          )}
           {holding !== null && (
             <Row
               label={fr.selectedCountry.heldBy}
@@ -164,7 +154,73 @@ export function GroundPanel({
               }
             />
           )}
-        </div>
+          <details className="mt-1">
+            <summary className="cursor-pointer py-[6px] text-[11px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
+              {fr.selectedCountry.moreDetails}
+            </summary>
+            {countryRows}
+            <p className="text-[11.5px] text-[var(--ink-soft)]">
+              {deposit === null
+                ? fr.board.regionNoDeposit
+                : fr.board.regionDeposit(fr.deposits[deposit])}
+            </p>
+            {coastal.has(hovered.id) && (
+              <p className="text-[11px] text-[var(--ink-quiet)] italic">{fr.board.regionCoastal}</p>
+            )}
+            {suspendedUntil !== null && (
+              <Row
+                label={fr.selectedCountry.suspended}
+                value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
+              />
+            )}
+          </details>
+        </>
+      ) : (
+        <>
+          <h2 className="font-(family-name:--font-display) text-[22px] font-extrabold tracking-[.02em] text-[var(--ink)] uppercase">
+            {countryLabel(country)}
+          </h2>
+
+          {countryRows}
+          {hovered && (
+            <div className="mt-[10px] border-t border-[var(--ink)] pt-[9px]">
+              <span className="eyebrow block">{fr.board.regionLabel}</span>
+              <p className="mt-1 text-[13px] text-[var(--ink)]">{hovered.name}</p>
+              <p className="text-[11.5px] text-[var(--ink-soft)]">
+                {fr.board.regionTerrain(fr.regionTypes[hovered.type])}
+              </p>
+              <p className="text-[11.5px] text-[var(--ink-soft)]">
+                {deposit === null
+                  ? fr.board.regionNoDeposit
+                  : fr.board.regionDeposit(fr.deposits[deposit])}
+              </p>
+              {coastal.has(hovered.id) && (
+                <p className="text-[11px] text-[var(--ink-quiet)] italic">
+                  {fr.board.regionCoastal}
+                </p>
+              )}
+              {suspendedUntil !== null && (
+                <Row
+                  label={fr.selectedCountry.suspended}
+                  value={fr.selectedCountry.suspendedUntil(asClockTime(suspendedUntil))}
+                />
+              )}
+              {holding !== null && (
+                <Row
+                  label={fr.selectedCountry.heldBy}
+                  value={
+                    holding.state === 'current'
+                      ? nationLabel(holding.nation)
+                      : fr.selectedCountry.heldBySurveyed(
+                          nationLabel(holding.nation),
+                          asPressDate(holding.seenAt),
+                        )
+                  }
+                />
+              )}
+            </div>
+          )}
+        </>
       )}
     </Panel>
   );

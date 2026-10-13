@@ -313,7 +313,10 @@ nom + type, et des **pictogrammes de cartographe tracés à la plume** dans la r
 monts hachurés, dunes, palmiers, touffes, blés —, du centre vers les bords, effacés en fondu
 quand on la quitte (`src/map/engine/terrain.ts`, une table `PICTOGRAMS` où chaque dessin se
 change seul ; graine tirée de l'identifiant, taille et nombre suivant l'aire). Ils ont remplacé
-les accessoires 3D le 13/10.
+les accessoires 3D le 13/10. **Au téléphone, il n'y a pas de survol** : un tap qui sélectionne lit la région
+sous le doigt une fois (`regionTapped`, `updateHover`) et la même plume la trace ; elle s'efface au
+prochain tap ou quand la sélection part. La feuille du sol s'ouvre alors à l'aperçu, compacte
+(`Panel compact`, `GroundPanel`).
 
 **L'Allemagne est la seule exception à Natural Earth — 07/10/2026.** Seize Länder en faisaient
 la nation la plus grossière du jeu (la France en a 101), et une bâtisse par région la plafonnait
