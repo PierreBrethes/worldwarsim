@@ -247,15 +247,9 @@ export function buildThread(
       strokes.push(stroke);
 
       // The hovered itinerary: without it, a high arc reads as a stroke laid halfway
-      // between two countries. It is a ground trace, not a cast shadow — the board has none.
+      // between two countries. It is a ground trace, not a cast shadow — a thread casts none.
       if (leg.medium === 'air') {
-        object.add(
-          threadOf(
-            strand.vertices.map(onGround),
-            shadowMaterial,
-            RENDER_RANK.land,
-          ),
-        );
+        object.add(threadOf(strand.vertices.map(onGround), shadowMaterial, RENDER_RANK.land));
       }
     }
   }
