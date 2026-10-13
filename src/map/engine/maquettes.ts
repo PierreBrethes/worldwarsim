@@ -256,6 +256,7 @@ function scaffoldOf(box: Box3): LineSegments {
 }
 const matrix = new Matrix4();
 const scale = new Vector3();
+const placedBox = new Box3();
 
 /**
  * **My buildings, the installations I surveyed and the neutral objectives, in maquettes up
@@ -433,6 +434,21 @@ export class MaquetteLayer {
       if (lot.rising !== null) (mesh.material as Material).dispose();
     }
     lot.rising?.scaffold?.geometry.dispose();
+  }
+
+  /** The world box of a maquette as drawn now — its model's bounds under its instance's placement. */
+  boxOf(id: string): Box3 | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model || dressed.item.near <= 0 || !dressed.lot.group.visible)
+      return null;
+    const { item } = dressed;
+    matrix.compose(
+      item.at,
+      item.turn,
+      scale.setScalar(item.near * model.scale * pieceScale.buildings),
+    );
+    return placedBox.copy(model.box).applyMatrix4(matrix);
   }
 
   /** The maquette under `ray`, by the instance it hits: each is tried by its bounds first. */

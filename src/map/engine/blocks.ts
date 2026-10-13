@@ -1,4 +1,5 @@
 import {
+  type Box3,
   CanvasTexture,
   CapsuleGeometry,
   CylinderGeometry,
@@ -22,7 +23,7 @@ import { dropLift } from './landing';
 import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
 import { pieceScale } from './piece-scale';
-import { drawnHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 
 /** A surveyed enemy camp as the board stands it: its label id, its point, its medium, its age. */
 export type SurveyedCamp = {
@@ -271,6 +272,11 @@ export class CampLayer {
 
   isDressed(id: string): boolean {
     return this.placed.has(id);
+  }
+
+  boxOf(id: string): Box3 | null {
+    const placed = this.placed.get(id);
+    return placed?.object.visible ? boxOfObject(placed.piece) : null;
   }
 
   /** The block under `ray`, the hand that lays it down aside. */
