@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   CanvasTexture,
   CircleGeometry,
   CylinderGeometry,
@@ -6,7 +7,9 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  type Material,
   type Object3D,
+  type Raycaster,
   SRGBColorSpace,
   type Vector3,
 } from 'three';
@@ -16,6 +19,7 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { FIGURINE_SCALE, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke } from './smoke';
+import { holdingHand } from './hand-model';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -77,25 +81,73 @@ export function counterTexts(
   };
 }
 
-/** The whole pile as one object at board scale, `null` when it is not dressed. */
+/**
+ * **What a click takes** (ADR 0026 §6): the index of a group, or the whole pile — a counter, the
+ * ×N included. It is read on the pile's current pieces, never kept: a pile re-served with the
+ * same drawing keeps its objects, not necessarily its troops.
+ */
+type Grip = number | 'pile';
+
+/** A group is clicked by its footprint, not by its triangles: a rifle is a pixel wide. */
+const FOOTPRINT = new BoxGeometry(GROUP_SPACING * 0.9, 0.6, 0.75);
+FOOTPRINT.translate(0, 0.3, 0);
+const UNSEEN = new MeshBasicMaterial();
+
+function footprint(x: number, grip: Grip): Mesh {
+  const target = new Mesh(FOOTPRINT, UNSEEN);
+  target.visible = false;
+  target.position.x = x;
+  target.userData.grip = grip;
+  return target;
+}
+
+/** The troops a ray takes among `targets`, a counter before the group it stands on. */
+export function pickedIn(
+  ray: Raycaster,
+  targets: ReadonlyArray<Object3D>,
+  pieces: PilePieces,
+): ReadonlyArray<string> | null {
+  const grips = ray
+    .intersectObjects([...targets], false)
+    .map((hit) => hit.object.userData.grip as Grip);
+  const grip = grips.includes('pile') ? 'pile' : grips[0];
+  if (grip === undefined) return null;
+  return grip === 'pile' ? pieces.troopIds : (pieces.groups[grip]?.troopIds ?? null);
+}
+
+/** The whole pile as one object at board scale, `null` when it is not dressed. `targets` are
+ *  what a click is cast at. */
 export function pileObject(
   nation: string | null,
   pieces: PilePieces,
   texts: CounterTexts,
   faces: Faces,
-): { object: Group; ready: Promise<unknown>; smokes: ReadonlyArray<Smoke> } | null {
+): {
+  object: Group;
+  ready: Promise<unknown>;
+  smokes: ReadonlyArray<Smoke>;
+  targets: ReadonlyArray<Mesh>;
+} | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
   const layout = pileLayout(figurines.length, pieces.more > 0);
   const words = counterTexts(pieces, texts);
   const object = new Group();
   const smokes: Smoke[] = [];
+  const targets: Mesh[] = [];
+  const addCounter = (piece: Group) => {
+    object.add(piece);
+    targets.push(piece.children[0] as Mesh);
+  };
   figurines.forEach((figurine, k) => {
     const x = layout.groups[k]!;
     figurine.object.position.x = x;
     object.add(figurine.object);
+    const target = footprint(x, k);
+    object.add(target);
+    targets.push(target);
     const text = words.groups[k];
-    if (text) object.add(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
+    if (text) addCounter(counter(faces.of(text), x + COUNTER_AT[0], COUNTER_AT[1]));
     const group = pieces.groups[k]!;
     // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
     const plume = group.role === 'infantry' ? null : PLUME_BY_WEAR[group.wear];
@@ -111,8 +163,13 @@ export function pileObject(
     );
   });
   if (layout.more !== null && words.more !== null)
-    object.add(counter(faces.of(words.more), layout.more, 0));
-  return { object, ready: Promise.all(figurines.map((figurine) => figurine.ready)), smokes };
+    addCounter(counter(faces.of(words.more), layout.more, 0));
+  return {
+    object,
+    ready: Promise.all(figurines.map((figurine) => figurine.ready)),
+    smokes,
+    targets,
+  };
 }
 
 function blacken(figurine: Object3D): void {
@@ -191,7 +248,9 @@ export class Faces {
 
 function counter(face: MeshStandardMaterial, x: number, z: number): Group {
   const piece = new Group();
-  piece.add(new Mesh(DISC, WOOD), new Mesh(FACE, face));
+  const disc = new Mesh(DISC, WOOD);
+  disc.userData.grip = 'pile' satisfies Grip;
+  piece.add(disc, new Mesh(FACE, face));
   piece.scale.setScalar(FIGURINE_SCALE);
   piece.position.set(x, 0, z);
   return piece;
@@ -201,10 +260,65 @@ function counter(face: MeshStandardMaterial, x: number, z: number): Group {
 type Dressed = {
   readonly key: string;
   lonLat: LonLat;
+  pieces: PilePieces;
   readonly object: Group;
   ready: boolean;
   readonly smokes: ReadonlyArray<Smoke>;
+  readonly targets: ReadonlyArray<Mesh>;
 };
+
+/** A piece in hand: the pile it was lifted from, and the troops lifted (ADR 0026 §6). */
+export type PieceHold = { readonly pileId: string; readonly troopIds: ReadonlyArray<string> };
+
+/** The prototype's (`lpLift`): what stays behind is a ghost of the piece. */
+const WASHED_OPACITY = 0.35;
+const washes = new WeakMap<Material, Material>();
+function washedOf(material: Material): Material {
+  let copy = washes.get(material);
+  if (copy) return copy;
+  copy = material.clone();
+  copy.transparent = true;
+  copy.opacity *= WASHED_OPACITY;
+  copy.depthWrite = false;
+  washes.set(material, copy);
+  return copy;
+}
+
+/** Figurines share their model's materials: the lifted pile wears washed copies, kept in
+ *  `userData.unwashed` until it is put back — the same file elsewhere stays whole. */
+function wash(object: Object3D, washed: boolean): void {
+  object.traverse((part) => {
+    if (!(part instanceof Mesh) || part.userData.grip !== undefined) return;
+    const kept = part.userData.unwashed as Mesh['material'] | undefined;
+    if (!washed) {
+      if (kept === undefined) return;
+      part.material = kept;
+      delete part.userData.unwashed;
+      return;
+    }
+    if (kept !== undefined) return;
+    part.userData.unwashed = part.material;
+    part.material = Array.isArray(part.material)
+      ? part.material.map(washedOf)
+      : washedOf(part.material);
+  });
+}
+
+/** The prototype's lift (`LIFT_Y`, `lpHand` at 4.2), in board units at full near weight. */
+const CARRIED_LIFT = 0.25;
+const HAND_ABOVE = 0.36;
+
+/** The held groups only, the +N with them when a troop beyond the three shown is held. */
+function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePieces {
+  const held = new Set(troopIds);
+  const groups = pieces.groups.filter((group) => group.troopIds.some((id) => held.has(id)));
+  const shown = new Set(pieces.groups.flatMap((group) => group.troopIds));
+  return {
+    groups,
+    more: troopIds.some((id) => !shown.has(id)) ? pieces.more : 0,
+    troopIds,
+  };
+}
 
 /** What a pile draws: its nation, and per group the role, the figures, the troop count and the wear, plus `more`. */
 export const drawnKey = (nation: string | null, { groups, more }: PilePieces): string =>
@@ -225,6 +339,9 @@ export class StandingLayer {
   private piles: ReadonlyArray<StandingPile> = [];
   private dressed = new Map<string, Dressed>();
   private readonly faces: Faces;
+  private held: PieceHold | null = null;
+  /** The copy of what is in hand and the hand holding it; `null` when the pile is not dressed. */
+  private carried: { readonly object: Group; readonly hand: Group; at: boolean } | null = null;
   /** Set by the first `display`; no pile exists before it. */
   private texts: CounterTexts = { count: String, more: String };
 
@@ -251,6 +368,7 @@ export class StandingLayer {
       const kept = this.dressed.get(pile.id);
       if (kept?.key === key) {
         kept.lonLat = pile.lonLat;
+        kept.pieces = pile.pieces;
         this.dressed.delete(pile.id);
         next.set(pile.id, kept);
         continue;
@@ -258,12 +376,15 @@ export class StandingLayer {
       const built = pileObject(this.nation, pile.pieces, this.texts, this.faces);
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
+      for (const target of built.targets) target.userData.pileId = pile.id;
       const entry: Dressed = {
         key,
         lonLat: pile.lonLat,
+        pieces: pile.pieces,
         object: built.object,
         ready: false,
         smokes: built.smokes,
+        targets: built.targets,
       };
       next.set(pile.id, entry);
       // A model that fails to load leaves the pile in its plate.
@@ -271,6 +392,8 @@ export class StandingLayer {
         () => {
           if (this.dressed.get(pile.id) !== entry) return;
           entry.ready = true;
+          // After the hull is blackened: that callback was chained before this one.
+          if (this.held?.pileId === pile.id) wash(entry.object, true);
           this.group.add(entry.object);
           this.changed();
         },
@@ -307,6 +430,76 @@ export class StandingLayer {
     return this.dressed.get(id)?.ready === true;
   }
 
+  /** The troops of the piece under `ray`, among the piles standing in sight. */
+  pick(ray: Raycaster): PieceHold | null {
+    let best: { distance: number; pick: PieceHold } | null = null;
+    for (const [pileId, entry] of this.dressed) {
+      if (!entry.ready || !entry.object.visible) continue;
+      const distance = ray.intersectObjects([...entry.targets], false)[0]?.distance;
+      if (distance === undefined || (best !== null && best.distance <= distance)) continue;
+      const troopIds = pickedIn(ray, entry.targets, entry.pieces);
+      if (troopIds !== null) best = { distance, pick: { pileId, troopIds } };
+    }
+    return best?.pick ?? null;
+  }
+
+  /**
+   * **Lifts a piece, or puts it back with `null`**: the pile washes out where it stands, and a
+   * copy of the held groups waits for `carryTo` to follow the pointer. A pile that is not
+   * dressed lifts nothing on the board — the cursor alone says a piece is in hand.
+   */
+  hold(held: PieceHold | null): void {
+    const previous = this.held;
+    if (previous?.pileId === held?.pileId && previous?.troopIds.join() === held?.troopIds.join())
+      return;
+    if (previous !== null) {
+      const entry = this.dressed.get(previous.pileId);
+      if (entry) wash(entry.object, false);
+    }
+    this.carried?.object.removeFromParent();
+    this.carried = null;
+    this.held = held;
+    if (held === null) return;
+    const entry = this.dressed.get(held.pileId);
+    if (entry === undefined) return;
+    if (entry.ready) wash(entry.object, true);
+    const copy = pileObject(
+      this.nation,
+      heldPieces(entry.pieces, held.troopIds),
+      this.texts,
+      this.faces,
+    );
+    if (copy === null) return;
+    copy.object.position.y = CARRIED_LIFT;
+    const hand = holdingHand();
+    // The setting-down hand is sized for a block; a squad is held by a smaller one.
+    hand.scale.multiplyScalar(0.75);
+    hand.position.y = CARRIED_LIFT + HAND_ABOVE;
+    const object = new Group();
+    object.add(copy.object, hand);
+    object.visible = false;
+    for (const smoke of copy.smokes) smoke.frame(this.time);
+    const carried = { object, hand, at: false };
+    this.carried = carried;
+    copy.ready.then(
+      () => {
+        if (this.carried !== carried) return;
+        this.group.add(object);
+        this.changed();
+      },
+      () => {},
+    );
+  }
+
+  /** The ground under the pointer, `null` off the board or under a finger; the hand only shows
+   *  to the mouse (ADR 0026 §6). */
+  carryTo(at: Vector3 | null, withHand: boolean): void {
+    if (this.carried === null) return;
+    this.carried.at = at !== null;
+    if (at !== null) this.carried.object.position.copy(at);
+    this.carried.hand.visible = withHand;
+  }
+
   /** The ground moved under the piles — curvature: set them back on it. */
   rebuild(): void {
     for (const { lonLat, object } of this.dressed.values())
@@ -319,6 +512,11 @@ export class StandingLayer {
       object.visible = near > 0;
       object.scale.setScalar(near);
     }
+    if (this.carried === null) return;
+    const { object, at } = this.carried;
+    const near = nearWeight(object.position.distanceTo(cameraPosition));
+    object.visible = at && near > 0;
+    object.scale.setScalar(near);
   }
 
   /** Model geometry is shared with the pawns and the counter disc with every pile: only the

@@ -1,7 +1,8 @@
+import { MeshStandardMaterial, Raycaster, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces } from '@/domain/pile-pieces';
-import { drawnKey, dressedGroups, pileLayout } from './standing';
+import { drawnKey, dressedGroups, type Faces, pileLayout, pileObject, pickedIn } from './standing';
 
 const troop = (role: UnitRole, strength = 100) => ({
   id: role,
@@ -39,5 +40,39 @@ describe('drawnKey', () => {
     expect(at(90)).toBe(at(80));
     expect(at(50)).not.toBe(at(80));
     expect(at(20)).not.toBe(at(50));
+  });
+});
+
+describe('picking a pile', () => {
+  const faces = { of: () => new MeshStandardMaterial() } as unknown as Faces;
+  const texts = { count: String, more: String };
+  const pieces = pilePieces([
+    { ...troop('armor'), id: 'a1' },
+    { ...troop('armor'), id: 'a2' },
+    { ...troop('infantry'), id: 'i1' },
+    { ...troop('landTransport'), id: 'l1' },
+    { ...troop('fighter'), id: 'f1' },
+  ]);
+  const pile = pileObject('germany', pieces, texts, faces)!;
+  // No model file loads under node: the footprints stand without them.
+  pile.ready.catch(() => {});
+  pile.object.updateMatrixWorld(true);
+  const from = (x: number, z: number) => new Raycaster(new Vector3(x, 5, z), new Vector3(0, -1, 0));
+  const picked = (x: number, z = 0) => pickedIn(from(x, z), pile.targets, pieces);
+  const [armor, infantry, transport] = pileLayout(3, true).groups as [number, number, number];
+
+  it('takes the group under the pointer, by its footprint and not its triangles', () => {
+    expect(picked(armor)).toEqual(['a1', 'a2']);
+    expect(picked(infantry + 0.1, 0.2)).toEqual(['i1']);
+    expect(picked(transport)).toEqual(['l1']);
+  });
+
+  it('takes the whole pile on a counter, the ×N standing over its group included', () => {
+    expect(picked(pileLayout(3, true).more!)).toEqual(['a1', 'a2', 'i1', 'l1', 'f1']);
+    expect(picked(armor + 0.2, 0.22)).toEqual(['a1', 'a2', 'i1', 'l1', 'f1']);
+  });
+
+  it('takes nothing beside the pile', () => {
+    expect(picked(3)).toBeNull();
   });
 });
